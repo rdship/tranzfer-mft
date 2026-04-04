@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { BrandingProvider } from './context/BrandingContext'
+import { ServiceProvider } from './context/ServiceContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
 import Login from './pages/Login'
@@ -31,6 +32,7 @@ import PeerTransfers from './pages/PeerTransfers'
 export default function App() {
   return (
     <BrandingProvider>
+      <ServiceProvider>
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -63,6 +65,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </AuthProvider>
+      </ServiceProvider>
     </BrandingProvider>
   )
 }

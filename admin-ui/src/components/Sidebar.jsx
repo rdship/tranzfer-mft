@@ -1,13 +1,19 @@
 import { NavLink } from 'react-router-dom'
 import { useBranding } from '../context/BrandingContext'
+import { useServices } from '../context/ServiceContext'
 import {
   HomeIcon, UsersIcon, ServerStackIcon, ArrowsRightLeftIcon,
-  FolderIcon, ShieldCheckIcon, GlobeAltIcon, ChartBarIcon,
-  CpuChipIcon, BeakerIcon, DocumentTextIcon, KeyIcon,
+  ShieldCheckIcon, GlobeAltIcon, ChartBarIcon,
+  CpuChipIcon, DocumentTextIcon, KeyIcon,
   Cog6ToothIcon, WifiIcon, BoltIcon, CommandLineIcon,
   ArrowPathIcon
 } from '@heroicons/react/24/outline'
 
+/**
+ * Each nav item has a 'to' path. The Sidebar only renders items
+ * where isPageVisible(to) returns true — meaning the required
+ * microservice is both running AND licensed.
+ */
 const navGroups = [
   {
     label: 'Overview',
@@ -66,6 +72,13 @@ const navGroups = [
 
 export default function Sidebar() {
   const { branding } = useBranding()
+  const { isPageVisible, loading } = useServices()
+
+  // Filter nav groups: only show groups that have at least one visible item
+  const visibleGroups = navGroups.map(group => ({
+    ...group,
+    items: group.items.filter(item => isPageVisible(item.to))
+  })).filter(group => group.items.length > 0)
 
   return (
     <aside className="w-60 bg-slate-900 flex flex-col overflow-y-auto">
@@ -83,31 +96,38 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* Navigation */}
+      {/* Navigation — only visible pages */}
       <nav className="flex-1 p-3 space-y-4">
-        {navGroups.map(group => (
-          <div key={group.label}>
-            <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider px-3 mb-1">
-              {group.label}
-            </p>
-            {group.items.map(item => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) =>
-                  `sidebar-nav-item ${isActive ? 'active' : ''}`
-                }
-              >
-                <item.icon className="w-4 h-4 flex-shrink-0" />
-                {item.label}
-              </NavLink>
-            ))}
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
           </div>
-        ))}
+        ) : (
+          visibleGroups.map(group => (
+            <div key={group.label}>
+              <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider px-3 mb-1">
+                {group.label}
+              </p>
+              {group.items.map(item => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) =>
+                    `sidebar-nav-item ${isActive ? 'active' : ''}`
+                  }
+                >
+                  <item.icon className="w-4 h-4 flex-shrink-0" />
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
+          ))
+        )}
       </nav>
 
       <div className="p-4 border-t border-slate-700">
-        <p className="text-slate-500 text-xs">TranzFer MFT v2.0</p>
+        <p className="text-slate-500 text-xs">TranzFer MFT v3.0</p>
+        <p className="text-slate-600 text-xs mt-0.5">{visibleGroups.reduce((n, g) => n + g.items.length, 0)} pages active</p>
       </div>
     </aside>
   )

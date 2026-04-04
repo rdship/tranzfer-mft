@@ -1,9 +1,28 @@
 import { useState } from 'react'
 import { useBranding } from '../context/BrandingContext'
+import { useServices } from '../context/ServiceContext'
 import toast from 'react-hot-toast'
+
+const SERVICE_LABELS = {
+  core: 'Core Platform (Accounts, Users, Logs)',
+  config: 'Config Service (Flows, Servers, Security)',
+  sftp: 'SFTP Service',
+  ftp: 'FTP Service',
+  ftpWeb: 'FTP-Web Service (HTTP uploads)',
+  gateway: 'Gateway & DMZ',
+  encryption: 'Encryption Service (AES/PGP)',
+  forwarder: 'External Forwarder',
+  dmz: 'DMZ Proxy',
+  license: 'License Service',
+  analytics: 'Analytics & Predictions',
+  aiEngine: 'AI Engine (Classification, NLP, Anomaly)',
+  screening: 'OFAC/AML Screening',
+  keystore: 'Keystore Manager',
+}
 
 export default function Settings() {
   const { branding, updateBranding } = useBranding()
+  const { services, overrides, toggleOverride, clearOverrides, serviceList } = useServices()
   const [form, setForm] = useState({ ...branding })
   const [tab, setTab] = useState('branding')
 
@@ -14,7 +33,7 @@ export default function Settings() {
       <div><h1 className="text-2xl font-bold text-gray-900">Settings</h1>
         <p className="text-gray-500 text-sm">Platform configuration and white-labeling</p></div>
       <div className="flex border-b border-gray-200 gap-4">
-        {['branding', 'security', 'notifications'].map(t => (
+        {['branding', 'services', 'security', 'notifications'].map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`pb-3 text-sm font-medium capitalize transition-colors ${tab === t ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>
             {t}
@@ -51,6 +70,49 @@ export default function Settings() {
             <div className="p-4 rounded-xl text-white text-sm font-medium" style={{ backgroundColor: form.primaryColor }}>
               {form.companyName || 'Your Company Name'} — Managed File Transfer Platform
             </div>
+          </div>
+        </div>
+      )}
+
+      {tab === 'services' && (
+        <div className="card max-w-2xl space-y-4">
+          <h3 className="font-semibold text-gray-900">Service Visibility</h3>
+          <p className="text-sm text-gray-500">
+            The UI automatically detects which microservices are running and only shows relevant pages.
+            You can manually override visibility here.
+          </p>
+          <div className="space-y-2">
+            {serviceList.map(svc => {
+              const detected = services[svc] !== false
+              const overridden = overrides[svc] !== undefined
+              const visible = overrides[svc] !== undefined ? overrides[svc] : detected
+              return (
+                <div key={svc} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-2.5 h-2.5 rounded-full ${detected ? 'bg-green-400' : 'bg-red-400'}`} />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{SERVICE_LABELS[svc] || svc}</p>
+                      <p className="text-xs text-gray-500">
+                        {detected ? 'Detected (running)' : 'Not detected'}
+                        {overridden && <span className="ml-1 text-blue-600">(manually {visible ? 'shown' : 'hidden'})</span>}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => toggleOverride(svc, !visible)}
+                      className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
+                        visible ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-200 text-gray-500 hover:bg-gray-300'}`}>
+                      {visible ? 'Visible' : 'Hidden'}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button className="btn-secondary text-xs" onClick={() => { clearOverrides(); toast.success('Reset to auto-detect') }}>
+              Reset All to Auto-Detect
+            </button>
           </div>
         </div>
       )}
