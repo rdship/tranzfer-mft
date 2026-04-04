@@ -609,6 +609,334 @@ run_status() {
 }
 
 # =============================================================================
+# AUTH & ROLE-BASED ACCESS
+# =============================================================================
+
+# Session state
+AUTH_TOKEN=""
+AUTH_ROLE=""    # ADMIN, SERVER_ADMIN, CLIENT
+AUTH_EMAIL=""
+SERVER_URL=""
+
+do_login() {
+  local url="$1"
+  step "Login to TranzFer server"
+  local email=$(ask "Email")
+  echo -ne "  ${CYAN}Password${NC}: "
+  read -rs password
+  echo ""
+
+  local resp=$(curl -s -X POST "${url}/api/auth/login" \
+    -H "Content-Type: application/json" \
+    -d "{\"email\":\"${email}\",\"password\":\"${password}\"}" 2>/dev/null)
+
+  AUTH_TOKEN=$(echo "$resp" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('accessToken',''))" 2>/dev/null)
+
+  if [ -z "$AUTH_TOKEN" ] || [ "$AUTH_TOKEN" = "None" ] || [ ${#AUTH_TOKEN} -lt 10 ]; then
+    local err=$(echo "$resp" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('message',d.get('error','Unknown error')))" 2>/dev/null)
+    fail "Login failed: ${err}"
+    return 1
+  fi
+
+  # Decode JWT to get role (payload is base64 between first and second dot)
+  local payload=$(echo "$AUTH_TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null || echo "$AUTH_TOKEN" | cut -d. -f2 | base64 -D 2>/dev/null)
+  AUTH_ROLE=$(echo "$payload" | python3 -c "import sys,json; print(json.load(sys.stdin).get('role','USER'))" 2>/dev/null)
+  AUTH_EMAIL="$email"
+  SERVER_URL="$url"
+
+  ok "Logged in as ${AUTH_EMAIL} (role: ${AUTH_ROLE})"
+  return 0
+}
+
+# Helper: call authenticated API
+api_call() {
+  local method="$1" path="$2" body="$3"
+  local url="${SERVER_URL}${path}"
+  if [ "$method" = "GET" ]; then
+    curl -s "$url" -H "Authorization: Bearer $AUTH_TOKEN" 2>/dev/null
+  else
+    curl -s -X "$method" "$url" -H "Authorization: Bearer $AUTH_TOKEN" \
+      -H "Content-Type: application/json" -d "$body" 2>/dev/null
+  fi
+}
+
+# =============================================================================
+# ROLE-BASED COMMANDS
+# =============================================================================
+
+# === CLIENT role commands ===
+client_menu() {
+  echo ""
+  echo -e "  ${BOLD}Client Console${NC} — ${AUTH_EMAIL} (${AUTH_ROLE})"
+  echo ""
+  echo "    1) My account info"
+  echo "    2) My transfer history"
+  echo "    3) Track a transfer"
+  echo "    4) My files (inbox/outbox)"
+  echo "    5) Online peers (P2P)"
+  echo "    6) Logout"
+  echo ""
+  local c=$(ask "Select" "1")
+
+  case $c in
+    1) step "Account"
+       api_call GET "/api/accounts" | python3 -c "
+import sys,json
+for a in json.load(sys.stdin):
+    print(f'    {a[\"username\"]:20s} {a[\"protocol\"]:6s} Active:{a[\"active\"]}')" 2>/dev/null
+       ;;
+    2) step "Recent transfers"
+       api_call GET "/api/journey?limit=10" | python3 -c "
+import sys,json
+for t in json.load(sys.stdin):
+    print(f'    [{t.get(\"trackId\",\"?\"):12s}] {t.get(\"filename\",\"?\"):25s} {t.get(\"status\",\"?\")}')" 2>/dev/null
+       ;;
+    3) local tid=$(ask "Track ID")
+       api_call GET "/api/journey/$tid" | python3 -c "
+import sys,json
+d = json.load(sys.stdin)
+print(f'    Track:  {d.get(\"trackId\")}')
+print(f'    File:   {d.get(\"filename\")}')
+print(f'    Status: {d.get(\"overallStatus\")}')
+for s in d.get('stages',[]):
+    print(f'    {s[\"stage\"]:25s} {s[\"status\"]:10s} {s.get(\"service\",\"\")}')" 2>/dev/null
+       ;;
+    4) step "Files"
+       info "Use the MFT Client to manage files: ./mft-client"
+       info "  Outbox: drop files to send"
+       info "  Inbox:  received files appear here"
+       ;;
+    5) step "Online peers"
+       api_call GET "/api/p2p/presence" | python3 -c "
+import sys,json
+peers = json.load(sys.stdin)
+if not peers: print('    No peers online')
+for p in peers: print(f'    {p[\"username\"]:20s} {p[\"host\"]}:{p[\"port\"]}')" 2>/dev/null
+       ;;
+    6) AUTH_TOKEN=""; AUTH_ROLE=""; echo "  Logged out."; return 1 ;;
+  esac
+  client_menu
+}
+
+# === SERVER_ADMIN role commands (everything client can + server ops) ===
+server_admin_menu() {
+  echo ""
+  echo -e "  ${BOLD}Server Admin Console${NC} — ${AUTH_EMAIL} (${AUTH_ROLE})"
+  echo ""
+  echo "    ${BOLD}Transfers${NC}"
+  echo "    1) Transfer journey (track a file)"
+  echo "    2) Recent transfers"
+  echo "    3) Failed transfers"
+  echo ""
+  echo "    ${BOLD}Accounts & Flows${NC}"
+  echo "    4) List accounts"
+  echo "    5) List flows"
+  echo "    6) List folder mappings"
+  echo ""
+  echo "    ${BOLD}Operations${NC}"
+  echo "    7) Service health"
+  echo "    8) Screening results"
+  echo "    9) SLA breaches"
+  echo "    10) Scheduler status"
+  echo ""
+  echo "    ${BOLD}System${NC}"
+  echo "    11) CLI terminal (run any command)"
+  echo "    12) Logout"
+  echo ""
+  local c=$(ask "Select" "1")
+
+  case $c in
+    1) local tid=$(ask "Track ID")
+       api_call GET "/api/journey/$tid" | python3 -m json.tool 2>/dev/null ;;
+    2) api_call GET "/api/journey?limit=15" | python3 -c "
+import sys,json
+for t in json.load(sys.stdin):
+    print(f'  [{t.get(\"trackId\",\"?\"):12s}] {t.get(\"filename\",\"?\"):25s} {t.get(\"status\",\"?\")}')" 2>/dev/null ;;
+    3) api_call POST "/api/cli/execute" '{"command":"search recent 20"}' | python3 -c "import sys,json; print(json.load(sys.stdin).get('output',''))" 2>/dev/null ;;
+    4) api_call POST "/api/cli/execute" '{"command":"accounts list"}' | python3 -c "import sys,json; print(json.load(sys.stdin).get('output',''))" 2>/dev/null ;;
+    5) api_call POST "/api/cli/execute" '{"command":"flows list"}' | python3 -c "import sys,json; print(json.load(sys.stdin).get('output',''))" 2>/dev/null ;;
+    6) api_call GET "/api/folder-mappings" | python3 -m json.tool 2>/dev/null ;;
+    7) api_call POST "/api/cli/execute" '{"command":"services"}' | python3 -c "import sys,json; print(json.load(sys.stdin).get('output',''))" 2>/dev/null ;;
+    8) curl -s "${SERVER_URL}:8092/api/v1/screening/hits" 2>/dev/null | python3 -c "
+import sys,json
+hits = json.load(sys.stdin)
+if not hits: print('  No sanctions hits')
+for h in hits[:10]: print(f'  [{h.get(\"trackId\",\"?\"):12s}] {h.get(\"filename\",\"?\"):20s} {h[\"outcome\"]} ({h[\"hitsFound\"]} hits)')" 2>/dev/null ;;
+    9) api_call GET "/api/sla/breaches" | python3 -c "
+import sys,json
+b = json.load(sys.stdin)
+if not b: print('  No active SLA breaches')
+for x in b: print(f'  {x[\"agreementName\"]}: expected {x[\"expectedFiles\"]}, got {x[\"receivedFiles\"]}')" 2>/dev/null ;;
+    10) api_call GET "/api/scheduler" | python3 -c "
+import sys,json
+for t in json.load(sys.stdin):
+    print(f'  {t[\"name\"]:25s} {t[\"cronExpression\"]:20s} {t.get(\"lastStatus\",\"PENDING\"):8s} runs:{t[\"totalRuns\"]}')" 2>/dev/null ;;
+    11) step "CLI Terminal (type 'exit' to return)"
+       while true; do
+         local cmd=$(ask "\$")
+         [ "$cmd" = "exit" ] && break
+         api_call POST "/api/cli/execute" "{\"command\":\"$cmd\"}" | python3 -c "import sys,json; print(json.load(sys.stdin).get('output',''))" 2>/dev/null
+       done ;;
+    12) AUTH_TOKEN=""; AUTH_ROLE=""; echo "  Logged out."; return 1 ;;
+  esac
+  server_admin_menu
+}
+
+# === ADMIN role commands (everything + user mgmt, config, AI, infra) ===
+admin_menu() {
+  echo ""
+  echo -e "  ${BOLD}${GREEN}Admin Console${NC} — ${AUTH_EMAIL} (${AUTH_ROLE})"
+  echo ""
+  echo "    ${BOLD}Transfers & Tracking${NC}"
+  echo "    1) Track transfer by ID"
+  echo "    2) Recent transfers"
+  echo "    3) Failed transfers"
+  echo ""
+  echo "    ${BOLD}User & Account Management${NC}"
+  echo "    4) List users"
+  echo "    5) List accounts"
+  echo "    6) Onboard new user (create user + SFTP account)"
+  echo "    7) Promote/demote user"
+  echo ""
+  echo "    ${BOLD}Configuration${NC}"
+  echo "    8) List flows"
+  echo "    9) List security profiles"
+  echo "    10) List connectors (ServiceNow, Slack)"
+  echo "    11) Scheduler status"
+  echo "    12) SLA agreements"
+  echo ""
+  echo "    ${BOLD}Intelligence${NC}"
+  echo "    13) AI recommendations"
+  echo "    14) Screening hits"
+  echo "    15) Keystore (list keys)"
+  echo "    16) Storage metrics"
+  echo ""
+  echo "    ${BOLD}System${NC}"
+  echo "    17) Platform status"
+  echo "    18) Service health"
+  echo "    19) CLI terminal (full access)"
+  echo "    20) Run doctor"
+  echo "    21) Logout"
+  echo ""
+  local c=$(ask "Select" "17")
+
+  case $c in
+    1) local tid=$(ask "Track ID")
+       api_call GET "/api/journey/$tid" | python3 -c "
+import sys,json
+d = json.load(sys.stdin)
+print(f'\n  Track:     {d.get(\"trackId\",\"?\")}')
+print(f'  File:      {d.get(\"filename\",\"?\")}')
+print(f'  Status:    {d.get(\"overallStatus\",\"?\")}')
+print(f'  Integrity: {d.get(\"integrityStatus\",\"?\")}')
+if d.get('totalDurationMs'): print(f'  Duration:  {d[\"totalDurationMs\"]}ms')
+print()
+for s in d.get('stages',[]):
+    st = '✓' if s['status'] in ('COMPLETED','PASSED','CLEAR','OK') else '✗' if s['status']=='FAILED' else '○'
+    print(f'    {st} {s[\"stage\"]:28s} {s[\"status\"]:12s} {s.get(\"service\",\"\")}')
+    if s.get('detail'): print(f'      {s[\"detail\"]}')" 2>/dev/null ;;
+    2) api_call POST "/api/cli/execute" '{"command":"search recent 20"}' | python3 -c "import sys,json; print(json.load(sys.stdin).get('output',''))" 2>/dev/null ;;
+    3) api_call POST "/api/cli/execute" '{"command":"search recent 20"}' | python3 -c "import sys,json; print(json.load(sys.stdin).get('output',''))" 2>/dev/null ;;
+    4) api_call POST "/api/cli/execute" '{"command":"users list"}' | python3 -c "import sys,json; print(json.load(sys.stdin).get('output',''))" 2>/dev/null ;;
+    5) api_call POST "/api/cli/execute" '{"command":"accounts list"}' | python3 -c "import sys,json; print(json.load(sys.stdin).get('output',''))" 2>/dev/null ;;
+    6) local email=$(ask "User email")
+       local pass=$(ask "Password")
+       api_call POST "/api/cli/execute" "{\"command\":\"onboard $email $pass\"}" | python3 -c "import sys,json; print(json.load(sys.stdin).get('output',''))" 2>/dev/null ;;
+    7) local email=$(ask "User email")
+       local action=$(ask "promote or demote" "promote")
+       api_call POST "/api/cli/execute" "{\"command\":\"users $action $email\"}" | python3 -c "import sys,json; print(json.load(sys.stdin).get('output',''))" 2>/dev/null ;;
+    8) api_call POST "/api/cli/execute" '{"command":"flows list"}' | python3 -c "import sys,json; print(json.load(sys.stdin).get('output',''))" 2>/dev/null ;;
+    9) api_call GET "/api/security-profiles" | python3 -c "
+import sys,json
+for p in json.load(sys.stdin):
+    print(f'  {p[\"name\"]:25s} {p[\"type\"]:5s} active:{p[\"active\"]}')" 2>/dev/null ;;
+    10) api_call GET "/api/connectors" | python3 -c "
+import sys,json
+for c in json.load(sys.stdin):
+    print(f'  {c[\"name\"]:25s} {c[\"type\"]:12s} events:{len(c.get(\"triggerEvents\",[]))} sent:{c.get(\"totalNotifications\",0)}')" 2>/dev/null ;;
+    11) api_call GET "/api/scheduler" | python3 -c "
+import sys,json
+for t in json.load(sys.stdin):
+    print(f'  {t[\"name\"]:25s} {t[\"cronExpression\"]:15s} {t.get(\"lastStatus\",\"PENDING\"):8s} runs:{t[\"totalRuns\"]}')" 2>/dev/null ;;
+    12) api_call GET "/api/sla" | python3 -c "
+import sys,json
+for s in json.load(sys.stdin):
+    print(f'  {s[\"name\"]:25s} by {s[\"expectedDeliveryEndHour\"]:02d}:00 UTC  min:{s[\"minFilesPerWindow\"]} files  breaches:{s[\"totalBreaches\"]}')" 2>/dev/null ;;
+    13) curl -s "${SERVER_URL}:8091/api/v1/ai/recommendations" 2>/dev/null | python3 -c "
+import sys,json
+recs = json.load(sys.stdin)
+if not recs: print('  All clear — no recommendations.')
+for r in recs:
+    sev = {'CRITICAL':'🔴','WARNING':'🟡','INFO':'🔵'}.get(r['severity'],'○')
+    print(f'  {sev} [{r[\"category\"]:12s}] {r[\"finding\"][:80]}')
+    print(f'     → {r[\"recommendedAction\"][:80]}')" 2>/dev/null ;;
+    14) curl -s "${SERVER_URL}:8092/api/v1/screening/hits" 2>/dev/null | python3 -c "
+import sys,json
+hits = json.load(sys.stdin)
+if not hits: print('  No sanctions hits')
+for h in hits[:10]: print(f'  [{h.get(\"trackId\",\"?\"):12s}] {h.get(\"filename\",\"?\"):20s} {h[\"outcome\"]} ({h[\"hitsFound\"]} hits) → {h[\"actionTaken\"]}')" 2>/dev/null ;;
+    15) curl -s "${SERVER_URL}:8093/api/v1/keys" 2>/dev/null | python3 -c "
+import sys,json
+for k in json.load(sys.stdin):
+    print(f'  {k[\"alias\"]:25s} {k[\"keyType\"]:15s} {k.get(\"algorithm\",\"?\")} fp:{k.get(\"fingerprint\",\"?\")[:12]}...')" 2>/dev/null ;;
+    16) curl -s "${SERVER_URL}:8094/api/v1/storage/metrics" 2>/dev/null | python3 -c "
+import sys,json
+d = json.load(sys.stdin)
+print(f'  HOT:  {d.get(\"hotCount\",0)} files ({d.get(\"hotSizeGb\",0)} GB)')
+print(f'  WARM: {d.get(\"warmCount\",0)} files ({d.get(\"warmSizeGb\",0)} GB)')
+print(f'  COLD: {d.get(\"coldCount\",0)} files ({d.get(\"coldSizeGb\",0)} GB)')
+print(f'  Total: {d.get(\"totalObjects\",0)} objects')" 2>/dev/null ;;
+    17) api_call POST "/api/cli/execute" '{"command":"status"}' | python3 -c "import sys,json; print(json.load(sys.stdin).get('output',''))" 2>/dev/null ;;
+    18) api_call POST "/api/cli/execute" '{"command":"services"}' | python3 -c "import sys,json; print(json.load(sys.stdin).get('output',''))" 2>/dev/null ;;
+    19) step "CLI Terminal — full admin access (type 'exit' to return)"
+       while true; do
+         local cmd=$(ask "\$")
+         [ "$cmd" = "exit" ] && break
+         api_call POST "/api/cli/execute" "{\"command\":\"$cmd\"}" | python3 -c "import sys,json; print(json.load(sys.stdin).get('output',''))" 2>/dev/null
+       done ;;
+    20) run_doctor ;;
+    21) AUTH_TOKEN=""; AUTH_ROLE=""; echo "  Logged out."; return 1 ;;
+  esac
+  admin_menu
+}
+
+# =============================================================================
+# CONNECTED MODE — Login then show role-appropriate menu
+# =============================================================================
+
+connected_mode() {
+  step "Connect to TranzFer server"
+  local url=$(ask "Server URL" "http://localhost:8080")
+
+  # Test connectivity
+  local health=$(curl -s --max-time 5 "${url}/actuator/health" 2>/dev/null)
+  if [ -z "$health" ]; then
+    # Try via gateway on port 80
+    health=$(curl -s --max-time 5 "http://$(echo $url | sed 's|http://||;s|:.*||'):80/health" 2>/dev/null)
+    if echo "$health" | grep -q "UP"; then
+      url="http://$(echo $url | sed 's|http://||;s|:.*||'):80"
+      ok "Connected via API Gateway: $url"
+    else
+      fail "Cannot reach server at $url"
+      info "Is the server running? Try: ./tranzfer doctor"
+      return 1
+    fi
+  else
+    ok "Server reachable"
+  fi
+
+  # Login
+  if ! do_login "$url"; then return 1; fi
+
+  # Route to role-appropriate menu
+  case "$AUTH_ROLE" in
+    ADMIN)        admin_menu ;;
+    SERVER_ADMIN) server_admin_menu ;;
+    *)            client_menu ;; # USER and any other role
+  esac
+}
+
+# =============================================================================
 # MAIN MENU
 # =============================================================================
 
@@ -616,22 +944,30 @@ main_menu() {
   print_banner
   echo "  What would you like to do?"
   echo ""
+  echo "    ${BOLD}Setup${NC}"
   echo "    1) Install Server"
   echo "    2) Install Client"
-  echo "    3) Health Check (Doctor)"
-  echo "    4) Quick Status"
-  echo "    5) Run Test Suite"
-  echo "    6) Exit"
   echo ""
-  local choice=$(ask "Select" "1")
+  echo "    ${BOLD}Connect${NC}"
+  echo "    3) Login to server (role-based console)"
+  echo ""
+  echo "    ${BOLD}Operations${NC}"
+  echo "    4) Health Check (Doctor)"
+  echo "    5) Quick Status"
+  echo "    6) Run Test Suite"
+  echo ""
+  echo "    7) Exit"
+  echo ""
+  local choice=$(ask "Select" "3")
 
   case $choice in
     1) install_server ;;
     2) install_client ;;
-    3) run_doctor ;;
-    4) run_status ;;
-    5) [ -f "./tests/run-tests.sh" ] && ./tests/run-tests.sh --html || echo "Test suite not found. Clone the repo first." ;;
-    6) echo "  Bye!"; exit 0 ;;
+    3) connected_mode ;;
+    4) run_doctor ;;
+    5) run_status ;;
+    6) [ -f "./tests/run-tests.sh" ] && ./tests/run-tests.sh --html || echo "Test suite not found." ;;
+    7) echo "  Bye!"; exit 0 ;;
     *) echo "  Invalid choice"; main_menu ;;
   esac
 }
@@ -644,6 +980,7 @@ case "${1:-}" in
       client) install_client ;;
       *) echo "Usage: $0 install [server|client]"; exit 1 ;;
     esac ;;
+  login|connect) connected_mode ;;
   doctor|diagnose|check) run_doctor ;;
   status) run_status ;;
   test) [ -f "./tests/run-tests.sh" ] && ./tests/run-tests.sh --html || echo "Test suite not found." ;;
@@ -653,12 +990,16 @@ case "${1:-}" in
     echo "Commands:"
     echo "  install server   Install TranzFer MFT server"
     echo "  install client   Install MFT client for file transfers"
+    echo "  login            Login to server (role-based console)"
     echo "  doctor           Diagnose and fix issues"
     echo "  status           Quick status check"
     echo "  test             Run full test suite"
     echo "  help             Show this help"
     echo ""
-    echo "No command = interactive menu"
+    echo "Roles:"
+    echo "  ADMIN            Full access: users, config, AI, screening, infra"
+    echo "  SERVER_ADMIN     Operations: transfers, accounts, flows, health"
+    echo "  CLIENT (USER)    View own transfers, track files, see peers"
     ;;
   "") main_menu ;;
   *) echo "Unknown command: $1. Run 'tranzfer help' for usage."; exit 1 ;;
