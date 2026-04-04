@@ -20,6 +20,7 @@ public class FtpServerConfig {
 
     private final FtpUserManager ftpUserManager;
     private final FtpletRoutingAdapter ftpletRoutingAdapter;
+    private final FtpsConfig ftpsConfig;
 
     @Value("${ftp.port:21}")
     private int ftpPort;
@@ -47,6 +48,14 @@ public class FtpServerConfig {
         dataConnConfig.setPassiveExternalAddress(publicHost);
         dataConnConfig.setPassivePorts(passivePorts);
         listenerFactory.setDataConnectionConfiguration(dataConnConfig.createDataConnectionConfiguration());
+
+        // FTPS (FTP over TLS) — if enabled
+        org.apache.ftpserver.ssl.SslConfiguration sslConfig = ftpsConfig.buildSslConfig();
+        if (sslConfig != null) {
+            listenerFactory.setSslConfiguration(sslConfig);
+            listenerFactory.setImplicitSsl(false); // Explicit FTPS (AUTH TLS on port 21)
+            log.info("FTPS enabled: explicit TLS on port {}", ftpPort);
+        }
 
         serverFactory.addListener("default", listenerFactory.createListener());
         return serverFactory.createServer();

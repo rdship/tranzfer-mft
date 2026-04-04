@@ -123,6 +123,7 @@ public class FlowProcessingEngine {
             case "DECRYPT_AES" -> callEncryptionService(input, workDir, "aes", "decrypt", cfg);
             case "RENAME" -> renameFile(input, workDir, cfg, trackId);
             case "SCREEN" -> callScreeningService(input, trackId, cfg);
+            case "EXECUTE_SCRIPT" -> executeScript(input, workDir, cfg, trackId);
             case "ROUTE" -> inputPath; // Route is handled by RoutingEngine after flow completes
             default -> throw new IllegalArgumentException("Unknown step type: " + step.getType());
         };
@@ -244,6 +245,43 @@ public class FlowProcessingEngine {
         Path output = workDir.resolve(newName);
         Files.copy(input, output, StandardCopyOption.REPLACE_EXISTING);
         return output.toString();
+    }
+
+    /**
+     * Execute a shell script as a flow step. The script receives the input file path
+     * as an argument. If it exits non-zero, the flow fails.
+     * Config: {"command": "python3 /scripts/validate.py ${file}", "timeoutSeconds": "60"}
+     */
+    private String executeScript(Path input, Path workDir, Map<String, String> cfg, String trackId) throws Exception {
+        String cmdTemplate = cfg.getOrDefault("command", "echo ${file}");
+        int timeout = Integer.parseInt(cfg.getOrDefault("timeoutSeconds", "300"));
+        String cmd = cmdTemplate.replace("${file}", input.toAbsolutePath().toString())
+                .replace("${trackid}", trackId)
+                .replace("${workdir}", workDir.toAbsolutePath().toString());
+
+        log.info("[{}] Executing script: {}", trackId, cmd);
+        ProcessBuilder pb = new ProcessBuilder("sh", "-c", cmd);
+        pb.redirectErrorStream(true);
+        pb.directory(workDir.toFile());
+        Process proc = pb.start();
+
+        String output;
+        try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(proc.getInputStream()))) {
+            output = reader.lines().collect(java.util.stream.Collectors.joining("\n"));
+        }
+
+        boolean finished = proc.waitFor(timeout, java.util.concurrent.TimeUnit.SECONDS);
+        if (!finished) { proc.destroyForcibly(); throw new RuntimeException("Script timed out after " + timeout + "s"); }
+        if (proc.exitValue() != 0) throw new RuntimeException("Script exit code " + proc.exitValue() + ": " + output);
+
+        log.info("[{}] Script completed (exit 0)", trackId);
+        // If script produced an output file, use it; otherwise pass through
+        String outputFile = cfg.get("outputFile");
+        if (outputFile != null) {
+            Path out = Paths.get(outputFile.replace("${workdir}", workDir.toAbsolutePath().toString()));
+            if (Files.exists(out)) return out.toString();
+        }
+        return input.toString();
     }
 
     /**
