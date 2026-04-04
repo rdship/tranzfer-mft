@@ -1,6 +1,7 @@
 import axios from 'axios'
 
-const aiApi = axios.create({ baseURL: 'http://localhost:8091' })
+const GATEWAY = import.meta.env.VITE_API_GATEWAY_URL
+const aiApi = axios.create({ baseURL: GATEWAY || 'http://localhost:8091' })
 
 export const classifyFile = (file) => {
   const form = new FormData()

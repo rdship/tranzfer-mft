@@ -335,6 +335,20 @@ services:
     depends_on:
       - ftp-web-service
 
+  # ---------------------------------------------------------------------------
+  # API Gateway — Single Entry Point
+  # ---------------------------------------------------------------------------
+  api-gateway:
+    build: ./api-gateway
+    container_name: mft-api-gateway
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - onboarding-api
+      - config-service
+      - admin-ui
+
 volumes:
   postgres_data:
   rabbitmq_data:
