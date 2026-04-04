@@ -1,5 +1,6 @@
 package com.filetransfer.shared.routing;
 
+import com.filetransfer.shared.audit.AuditService;
 import com.filetransfer.shared.cluster.ClusterContext;
 import com.filetransfer.shared.dto.FileForwardRequest;
 import com.filetransfer.shared.entity.*;
@@ -39,6 +40,7 @@ public class RoutingEngine {
     private final TrackIdGenerator trackIdGenerator;
     private final FlowProcessingEngine flowEngine;
     private final FileFlowRepository flowRepository;
+    private final AuditService auditService;
 
     /**
      * Called by each service when a file upload completes.
@@ -88,18 +90,30 @@ public class RoutingEngine {
 
         for (RoutingEvaluator.RoutingDecision decision : decisions) {
             try {
-                // Assign trackId to the record
+                // Assign trackId + compute source checksum (PCI 11.5 integrity)
                 decision.getRecord().setTrackId(trackId);
+                Path processedPath = Paths.get(processedFilePath);
                 try {
-                    decision.getRecord().setFileSizeBytes(Files.size(Paths.get(processedFilePath)));
+                    decision.getRecord().setFileSizeBytes(Files.size(processedPath));
                 } catch (Exception ignored) {}
+                decision.getRecord().setSourceChecksum(AuditService.sha256(processedPath));
                 recordRepository.save(decision.getRecord());
+
+                // Audit: file upload recorded
+                auditService.logFileUpload(sourceAccount, trackId, relativeFilePath,
+                        filename, Paths.get(absoluteSourcePath), null, null);
 
                 // Route the processed file (not the original)
                 route(decision, processedFilePath, trackId);
+
+                // Audit: file routed
+                auditService.logFileRoute(trackId, absoluteSourcePath,
+                        decision.getRecord().getDestinationFilePath(), processedPath);
             } catch (Exception e) {
                 log.error("[{}] Routing failed: {}", trackId, e.getMessage(), e);
                 markFailed(decision.getRecord(), e.getMessage());
+                auditService.logFailure(sourceAccount, trackId, "ROUTE_FAIL",
+                        absoluteSourcePath, e.getMessage());
             }
         }
     }

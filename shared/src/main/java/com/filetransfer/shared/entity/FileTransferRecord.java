@@ -9,7 +9,9 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "file_transfer_records", indexes = {
-    @Index(name = "idx_ftr_track_id", columnList = "trackId", unique = true)
+    @Index(name = "idx_ftr_track_id", columnList = "trackId", unique = true),
+    @Index(name = "idx_ftr_status", columnList = "status"),
+    @Index(name = "idx_ftr_uploaded", columnList = "uploadedAt")
 })
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class FileTransferRecord {
@@ -18,7 +20,6 @@ public class FileTransferRecord {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    /** 12-character tracking ID (e.g. "TRZA1B2C3D4E") */
     @Column(unique = true, length = 12)
     private String trackId;
 
@@ -44,8 +45,20 @@ public class FileTransferRecord {
 
     private String errorMessage;
 
-    /** Size in bytes */
+    /** File size in bytes at upload */
     private Long fileSizeBytes;
+
+    /** SHA-256 checksum at upload (source integrity) */
+    @Column(length = 64)
+    private String sourceChecksum;
+
+    /** SHA-256 checksum at destination (delivery integrity) */
+    @Column(length = 64)
+    private String destinationChecksum;
+
+    /** Number of delivery attempts */
+    @Builder.Default
+    private int retryCount = 0;
 
     @Column(nullable = false, updatable = false)
     @Builder.Default

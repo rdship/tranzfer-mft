@@ -13,6 +13,8 @@ public interface FileTransferRecordRepository extends JpaRepository<FileTransfer
 
     Optional<FileTransferRecord> findByTrackId(String trackId);
 
+    List<FileTransferRecord> findByStatus(FileTransferStatus status);
+
     @Query("SELECT r FROM FileTransferRecord r " +
            "JOIN FETCH r.folderMapping fm " +
            "JOIN FETCH fm.destinationAccount da " +
