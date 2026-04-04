@@ -66,3 +66,5 @@ Desktop.ini
 *.tmp
 *.orig
 tests/reports/
+mft-client/dist/
+mft-client/jre-cache/
