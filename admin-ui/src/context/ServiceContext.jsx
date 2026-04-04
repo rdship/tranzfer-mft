@@ -73,6 +73,7 @@ const PAGE_SERVICE_MAP = {
 
   // AI
   '/ai': ['aiEngine'],
+  '/recommendations': ['aiEngine'],
 }
 
 const ServiceContext = createContext(null)

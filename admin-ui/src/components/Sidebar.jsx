@@ -55,6 +55,7 @@ const navGroups = [
   {
     label: 'Observability',
     items: [
+      { to: '/recommendations', icon: ChartBarIcon, label: 'AI Recommendations' },
       { to: '/analytics', icon: ChartBarIcon, label: 'Analytics' },
       { to: '/predictions', icon: CpuChipIcon, label: 'Predictions' },
       { to: '/logs', icon: DocumentTextIcon, label: 'Logs' },

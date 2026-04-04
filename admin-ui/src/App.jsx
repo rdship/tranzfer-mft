@@ -28,6 +28,7 @@ import Sla from './pages/Sla'
 import Screening from './pages/Screening'
 import Connectors from './pages/Connectors'
 import PeerTransfers from './pages/PeerTransfers'
+import Recommendations from './pages/Recommendations'
 
 export default function App() {
   return (
@@ -56,6 +57,7 @@ export default function App() {
             <Route path="scheduler" element={<Scheduler />} />
             <Route path="sla" element={<Sla />} />
             <Route path="screening" element={<Screening />} />
+            <Route path="recommendations" element={<Recommendations />} />
             <Route path="connectors" element={<Connectors />} />
             <Route path="p2p" element={<PeerTransfers />} />
             <Route path="terminal" element={<Terminal />} />

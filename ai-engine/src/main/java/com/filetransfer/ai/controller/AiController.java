@@ -27,6 +27,7 @@ public class AiController {
     private final AutoRemediationService autoRemediationService;
     private final NaturalLanguageMonitoringService nlMonitoringService;
     private final FileFormatDetector fileFormatDetector;
+    private final ObservabilityAnalyzer observabilityAnalyzer;
     private final NlpService nlpService;
 
     // === Data Classification ===
@@ -204,6 +205,24 @@ public class AiController {
         try {
             return ResponseEntity.ok(fileFormatDetector.detect(tempFile));
         } finally { Files.deleteIfExists(tempFile); }
+    }
+
+    // === Observability Recommendations ===
+
+    @GetMapping("/recommendations")
+    public List<ObservabilityAnalyzer.Recommendation> getRecommendations(
+            @RequestParam(required = false) String category) {
+        if (category != null) return observabilityAnalyzer.getRecommendationsByCategory(category);
+        return observabilityAnalyzer.getRecommendations();
+    }
+
+    @GetMapping("/recommendations/summary")
+    public Map<String, Object> getHealthSummary() {
+        Map<String, Object> result = new java.util.LinkedHashMap<>(observabilityAnalyzer.getHealthSummary());
+        result.put("recommendations", observabilityAnalyzer.getRecommendations().size());
+        result.put("lastAnalysis", observabilityAnalyzer.getLastAnalysis() != null
+                ? observabilityAnalyzer.getLastAnalysis().toString() : "pending");
+        return result;
     }
 
     @GetMapping("/health")
