@@ -36,8 +36,12 @@ public class SftpFileSystemFactory implements FileSystemFactory {
     public FileSystem createFileSystem(SessionContext session) throws IOException {
         String username = session.getUsername();
         Path homeDir = resolveHomeDir(username);
-        Files.createDirectories(homeDir);
-        log.debug("Creating rooted filesystem for user={} at {}", username, homeDir);
+        // Create home + standard subdirectories on first login
+        Files.createDirectories(homeDir.resolve("inbox"));
+        Files.createDirectories(homeDir.resolve("outbox"));
+        Files.createDirectories(homeDir.resolve("archive"));
+        Files.createDirectories(homeDir.resolve("sent"));
+        log.info("SFTP filesystem ready for user={} at {}", username, homeDir);
         return new RootedFileSystemProvider().newFileSystem(homeDir, Collections.emptyMap());
     }
 

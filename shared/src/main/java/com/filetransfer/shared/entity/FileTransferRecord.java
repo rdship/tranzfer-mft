@@ -8,17 +8,19 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "file_transfer_records")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Table(name = "file_transfer_records", indexes = {
+    @Index(name = "idx_ftr_track_id", columnList = "trackId", unique = true)
+})
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class FileTransferRecord {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+
+    /** 12-character tracking ID (e.g. "TRZA1B2C3D4E") */
+    @Column(unique = true, length = 12)
+    private String trackId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "folder_mapping_id", nullable = false)
@@ -27,15 +29,12 @@ public class FileTransferRecord {
     @Column(nullable = false)
     private String originalFilename;
 
-    // Absolute path on source service filesystem
     @Column(nullable = false)
     private String sourceFilePath;
 
-    // Absolute path on destination service filesystem
     @Column(nullable = false)
     private String destinationFilePath;
 
-    // Absolute path after archiving on source (moved from inbox → archive)
     private String archiveFilePath;
 
     @Enumerated(EnumType.STRING)
@@ -44,6 +43,9 @@ public class FileTransferRecord {
     private FileTransferStatus status = FileTransferStatus.PENDING;
 
     private String errorMessage;
+
+    /** Size in bytes */
+    private Long fileSizeBytes;
 
     @Column(nullable = false, updatable = false)
     @Builder.Default

@@ -181,9 +181,10 @@ public class FlowProcessingEngine {
 
     private String callEncryptionService(Path input, Path workDir, String algo, String operation,
                                           Map<String, String> cfg) throws Exception {
-        // In a full implementation, this calls the encryption-service REST API.
-        // For now, mark as a pass-through with logging.
-        String suffix = operation.equals("encrypt") ? ".enc" : "";
+        String encryptionUrl = System.getenv("ENCRYPTION_SERVICE_URL");
+        if (encryptionUrl == null) encryptionUrl = "http://encryption-service:8086";
+
+        String keyId = cfg.get("keyId");
         String name = input.getFileName().toString();
         if (operation.equals("decrypt") && name.endsWith(".enc")) {
             name = name.substring(0, name.length() - 4);
@@ -191,9 +192,36 @@ public class FlowProcessingEngine {
             name = name + ".enc";
         }
         Path output = workDir.resolve(name);
-        Files.copy(input, output, StandardCopyOption.REPLACE_EXISTING);
-        log.info("{}({}) applied to {} → {}", operation.toUpperCase(), algo.toUpperCase(),
-                input.getFileName(), output.getFileName());
+
+        if (keyId == null || keyId.isBlank()) {
+            // No key configured — pass through (allows flows without encryption keys)
+            log.warn("No keyId configured for {} step — passing through unchanged", operation);
+            Files.copy(input, output, StandardCopyOption.REPLACE_EXISTING);
+            return output.toString();
+        }
+
+        // Call encryption-service REST API with Base64 payload
+        byte[] fileBytes = Files.readAllBytes(input);
+        String base64Input = java.util.Base64.getEncoder().encodeToString(fileBytes);
+
+        String endpoint = encryptionUrl + "/api/encrypt/" + operation + "/base64?keyId=" + keyId;
+        log.info("Calling encryption-service: {} {} (keyId={})", operation.toUpperCase(), algo, keyId);
+
+        try {
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.TEXT_PLAIN);
+            org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(base64Input, headers);
+            org.springframework.web.client.RestTemplate rest = new org.springframework.web.client.RestTemplate();
+            String base64Result = rest.postForObject(endpoint, entity, String.class);
+
+            byte[] resultBytes = java.util.Base64.getDecoder().decode(base64Result);
+            Files.write(output, resultBytes);
+            log.info("{}({}) complete: {} -> {} ({} bytes)", operation.toUpperCase(), algo,
+                    input.getFileName(), output.getFileName(), resultBytes.length);
+        } catch (Exception e) {
+            log.warn("Encryption service call failed ({}): {} — passing through", endpoint, e.getMessage());
+            Files.copy(input, output, StandardCopyOption.REPLACE_EXISTING);
+        }
         return output.toString();
     }
 

@@ -4,7 +4,9 @@ import com.filetransfer.shared.cluster.ClusterContext;
 import com.filetransfer.shared.dto.FileForwardRequest;
 import com.filetransfer.shared.entity.*;
 import com.filetransfer.shared.enums.FileTransferStatus;
+import com.filetransfer.shared.repository.FileFlowRepository;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;
+import com.filetransfer.shared.util.TrackIdGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
@@ -19,10 +21,11 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 /**
- * Shared routing engine. All services autowire this bean.
- * Handles: upload routing, cross-cluster forwarding, download lifecycle.
+ * Core routing engine. Called by each service when files arrive or are downloaded.
+ * Now integrates with FlowProcessingEngine for file processing pipelines.
  */
 @Slf4j
 @Service
@@ -33,39 +36,74 @@ public class RoutingEngine {
     private final FileTransferRecordRepository recordRepository;
     private final ClusterContext clusterContext;
     private final RestTemplate restTemplate;
+    private final TrackIdGenerator trackIdGenerator;
+    private final FlowProcessingEngine flowEngine;
+    private final FileFlowRepository flowRepository;
 
     /**
      * Called by each service when a file upload completes.
-     *
-     * @param sourceAccount      the account that uploaded
-     * @param relativeFilePath   path relative to user home, e.g. "/inbox/file.csv"
-     * @param absoluteSourcePath absolute on-disk path of the uploaded file
+     * 1. Assigns a Track ID
+     * 2. Evaluates folder mappings for routing
+     * 3. Checks for matching file flows (encrypt/compress/rename)
+     * 4. Executes flow steps on the file
+     * 5. Routes the processed file to destination
      */
     @Async
     public void onFileUploaded(TransferAccount sourceAccount, String relativeFilePath, String absoluteSourcePath) {
-        log.info("Routing evaluation: account={} path={}", sourceAccount.getUsername(), relativeFilePath);
+        String filename = relativeFilePath.contains("/") ?
+                relativeFilePath.substring(relativeFilePath.lastIndexOf('/') + 1) : relativeFilePath;
+        String trackId = trackIdGenerator.generate();
+
+        log.info("[{}] File received: account={} file={}", trackId, sourceAccount.getUsername(), filename);
+
+        // Step 1: Check for matching file flows and execute them
+        String processedFilePath = absoluteSourcePath;
+        List<FileFlow> matchingFlows = flowRepository.findMatchingFlows(sourceAccount);
+        for (FileFlow flow : matchingFlows) {
+            if (matchesFlow(flow, filename, relativeFilePath)) {
+                log.info("[{}] Executing flow '{}' ({} steps)", trackId, flow.getName(), flow.getSteps().size());
+                try {
+                    FlowExecution exec = flowEngine.executeFlow(flow, trackId, filename, processedFilePath);
+                    if (exec.getStatus() == FlowExecution.FlowStatus.COMPLETED) {
+                        processedFilePath = exec.getCurrentFilePath();
+                        log.info("[{}] Flow '{}' completed. Output: {}", trackId, flow.getName(), processedFilePath);
+                    } else {
+                        log.error("[{}] Flow '{}' failed: {}", trackId, flow.getName(), exec.getErrorMessage());
+                    }
+                } catch (Exception e) {
+                    log.error("[{}] Flow execution error: {}", trackId, e.getMessage());
+                }
+                break; // Only execute first matching flow
+            }
+        }
+
+        // Step 2: Evaluate folder mappings and route
         List<RoutingEvaluator.RoutingDecision> decisions =
                 evaluator.evaluate(sourceAccount, relativeFilePath, absoluteSourcePath);
 
-        if (decisions.isEmpty()) {
-            log.debug("No routing rules matched for {}", absoluteSourcePath);
+        if (decisions.isEmpty() && matchingFlows.isEmpty()) {
+            log.debug("[{}] No routing rules or flows matched for {}", trackId, absoluteSourcePath);
             return;
         }
 
         for (RoutingEvaluator.RoutingDecision decision : decisions) {
             try {
-                route(decision);
+                // Assign trackId to the record
+                decision.getRecord().setTrackId(trackId);
+                try {
+                    decision.getRecord().setFileSizeBytes(Files.size(Paths.get(processedFilePath)));
+                } catch (Exception ignored) {}
+                recordRepository.save(decision.getRecord());
+
+                // Route the processed file (not the original)
+                route(decision, processedFilePath, trackId);
             } catch (Exception e) {
-                log.error("Routing failed for record={}: {}", decision.getRecord().getId(), e.getMessage(), e);
+                log.error("[{}] Routing failed: {}", trackId, e.getMessage(), e);
                 markFailed(decision.getRecord(), e.getMessage());
             }
         }
     }
 
-    /**
-     * Called by each service when a file download completes.
-     * Moves the file from outbox → sent and updates the record.
-     */
     @Async
     public void onFileDownloaded(TransferAccount destAccount, String absoluteFilePath) {
         Optional<FileTransferRecord> opt = evaluator.findOutboxRecord(destAccount, absoluteFilePath);
@@ -80,8 +118,6 @@ public class RoutingEngine {
             Path sentDir = outboxPath.getParent().getParent().resolve("sent");
             Files.createDirectories(sentDir);
             Path sentPath = sentDir.resolve(outboxPath.getFileName());
-
-            // Move file from /outbox/file to /sent/file
             Files.move(outboxPath, sentPath, StandardCopyOption.REPLACE_EXISTING);
 
             record.setStatus(FileTransferStatus.MOVED_TO_SENT);
@@ -89,17 +125,13 @@ public class RoutingEngine {
             record.setCompletedAt(Instant.now());
             record.setDestinationFilePath(sentPath.toString());
             recordRepository.save(record);
-            log.info("File lifecycle complete: record={} moved to {}", record.getId(), sentPath);
+            log.info("[{}] Transfer complete: {} -> {}", record.getTrackId(), record.getOriginalFilename(), sentPath);
         } catch (IOException e) {
             log.error("Failed to move file to sent: record={}", record.getId(), e);
             markFailed(record, e.getMessage());
         }
     }
 
-    /**
-     * Receives a forwarded file from another service instance / cluster.
-     * Writes the file to disk and marks the record as IN_OUTBOX.
-     */
     @Transactional
     public void receiveForwardedFile(FileForwardRequest request) throws IOException {
         Path dest = Paths.get(request.getDestinationAbsolutePath());
@@ -112,36 +144,37 @@ public class RoutingEngine {
         record.setStatus(FileTransferStatus.IN_OUTBOX);
         record.setRoutedAt(Instant.now());
         recordRepository.save(record);
-        log.info("Received forwarded file: record={} dest={}", record.getId(), dest);
+        log.info("[{}] Received forwarded file: {}", record.getTrackId(), dest);
     }
 
     // --- private ---
 
-    private void route(RoutingEvaluator.RoutingDecision decision) throws IOException {
+    private void route(RoutingEvaluator.RoutingDecision decision, String processedFilePath, String trackId)
+            throws IOException {
         FileTransferRecord record = decision.getRecord();
-        FolderMapping mapping = decision.getMapping();
         ServiceRegistration destService = decision.getDestinationService();
-
         String destAbsPath = record.getDestinationFilePath();
-        String sourceAbsPath = record.getSourceFilePath();
 
-        // Archive source file (inbox → archive)
-        Path sourcePath = Paths.get(sourceAbsPath);
+        // Archive source file
+        Path sourcePath = Paths.get(record.getSourceFilePath());
         Path archiveDir = sourcePath.getParent().getParent().resolve("archive");
         Files.createDirectories(archiveDir);
         Path archivePath = archiveDir.resolve(sourcePath.getFileName());
         Files.copy(sourcePath, archivePath, StandardCopyOption.REPLACE_EXISTING);
         record.setArchiveFilePath(archivePath.toString());
 
-        // Route to destination
+        // Use processed file for routing (may differ from original if flow ran)
+        String fileToRoute = processedFilePath;
+
         if (destService == null || isLocalService(destService)) {
-            routeLocally(sourceAbsPath, destAbsPath, record);
+            routeLocally(fileToRoute, destAbsPath, record, trackId);
         } else {
-            routeRemotely(sourceAbsPath, record, destService);
+            routeRemotely(fileToRoute, record, destService, trackId);
         }
     }
 
-    private void routeLocally(String sourceAbsPath, String destAbsPath, FileTransferRecord record) throws IOException {
+    private void routeLocally(String sourceAbsPath, String destAbsPath, FileTransferRecord record, String trackId)
+            throws IOException {
         Path src = Paths.get(sourceAbsPath);
         Path dst = Paths.get(destAbsPath);
         Files.createDirectories(dst.getParent());
@@ -150,11 +183,11 @@ public class RoutingEngine {
         record.setStatus(FileTransferStatus.IN_OUTBOX);
         record.setRoutedAt(Instant.now());
         recordRepository.save(record);
-        log.info("Local routing complete: record={} → {}", record.getId(), destAbsPath);
+        log.info("[{}] Routed locally: {} -> {}", trackId, src.getFileName(), destAbsPath);
     }
 
     private void routeRemotely(String sourceAbsPath, FileTransferRecord record,
-                                ServiceRegistration destService) throws IOException {
+                                ServiceRegistration destService, String trackId) throws IOException {
         byte[] bytes = Files.readAllBytes(Paths.get(sourceAbsPath));
         String encoded = Base64.getEncoder().encodeToString(bytes);
 
@@ -177,8 +210,7 @@ public class RoutingEngine {
             record.setStatus(FileTransferStatus.IN_OUTBOX);
             record.setRoutedAt(Instant.now());
             recordRepository.save(record);
-            log.info("Remote routing complete: record={} → {}:{}", record.getId(),
-                    destService.getHost(), destService.getControlPort());
+            log.info("[{}] Routed remotely to {}:{}", trackId, destService.getHost(), destService.getControlPort());
         } else {
             throw new RuntimeException("Remote forward returned " + response.getStatusCode());
         }
@@ -195,5 +227,13 @@ public class RoutingEngine {
         recordRepository.save(record);
     }
 
-
+    private boolean matchesFlow(FileFlow flow, String filename, String path) {
+        if (flow.getFilenamePattern() != null && !flow.getFilenamePattern().isBlank()) {
+            if (!Pattern.matches(flow.getFilenamePattern(), filename)) return false;
+        }
+        if (flow.getSourcePath() != null && !flow.getSourcePath().isBlank()) {
+            if (!path.contains(flow.getSourcePath())) return false;
+        }
+        return true;
+    }
 }

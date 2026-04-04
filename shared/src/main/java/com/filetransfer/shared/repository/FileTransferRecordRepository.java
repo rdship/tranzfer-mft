@@ -11,6 +11,8 @@ import java.util.UUID;
 
 public interface FileTransferRecordRepository extends JpaRepository<FileTransferRecord, UUID> {
 
+    Optional<FileTransferRecord> findByTrackId(String trackId);
+
     @Query("SELECT r FROM FileTransferRecord r " +
            "JOIN FETCH r.folderMapping fm " +
            "JOIN FETCH fm.destinationAccount da " +

@@ -62,15 +62,18 @@ public class SftpRoutingEventListener implements SftpEventListener {
         if (accountOpt.isEmpty()) return;
 
         TransferAccount account = accountOpt.get();
-        String absolutePath = filePath.toAbsolutePath().toString();
-        String relativePath = toRelativePath(absolutePath, account.getHomeDir());
+        // filePath from rooted FS is relative (e.g. "/inbox/invoice.csv")
+        // Real absolute path = homeDir + rooted path
+        String rootedPath = filePath.toAbsolutePath().toString();
+        String realAbsolutePath = account.getHomeDir() + rootedPath;
+        String relativePath = rootedPath;
 
         if (wasWrite) {
-            log.info("SFTP upload detected: user={} path={}", username, relativePath);
-            routingEngine.onFileUploaded(account, relativePath, absolutePath);
+            log.info("SFTP upload detected: user={} relative={} absolute={}", username, relativePath, realAbsolutePath);
+            routingEngine.onFileUploaded(account, relativePath, realAbsolutePath);
         } else {
-            log.info("SFTP download detected: user={} path={}", username, absolutePath);
-            routingEngine.onFileDownloaded(account, absolutePath);
+            log.info("SFTP download detected: user={} path={}", username, realAbsolutePath);
+            routingEngine.onFileDownloaded(account, realAbsolutePath);
         }
     }
 

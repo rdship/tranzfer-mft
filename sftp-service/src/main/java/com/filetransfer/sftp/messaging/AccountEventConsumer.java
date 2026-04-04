@@ -1,17 +1,19 @@
 package com.filetransfer.sftp.messaging;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.filetransfer.sftp.service.CredentialService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.core.Binding;
-import org.springframework.amqp.core.BindingBuilder;
-import org.springframework.amqp.core.Queue;
-import org.springframework.amqp.core.TopicExchange;
+import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Map;
 
 @Slf4j
@@ -21,11 +23,16 @@ public class AccountEventConsumer {
 
     private final CredentialService credentialService;
 
-    @Value("${rabbitmq.exchange}")
+    @Value("${rabbitmq.exchange:file-transfer.events}")
     private String exchange;
 
-    @Value("${rabbitmq.queue.sftp-events}")
+    @Value("${rabbitmq.queue.sftp-events:sftp.account.events}")
     private String queueName;
+
+    @Bean
+    public MessageConverter jsonMessageConverter() {
+        return new Jackson2JsonMessageConverter(new ObjectMapper());
+    }
 
     @Bean
     public Queue sftpEventsQueue() {
@@ -42,17 +49,35 @@ public class AccountEventConsumer {
         return BindingBuilder.bind(sftpEventsQueue).to(sftpExchange).with("account.*");
     }
 
-    @RabbitListener(queues = "${rabbitmq.queue.sftp-events}")
-    public void handleAccountEvent(Map<String, Object> event) {
-        String eventType = (String) event.get("eventType");
-        String username = (String) event.get("username");
+    @RabbitListener(queues = "${rabbitmq.queue.sftp-events:sftp.account.events}")
+    public void handleAccountEvent(org.springframework.amqp.core.Message message) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            Map<String, Object> event = mapper.readValue(message.getBody(), Map.class);
 
-        if (username == null) return;
+            String username = (String) event.get("username");
+            String homeDir = (String) event.get("homeDir");
 
-        log.info("Received event type={} username={}", eventType, username);
+            if (username == null) return;
+            log.info("Account event received: username={} homeDir={}", username, homeDir);
 
-        if ("account.updated".equals(eventType) || "account.created".equals(eventType)) {
+            // Evict cache so next auth picks up fresh DB data
             credentialService.evictFromCache(username);
+
+            // Create home directories for the new account
+            if (homeDir != null) {
+                try {
+                    Files.createDirectories(Paths.get(homeDir, "inbox"));
+                    Files.createDirectories(Paths.get(homeDir, "outbox"));
+                    Files.createDirectories(Paths.get(homeDir, "archive"));
+                    Files.createDirectories(Paths.get(homeDir, "sent"));
+                    log.info("Created directories for {}: {}", username, homeDir);
+                } catch (Exception e) {
+                    log.warn("Could not create directories for {}: {}", username, e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to process account event: {}", e.getMessage());
         }
     }
 }
