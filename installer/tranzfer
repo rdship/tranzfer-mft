@@ -661,6 +661,130 @@ api_call() {
 }
 
 # =============================================================================
+# NATURAL LANGUAGE INTENT MATCHING
+# =============================================================================
+
+# Match natural language to a menu number. Returns the number or "?" if unknown.
+# Tries local pattern matching first, falls back to AI engine if available.
+nlp_match() {
+  local input="$1" role="$2"
+  local lower=$(echo "$input" | tr '[:upper:]' '[:lower:]')
+
+  # If it's already a number, return it
+  if [[ "$input" =~ ^[0-9]+$ ]]; then echo "$input"; return; fi
+
+  # If it starts with !, pass through as raw CLI command
+  if [[ "$input" == "!"* ]]; then echo "CLI:${input:1}"; return; fi
+
+  # Track ID detection (12 alphanum chars starting with prefix)
+  if [[ "$input" =~ [A-Z0-9]{12} ]]; then
+    local tid=$(echo "$input" | grep -oE '[A-Z0-9]{12}')
+    echo "TRACK:$tid"; return
+  fi
+
+  # --- Pattern matching by intent ---
+
+  # Account/user queries
+  if echo "$lower" | grep -qE "my account|my profile|who am i|account info"; then echo "1"; return; fi
+  if echo "$lower" | grep -qE "list account|show account|all account|accounts"; then
+    [ "$role" = "ADMIN" ] && echo "5" || echo "4"
+    return
+  fi
+  if echo "$lower" | grep -qE "list user|show user|all user|users"; then echo "4"; return; fi
+  if echo "$lower" | grep -qE "onboard|create user|new user|add user|register"; then echo "6"; return; fi
+  if echo "$lower" | grep -qE "promote|demote|change role|make admin"; then echo "7"; return; fi
+
+  # Transfer queries
+  if echo "$lower" | grep -qE "track|trace|lookup|find transfer|where.s my file"; then echo "TRACK_ASK"; return; fi
+  if echo "$lower" | grep -qE "recent transfer|latest transfer|last transfer|transfer history|my transfer"; then
+    [ "$role" = "USER" ] && echo "2" || echo "2"
+    return
+  fi
+  if echo "$lower" | grep -qE "fail|error|problem|broken|stuck|issue"; then echo "3"; return; fi
+  if echo "$lower" | grep -qE "journey|lifecycle|what happened"; then echo "1"; return; fi
+
+  # Flow queries
+  if echo "$lower" | grep -qE "flow|pipeline|processing"; then
+    [ "$role" = "ADMIN" ] && echo "8" || echo "5"
+    return
+  fi
+  if echo "$lower" | grep -qE "mapping|routing|folder"; then echo "6"; return; fi
+
+  # Operations
+  if echo "$lower" | grep -qE "health|status|service|running|up.*down"; then
+    [ "$role" = "ADMIN" ] && echo "18" || echo "7"
+    return
+  fi
+  if echo "$lower" | grep -qE "screen|ofac|sanction|aml|compliance"; then
+    [ "$role" = "ADMIN" ] && echo "14" || echo "8"
+    return
+  fi
+  if echo "$lower" | grep -qE "sla|breach|overdue|late|agreement"; then
+    [ "$role" = "ADMIN" ] && echo "12" || echo "9"
+    return
+  fi
+  if echo "$lower" | grep -qE "schedul|cron|timer|job|task"; then
+    [ "$role" = "ADMIN" ] && echo "11" || echo "10"
+    return
+  fi
+  if echo "$lower" | grep -qE "connector|servicenow|snow|slack|pagerduty|team|alert.*channel"; then echo "10"; return; fi
+  if echo "$lower" | grep -qE "security.*profile|cipher|mac|kex|tls"; then echo "9"; return; fi
+
+  # Intelligence
+  if echo "$lower" | grep -qE "recommend|suggestion|advice|what should|improve|optimize"; then echo "13"; return; fi
+  if echo "$lower" | grep -qE "ai|classif|anomal|intelligence|smart"; then echo "13"; return; fi
+  if echo "$lower" | grep -qE "key|cert|keystore|certificate|pgp|ssh.*key|rotate"; then echo "15"; return; fi
+  if echo "$lower" | grep -qE "storage|disk|tier|hot|warm|cold|space|dedup"; then echo "16"; return; fi
+
+  # System
+  if echo "$lower" | grep -qE "overview|dashboard|summary|platform|stats"; then echo "17"; return; fi
+  if echo "$lower" | grep -qE "terminal|shell|command|cli"; then echo "19"; return; fi
+  if echo "$lower" | grep -qE "doctor|diagnose|fix|repair|check"; then echo "20"; return; fi
+  if echo "$lower" | grep -qE "peer|p2p|online|who.s connected"; then echo "5"; return; fi
+  if echo "$lower" | grep -qE "file|inbox|outbox|send|upload|download"; then echo "4"; return; fi
+
+  # Logout/exit
+  if echo "$lower" | grep -qE "logout|exit|quit|bye|leave"; then
+    [ "$role" = "ADMIN" ] && echo "21" || ([ "$role" = "SERVER_ADMIN" ] && echo "12" || echo "6")
+    return
+  fi
+
+  # Help
+  if echo "$lower" | grep -qE "help|what can|command|menu|option"; then echo "HELP"; return; fi
+
+  # Try AI engine if available
+  if [ -n "$SERVER_URL" ]; then
+    local ai_resp=$(curl -s --max-time 3 "${SERVER_URL}:8091/api/v1/ai/nlp/command" \
+      -H "Content-Type: application/json" \
+      -d "{\"query\":\"$input\"}" 2>/dev/null)
+    local ai_cmd=$(echo "$ai_resp" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('command',''))" 2>/dev/null)
+    if [ -n "$ai_cmd" ] && [ "$ai_cmd" != "None" ]; then
+      echo "CLI:$ai_cmd"
+      return
+    fi
+  fi
+
+  echo "?"
+}
+
+# Smart prompt — accepts number or natural language
+smart_prompt() {
+  local role="$1"
+  echo -ne "  ${CYAN}▸${NC} "
+  read -r input
+  if [ -z "$input" ]; then echo "HELP"; return; fi
+
+  local result=$(nlp_match "$input" "$role")
+  echo "$result"
+}
+
+# Execute a CLI command via server
+run_cli_cmd() {
+  local cmd="$1"
+  api_call POST "/api/cli/execute" "{\"command\":\"$cmd\"}" | python3 -c "import sys,json; print(json.load(sys.stdin).get('output',''))" 2>/dev/null
+}
+
+# =============================================================================
 # ROLE-BASED COMMANDS
 # =============================================================================
 
@@ -676,7 +800,9 @@ client_menu() {
   echo "    5) Online peers (P2P)"
   echo "    6) Logout"
   echo ""
-  local c=$(ask "Select" "1")
+  echo -e "    ${YELLOW}Or just type what you need: \"show my transfers\", \"track TRZXXXXXX\"${NC}"
+  echo ""
+  local c=$(smart_prompt "$AUTH_ROLE")
 
   case $c in
     1) step "Account"
@@ -714,6 +840,29 @@ if not peers: print('    No peers online')
 for p in peers: print(f'    {p[\"username\"]:20s} {p[\"host\"]}:{p[\"port\"]}')" 2>/dev/null
        ;;
     6) AUTH_TOKEN=""; AUTH_ROLE=""; echo "  Logged out."; return 1 ;;
+    TRACK:*) local tid="${c#TRACK:}"
+       step "Tracking ${tid}"
+       api_call GET "/api/journey/$tid" | python3 -c "
+import sys,json
+d = json.load(sys.stdin)
+print(f'  Track:  {d.get(\"trackId\",\"?\")}')
+print(f'  File:   {d.get(\"filename\",\"?\")}')
+print(f'  Status: {d.get(\"overallStatus\",\"?\")}')
+for s in d.get('stages',[]):
+    st = '✓' if s['status'] in ('COMPLETED','PASSED','CLEAR','OK') else '✗'
+    print(f'    {st} {s[\"stage\"]:28s} {s.get(\"service\",\"\")}')" 2>/dev/null ;;
+    TRACK_ASK) local tid=$(ask "Enter Track ID")
+       api_call GET "/api/journey/$tid" | python3 -m json.tool 2>/dev/null ;;
+    CLI:*) local cmd="${c#CLI:}"
+       run_cli_cmd "$cmd" ;;
+    HELP) ;; # Just redisplay menu
+    \?) echo -e "    ${YELLOW}I didn't understand that. Try a number, or say things like:${NC}"
+       echo "      'show me recent transfers'"
+       echo "      'any failed files?'"
+       echo "      'what are the AI recommendations?'"
+       echo "      'track TRZA3X5T3LUY'"
+       echo "      '!status' (prefix ! to run raw CLI command)"
+       ;;
   esac
   client_menu
 }
@@ -743,7 +892,9 @@ server_admin_menu() {
   echo "    11) CLI terminal (run any command)"
   echo "    12) Logout"
   echo ""
-  local c=$(ask "Select" "1")
+  echo -e "    ${YELLOW}Or type naturally: \"any failures?\", \"show flows\", \"!status\"${NC}"
+  echo ""
+  local c=$(smart_prompt "$AUTH_ROLE")
 
   case $c in
     1) local tid=$(ask "Track ID")
@@ -778,6 +929,29 @@ for t in json.load(sys.stdin):
          api_call POST "/api/cli/execute" "{\"command\":\"$cmd\"}" | python3 -c "import sys,json; print(json.load(sys.stdin).get('output',''))" 2>/dev/null
        done ;;
     12) AUTH_TOKEN=""; AUTH_ROLE=""; echo "  Logged out."; return 1 ;;
+    TRACK:*) local tid="${c#TRACK:}"
+       step "Tracking ${tid}"
+       api_call GET "/api/journey/$tid" | python3 -c "
+import sys,json
+d = json.load(sys.stdin)
+print(f'  Track:  {d.get(\"trackId\",\"?\")}')
+print(f'  File:   {d.get(\"filename\",\"?\")}')
+print(f'  Status: {d.get(\"overallStatus\",\"?\")}')
+for s in d.get('stages',[]):
+    st = '✓' if s['status'] in ('COMPLETED','PASSED','CLEAR','OK') else '✗'
+    print(f'    {st} {s[\"stage\"]:28s} {s.get(\"service\",\"\")}')" 2>/dev/null ;;
+    TRACK_ASK) local tid=$(ask "Enter Track ID")
+       api_call GET "/api/journey/$tid" | python3 -m json.tool 2>/dev/null ;;
+    CLI:*) local cmd="${c#CLI:}"
+       run_cli_cmd "$cmd" ;;
+    HELP) ;; # Just redisplay menu
+    \?) echo -e "    ${YELLOW}I didn't understand that. Try a number, or say things like:${NC}"
+       echo "      'show me recent transfers'"
+       echo "      'any failed files?'"
+       echo "      'what are the AI recommendations?'"
+       echo "      'track TRZA3X5T3LUY'"
+       echo "      '!status' (prefix ! to run raw CLI command)"
+       ;;
   esac
   server_admin_menu
 }
@@ -818,7 +992,9 @@ admin_menu() {
   echo "    20) Run doctor"
   echo "    21) Logout"
   echo ""
-  local c=$(ask "Select" "17")
+  echo -e "    ${YELLOW}Type naturally: \"AI recommendations\", \"onboard user@co.com\", \"track TRZXXX\"${NC}"
+  echo ""
+  local c=$(smart_prompt "$AUTH_ROLE")
 
   case $c in
     1) local tid=$(ask "Track ID")
@@ -896,6 +1072,29 @@ print(f'  Total: {d.get(\"totalObjects\",0)} objects')" 2>/dev/null ;;
        done ;;
     20) run_doctor ;;
     21) AUTH_TOKEN=""; AUTH_ROLE=""; echo "  Logged out."; return 1 ;;
+    TRACK:*) local tid="${c#TRACK:}"
+       step "Tracking ${tid}"
+       api_call GET "/api/journey/$tid" | python3 -c "
+import sys,json
+d = json.load(sys.stdin)
+print(f'  Track:  {d.get(\"trackId\",\"?\")}')
+print(f'  File:   {d.get(\"filename\",\"?\")}')
+print(f'  Status: {d.get(\"overallStatus\",\"?\")}')
+for s in d.get('stages',[]):
+    st = '✓' if s['status'] in ('COMPLETED','PASSED','CLEAR','OK') else '✗'
+    print(f'    {st} {s[\"stage\"]:28s} {s.get(\"service\",\"\")}')" 2>/dev/null ;;
+    TRACK_ASK) local tid=$(ask "Enter Track ID")
+       api_call GET "/api/journey/$tid" | python3 -m json.tool 2>/dev/null ;;
+    CLI:*) local cmd="${c#CLI:}"
+       run_cli_cmd "$cmd" ;;
+    HELP) ;; # Just redisplay menu
+    \?) echo -e "    ${YELLOW}I didn't understand that. Try a number, or say things like:${NC}"
+       echo "      'show me recent transfers'"
+       echo "      'any failed files?'"
+       echo "      'what are the AI recommendations?'"
+       echo "      'track TRZA3X5T3LUY'"
+       echo "      '!status' (prefix ! to run raw CLI command)"
+       ;;
   esac
   admin_menu
 }
