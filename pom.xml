@@ -27,6 +27,7 @@
         <module>ai-engine</module>
         <module>screening-service</module>
         <module>keystore-manager</module>
+        <module>storage-manager</module>
     </modules>
 
     <properties>

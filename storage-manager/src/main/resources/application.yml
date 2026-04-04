@@ -1,0 +1,49 @@
+server:
+  port: 8094
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/filetransfer}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  servlet:
+    multipart:
+      max-file-size: 512MB
+      max-request-size: 512MB
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+      - org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration
+
+storage:
+  # Tiered storage paths
+  hot:
+    path: ${STORAGE_HOT_PATH:/data/storage/hot}
+    max-size-gb: ${STORAGE_HOT_MAX_GB:100}
+  warm:
+    path: ${STORAGE_WARM_PATH:/data/storage/warm}
+    max-size-gb: ${STORAGE_WARM_MAX_GB:500}
+  cold:
+    path: ${STORAGE_COLD_PATH:/data/storage/cold}
+    max-size-gb: ${STORAGE_COLD_MAX_GB:2000}
+  backup:
+    path: ${STORAGE_BACKUP_PATH:/data/storage/backup}
+  # Parallel I/O
+  stripe-size-kb: ${STORAGE_STRIPE_SIZE_KB:4096}
+  io-threads: ${STORAGE_IO_THREADS:8}
+  write-buffer-mb: ${STORAGE_WRITE_BUFFER_MB:64}
+  # Lifecycle policies
+  hot-to-warm-hours: ${STORAGE_HOT_WARM_HOURS:168}
+  warm-to-cold-days: ${STORAGE_WARM_COLD_DAYS:30}
+  cold-retention-days: ${STORAGE_COLD_RETENTION_DAYS:365}
+
+cluster:
+  id: ${CLUSTER_ID:default-cluster}
+  host: ${CLUSTER_HOST:storage-manager}
+  service-type: STORAGE

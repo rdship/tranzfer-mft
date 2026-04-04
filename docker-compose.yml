@@ -280,6 +280,25 @@ services:
       postgres:
         condition: service_healthy
 
+  storage-manager:
+    build: ./storage-manager
+    container_name: mft-storage-manager
+    ports:
+      - "8094:8094"
+    environment:
+      <<: *common-env
+      CLUSTER_HOST: storage-manager
+      SERVER_PORT: 8094
+      STORAGE_HOT_PATH: /data/storage/hot
+      STORAGE_WARM_PATH: /data/storage/warm
+      STORAGE_COLD_PATH: /data/storage/cold
+      STORAGE_BACKUP_PATH: /data/storage/backup
+    volumes:
+      - storage_data:/data/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   screening-service:
     build: ./screening-service
     container_name: mft-screening-service
@@ -321,4 +340,5 @@ volumes:
   rabbitmq_data:
   sftp_data:
   ftp_data:
+  storage_data:
   ftpweb_data:

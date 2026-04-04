@@ -16,5 +16,6 @@ public enum ServiceType {
     AI_ENGINE,
     SCREENING,
     SCHEDULER,
-    KEYSTORE
+    KEYSTORE,
+    STORAGE
 }
