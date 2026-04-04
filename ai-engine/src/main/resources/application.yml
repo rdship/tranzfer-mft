@@ -1,0 +1,56 @@
+server:
+  port: 8091
+
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/filetransfer}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+      - org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration
+
+ai:
+  # Anthropic Claude API for NLP features
+  claude:
+    api-key: ${CLAUDE_API_KEY:}
+    model: ${CLAUDE_MODEL:claude-sonnet-4-20250514}
+    base-url: ${CLAUDE_BASE_URL:https://api.anthropic.com}
+  
+  # Data classification
+  classification:
+    enabled: true
+    # Built-in regex patterns (no LLM needed for these)
+    scan-on-upload: true
+    max-scan-size-mb: 100
+    block-unencrypted-pci: true
+
+  # Anomaly detection
+  anomaly:
+    enabled: true
+    # Standard deviations from mean before alert
+    threshold-sigma: 3.0
+    lookback-days: 30
+
+platform:
+  track-id:
+    prefix: ${TRACK_ID_PREFIX:TRZ}
+  cluster:
+    id: ${CLUSTER_ID:default-cluster}
+    host: ${CLUSTER_HOST:ai-engine}
+  security:
+    jwt-secret: ${JWT_SECRET:change_me_in_production_256bit_secret_key!!}
+    control-api-key: ${CONTROL_API_KEY:internal_control_secret}
+
+cluster:
+  id: ${CLUSTER_ID:default-cluster}
+  host: ${CLUSTER_HOST:ai-engine}
+  service-type: AI_ENGINE

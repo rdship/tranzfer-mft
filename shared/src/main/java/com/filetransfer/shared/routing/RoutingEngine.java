@@ -41,6 +41,7 @@ public class RoutingEngine {
     private final FlowProcessingEngine flowEngine;
     private final FileFlowRepository flowRepository;
     private final AuditService auditService;
+    private final AiClassificationClient aiClassifier;
 
     /**
      * Called by each service when a file upload completes.
@@ -79,7 +80,18 @@ public class RoutingEngine {
             }
         }
 
-        // Step 2: Evaluate folder mappings and route
+        // Step 2: AI Classification — scan for PCI/PII before routing
+        boolean isEncrypted = processedFilePath.endsWith(".enc") || processedFilePath.endsWith(".pgp");
+        AiClassificationClient.ClassificationDecision classification =
+                aiClassifier.classify(Paths.get(processedFilePath), trackId, isEncrypted);
+        if (!classification.allowed()) {
+            log.error("[{}] BLOCKED by AI classification: {}", trackId, classification.blockReason());
+            auditService.logFailure(sourceAccount, trackId, "AI_BLOCKED",
+                    processedFilePath, classification.blockReason());
+            return;
+        }
+
+        // Step 3: Evaluate folder mappings and route
         List<RoutingEvaluator.RoutingDecision> decisions =
                 evaluator.evaluate(sourceAccount, relativeFilePath, absoluteSourcePath);
 

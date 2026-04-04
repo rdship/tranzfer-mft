@@ -251,6 +251,21 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  ai-engine:
+    build: ./ai-engine
+    container_name: mft-ai-engine
+    ports:
+      - "8091:8091"
+    environment:
+      <<: *common-env
+      CLUSTER_HOST: ai-engine
+      SERVER_PORT: 8091
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-sonnet-4-20250514}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   # ---------------------------------------------------------------------------
   # Frontend UIs
   # ---------------------------------------------------------------------------

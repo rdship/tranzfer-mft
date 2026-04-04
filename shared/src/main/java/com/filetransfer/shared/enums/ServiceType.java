@@ -12,5 +12,6 @@ public enum ServiceType {
     DMZ,
     LICENSE,
     ANALYTICS,
-    NOTIFICATION
+    NOTIFICATION,
+    AI_ENGINE
 }

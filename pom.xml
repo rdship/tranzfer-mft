@@ -24,6 +24,7 @@
         <module>analytics-service</module>
         <module>cli</module>
         <module>mft-client</module>
+        <module>ai-engine</module>
     </modules>
 
     <properties>

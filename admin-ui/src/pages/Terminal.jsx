@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { onboardingApi } from '../api/client'
-import { CommandLineIcon } from '@heroicons/react/24/outline'
+import { nlpCommand, suggestFlow } from '../api/ai'
+import { CommandLineIcon, SparklesIcon } from '@heroicons/react/24/outline'
 
 const HISTORY_KEY = 'mft-cli-history'
 
@@ -38,8 +39,37 @@ export default function Terminal() {
 
     setLoading(true)
     try {
-      const res = await onboardingApi.post('/api/cli/execute', { command: cmd })
-      setLines(prev => [...prev, { type: 'output', text: res.data.output }])
+      // Check if this is natural language (starts with "ai:" or doesn't match known commands)
+      const isNlp = cmd.startsWith('ai:') || cmd.startsWith('ask ') || cmd.startsWith('?')
+      const isFlowDesign = cmd.startsWith('design flow:') || cmd.startsWith('create flow:')
+
+      if (isFlowDesign) {
+        const desc = cmd.replace(/^(design|create) flow:\s*/i, '')
+        setLines(prev => [...prev, { type: 'system', text: '🤖 Designing flow...' }])
+        const suggestion = await suggestFlow(desc)
+        if (suggestion.success) {
+          setLines(prev => [...prev,
+            { type: 'output', text: suggestion.explanation + '\n\nSuggested flow:\n' + JSON.stringify(suggestion.flowDefinition, null, 2) }
+          ])
+        } else {
+          setLines(prev => [...prev, { type: 'error', text: 'Could not design flow.' }])
+        }
+      } else if (isNlp) {
+        const query = cmd.replace(/^(ai:|ask |\?)/, '').trim()
+        setLines(prev => [...prev, { type: 'system', text: '🤖 Thinking...' }])
+        const nlp = await nlpCommand(query)
+        if (nlp.understood && nlp.command) {
+          setLines(prev => [...prev, { type: 'system', text: '→ ' + nlp.command }])
+          const res = await onboardingApi.post('/api/cli/execute', { command: nlp.command })
+          setLines(prev => [...prev, { type: 'output', text: res.data.output }])
+        } else {
+          setLines(prev => [...prev, { type: 'output', text: nlp.response || 'Could not understand.' }])
+        }
+      } else {
+        // Standard CLI command
+        const res = await onboardingApi.post('/api/cli/execute', { command: cmd })
+        setLines(prev => [...prev, { type: 'output', text: res.data.output }])
+      }
     } catch (err) {
       setLines(prev => [...prev, {
         type: 'error',
@@ -126,7 +156,8 @@ export default function Terminal() {
 
       {/* Quick command buttons */}
       <div className="flex flex-wrap gap-2">
-        {['status', 'accounts list', 'services', 'flows list', 'search recent 10', 'logs recent 20'].map(cmd => (
+        {['status', 'accounts list', 'services', 'flows list', 'search recent 10', 'logs recent 20',
+          'ask show me recent transfers', 'design flow: decrypt PGP then compress and route'].map(cmd => (
           <button key={cmd} onClick={() => { setInput(cmd); execute(cmd) }}
             className="px-3 py-1 bg-gray-100 text-gray-700 text-xs font-mono rounded-lg hover:bg-gray-200 transition-colors">
             {cmd}
