@@ -1,0 +1,42 @@
+server:
+  port: 8092
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/filetransfer}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+      - org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration
+
+screening:
+  ofac:
+    sdn-url: https://www.treasury.gov/ofac/downloads/sdn.csv
+    refresh-hours: ${SCREENING_REFRESH_HOURS:24}
+    enabled: true
+  eu:
+    enabled: ${EU_SANCTIONS_ENABLED:true}
+    url: https://webgate.ec.europa.eu/fsd/fsf/public/files/csvFullSanctionsList/content
+  un:
+    enabled: ${UN_SANCTIONS_ENABLED:true}
+  match-threshold: ${SCREENING_THRESHOLD:0.82}
+  default-action: ${SCREENING_DEFAULT_ACTION:BLOCK}
+
+cluster:
+  id: ${CLUSTER_ID:default-cluster}
+  host: ${CLUSTER_HOST:screening-service}
+  service-type: SCREENING
+
+platform:
+  track-id:
+    prefix: ${TRACK_ID_PREFIX:TRZ}
+  security:
+    control-api-key: ${CONTROL_API_KEY:internal_control_secret}

@@ -13,5 +13,6 @@ public enum ServiceType {
     LICENSE,
     ANALYTICS,
     NOTIFICATION,
-    AI_ENGINE
+    AI_ENGINE,
+    SCREENING
 }

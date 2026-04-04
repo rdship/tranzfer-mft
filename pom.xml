@@ -25,6 +25,7 @@
         <module>cli</module>
         <module>mft-client</module>
         <module>ai-engine</module>
+        <module>screening-service</module>
     </modules>
 
     <properties>

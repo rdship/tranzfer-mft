@@ -122,6 +122,7 @@ public class FlowProcessingEngine {
             case "ENCRYPT_AES" -> callEncryptionService(input, workDir, "aes", "encrypt", cfg);
             case "DECRYPT_AES" -> callEncryptionService(input, workDir, "aes", "decrypt", cfg);
             case "RENAME" -> renameFile(input, workDir, cfg, trackId);
+            case "SCREEN" -> callScreeningService(input, trackId, cfg);
             case "ROUTE" -> inputPath; // Route is handled by RoutingEngine after flow completes
             default -> throw new IllegalArgumentException("Unknown step type: " + step.getType());
         };
@@ -243,6 +244,62 @@ public class FlowProcessingEngine {
         Path output = workDir.resolve(newName);
         Files.copy(input, output, StandardCopyOption.REPLACE_EXISTING);
         return output.toString();
+    }
+
+    /**
+     * Call the screening-service to scan the file against OFAC/AML sanctions lists.
+     * If a HIT is found, throws an exception to BLOCK the transfer.
+     */
+    private String callScreeningService(Path input, String trackId, Map<String, String> cfg) throws Exception {
+        String screeningUrl = System.getenv("SCREENING_SERVICE_URL");
+        if (screeningUrl == null) screeningUrl = "http://screening-service:8092";
+
+        log.info("[{}] Screening file against sanctions lists...", trackId);
+
+        try {
+            // Call screening service with multipart file upload
+            org.springframework.core.io.FileSystemResource fileResource =
+                    new org.springframework.core.io.FileSystemResource(input.toFile());
+            org.springframework.util.LinkedMultiValueMap<String, Object> body = new org.springframework.util.LinkedMultiValueMap<>();
+            body.add("file", fileResource);
+
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.MULTIPART_FORM_DATA);
+
+            String url = screeningUrl + "/api/v1/screening/scan?trackId=" + trackId;
+            if (cfg.containsKey("columns")) url += "&columns=" + cfg.get("columns");
+
+            org.springframework.http.HttpEntity<org.springframework.util.MultiValueMap<String, Object>> request =
+                    new org.springframework.http.HttpEntity<>(body, headers);
+            org.springframework.web.client.RestTemplate rest = new org.springframework.web.client.RestTemplate();
+
+            org.springframework.http.ResponseEntity<java.util.Map> response =
+                    rest.postForEntity(url, request, java.util.Map.class);
+
+            if (response.getBody() != null) {
+                String outcome = (String) response.getBody().get("outcome");
+                String action = (String) response.getBody().get("actionTaken");
+                int hitsFound = response.getBody().get("hitsFound") instanceof Number n ? n.intValue() : 0;
+
+                log.info("[{}] Screening result: {} ({} hits, action={})", trackId, outcome, hitsFound, action);
+
+                if ("BLOCKED".equals(action)) {
+                    throw new SecurityException("SANCTIONS HIT: File blocked by screening service. "
+                            + hitsFound + " match(es) found against OFAC/AML sanctions lists.");
+                }
+            }
+        } catch (SecurityException se) {
+            throw se; // re-throw blocking exceptions
+        } catch (Exception e) {
+            // Screening service unreachable — configurable behavior
+            String onFailure = cfg.getOrDefault("onFailure", "PASS");
+            if ("BLOCK".equals(onFailure)) {
+                throw new Exception("Screening service unreachable — blocking as configured. " + e.getMessage());
+            }
+            log.warn("[{}] Screening service unreachable: {} — allowing transfer (graceful degradation)", trackId, e.getMessage());
+        }
+
+        return input.toString(); // File passes through unchanged
     }
 
     private boolean matchesFlow(FileFlow flow, String filename, String path) {

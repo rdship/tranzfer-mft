@@ -266,6 +266,21 @@ services:
       postgres:
         condition: service_healthy
 
+  screening-service:
+    build: ./screening-service
+    container_name: mft-screening-service
+    ports:
+      - "8092:8092"
+    environment:
+      <<: *common-env
+      CLUSTER_HOST: screening-service
+      SERVER_PORT: 8092
+      SCREENING_THRESHOLD: ${SCREENING_THRESHOLD:-0.82}
+      SCREENING_DEFAULT_ACTION: ${SCREENING_DEFAULT_ACTION:-BLOCK}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   # ---------------------------------------------------------------------------
   # Frontend UIs
   # ---------------------------------------------------------------------------
