@@ -1,0 +1,11 @@
+username,home_dir,protocol,password
+doj_filings,/data/sftp/doj,SFTP,
+fbi_reports,/data/sftp/fbi,SFTP,
+cia_intel,/data/sftp/cia,SFTP,
+nsa_sigint,/data/sftp/nsa,SFTP,
+dhs_border,/data/sftp/dhs,SFTP,
+treasury_ofac,/data/sftp/treasury,SFTP,
+state_dept,/data/sftp/state,SFTP,
+dod_logistics,/data/sftp/dod,SFTP,
+gsa_procurement,/data/sftp/gsa,SFTP,
+irs_tax,/data/sftp/irs,SFTP,
