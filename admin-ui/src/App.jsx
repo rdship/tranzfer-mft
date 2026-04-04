@@ -18,6 +18,8 @@ import Logs from './pages/Logs'
 import License from './pages/License'
 import GatewayStatus from './pages/GatewayStatus'
 import Settings from './pages/Settings'
+import Flows from './pages/Flows'
+import Terminal from './pages/Terminal'
 
 export default function App() {
   return (
@@ -38,7 +40,9 @@ export default function App() {
             <Route path="predictions" element={<Predictions />} />
             <Route path="monitoring" element={<Monitoring />} />
             <Route path="logs" element={<Logs />} />
+            <Route path="flows" element={<Flows />} />
             <Route path="gateway" element={<GatewayStatus />} />
+            <Route path="terminal" element={<Terminal />} />
             <Route path="license" element={<License />} />
             <Route path="settings" element={<Settings />} />
           </Route>

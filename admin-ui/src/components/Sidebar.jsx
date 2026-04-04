@@ -4,7 +4,8 @@ import {
   HomeIcon, UsersIcon, ServerStackIcon, ArrowsRightLeftIcon,
   FolderIcon, ShieldCheckIcon, GlobeAltIcon, ChartBarIcon,
   CpuChipIcon, BeakerIcon, DocumentTextIcon, KeyIcon,
-  Cog6ToothIcon, WifiIcon, BoltIcon
+  Cog6ToothIcon, WifiIcon, BoltIcon, CommandLineIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline'
 
 const navGroups = [
@@ -21,6 +22,7 @@ const navGroups = [
       { to: '/accounts', icon: UsersIcon, label: 'Transfer Accounts' },
       { to: '/users', icon: UsersIcon, label: 'Users' },
       { to: '/folder-mappings', icon: ArrowsRightLeftIcon, label: 'Folder Mappings' },
+      { to: '/flows', icon: ArrowPathIcon, label: 'Processing Flows' },
       { to: '/external-destinations', icon: GlobeAltIcon, label: 'External Destinations' },
     ]
   },
@@ -43,6 +45,7 @@ const navGroups = [
   {
     label: 'Administration',
     items: [
+      { to: '/terminal', icon: CommandLineIcon, label: 'Terminal' },
       { to: '/license', icon: KeyIcon, label: 'License' },
       { to: '/settings', icon: Cog6ToothIcon, label: 'Settings' },
     ]

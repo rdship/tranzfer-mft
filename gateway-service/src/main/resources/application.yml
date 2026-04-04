@@ -43,3 +43,21 @@ cluster:
 
 control-api:
   key: ${CONTROL_API_KEY:internal_control_secret}
+
+platform:
+  track-id:
+    prefix: ${TRACK_ID_PREFIX:TRZ}
+  cluster:
+    id: ${CLUSTER_ID:default-cluster}
+    host: ${CLUSTER_HOST:localhost}
+  security:
+    jwt-secret: ${JWT_SECRET:change_me_in_production_256bit_secret_key!!}
+    jwt-expiration-ms: ${JWT_EXPIRATION:900000}
+    control-api-key: ${CONTROL_API_KEY:internal_control_secret}
+  storage:
+    sftp-home: ${SFTP_HOME_BASE:/data/sftp}
+    ftp-home: ${FTP_HOME_BASE:/data/ftp}
+    ftpweb-home: ${FTPWEB_HOME_BASE:/data/ftpweb}
+  flow:
+    max-concurrent: ${FLOW_MAX_CONCURRENT:50}
+    work-dir: ${FLOW_WORK_DIR:/tmp/mft-flow-work}
