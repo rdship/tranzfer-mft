@@ -2,6 +2,7 @@ package com.filetransfer.shared.routing;
 
 import com.filetransfer.shared.audit.AuditService;
 import com.filetransfer.shared.cluster.ClusterContext;
+import com.filetransfer.shared.connector.ConnectorDispatcher;
 import com.filetransfer.shared.dto.FileForwardRequest;
 import com.filetransfer.shared.entity.*;
 import com.filetransfer.shared.enums.FileTransferStatus;
@@ -42,6 +43,7 @@ public class RoutingEngine {
     private final FileFlowRepository flowRepository;
     private final AuditService auditService;
     private final AiClassificationClient aiClassifier;
+    private final ConnectorDispatcher connectorDispatcher;
 
     /**
      * Called by each service when a file upload completes.
@@ -88,6 +90,11 @@ public class RoutingEngine {
             log.error("[{}] BLOCKED by AI classification: {}", trackId, classification.blockReason());
             auditService.logFailure(sourceAccount, trackId, "AI_BLOCKED",
                     processedFilePath, classification.blockReason());
+            connectorDispatcher.dispatch(ConnectorDispatcher.MftEvent.builder()
+                    .eventType("AI_BLOCKED").severity("CRITICAL").trackId(trackId)
+                    .filename(filename).account(sourceAccount.getUsername())
+                    .summary("Transfer blocked: sensitive data detected without encryption")
+                    .details(classification.blockReason()).service("routing-engine").build());
             return;
         }
 
@@ -251,6 +258,12 @@ public class RoutingEngine {
         record.setStatus(FileTransferStatus.FAILED);
         record.setErrorMessage(error);
         recordRepository.save(record);
+        // Dispatch to external connectors (ServiceNow, Slack, etc.)
+        connectorDispatcher.dispatch(ConnectorDispatcher.MftEvent.builder()
+                .eventType("TRANSFER_FAILED").severity("HIGH").trackId(record.getTrackId())
+                .filename(record.getOriginalFilename())
+                .summary("File transfer failed: " + record.getOriginalFilename())
+                .details(error).service("routing-engine").build());
     }
 
     private boolean matchesFlow(FileFlow flow, String filename, String path) {

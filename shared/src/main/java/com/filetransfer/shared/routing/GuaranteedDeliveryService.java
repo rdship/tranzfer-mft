@@ -1,6 +1,7 @@
 package com.filetransfer.shared.routing;
 
 import com.filetransfer.shared.audit.AuditService;
+import com.filetransfer.shared.connector.ConnectorDispatcher;
 import com.filetransfer.shared.entity.FileTransferRecord;
 import com.filetransfer.shared.enums.FileTransferStatus;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;
@@ -35,6 +36,7 @@ public class GuaranteedDeliveryService {
 
     private final FileTransferRecordRepository recordRepository;
     private final AuditService auditService;
+    private final ConnectorDispatcher connectorDispatcher;
 
     /**
      * Scan for FAILED records and retry them.
@@ -127,6 +129,14 @@ public class GuaranteedDeliveryService {
 
             auditService.logFailure(null, record.getTrackId(), "FILE_QUARANTINE",
                     quarantine.toString(), "Max retries exceeded. File preserved for manual recovery.");
+
+            // Dispatch to ServiceNow / PagerDuty / Slack
+            connectorDispatcher.dispatch(ConnectorDispatcher.MftEvent.builder()
+                    .eventType("QUARANTINE").severity("CRITICAL").trackId(record.getTrackId())
+                    .filename(record.getOriginalFilename())
+                    .summary("File quarantined after " + MAX_RETRIES + " failed delivery attempts")
+                    .details("File preserved at " + quarantine + ". Manual intervention required.")
+                    .service("guaranteed-delivery").build());
 
         } catch (Exception e) {
             log.error("[{}] Quarantine failed: {}", record.getTrackId(), e.getMessage());

@@ -1,8 +1,6 @@
 package com.filetransfer.ai.controller;
 
-import com.filetransfer.ai.service.AnomalyDetectionService;
-import com.filetransfer.ai.service.DataClassificationService;
-import com.filetransfer.ai.service.NlpService;
+import com.filetransfer.ai.service.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +18,9 @@ public class AiController {
 
     private final DataClassificationService classificationService;
     private final AnomalyDetectionService anomalyService;
+    private final SmartRetryService smartRetryService;
+    private final ContentValidationService contentValidationService;
+    private final ThreatScoringService threatScoringService;
     private final NlpService nlpService;
 
     // === Data Classification ===
@@ -106,16 +107,55 @@ public class AiController {
         ));
     }
 
+    // === Phase 2: Smart Retry ===
+
+    @PostMapping("/smart-retry")
+    public ResponseEntity<SmartRetryService.RetryDecision> classifyFailure(@RequestBody Map<String, Object> body) {
+        return ResponseEntity.ok(smartRetryService.classify(
+                (String) body.get("errorMessage"),
+                (String) body.get("filename"),
+                body.get("retryCount") instanceof Number n ? n.intValue() : 0));
+    }
+
+    // === Phase 2: Content Validation ===
+
+    @PostMapping("/validate")
+    public ResponseEntity<ContentValidationService.ValidationResult> validateFile(
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(required = false) String expectedColumns) throws Exception {
+        Path tempFile = Files.createTempFile("validate_", "_" + file.getOriginalFilename());
+        file.transferTo(tempFile.toFile());
+        try {
+            Map<String, Object> schema = expectedColumns != null ?
+                    Map.of("expectedColumns", java.util.Arrays.asList(expectedColumns.split(","))) : null;
+            return ResponseEntity.ok(contentValidationService.validate(tempFile, schema));
+        } finally { Files.deleteIfExists(tempFile); }
+    }
+
+    // === Phase 2: Threat Scoring ===
+
+    @PostMapping("/threat-score")
+    public ResponseEntity<ThreatScoringService.ThreatScore> threatScore(@RequestBody Map<String, Object> body) {
+        return ResponseEntity.ok(threatScoringService.score(
+                (String) body.getOrDefault("username", "unknown"),
+                (String) body.get("ipAddress"),
+                (String) body.get("action"),
+                (String) body.get("filename"),
+                body.get("fileSizeBytes") instanceof Number n ? n.longValue() : null,
+                java.time.Instant.now()));
+    }
+
     @GetMapping("/health")
     public Map<String, Object> health() {
         return Map.of(
                 "status", "UP",
                 "service", "ai-engine",
+                "version", "2.1.0-phase2",
                 "features", Map.of(
-                        "classification", true,
-                        "anomalyDetection", true,
-                        "nlp", true,
-                        "riskScoring", true
+                        "classification", true, "anomalyDetection", true,
+                        "nlp", true, "riskScoring", true,
+                        "smartRetry", true, "contentValidation", true,
+                        "threatScoring", true
                 ));
     }
 }
