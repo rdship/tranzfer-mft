@@ -13,6 +13,7 @@ const navGroups = [
     label: 'Overview',
     items: [
       { to: '/dashboard', icon: HomeIcon, label: 'Dashboard' },
+      { to: '/journey', icon: DocumentTextIcon, label: 'Transfer Journey' },
       { to: '/monitoring', icon: WifiIcon, label: 'Service Health' },
     ]
   },
@@ -23,6 +24,7 @@ const navGroups = [
       { to: '/users', icon: UsersIcon, label: 'Users' },
       { to: '/folder-mappings', icon: ArrowsRightLeftIcon, label: 'Folder Mappings' },
       { to: '/flows', icon: ArrowPathIcon, label: 'Processing Flows' },
+      { to: '/p2p', icon: ArrowsRightLeftIcon, label: 'P2P Transfers' },
       { to: '/external-destinations', icon: GlobeAltIcon, label: 'External Destinations' },
     ]
   },
@@ -31,7 +33,17 @@ const navGroups = [
     items: [
       { to: '/servers', icon: ServerStackIcon, label: 'Server Config' },
       { to: '/security-profiles', icon: ShieldCheckIcon, label: 'Security Profiles' },
+      { to: '/keystore', icon: KeyIcon, label: 'Keystore Manager' },
       { to: '/gateway', icon: BoltIcon, label: 'Gateway & DMZ' },
+      { to: '/scheduler', icon: CpuChipIcon, label: 'Scheduler' },
+    ]
+  },
+  {
+    label: 'Compliance',
+    items: [
+      { to: '/screening', icon: ShieldCheckIcon, label: 'OFAC Screening' },
+      { to: '/sla', icon: DocumentTextIcon, label: 'SLA Agreements' },
+      { to: '/connectors', icon: BoltIcon, label: 'Connectors' },
     ]
   },
   {

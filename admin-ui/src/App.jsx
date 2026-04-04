@@ -20,6 +20,13 @@ import GatewayStatus from './pages/GatewayStatus'
 import Settings from './pages/Settings'
 import Flows from './pages/Flows'
 import Terminal from './pages/Terminal'
+import Journey from './pages/Journey'
+import Keystore from './pages/Keystore'
+import Scheduler from './pages/Scheduler'
+import Sla from './pages/Sla'
+import Screening from './pages/Screening'
+import Connectors from './pages/Connectors'
+import PeerTransfers from './pages/PeerTransfers'
 
 export default function App() {
   return (
@@ -42,6 +49,13 @@ export default function App() {
             <Route path="logs" element={<Logs />} />
             <Route path="flows" element={<Flows />} />
             <Route path="gateway" element={<GatewayStatus />} />
+            <Route path="journey" element={<Journey />} />
+            <Route path="keystore" element={<Keystore />} />
+            <Route path="scheduler" element={<Scheduler />} />
+            <Route path="sla" element={<Sla />} />
+            <Route path="screening" element={<Screening />} />
+            <Route path="connectors" element={<Connectors />} />
+            <Route path="p2p" element={<PeerTransfers />} />
             <Route path="terminal" element={<Terminal />} />
             <Route path="license" element={<License />} />
             <Route path="settings" element={<Settings />} />

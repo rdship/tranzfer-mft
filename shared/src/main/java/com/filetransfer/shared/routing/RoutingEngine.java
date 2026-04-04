@@ -209,14 +209,21 @@ public class RoutingEngine {
     private void routeLocally(String sourceAbsPath, String destAbsPath, FileTransferRecord record, String trackId)
             throws IOException {
         Path src = Paths.get(sourceAbsPath);
-        Path dst = Paths.get(destAbsPath);
+        // Embed trackId in destination filename: abc.txt -> abc.txt#TRZXXXXXX
+        Path originalDst = Paths.get(destAbsPath);
+        String destFilename = embedTrackId(originalDst.getFileName().toString(), trackId);
+        Path dst = originalDst.getParent().resolve(destFilename);
+
         Files.createDirectories(dst.getParent());
         Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING);
 
+        record.setDestinationFilePath(dst.toString());
         record.setStatus(FileTransferStatus.IN_OUTBOX);
         record.setRoutedAt(Instant.now());
+        // Compute destination checksum for integrity verification
+        record.setDestinationChecksum(com.filetransfer.shared.audit.AuditService.sha256(dst));
         recordRepository.save(record);
-        log.info("[{}] Routed locally: {} -> {}", trackId, src.getFileName(), destAbsPath);
+        log.info("[{}] Routed locally: {} -> {}", trackId, src.getFileName(), dst.getFileName());
     }
 
     private void routeRemotely(String sourceAbsPath, FileTransferRecord record,
@@ -224,10 +231,15 @@ public class RoutingEngine {
         byte[] bytes = Files.readAllBytes(Paths.get(sourceAbsPath));
         String encoded = Base64.getEncoder().encodeToString(bytes);
 
+        // Embed trackId in destination filename
+        String destPath = record.getDestinationFilePath();
+        Path destP = Paths.get(destPath);
+        String destWithTrack = destP.getParent().resolve(embedTrackId(destP.getFileName().toString(), trackId)).toString();
+
         FileForwardRequest req = FileForwardRequest.builder()
                 .recordId(record.getId())
-                .destinationAbsolutePath(record.getDestinationFilePath())
-                .originalFilename(record.getOriginalFilename())
+                .destinationAbsolutePath(destWithTrack)
+                .originalFilename(embedTrackId(record.getOriginalFilename(), trackId))
                 .fileContentBase64(encoded)
                 .build();
 
@@ -264,6 +276,15 @@ public class RoutingEngine {
                 .filename(record.getOriginalFilename())
                 .summary("File transfer failed: " + record.getOriginalFilename())
                 .details(error).service("routing-engine").build());
+    }
+
+    /**
+     * Embed track ID into filename: abc.txt -> abc.txt#TRZXXXXXX
+     * This ensures the receiving client can see the track ID in the filename.
+     */
+    private String embedTrackId(String filename, String trackId) {
+        if (trackId == null || trackId.isBlank()) return filename;
+        return filename + "#" + trackId;
     }
 
     private boolean matchesFlow(FileFlow flow, String filename, String path) {
