@@ -1,6 +1,7 @@
 package com.filetransfer.ai.controller;
 
 import com.filetransfer.ai.service.*;
+import com.filetransfer.ai.service.phase3.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,6 +22,11 @@ public class AiController {
     private final SmartRetryService smartRetryService;
     private final ContentValidationService contentValidationService;
     private final ThreatScoringService threatScoringService;
+    private final PartnerProfileService partnerProfileService;
+    private final PredictiveSlaService slaService;
+    private final AutoRemediationService autoRemediationService;
+    private final NaturalLanguageMonitoringService nlMonitoringService;
+    private final FileFormatDetector fileFormatDetector;
     private final NlpService nlpService;
 
     // === Data Classification ===
@@ -145,17 +151,74 @@ public class AiController {
                 java.time.Instant.now()));
     }
 
+    // === Phase 3: Partner Profiles ===
+
+    @GetMapping("/partners")
+    public List<PartnerProfileService.PartnerProfile> getPartnerProfiles() {
+        return partnerProfileService.getAllProfiles();
+    }
+
+    @GetMapping("/partners/{username}")
+    public ResponseEntity<?> getPartnerProfile(@PathVariable String username) {
+        var profile = partnerProfileService.getProfile(username);
+        return profile != null ? ResponseEntity.ok(profile) : ResponseEntity.notFound().build();
+    }
+
+    @PostMapping("/partners/{username}/check")
+    public List<String> checkDeviations(@PathVariable String username, @RequestBody Map<String, Object> body) {
+        return partnerProfileService.checkDeviations(username,
+                (String) body.get("filename"),
+                body.get("fileSize") instanceof Number n ? n.longValue() : null,
+                java.time.Instant.now());
+    }
+
+    // === Phase 3: SLA Forecasts ===
+
+    @GetMapping("/sla/forecasts")
+    public List<PredictiveSlaService.SlaForecast> getSlaForecasts() {
+        return slaService.getForecasts();
+    }
+
+    // === Phase 3: Auto-Remediation ===
+
+    @GetMapping("/remediation/actions")
+    public List<AutoRemediationService.RemediationAction> getRemediationActions() {
+        return autoRemediationService.getRecentActions();
+    }
+
+    // === Phase 3: Natural Language Monitoring ===
+
+    @PostMapping("/ask")
+    public ResponseEntity<Map<String, String>> ask(@RequestBody Map<String, String> body) {
+        String answer = nlMonitoringService.answer(body.get("question"));
+        return ResponseEntity.ok(Map.of("answer", answer));
+    }
+
+    // === Phase 3: File Format Detection ===
+
+    @PostMapping("/detect-format")
+    public ResponseEntity<FileFormatDetector.FormatResult> detectFormat(
+            @RequestPart("file") MultipartFile file) throws Exception {
+        Path tempFile = Files.createTempFile("detect_", "_" + file.getOriginalFilename());
+        file.transferTo(tempFile.toFile());
+        try {
+            return ResponseEntity.ok(fileFormatDetector.detect(tempFile));
+        } finally { Files.deleteIfExists(tempFile); }
+    }
+
     @GetMapping("/health")
     public Map<String, Object> health() {
         return Map.of(
                 "status", "UP",
                 "service", "ai-engine",
-                "version", "2.1.0-phase2",
-                "features", Map.of(
+                "version", "3.0.0-phase3",
+                "features", new java.util.LinkedHashMap<>(Map.of(
                         "classification", true, "anomalyDetection", true,
                         "nlp", true, "riskScoring", true,
                         "smartRetry", true, "contentValidation", true,
-                        "threatScoring", true
-                ));
+                        "threatScoring", true,
+                        "partnerProfiles", true, "predictiveSla", true,
+                        "autoRemediation", true
+                )) {{ put("nlMonitoring", true); put("formatDetection", true); }});
     }
 }
