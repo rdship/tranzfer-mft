@@ -65,3 +65,4 @@ Desktop.ini
 *.bak
 *.tmp
 *.orig
+tests/reports/
