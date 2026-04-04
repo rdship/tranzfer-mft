@@ -20,6 +20,7 @@ const navGroups = [
     items: [
       { to: '/dashboard', icon: HomeIcon, label: 'Dashboard' },
       { to: '/journey', icon: DocumentTextIcon, label: 'Transfer Journey' },
+      { to: '/activity', icon: WifiIcon, label: 'Live Activity' },
       { to: '/monitoring', icon: WifiIcon, label: 'Service Health' },
     ]
   },
@@ -39,7 +40,9 @@ const navGroups = [
     items: [
       { to: '/servers', icon: ServerStackIcon, label: 'Server Config' },
       { to: '/security-profiles', icon: ShieldCheckIcon, label: 'Security Profiles' },
+      { to: '/encryption', icon: KeyIcon, label: 'Encryption Keys' },
       { to: '/keystore', icon: KeyIcon, label: 'Keystore Manager' },
+      { to: '/storage', icon: ServerStackIcon, label: 'Storage Manager' },
       { to: '/gateway', icon: BoltIcon, label: 'Gateway & DMZ' },
       { to: '/scheduler', icon: CpuChipIcon, label: 'Scheduler' },
     ]

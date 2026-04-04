@@ -1,0 +1,105 @@
+import { useQuery, useMutation } from '@tanstack/react-query'
+import axios from 'axios'
+import LoadingSpinner from '../components/LoadingSpinner'
+import StatCard from '../components/StatCard'
+import toast from 'react-hot-toast'
+import { CircleStackIcon, ArrowPathIcon, ArrowUpTrayIcon, CloudIcon } from '@heroicons/react/24/outline'
+import { format } from 'date-fns'
+
+const storageApi = axios.create({ baseURL: 'http://localhost:8094' })
+
+const tierColors = { HOT: 'bg-red-100 text-red-800', WARM: 'bg-amber-100 text-amber-800', COLD: 'bg-blue-100 text-blue-800' }
+
+export default function Storage() {
+  const { data: metrics = {}, isLoading } = useQuery({ queryKey: ['storage-metrics'],
+    queryFn: () => storageApi.get('/api/v1/storage/metrics').then(r => r.data).catch(() => ({})), refetchInterval: 30000 })
+  const { data: objects = [] } = useQuery({ queryKey: ['storage-objects'],
+    queryFn: () => storageApi.get('/api/v1/storage/objects').then(r => r.data).catch(() => []) })
+  const { data: actions = [] } = useQuery({ queryKey: ['storage-actions'],
+    queryFn: () => storageApi.get('/api/v1/storage/lifecycle/actions').then(r => r.data).catch(() => []) })
+
+  const tierMut = useMutation({ mutationFn: () => storageApi.post('/api/v1/storage/lifecycle/tier'),
+    onSuccess: () => toast.success('Tiering cycle completed') })
+  const backupMut = useMutation({ mutationFn: () => storageApi.post('/api/v1/storage/lifecycle/backup'),
+    onSuccess: () => toast.success('Backup completed') })
+
+  if (isLoading) return <LoadingSpinner />
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div><h1 className="text-2xl font-bold text-gray-900">Storage Manager</h1>
+          <p className="text-gray-500 text-sm">GPFS-style tiered storage with parallel I/O and AI lifecycle</p></div>
+        <div className="flex gap-2">
+          <button className="btn-secondary text-xs" onClick={() => tierMut.mutate()} disabled={tierMut.isPending}>
+            <ArrowPathIcon className="w-3.5 h-3.5" /> {tierMut.isPending ? 'Running...' : 'Run Tiering'}
+          </button>
+          <button className="btn-secondary text-xs" onClick={() => backupMut.mutate()} disabled={backupMut.isPending}>
+            <CloudIcon className="w-3.5 h-3.5" /> {backupMut.isPending ? 'Running...' : 'Run Backup'}
+          </button>
+        </div>
+      </div>
+
+      {/* Tier cards */}
+      <div className="grid grid-cols-3 gap-4">
+        {[{ tier: 'HOT', icon: '🔴', desc: 'NVMe/SSD — active files', count: metrics.hotCount || 0, size: metrics.hotSizeGb || 0 },
+          { tier: 'WARM', icon: '🟡', desc: 'HDD/S3 — 7+ days old', count: metrics.warmCount || 0, size: metrics.warmSizeGb || 0 },
+          { tier: 'COLD', icon: '🔵', desc: 'Archive — 30+ days old', count: metrics.coldCount || 0, size: metrics.coldSizeGb || 0 }
+        ].map(t => (
+          <div key={t.tier} className="card text-center">
+            <div className="text-3xl mb-2">{t.icon}</div>
+            <h3 className="font-bold text-gray-900">{t.tier} Tier</h3>
+            <p className="text-xs text-gray-500 mb-3">{t.desc}</p>
+            <p className="text-2xl font-bold text-gray-900">{t.count.toLocaleString()}</p>
+            <p className="text-sm text-gray-500">files</p>
+            <p className="text-lg font-semibold text-gray-700 mt-1">{t.size} GB</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-4 gap-4">
+        <StatCard title="Total Objects" value={metrics.totalObjects || 0} icon={CircleStackIcon} color="blue" />
+        <StatCard title="Lifecycle Actions" value={metrics.recentActions || 0} icon={ArrowPathIcon} color="amber" />
+        <StatCard title="Features" value="6" subtitle="parallel-io, tiered, dedup, backup, ai-lifecycle, pre-stage" icon={CloudIcon} color="green" />
+        <StatCard title="I/O Threads" value="8" subtitle="4MB stripe, 64MB buffer" icon={ArrowUpTrayIcon} color="purple" />
+      </div>
+
+      {/* Objects table */}
+      {objects.length > 0 && (
+        <div className="card">
+          <h3 className="font-semibold text-gray-900 mb-3">Stored Objects ({objects.length})</h3>
+          <table className="w-full"><thead><tr className="border-b">
+            <th className="table-header">File</th><th className="table-header">Track ID</th><th className="table-header">Tier</th>
+            <th className="table-header">Size</th><th className="table-header">Accesses</th><th className="table-header">SHA-256</th><th className="table-header">Stored</th>
+          </tr></thead><tbody>
+            {objects.slice(0, 50).map(o => (
+              <tr key={o.id} className="table-row">
+                <td className="table-cell text-sm font-medium">{o.filename}</td>
+                <td className="table-cell font-mono text-xs text-blue-600">{o.trackId || '—'}</td>
+                <td className="table-cell"><span className={`badge ${tierColors[o.tier] || 'badge-gray'}`}>{o.tier}</span></td>
+                <td className="table-cell text-xs">{(o.sizeBytes / 1024).toFixed(1)} KB</td>
+                <td className="table-cell text-xs">{o.accessCount}</td>
+                <td className="table-cell font-mono text-xs text-gray-400">{o.sha256?.substring(0,12)}...</td>
+                <td className="table-cell text-xs text-gray-500">{o.createdAt ? format(new Date(o.createdAt), 'MMM d HH:mm') : ''}</td>
+              </tr>
+            ))}
+          </tbody></table>
+        </div>
+      )}
+
+      {/* Lifecycle actions */}
+      {actions.length > 0 && (
+        <div className="card">
+          <h3 className="font-semibold text-gray-900 mb-3">Recent Lifecycle Actions</h3>
+          <div className="space-y-1">{actions.slice(0, 20).map((a, i) => (
+            <div key={i} className="flex items-center gap-3 text-sm py-1">
+              <span className="badge badge-blue text-xs">{a.action}</span>
+              <span className="font-medium">{a.filename}</span>
+              <span className="text-gray-400 text-xs">{(a.sizeBytes / 1024).toFixed(0)} KB</span>
+              <span className="text-gray-400 text-xs ml-auto">{a.timestamp ? format(new Date(a.timestamp), 'HH:mm:ss') : ''}</span>
+            </div>
+          ))}</div>
+        </div>
+      )}
+    </div>
+  )
+}

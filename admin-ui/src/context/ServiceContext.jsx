@@ -71,6 +71,11 @@ const PAGE_SERVICE_MAP = {
   '/connectors': ['config'],
   '/scheduler': ['config'],
 
+  // New pages
+  '/storage': ['core'],
+  '/activity': ['core'],
+  '/encryption': ['encryption'],
+
   // AI
   '/ai': ['aiEngine'],
   '/recommendations': ['aiEngine'],

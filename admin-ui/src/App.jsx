@@ -29,6 +29,9 @@ import Screening from './pages/Screening'
 import Connectors from './pages/Connectors'
 import PeerTransfers from './pages/PeerTransfers'
 import Recommendations from './pages/Recommendations'
+import Storage from './pages/Storage'
+import Activity from './pages/Activity'
+import Encryption from './pages/Encryption'
 
 export default function App() {
   return (
@@ -58,6 +61,9 @@ export default function App() {
             <Route path="sla" element={<Sla />} />
             <Route path="screening" element={<Screening />} />
             <Route path="recommendations" element={<Recommendations />} />
+            <Route path="storage" element={<Storage />} />
+            <Route path="activity" element={<Activity />} />
+            <Route path="encryption" element={<Encryption />} />
             <Route path="connectors" element={<Connectors />} />
             <Route path="p2p" element={<PeerTransfers />} />
             <Route path="terminal" element={<Terminal />} />
