@@ -23,6 +23,7 @@
         <module>license-service</module>
         <module>analytics-service</module>
         <module>cli</module>
+        <module>mft-client</module>
     </modules>
 
     <properties>

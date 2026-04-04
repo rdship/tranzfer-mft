@@ -1,0 +1,45 @@
+# =============================================================================
+# TranzFer MFT Client Configuration
+# =============================================================================
+# Edit this file with your server details, then rename to mft-client.yml
+#
+# Quick start:
+#   1. Set server.host, server.username, server.password
+#   2. Run: java -jar mft-client.jar
+#   3. Drop files into ./outbox — they transfer automatically
+#   4. Check ./inbox for incoming files
+# =============================================================================
+
+# Your TranzFer MFT Server connection
+server:
+  protocol: SFTP          # SFTP or FTP
+  host: mft.yourcompany.com
+  port: 2222              # 2222 for SFTP, 21 for FTP
+  username: your-account-username
+  password: your-account-password
+  # privateKeyPath: ~/.ssh/id_rsa   # Optional: SSH key auth instead of password
+  timeoutSeconds: 30
+  autoRetry: true
+  maxRetries: 3
+
+# Local folder mapping
+folders:
+  outbox: ./outbox        # Drop files here → uploaded to server
+  inbox: ./inbox          # Files from server → downloaded here
+  sent: ./sent            # Archive of successfully sent files
+  failed: ./failed        # Failed transfers (retry manually)
+  remoteInbox: /inbox     # Server-side upload destination
+  remoteOutbox: /outbox   # Server-side download source
+
+# Sync behavior
+sync:
+  watchOutbox: true       # Auto-upload files from outbox
+  pollInbox: true         # Auto-download files from server
+  pollIntervalSeconds: 30 # Check frequency
+  deleteAfterDownload: true
+  # includePattern: ".*\\.csv$"   # Only sync CSV files (regex)
+  # excludePattern: ".*\\.tmp$"   # Skip temp files (regex)
+  # maxFileSizeMb: 500            # Skip files larger than 500MB
+
+clientName: my-mft-client
+logLevel: INFO
