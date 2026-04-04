@@ -1,0 +1,72 @@
+# OpenTelemetry Collector Configuration
+# Deploy alongside MFT Platform for centralized observability
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'mft-services'
+          scrape_interval: 30s
+          static_configs:
+            - targets:
+              - 'onboarding-api:8080'
+              - 'sftp-service:8081'
+              - 'ftp-service:8082'
+              - 'ftp-web-service:8083'
+              - 'config-service:8084'
+              - 'gateway-service:8085'
+              - 'encryption-service:8086'
+              - 'external-forwarder-service:8087'
+              - 'dmz-proxy:8088'
+              - 'license-service:8089'
+              - 'analytics-service:8090'
+          metrics_path: /actuator/prometheus
+
+processors:
+  batch:
+    timeout: 10s
+    send_batch_size: 1000
+  memory_limiter:
+    limit_mib: 512
+    spike_limit_mib: 128
+  resource:
+    attributes:
+      - key: platform
+        value: "tranzfer-mft"
+        action: insert
+
+exporters:
+  logging:
+    loglevel: info
+
+  # Prometheus exporter (for Grafana)
+  prometheus:
+    endpoint: "0.0.0.0:9464"
+
+  # OTLP exporter (to Jaeger, Tempo, etc.)
+  otlp/jaeger:
+    endpoint: "jaeger:4317"
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    metrics:
+      receivers: [prometheus, otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [prometheus, logging]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [otlp/jaeger, logging]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [logging]

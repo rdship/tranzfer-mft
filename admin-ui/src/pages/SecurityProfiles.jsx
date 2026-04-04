@@ -1,0 +1,173 @@
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { configApi } from '../api/client'
+import Modal from '../components/Modal'
+import LoadingSpinner from '../components/LoadingSpinner'
+import EmptyState from '../components/EmptyState'
+import toast from 'react-hot-toast'
+import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
+
+const SSH_CIPHERS = ['aes256-ctr','aes128-ctr','aes256-gcm@openssh.com','aes128-gcm@openssh.com','chacha20-poly1305@openssh.com']
+const SSH_MACS = ['hmac-sha2-256','hmac-sha2-512','hmac-sha2-256-etm@openssh.com','hmac-sha2-512-etm@openssh.com']
+const KEX_ALGOS = ['ecdh-sha2-nistp256','ecdh-sha2-nistp384','diffie-hellman-group14-sha256','diffie-hellman-group16-sha512','curve25519-sha256']
+const HOST_KEY_ALGOS = ['rsa-sha2-256','rsa-sha2-512','ecdsa-sha2-nistp256','ssh-ed25519']
+
+const defaultForm = {
+  name: '', description: '', type: 'SSH',
+  sshCiphers: [...SSH_CIPHERS], sshMacs: [...SSH_MACS], kexAlgorithms: [...KEX_ALGOS], hostKeyAlgorithms: [...HOST_KEY_ALGOS],
+  tlsMinVersion: 'TLS_1_2', tlsCiphers: [], clientAuthRequired: false
+}
+
+export default function SecurityProfiles() {
+  const qc = useQueryClient()
+  const [showCreate, setShowCreate] = useState(false)
+  const [form, setForm] = useState({ ...defaultForm })
+
+  const { data: profiles = [], isLoading } = useQuery({
+    queryKey: ['security-profiles'],
+    queryFn: () => configApi.get('/api/security-profiles').then(r => r.data).catch(() => [])
+  })
+
+  const createMut = useMutation({
+    mutationFn: (data) => configApi.post('/api/security-profiles', data).then(r => r.data),
+    onSuccess: () => { qc.invalidateQueries(['security-profiles']); setShowCreate(false); setForm({ ...defaultForm }); toast.success('Security profile created') },
+    onError: err => toast.error(err.response?.data?.error || 'Failed')
+  })
+  const deleteMut = useMutation({
+    mutationFn: (id) => configApi.delete(`/api/security-profiles/${id}`),
+    onSuccess: () => { qc.invalidateQueries(['security-profiles']); toast.success('Profile deleted') }
+  })
+
+  const toggleItem = (field, item) => {
+    setForm(f => ({
+      ...f,
+      [field]: f[field].includes(item) ? f[field].filter(i => i !== item) : [...f[field], item]
+    }))
+  }
+
+  if (isLoading) return <LoadingSpinner />
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Security Profiles</h1>
+          <p className="text-gray-500 text-sm">Configure cipher suites, MACs, and key exchange algorithms</p>
+        </div>
+        <button className="btn-primary" onClick={() => setShowCreate(true)}>
+          <PlusIcon className="w-4 h-4" /> New Profile
+        </button>
+      </div>
+
+      {profiles.length === 0 ? (
+        <div className="card">
+          <EmptyState title="No security profiles" description="Create a security profile to enforce cipher/MAC policies on your SFTP/FTP servers and partner connections."
+            action={<button className="btn-primary" onClick={() => setShowCreate(true)}><PlusIcon className="w-4 h-4" />Create Profile</button>} />
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {profiles.map(p => (
+            <div key={p.id} className="card">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="font-semibold text-gray-900">{p.name}</h3>
+                  <p className="text-sm text-gray-500 mt-0.5">{p.description}</p>
+                  <span className={`badge mt-2 ${p.type === 'SSH' ? 'badge-blue' : 'badge-purple'}`}>{p.type}</span>
+                </div>
+                <button onClick={() => { if (confirm('Delete profile?')) deleteMut.mutate(p.id) }}
+                  className="p-1.5 rounded hover:bg-red-50 text-red-500 transition-colors">
+                  <TrashIcon className="w-4 h-4" />
+                </button>
+              </div>
+              {p.type === 'SSH' && (
+                <div className="mt-4 grid grid-cols-2 gap-4 text-xs">
+                  <div><p className="font-semibold text-gray-700 mb-1">Ciphers</p>
+                    {(p.sshCiphers || []).map(c => <div key={c} className="text-gray-500 font-mono">{c}</div>)}</div>
+                  <div><p className="font-semibold text-gray-700 mb-1">MACs</p>
+                    {(p.sshMacs || []).map(m => <div key={m} className="text-gray-500 font-mono">{m}</div>)}</div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showCreate && (
+        <Modal title="New Security Profile" size="lg" onClose={() => setShowCreate(false)}>
+          <form onSubmit={e => { e.preventDefault(); createMut.mutate(form) }} className="space-y-5">
+            <div className="grid grid-cols-2 gap-4">
+              <div><label>Profile Name</label>
+                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required placeholder="e.g. FIPS-140-2" /></div>
+              <div><label>Type</label>
+                <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
+                  <option>SSH</option><option>TLS</option>
+                </select>
+              </div>
+            </div>
+            <div><label>Description</label>
+              <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Describe when to use this profile" /></div>
+
+            {form.type === 'SSH' && (
+              <>
+                <div>
+                  <label>Allowed Ciphers</label>
+                  <div className="mt-2 grid grid-cols-1 gap-1">
+                    {SSH_CIPHERS.map(c => (
+                      <label key={c} className="flex items-center gap-2 cursor-pointer mb-0">
+                        <input type="checkbox" className="w-auto rounded" checked={form.sshCiphers.includes(c)} onChange={() => toggleItem('sshCiphers', c)} />
+                        <span className="font-mono text-xs">{c}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label>Allowed MACs</label>
+                  <div className="mt-2 grid grid-cols-1 gap-1">
+                    {SSH_MACS.map(m => (
+                      <label key={m} className="flex items-center gap-2 cursor-pointer mb-0">
+                        <input type="checkbox" className="w-auto rounded" checked={form.sshMacs.includes(m)} onChange={() => toggleItem('sshMacs', m)} />
+                        <span className="font-mono text-xs">{m}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label>Key Exchange Algorithms</label>
+                  <div className="mt-2 grid grid-cols-1 gap-1">
+                    {KEX_ALGOS.map(k => (
+                      <label key={k} className="flex items-center gap-2 cursor-pointer mb-0">
+                        <input type="checkbox" className="w-auto rounded" checked={form.kexAlgorithms.includes(k)} onChange={() => toggleItem('kexAlgorithms', k)} />
+                        <span className="font-mono text-xs">{k}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {form.type === 'TLS' && (
+              <div className="grid grid-cols-2 gap-4">
+                <div><label>Min TLS Version</label>
+                  <select value={form.tlsMinVersion} onChange={e => setForm(f => ({ ...f, tlsMinVersion: e.target.value }))}>
+                    <option>TLS_1_2</option><option>TLS_1_3</option>
+                  </select>
+                </div>
+                <div><label>Require Client Auth</label>
+                  <label className="flex items-center gap-2 mt-2 mb-0">
+                    <input type="checkbox" className="w-auto" checked={form.clientAuthRequired} onChange={e => setForm(f => ({ ...f, clientAuthRequired: e.target.checked }))} />
+                    <span className="text-sm">mTLS (client certificate)</span>
+                  </label>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3 justify-end pt-2">
+              <button type="button" className="btn-secondary" onClick={() => setShowCreate(false)}>Cancel</button>
+              <button type="submit" className="btn-primary" disabled={createMut.isPending}>{createMut.isPending ? 'Saving...' : 'Save Profile'}</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
+  )
+}

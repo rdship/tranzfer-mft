@@ -1,0 +1,50 @@
+import { Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider } from './context/AuthContext'
+import { BrandingProvider } from './context/BrandingContext'
+import ProtectedRoute from './components/ProtectedRoute'
+import Layout from './components/Layout'
+import Login from './pages/Login'
+import Dashboard from './pages/Dashboard'
+import Accounts from './pages/Accounts'
+import Users from './pages/Users'
+import FolderMappings from './pages/FolderMappings'
+import Servers from './pages/Servers'
+import SecurityProfiles from './pages/SecurityProfiles'
+import ExternalDestinations from './pages/ExternalDestinations'
+import Analytics from './pages/Analytics'
+import Predictions from './pages/Predictions'
+import Monitoring from './pages/Monitoring'
+import Logs from './pages/Logs'
+import License from './pages/License'
+import GatewayStatus from './pages/GatewayStatus'
+import Settings from './pages/Settings'
+
+export default function App() {
+  return (
+    <BrandingProvider>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="accounts" element={<Accounts />} />
+            <Route path="users" element={<Users />} />
+            <Route path="folder-mappings" element={<FolderMappings />} />
+            <Route path="servers" element={<Servers />} />
+            <Route path="security-profiles" element={<SecurityProfiles />} />
+            <Route path="external-destinations" element={<ExternalDestinations />} />
+            <Route path="analytics" element={<Analytics />} />
+            <Route path="predictions" element={<Predictions />} />
+            <Route path="monitoring" element={<Monitoring />} />
+            <Route path="logs" element={<Logs />} />
+            <Route path="gateway" element={<GatewayStatus />} />
+            <Route path="license" element={<License />} />
+            <Route path="settings" element={<Settings />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </AuthProvider>
+    </BrandingProvider>
+  )
+}

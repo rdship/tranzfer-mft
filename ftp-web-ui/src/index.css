@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+body { @apply bg-gray-50 text-gray-900; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+.btn { @apply inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors; }
+.btn-primary { @apply btn bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50; }
+.btn-secondary { @apply btn bg-white text-gray-700 border border-gray-200 hover:bg-gray-50; }
+.file-row { @apply flex items-center gap-3 px-4 py-3 hover:bg-gray-100 cursor-pointer rounded-lg transition-colors; }

@@ -1,0 +1,61 @@
+# Production overrides for mft-platform Helm chart
+# Usage: helm upgrade --install mft-platform ./helm/mft-platform -f helm/values-production.yaml
+
+global:
+  imageRegistry: "your-registry.example.com/"
+  imageTag: "2.0.0"
+  jwtSecret: "REPLACE_WITH_256BIT_SECRET"
+  controlApiKey: "REPLACE_WITH_STRONG_KEY"
+  licenseAdminKey: "REPLACE_WITH_STRONG_KEY"
+  clusterId: "prod-cluster-1"
+  postgresql:
+    enabled: false      # Use managed PostgreSQL in production
+    host: "your-rds-or-cloud-db.example.com"
+    username: "mft_user"
+    password: "REPLACE_WITH_DB_PASSWORD"
+  rabbitmq:
+    enabled: false      # Use managed RabbitMQ/SQS
+    host: "your-rabbitmq.example.com"
+
+onboardingApi:
+  replicaCount: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+
+sftpService:
+  replicaCount: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 20
+  persistence:
+    size: 500Gi
+    storageClass: "fast-ssd"
+
+encryptionService:
+  replicaCount: 3
+  encryptionMasterKey: "REPLACE_WITH_64_HEX_CHAR_KEY"
+
+ingress:
+  enabled: true
+  className: nginx
+  tls:
+    enabled: true
+    secretName: mft-tls
+  hosts:
+    admin: admin.your-domain.com
+    portal: files.your-domain.com
+    api: api.your-domain.com
+
+monitoring:
+  enabled: true
+  prometheus:
+    scrapeInterval: 15s
+  grafana:
+    enabled: true
+
+otel:
+  enabled: true
+  endpoint: "http://otel-collector:4318"

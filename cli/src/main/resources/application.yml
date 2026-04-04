@@ -1,0 +1,15 @@
+spring:
+  shell:
+    interactive:
+      enabled: true
+  main:
+    web-application-type: none
+
+# Override via ~/.ftplatform/cli.yml or --api.base-url flag
+api:
+  base-url: ${API_BASE_URL:http://localhost:8080}
+  config-url: ${CONFIG_API_URL:http://localhost:8084}
+  gateway-url: ${GATEWAY_API_URL:http://localhost:8085}
+  encryption-url: ${ENCRYPTION_API_URL:http://localhost:8086}
+  forwarder-url: ${FORWARDER_API_URL:http://localhost:8087}
+  dmz-url: ${DMZ_API_URL:http://localhost:8088}

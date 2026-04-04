@@ -1,0 +1,285 @@
+# =============================================================================
+# TranzFer MFT Platform — Helm Values
+# =============================================================================
+
+global:
+  # Image registry override (leave empty for DockerHub)
+  imageRegistry: ""
+  imageTag: "2.0.0"
+  imagePullPolicy: IfNotPresent
+  imagePullSecrets: []
+
+  # Branding
+  platformName: "TranzFer MFT"
+
+  # Security
+  jwtSecret: "change_me_in_production_256bit_secret_key!!"
+  controlApiKey: "internal_control_secret"
+  licenseAdminKey: "license_admin_secret_key"
+
+  # Cluster
+  clusterId: "cluster-1"
+
+  # External services (override if using managed DBs)
+  postgresql:
+    enabled: true        # set false to use external
+    host: "postgresql"
+    port: 5432
+    database: "filetransfer"
+    username: "postgres"
+    password: "postgres"
+
+  rabbitmq:
+    enabled: true
+    host: "rabbitmq"
+    port: 5672
+    username: "guest"
+    password: "guest"
+
+  kafka:
+    enabled: false
+    bootstrapServers: "kafka:9092"
+
+# =============================================================================
+# Infrastructure
+# =============================================================================
+postgresql:
+  enabled: true
+  auth:
+    database: filetransfer
+    username: postgres
+    password: postgres
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+
+rabbitmq:
+  enabled: true
+  auth:
+    username: guest
+    password: guest
+  persistence:
+    enabled: true
+    size: 5Gi
+
+# =============================================================================
+# Microservices
+# =============================================================================
+
+onboardingApi:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: mft/onboarding-api
+    tag: ""  # defaults to global.imageTag
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: 1, memory: 1Gi }
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+sftpService:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: mft/sftp-service
+  service:
+    type: LoadBalancer
+    sftpPort: 2222
+    controlPort: 8081
+  persistence:
+    enabled: true
+    size: 50Gi
+    storageClass: ""
+  resources:
+    requests: { cpu: 500m, memory: 512Mi }
+    limits: { cpu: 2, memory: 2Gi }
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 60
+
+ftpService:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: mft/ftp-service
+  service:
+    type: LoadBalancer
+    ftpPort: 21
+    controlPort: 8082
+  ftpPublicHost: ""   # set to LoadBalancer external IP
+  persistence:
+    enabled: true
+    size: 50Gi
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: 1, memory: 1Gi }
+
+ftpWebService:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: mft/ftp-web-service
+  service:
+    type: ClusterIP
+    port: 8083
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: 1, memory: 1Gi }
+
+configService:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: mft/config-service
+  service:
+    type: ClusterIP
+    port: 8084
+  resources:
+    requests: { cpu: 250m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+gatewayService:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: mft/gateway-service
+  service:
+    type: LoadBalancer
+    sftpGatewayPort: 2220
+    ftpGatewayPort: 2121
+    controlPort: 8085
+  resources:
+    requests: { cpu: 500m, memory: 512Mi }
+    limits: { cpu: 2, memory: 2Gi }
+
+encryptionService:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: mft/encryption-service
+  service:
+    type: ClusterIP
+    port: 8086
+  encryptionMasterKey: "0000000000000000000000000000000000000000000000000000000000000000"
+  resources:
+    requests: { cpu: 500m, memory: 512Mi }
+    limits: { cpu: 2, memory: 2Gi }
+
+externalForwarderService:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: mft/external-forwarder-service
+  service:
+    type: ClusterIP
+    port: 8087
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: 1, memory: 1Gi }
+
+dmzProxy:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: mft/dmz-proxy
+  service:
+    type: LoadBalancer
+    managementPort: 8088
+    sftpPort: 32222
+    ftpPort: 32121
+    httpsPort: 4443
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 256Mi }
+
+licenseService:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: mft/license-service
+  service:
+    type: ClusterIP
+    port: 8089
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+analyticsService:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: mft/analytics-service
+  service:
+    type: ClusterIP
+    port: 8090
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: 1, memory: 1Gi }
+
+# =============================================================================
+# Frontend UIs
+# =============================================================================
+adminUi:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: mft/admin-ui
+  service:
+    type: ClusterIP
+    port: 80
+
+ftpWebUi:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: mft/ftp-web-ui
+  service:
+    type: ClusterIP
+    port: 80
+
+# =============================================================================
+# Ingress
+# =============================================================================
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "512m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    admin: admin.mft.example.com
+    portal: portal.mft.example.com
+    api: api.mft.example.com
+  tls:
+    enabled: false
+    secretName: mft-tls
+
+# =============================================================================
+# Monitoring (Prometheus + Grafana)
+# =============================================================================
+monitoring:
+  enabled: false
+  prometheus:
+    scrapeInterval: 30s
+  grafana:
+    enabled: false
+    adminPassword: admin
+
+# =============================================================================
+# OpenTelemetry
+# =============================================================================
+otel:
+  enabled: false
+  endpoint: "http://otel-collector:4318"
+  serviceName: "mft-platform"

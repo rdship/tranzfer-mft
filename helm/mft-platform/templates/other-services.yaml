@@ -1,0 +1,177 @@
+{{/* License Service */}}
+{{- if .Values.licenseService.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: license-service
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "mft.labels" . | nindent 4 }}
+    app: license-service
+spec:
+  replicas: {{ .Values.licenseService.replicaCount }}
+  selector:
+    matchLabels:
+      app: license-service
+  template:
+    metadata:
+      labels:
+        app: license-service
+    spec:
+      containers:
+        - name: license-service
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.licenseService.image.repository }}:{{ .Values.global.imageTag }}"
+          ports:
+            - containerPort: 8089
+          env:
+            - name: DATABASE_URL
+              value: {{ include "mft.databaseUrl" . | quote }}
+            - name: DB_USERNAME
+              value: {{ .Values.global.postgresql.username | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mft-secrets
+                  key: db-password
+            - name: LICENSE_ADMIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mft-secrets
+                  key: license-admin-key
+            - name: SERVER_PORT
+              value: "8089"
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8089 }
+            initialDelaySeconds: 20
+          resources: {{- toYaml .Values.licenseService.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: license-service
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: {{ .Values.licenseService.service.type }}
+  ports:
+    - port: {{ .Values.licenseService.service.port }}
+      targetPort: 8089
+  selector:
+    app: license-service
+{{- end }}
+
+{{/* Analytics Service */}}
+{{- if .Values.analyticsService.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics-service
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "mft.labels" . | nindent 4 }}
+    app: analytics-service
+spec:
+  replicas: {{ .Values.analyticsService.replicaCount }}
+  selector:
+    matchLabels:
+      app: analytics-service
+  template:
+    metadata:
+      labels:
+        app: analytics-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8090"
+        prometheus.io/path: "/actuator/prometheus"
+    spec:
+      containers:
+        - name: analytics-service
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.analyticsService.image.repository }}:{{ .Values.global.imageTag }}"
+          ports:
+            - containerPort: 8090
+          env:
+            {{- include "mft.commonEnv" . | nindent 12 }}
+            - name: CLUSTER_HOST
+              value: "analytics-service"
+            - name: SERVER_PORT
+              value: "8090"
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8090 }
+            initialDelaySeconds: 30
+          resources: {{- toYaml .Values.analyticsService.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: analytics-service
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: {{ .Values.analyticsService.service.type }}
+  ports:
+    - port: {{ .Values.analyticsService.service.port }}
+      targetPort: 8090
+  selector:
+    app: analytics-service
+{{- end }}
+
+{{/* Encryption Service */}}
+{{- if .Values.encryptionService.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: encryption-service
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "mft.labels" . | nindent 4 }}
+    app: encryption-service
+spec:
+  replicas: {{ .Values.encryptionService.replicaCount }}
+  selector:
+    matchLabels:
+      app: encryption-service
+  template:
+    metadata:
+      labels:
+        app: encryption-service
+    spec:
+      containers:
+        - name: encryption-service
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.encryptionService.image.repository }}:{{ .Values.global.imageTag }}"
+          ports:
+            - containerPort: 8086
+          env:
+            - name: DATABASE_URL
+              value: {{ include "mft.databaseUrl" . | quote }}
+            - name: DB_USERNAME
+              value: {{ .Values.global.postgresql.username | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mft-secrets
+                  key: db-password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: mft-secrets
+                  key: jwt-secret
+            - name: ENCRYPTION_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mft-secrets
+                  key: encryption-master-key
+            - name: SERVER_PORT
+              value: "8086"
+          resources: {{- toYaml .Values.encryptionService.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: encryption-service
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: {{ .Values.encryptionService.service.type }}
+  ports:
+    - port: {{ .Values.encryptionService.service.port }}
+      targetPort: 8086
+  selector:
+    app: encryption-service
+{{- end }}

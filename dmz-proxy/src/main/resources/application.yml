@@ -1,0 +1,22 @@
+server:
+  port: 8088  # Management / REST API
+
+control-api:
+  key: ${CONTROL_API_KEY:internal_control_secret}
+
+# Default port mappings loaded at startup.
+# Additional mappings can be added at runtime via the REST API.
+dmz:
+  mappings:
+    - name: sftp-gateway
+      listen-port: 2222
+      target-host: ${GATEWAY_HOST:gateway-service}
+      target-port: 2220
+    - name: ftp-gateway
+      listen-port: 21
+      target-host: ${GATEWAY_HOST:gateway-service}
+      target-port: 2121
+    - name: ftp-web
+      listen-port: 443
+      target-host: ${FTPWEB_HOST:ftp-web-service}
+      target-port: 8083

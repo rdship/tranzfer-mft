@@ -1,0 +1,12 @@
+import { onboardingApi } from './client'
+export const getAccounts = () => onboardingApi.get('/api/accounts').then(r => r.data)
+export const createAccount = (data) => onboardingApi.post('/api/accounts', data).then(r => r.data)
+export const updateAccount = (id, data) => onboardingApi.put(`/api/accounts/${id}`, data).then(r => r.data)
+export const deleteAccount = (id) => onboardingApi.delete(`/api/accounts/${id}`)
+export const toggleAccount = (id, active) => onboardingApi.patch(`/api/accounts/${id}`, { active }).then(r => r.data)
+export const getUsers = () => onboardingApi.get('/api/users').then(r => r.data)
+export const updateUser = (id, data) => onboardingApi.patch(`/api/users/${id}`, data).then(r => r.data)
+export const getFolderMappings = () => onboardingApi.get('/api/folder-mappings').then(r => r.data)
+export const createFolderMapping = (data) => onboardingApi.post('/api/folder-mappings', data).then(r => r.data)
+export const updateFolderMapping = (id, data) => onboardingApi.put(`/api/folder-mappings/${id}`, data).then(r => r.data)
+export const deleteFolderMapping = (id) => onboardingApi.delete(`/api/folder-mappings/${id}`)

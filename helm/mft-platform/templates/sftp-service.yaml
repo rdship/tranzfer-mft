@@ -1,0 +1,107 @@
+{{- if .Values.sftpService.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sftp-data
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes: [ReadWriteMany]
+  resources:
+    requests:
+      storage: {{ .Values.sftpService.persistence.size }}
+  {{- with .Values.sftpService.persistence.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: sftp-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mft.labels" . | nindent 4 }}
+    app: sftp-service
+spec:
+  replicas: {{ .Values.sftpService.replicaCount }}
+  serviceName: sftp-service-headless
+  selector:
+    matchLabels:
+      app: sftp-service
+  template:
+    metadata:
+      labels:
+        app: sftp-service
+    spec:
+      containers:
+        - name: sftp-service
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.sftpService.image.repository }}:{{ .Values.global.imageTag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: 2222
+              name: sftp
+            - containerPort: 8081
+              name: control
+          env:
+            {{- include "mft.commonEnv" . | nindent 12 }}
+            - name: CLUSTER_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: SFTP_PORT
+              value: "2222"
+            - name: SFTP_HOME_BASE
+              value: "/data/sftp"
+          volumeMounts:
+            - name: sftp-data
+              mountPath: /data/sftp
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8081 }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources: {{- toYaml .Values.sftpService.resources | nindent 12 }}
+      volumes:
+        - name: sftp-data
+          persistentVolumeClaim:
+            claimName: sftp-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sftp-service
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+spec:
+  type: {{ .Values.sftpService.service.type }}
+  ports:
+    - port: {{ .Values.sftpService.service.sftpPort }}
+      targetPort: 2222
+      name: sftp
+    - port: {{ .Values.sftpService.service.controlPort }}
+      targetPort: 8081
+      name: control
+  selector:
+    app: sftp-service
+{{- if .Values.sftpService.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: sftp-service-hpa
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: sftp-service
+  minReplicas: {{ .Values.sftpService.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.sftpService.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.sftpService.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- end }}

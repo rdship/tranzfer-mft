@@ -1,0 +1,11 @@
+import { configApi } from './client'
+export const getServers = () => configApi.get('/api/servers').then(r => r.data)
+export const createServer = (data) => configApi.post('/api/servers', data).then(r => r.data)
+export const updateServer = (id, data) => configApi.put(`/api/servers/${id}`, data).then(r => r.data)
+export const deleteServer = (id) => configApi.delete(`/api/servers/${id}`)
+export const getExternalDestinations = () => configApi.get('/api/external-destinations').then(r => r.data)
+export const createExternalDestination = (data) => configApi.post('/api/external-destinations', data).then(r => r.data)
+export const deleteExternalDestination = (id) => configApi.delete(`/api/external-destinations/${id}`)
+export const getEncryptionKeys = () => configApi.get('/api/encryption-keys').then(r => r.data)
+export const createEncryptionKey = (data) => configApi.post('/api/encryption-keys', data).then(r => r.data)
+export const deleteEncryptionKey = (id) => configApi.delete(`/api/encryption-keys/${id}`)

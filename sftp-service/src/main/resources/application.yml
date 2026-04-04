@@ -1,0 +1,43 @@
+server:
+  port: 8081
+
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/filetransfer}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
+jwt:
+  secret: ${JWT_SECRET:change_me_in_production_256bit_secret_key!!}
+  expiration: 900000
+
+sftp:
+  port: ${SFTP_PORT:2222}
+  host-key-path: ${SFTP_HOST_KEY_PATH:./sftp_host_key}
+  home-base: ${SFTP_HOME_BASE:/data/sftp}
+
+rabbitmq:
+  exchange: file-transfer.events
+  queue:
+    sftp-events: sftp.account.events
+
+control-api:
+  key: ${CONTROL_API_KEY:internal_control_secret}
+
+cluster:
+  id: ${CLUSTER_ID:default-cluster}
+  host: ${CLUSTER_HOST:localhost}
+  service-type: SFTP

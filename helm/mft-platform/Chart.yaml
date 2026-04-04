@@ -1,0 +1,15 @@
+apiVersion: v2
+name: mft-platform
+description: TranzFer MFT — Enterprise Managed File Transfer Platform
+type: application
+version: 2.0.0
+appVersion: "2.0.0"
+keywords:
+  - mft
+  - sftp
+  - ftp
+  - file-transfer
+home: https://github.com/your-org/mft-platform
+maintainers:
+  - name: TranzFer Engineering
+    email: engineering@tranzfer.io

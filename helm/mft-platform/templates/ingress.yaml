@@ -1,0 +1,75 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mft-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mft.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.hosts.admin }}
+        - {{ .Values.ingress.hosts.portal }}
+        - {{ .Values.ingress.hosts.api }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.hosts.admin }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: admin-ui
+                port:
+                  number: 80
+
+    - host: {{ .Values.ingress.hosts.portal }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ftp-web-ui
+                port:
+                  number: 80
+
+    - host: {{ .Values.ingress.hosts.api }}
+      http:
+        paths:
+          - path: /api/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: onboarding-api
+                port:
+                  number: 8080
+          - path: /api/accounts
+            pathType: Prefix
+            backend:
+              service:
+                name: onboarding-api
+                port:
+                  number: 8080
+          - path: /api/v1/analytics
+            pathType: Prefix
+            backend:
+              service:
+                name: analytics-service
+                port:
+                  number: 8090
+          - path: /api/v1/licenses
+            pathType: Prefix
+            backend:
+              service:
+                name: license-service
+                port:
+                  number: 8089
+{{- end }}

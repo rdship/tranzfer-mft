@@ -1,0 +1,67 @@
+# =============================================================================
+# TranzFer MFT Platform — .gitignore
+# =============================================================================
+
+# --- Java / Maven ---
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.iml
+.idea/
+*.swp
+*.swo
+*~
+
+# --- Spring Boot ---
+*.log
+spring-shell.log
+
+# --- Node / React ---
+node_modules/
+dist/
+.cache/
+.parcel-cache/
+*.tsbuildinfo
+
+# --- Environment / Secrets ---
+.env
+.env.local
+.env.*.local
+!.env.example
+!.env.production
+
+# --- Docker ---
+docker-compose.override.yml
+
+# --- Kubernetes secrets ---
+*-secret.yaml
+*-secrets.yaml
+!helm/mft-platform/templates/secrets.yaml
+
+# --- SSH keys (generated at runtime) ---
+*_host_key
+*_host_key.pub
+*.pem
+*.key
+!*.key.example
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# --- IDE ---
+.vscode/
+.settings/
+.project
+.classpath
+*.ipr
+*.iws
+.factorypath
+
+# --- Misc ---
+*.bak
+*.tmp
+*.orig

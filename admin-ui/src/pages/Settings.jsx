@@ -1,0 +1,95 @@
+import { useState } from 'react'
+import { useBranding } from '../context/BrandingContext'
+import toast from 'react-hot-toast'
+
+export default function Settings() {
+  const { branding, updateBranding } = useBranding()
+  const [form, setForm] = useState({ ...branding })
+  const [tab, setTab] = useState('branding')
+
+  const save = () => { updateBranding(form); toast.success('Settings saved') }
+
+  return (
+    <div className="space-y-6">
+      <div><h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+        <p className="text-gray-500 text-sm">Platform configuration and white-labeling</p></div>
+      <div className="flex border-b border-gray-200 gap-4">
+        {['branding', 'security', 'notifications'].map(t => (
+          <button key={t} onClick={() => setTab(t)}
+            className={`pb-3 text-sm font-medium capitalize transition-colors ${tab === t ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'branding' && (
+        <div className="card max-w-2xl space-y-4">
+          <h3 className="font-semibold text-gray-900">Brand Identity</h3>
+          <p className="text-sm text-gray-500">Customize how TranzFer MFT appears to your users</p>
+          <div><label>Company / Platform Name</label>
+            <input value={form.companyName} onChange={e => setForm(f => ({ ...f, companyName: e.target.value }))} placeholder="TranzFer MFT" /></div>
+          <div><label>Logo URL</label>
+            <input value={form.logoUrl} onChange={e => setForm(f => ({ ...f, logoUrl: e.target.value }))} placeholder="https://your-domain.com/logo.png" />
+            {form.logoUrl && <img src={form.logoUrl} alt="logo preview" className="h-10 mt-2 object-contain" onError={e => { e.target.style.display='none' }} />}</div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label>Primary Color</label>
+              <div className="flex gap-2">
+                <input type="color" value={form.primaryColor} onChange={e => setForm(f => ({ ...f, primaryColor: e.target.value }))} className="w-12 h-10 rounded cursor-pointer p-0.5" />
+                <input value={form.primaryColor} onChange={e => setForm(f => ({ ...f, primaryColor: e.target.value }))} placeholder="#3b82f6" />
+              </div></div>
+            <div><label>Accent Color</label>
+              <div className="flex gap-2">
+                <input type="color" value={form.accentColor} onChange={e => setForm(f => ({ ...f, accentColor: e.target.value }))} className="w-12 h-10 rounded cursor-pointer p-0.5" />
+                <input value={form.accentColor} onChange={e => setForm(f => ({ ...f, accentColor: e.target.value }))} placeholder="#2563eb" />
+              </div></div>
+          </div>
+          <div className="pt-2">
+            <button className="btn-primary" onClick={save}>Save Branding</button>
+          </div>
+          <div className="border-t pt-4">
+            <h4 className="font-medium text-gray-900 mb-2">Preview</h4>
+            <div className="p-4 rounded-xl text-white text-sm font-medium" style={{ backgroundColor: form.primaryColor }}>
+              {form.companyName || 'Your Company Name'} — Managed File Transfer Platform
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === 'security' && (
+        <div className="card max-w-2xl space-y-4">
+          <h3 className="font-semibold text-gray-900">Security Settings</h3>
+          <p className="text-sm text-gray-500">These settings are managed via environment variables in production.</p>
+          <div className="bg-amber-50 border border-amber-100 rounded-lg p-4 text-sm text-amber-800">
+            ⚠️ JWT secret, session timeout, and encryption keys must be set via environment variables (JWT_SECRET, ENCRYPTION_MASTER_KEY) for production deployments.
+          </div>
+          <div className="space-y-2 text-sm">
+            {[['JWT_SECRET', 'change_me_in_production_256bit_secret_key!!', true],
+              ['ENCRYPTION_MASTER_KEY', '0000...0000 (256-bit hex)', true],
+              ['CONTROL_API_KEY', 'internal_control_secret', false],
+            ].map(([key, val, sensitive]) => (
+              <div key={key} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                <span className="font-mono text-xs font-semibold text-gray-700 flex-shrink-0">{key}</span>
+                <span className="text-gray-500 text-xs flex-1">{sensitive ? '••••••••' : val}</span>
+                {sensitive && <span className="badge badge-red">sensitive</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tab === 'notifications' && (
+        <div className="card max-w-2xl space-y-4">
+          <h3 className="font-semibold text-gray-900">Notification Settings</h3>
+          <p className="text-sm text-gray-500">Alert delivery configuration (coming in next release)</p>
+          <div className="space-y-3">
+            <div><label>SMTP Host</label><input placeholder="smtp.company.com" /></div>
+            <div><label>SMTP Port</label><input type="number" placeholder="587" /></div>
+            <div><label>From Address</label><input type="email" placeholder="alerts@company.com" /></div>
+            <div><label>Alert Recipients (comma-separated)</label><input placeholder="admin@company.com, ops@company.com" /></div>
+            <button className="btn-primary" onClick={() => toast.error('Notification service coming soon')}>Save (Coming Soon)</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

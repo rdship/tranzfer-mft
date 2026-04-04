@@ -1,0 +1,47 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/filetransfer}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
+jwt:
+  secret: ${JWT_SECRET:change_me_in_production_256bit_secret_key!!}
+  expiration: 900000
+
+rabbitmq:
+  exchange: file-transfer.events
+
+sftp-control:
+  url: ${SFTP_CONTROL_URL:http://localhost:8081}
+
+ftp-control:
+  url: ${FTP_CONTROL_URL:http://localhost:8082}
+
+control-api:
+  key: ${CONTROL_API_KEY:internal_control_secret}
+
+file-transfer:
+  sftp-home-base: ${SFTP_HOME_BASE:/data/sftp}
+  ftp-home-base: ${FTP_HOME_BASE:/data/ftp}
+  ftpweb-home-base: ${FTPWEB_HOME_BASE:/data/ftpweb}
+
+cluster:
+  id: ${CLUSTER_ID:default-cluster}
+  host: ${CLUSTER_HOST:localhost}
+  service-type: ONBOARDING

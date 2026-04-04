@@ -1,0 +1,279 @@
+version: '3.9'
+
+# =============================================================================
+# TranzFer MFT Platform — Docker Compose (Development)
+# =============================================================================
+
+x-common-env: &common-env
+  DATABASE_URL: jdbc:postgresql://postgres:5432/filetransfer
+  DB_USERNAME: postgres
+  DB_PASSWORD: postgres
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: 5672
+  JWT_SECRET: ${JWT_SECRET:-change_me_in_production_256bit_secret_key!!}
+  CONTROL_API_KEY: ${CONTROL_API_KEY:-internal_control_secret}
+  CLUSTER_ID: ${CLUSTER_ID:-cluster-1}
+
+x-service-healthcheck: &healthcheck
+  healthcheck:
+    test: ["CMD-SHELL", "curl -sf http://localhost:$${SERVER_PORT:-8080}/actuator/health || exit 1"]
+    interval: 15s
+    timeout: 5s
+    retries: 5
+    start_period: 30s
+
+services:
+  # ---------------------------------------------------------------------------
+  # Infrastructure
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: mft-postgres
+    environment:
+      POSTGRES_DB: filetransfer
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: mft-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Core Services
+  # ---------------------------------------------------------------------------
+  onboarding-api:
+    build: ./onboarding-api
+    container_name: mft-onboarding-api
+    ports:
+      - "8080:8080"
+    environment:
+      <<: *common-env
+      CLUSTER_HOST: onboarding-api
+      SERVER_PORT: 8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  sftp-service:
+    build: ./sftp-service
+    container_name: mft-sftp-service
+    ports:
+      - "22222:2222"
+      - "8081:8081"
+    environment:
+      <<: *common-env
+      CLUSTER_HOST: sftp-service
+      SERVER_PORT: 8081
+      SFTP_PORT: 2222
+      SFTP_HOME_BASE: /data/sftp
+    volumes:
+      - sftp_data:/data/sftp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  ftp-service:
+    build: ./ftp-service
+    container_name: mft-ftp-service
+    ports:
+      - "21:21"
+      - "21000-21010:21000-21010"
+      - "8082:8082"
+    environment:
+      <<: *common-env
+      CLUSTER_HOST: ftp-service
+      SERVER_PORT: 8082
+      FTP_PORT: 21
+      FTP_PASSIVE_PORTS: 21000-21010
+      FTP_PUBLIC_HOST: ${FTP_PUBLIC_HOST:-127.0.0.1}
+      FTP_HOME_BASE: /data/ftp
+    volumes:
+      - ftp_data:/data/ftp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  ftp-web-service:
+    build: ./ftp-web-service
+    container_name: mft-ftp-web-service
+    ports:
+      - "8083:8083"
+    environment:
+      <<: *common-env
+      CLUSTER_HOST: ftp-web-service
+      SERVER_PORT: 8083
+      FTPWEB_HOME_BASE: /data/ftpweb
+    volumes:
+      - ftpweb_data:/data/ftpweb
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  config-service:
+    build: ./config-service
+    container_name: mft-config-service
+    ports:
+      - "8084:8084"
+    environment:
+      <<: *common-env
+      CLUSTER_HOST: config-service
+      SERVER_PORT: 8084
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  gateway-service:
+    build: ./gateway-service
+    container_name: mft-gateway-service
+    ports:
+      - "2220:2220"
+      - "2121:2121"
+      - "8085:8085"
+    environment:
+      <<: *common-env
+      CLUSTER_HOST: gateway-service
+      SERVER_PORT: 8085
+      INTERNAL_SFTP_HOST: sftp-service
+      INTERNAL_SFTP_PORT: 2222
+      INTERNAL_FTP_HOST: ftp-service
+      INTERNAL_FTP_PORT: 21
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  encryption-service:
+    build: ./encryption-service
+    container_name: mft-encryption-service
+    ports:
+      - "8086:8086"
+    environment:
+      <<: *common-env
+      CLUSTER_HOST: encryption-service
+      SERVER_PORT: 8086
+      ENCRYPTION_MASTER_KEY: ${ENCRYPTION_MASTER_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  external-forwarder-service:
+    build: ./external-forwarder-service
+    container_name: mft-forwarder-service
+    ports:
+      - "8087:8087"
+    environment:
+      <<: *common-env
+      CLUSTER_HOST: forwarder-service
+      SERVER_PORT: 8087
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  dmz-proxy:
+    build: ./dmz-proxy
+    container_name: mft-dmz-proxy
+    ports:
+      - "8088:8088"
+      - "32222:2222"
+      - "32121:2121"
+      - "4443:443"
+    environment:
+      CONTROL_API_KEY: ${CONTROL_API_KEY:-internal_control_secret}
+      SERVER_PORT: 8088
+
+  # ---------------------------------------------------------------------------
+  # Platform Services (New in v2.0)
+  # ---------------------------------------------------------------------------
+  license-service:
+    build: ./license-service
+    container_name: mft-license-service
+    ports:
+      - "8089:8089"
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/filetransfer
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      LICENSE_ADMIN_KEY: ${LICENSE_ADMIN_KEY:-license_admin_secret_key}
+      SERVER_PORT: 8089
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  analytics-service:
+    build: ./analytics-service
+    container_name: mft-analytics-service
+    ports:
+      - "8090:8090"
+    environment:
+      <<: *common-env
+      CLUSTER_HOST: analytics-service
+      SERVER_PORT: 8090
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # Frontend UIs
+  # ---------------------------------------------------------------------------
+  admin-ui:
+    build: ./admin-ui
+    container_name: mft-admin-ui
+    ports:
+      - "3000:80"
+    depends_on:
+      - onboarding-api
+      - analytics-service
+      - license-service
+
+  ftp-web-ui:
+    build: ./ftp-web-ui
+    container_name: mft-ftp-web-ui
+    ports:
+      - "3001:80"
+    depends_on:
+      - ftp-web-service
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+  sftp_data:
+  ftp_data:
+  ftpweb_data:

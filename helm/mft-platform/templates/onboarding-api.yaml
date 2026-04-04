@@ -1,0 +1,81 @@
+{{- if .Values.onboardingApi.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: onboarding-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mft.labels" . | nindent 4 }}
+    app: onboarding-api
+spec:
+  replicas: {{ .Values.onboardingApi.replicaCount }}
+  selector:
+    matchLabels:
+      app: onboarding-api
+  template:
+    metadata:
+      labels:
+        app: onboarding-api
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: onboarding-api
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.onboardingApi.image.repository }}:{{ .Values.onboardingApi.image.tag | default .Values.global.imageTag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: 8080
+          env:
+            {{- include "mft.commonEnv" . | nindent 12 }}
+            - name: CLUSTER_HOST
+              value: "onboarding-api"
+            - name: SERVER_PORT
+              value: "8080"
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8080 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: 8080 }
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          resources: {{- toYaml .Values.onboardingApi.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: onboarding-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mft.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.onboardingApi.service.type }}
+  ports:
+    - port: {{ .Values.onboardingApi.service.port }}
+      targetPort: 8080
+  selector:
+    app: onboarding-api
+{{- if .Values.onboardingApi.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: onboarding-api-hpa
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: onboarding-api
+  minReplicas: {{ .Values.onboardingApi.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.onboardingApi.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.onboardingApi.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- end }}
