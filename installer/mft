@@ -1,0 +1,278 @@
+#!/usr/bin/env bash
+# =============================================================================
+# mft — TranzFer MFT Client CLI
+# =============================================================================
+# Lightweight client tool for partners and end users.
+# No server dependencies, no Docker, no Maven.
+#
+# Usage:
+#   mft setup                 # Configure connection to server
+#   mft send <file>           # Upload file to server
+#   mft send <file> <user>    # Send directly to another client (P2P)
+#   mft inbox                 # List received files
+#   mft track <id>            # Track a transfer
+#   mft peers                 # Who's online for P2P
+#   mft start                 # Start auto-sync daemon
+#   mft status                # Connection status
+#   mft help                  # Show help
+# =============================================================================
+
+set -o pipefail
+
+GREEN='\033[0;32m'; RED='\033[0;31m'; YELLOW='\033[1;33m'
+BLUE='\033[0;34m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
+
+CONFIG_DIR="${MFT_HOME:-$HOME/.mft}"
+CONFIG_FILE="${CONFIG_DIR}/config.yml"
+TOKEN_FILE="${CONFIG_DIR}/.token"
+CLIENT_JAR=""
+
+ok() { echo -e "  ${GREEN}✓${NC} $1"; }
+fail() { echo -e "  ${RED}✗${NC} $1"; }
+info() { echo -e "  ${BLUE}ℹ${NC} $1"; }
+ask() { local p="$1" d="$2"; echo -ne "  ${CYAN}${p}${NC}"; [ -n "$d" ] && echo -ne " [${d}]"; echo -ne ": "; read -r a; echo "${a:-$d}"; }
+
+find_jar() {
+  for loc in "./mft-client.jar" "${CONFIG_DIR}/mft-client.jar" "$(dirname "$0")/../mft-client/target/mft-client-"*".jar"; do
+    [ -f "$loc" ] && CLIENT_JAR="$loc" && return 0
+  done
+  return 1
+}
+
+load_config() {
+  if [ ! -f "$CONFIG_FILE" ]; then return 1; fi
+  SERVER_HOST=$(grep "host:" "$CONFIG_FILE" | head -1 | sed 's/.*: *//')
+  SERVER_PORT=$(grep "port:" "$CONFIG_FILE" | head -1 | sed 's/.*: *//')
+  SERVER_USER=$(grep "username:" "$CONFIG_FILE" | head -1 | sed 's/.*: *//')
+  SERVER_PASS=$(grep "password:" "$CONFIG_FILE" | head -1 | sed 's/.*: *//')
+  SERVER_PROTO=$(grep "protocol:" "$CONFIG_FILE" | head -1 | sed 's/.*: *//')
+  SERVER_URL=$(grep "serverUrl:" "$CONFIG_FILE" | head -1 | sed 's/.*: *//' | sed 's|/$||')
+  return 0
+}
+
+# === SETUP ===
+cmd_setup() {
+  echo -e "\n  ${BOLD}MFT Client Setup${NC}\n"
+  mkdir -p "$CONFIG_DIR"
+
+  local proto=$(ask "Protocol (SFTP/FTP)" "SFTP")
+  local host=$(ask "Server hostname" "mft.company.com")
+  local port; [ "${proto^^}" = "SFTP" ] && port=$(ask "Port" "2222") || port=$(ask "Port" "21")
+  local user=$(ask "Username")
+  echo -ne "  ${CYAN}Password${NC}: "; read -rs pass; echo ""
+  local api_url=$(ask "Server API URL (for tracking)" "http://${host}:8080")
+
+  cat > "$CONFIG_FILE" << YML
+server:
+  protocol: ${proto^^}
+  host: ${host}
+  port: ${port}
+  username: ${user}
+  password: ${pass}
+  timeoutSeconds: 30
+  autoRetry: true
+  maxRetries: 3
+folders:
+  outbox: ${CONFIG_DIR}/outbox
+  inbox: ${CONFIG_DIR}/inbox
+  sent: ${CONFIG_DIR}/sent
+  failed: ${CONFIG_DIR}/failed
+  remoteInbox: /inbox
+  remoteOutbox: /outbox
+sync:
+  watchOutbox: true
+  pollInbox: true
+  pollIntervalSeconds: 30
+  deleteAfterDownload: true
+p2p:
+  enabled: true
+  receiverPort: 9900
+  serverUrl: ${api_url}
+  externalHost: $(hostname)
+clientName: $(hostname)
+logLevel: INFO
+YML
+
+  mkdir -p "${CONFIG_DIR}"/{outbox,inbox,sent,failed}
+  chmod 600 "$CONFIG_FILE"
+
+  ok "Config saved to ${CONFIG_FILE}"
+  ok "Outbox: ${CONFIG_DIR}/outbox (drop files here to send)"
+  ok "Inbox:  ${CONFIG_DIR}/inbox (received files appear here)"
+  echo ""
+
+  # Test connection
+  info "Testing connection to ${host}:${port}..."
+  if nc -z -w 5 "$host" "$port" 2>/dev/null; then
+    ok "Server reachable"
+  else
+    fail "Cannot reach ${host}:${port}"
+    info "Check firewall: outbound TCP ${port} must be open"
+  fi
+}
+
+# === SEND ===
+cmd_send() {
+  local file="$1" target="$2"
+  [ -z "$file" ] && { echo "Usage: mft send <file> [recipient_username]"; return 1; }
+  [ ! -f "$file" ] && { fail "File not found: $file"; return 1; }
+  load_config || { fail "Run 'mft setup' first"; return 1; }
+
+  if [ -n "$target" ]; then
+    # P2P send
+    info "Sending ${file} directly to ${target}..."
+    find_jar && java -jar "$CLIENT_JAR" --config "$CONFIG_FILE" 2>/dev/null <<< "send $file $target" || {
+      # Fallback: copy to outbox with target hint
+      cp "$file" "${CONFIG_DIR}/outbox/$(basename "$file")"
+      info "File queued in outbox. Start daemon with 'mft start' to transfer."
+    }
+  else
+    # Server upload via outbox
+    cp "$file" "${CONFIG_DIR}/outbox/"
+    ok "File queued: $(basename "$file") → outbox"
+    info "Start 'mft start' to auto-upload, or file uploads when daemon is running"
+  fi
+}
+
+# === INBOX ===
+cmd_inbox() {
+  load_config || { fail "Run 'mft setup' first"; return 1; }
+  echo -e "\n  ${BOLD}Inbox${NC} — ${CONFIG_DIR}/inbox\n"
+  local count=0
+  for f in "${CONFIG_DIR}/inbox/"*; do
+    [ -f "$f" ] || continue
+    count=$((count + 1))
+    local size=$(du -h "$f" 2>/dev/null | cut -f1)
+    local name=$(basename "$f")
+    local trackid=""
+    [[ "$name" == *"#"* ]] && trackid=" ${BLUE}#$(echo "$name" | sed 's/.*#//')${NC}"
+    echo -e "    ${name}  ${YELLOW}${size}${NC}${trackid}"
+  done
+  [ $count -eq 0 ] && info "Inbox is empty"
+  echo ""
+}
+
+# === TRACK ===
+cmd_track() {
+  local tid="$1"
+  [ -z "$tid" ] && { tid=$(ask "Track ID"); }
+  load_config || { fail "Run 'mft setup' first"; return 1; }
+
+  local resp=$(curl -s --max-time 5 "${SERVER_URL}/api/journey/${tid}" 2>/dev/null)
+  if echo "$resp" | grep -q "stages"; then
+    echo "$resp" | python3 -c "
+import sys,json
+d = json.load(sys.stdin)
+print(f'\n  Track ID:  {d.get(\"trackId\",\"?\")}')
+print(f'  File:      {d.get(\"filename\",\"?\")}')
+print(f'  Status:    {d.get(\"overallStatus\",\"?\")}')
+print(f'  Integrity: {d.get(\"integrityStatus\",\"?\")}')
+if d.get('totalDurationMs'): print(f'  Duration:  {d[\"totalDurationMs\"]}ms')
+print()
+for s in d.get('stages',[]):
+    icon = '✓' if s['status'] in ('COMPLETED','PASSED','CLEAR','OK') else '✗' if s['status']=='FAILED' else '○'
+    print(f'  {icon} {s[\"stage\"]:28s} {s[\"status\"]:12s} {s.get(\"detail\",\"\")}')" 2>/dev/null
+  else
+    fail "Not found: ${tid}"
+    info "Make sure the API URL is correct in config: ${SERVER_URL}"
+  fi
+}
+
+# === PEERS ===
+cmd_peers() {
+  load_config || { fail "Run 'mft setup' first"; return 1; }
+  echo -e "\n  ${BOLD}Online Peers${NC}\n"
+  curl -s --max-time 5 "${SERVER_URL}/api/p2p/presence" 2>/dev/null | python3 -c "
+import sys,json
+peers = json.load(sys.stdin)
+if not peers: print('  No peers online')
+for p in peers:
+    print(f'  🟢 {p[\"username\"]:20s} {p[\"host\"]}:{p[\"port\"]}')" 2>/dev/null || info "Cannot reach server"
+  echo ""
+}
+
+# === START (daemon) ===
+cmd_start() {
+  load_config || { fail "Run 'mft setup' first"; return 1; }
+  find_jar || { fail "MFT client JAR not found. Install from: https://github.com/rdship/tranzfer-mft"; return 1; }
+  info "Starting MFT client daemon..."
+  java -Xmx256m -jar "$CLIENT_JAR" --config "$CONFIG_FILE"
+}
+
+# === STATUS ===
+cmd_status() {
+  load_config || { fail "Not configured. Run: mft setup"; return; }
+  echo -e "\n  ${BOLD}MFT Client Status${NC}\n"
+  echo "  Server:   ${SERVER_PROTO}://${SERVER_USER}@${SERVER_HOST}:${SERVER_PORT}"
+  echo "  Outbox:   $(ls "${CONFIG_DIR}/outbox" 2>/dev/null | wc -l | tr -d ' ') files waiting"
+  echo "  Inbox:    $(ls "${CONFIG_DIR}/inbox" 2>/dev/null | wc -l | tr -d ' ') files received"
+  echo "  Sent:     $(ls "${CONFIG_DIR}/sent" 2>/dev/null | wc -l | tr -d ' ') files archived"
+
+  echo -ne "  Server:   "
+  if nc -z -w 3 "$SERVER_HOST" "$SERVER_PORT" 2>/dev/null; then
+    echo -e "${GREEN}REACHABLE${NC}"
+  else
+    echo -e "${RED}UNREACHABLE${NC}"
+  fi
+  echo ""
+}
+
+# === HELP ===
+cmd_help() {
+  echo -e "
+  ${BOLD}mft${NC} — TranzFer MFT Client CLI
+
+  ${BOLD}Setup${NC}
+    mft setup                 Configure server connection
+
+  ${BOLD}Transfer${NC}
+    mft send <file>           Upload file to server
+    mft send <file> <user>    Send file directly to another client (P2P)
+    mft inbox                 List received files
+    mft track <trackId>       Track a file transfer
+
+  ${BOLD}Network${NC}
+    mft peers                 List online clients for P2P
+    mft start                 Start auto-sync daemon (watch outbox/inbox)
+    mft status                Connection status
+
+  ${BOLD}Quick transfer${NC}
+    mft send report.csv                  → uploads to server
+    mft send report.csv partner_acme     → sends directly to partner
+    mft track TRZA3X5T3LUY              → shows full journey
+  "
+}
+
+# === Natural language fallback ===
+cmd_nl() {
+  local input="$*"
+  local lower=$(echo "$input" | tr '[:upper:]' '[:lower:]')
+
+  if echo "$lower" | grep -qE "send|upload|transfer|put"; then
+    local file=$(echo "$input" | grep -oE '\S+\.\S+' | head -1)
+    [ -n "$file" ] && cmd_send "$file" || echo "  Usage: mft send <file>"
+  elif echo "$lower" | grep -qE "inbox|received|download|get"; then cmd_inbox
+  elif echo "$lower" | grep -qE "track|trace|where|find"; then
+    local tid=$(echo "$input" | grep -oE '[A-Z0-9]{12}')
+    [ -n "$tid" ] && cmd_track "$tid" || cmd_track
+  elif echo "$lower" | grep -qE "peer|online|who"; then cmd_peers
+  elif echo "$lower" | grep -qE "status|health|connect"; then cmd_status
+  elif echo "$lower" | grep -qE "setup|config|connect"; then cmd_setup
+  elif echo "$lower" | grep -qE "start|run|daemon|sync"; then cmd_start
+  else cmd_help
+  fi
+}
+
+# === ENTRY ===
+case "${1:-}" in
+  setup|configure|init) cmd_setup ;;
+  send|upload|put) shift; cmd_send "$@" ;;
+  inbox|received|ls) cmd_inbox ;;
+  track|trace) shift; cmd_track "$@" ;;
+  peers|online|who) cmd_peers ;;
+  start|run|daemon) cmd_start ;;
+  status|health) cmd_status ;;
+  help|--help|-h) cmd_help ;;
+  "") cmd_help ;;
+  *) cmd_nl "$@" ;;
+esac
