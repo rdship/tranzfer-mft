@@ -15,5 +15,6 @@ public enum ServiceType {
     NOTIFICATION,
     AI_ENGINE,
     SCREENING,
-    SCHEDULER
+    SCHEDULER,
+    KEYSTORE
 }

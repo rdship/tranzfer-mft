@@ -266,6 +266,20 @@ services:
       postgres:
         condition: service_healthy
 
+  keystore-manager:
+    build: ./keystore-manager
+    container_name: mft-keystore-manager
+    ports:
+      - "8093:8093"
+    environment:
+      <<: *common-env
+      CLUSTER_HOST: keystore-manager
+      SERVER_PORT: 8093
+      KEYSTORE_MASTER_PASSWORD: ${KEYSTORE_MASTER_PASSWORD:-change-this-master-password}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   screening-service:
     build: ./screening-service
     container_name: mft-screening-service

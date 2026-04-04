@@ -1,0 +1,30 @@
+server:
+  port: 8093
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/filetransfer}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  servlet:
+    multipart:
+      max-file-size: 10MB
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+      - org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration
+
+keystore:
+  master-password: ${KEYSTORE_MASTER_PASSWORD:change-this-master-password}
+  storage-path: ${KEYSTORE_STORAGE_PATH:/data/keystores}
+
+cluster:
+  id: ${CLUSTER_ID:default-cluster}
+  host: ${CLUSTER_HOST:keystore-manager}
+  service-type: KEYSTORE
