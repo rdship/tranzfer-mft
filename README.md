@@ -146,7 +146,7 @@ Think of it as an open-source alternative to IBM Sterling, Axway, or GoAnywhere 
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/tranzfer-mft.git
+git clone https://github.com/rdship/tranzfer-mft.git
 cd tranzfer-mft
 ```
 
@@ -469,6 +469,6 @@ This project is licensed under the Apache License 2.0 — see [LICENSE](LICENSE)
 
 <div align="center">
 
-**Built with determination by [Roshan Dubey](https://github.com/YOUR_USERNAME)**
+**Built with determination by [Roshan Dubey](https://github.com/rdship)**
 
 </div>

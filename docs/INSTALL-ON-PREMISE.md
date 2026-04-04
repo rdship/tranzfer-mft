@@ -16,7 +16,7 @@ See the main [README.md](../README.md) for full architecture details.
 ## Docker Compose (Recommended)
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/tranzfer-mft.git && cd tranzfer-mft
+git clone https://github.com/rdship/tranzfer-mft.git && cd tranzfer-mft
 cp .env.production .env   # Edit with your real secrets
 mvn clean package -DskipTests
 docker compose up -d
