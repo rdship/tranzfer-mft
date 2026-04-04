@@ -1,0 +1,665 @@
+#!/usr/bin/env bash
+# =============================================================================
+# TranzFer MFT — Interactive CLI Installer & Troubleshooter
+# =============================================================================
+# Usage:
+#   ./tranzfer                    # Interactive menu
+#   ./tranzfer install server     # Install server directly
+#   ./tranzfer install client     # Install client directly
+#   ./tranzfer doctor             # Diagnose running installation
+#   ./tranzfer status             # Quick status check
+# =============================================================================
+
+set -o pipefail
+
+VERSION="1.0.0"
+BOLD='\033[1m'
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+CHECK="${GREEN}✓${NC}"
+CROSS="${RED}✗${NC}"
+WARN="${YELLOW}⚠${NC}"
+
+# --- Helpers ---
+print_banner() {
+  echo -e "${BOLD}${BLUE}"
+  echo "  ╔══════════════════════════════════════════════════╗"
+  echo "  ║        ⚡ TranzFer MFT Installer v${VERSION}         ║"
+  echo "  ║     AI-First Enterprise File Transfer Platform    ║"
+  echo "  ╚══════════════════════════════════════════════════╝"
+  echo -e "${NC}"
+}
+
+ask() {
+  local prompt="$1" default="$2"
+  echo -ne "  ${CYAN}${prompt}${NC}"
+  [ -n "$default" ] && echo -ne " ${YELLOW}[${default}]${NC}"
+  echo -ne ": "
+  read -r answer
+  echo "${answer:-$default}"
+}
+
+confirm() {
+  local answer
+  answer=$(ask "$1 (y/n)" "y")
+  [[ "$answer" =~ ^[Yy] ]]
+}
+
+step() { echo -e "\n  ${BOLD}${BLUE}▸ $1${NC}"; }
+ok() { echo -e "    ${CHECK} $1"; }
+fail() { echo -e "    ${CROSS} $1"; }
+warn() { echo -e "    ${WARN} $1"; }
+info() { echo -e "    ${BLUE}ℹ${NC} $1"; }
+
+# =============================================================================
+# PREREQUISITE CHECKS
+# =============================================================================
+
+check_java() {
+  step "Checking Java..."
+  if command -v java &>/dev/null; then
+    local ver=$(java -version 2>&1 | head -1 | cut -d'"' -f2 | cut -d'.' -f1)
+    if [ "$ver" -ge 21 ] 2>/dev/null; then
+      ok "Java $ver found"
+      return 0
+    else
+      warn "Java $ver found but Java 21+ required"
+    fi
+  else
+    fail "Java not found"
+  fi
+
+  echo ""
+  info "Install Java 21:"
+  info "  macOS:   brew install openjdk@21"
+  info "  Ubuntu:  sudo apt install openjdk-21-jdk"
+  info "  RHEL:    sudo dnf install java-21-openjdk-devel"
+  info "  Any OS:  https://adoptium.net/temurin/releases/?version=21"
+
+  if confirm "Try to install Java now?"; then
+    if [[ "$(uname)" == "Darwin" ]] && command -v brew &>/dev/null; then
+      brew install openjdk@21 && ok "Java installed" && return 0
+    elif command -v apt &>/dev/null; then
+      sudo apt install -y openjdk-21-jdk && ok "Java installed" && return 0
+    elif command -v dnf &>/dev/null; then
+      sudo dnf install -y java-21-openjdk-devel && ok "Java installed" && return 0
+    fi
+    fail "Auto-install failed. Please install Java 21 manually."
+    return 1
+  fi
+  return 1
+}
+
+check_maven() {
+  step "Checking Maven..."
+  if command -v mvn &>/dev/null; then
+    ok "Maven $(mvn --version 2>&1 | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
+    return 0
+  fi
+  fail "Maven not found"
+  info "Install: brew install maven / sudo apt install maven"
+  if confirm "Try to install Maven now?"; then
+    if command -v brew &>/dev/null; then brew install maven && return 0; fi
+    if command -v apt &>/dev/null; then sudo apt install -y maven && return 0; fi
+  fi
+  return 1
+}
+
+check_docker() {
+  step "Checking Docker..."
+  if command -v docker &>/dev/null; then
+    if docker info &>/dev/null; then
+      ok "Docker $(docker --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
+      return 0
+    else
+      fail "Docker installed but not running"
+      info "Start Docker Desktop or run: sudo systemctl start docker"
+      if confirm "Wait for Docker to start?"; then
+        echo -ne "    Waiting"
+        for i in $(seq 1 30); do
+          echo -ne "."
+          sleep 2
+          if docker info &>/dev/null; then echo ""; ok "Docker is running"; return 0; fi
+        done
+        echo ""; fail "Docker didn't start in 60 seconds"
+      fi
+      return 1
+    fi
+  fi
+  fail "Docker not found"
+  info "Install: https://docs.docker.com/get-docker/"
+  return 1
+}
+
+check_git() {
+  step "Checking Git..."
+  if command -v git &>/dev/null; then ok "Git found"; return 0; fi
+  fail "Git not found"
+  return 1
+}
+
+check_ports() {
+  step "Checking required ports..."
+  local blocked=0
+  for port in "$@"; do
+    if lsof -i ":$port" &>/dev/null || nc -z localhost "$port" 2>/dev/null; then
+      fail "Port $port already in use"
+      info "  $(lsof -i :$port 2>/dev/null | tail -1)"
+      blocked=1
+    else
+      ok "Port $port available"
+    fi
+  done
+  return $blocked
+}
+
+# =============================================================================
+# SERVER INSTALLATION
+# =============================================================================
+
+install_server() {
+  print_banner
+  echo -e "  ${BOLD}Server Installation${NC}"
+  echo ""
+
+  # Step 1: Choose what to install
+  step "What do you want to install?"
+  echo "    1) SFTP only (minimal — 5 services)"
+  echo "    2) SFTP + FTP (multi-protocol — 6 services)"
+  echo "    3) SFTP + Screening (compliance — 7 services)"
+  echo "    4) Full platform without AI (12 services)"
+  echo "    5) Full platform with AI + Screening (all services)"
+  echo "    6) Custom (choose services)"
+  echo ""
+  local choice=$(ask "Select" "5")
+
+  local SERVICES="postgres rabbitmq onboarding-api config-service"
+  local BUILD_MODULES="shared,onboarding-api,config-service"
+  case $choice in
+    1) SERVICES="$SERVICES sftp-service admin-ui"
+       BUILD_MODULES="$BUILD_MODULES,sftp-service" ;;
+    2) SERVICES="$SERVICES sftp-service ftp-service admin-ui"
+       BUILD_MODULES="$BUILD_MODULES,sftp-service,ftp-service" ;;
+    3) SERVICES="$SERVICES sftp-service screening-service admin-ui"
+       BUILD_MODULES="$BUILD_MODULES,sftp-service,screening-service" ;;
+    4) SERVICES="$SERVICES sftp-service ftp-service ftp-web-service gateway-service encryption-service external-forwarder-service dmz-proxy admin-ui ftp-web-ui"
+       BUILD_MODULES="" ;; # build all
+    5|*) SERVICES="$SERVICES sftp-service ftp-service ftp-web-service gateway-service encryption-service external-forwarder-service dmz-proxy license-service analytics-service ai-engine screening-service keystore-manager storage-manager admin-ui ftp-web-ui api-gateway"
+       BUILD_MODULES="" ;; # build all
+  esac
+
+  # Step 2: Prerequisites
+  step "Checking prerequisites..."
+  local prereq_ok=true
+  check_java || prereq_ok=false
+  check_docker || prereq_ok=false
+
+  if [ "$prereq_ok" = false ]; then
+    fail "Prerequisites not met. Fix the issues above and run again."
+    return 1
+  fi
+
+  # Step 3: Clone or use existing
+  step "Source code..."
+  if [ -f "pom.xml" ] && grep -q "tranzfer\|file-transfer-platform" pom.xml 2>/dev/null; then
+    ok "Already in TranzFer project directory"
+  else
+    info "Cloning TranzFer MFT..."
+    git clone https://github.com/rdship/tranzfer-mft.git && cd tranzfer-mft
+    ok "Repository cloned"
+  fi
+
+  # Step 4: Configuration
+  step "Configuration..."
+  local JWT_SECRET=$(openssl rand -base64 32 2>/dev/null || echo "change-me-$(date +%s)")
+  local CONTROL_KEY=$(openssl rand -hex 16 2>/dev/null || echo "control-$(date +%s)")
+  local TRACK_PREFIX=$(ask "Track ID prefix (3 chars)" "TRZ")
+
+  cat > .env << ENVEOF
+JWT_SECRET=${JWT_SECRET}
+CONTROL_API_KEY=${CONTROL_KEY}
+TRACK_ID_PREFIX=${TRACK_PREFIX}
+ENVEOF
+  ok "Generated .env with unique secrets"
+  info "Track IDs will start with: ${TRACK_PREFIX}"
+
+  # Step 5: Build
+  step "Building..."
+  local JAVA_HOME_PATH=""
+  if [ -n "$JAVA_HOME" ]; then
+    JAVA_HOME_PATH="$JAVA_HOME"
+  elif [ -d "/opt/homebrew/Cellar/openjdk@21" ]; then
+    JAVA_HOME_PATH=$(find /opt/homebrew/Cellar/openjdk@21 -name "Contents" -path "*/Home/.." 2>/dev/null | head -1)/Home
+  fi
+
+  local MVN_CMD="mvn clean package -DskipTests -q"
+  [ -n "$BUILD_MODULES" ] && MVN_CMD="$MVN_CMD -pl $BUILD_MODULES"
+  [ -n "$JAVA_HOME_PATH" ] && MVN_CMD="JAVA_HOME=$JAVA_HOME_PATH $MVN_CMD"
+
+  info "Running: $MVN_CMD"
+  if eval "$MVN_CMD"; then
+    ok "Build successful"
+  else
+    fail "Build failed"
+    info "Common fixes:"
+    info "  - Set JAVA_HOME: export JAVA_HOME=\$(/usr/libexec/java_home -v 21)"
+    info "  - Check Maven version: mvn --version"
+    info "  - Try: mvn clean package -DskipTests (without -q for full output)"
+    return 1
+  fi
+
+  # Step 6: Start
+  step "Starting services..."
+  info "Services: $SERVICES"
+  if docker compose up --build -d $SERVICES; then
+    ok "Services starting..."
+  else
+    fail "Docker Compose failed"
+    info "Check: docker compose logs"
+    return 1
+  fi
+
+  # Step 7: Wait and verify
+  step "Waiting for services to start (this takes 30-60 seconds)..."
+  local max_wait=60
+  local elapsed=0
+  while [ $elapsed -lt $max_wait ]; do
+    sleep 5
+    elapsed=$((elapsed + 5))
+    echo -ne "\r    Waiting... ${elapsed}s"
+    if curl -s http://localhost:8080/actuator/health &>/dev/null 2>&1; then
+      echo ""
+      ok "Onboarding API is ready"
+      break
+    fi
+  done
+
+  if [ $elapsed -ge $max_wait ]; then
+    echo ""
+    warn "Services took longer than expected. They may still be starting."
+    info "Check: docker compose ps"
+  fi
+
+  # Step 8: Create admin user
+  step "Creating admin account..."
+  local admin_email=$(ask "Admin email" "admin@localhost")
+  local admin_pass=$(ask "Admin password (min 8 chars, upper+lower+digit+special)" "Admin@1234")
+
+  local reg=$(curl -s -X POST http://localhost:8080/api/auth/register \
+    -H "Content-Type: application/json" \
+    -d "{\"email\":\"${admin_email}\",\"password\":\"${admin_pass}\"}" 2>/dev/null)
+
+  if echo "$reg" | grep -q "accessToken\|already"; then
+    docker exec mft-postgres psql -U postgres -d filetransfer \
+      -c "UPDATE users SET role='ADMIN' WHERE email='${admin_email}';" &>/dev/null
+    ok "Admin account created: ${admin_email}"
+  else
+    warn "Could not create admin account. Server may still be starting."
+    info "Try manually: curl -X POST http://localhost:8080/api/auth/register ..."
+  fi
+
+  # Step 9: Final summary
+  echo ""
+  echo -e "  ${BOLD}${GREEN}╔══════════════════════════════════════════════════╗${NC}"
+  echo -e "  ${BOLD}${GREEN}║          Installation Complete!                   ║${NC}"
+  echo -e "  ${BOLD}${GREEN}╚══════════════════════════════════════════════════╝${NC}"
+  echo ""
+  echo -e "    ${BOLD}Admin UI:${NC}      http://localhost:3000"
+  echo -e "    ${BOLD}API Gateway:${NC}   http://localhost:80"
+  echo -e "    ${BOLD}SFTP:${NC}          sftp -P 22222 <username>@localhost"
+  echo -e "    ${BOLD}Admin Login:${NC}   ${admin_email} / ${admin_pass}"
+  echo ""
+  echo -e "    ${BOLD}Track ID prefix:${NC} ${TRACK_PREFIX}"
+  echo ""
+  echo -e "    Run ${CYAN}./tranzfer doctor${NC} to verify everything is healthy."
+  echo ""
+}
+
+# =============================================================================
+# CLIENT INSTALLATION
+# =============================================================================
+
+install_client() {
+  print_banner
+  echo -e "  ${BOLD}Client Installation${NC}"
+  echo ""
+
+  # Step 1: Server details
+  step "Server connection details"
+  local protocol=$(ask "Protocol (SFTP/FTP)" "SFTP")
+  local host=$(ask "Server hostname" "localhost")
+  local port
+  if [ "$protocol" = "SFTP" ] || [ "$protocol" = "sftp" ]; then port=$(ask "Port" "2222"); else port=$(ask "Port" "21"); fi
+  local username=$(ask "Username")
+  local password=$(ask "Password")
+
+  # Step 2: Check Java
+  step "Checking prerequisites..."
+  local need_bundled=false
+  if ! command -v java &>/dev/null; then
+    warn "Java not found. Will use bundled client (includes JRE)."
+    need_bundled=true
+  else
+    local ver=$(java -version 2>&1 | head -1 | cut -d'"' -f2 | cut -d'.' -f1)
+    if [ "$ver" -ge 21 ] 2>/dev/null; then
+      ok "Java $ver found"
+    else
+      warn "Java $ver found but 21+ recommended. Will use bundled client."
+      need_bundled=true
+    fi
+  fi
+
+  # Step 3: Download/build client
+  step "Getting MFT client..."
+  local INSTALL_DIR="$HOME/mft-client"
+  mkdir -p "$INSTALL_DIR"
+
+  if [ -f "mft-client/target/mft-client-1.0.0-SNAPSHOT.jar" ]; then
+    cp mft-client/target/mft-client-1.0.0-SNAPSHOT.jar "$INSTALL_DIR/mft-client.jar"
+    ok "Client JAR copied from local build"
+  elif [ "$need_bundled" = true ]; then
+    info "Building bundled client with JRE..."
+    if [ -f "mft-client/scripts/bundle/build-bundles.sh" ]; then
+      bash mft-client/scripts/bundle/build-bundles.sh 2>/dev/null
+      local OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+      local ARCH=$(uname -m)
+      [ "$ARCH" = "x86_64" ] && ARCH="x64"
+      [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ] && ARCH="arm64"
+      local BUNDLE="mft-client/dist/mft-client-${OS}-${ARCH}.tar.gz"
+      if [ -f "$BUNDLE" ]; then
+        tar xzf "$BUNDLE" -C "$HOME"
+        INSTALL_DIR="$HOME/mft-client-${OS}-${ARCH}"
+        ok "Bundled client installed at $INSTALL_DIR"
+      fi
+    fi
+  else
+    info "Building client JAR..."
+    mvn package -DskipTests -pl mft-client -q 2>/dev/null
+    cp mft-client/target/mft-client-1.0.0-SNAPSHOT.jar "$INSTALL_DIR/mft-client.jar"
+    ok "Client JAR built"
+  fi
+
+  # Step 4: Create config
+  step "Configuring client..."
+  cat > "$INSTALL_DIR/mft-client.yml" << YMLEOF
+server:
+  protocol: ${protocol^^}
+  host: ${host}
+  port: ${port}
+  username: ${username}
+  password: ${password}
+  timeoutSeconds: 30
+  autoRetry: true
+  maxRetries: 3
+folders:
+  outbox: ./outbox
+  inbox: ./inbox
+  sent: ./sent
+  failed: ./failed
+  remoteInbox: /inbox
+  remoteOutbox: /outbox
+sync:
+  watchOutbox: true
+  pollInbox: true
+  pollIntervalSeconds: 30
+  deleteAfterDownload: true
+p2p:
+  enabled: true
+  receiverPort: 9900
+  serverUrl: http://${host}:8080
+  externalHost: $(hostname)
+clientName: $(hostname)-client
+logLevel: INFO
+YMLEOF
+  ok "Config written to $INSTALL_DIR/mft-client.yml"
+
+  mkdir -p "$INSTALL_DIR"/{outbox,inbox,sent,failed}
+
+  # Create launcher
+  if [ -f "$INSTALL_DIR/mft-client.jar" ]; then
+    cat > "$INSTALL_DIR/mft-client" << 'LAUNCHER'
+#!/usr/bin/env bash
+DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$DIR"
+if [ -x "$DIR/jre/bin/java" ]; then JAVA="$DIR/jre/bin/java"; else JAVA="java"; fi
+mkdir -p outbox inbox sent failed
+exec "$JAVA" -Xmx256m -jar "$DIR/mft-client.jar" "$@"
+LAUNCHER
+    chmod +x "$INSTALL_DIR/mft-client"
+  fi
+
+  # Step 5: Test connection
+  step "Testing connection to ${host}:${port}..."
+  if nc -z -w 5 "$host" "$port" 2>/dev/null; then
+    ok "Server is reachable"
+  else
+    fail "Cannot reach ${host}:${port}"
+    echo ""
+    info "Possible causes:"
+    info "  1. Server is not running"
+    info "  2. Firewall blocking port ${port}"
+    info "  3. Wrong hostname/port"
+    echo ""
+    info "Firewall check: nc -zv ${host} ${port}"
+    info "If behind corporate firewall, ask IT to open outbound TCP ${port}"
+
+    if ! confirm "Continue anyway?"; then return 1; fi
+  fi
+
+  # Step 6: Summary
+  echo ""
+  echo -e "  ${BOLD}${GREEN}╔══════════════════════════════════════════════════╗${NC}"
+  echo -e "  ${BOLD}${GREEN}║          Client Installation Complete!            ║${NC}"
+  echo -e "  ${BOLD}${GREEN}╚══════════════════════════════════════════════════╝${NC}"
+  echo ""
+  echo -e "    ${BOLD}Installed at:${NC}  ${INSTALL_DIR}"
+  echo -e "    ${BOLD}Server:${NC}        ${protocol}://${username}@${host}:${port}"
+  echo ""
+  echo -e "    ${BOLD}Start:${NC}         cd ${INSTALL_DIR} && ./mft-client"
+  echo -e "    ${BOLD}Send a file:${NC}   cp myfile.csv ${INSTALL_DIR}/outbox/"
+  echo -e "    ${BOLD}Check inbox:${NC}   ls ${INSTALL_DIR}/inbox/"
+  echo ""
+}
+
+# =============================================================================
+# DOCTOR — Diagnose and fix issues
+# =============================================================================
+
+run_doctor() {
+  print_banner
+  echo -e "  ${BOLD}System Health Check${NC}"
+  echo ""
+
+  local issues=0
+
+  # Docker
+  step "Docker"
+  if docker info &>/dev/null; then
+    ok "Docker is running"
+    local containers=$(docker compose ps 2>/dev/null | grep -c "Up" || echo 0)
+    ok "$containers containers running"
+    if [ "$containers" -lt 5 ]; then
+      warn "Expected at least 5 containers. Some services may be down."
+      issues=$((issues + 1))
+      info "Fix: docker compose up -d"
+    fi
+  else
+    fail "Docker is not running"
+    issues=$((issues + 1))
+    info "Fix: Start Docker Desktop or run: sudo systemctl start docker"
+  fi
+
+  # Database
+  step "Database"
+  if docker exec mft-postgres psql -U postgres -d filetransfer -c "SELECT 1" &>/dev/null; then
+    ok "PostgreSQL is responding"
+    local tables=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'" 2>/dev/null | tr -d ' ')
+    ok "$tables tables found"
+    if [ "$tables" -lt 15 ] 2>/dev/null; then
+      warn "Expected 15+ tables. Schema may be incomplete."
+      issues=$((issues + 1))
+      info "Fix: Restart onboarding-api (it runs DDL): docker compose restart onboarding-api"
+    fi
+  else
+    fail "PostgreSQL not reachable"
+    issues=$((issues + 1))
+    info "Fix: docker compose up -d postgres"
+  fi
+
+  # Services
+  step "Services"
+  local services_to_check=(
+    "8080:Onboarding API"
+    "8084:Config Service"
+    "8089:License Service"
+    "8090:Analytics"
+    "8091:AI Engine"
+    "8092:Screening"
+    "8093:Keystore"
+    "8094:Storage"
+  )
+  for svc in "${services_to_check[@]}"; do
+    local port="${svc%%:*}"
+    local name="${svc#*:}"
+    local code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 "http://localhost:${port}/actuator/health" 2>/dev/null)
+    if [ "$code" = "200" ] || [ "$code" = "404" ] || [ "$code" = "403" ]; then
+      ok "${name} (:${port}) — responding"
+    elif [ "$code" = "000" ]; then
+      warn "${name} (:${port}) — not reachable"
+      issues=$((issues + 1))
+    else
+      warn "${name} (:${port}) — HTTP ${code}"
+    fi
+  done
+
+  # SFTP
+  step "SFTP Server"
+  if nc -z localhost 22222 2>/dev/null; then
+    ok "SFTP port 22222 is open"
+  else
+    warn "SFTP port 22222 not reachable"
+    issues=$((issues + 1))
+    info "Fix: docker compose up -d sftp-service"
+  fi
+
+  # API Gateway
+  step "API Gateway"
+  local gw=$(curl -s --max-time 3 http://localhost:80/health 2>/dev/null)
+  if echo "$gw" | grep -q "UP"; then
+    ok "API Gateway responding on port 80"
+  else
+    warn "API Gateway not reachable on port 80"
+    info "Fix: docker compose up -d api-gateway"
+  fi
+
+  # Admin UI
+  step "Admin UI"
+  local ui=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 http://localhost:3000/ 2>/dev/null)
+  if [ "$ui" = "200" ]; then ok "Admin UI serving on port 3000"; else warn "Admin UI not reachable"; fi
+
+  # Disk space
+  step "Disk Space"
+  local usage=$(df -h / 2>/dev/null | awk 'NR==2 {print $5}' | tr -d '%')
+  if [ "$usage" -lt 80 ] 2>/dev/null; then
+    ok "Disk usage: ${usage}%"
+  elif [ "$usage" -lt 90 ] 2>/dev/null; then
+    warn "Disk usage: ${usage}% — getting full"
+    issues=$((issues + 1))
+  else
+    fail "Disk usage: ${usage}% — CRITICAL"
+    issues=$((issues + 1))
+    info "Fix: Clean Docker: docker system prune -f"
+  fi
+
+  # Summary
+  echo ""
+  if [ $issues -eq 0 ]; then
+    echo -e "  ${BOLD}${GREEN}All checks passed. Platform is healthy.${NC}"
+  else
+    echo -e "  ${BOLD}${YELLOW}${issues} issue(s) found. See recommendations above.${NC}"
+  fi
+  echo ""
+}
+
+# =============================================================================
+# STATUS — Quick check
+# =============================================================================
+
+run_status() {
+  echo ""
+  echo -e "  ${BOLD}TranzFer MFT Status${NC}"
+  echo ""
+  local up=$(docker compose ps 2>/dev/null | grep -c "Up" || echo "?")
+  echo -e "    Containers:    ${BOLD}${up}${NC} running"
+
+  for svc in "80:Gateway" "3000:Admin UI" "8080:API" "8091:AI" "8092:Screening" "8094:Storage"; do
+    local port="${svc%%:*}" name="${svc#*:}"
+    local code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 2 "http://localhost:${port}/" 2>/dev/null)
+    if [ "$code" != "000" ]; then
+      echo -e "    ${name}:$(printf '%*s' $((15 - ${#name})) '')${GREEN}UP${NC} (:${port})"
+    else
+      echo -e "    ${name}:$(printf '%*s' $((15 - ${#name})) '')${RED}DOWN${NC} (:${port})"
+    fi
+  done
+  echo ""
+}
+
+# =============================================================================
+# MAIN MENU
+# =============================================================================
+
+main_menu() {
+  print_banner
+  echo "  What would you like to do?"
+  echo ""
+  echo "    1) Install Server"
+  echo "    2) Install Client"
+  echo "    3) Health Check (Doctor)"
+  echo "    4) Quick Status"
+  echo "    5) Run Test Suite"
+  echo "    6) Exit"
+  echo ""
+  local choice=$(ask "Select" "1")
+
+  case $choice in
+    1) install_server ;;
+    2) install_client ;;
+    3) run_doctor ;;
+    4) run_status ;;
+    5) [ -f "./tests/run-tests.sh" ] && ./tests/run-tests.sh --html || echo "Test suite not found. Clone the repo first." ;;
+    6) echo "  Bye!"; exit 0 ;;
+    *) echo "  Invalid choice"; main_menu ;;
+  esac
+}
+
+# === Entry point ===
+case "${1:-}" in
+  install)
+    case "${2:-}" in
+      server) install_server ;;
+      client) install_client ;;
+      *) echo "Usage: $0 install [server|client]"; exit 1 ;;
+    esac ;;
+  doctor|diagnose|check) run_doctor ;;
+  status) run_status ;;
+  test) [ -f "./tests/run-tests.sh" ] && ./tests/run-tests.sh --html || echo "Test suite not found." ;;
+  help|--help|-h)
+    echo "Usage: tranzfer [command]"
+    echo ""
+    echo "Commands:"
+    echo "  install server   Install TranzFer MFT server"
+    echo "  install client   Install MFT client for file transfers"
+    echo "  doctor           Diagnose and fix issues"
+    echo "  status           Quick status check"
+    echo "  test             Run full test suite"
+    echo "  help             Show this help"
+    echo ""
+    echo "No command = interactive menu"
+    ;;
+  "") main_menu ;;
+  *) echo "Unknown command: $1. Run 'tranzfer help' for usage."; exit 1 ;;
+esac
