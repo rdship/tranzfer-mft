@@ -100,6 +100,26 @@ public class ClientConfig {
         private int maxFileSizeMb = 0;
     }
 
+    @Data
+    public static class P2PSettings {
+        /** Enable peer-to-peer direct transfers */
+        private boolean enabled = true;
+
+        /** Port for the embedded P2P receiver */
+        private int receiverPort = 9900;
+
+        /** Server URL for ticket coordination */
+        private String serverUrl = "http://localhost:8080";
+
+        /** Validate tickets with server before accepting files */
+        private boolean validateTickets = true;
+
+        /** This client's externally reachable hostname/IP (for presence registration) */
+        private String externalHost = "localhost";
+    }
+
+    private P2PSettings p2p = new P2PSettings();
+
     /**
      * Load config from YAML file, or create default config file if missing.
      */
