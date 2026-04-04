@@ -1,0 +1,13 @@
+username,home_dir,protocol,password
+plant_detroit,/data/sftp/plant_detroit,SFTP,
+plant_shanghai,/data/sftp/plant_shanghai,SFTP,
+plant_munich,/data/sftp/plant_munich,SFTP,
+vendor_bosch,/data/sftp/bosch,SFTP,
+vendor_siemens,/data/sftp/siemens,SFTP,
+vendor_3m,/data/sftp/3m,SFTP,
+distributor_us,/data/sftp/dist_us,SFTP,
+distributor_eu,/data/sftp/dist_eu,SFTP,
+distributor_apac,/data/sftp/dist_apac,SFTP,
+qa_lab,/data/sftp/qa_lab,SFTP,
+erp_sap,/data/sftp/sap,SFTP,
+erp_oracle,/data/sftp/oracle,SFTP,
