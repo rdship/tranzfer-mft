@@ -443,6 +443,7 @@ Client A uploads invoice.csv via SFTP
 | [On-Premise](docs/INSTALL-ON-PREMISE.md) | Bare metal / on-premise setup |
 | [Migration](docs/MIGRATION-CHECKLIST.md) | 130-item checklist for enterprise migration |
 | [Roadmap](docs/PRODUCT-ROADMAP.md) | What's coming next |
+| **[Standalone Products](docs/standalone-products/)** | **Each microservice as an independent product — curl examples, integration code, Docker setup** |
 
 ---
 

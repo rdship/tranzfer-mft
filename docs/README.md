@@ -9,6 +9,7 @@
 | I want to... | Read this |
 |--------------|-----------|
 | **Understand the whole product** | [PRODUCT-GUIDE.md](PRODUCT-GUIDE.md) |
+| **Use a microservice as a standalone product** | [standalone-products/](standalone-products/) |
 | **Understand the architecture** | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | **Set up a specific service** | [SERVICES.md](SERVICES.md) or the service's own README |
 | **Understand the security layer** | [SECURITY-ARCHITECTURE.md](SECURITY-ARCHITECTURE.md) |
@@ -49,7 +50,27 @@ docs/
 ├── CAPACITY-PLANNING.md         Scaling guide (10K to 500M transfers/day)
 ├── MIGRATION-CHECKLIST.md       130-item migration checklist
 ├── PCI-DSS-COMPLIANCE.md        PCI DSS compliance mapping
-└── PRODUCT-ROADMAP.md           Feature roadmap
+├── PRODUCT-ROADMAP.md           Feature roadmap
+│
+└── standalone-products/         ← Each microservice as a standalone product
+    ├── README.md                Product catalog & integration patterns
+    ├── EDI-CONVERTER.md         EDI conversion engine (26 endpoints)
+    ├── ENCRYPTION-SERVICE.md    AES-256/PGP encryption API
+    ├── SCREENING-SERVICE.md     OFAC/EU/UN sanctions screening
+    ├── AI-ENGINE.md             AI classification, threat scoring, NLP
+    ├── KEYSTORE-MANAGER.md      Key & certificate lifecycle
+    ├── STORAGE-MANAGER.md       Tiered storage with deduplication
+    ├── DMZ-PROXY.md             AI-powered security proxy
+    ├── AS2-SERVICE.md           B2B AS2/AS4 protocol
+    ├── LICENSE-SERVICE.md       License validation & entitlements
+    ├── ANALYTICS-SERVICE.md     Dashboards & predictions
+    ├── SFTP-SERVICE.md          SFTP server
+    ├── FTP-SERVICE.md           FTP/FTPS server
+    ├── FTP-WEB-SERVICE.md       HTTP file operations API
+    ├── GATEWAY-SERVICE.md       Protocol gateway
+    ├── EXTERNAL-FORWARDER.md    Multi-protocol forwarding
+    ├── ONBOARDING-API.md        Central API & auth
+    └── CONFIG-SERVICE.md        Flows, connectors, settings
 ```
 
 ### Per-Service READMEs (in each module directory)
@@ -115,6 +136,11 @@ Every microservice has its own `README.md` with detailed API endpoints, configur
 3. [PCI-DSS-COMPLIANCE.md](PCI-DSS-COMPLIANCE.md) — Compliance mapping
 4. [dmz-proxy README](../dmz-proxy/) — Security layer details
 5. [ai-engine README](../ai-engine/) — Threat intelligence details
+
+### I Want to Use a Single Microservice (Third-Party Integration)
+1. [standalone-products/](standalone-products/) — **Product catalog** with integration patterns
+2. Pick your product (e.g., [EDI Converter](standalone-products/EDI-CONVERTER.md), [Screening Service](standalone-products/SCREENING-SERVICE.md))
+3. Each guide includes: curl examples, Python/Java/Node.js integration code, Docker setup
 
 ### I'm Evaluating TranzFer
 1. [PRODUCT-GUIDE.md](PRODUCT-GUIDE.md) — Complete product overview
