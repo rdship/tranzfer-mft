@@ -42,6 +42,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v2/transfer/**").permitAll()
                         .requestMatchers("/api/v1/tenants/**").permitAll()
                         .requestMatchers("/api/v1/blockchain/**").permitAll()
+                        .requestMatchers("/api/v1/auto-onboard/**").permitAll()
                         .requestMatchers("/api/service-registry/**").permitAll()
                         .requestMatchers("/api/cli/**").authenticated()
                         .requestMatchers("/actuator/health").permitAll()

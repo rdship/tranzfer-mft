@@ -28,6 +28,8 @@ public class AiController {
     private final NaturalLanguageMonitoringService nlMonitoringService;
     private final FileFormatDetector fileFormatDetector;
     private final ObservabilityAnalyzer observabilityAnalyzer;
+    private final SelfDrivingInfraService selfDrivingService;
+    private final IntelligenceNetworkService intelligenceService;
     private final NlpService nlpService;
 
     // === Data Classification ===
@@ -223,6 +225,30 @@ public class AiController {
         result.put("lastAnalysis", observabilityAnalyzer.getLastAnalysis() != null
                 ? observabilityAnalyzer.getLastAnalysis().toString() : "pending");
         return result;
+    }
+
+    // === Breakthrough: Self-Driving Infrastructure ===
+
+    @GetMapping("/self-driving/actions")
+    public List<SelfDrivingInfraService.InfraAction> selfDrivingActions() {
+        return selfDrivingService.getActions();
+    }
+
+    @GetMapping("/self-driving/status")
+    public Map<String, Object> selfDrivingStatus() {
+        return selfDrivingService.getAutonomyStatus();
+    }
+
+    // === Breakthrough: Intelligence Network ===
+
+    @GetMapping("/intelligence/signals")
+    public List<IntelligenceNetworkService.ThreatSignal> intelligenceSignals() {
+        return intelligenceService.getActiveSignals();
+    }
+
+    @GetMapping("/intelligence/status")
+    public Map<String, Object> intelligenceStatus() {
+        return intelligenceService.getNetworkStatus();
     }
 
     @GetMapping("/health")
