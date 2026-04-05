@@ -7,6 +7,7 @@ import com.filetransfer.shared.enums.FileTransferStatus;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -43,6 +44,7 @@ public class GuaranteedDeliveryService {
      * Files are NEVER deleted — they either succeed or go to quarantine.
      */
     @Scheduled(fixedDelay = 60000)
+    @SchedulerLock(name = "guaranteedDelivery_retryFailed", lockAtLeastFor = "PT30S", lockAtMostFor = "PT5M")
     public void retryFailedTransfers() {
         List<FileTransferRecord> failed = recordRepository.findByStatus(FileTransferStatus.FAILED);
 
@@ -71,6 +73,7 @@ public class GuaranteedDeliveryService {
      * Runs on completed transfers.
      */
     @Scheduled(fixedDelay = 300000) // every 5 min
+    @SchedulerLock(name = "guaranteedDelivery_verifyIntegrity", lockAtLeastFor = "PT4M", lockAtMostFor = "PT14M")
     public void verifyIntegrity() {
         List<FileTransferRecord> completed = recordRepository.findByStatus(FileTransferStatus.IN_OUTBOX);
 

@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 
 import java.nio.file.*;
 import java.time.Instant;
@@ -59,6 +60,7 @@ public class StorageLifecycleManager {
     // === TIERING — runs every 15 min ===
 
     @Scheduled(fixedDelay = 900000)
+    @SchedulerLock(name = "storage_tieringCycle", lockAtLeastFor = "PT14M", lockAtMostFor = "PT30M")
     public void runTieringCycle() {
         log.info("Storage lifecycle: tiering cycle started");
         int moved = 0;
@@ -166,6 +168,7 @@ public class StorageLifecycleManager {
     // === BACKUP — every 6 hours ===
 
     @Scheduled(cron = "0 0 */6 * * *")
+    @SchedulerLock(name = "storage_backup", lockAtLeastFor = "PT5H", lockAtMostFor = "PT6H")
     public void runBackup() {
         log.info("Storage backup: incremental snapshot starting");
         List<StorageObject> pending = objectRepo.findByBackupStatusAndDeletedFalse("NONE");
@@ -203,6 +206,7 @@ public class StorageLifecycleManager {
      * downloads files at a predictable time.
      */
     @Scheduled(cron = "0 30 * * * *") // every hour at :30
+    @SchedulerLock(name = "storage_predictivePreStage", lockAtLeastFor = "PT50M", lockAtMostFor = "PT2H")
     public void predictivePreStage() {
         // Find accounts with regular access patterns
         List<StorageObject> warmFiles = objectRepo.findByTierAndDeletedFalse("WARM");

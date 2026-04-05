@@ -4,6 +4,7 @@ import com.filetransfer.shared.entity.FileTransferRecord;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -35,6 +36,7 @@ public class PredictiveSlaService {
     private final List<SlaForecast> forecasts = Collections.synchronizedList(new ArrayList<>());
 
     @Scheduled(fixedDelay = 1800000) // every 30 min
+    @SchedulerLock(name = "ai_predictiveSla_analyzeSlaRisk", lockAtLeastFor = "PT25M", lockAtMostFor = "PT55M")
     public void analyzeSlaRisk() {
         forecasts.clear();
         List<PartnerProfileService.PartnerProfile> profiles = profileService.getAllProfiles();

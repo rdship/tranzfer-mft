@@ -8,6 +8,7 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Instant;
@@ -54,6 +55,7 @@ public class LicenseClient {
     }
 
     @Scheduled(fixedDelay = 21600000) // every 6 hours
+    @SchedulerLock(name = "license_scheduledValidation", lockAtLeastFor = "PT5H", lockAtMostFor = "PT6H")
     public void scheduledValidation() {
         if (!licenseEnabled) return;
         validateNow();

@@ -10,6 +10,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 
 import java.security.SecureRandom;
 import java.time.Instant;
@@ -261,6 +262,7 @@ public class AutonomousOnboardController {
 
     /** Auto-complete sessions that have been learning for >24h */
     @Scheduled(fixedDelay = 3600000)
+    @SchedulerLock(name = "onboarding_autoComplete", lockAtLeastFor = "PT50M", lockAtMostFor = "PT2H")
     public void autoComplete() {
         Instant cutoff = Instant.now().minus(24, ChronoUnit.HOURS);
         sessionRepo.findByPhaseOrderByCreatedAtDesc("LEARNING").stream()

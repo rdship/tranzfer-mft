@@ -8,6 +8,7 @@ import com.filetransfer.shared.repository.ServiceRegistrationRepository;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -47,6 +48,7 @@ public class ObservabilityAnalyzer {
     private volatile Map<String, Object> healthSummary = new LinkedHashMap<>();
 
     @Scheduled(fixedDelay = 300000) // every 5 min
+    @SchedulerLock(name = "ai_observability_analyze", lockAtLeastFor = "PT4M", lockAtMostFor = "PT14M")
     public void analyze() {
         List<Recommendation> newRecs = new ArrayList<>();
         Map<String, Object> summary = new LinkedHashMap<>();

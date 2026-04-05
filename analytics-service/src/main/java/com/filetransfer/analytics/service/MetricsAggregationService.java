@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -25,6 +26,7 @@ public class MetricsAggregationService {
     private final FileTransferRecordRepository transferRecordRepository;
 
     @Scheduled(fixedDelay = 3600000) // every hour
+    @SchedulerLock(name = "analytics_aggregateLastHour", lockAtLeastFor = "PT50M", lockAtMostFor = "PT2H")
     @Transactional
     public void aggregateLastHour() {
         Instant hourEnd = Instant.now().truncatedTo(ChronoUnit.HOURS);

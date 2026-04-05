@@ -9,5 +9,7 @@ public enum DeliveryProtocol {
     FTPS,
     HTTP,
     HTTPS,
-    API
+    API,
+    AS2,
+    AS4
 }

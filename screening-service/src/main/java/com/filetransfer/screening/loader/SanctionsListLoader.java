@@ -9,6 +9,7 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.*;
@@ -58,6 +59,7 @@ public class SanctionsListLoader {
     }
 
     @Scheduled(cron = "0 0 */6 * * *") // Every 6 hours
+    @SchedulerLock(name = "screening_sanctionsListRefresh", lockAtLeastFor = "PT5H", lockAtMostFor = "PT6H")
     public void scheduledRefresh() {
         log.info("Scheduled sanctions list refresh...");
         refreshAllLists();

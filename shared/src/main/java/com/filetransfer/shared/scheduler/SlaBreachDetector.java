@@ -7,6 +7,7 @@ import com.filetransfer.shared.repository.FileTransferRecordRepository;
 import com.filetransfer.shared.repository.PartnerAgreementRepository;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -25,6 +26,7 @@ public class SlaBreachDetector {
     private final List<SlaBreachEvent> activeBreaches = Collections.synchronizedList(new ArrayList<>());
 
     @Scheduled(fixedDelay = 300000) // every 5 min
+    @SchedulerLock(name = "slaBreachDetector_checkSlas", lockAtLeastFor = "PT4M", lockAtMostFor = "PT14M")
     public void checkSlas() {
         activeBreaches.clear();
         List<PartnerAgreement> agreements = agreementRepository.findByActiveTrue();

@@ -9,6 +9,7 @@ import org.bouncycastle.openpgp.operator.jcajce.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 
 import java.io.*;
 import java.security.*;
@@ -173,6 +174,7 @@ public class KeyManagementService {
     // === Expiry Monitoring ===
 
     @Scheduled(cron = "0 0 8 * * *") // Daily at 8am
+    @SchedulerLock(name = "keystore_checkExpiring", lockAtLeastFor = "PT23H", lockAtMostFor = "PT24H")
     public void checkExpiring() {
         Instant in30Days = Instant.now().plus(30, ChronoUnit.DAYS);
         List<ManagedKey> expiring = keyRepository.findByActiveTrueAndExpiresAtBefore(in30Days);

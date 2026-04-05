@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 
 import java.security.MessageDigest;
 import java.time.Instant;
@@ -48,6 +49,7 @@ public class BlockchainController {
 
     /** Anchor recent transfers (runs every hour) */
     @Scheduled(cron = "0 0 * * * *")
+    @SchedulerLock(name = "blockchain_anchorBatch", lockAtLeastFor = "PT50M", lockAtMostFor = "PT2H")
     public void anchorBatch() {
         Instant cutoff = Instant.now().minus(1, ChronoUnit.HOURS);
         List<FileTransferRecord> recent = recordRepo.findAll().stream()

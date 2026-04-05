@@ -7,6 +7,7 @@ import com.filetransfer.shared.enums.FileTransferStatus;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -36,6 +37,7 @@ public class AutoRemediationService {
     private final List<RemediationAction> recentActions = Collections.synchronizedList(new ArrayList<>());
 
     @Scheduled(fixedDelay = 120000) // every 2 min
+    @SchedulerLock(name = "ai_autoRemediation_remediate", lockAtLeastFor = "PT90S", lockAtMostFor = "PT5M")
     public void remediate() {
         List<RemediationAction> newActions = new ArrayList<>();
 

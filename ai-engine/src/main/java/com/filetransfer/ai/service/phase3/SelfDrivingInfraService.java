@@ -4,6 +4,7 @@ import com.filetransfer.shared.entity.FileTransferRecord;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -29,6 +30,7 @@ public class SelfDrivingInfraService {
     private final List<InfraAction> actionLog = Collections.synchronizedList(new ArrayList<>());
 
     @Scheduled(fixedDelay = 300000) // every 5 min
+    @SchedulerLock(name = "ai_selfDrivingInfra_analyze", lockAtLeastFor = "PT4M", lockAtMostFor = "PT14M")
     public void analyze() {
         List<FileTransferRecord> records = recordRepo.findAll();
         Instant now = Instant.now();

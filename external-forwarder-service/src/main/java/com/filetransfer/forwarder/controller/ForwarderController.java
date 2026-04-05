@@ -1,10 +1,12 @@
 package com.filetransfer.forwarder.controller;
 
 import com.filetransfer.forwarder.service.*;
+import com.filetransfer.shared.entity.As2Partnership;
 import com.filetransfer.shared.entity.DeliveryEndpoint;
 import com.filetransfer.shared.entity.ExternalDestination;
 import com.filetransfer.shared.enums.DeliveryProtocol;
 import com.filetransfer.shared.enums.ExternalDestinationType;
+import com.filetransfer.shared.repository.As2PartnershipRepository;
 import com.filetransfer.shared.repository.DeliveryEndpointRepository;
 import com.filetransfer.shared.repository.ExternalDestinationRepository;
 import lombok.RequiredArgsConstructor;
@@ -39,11 +41,14 @@ public class ForwarderController {
 
     private final ExternalDestinationRepository destinationRepository;
     private final DeliveryEndpointRepository deliveryEndpointRepository;
+    private final As2PartnershipRepository as2PartnershipRepository;
     private final SftpForwarderService sftpForwarder;
     private final FtpForwarderService ftpForwarder;
     private final FtpsForwarderService ftpsForwarder;
     private final HttpForwarderService httpForwarder;
     private final KafkaForwarderService kafkaForwarder;
+    private final As2ForwarderService as2Forwarder;
+    private final As4ForwarderService as4Forwarder;
 
     @Value("${control-api.key:internal_control_secret}")
     private String controlApiKey;
@@ -127,6 +132,8 @@ public class ForwarderController {
                         case FTP -> ftpForwarder.forward(toExternalDest(effective), filename, bytes);
                         case FTPS -> ftpsForwarder.forward(effective, filename, bytes);
                         case HTTP, HTTPS, API -> httpForwarder.forward(effective, filename, bytes);
+                        case AS2 -> dispatchAs2(effective, filename, bytes);
+                        case AS4 -> dispatchAs4(effective, filename, bytes);
                     }
                     return; // success
                 } catch (Exception e) {
@@ -264,6 +271,23 @@ public class ForwarderController {
         } else {
             throw new IllegalArgumentException("Unknown destination type: " + dest.getType());
         }
+    }
+
+    private void dispatchAs2(DeliveryEndpoint ep, String filename, byte[] bytes) throws Exception {
+        As2Partnership partnership = as2PartnershipRepository
+                .findByPartnerNameAndActiveTrue(ep.getName())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "No AS2 partnership found for endpoint: " + ep.getName()));
+        as2Forwarder.forward(partnership, filename, bytes, null);
+    }
+
+    private void dispatchAs4(DeliveryEndpoint ep, String filename, byte[] bytes) throws Exception {
+        As2Partnership partnership = as2PartnershipRepository
+                .findByPartnerNameAndActiveTrue(ep.getName())
+                .filter(p -> "AS4".equals(p.getProtocol()))
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "No AS4 partnership found for endpoint: " + ep.getName()));
+        as4Forwarder.forward(partnership, filename, bytes, null);
     }
 
     private ExternalDestination findDest(UUID id) {

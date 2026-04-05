@@ -2,6 +2,7 @@ package com.filetransfer.ai.service.phase3;
 
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -75,6 +76,7 @@ public class IntelligenceNetworkService {
 
     /** Auto-detect and report common threats */
     @Scheduled(fixedDelay = 600000)
+    @SchedulerLock(name = "ai_intelligenceNetwork_autoDetect", lockAtLeastFor = "PT9M", lockAtMostFor = "PT20M")
     public void autoDetect() {
         // In production: would analyze recent audit logs for patterns
         // and auto-report signals to the network

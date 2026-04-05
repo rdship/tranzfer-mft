@@ -4,6 +4,7 @@ import com.filetransfer.shared.entity.ScheduledTask;
 import com.filetransfer.shared.repository.ScheduledTaskRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ public class SchedulerEngine {
     private final ScheduledTaskRunner taskExecutor;
 
     @Scheduled(fixedDelay = 30000)
+    @SchedulerLock(name = "schedulerEngine_checkSchedule", lockAtLeastFor = "PT15S", lockAtMostFor = "PT5M")
     public void checkSchedule() {
         List<ScheduledTask> tasks = taskRepository.findByEnabledTrueOrderByNextRunAsc();
         Instant now = Instant.now();

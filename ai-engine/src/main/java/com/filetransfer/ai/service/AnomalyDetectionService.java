@@ -5,6 +5,7 @@ import com.filetransfer.shared.repository.FileTransferRecordRepository;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -33,6 +34,7 @@ public class AnomalyDetectionService {
     private final List<Anomaly> activeAnomalies = Collections.synchronizedList(new ArrayList<>());
 
     @Scheduled(fixedDelay = 300000) // every 5 min
+    @SchedulerLock(name = "ai_anomalyDetection_detectAnomalies", lockAtLeastFor = "PT4M", lockAtMostFor = "PT14M")
     public void detectAnomalies() {
         List<FileTransferRecord> records = transferRecordRepository.findAll();
         Instant cutoff = Instant.now().minus(lookbackDays, ChronoUnit.DAYS);
