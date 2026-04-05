@@ -52,6 +52,41 @@ encryption:
   master-key: ${ENCRYPTION_MASTER_KEY:0000000000000000000000000000000000000000000000000000000000000000}
 
 platform:
+  services:
+    onboarding-api:
+      url: ${ONBOARDING_API_URL:http://onboarding-api:8080}
+    sftp-service:
+      url: ${SFTP_SERVICE_URL:http://sftp-service:8081}
+    ftp-service:
+      url: ${FTP_SERVICE_URL:http://ftp-service:8082}
+    ftp-web-service:
+      url: ${FTP_WEB_SERVICE_URL:http://ftp-web-service:8083}
+    config-service:
+      url: ${CONFIG_SERVICE_URL:http://config-service:8084}
+    gateway-service:
+      url: ${GATEWAY_SERVICE_URL:http://gateway-service:8085}
+    encryption-service:
+      url: ${ENCRYPTION_SERVICE_URL:http://encryption-service:8086}
+    forwarder-service:
+      url: ${FORWARDER_SERVICE_URL:http://external-forwarder-service:8087}
+    dmz-proxy:
+      url: ${DMZ_PROXY_URL:http://dmz-proxy:8088}
+    license-service:
+      url: ${LICENSE_SERVICE_URL:http://license-service:8089}
+    analytics-service:
+      url: ${ANALYTICS_SERVICE_URL:http://analytics-service:8090}
+    ai-engine:
+      url: ${AI_ENGINE_URL:http://ai-engine:8091}
+    screening-service:
+      url: ${SCREENING_SERVICE_URL:http://screening-service:8092}
+    keystore-manager:
+      url: ${KEYSTORE_MANAGER_URL:http://keystore-manager:8093}
+    as2-service:
+      url: ${AS2_SERVICE_URL:http://as2-service:8094}
+    edi-converter:
+      url: ${EDI_CONVERTER_URL:http://edi-converter:8095}
+    storage-manager:
+      url: ${STORAGE_MANAGER_URL:http://storage-manager:8096}
   environment: ${PLATFORM_ENVIRONMENT:PROD}
   track-id:
     prefix: ${TRACK_ID_PREFIX:TRZ}

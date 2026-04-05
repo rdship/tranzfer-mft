@@ -1,141 +1,84 @@
 package com.filetransfer.shared.crypto;
 
-import com.filetransfer.shared.config.PlatformConfig;
+import com.filetransfer.shared.client.EncryptionServiceClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.*;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
-
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class CredentialCryptoClientTest {
 
-    private RestTemplate restTemplate;
-    private PlatformConfig platformConfig;
+    private EncryptionServiceClient encryptionService;
     private CredentialCryptoClient client;
 
     @BeforeEach
-    void setUp() throws Exception {
-        restTemplate = mock(RestTemplate.class);
-        platformConfig = new PlatformConfig();
-        platformConfig.getSecurity().setControlApiKey("test_key");
-
-        client = new CredentialCryptoClient(restTemplate, platformConfig);
-
-        // Set the URL field via reflection (it uses @Value)
-        var urlField = CredentialCryptoClient.class.getDeclaredField("encryptionServiceUrl");
-        urlField.setAccessible(true);
-        urlField.set(client, "http://localhost:8086");
+    void setUp() {
+        encryptionService = mock(EncryptionServiceClient.class);
+        client = new CredentialCryptoClient(encryptionService);
     }
 
     @Test
-    void encrypt_callsEncryptionServiceAndReturnsEncryptedValue() {
-        ResponseEntity<Map> response = new ResponseEntity<>(
-                Map.of("encrypted", "base64CipherText"), HttpStatus.OK);
-        when(restTemplate.postForEntity(
-                eq("http://localhost:8086/api/encrypt/credential/encrypt"),
-                any(HttpEntity.class), eq(Map.class)))
-                .thenReturn(response);
+    void encrypt_delegatesToEncryptionServiceClient() {
+        when(encryptionService.encryptCredential("mySecret")).thenReturn("base64CipherText");
 
         String result = client.encrypt("mySecret");
 
         assertEquals("base64CipherText", result);
-        verify(restTemplate).postForEntity(
-                eq("http://localhost:8086/api/encrypt/credential/encrypt"),
-                argThat(entity -> {
-                    @SuppressWarnings("unchecked")
-                    HttpEntity<Map<String, String>> e = (HttpEntity<Map<String, String>>) entity;
-                    return "test_key".equals(e.getHeaders().getFirst("X-Internal-Key"))
-                            && "mySecret".equals(e.getBody().get("value"));
-                }),
-                eq(Map.class));
+        verify(encryptionService).encryptCredential("mySecret");
     }
 
     @Test
-    void decrypt_callsDecryptionServiceAndReturnsPlaintext() {
-        ResponseEntity<Map> response = new ResponseEntity<>(
-                Map.of("value", "decryptedSecret"), HttpStatus.OK);
-        when(restTemplate.postForEntity(
-                eq("http://localhost:8086/api/encrypt/credential/decrypt"),
-                any(HttpEntity.class), eq(Map.class)))
-                .thenReturn(response);
+    void decrypt_delegatesToEncryptionServiceClient() {
+        when(encryptionService.decryptCredential("base64CipherText")).thenReturn("decryptedSecret");
 
         String result = client.decrypt("base64CipherText");
 
         assertEquals("decryptedSecret", result);
+        verify(encryptionService).decryptCredential("base64CipherText");
     }
 
     @Test
-    void encrypt_nullInput_returnsNull() {
+    void encrypt_nullInput_delegatesNullHandlingToEncryptionService() {
+        when(encryptionService.encryptCredential(null)).thenReturn(null);
+
         assertNull(client.encrypt(null));
-        verifyNoInteractions(restTemplate);
     }
 
     @Test
-    void encrypt_emptyInput_returnsEmpty() {
+    void encrypt_emptyInput_delegatesEmptyHandling() {
+        when(encryptionService.encryptCredential("")).thenReturn("");
+
         assertEquals("", client.encrypt(""));
-        verifyNoInteractions(restTemplate);
     }
 
     @Test
-    void decrypt_nullInput_returnsNull() {
+    void decrypt_nullInput_delegatesNullHandling() {
+        when(encryptionService.decryptCredential(null)).thenReturn(null);
+
         assertNull(client.decrypt(null));
-        verifyNoInteractions(restTemplate);
     }
 
     @Test
-    void decrypt_emptyInput_returnsEmpty() {
+    void decrypt_emptyInput_delegatesEmptyHandling() {
+        when(encryptionService.decryptCredential("")).thenReturn("");
+
         assertEquals("", client.decrypt(""));
-        verifyNoInteractions(restTemplate);
     }
 
     @Test
-    void encrypt_serviceUnavailable_throwsRuntimeException() {
-        when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(Map.class)))
-                .thenThrow(new RestClientException("Connection refused"));
+    void encrypt_serviceUnavailable_propagatesException() {
+        when(encryptionService.encryptCredential("secret"))
+                .thenThrow(new RuntimeException("encryption-service: encryptCredential failed"));
 
         assertThrows(RuntimeException.class, () -> client.encrypt("secret"));
     }
 
     @Test
-    void decrypt_serviceUnavailable_throwsRuntimeException() {
-        when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(Map.class)))
-                .thenThrow(new RestClientException("Connection refused"));
+    void decrypt_serviceUnavailable_propagatesException() {
+        when(encryptionService.decryptCredential("encrypted"))
+                .thenThrow(new RuntimeException("encryption-service: decryptCredential failed"));
 
         assertThrows(RuntimeException.class, () -> client.decrypt("encrypted"));
-    }
-
-    @Test
-    void encrypt_unexpectedStatusCode_throwsRuntimeException() {
-        ResponseEntity<Map> response = new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
-        when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(Map.class)))
-                .thenReturn(response);
-
-        assertThrows(RuntimeException.class, () -> client.encrypt("secret"));
-    }
-
-    @Test
-    void encrypt_includesCorrectContentTypeAndApiKey() {
-        ResponseEntity<Map> response = new ResponseEntity<>(
-                Map.of("encrypted", "enc"), HttpStatus.OK);
-        when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(Map.class)))
-                .thenReturn(response);
-
-        client.encrypt("test");
-
-        verify(restTemplate).postForEntity(anyString(),
-                argThat(entity -> {
-                    @SuppressWarnings("unchecked")
-                    HttpEntity<Map<String, String>> e = (HttpEntity<Map<String, String>>) entity;
-                    HttpHeaders h = e.getHeaders();
-                    return MediaType.APPLICATION_JSON.equals(h.getContentType())
-                            && "test_key".equals(h.getFirst("X-Internal-Key"));
-                }),
-                eq(Map.class));
     }
 }

@@ -1,6 +1,8 @@
 package com.filetransfer.forwarder.controller;
 
 import com.filetransfer.forwarder.service.*;
+import com.filetransfer.forwarder.transfer.TransferStallException;
+import com.filetransfer.forwarder.transfer.TransferWatchdog;
 import com.filetransfer.shared.entity.As2Partnership;
 import com.filetransfer.shared.entity.DeliveryEndpoint;
 import com.filetransfer.shared.entity.ExternalDestination;
@@ -28,7 +30,18 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * External Forwarder API
+ * External Forwarder API with intelligent transfer management.
+ *
+ * <p>Key intelligence features:
+ * <ul>
+ *   <li><b>Activity-based sessions</b> — connections stay open as long as data flows,
+ *       no fixed session timeout. Stalls are detected by the {@link TransferWatchdog}.</li>
+ *   <li><b>Smart retry</b> — stall errors always get extra retry attempts with shorter
+ *       backoff (the connection was partially working). Non-transient errors (auth, permission)
+ *       are never retried.</li>
+ *   <li><b>Progress-aware logging</b> — on stall, logs exactly how far the transfer got
+ *       (bytes, percentage, idle time) for diagnostics.</li>
+ * </ul>
  *
  * POST /api/forward/{destinationId}           — forward a multipart file
  * POST /api/forward/{destinationId}/base64    — forward a Base64-encoded file payload
@@ -49,9 +62,14 @@ public class ForwarderController {
     private final KafkaForwarderService kafkaForwarder;
     private final As2ForwarderService as2Forwarder;
     private final As4ForwarderService as4Forwarder;
+    private final TransferWatchdog transferWatchdog;
 
     @Value("${control-api.key:internal_control_secret}")
     private String controlApiKey;
+
+    /** Extra retry attempts granted when a transfer stalls (on top of the configured max). */
+    @Value("${forwarder.transfer.stall-extra-retries:2}")
+    private int stallExtraRetries;
 
     /** Port counter for dynamic DMZ proxy mappings (range 40000-49999) */
     private final AtomicInteger dmzPortCounter = new AtomicInteger(40000);
@@ -106,7 +124,7 @@ public class ForwarderController {
         boolean useDmzProxy = ep.isProxyEnabled() && "DMZ".equalsIgnoreCase(ep.getProxyType());
         String dmzMappingName = null;
 
-        log.info("Delivering {} ({} bytes) → '{}' [{}://{}:{}] proxy={} trackId={}",
+        log.info("Delivering {} ({} bytes) -> '{}' [{}://{}:{}] proxy={} trackId={}",
                 filename, bytes.length, ep.getName(), ep.getProtocol(),
                 ep.getHost(), ep.getPort(), ep.isProxyEnabled() ? ep.getProxyType() : "NONE", trackId);
 
@@ -119,12 +137,14 @@ public class ForwarderController {
         }
 
         int attempts = 0;
+        int stallRetries = 0;
         int maxRetries = ep.getRetryCount() > 0 ? ep.getRetryCount() : 1;
+        int effectiveMaxRetries = maxRetries; // increases on stalls
         Exception lastError = null;
         long baseDelay = ep.getRetryDelayMs() > 0 ? ep.getRetryDelayMs() : 5000;
 
         try {
-            while (attempts < maxRetries) {
+            while (attempts < effectiveMaxRetries) {
                 try {
                     // Build the effective endpoint — may be rewritten to point at DMZ proxy
                     DeliveryEndpoint effective = useDmzProxy
@@ -139,33 +159,61 @@ public class ForwarderController {
                         case AS4 -> dispatchAs4(effective, filename, bytes, trackId);
                     }
                     if (attempts > 0) {
-                        log.info("Delivery succeeded on attempt {}/{} for '{}'", attempts + 1, maxRetries, ep.getName());
+                        log.info("Delivery succeeded on attempt {}/{} for '{}' (stall retries: {})",
+                                attempts + 1, effectiveMaxRetries, ep.getName(), stallRetries);
                     }
                     return; // success
                 } catch (Exception e) {
                     lastError = e;
                     attempts++;
 
-                    // Smart classification: don't retry non-transient errors
-                    if (!isRetryableDeliveryError(e)) {
+                    boolean isStall = e instanceof TransferStallException;
+
+                    // --- Smart retry classification ---
+                    if (isStall) {
+                        TransferStallException stall = (TransferStallException) e;
+                        stallRetries++;
+
+                        // Grant extra retry budget for stalls (connection was partially working)
+                        if (stallRetries <= stallExtraRetries) {
+                            effectiveMaxRetries = Math.max(effectiveMaxRetries, attempts + stallExtraRetries - stallRetries + 1);
+                        }
+
+                        log.warn("Transfer stalled for '{}': {}/{} bytes ({}%) transferred, "
+                                        + "idle {}s — attempt {}/{} (stall retry {}/{})",
+                                ep.getName(), stall.getBytesTransferred(), stall.getTotalBytes(),
+                                stall.getProgressPercent(), stall.getIdleSeconds(),
+                                attempts, effectiveMaxRetries, stallRetries, stallExtraRetries);
+                    } else if (!isRetryableDeliveryError(e)) {
+                        // Non-transient errors: auth, permission, not-found — stop immediately
                         log.error("Non-retryable delivery error for '{}': {}", ep.getName(), e.getMessage());
                         break;
                     }
 
-                    if (attempts < maxRetries) {
-                        // Exponential backoff with jitter: base * 2^attempt * (0.75-1.25)
-                        long exponential = baseDelay * (1L << Math.min(attempts - 1, 6));
-                        long capped = Math.min(exponential, 120_000); // cap at 2 min
-                        double jitter = 0.75 + Math.random() * 0.5;
-                        long delay = (long) (capped * jitter);
-                        log.warn("Delivery attempt {}/{} failed for '{}': {} — retrying in {}ms (exponential backoff)",
-                                attempts, maxRetries, ep.getName(), e.getMessage(), delay);
+                    if (attempts < effectiveMaxRetries) {
+                        long delay;
+                        if (isStall) {
+                            // Shorter backoff for stalls — the connection was working, just had a hiccup
+                            // Use linear backoff: baseDelay * stallRetry (not exponential)
+                            delay = Math.min(baseDelay * stallRetries, 30_000);
+                        } else {
+                            // Exponential backoff with jitter for connection/protocol errors
+                            long exponential = baseDelay * (1L << Math.min(attempts - 1, 6));
+                            long capped = Math.min(exponential, 120_000);
+                            double jitter = 0.75 + Math.random() * 0.5;
+                            delay = (long) (capped * jitter);
+                        }
+
+                        log.warn("Delivery attempt {}/{} failed for '{}': {} — retrying in {}ms{}",
+                                attempts, effectiveMaxRetries, ep.getName(), e.getMessage(), delay,
+                                isStall ? " (stall recovery)" : " (exponential backoff)");
                         Thread.sleep(delay);
                     }
                 }
             }
             throw new RuntimeException("Delivery failed after " + attempts + " attempt(s) to '"
-                    + ep.getName() + "': " + (lastError != null ? lastError.getMessage() : "unknown error"), lastError);
+                    + ep.getName() + "' (stall retries: " + stallRetries + "): "
+                    + (lastError != null ? lastError.getMessage() : "unknown error"), lastError);
         } finally {
             // Always clean up the temporary DMZ mapping
             if (dmzMappingName != null) {
@@ -200,7 +248,7 @@ public class ForwarderController {
         rest.postForEntity(dmzApiUrl + "/api/proxy/mappings",
                 new HttpEntity<>(mapping, headers), Map.class);
 
-        log.info("DMZ proxy mapping created: {} → {}:{} via :{}",
+        log.info("DMZ proxy mapping created: {} -> {}:{} via :{}",
                 mappingName, ep.getHost(), ep.getPort(), listenPort);
         return mappingName;
     }
@@ -279,7 +327,7 @@ public class ForwarderController {
     // --- Legacy ExternalDestination-based forwarding ---
 
     private void dispatch(ExternalDestination dest, String filename, byte[] bytes) throws Exception {
-        log.info("Forwarding {} ({} bytes) → {} [{}]", filename, bytes.length, dest.getName(), dest.getType());
+        log.info("Forwarding {} ({} bytes) -> {} [{}]", filename, bytes.length, dest.getName(), dest.getType());
         if (dest.getType() == ExternalDestinationType.SFTP) {
             sftpForwarder.forward(dest, filename, bytes);
         } else if (dest.getType() == ExternalDestinationType.FTP) {
@@ -323,8 +371,12 @@ public class ForwarderController {
     /**
      * Determine if a delivery error is transient (worth retrying).
      * Auth failures, permission errors, and format errors should not be retried.
+     * Stall errors are always retried (handled separately in the retry loop).
      */
-    private boolean isRetryableDeliveryError(Exception e) {
+    boolean isRetryableDeliveryError(Exception e) {
+        // Stalls are always retryable — handled with special logic above
+        if (e instanceof TransferStallException) return true;
+
         String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
         if (msg.contains("permission denied") || msg.contains("auth") || msg.contains("401") || msg.contains("403")) return false;
         if (msg.contains("no such file") || msg.contains("not found") || msg.contains("404")) return false;

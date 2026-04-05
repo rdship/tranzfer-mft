@@ -152,9 +152,59 @@ TranzFer is a **modular, microservice-based** Managed File Transfer platform. Ea
 
 Services communicate through three mechanisms:
 
-### 1. REST/HTTP (Synchronous)
+### 1. REST/HTTP (Synchronous) — Unified Service Client Framework
 
-Used for real-time request/response interactions.
+All inter-service HTTP calls use the **unified service client framework** in the `shared` module. Every microservice can call any other microservice through typed client classes that provide:
+
+- **Centralized URL configuration** via `platform.services.*` in `application.yml`
+- **Common authentication** via `X-Internal-Key` header (automatic)
+- **Consistent error handling** — fail-fast, graceful degradation, or swallow-and-log per client
+- **Health check support** — `client.isHealthy()` on any service
+- **Environment variable overrides** — e.g. `ENCRYPTION_SERVICE_URL=http://custom:8086`
+
+**Available service clients** (all in `com.filetransfer.shared.client`):
+
+| Client Class | Target Service | Port | Error Strategy |
+|---|---|---|---|
+| `EncryptionServiceClient` | Encryption Service | 8086 | Fail-fast |
+| `ScreeningServiceClient` | Screening Service | 8092 | Fail-fast |
+| `AnalyticsServiceClient` | Analytics Service | 8090 | Graceful degradation |
+| `KeystoreServiceClient` | Keystore Manager | 8093 | Swallow-and-log |
+| `StorageServiceClient` | Storage Manager | 8096 | Fail-fast (store/retrieve) |
+| `EdiConverterClient` | EDI Converter | 8095 | Fail-fast |
+| `ConfigServiceClient` | Config Service | 8084 | Fail-fast |
+| `ForwarderServiceClient` | External Forwarder | 8087 | Fail-fast |
+| `GatewayServiceClient` | Gateway Service | 8085 | Graceful degradation |
+| `As2ServiceClient` | AS2 Service | 8094 | Fail-fast |
+| `AiEngineClient` | AI Engine | 8091 | Graceful degradation |
+| `LicenseServiceClient` | License Service | 8089 | Graceful + caching |
+| `DmzProxyClient` | DMZ Proxy | 8088 | Fail-fast (config) |
+| `OnboardingApiClient` | Onboarding API | 8080 | Fail-fast |
+
+**Usage example** — inject any client into your service:
+
+```java
+@Service
+@RequiredArgsConstructor
+public class MyService {
+    private final EncryptionServiceClient encryptionService;
+    private final ScreeningServiceClient screeningService;
+    private final StorageServiceClient storageService;
+
+    public void processFile(Path file, String trackId) {
+        // Screen the file
+        Map<String, Object> scanResult = screeningService.scanFile(file, trackId, "acme");
+
+        // Encrypt credentials
+        String encrypted = encryptionService.encryptCredential("secret");
+
+        // Store in tiered storage
+        storageService.store(file, trackId, "acme");
+    }
+}
+```
+
+**Legacy diagram** (still applies for understanding the flow):
 
 ```
 Admin UI  ──HTTP──►  Onboarding API (:8080)

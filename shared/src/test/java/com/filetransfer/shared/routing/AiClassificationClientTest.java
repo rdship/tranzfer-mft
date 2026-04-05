@@ -1,17 +1,13 @@
 package com.filetransfer.shared.routing;
 
-import com.filetransfer.shared.config.PlatformConfig;
+import com.filetransfer.shared.client.AiEngineClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.springframework.http.*;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -19,7 +15,7 @@ import static org.mockito.Mockito.*;
 
 class AiClassificationClientTest {
 
-    private RestTemplate restTemplate;
+    private AiEngineClient aiEngine;
     private AiClassificationClient client;
 
     @TempDir
@@ -27,21 +23,13 @@ class AiClassificationClientTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        restTemplate = mock(RestTemplate.class);
-        PlatformConfig platformConfig = new PlatformConfig();
-        platformConfig.getSecurity().setControlApiKey("test_key");
+        aiEngine = mock(AiEngineClient.class);
+        client = new AiClassificationClient(aiEngine);
 
-        client = new AiClassificationClient(restTemplate, platformConfig);
-
-        // Set fields via reflection (@Value-injected)
-        setField("aiEngineUrl", "http://localhost:8091");
-        setField("enabled", true);
-    }
-
-    private void setField(String name, Object value) throws Exception {
-        var field = AiClassificationClient.class.getDeclaredField(name);
+        // Set enabled=true via reflection (@Value-injected)
+        var field = AiClassificationClient.class.getDeclaredField("enabled");
         field.setAccessible(true);
-        field.set(client, value);
+        field.set(client, true);
     }
 
     private Path createTestFile(String content) throws IOException {
@@ -54,10 +42,8 @@ class AiClassificationClientTest {
     void classify_allowedFile_returnsAllowedDecision() throws Exception {
         Path file = createTestFile("name,address\nJohn,123 Main St");
 
-        ResponseEntity<Map> response = new ResponseEntity<>(
-                Map.of("riskLevel", "LOW", "riskScore", 10, "blocked", false), HttpStatus.OK);
-        when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(Map.class)))
-                .thenReturn(response);
+        when(aiEngine.classify(eq(file), eq("TRZ001"), eq(false)))
+                .thenReturn(new AiEngineClient.ClassificationResult(true, "LOW", 10, null));
 
         var decision = client.classify(file, "TRZ001", false);
 
@@ -71,12 +57,9 @@ class AiClassificationClientTest {
     void classify_blockedUnencryptedFile_returnsBlockedDecision() throws Exception {
         Path file = createTestFile("4111-1111-1111-1111");
 
-        ResponseEntity<Map> response = new ResponseEntity<>(
-                Map.of("riskLevel", "CRITICAL", "riskScore", 95, "blocked", true,
-                        "blockReason", "PCI data detected without encryption"),
-                HttpStatus.OK);
-        when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(Map.class)))
-                .thenReturn(response);
+        when(aiEngine.classify(eq(file), eq("TRZ002"), eq(false)))
+                .thenReturn(new AiEngineClient.ClassificationResult(
+                        false, "CRITICAL", 95, "PCI data detected without encryption"));
 
         var decision = client.classify(file, "TRZ002", false);
 
@@ -87,17 +70,12 @@ class AiClassificationClientTest {
     }
 
     @Test
-    void classify_blockedButEncryptedFile_returnsAllowed() throws Exception {
+    void classify_blockedButEncryptedFile_delegatesToAiEngine() throws Exception {
         Path file = createTestFile("encrypted content");
 
-        ResponseEntity<Map> response = new ResponseEntity<>(
-                Map.of("riskLevel", "CRITICAL", "riskScore", 95, "blocked", true,
-                        "blockReason", "PCI data detected"),
-                HttpStatus.OK);
-        when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(Map.class)))
-                .thenReturn(response);
+        when(aiEngine.classify(eq(file), eq("TRZ003"), eq(true)))
+                .thenReturn(new AiEngineClient.ClassificationResult(true, "CRITICAL", 95, null));
 
-        // isEncrypted=true should bypass the block
         var decision = client.classify(file, "TRZ003", true);
 
         assertTrue(decision.allowed());
@@ -108,8 +86,8 @@ class AiClassificationClientTest {
     void classify_serviceUnavailable_gracefulDegradation_allowsTransfer() throws Exception {
         Path file = createTestFile("some data");
 
-        when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(Map.class)))
-                .thenThrow(new RestClientException("Connection refused"));
+        when(aiEngine.classify(eq(file), eq("TRZ004"), eq(false)))
+                .thenReturn(AiEngineClient.ClassificationResult.ALLOWED);
 
         var decision = client.classify(file, "TRZ004", false);
 
@@ -120,49 +98,15 @@ class AiClassificationClientTest {
 
     @Test
     void classify_disabled_skipsClassification() throws Exception {
-        setField("enabled", false);
-        Path file = createTestFile("data");
+        var field = AiClassificationClient.class.getDeclaredField("enabled");
+        field.setAccessible(true);
+        field.set(client, false);
 
+        Path file = createTestFile("data");
         var decision = client.classify(file, "TRZ005", false);
 
         assertTrue(decision.allowed());
         assertEquals("NONE", decision.riskLevel());
-        verifyNoInteractions(restTemplate);
-    }
-
-    @Test
-    void classify_sendsInternalApiKeyHeader() throws Exception {
-        Path file = createTestFile("data");
-
-        ResponseEntity<Map> response = new ResponseEntity<>(
-                Map.of("riskLevel", "NONE", "riskScore", 0, "blocked", false), HttpStatus.OK);
-        when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(Map.class)))
-                .thenReturn(response);
-
-        client.classify(file, "TRZ006", false);
-
-        verify(restTemplate).postForEntity(
-                eq("http://localhost:8091/api/v1/ai/classify"),
-                argThat(entity -> {
-                    @SuppressWarnings("unchecked")
-                    HttpEntity<?> e = (HttpEntity<?>) entity;
-                    return "test_key".equals(e.getHeaders().getFirst("X-Internal-Key"));
-                }),
-                eq(Map.class));
-    }
-
-    @Test
-    void classify_nonOkStatus_gracefulDegradation() throws Exception {
-        Path file = createTestFile("data");
-
-        ResponseEntity<Map> response = new ResponseEntity<>(null, HttpStatus.SERVICE_UNAVAILABLE);
-        when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(Map.class)))
-                .thenReturn(response);
-
-        var decision = client.classify(file, "TRZ007", false);
-
-        // Non-OK status falls through to the default "allow"
-        assertTrue(decision.allowed());
-        assertEquals("UNKNOWN", decision.riskLevel());
+        verifyNoInteractions(aiEngine);
     }
 }

@@ -109,6 +109,30 @@ These variables are used by multiple services. Set them once in your `.env` file
 | `RABBITMQ_USERNAME` | `guest` | Services with AMQP | RabbitMQ username |
 | `RABBITMQ_PASSWORD` | `guest` | Services with AMQP | RabbitMQ password |
 
+### Inter-Service Communication URLs
+
+Every microservice can call any other via the unified service client framework. URLs are configured under `platform.services.*` in each service's `application.yml` and can be overridden with environment variables.
+
+| Variable | Default | Target Service |
+|----------|---------|----------------|
+| `ONBOARDING_API_URL` | `http://onboarding-api:8080` | Onboarding API |
+| `SFTP_SERVICE_URL` | `http://sftp-service:8081` | SFTP Service |
+| `FTP_SERVICE_URL` | `http://ftp-service:8082` | FTP Service |
+| `FTP_WEB_SERVICE_URL` | `http://ftp-web-service:8083` | FTP Web Service |
+| `CONFIG_SERVICE_URL` | `http://config-service:8084` | Config Service |
+| `GATEWAY_SERVICE_URL` | `http://gateway-service:8085` | Gateway Service |
+| `ENCRYPTION_SERVICE_URL` | `http://encryption-service:8086` | Encryption Service |
+| `FORWARDER_SERVICE_URL` | `http://external-forwarder-service:8087` | External Forwarder |
+| `DMZ_PROXY_URL` | `http://dmz-proxy:8088` | DMZ Proxy |
+| `LICENSE_SERVICE_URL` | `http://license-service:8089` | License Service |
+| `ANALYTICS_SERVICE_URL` | `http://analytics-service:8090` | Analytics Service |
+| `AI_ENGINE_URL` | `http://ai-engine:8091` | AI Engine |
+| `SCREENING_SERVICE_URL` | `http://screening-service:8092` | Screening Service |
+| `KEYSTORE_MANAGER_URL` | `http://keystore-manager:8093` | Keystore Manager |
+| `AS2_SERVICE_URL` | `http://as2-service:8094` | AS2 Service |
+| `EDI_CONVERTER_URL` | `http://edi-converter:8095` | EDI Converter |
+| `STORAGE_MANAGER_URL` | `http://storage-manager:8096` | Storage Manager |
+
 ---
 
 ## Per-Service Configuration

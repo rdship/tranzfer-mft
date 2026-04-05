@@ -1,32 +1,26 @@
 package com.filetransfer.forwarder.controller;
 
+import com.filetransfer.forwarder.transfer.TransferStallException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
-import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class ForwarderControllerRetryTest {
 
     private ForwarderController controller;
-    private Method isRetryableMethod;
 
     @BeforeEach
-    void setUp() throws Exception {
+    void setUp() {
         // Only testing isRetryableDeliveryError — no dependencies needed
         controller = new ForwarderController(
                 null, null, null,
-                null, null, null, null, null, null, null
+                null, null, null, null, null, null, null, null
         );
-
-        isRetryableMethod = ForwarderController.class.getDeclaredMethod(
-                "isRetryableDeliveryError", Exception.class);
-        isRetryableMethod.setAccessible(true);
     }
 
-    private boolean invokeIsRetryable(Exception e) throws Exception {
-        return (boolean) isRetryableMethod.invoke(controller, e);
+    private boolean invokeIsRetryable(Exception e) {
+        return controller.isRetryableDeliveryError(e);
     }
 
     // --- Non-retryable errors (should return false) ---
@@ -115,5 +109,13 @@ class ForwarderControllerRetryTest {
     @Test
     void isRetryable_caseInsensitivePermission_returnsFalse() throws Exception {
         assertFalse(invokeIsRetryable(new RuntimeException("Permission Denied by server")));
+    }
+
+    // --- Transfer stall (should always be retryable) ---
+
+    @Test
+    void isRetryable_transferStall_returnsTrue() throws Exception {
+        assertTrue(invokeIsRetryable(
+                new TransferStallException("xfer-test", 5000, 10000, 35)));
     }
 }

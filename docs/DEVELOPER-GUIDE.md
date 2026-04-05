@@ -450,6 +450,88 @@ my-service:
 
 ---
 
+## Inter-Service Communication
+
+### Service Client Framework
+
+Every microservice can call any other microservice through typed client classes in the `shared` module (`com.filetransfer.shared.client`). This replaces ad-hoc `RestTemplate` calls and hardcoded URLs.
+
+**Architecture:**
+
+```
+BaseServiceClient (abstract)
+├── EncryptionServiceClient    — encrypt/decrypt files and credentials
+├── ScreeningServiceClient     — malware/content scanning
+├── AnalyticsServiceClient     — dashboard, metrics, alerts
+├── KeystoreServiceClient      — keys, certs, TLS management
+├── StorageServiceClient       — file store/retrieve, lifecycle
+├── EdiConverterClient         — EDI parsing, conversion, validation
+├── ConfigServiceClient        — flows, endpoints, connectors, SLA
+├── ForwarderServiceClient     — external file delivery
+├── GatewayServiceClient       — gateway status, legacy servers
+├── As2ServiceClient           — AS2/AS4 messaging
+├── AiEngineClient             — classification, DLP, routing AI
+├── LicenseServiceClient       — license validation, catalog
+├── DmzProxyClient             — proxy mappings
+└── OnboardingApiClient        — accounts, service registry
+```
+
+### Using a Service Client
+
+Just inject it — Spring auto-wires everything:
+
+```java
+@Service
+@RequiredArgsConstructor
+public class MyService {
+    private final ScreeningServiceClient screeningService;
+    private final EncryptionServiceClient encryptionService;
+
+    public void process(Path file) {
+        // Scan file for malware
+        Map<String, Object> result = screeningService.scanFile(file, "TRZ123", "acme");
+
+        // Encrypt a credential
+        String encrypted = encryptionService.encryptCredential("password123");
+    }
+}
+```
+
+### Configuration
+
+All service URLs are configured in `application.yml` under `platform.services`:
+
+```yaml
+platform:
+  services:
+    encryption-service:
+      url: ${ENCRYPTION_SERVICE_URL:http://encryption-service:8086}
+    screening-service:
+      url: ${SCREENING_SERVICE_URL:http://screening-service:8092}
+      enabled: false  # disable if not needed
+```
+
+Each endpoint supports: `url`, `enabled` (default: true), `connect-timeout-ms` (default: 5000), `read-timeout-ms` (default: 30000).
+
+### Error Strategies
+
+Each client uses an appropriate error strategy:
+
+| Strategy | Behavior | Used By |
+|---|---|---|
+| **Fail-fast** | Exception propagates to caller | Encryption, Screening, Config, Storage, Forwarder, AS2, EDI |
+| **Graceful degradation** | Returns safe default on failure | AI Engine, Analytics, Gateway, License |
+| **Swallow-and-log** | Logs warning, returns null/empty | Keystore Manager |
+
+### Adding a Client for a New Service
+
+1. Create `MyServiceClient extends BaseServiceClient` in `shared/src/main/java/.../client/`
+2. Add a `ServiceEndpoint` field to `ServiceClientProperties`
+3. Add the URL config to all `application.yml` files
+4. Annotate with `@Component` — auto-discovered by Spring
+
+---
+
 ## Database Migrations
 
 TranzFer uses **Flyway** for database schema migrations. Migration files are in the `shared` module.

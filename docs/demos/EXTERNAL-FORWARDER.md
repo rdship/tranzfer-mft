@@ -1,6 +1,6 @@
 # External Forwarder Service — Demo & Quick Start Guide
 
-> Forward files to external partners over 7 protocols (SFTP, FTP, FTPS, HTTP/HTTPS, AS2, AS4, Kafka) with smart retry, exponential backoff, and optional DMZ proxy routing.
+> Forward files to external partners over 7 protocols (SFTP, FTP, FTPS, HTTP/HTTPS, AS2, AS4, Kafka) with intelligent transfer management, activity-based stall detection, smart retry, and optional DMZ proxy routing.
 
 ---
 
@@ -8,7 +8,10 @@
 
 - **Delivers files to external systems via 7 protocols** — SFTP (Apache MINA SSHD client), FTP (Apache Commons Net), FTPS (TLS-encrypted FTP), HTTP/HTTPS/API (RestTemplate with multiple auth types), AS2 (RFC 4130 B2B messaging), AS4 (OASIS ebMS3), and Kafka (topic-based byte streaming).
 - **Two API models: legacy destinations and delivery endpoints** — `ExternalDestination` is the simpler model (SFTP/FTP/Kafka with host/port/credentials). `DeliveryEndpoint` is the richer model supporting all 7 protocols, multiple auth types (BASIC, BEARER_TOKEN, API_KEY, OAUTH2, NONE), custom HTTP headers, TLS settings, and retry configuration.
-- **Smart retry with exponential backoff and jitter** — configurable per endpoint. Formula: `base * 2^attempt * random(0.75, 1.25)`, capped at 2 minutes. Non-transient errors (auth failures, 401/403, permission denied, certificate errors) are detected and not retried.
+- **Intelligent transfer management** — instead of fixed session timeouts, the forwarder monitors actual data flow per transfer. Connections stay open as long as bytes are moving. If no data is transferred for 30 seconds (configurable), the transfer is interrupted and retried automatically.
+- **Activity-based stall detection** — a background watchdog polls active transfers every 5 seconds. Each chunk written to the remote partner resets the inactivity clock. Stalls are detected at the byte level (SFTP: per 32KB chunk, FTP/FTPS: per stream read, HTTP: request-level).
+- **Smart retry with stall recovery** — stall errors always get extra retry attempts (default +2 on top of configured retries) with shorter linear backoff (the connection was partially working). Non-stall errors use exponential backoff with jitter. Non-transient errors (auth failures, 401/403, permission denied, certificate errors) are never retried.
+- **Progress-aware diagnostics** — on stall, logs include exact bytes transferred, percentage complete, idle duration, and elapsed time, enabling fast root cause analysis.
 - **Base64 API for programmatic file delivery** — every endpoint supports both multipart file upload and Base64-encoded body, making it easy to call from any language without multipart form handling.
 - **Optional DMZ proxy routing** — delivery endpoints can be configured to route traffic through a DMZ proxy. The forwarder dynamically registers temporary port mappings on the proxy, delivers the file through the DMZ zone, and cleans up the mapping afterward.
 
@@ -615,21 +618,60 @@ All endpoints are served on port `8087` by default.
 | `PROXY_HOST` | `dmz-proxy` | Global proxy hostname |
 | `PROXY_PORT` | `8088` | Global proxy port |
 | `PROXY_NO_PROXY_HOSTS` | `localhost,127.0.0.1,postgres,rabbitmq` | Hosts that bypass the proxy |
+| `FORWARDER_STALL_TIMEOUT_SECONDS` | `30` | Seconds of inactivity before a transfer is considered stalled |
+| `FORWARDER_WATCHDOG_INTERVAL_MS` | `5000` | How often the watchdog checks for stalls (milliseconds) |
+| `FORWARDER_STALL_EXTRA_RETRIES` | `2` | Extra retry attempts granted for stall failures (on top of endpoint retries) |
+
+---
+
+## Intelligent Transfer Management
+
+The forwarder replaces fixed session timeouts with **activity-based transfer monitoring**:
+
+### How It Works
+
+1. **Registration** — when a transfer starts (SFTP connect, FTP login, etc.), it registers with the `TransferWatchdog` and records `totalBytes`, `filename`, and `endpointName`.
+2. **Progress tracking** — every chunk written to the remote partner calls `session.recordProgress(bytes)`, which resets the inactivity clock.
+   - **SFTP:** Each 32KB chunk written via `sftp.write()` records progress.
+   - **FTP/FTPS:** A `ProgressTrackingInputStream` wraps the file data; each read by the FTP library records progress.
+   - **HTTP:** Progress is recorded after the full request/response completes (HTTP is typically a single request).
+3. **Stall detection** — the watchdog runs every 5 seconds (configurable). If any transfer has had no data activity for longer than the stall threshold (default 30s), the transfer thread is interrupted.
+4. **Smart retry** — stall errors raise a `TransferStallException` with full diagnostics (bytes transferred, percentage, idle time). The retry loop grants extra attempts with shorter backoff.
+
+### Stall vs. Connection Failure
+
+| Scenario | Detection | Retry Strategy |
+|----------|-----------|---------------|
+| Data stops mid-transfer (partner slow/hung) | Watchdog detects idle > 30s | Extra retries with linear backoff (shorter) |
+| Connection refused / network unreachable | Immediate exception | Standard exponential backoff |
+| Auth failure / permission denied | Immediate exception | **Not retried** (non-transient) |
+
+### Example Log Output
+
+```
+WARN  Transfer stalled: xfer-a3f2b1c4 [report.csv → Acme SFTP] — 
+      524288/1048576 bytes (50%) transferred, idle for 32s, elapsed 45s
+WARN  Delivery attempt 1/3 failed for 'Acme SFTP': Transfer stalled — 
+      retrying in 5000ms (stall recovery)
+INFO  Delivery succeeded on attempt 2/3 for 'Acme SFTP' (stall retries: 1)
+```
 
 ---
 
 ## Retry Behavior Reference
 
-The forwarder uses smart retry with exponential backoff for delivery endpoints. Configuration is per-endpoint in the `delivery_endpoints` table:
+The forwarder uses smart retry with two strategies depending on error type:
+
+### Per-Endpoint Configuration (in `delivery_endpoints` table):
 
 | Column | Default | Description |
 |--------|---------|-------------|
 | `retry_count` | `3` | Maximum number of delivery attempts |
 | `retry_delay_ms` | `5000` | Base delay between retries (milliseconds) |
 
-**Backoff formula:** `min(base * 2^(attempt-1) * random(0.75, 1.25), 120000)`
+### Standard Errors — Exponential Backoff
 
-Example with defaults (`retry_count=3`, `retry_delay_ms=5000`):
+**Formula:** `min(base * 2^(attempt-1) * random(0.75, 1.25), 120000)`
 
 | Attempt | Base Delay | Exponential | With Jitter (range) | Capped |
 |---------|-----------|------------|---------------------|--------|
@@ -637,7 +679,19 @@ Example with defaults (`retry_count=3`, `retry_delay_ms=5000`):
 | 2 | 5000ms | 10000ms | 7500-12500ms | 7500-12500ms |
 | 3 | 5000ms | 20000ms | 15000-25000ms | 15000-25000ms |
 
-**Non-retryable errors** (detected by message content, retry is skipped immediately):
+### Stall Errors — Linear Backoff with Extra Retries
+
+Stalls get `stall-extra-retries` (default 2) additional attempts on top of the configured max. Backoff is linear (shorter, since the connection was partially working):
+
+**Formula:** `min(base * stallRetryNumber, 30000)`
+
+| Stall Retry | Delay |
+|-------------|-------|
+| 1 | 5000ms |
+| 2 | 10000ms |
+| 3+ | capped at 30000ms |
+
+### Non-Retryable Errors (retry skipped immediately):
 
 - Permission denied / auth failures
 - HTTP 401 / 403
@@ -705,6 +759,22 @@ Common causes:
 - Target server is down or unreachable
 - Wrong credentials in the destination/endpoint configuration
 - Network connectivity issues between the forwarder container and the target
+
+### "STALL DETECTED" / "Transfer stalled" in logs
+
+The forwarder detected that no data was transferred for longer than the stall threshold (default 30 seconds). This means the connection was established and possibly some data was sent, but the remote partner stopped accepting data.
+
+**Common causes:**
+- Remote partner is overloaded or experiencing high latency
+- Network congestion between forwarder and partner
+- Partner's disk is full or write pipeline is blocked
+- Firewall/proxy silently dropping data connections
+
+**Solutions:**
+- Check partner health and network connectivity
+- Increase `FORWARDER_STALL_TIMEOUT_SECONDS` for known-slow partners (e.g., `60` or `120`)
+- Increase `FORWARDER_STALL_EXTRA_RETRIES` to give more retry budget for intermittent issues
+- Check the stall log message for progress percentage — if it always stalls at 0%, the issue is connection setup, not data transfer
 
 ### SFTP forwarding fails with "Auth fail"
 

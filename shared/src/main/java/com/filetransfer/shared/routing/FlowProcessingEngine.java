@@ -1,5 +1,9 @@
 package com.filetransfer.shared.routing;
 
+import com.filetransfer.shared.client.EncryptionServiceClient;
+import com.filetransfer.shared.client.ForwarderServiceClient;
+import com.filetransfer.shared.client.ScreeningServiceClient;
+import com.filetransfer.shared.client.ServiceClientProperties;
 import com.filetransfer.shared.cluster.ClusterService;
 import com.filetransfer.shared.config.PlatformConfig;
 import com.filetransfer.shared.entity.*;
@@ -39,6 +43,7 @@ public class FlowProcessingEngine {
     private final ClusterService clusterService;
     private final RestTemplate restTemplate;
     private final PlatformConfig platformConfig;
+    private final ServiceClientProperties serviceProps;
 
     /**
      * Called when a file arrives. Finds matching flows and executes them.
@@ -251,8 +256,7 @@ public class FlowProcessingEngine {
 
     private String callEncryptionService(Path input, Path workDir, String algo, String operation,
                                           Map<String, String> cfg) throws Exception {
-        String encryptionUrl = System.getenv("ENCRYPTION_SERVICE_URL");
-        if (encryptionUrl == null) encryptionUrl = "http://encryption-service:8086";
+        String encryptionUrl = serviceProps.getEncryptionService().getUrl();
 
         String keyId = cfg.get("keyId");
         String name = input.getFileName().toString();
@@ -368,8 +372,7 @@ public class FlowProcessingEngine {
      * If a HIT is found, throws an exception to BLOCK the transfer.
      */
     private String callScreeningService(Path input, String trackId, Map<String, String> cfg) throws Exception {
-        String screeningUrl = System.getenv("SCREENING_SERVICE_URL");
-        if (screeningUrl == null) screeningUrl = "http://screening-service:8092";
+        String screeningUrl = serviceProps.getScreeningService().getUrl();
 
         log.info("[{}] Screening file against sanctions lists...", trackId);
 
@@ -510,8 +513,7 @@ public class FlowProcessingEngine {
             throw new IllegalArgumentException("No active delivery endpoints found for IDs: " + endpointIdsStr);
         }
 
-        String forwarderUrl = System.getenv("FORWARDER_SERVICE_URL");
-        if (forwarderUrl == null) forwarderUrl = "http://external-forwarder-service:8087";
+        String forwarderUrl = serviceProps.getForwarderService().getUrl();
 
         byte[] fileBytes = Files.readAllBytes(input);
         String base64Content = Base64.getEncoder().encodeToString(fileBytes);

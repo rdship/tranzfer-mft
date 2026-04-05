@@ -1,5 +1,8 @@
 package com.filetransfer.forwarder.service;
 
+import com.filetransfer.forwarder.transfer.TransferSession;
+import com.filetransfer.forwarder.transfer.TransferStallException;
+import com.filetransfer.forwarder.transfer.TransferWatchdog;
 import com.filetransfer.shared.crypto.CredentialCryptoClient;
 import com.filetransfer.shared.entity.DeliveryEndpoint;
 import com.filetransfer.shared.enums.AuthType;
@@ -17,6 +20,11 @@ import java.util.Map;
 /**
  * Forwards files to external HTTP/HTTPS/API endpoints.
  * Supports multiple authentication types: BASIC, BEARER_TOKEN, API_KEY, NONE.
+ *
+ * <p>For HTTP, stall detection works at the request level: the {@link TransferWatchdog}
+ * monitors time elapsed since the request was sent. If the remote partner does not
+ * respond within the stall threshold, the transfer is interrupted. For HTTP the
+ * per-endpoint {@code readTimeoutMs} also serves as a stall guard.
  */
 @Slf4j
 @Service
@@ -24,6 +32,7 @@ import java.util.Map;
 public class HttpForwarderService {
 
     private final CredentialCryptoClient credentialCrypto;
+    private final TransferWatchdog transferWatchdog;
 
     public void forward(DeliveryEndpoint endpoint, String filename, byte[] fileBytes) throws Exception {
         String scheme = endpoint.isTlsEnabled() ? "https" : "http";
@@ -64,17 +73,37 @@ public class HttpForwarderService {
 
         HttpEntity<byte[]> entity = new HttpEntity<>(fileBytes, headers);
 
-        RestTemplate rest = buildRestTemplate(endpoint);
-        ResponseEntity<String> response = rest.exchange(url, method, entity, String.class);
+        // Register with watchdog for stall detection
+        TransferSession session = transferWatchdog.register(endpoint.getName(), filename, fileBytes.length);
+        try {
+            RestTemplate rest = buildRestTemplate(endpoint);
 
-        if (!response.getStatusCode().is2xxSuccessful()) {
-            throw new RuntimeException("HTTP delivery failed: " + response.getStatusCode()
-                    + " " + response.getBody());
+            // Mark the start of the actual HTTP transfer
+            session.recordProgress(0);
+
+            ResponseEntity<String> response = rest.exchange(url, method, entity, String.class);
+
+            // Full payload sent+received — record completion
+            session.recordProgress(fileBytes.length);
+
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new RuntimeException("HTTP delivery failed: " + response.getStatusCode()
+                        + " " + response.getBody());
+            }
+
+            String proxyInfo = endpoint.isProxyEnabled() ? " via proxy " + endpoint.getProxyHost() + ":" + endpoint.getProxyPort() : "";
+            long elapsed = session.getElapsedSeconds();
+            log.info("HTTP forward complete: {} -> {} {}{} ({} bytes in {}s, status={})",
+                    filename, method, url, proxyInfo, fileBytes.length, elapsed,
+                    response.getStatusCode().value());
+        } catch (Exception e) {
+            if (session.isStalled()) {
+                throw new TransferStallException(session);
+            }
+            throw e;
+        } finally {
+            transferWatchdog.unregister(session.getTransferId());
         }
-
-        String proxyInfo = endpoint.isProxyEnabled() ? " via proxy " + endpoint.getProxyHost() + ":" + endpoint.getProxyPort() : "";
-        log.info("HTTP forward complete: {} → {} {}{} ({} bytes, status={})",
-                filename, method, url, proxyInfo, fileBytes.length, response.getStatusCode().value());
     }
 
     private void applyAuth(HttpHeaders headers, DeliveryEndpoint endpoint) {
