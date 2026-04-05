@@ -129,6 +129,7 @@ public class RoutingEvaluator {
             case SFTP -> ServiceType.SFTP;
             case FTP -> ServiceType.FTP;
             case FTP_WEB, HTTPS -> ServiceType.FTP_WEB;
+            case AS2, AS4 -> ServiceType.SFTP; // AS2/AS4 files route through SFTP service type
         };
     }
 }

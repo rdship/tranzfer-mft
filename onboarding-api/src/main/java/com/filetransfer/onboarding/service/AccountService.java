@@ -143,6 +143,7 @@ public class AccountService {
             case SFTP -> sftpHomeBase;
             case FTP -> ftpHomeBase;
             case FTP_WEB, HTTPS -> ftpWebHomeBase;
+            case AS2, AS4 -> sftpHomeBase; // AS2/AS4 accounts use SFTP home base
         };
         return base + "/" + username;
     }
@@ -185,6 +186,8 @@ public class AccountService {
                             host, port, account.getUsername(), s.getName());
                     case FTP_WEB, HTTPS -> String.format("Connect via: https://%s:%d/api/files, user: %s (server: %s)",
                             host, port, account.getUsername(), s.getName());
+                    case AS2, AS4 -> String.format("Connect via: POST https://%s:%d/as2/receive (partner: %s, server: %s)",
+                            host, port, account.getUsername(), s.getName());
                 };
             }
         }
@@ -193,6 +196,7 @@ public class AccountService {
             case SFTP -> "Connect via: sftp -P 2222 " + account.getUsername() + "@<host>";
             case FTP -> "Connect via: ftp <host> (port 21), user: " + account.getUsername();
             case FTP_WEB, HTTPS -> "Connect via: https://<host>:8083/api/files, user: " + account.getUsername();
+            case AS2, AS4 -> "Connect via: POST https://<host>:8094/as2/receive, partner: " + account.getUsername();
         };
     }
 }
