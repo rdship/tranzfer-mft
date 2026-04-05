@@ -436,11 +436,12 @@ public class FlowProcessingEngine {
         } catch (IllegalArgumentException e) {
             protocol = Protocol.SFTP;
         }
+        final Protocol resolvedProtocol = protocol;
 
         TransferAccount destAccount = accountRepository
-                .findByUsernameAndProtocolAndActiveTrue(destUsername, protocol)
+                .findByUsernameAndProtocolAndActiveTrue(destUsername, resolvedProtocol)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Destination account not found: " + destUsername + " (" + protocol + ")"));
+                        "Destination account not found: " + destUsername + " (" + resolvedProtocol + ")"));
 
         // Build outbox path: {homeDir}/outbox/{filename}
         String homeDir = destAccount.getHomeDir();

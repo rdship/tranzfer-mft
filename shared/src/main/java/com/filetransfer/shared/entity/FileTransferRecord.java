@@ -67,4 +67,17 @@ public class FileTransferRecord {
     private Instant routedAt;
     private Instant downloadedAt;
     private Instant completedAt;
+
+    /** Updated on every save — used for retry backoff timing */
+    private Instant updatedAt;
+
+    @PrePersist
+    void onPrePersist() {
+        if (updatedAt == null) updatedAt = Instant.now();
+    }
+
+    @PreUpdate
+    void onPreUpdate() {
+        updatedAt = Instant.now();
+    }
 }
