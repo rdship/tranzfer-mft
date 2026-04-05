@@ -1,21 +1,70 @@
-MIT License
+Business Source License 1.1
 
-Copyright (c) 2024-2026 Roshan Dubey
+License text copyright (c) 2017 MariaDB Corporation Ab, All Rights Reserved.
+"Business Source License" is a trademark of MariaDB Corporation Ab.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Parameters
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Licensor:             Roshan Dubey
+Licensed Work:        TranzFer MFT
+                      The Licensed Work is (c) 2024-2026 Roshan Dubey.
+Additional Use Grant: You may make production use of the Licensed Work,
+                      provided your use does not include offering the
+                      Licensed Work to third parties as a commercially
+                      hosted or managed service where the service provides
+                      users with access to any substantial set of the
+                      features or functionality of the Licensed Work.
+Change Date:          Four years from the date the Licensed Work is
+                      published.
+Change License:       Apache License, Version 2.0
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+For information about alternative licensing arrangements for the
+Licensed Work, please contact: licensing@tranzfer.io
+
+Notice
+
+The Business Source License (this document, or the "License") is not an
+Open Source license. However, the Licensed Work will eventually be made
+available under an Open Source License, as stated in this License.
+
+License Grant and Conditions
+
+1. Grant. The Licensor hereby grants you the right to copy, modify,
+   create derivative works, redistribute, and make non-production use
+   of the Licensed Work. The Licensor may make an Additional Use Grant,
+   above, permitting limited production use.
+
+2. Conditions. In consideration of the grant above, you agree that:
+
+   a. You will not provide the Licensed Work to third parties as a
+      hosted or managed service without a separate commercial agreement
+      with the Licensor.
+
+   b. You will retain all copyright, patent, and trademark notices
+      in all copies of the Licensed Work.
+
+   c. If you modify the Licensed Work, you will include a prominent
+      notice stating that you have modified the Licensed Work.
+
+3. Change Date and Change License. On the Change Date, or the fourth
+   anniversary of the first publicly available distribution of a
+   specific version of the Licensed Work under this License, whichever
+   comes first, the Licensor hereby grants you rights under the terms
+   of the Change License, and the rights granted under this License
+   for that specific version will terminate.
+
+4. No Trademark Rights. This License does not grant you any right in
+   the trademarks, service marks, brand names, or logos of the Licensor.
+
+5. Disclaimer. THE LICENSED WORK IS PROVIDED "AS IS". THE LICENSOR
+   HEREBY DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING
+   WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
+   AND NON-INFRINGEMENT. IN NO EVENT SHALL THE LICENSOR BE LIABLE FOR
+   ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM THE LICENSED WORK.
+
+6. Term. This License is effective from the date you first use the
+   Licensed Work and will continue until the Change Date, at which
+   point the Change License applies.
+
+7. Export Compliance. The Licensed Work may contain encryption technology
+   subject to U.S. Export Administration Regulations. See EXPORT_CONTROL.md.

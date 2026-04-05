@@ -52,6 +52,20 @@ Use GitHub Issues. Include:
 - Service logs (`docker compose logs <service-name>`)
 - Environment (OS, Java version, Docker version)
 
+## Contributor License Agreement
+
+By submitting a pull request, you agree to the terms of our Contributor
+License Agreement (CLA). See [CLA.md](CLA.md) for full details.
+
+In short: you retain copyright to your contributions, but grant us the
+rights to use them in the project under the project's license.
+
+Include this line in your first commit:
+
+    Signed-off-by: Your Name <your-email@example.com>
+
 ## License
 
-By contributing, you agree that your contributions will be licensed under the Apache License 2.0.
+By contributing, you agree that your contributions will be licensed under
+the Business Source License 1.1, the same license that covers the project.
+See [LICENSE](LICENSE) for details.

@@ -5,7 +5,7 @@
 ### AI-First Enterprise Managed File Transfer
 
 [![CI — Build & Test](https://github.com/rdship/tranzfer-mft/actions/workflows/ci.yml/badge.svg)](https://github.com/rdship/tranzfer-mft/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: BSL 1.1](https://img.shields.io/badge/License-BSL_1.1-blue.svg)](LICENSE)
 [![Java 21](https://img.shields.io/badge/Java-21_LTS-orange.svg)](https://openjdk.org/projects/jdk/21/)
 [![Spring Boot 3.2](https://img.shields.io/badge/Spring_Boot-3.2-6DB33F.svg)](https://spring.io/projects/spring-boot)
 [![React 18](https://img.shields.io/badge/React-18-61DAFB.svg)](https://react.dev/)
@@ -501,7 +501,24 @@ docker run -v $(pwd):/app -w /app maven:3.9-eclipse-temurin-21 mvn clean package
 
 ## License
 
-[MIT](LICENSE) — use it however you want.
+[Business Source License 1.1](LICENSE) — free for non-production use.
+Production use permitted except as a competing hosted service.
+Converts to Apache 2.0 after 4 years.
+
+See [EULA.md](EULA.md) for enterprise licensing tiers.
+
+## Legal
+
+- [SECURITY.md](SECURITY.md) — Vulnerability reporting
+- [DISCLAIMER.md](DISCLAIMER.md) — OFAC, PCI, HIPAA, GDPR disclaimers
+- [PRIVACY.md](PRIVACY.md) — Data handling practices
+- [EXPORT_CONTROL.md](EXPORT_CONTROL.md) — U.S. export regulations (ECCN 5D002)
+- [CLA.md](CLA.md) — Contributor License Agreement
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — Community standards
+- [NOTICE](NOTICE) — Third-party attributions
+
+> **Export Notice:** This software contains encryption technology subject to
+> U.S. Export Administration Regulations (EAR). See [EXPORT_CONTROL.md](EXPORT_CONTROL.md).
 
 ---
 
@@ -509,6 +526,8 @@ docker run -v $(pwd):/app -w /app maven:3.9-eclipse-temurin-21 mvn clean package
 
 **Built by [Roshan Dubey](https://github.com/rdship)**
 
-If this project is useful, give it a ⭐
+Copyright 2024-2026 Roshan Dubey. All rights reserved.
+
+If this project is useful, give it a star.
 
 </div>

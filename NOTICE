@@ -1,0 +1,60 @@
+TranzFer MFT
+Copyright 2024-2026 Roshan Dubey. All rights reserved.
+
+This product includes software developed by the TranzFer MFT project.
+
+THIRD-PARTY COMPONENTS
+======================
+
+This software incorporates the following third-party components:
+
+Spring Boot Framework
+  License: Apache License 2.0
+  https://spring.io/projects/spring-boot
+
+Apache MINA SSHD
+  License: Apache License 2.0
+  https://mina.apache.org/sshd-project/
+
+Apache FtpServer
+  License: Apache License 2.0
+  https://mina.apache.org/ftpserver-project/
+
+PostgreSQL JDBC Driver
+  License: BSD 2-Clause
+  https://jdbc.postgresql.org/
+
+React
+  License: MIT License
+  https://react.dev/
+
+Vite
+  License: MIT License
+  https://vitejs.dev/
+
+TailwindCSS
+  License: MIT License
+  https://tailwindcss.com/
+
+JSON Web Token (jjwt)
+  License: Apache License 2.0
+  https://github.com/jwtk/jjwt
+
+Project Lombok
+  License: MIT License
+  https://projectlombok.org/
+
+RabbitMQ Java Client
+  License: Mozilla Public License 2.0 / Apache License 2.0
+  https://www.rabbitmq.com/
+
+Bouncy Castle Cryptographic APIs
+  License: MIT License
+  https://www.bouncycastle.org/
+
+Docker (runtime dependency)
+  License: Apache License 2.0
+  https://www.docker.com/
+
+All trademarks and registered trademarks are the property of their
+respective owners.
