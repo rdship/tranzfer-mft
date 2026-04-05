@@ -2,10 +2,12 @@ package com.filetransfer.config.controller;
 
 import com.filetransfer.shared.entity.WebhookConnector;
 import com.filetransfer.shared.repository.WebhookConnectorRepository;
+import com.filetransfer.shared.security.Roles;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -15,6 +17,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/connectors")
 @RequiredArgsConstructor
+@PreAuthorize(Roles.OPERATOR)
 public class ConnectorController {
 
     private final WebhookConnectorRepository connectorRepository;

@@ -21,7 +21,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Component
-public class ConfigServiceClient extends BaseServiceClient {
+public class ConfigServiceClient extends ResilientServiceClient {
 
     public ConfigServiceClient(RestTemplate restTemplate,
                                PlatformConfig platformConfig,
@@ -33,43 +33,36 @@ public class ConfigServiceClient extends BaseServiceClient {
 
     /** Get all file flows. */
     public List<Map<String, Object>> getAllFlows() {
-        try {
-            return get("/api/flows", new ParameterizedTypeReference<List<Map<String, Object>>>() {});
-        } catch (Exception e) {
-            throw serviceError("getAllFlows", e);
-        }
+        return withResilience("getAllFlows",
+                () -> get("/api/flows", new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
     }
 
     /** Get a specific file flow by ID. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> getFlow(UUID flowId) {
-        try {
-            return get("/api/flows/" + flowId, Map.class);
-        } catch (Exception e) {
-            throw serviceError("getFlow", e);
-        }
+        return withResilience("getFlow",
+                () -> get("/api/flows/" + flowId, Map.class));
     }
 
     /** Get flow executions, optionally filtered. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> searchExecutions(String trackId, String filename, String status,
                                                  int page, int size) {
-        try {
-            StringBuilder path = new StringBuilder("/api/flows/executions?page=" + page + "&size=" + size);
-            if (trackId != null) path.append("&trackId=").append(trackId);
-            if (filename != null) path.append("&filename=").append(filename);
-            if (status != null) path.append("&status=").append(status);
-            return get(path.toString(), Map.class);
-        } catch (Exception e) {
-            throw serviceError("searchExecutions", e);
-        }
+        StringBuilder path = new StringBuilder("/api/flows/executions?page=" + page + "&size=" + size);
+        if (trackId != null) path.append("&trackId=").append(trackId);
+        if (filename != null) path.append("&filename=").append(filename);
+        if (status != null) path.append("&status=").append(status);
+        String finalPath = path.toString();
+        return withResilience("searchExecutions",
+                () -> get(finalPath, Map.class));
     }
 
     /** Get available flow step types. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> getStepTypes() {
         try {
-            return get("/api/flows/step-types", Map.class);
+            return withResilience("getStepTypes",
+                    () -> get("/api/flows/step-types", Map.class));
         } catch (Exception e) {
             log.warn("Failed to fetch step types: {}", e.getMessage());
             return Collections.emptyMap();
@@ -80,31 +73,27 @@ public class ConfigServiceClient extends BaseServiceClient {
 
     /** List all delivery endpoints, optionally filtered by protocol or tag. */
     public List<Map<String, Object>> listDeliveryEndpoints(String protocol, String tag) {
-        try {
-            StringBuilder path = new StringBuilder("/api/delivery-endpoints?");
-            if (protocol != null) path.append("protocol=").append(protocol).append("&");
-            if (tag != null) path.append("tag=").append(tag);
-            return get(path.toString(), new ParameterizedTypeReference<List<Map<String, Object>>>() {});
-        } catch (Exception e) {
-            throw serviceError("listDeliveryEndpoints", e);
-        }
+        StringBuilder path = new StringBuilder("/api/delivery-endpoints?");
+        if (protocol != null) path.append("protocol=").append(protocol).append("&");
+        if (tag != null) path.append("tag=").append(tag);
+        String finalPath = path.toString();
+        return withResilience("listDeliveryEndpoints",
+                () -> get(finalPath, new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
     }
 
     /** Get a delivery endpoint by ID. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> getDeliveryEndpoint(UUID id) {
-        try {
-            return get("/api/delivery-endpoints/" + id, Map.class);
-        } catch (Exception e) {
-            throw serviceError("getDeliveryEndpoint", e);
-        }
+        return withResilience("getDeliveryEndpoint",
+                () -> get("/api/delivery-endpoints/" + id, Map.class));
     }
 
     /** Get delivery endpoint summary (counts by protocol). */
     @SuppressWarnings("unchecked")
     public Map<String, Object> deliveryEndpointSummary() {
         try {
-            return get("/api/delivery-endpoints/summary", Map.class);
+            return withResilience("deliveryEndpointSummary",
+                    () -> get("/api/delivery-endpoints/summary", Map.class));
         } catch (Exception e) {
             log.warn("Delivery endpoint summary unavailable: {}", e.getMessage());
             return Collections.emptyMap();
@@ -115,41 +104,33 @@ public class ConfigServiceClient extends BaseServiceClient {
 
     /** List all external destinations, optionally filtered by type. */
     public List<Map<String, Object>> listExternalDestinations(String type) {
-        try {
-            String path = type != null ? "/api/external-destinations?type=" + type
-                                       : "/api/external-destinations";
-            return get(path, new ParameterizedTypeReference<List<Map<String, Object>>>() {});
-        } catch (Exception e) {
-            throw serviceError("listExternalDestinations", e);
-        }
+        String path = type != null ? "/api/external-destinations?type=" + type
+                                   : "/api/external-destinations";
+        return withResilience("listExternalDestinations",
+                () -> get(path, new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
     }
 
     /** Get an external destination by ID. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> getExternalDestination(UUID id) {
-        try {
-            return get("/api/external-destinations/" + id, Map.class);
-        } catch (Exception e) {
-            throw serviceError("getExternalDestination", e);
-        }
+        return withResilience("getExternalDestination",
+                () -> get("/api/external-destinations/" + id, Map.class));
     }
 
     // ── Connectors ──────────────────────────────────────────────────────
 
     /** List all webhook connectors. */
     public List<Map<String, Object>> listConnectors() {
-        try {
-            return get("/api/connectors", new ParameterizedTypeReference<List<Map<String, Object>>>() {});
-        } catch (Exception e) {
-            throw serviceError("listConnectors", e);
-        }
+        return withResilience("listConnectors",
+                () -> get("/api/connectors", new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
     }
 
     /** Get available connector types. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> getConnectorTypes() {
         try {
-            return get("/api/connectors/types", Map.class);
+            return withResilience("getConnectorTypes",
+                    () -> get("/api/connectors/types", Map.class));
         } catch (Exception e) {
             log.warn("Connector types unavailable: {}", e.getMessage());
             return Collections.emptyMap();
@@ -159,35 +140,26 @@ public class ConfigServiceClient extends BaseServiceClient {
     /** Test a connector by ID. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> testConnector(UUID connectorId) {
-        try {
-            return post("/api/connectors/" + connectorId + "/test", null, Map.class);
-        } catch (Exception e) {
-            throw serviceError("testConnector", e);
-        }
+        return withResilience("testConnector",
+                () -> post("/api/connectors/" + connectorId + "/test", null, Map.class));
     }
 
     // ── AS2 Partnerships ────────────────────────────────────────────────
 
     /** List AS2 partnerships. */
     public List<Map<String, Object>> listAs2Partnerships() {
-        try {
-            return get("/api/as2-partnerships",
-                    new ParameterizedTypeReference<List<Map<String, Object>>>() {});
-        } catch (Exception e) {
-            throw serviceError("listAs2Partnerships", e);
-        }
+        return withResilience("listAs2Partnerships",
+                () -> get("/api/as2-partnerships",
+                        new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
     }
 
     // ── Security Profiles ───────────────────────────────────────────────
 
     /** List security profiles. */
     public List<Map<String, Object>> listSecurityProfiles() {
-        try {
-            return get("/api/security-profiles",
-                    new ParameterizedTypeReference<List<Map<String, Object>>>() {});
-        } catch (Exception e) {
-            throw serviceError("listSecurityProfiles", e);
-        }
+        return withResilience("listSecurityProfiles",
+                () -> get("/api/security-profiles",
+                        new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
     }
 
     // ── Activity ────────────────────────────────────────────────────────
@@ -196,7 +168,8 @@ public class ConfigServiceClient extends BaseServiceClient {
     @SuppressWarnings("unchecked")
     public Map<String, Object> activitySnapshot() {
         try {
-            return get("/api/activity/snapshot", Map.class);
+            return withResilience("activitySnapshot",
+                    () -> get("/api/activity/snapshot", Map.class));
         } catch (Exception e) {
             log.warn("Activity snapshot unavailable: {}", e.getMessage());
             return Collections.emptyMap();
@@ -208,7 +181,8 @@ public class ConfigServiceClient extends BaseServiceClient {
     /** List SLA agreements. */
     public List<Map<String, Object>> listSlaAgreements() {
         try {
-            return get("/api/sla", new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+            return withResilience("listSlaAgreements",
+                    () -> get("/api/sla", new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
         } catch (Exception e) {
             log.warn("SLA data unavailable: {}", e.getMessage());
             return Collections.emptyList();
@@ -218,8 +192,9 @@ public class ConfigServiceClient extends BaseServiceClient {
     /** Get SLA breaches. */
     public List<Map<String, Object>> getSlaBreaches() {
         try {
-            return get("/api/sla/breaches",
-                    new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+            return withResilience("getSlaBreaches",
+                    () -> get("/api/sla/breaches",
+                            new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
         } catch (Exception e) {
             log.warn("SLA breach data unavailable: {}", e.getMessage());
             return Collections.emptyList();

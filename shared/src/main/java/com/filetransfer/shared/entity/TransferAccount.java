@@ -6,7 +6,6 @@ import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -18,7 +17,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class TransferAccount {
+public class TransferAccount extends Auditable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -63,19 +62,6 @@ public class TransferAccount {
     @Builder.Default
     private boolean active = true;
 
-    @Column(nullable = false, updatable = false)
-    @Builder.Default
-    private Instant createdAt = Instant.now();
-
-    @Column(nullable = false)
-    @Builder.Default
-    private Instant updatedAt = Instant.now();
-
     @OneToMany(mappedBy = "account", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<AuditLog> auditLogs;
-
-    @PreUpdate
-    void onUpdate() {
-        this.updatedAt = Instant.now();
-    }
 }

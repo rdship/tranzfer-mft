@@ -3,9 +3,11 @@ package com.filetransfer.onboarding.controller;
 import com.filetransfer.shared.entity.*;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.repository.*;
+import com.filetransfer.shared.security.Roles;
 import com.filetransfer.shared.util.TrackIdGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -31,6 +33,7 @@ import java.util.stream.Collectors;
  * Admin can review/approve or the system auto-completes after learning phase.
  */
 @RestController @RequestMapping("/api/v1/auto-onboard") @RequiredArgsConstructor @Slf4j
+@PreAuthorize(Roles.OPERATOR)
 public class AutonomousOnboardController {
 
     private final AutoOnboardSessionRepository sessionRepo;

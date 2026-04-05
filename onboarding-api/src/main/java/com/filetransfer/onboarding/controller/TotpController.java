@@ -2,9 +2,11 @@ package com.filetransfer.onboarding.controller;
 
 import com.filetransfer.shared.entity.TotpConfig;
 import com.filetransfer.shared.repository.TotpConfigRepository;
+import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import javax.crypto.Mac;
@@ -21,6 +23,7 @@ import java.util.stream.IntStream;
  * Generates secrets, validates 6-digit codes, manages backup codes.
  */
 @RestController @RequestMapping("/api/2fa") @RequiredArgsConstructor @Slf4j
+@PreAuthorize(Roles.ANY_AUTHENTICATED)
 public class TotpController {
 
     private final TotpConfigRepository totpRepo;

@@ -2,8 +2,10 @@ package com.filetransfer.keystore.controller;
 
 import com.filetransfer.keystore.entity.ManagedKey;
 import com.filetransfer.keystore.service.KeyManagementService;
+import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.util.*;
 
@@ -14,6 +16,7 @@ import java.util.*;
  * Designed to be compatible with any external system — standard REST + PEM output.
  */
 @RestController @RequestMapping("/api/v1/keys") @RequiredArgsConstructor
+@PreAuthorize(Roles.OPERATOR)
 public class KeystoreController {
 
     private final KeyManagementService keyService;

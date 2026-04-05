@@ -21,7 +21,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class LicenseServiceClient extends BaseServiceClient {
+public class LicenseServiceClient extends ResilientServiceClient {
 
     public LicenseServiceClient(RestTemplate restTemplate,
                                 PlatformConfig platformConfig,
@@ -45,7 +45,8 @@ public class LicenseServiceClient extends BaseServiceClient {
                     "serviceType", serviceType,
                     "hostId", hostId
             );
-            return post("/api/v1/licenses/validate", request, Map.class);
+            return withResilience("validate",
+                    () -> post("/api/v1/licenses/validate", request, Map.class));
         } catch (Exception e) {
             log.warn("License validation failed: {}", e.getMessage());
             return Collections.emptyMap();
@@ -56,8 +57,9 @@ public class LicenseServiceClient extends BaseServiceClient {
     @SuppressWarnings("unchecked")
     public Map<String, Object> activateTrial(String serviceType, String hostId) {
         try {
-            return post("/api/v1/licenses/trial",
-                    Map.of("serviceType", serviceType, "hostId", hostId), Map.class);
+            return withResilience("activateTrial",
+                    () -> post("/api/v1/licenses/trial",
+                            Map.of("serviceType", serviceType, "hostId", hostId), Map.class));
         } catch (Exception e) {
             log.warn("Trial activation failed: {}", e.getMessage());
             return Collections.emptyMap();
@@ -68,7 +70,8 @@ public class LicenseServiceClient extends BaseServiceClient {
     @SuppressWarnings("unchecked")
     public Map<String, Object> getCatalog() {
         try {
-            return get("/api/v1/licenses/catalog/components", Map.class);
+            return withResilience("getCatalog",
+                    () -> get("/api/v1/licenses/catalog/components", Map.class));
         } catch (Exception e) {
             log.warn("License catalog unavailable: {}", e.getMessage());
             return Collections.emptyMap();
@@ -78,8 +81,9 @@ public class LicenseServiceClient extends BaseServiceClient {
     /** Get product tier definitions. */
     public List<Map<String, Object>> getTiers() {
         try {
-            return get("/api/v1/licenses/catalog/tiers",
-                    new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+            return withResilience("getTiers",
+                    () -> get("/api/v1/licenses/catalog/tiers",
+                            new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
         } catch (Exception e) {
             log.warn("License tiers unavailable: {}", e.getMessage());
             return Collections.emptyList();
@@ -90,9 +94,10 @@ public class LicenseServiceClient extends BaseServiceClient {
     @SuppressWarnings("unchecked")
     public Map<String, Object> getEntitledComponents(String licenseKey, String serviceType, String hostId) {
         try {
-            return post("/api/v1/licenses/catalog/entitled",
-                    Map.of("licenseKey", licenseKey, "serviceType", serviceType, "hostId", hostId),
-                    Map.class);
+            return withResilience("getEntitledComponents",
+                    () -> post("/api/v1/licenses/catalog/entitled",
+                            Map.of("licenseKey", licenseKey, "serviceType", serviceType, "hostId", hostId),
+                            Map.class));
         } catch (Exception e) {
             log.warn("Entitled components check failed: {}", e.getMessage());
             return Collections.emptyMap();

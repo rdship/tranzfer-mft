@@ -1,0 +1,17 @@
+# Test profile — CI/CD pipeline and local testing
+# Activate: SPRING_PROFILES_ACTIVE=test
+
+logging:
+  level:
+    com.filetransfer: INFO
+    org.springframework.security: WARN
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+springdoc:
+  swagger-ui:
+    enabled: false

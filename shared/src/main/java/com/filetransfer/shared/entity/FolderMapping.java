@@ -4,13 +4,12 @@ import com.filetransfer.shared.enums.EncryptionOption;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.Instant;
 import java.util.UUID;
 
 @Entity
 @Table(name = "folder_mappings")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class FolderMapping {
+public class FolderMapping extends Auditable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -64,7 +63,4 @@ public class FolderMapping {
     @Builder.Default
     private boolean active = true;
 
-    @Column(nullable = false, updatable = false)
-    @Builder.Default
-    private Instant createdAt = Instant.now();
 }

@@ -20,7 +20,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class ScreeningServiceClient extends BaseServiceClient {
+public class ScreeningServiceClient extends ResilientServiceClient {
 
     public ScreeningServiceClient(RestTemplate restTemplate,
                                   PlatformConfig platformConfig,
@@ -31,41 +31,37 @@ public class ScreeningServiceClient extends BaseServiceClient {
     /** Scan a file for malware and sensitive content. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> scanFile(Path filePath, String trackId, String account) {
-        try {
-            Map<String, String> params = new java.util.HashMap<>();
-            if (trackId != null) params.put("trackId", trackId);
-            if (account != null) params.put("account", account);
-            return postMultipart("/api/v1/screening/scan", filePath, params);
-        } catch (Exception e) {
-            throw serviceError("scanFile", e);
-        }
+        Map<String, String> params = new java.util.HashMap<>();
+        if (trackId != null) params.put("trackId", trackId);
+        if (account != null) params.put("account", account);
+        return withResilience("scanFile",
+                () -> postMultipart("/api/v1/screening/scan", filePath, params));
     }
 
     /** Scan text content for sensitive data (PCI, PII, PHI). */
     @SuppressWarnings("unchecked")
     public Map<String, Object> scanText(String content, String filename, String trackId) {
-        try {
-            Map<String, Object> body = new java.util.HashMap<>();
-            body.put("content", content);
-            if (filename != null) body.put("filename", filename);
-            if (trackId != null) body.put("trackId", trackId);
-            return post("/api/v1/screening/scan/text", body, Map.class);
-        } catch (Exception e) {
-            throw serviceError("scanText", e);
-        }
+        Map<String, Object> body = new java.util.HashMap<>();
+        body.put("content", content);
+        if (filename != null) body.put("filename", filename);
+        if (trackId != null) body.put("trackId", trackId);
+        return withResilience("scanText",
+                () -> post("/api/v1/screening/scan/text", body, Map.class));
     }
 
     /** Retrieve a previous screening result by track ID. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> getResult(String trackId) {
-        return get("/api/v1/screening/results/" + trackId, Map.class);
+        return withResilience("getResult",
+                () -> get("/api/v1/screening/results/" + trackId, Map.class));
     }
 
     /** Get recent screening results. */
     public List<Map<String, Object>> recentResults() {
         try {
-            return get("/api/v1/screening/results",
-                    new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+            return withResilience("recentResults",
+                    () -> get("/api/v1/screening/results",
+                            new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
         } catch (Exception e) {
             log.warn("Failed to fetch recent screening results: {}", e.getMessage());
             return Collections.emptyList();
@@ -75,8 +71,9 @@ public class ScreeningServiceClient extends BaseServiceClient {
     /** Get screening hits (flagged items). */
     public List<Map<String, Object>> getHits() {
         try {
-            return get("/api/v1/screening/hits",
-                    new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+            return withResilience("getHits",
+                    () -> get("/api/v1/screening/hits",
+                            new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
         } catch (Exception e) {
             log.warn("Failed to fetch screening hits: {}", e.getMessage());
             return Collections.emptyList();
@@ -86,7 +83,8 @@ public class ScreeningServiceClient extends BaseServiceClient {
     /** Refresh sanctions/screening lists. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> refreshLists() {
-        return post("/api/v1/screening/lists/refresh", null, Map.class);
+        return withResilience("refreshLists",
+                () -> post("/api/v1/screening/lists/refresh", null, Map.class));
     }
 
     @Override

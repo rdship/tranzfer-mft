@@ -552,7 +552,7 @@ Each client uses an appropriate error strategy:
 
 ### Resilience Patterns
 
-All inter-service REST clients use circuit breakers and retry. To make a service client resilient:
+All 14 inter-service REST clients use circuit breakers and retry via `ResilientServiceClient`. To make a new service client resilient:
 
 ```java
 // Change extends BaseServiceClient to extends ResilientServiceClient
@@ -662,11 +662,11 @@ public class AdminController {
 }
 ```
 
-Available roles: ADMIN > OPERATOR > USER > VIEWER. Plus PARTNER (external) and SYSTEM (inter-service).
+Available roles: ADMIN > OPERATOR > USER > VIEWER. Plus PARTNER (external) and SYSTEM (inter-service). All 29 user-facing controllers have class-level `@PreAuthorize` annotations enforced.
 
 ### Entity Auditing
 
-New entities can extend `Auditable` for automatic audit fields:
+18 entities extend `Auditable` for automatic audit fields (V13 + V14 migrations). New entities should also extend it:
 
 ```java
 @Entity

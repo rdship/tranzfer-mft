@@ -19,7 +19,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class DmzProxyClient extends BaseServiceClient {
+public class DmzProxyClient extends ResilientServiceClient {
 
     public DmzProxyClient(RestTemplate restTemplate,
                           PlatformConfig platformConfig,
@@ -31,7 +31,8 @@ public class DmzProxyClient extends BaseServiceClient {
     @SuppressWarnings("unchecked")
     public Map<String, Object> status() {
         try {
-            return get("/api/proxy/status", Map.class);
+            return withResilience("status",
+                    () -> get("/api/proxy/status", Map.class));
         } catch (Exception e) {
             log.warn("DMZ proxy status unavailable: {}", e.getMessage());
             return Collections.emptyMap();
@@ -41,8 +42,9 @@ public class DmzProxyClient extends BaseServiceClient {
     /** List active proxy mappings. */
     public List<Map<String, Object>> listMappings() {
         try {
-            return get("/api/proxy/mappings",
-                    new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+            return withResilience("listMappings",
+                    () -> get("/api/proxy/mappings",
+                            new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
         } catch (Exception e) {
             log.warn("DMZ proxy mappings unavailable: {}", e.getMessage());
             return Collections.emptyList();
@@ -52,17 +54,15 @@ public class DmzProxyClient extends BaseServiceClient {
     /** Create or update a proxy mapping. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> createMapping(Map<String, Object> mapping) {
-        try {
-            return post("/api/proxy/mappings", mapping, Map.class);
-        } catch (Exception e) {
-            throw serviceError("createMapping", e);
-        }
+        return withResilience("createMapping",
+                () -> post("/api/proxy/mappings", mapping, Map.class));
     }
 
     /** Delete a proxy mapping. */
     public void deleteMapping(String mappingId) {
         try {
-            delete("/api/proxy/mappings/" + mappingId);
+            withResilience("deleteMapping",
+                    () -> { delete("/api/proxy/mappings/" + mappingId); });
         } catch (Exception e) {
             log.warn("Failed to delete proxy mapping {}: {}", mappingId, e.getMessage());
         }

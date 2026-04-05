@@ -4,7 +4,6 @@ import com.filetransfer.shared.enums.ExternalDestinationType;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -13,7 +12,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "external_destinations")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class ExternalDestination {
+public class ExternalDestination extends Auditable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -45,7 +44,4 @@ public class ExternalDestination {
     @Builder.Default
     private boolean active = true;
 
-    @Column(nullable = false, updatable = false)
-    @Builder.Default
-    private Instant createdAt = Instant.now();
 }

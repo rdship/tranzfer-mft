@@ -3,9 +3,11 @@ package com.filetransfer.config.controller;
 import com.filetransfer.config.service.ServerConfigService;
 import com.filetransfer.shared.entity.ServerConfig;
 import com.filetransfer.shared.enums.ServiceType;
+import com.filetransfer.shared.security.Roles;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -25,6 +27,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/servers")
 @RequiredArgsConstructor
+@PreAuthorize(Roles.OPERATOR)
 public class ServerConfigController {
 
     private final ServerConfigService serverConfigService;

@@ -1,0 +1,27 @@
+# Test profile — CI/CD pipeline and local testing
+# Activate: SPRING_PROFILES_ACTIVE=test
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/filetransfer
+    username: postgres
+    password: postgres
+  jpa:
+    show-sql: false
+  flyway:
+    clean-disabled: false
+
+logging:
+  level:
+    com.filetransfer: INFO
+    org.springframework.security: WARN
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+springdoc:
+  swagger-ui:
+    enabled: false

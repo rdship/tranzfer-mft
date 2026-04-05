@@ -2,6 +2,7 @@ package com.filetransfer.onboarding.controller;
 
 import com.filetransfer.shared.audit.AuditService;
 import com.filetransfer.shared.entity.ClientPresence;
+import com.filetransfer.shared.security.Roles;
 import com.filetransfer.shared.entity.TransferAccount;
 import com.filetransfer.shared.entity.TransferTicket;
 import com.filetransfer.shared.enums.Protocol;
@@ -13,6 +14,7 @@ import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -33,6 +35,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/p2p")
 @RequiredArgsConstructor
 @Slf4j
+@PreAuthorize(Roles.USER)
 public class PeerTransferController {
 
     private final ClientPresenceRepository presenceRepository;

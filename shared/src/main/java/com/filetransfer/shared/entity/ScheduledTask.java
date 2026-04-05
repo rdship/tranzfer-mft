@@ -12,7 +12,7 @@ import java.util.UUID;
  * A scheduled task — runs a flow, transfer, or script on a cron/interval schedule.
  */
 @Entity @Table(name = "scheduled_tasks") @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class ScheduledTask {
+public class ScheduledTask extends Auditable {
     @Id @GeneratedValue(strategy = GenerationType.UUID) private UUID id;
     @Column(unique = true, nullable = false) private String name;
     private String description;
@@ -33,5 +33,4 @@ public class ScheduledTask {
     private String lastError;
     private int totalRuns;
     private int failedRuns;
-    @Column(nullable = false, updatable = false) @Builder.Default private Instant createdAt = Instant.now();
 }

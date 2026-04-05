@@ -19,7 +19,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class GatewayServiceClient extends BaseServiceClient {
+public class GatewayServiceClient extends ResilientServiceClient {
 
     public GatewayServiceClient(RestTemplate restTemplate,
                                 PlatformConfig platformConfig,
@@ -31,7 +31,8 @@ public class GatewayServiceClient extends BaseServiceClient {
     @SuppressWarnings("unchecked")
     public Map<String, Object> status() {
         try {
-            return get("/internal/gateway/status", Map.class);
+            return withResilience("status",
+                    () -> get("/internal/gateway/status", Map.class));
         } catch (Exception e) {
             log.warn("Gateway status unavailable: {}", e.getMessage());
             return Collections.emptyMap();
@@ -44,7 +45,8 @@ public class GatewayServiceClient extends BaseServiceClient {
             String path = protocol != null
                     ? "/internal/gateway/legacy-servers?protocol=" + protocol
                     : "/internal/gateway/legacy-servers";
-            return get(path, new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+            return withResilience("legacyServers",
+                    () -> get(path, new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
         } catch (Exception e) {
             log.warn("Legacy servers unavailable: {}", e.getMessage());
             return Collections.emptyList();

@@ -5,14 +5,13 @@ import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
 @Entity
 @Table(name = "security_profiles")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class SecurityProfile {
+public class SecurityProfile extends Auditable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -60,14 +59,4 @@ public class SecurityProfile {
     @Builder.Default
     private boolean active = true;
 
-    @Column(nullable = false, updatable = false)
-    @Builder.Default
-    private Instant createdAt = Instant.now();
-
-    @Column(nullable = false)
-    @Builder.Default
-    private Instant updatedAt = Instant.now();
-
-    @PreUpdate
-    void onUpdate() { this.updatedAt = Instant.now(); }
 }

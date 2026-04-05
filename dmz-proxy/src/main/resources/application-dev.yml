@@ -1,0 +1,23 @@
+# Development profile — local Docker Compose
+# Activate: SPRING_PROFILES_ACTIVE=dev
+
+server:
+  port: 8088
+
+logging:
+  level:
+    com.filetransfer: DEBUG
+    org.springframework.security: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+
+springdoc:
+  swagger-ui:
+    enabled: true

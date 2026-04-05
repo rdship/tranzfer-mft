@@ -3,10 +3,12 @@ package com.filetransfer.onboarding.controller;
 import com.filetransfer.shared.entity.*;
 import com.filetransfer.shared.enums.FileTransferStatus;
 import com.filetransfer.shared.repository.*;
+import com.filetransfer.shared.security.Roles;
 import com.filetransfer.shared.util.TrackIdGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -23,6 +25,7 @@ import java.util.*;
  * GET  /api/v2/transfer/{trackId}/receipt — delivery receipt
  */
 @RestController @RequestMapping("/api/v2/transfer") @RequiredArgsConstructor @Slf4j
+@PreAuthorize(Roles.USER)
 public class TransferApiV2Controller {
 
     private final TransferAccountRepository accountRepo;

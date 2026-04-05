@@ -4,8 +4,6 @@ import com.filetransfer.shared.enums.Environment;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.Instant;
-
 /**
  * Database-backed platform configuration.
  * Every setting is scoped by (key, environment, service) so the same key
@@ -23,7 +21,7 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class PlatformSetting {
+public class PlatformSetting extends Auditable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -72,16 +70,4 @@ public class PlatformSetting {
     @Builder.Default
     private boolean active = true;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    @Builder.Default
-    private Instant createdAt = Instant.now();
-
-    @Column(name = "updated_at", nullable = false)
-    @Builder.Default
-    private Instant updatedAt = Instant.now();
-
-    @PreUpdate
-    void onUpdate() {
-        this.updatedAt = Instant.now();
-    }
 }

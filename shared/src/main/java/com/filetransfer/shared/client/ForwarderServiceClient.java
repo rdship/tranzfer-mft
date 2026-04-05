@@ -16,7 +16,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class ForwarderServiceClient extends BaseServiceClient {
+public class ForwarderServiceClient extends ResilientServiceClient {
 
     public ForwarderServiceClient(RestTemplate restTemplate,
                                   PlatformConfig platformConfig,
@@ -36,14 +36,11 @@ public class ForwarderServiceClient extends BaseServiceClient {
     @SuppressWarnings("unchecked")
     public Map<String, Object> forward(String filename, byte[] fileBytes,
                                         String destinationId, String trackId) {
-        try {
-            Map<String, String> params = new java.util.HashMap<>();
-            if (destinationId != null) params.put("destinationId", destinationId);
-            if (trackId != null) params.put("trackId", trackId);
-            return postMultipartBytes("/api/forwarder/forward", filename, fileBytes, params);
-        } catch (Exception e) {
-            throw serviceError("forward", e);
-        }
+        Map<String, String> params = new java.util.HashMap<>();
+        if (destinationId != null) params.put("destinationId", destinationId);
+        if (trackId != null) params.put("trackId", trackId);
+        return withResilience("forward",
+                () -> postMultipartBytes("/api/forwarder/forward", filename, fileBytes, params));
     }
 
     /**
@@ -58,13 +55,10 @@ public class ForwarderServiceClient extends BaseServiceClient {
     @SuppressWarnings("unchecked")
     public Map<String, Object> deliverToEndpoint(String endpointId, String filename,
                                                   byte[] fileBytes, String trackId) {
-        try {
-            Map<String, String> params = new java.util.HashMap<>();
-            params.put("endpointId", endpointId);
-            if (trackId != null) params.put("trackId", trackId);
-            return postMultipartBytes("/api/forwarder/deliver", filename, fileBytes, params);
-        } catch (Exception e) {
-            throw serviceError("deliverToEndpoint", e);
-        }
+        Map<String, String> params = new java.util.HashMap<>();
+        params.put("endpointId", endpointId);
+        if (trackId != null) params.put("trackId", trackId);
+        return withResilience("deliverToEndpoint",
+                () -> postMultipartBytes("/api/forwarder/deliver", filename, fileBytes, params));
     }
 }

@@ -2,11 +2,13 @@ package com.filetransfer.config.controller;
 
 import com.filetransfer.shared.entity.SecurityProfile;
 import com.filetransfer.shared.repository.SecurityProfileRepository;
+import com.filetransfer.shared.security.Roles;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -15,6 +17,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/security-profiles")
 @RequiredArgsConstructor
+@PreAuthorize(Roles.OPERATOR)
 public class SecurityProfileController {
 
     private final SecurityProfileRepository securityProfileRepository;

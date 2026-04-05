@@ -3,8 +3,10 @@ package com.filetransfer.config.controller;
 import com.filetransfer.shared.entity.EncryptionKey;
 import com.filetransfer.shared.repository.EncryptionKeyRepository;
 import com.filetransfer.shared.repository.TransferAccountRepository;
+import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -22,6 +24,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/encryption-keys")
 @RequiredArgsConstructor
+@PreAuthorize(Roles.OPERATOR)
 public class EncryptionKeyController {
 
     private final EncryptionKeyRepository keyRepository;

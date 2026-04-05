@@ -20,7 +20,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Component
-public class OnboardingApiClient extends BaseServiceClient {
+public class OnboardingApiClient extends ResilientServiceClient {
 
     public OnboardingApiClient(RestTemplate restTemplate,
                                PlatformConfig platformConfig,
@@ -33,21 +33,15 @@ public class OnboardingApiClient extends BaseServiceClient {
     /** Get an account by ID. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> getAccount(UUID accountId) {
-        try {
-            return get("/api/accounts/" + accountId, Map.class);
-        } catch (Exception e) {
-            throw serviceError("getAccount", e);
-        }
+        return withResilience("getAccount",
+                () -> get("/api/accounts/" + accountId, Map.class));
     }
 
     /** List all accounts. */
     public List<Map<String, Object>> listAccounts() {
-        try {
-            return get("/api/accounts",
-                    new ParameterizedTypeReference<List<Map<String, Object>>>() {});
-        } catch (Exception e) {
-            throw serviceError("listAccounts", e);
-        }
+        return withResilience("listAccounts",
+                () -> get("/api/accounts",
+                        new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
     }
 
     // ── Service Registry ────────────────────────────────────────────────
@@ -58,7 +52,8 @@ public class OnboardingApiClient extends BaseServiceClient {
             String path = type != null
                     ? "/api/service-registry?type=" + type
                     : "/api/service-registry";
-            return get(path, new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+            return withResilience("listServices",
+                    () -> get(path, new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
         } catch (Exception e) {
             log.warn("Service registry unavailable: {}", e.getMessage());
             return Collections.emptyList();
@@ -70,11 +65,8 @@ public class OnboardingApiClient extends BaseServiceClient {
     /** Get transfer details by track ID. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> getTransfer(String trackId) {
-        try {
-            return get("/api/v2/transfers/" + trackId, Map.class);
-        } catch (Exception e) {
-            throw serviceError("getTransfer", e);
-        }
+        return withResilience("getTransfer",
+                () -> get("/api/v2/transfers/" + trackId, Map.class));
     }
 
     // ── Servers ─────────────────────────────────────────────────────────
@@ -82,8 +74,9 @@ public class OnboardingApiClient extends BaseServiceClient {
     /** List server instances. */
     public List<Map<String, Object>> listServers() {
         try {
-            return get("/api/servers",
-                    new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+            return withResilience("listServers",
+                    () -> get("/api/servers",
+                            new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
         } catch (Exception e) {
             log.warn("Server list unavailable: {}", e.getMessage());
             return Collections.emptyList();

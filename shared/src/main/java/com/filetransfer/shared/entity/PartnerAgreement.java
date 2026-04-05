@@ -13,7 +13,7 @@ import java.util.UUID;
  * Defines expected delivery windows, volumes, and breach thresholds.
  */
 @Entity @Table(name = "partner_agreements") @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class PartnerAgreement {
+public class PartnerAgreement extends Auditable {
     @Id @GeneratedValue(strategy = GenerationType.UUID) private UUID id;
     @Column(unique = true, nullable = false) private String name;
     private String description;
@@ -50,5 +50,4 @@ public class PartnerAgreement {
     /** Total breaches recorded */
     @Builder.Default private int totalBreaches = 0;
     private Instant lastBreachAt;
-    @Column(nullable = false, updatable = false) @Builder.Default private Instant createdAt = Instant.now();
 }

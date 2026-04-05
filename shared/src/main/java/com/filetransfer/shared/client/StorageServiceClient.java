@@ -24,7 +24,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class StorageServiceClient extends BaseServiceClient {
+public class StorageServiceClient extends ResilientServiceClient {
 
     public StorageServiceClient(RestTemplate restTemplate,
                                 PlatformConfig platformConfig,
@@ -34,40 +34,32 @@ public class StorageServiceClient extends BaseServiceClient {
 
     /** Store a file. Returns storage metadata (status, tier, SHA-256, throughput). */
     public Map<String, Object> store(Path filePath, String trackId, String account) {
-        try {
-            Map<String, String> params = new java.util.HashMap<>();
-            if (trackId != null) params.put("trackId", trackId);
-            if (account != null) params.put("account", account);
-            return postMultipart("/api/v1/storage/store", filePath, params);
-        } catch (Exception e) {
-            throw serviceError("store", e);
-        }
+        Map<String, String> params = new java.util.HashMap<>();
+        if (trackId != null) params.put("trackId", trackId);
+        if (account != null) params.put("account", account);
+        return withResilience("store",
+                () -> postMultipart("/api/v1/storage/store", filePath, params));
     }
 
     /** Store file bytes. Returns storage metadata. */
     public Map<String, Object> store(String filename, byte[] fileBytes, String trackId, String account) {
-        try {
-            Map<String, String> params = new java.util.HashMap<>();
-            if (trackId != null) params.put("trackId", trackId);
-            if (account != null) params.put("account", account);
-            return postMultipartBytes("/api/v1/storage/store", filename, fileBytes, params);
-        } catch (Exception e) {
-            throw serviceError("store", e);
-        }
+        Map<String, String> params = new java.util.HashMap<>();
+        if (trackId != null) params.put("trackId", trackId);
+        if (account != null) params.put("account", account);
+        return withResilience("store",
+                () -> postMultipartBytes("/api/v1/storage/store", filename, fileBytes, params));
     }
 
     /** Retrieve a stored file by track ID. Returns raw bytes. */
     public byte[] retrieve(String trackId) {
-        try {
+        return withResilience("retrieve", () -> {
             HttpHeaders headers = jsonHeaders();
             HttpEntity<Void> entity = new HttpEntity<>(headers);
             ResponseEntity<byte[]> response = restTemplate.exchange(
                     baseUrl() + "/api/v1/storage/retrieve/" + trackId,
                     HttpMethod.GET, entity, byte[].class);
             return response.getBody();
-        } catch (Exception e) {
-            throw serviceError("retrieve", e);
-        }
+        });
     }
 
     /** List storage objects, optionally filtered by account and tier. */
@@ -76,7 +68,9 @@ public class StorageServiceClient extends BaseServiceClient {
             StringBuilder path = new StringBuilder("/api/v1/storage/objects?");
             if (account != null) path.append("account=").append(account).append("&");
             if (tier != null) path.append("tier=").append(tier);
-            return get(path.toString(), new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+            String finalPath = path.toString();
+            return withResilience("listObjects",
+                    () -> get(finalPath, new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
         } catch (Exception e) {
             log.warn("Failed to list storage objects: {}", e.getMessage());
             return Collections.emptyList();
@@ -87,7 +81,8 @@ public class StorageServiceClient extends BaseServiceClient {
     @SuppressWarnings("unchecked")
     public Map<String, Object> metrics() {
         try {
-            return get("/api/v1/storage/metrics", Map.class);
+            return withResilience("metrics",
+                    () -> get("/api/v1/storage/metrics", Map.class));
         } catch (Exception e) {
             log.warn("Storage metrics unavailable: {}", e.getMessage());
             return Collections.emptyMap();
@@ -97,13 +92,15 @@ public class StorageServiceClient extends BaseServiceClient {
     /** Trigger storage lifecycle tiering. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> triggerTiering() {
-        return post("/api/v1/storage/lifecycle/tier", null, Map.class);
+        return withResilience("triggerTiering",
+                () -> post("/api/v1/storage/lifecycle/tier", null, Map.class));
     }
 
     /** Trigger storage backup. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> triggerBackup() {
-        return post("/api/v1/storage/lifecycle/backup", null, Map.class);
+        return withResilience("triggerBackup",
+                () -> post("/api/v1/storage/lifecycle/backup", null, Map.class));
     }
 
     @Override

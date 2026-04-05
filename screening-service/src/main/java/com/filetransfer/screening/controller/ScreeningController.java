@@ -4,8 +4,10 @@ import com.filetransfer.screening.entity.ScreeningResult;
 import com.filetransfer.screening.loader.SanctionsListLoader;
 import com.filetransfer.screening.repository.ScreeningResultRepository;
 import com.filetransfer.screening.service.ScreeningEngine;
+import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -16,6 +18,7 @@ import java.util.*;
 @RestController
 @RequestMapping("/api/v1/screening")
 @RequiredArgsConstructor
+@PreAuthorize(Roles.OPERATOR)
 public class ScreeningController {
 
     private final ScreeningEngine screeningEngine;

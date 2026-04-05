@@ -62,8 +62,8 @@ public class PartnerService {
                 .maxTransfersPerDay(request.getMaxTransfersPerDay() != null ? request.getMaxTransfersPerDay() : 1000)
                 .retentionDays(request.getRetentionDays() != null ? request.getRetentionDays() : 90)
                 .notes(request.getNotes())
-                .createdBy(createdBy)
                 .build();
+        partner.setCreatedBy(createdBy);
 
         partnerRepository.save(partner);
         log.info("Created partner id={} slug={} createdBy={}", partner.getId(), partner.getSlug(), createdBy);

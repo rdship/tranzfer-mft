@@ -721,7 +721,7 @@ platform:
       wait-duration-ms: 500
 ```
 
-Currently resilient: EncryptionServiceClient, AnalyticsServiceClient, KeystoreServiceClient. Others can be migrated by changing `extends BaseServiceClient` to `extends ResilientServiceClient`.
+All 14 service clients are resilient: ConfigServiceClient, OnboardingApiClient, StorageServiceClient, ScreeningServiceClient, DmzProxyClient, LicenseServiceClient, AiEngineClient, As2ServiceClient, GatewayServiceClient, EdiConverterClient, ForwarderServiceClient, EncryptionServiceClient, AnalyticsServiceClient, KeystoreServiceClient.
 
 ### Observability
 
@@ -811,7 +811,7 @@ Six roles with hierarchical permissions:
 @PreAuthorize(Roles.PARTNER)         // Admin + Partner
 ```
 
-Method-level security enabled via `@EnableMethodSecurity` in `PlatformSecurityConfig`.
+Method-level security enabled via `@EnableMethodSecurity` in `PlatformSecurityConfig`. All 29 user-facing controllers have class-level `@PreAuthorize` annotations. Internal/protocol controllers (health checks, file receive, AS2/AS4 inbound, DMZ proxy, AI engine, encryption) use header-based auth (X-Internal-Key) instead.
 
 ### Entity Auditing
 
@@ -824,7 +824,11 @@ Base class `Auditable` provides automatic audit fields for any JPA entity:
 | created_by | @CreatedBy | From SecurityContext |
 | updated_by | @LastModifiedBy | From SecurityContext |
 
-Flyway migration `V13__add_audit_columns.sql` adds these columns to 9 existing tables.
+Flyway migrations add audit columns to 18 tables:
+- `V13__add_audit_columns.sql`: users, transfer_accounts, folder_mappings, server_configs, file_flows, security_profiles, partners, external_destinations, delivery_endpoints
+- `V14__add_audit_columns_phase2.sql`: scheduled_tasks, webhook_connectors, as2_partnerships, legacy_server_configs, platform_settings, encryption_keys, tenants, partner_agreements, partner_contacts
+
+All 18 entity classes extend `Auditable` — no manual timestamp management needed.
 
 ### OpenAPI Documentation
 

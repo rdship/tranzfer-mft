@@ -1,5 +1,6 @@
 package com.filetransfer.storage.controller;
 
+import com.filetransfer.shared.security.Roles;
 import com.filetransfer.storage.engine.ParallelIOEngine;
 import com.filetransfer.storage.entity.StorageObject;
 import com.filetransfer.storage.lifecycle.StorageLifecycleManager;
@@ -7,6 +8,7 @@ import com.filetransfer.storage.repository.StorageObjectRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -15,6 +17,7 @@ import java.time.Instant;
 import java.util.*;
 
 @RestController @RequestMapping("/api/v1/storage") @RequiredArgsConstructor
+@PreAuthorize(Roles.OPERATOR)
 public class StorageController {
 
     private final ParallelIOEngine ioEngine;

@@ -3,8 +3,10 @@ package com.filetransfer.config.controller;
 import com.filetransfer.shared.entity.ExternalDestination;
 import com.filetransfer.shared.enums.ExternalDestinationType;
 import com.filetransfer.shared.repository.ExternalDestinationRepository;
+import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -24,6 +26,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/external-destinations")
 @RequiredArgsConstructor
+@PreAuthorize(Roles.OPERATOR)
 public class ExternalDestinationController {
 
     private final ExternalDestinationRepository repository;

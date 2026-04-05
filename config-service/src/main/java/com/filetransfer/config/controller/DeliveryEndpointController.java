@@ -4,10 +4,12 @@ import com.filetransfer.shared.crypto.CredentialCryptoClient;
 import com.filetransfer.shared.entity.DeliveryEndpoint;
 import com.filetransfer.shared.enums.DeliveryProtocol;
 import com.filetransfer.shared.repository.DeliveryEndpointRepository;
+import com.filetransfer.shared.security.Roles;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
@@ -22,6 +24,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/delivery-endpoints")
 @RequiredArgsConstructor
+@PreAuthorize(Roles.OPERATOR)
 public class DeliveryEndpointController {
 
     private final DeliveryEndpointRepository repository;

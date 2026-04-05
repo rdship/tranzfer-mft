@@ -2,13 +2,16 @@ package com.filetransfer.config.controller;
 
 import com.filetransfer.shared.entity.ScheduledTask;
 import com.filetransfer.shared.repository.ScheduledTaskRepository;
+import com.filetransfer.shared.security.Roles;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.util.*;
 
 @RestController @RequestMapping("/api/scheduler") @RequiredArgsConstructor
+@PreAuthorize(Roles.OPERATOR)
 public class SchedulerController {
     private final ScheduledTaskRepository repo;
 

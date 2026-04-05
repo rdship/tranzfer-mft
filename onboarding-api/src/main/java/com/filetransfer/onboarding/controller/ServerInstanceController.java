@@ -4,10 +4,12 @@ import com.filetransfer.onboarding.dto.request.CreateServerInstanceRequest;
 import com.filetransfer.onboarding.dto.request.UpdateServerInstanceRequest;
 import com.filetransfer.onboarding.dto.response.ServerInstanceResponse;
 import com.filetransfer.onboarding.service.ServerInstanceService;
+import com.filetransfer.shared.security.Roles;
 import com.filetransfer.shared.enums.Protocol;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -16,6 +18,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/servers")
 @RequiredArgsConstructor
+@PreAuthorize(Roles.OPERATOR)
 public class ServerInstanceController {
 
     private final ServerInstanceService service;

@@ -4,7 +4,6 @@ import com.filetransfer.shared.enums.EncryptionAlgorithm;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -14,7 +13,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "encryption_keys")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class EncryptionKey {
+public class EncryptionKey extends Auditable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -47,7 +46,4 @@ public class EncryptionKey {
     @Builder.Default
     private boolean active = true;
 
-    @Column(nullable = false, updatable = false)
-    @Builder.Default
-    private Instant createdAt = Instant.now();
 }

@@ -4,6 +4,7 @@ import com.filetransfer.shared.entity.FileFlow;
 import com.filetransfer.shared.entity.FlowExecution;
 import com.filetransfer.shared.repository.FileFlowRepository;
 import com.filetransfer.shared.repository.FlowExecutionRepository;
+import com.filetransfer.shared.security.Roles;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +13,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,6 +23,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/flows")
 @RequiredArgsConstructor
+@PreAuthorize(Roles.OPERATOR)
 public class FileFlowController {
 
     private final FileFlowRepository flowRepository;

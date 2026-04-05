@@ -2,11 +2,13 @@ package com.filetransfer.onboarding.controller;
 
 import com.filetransfer.shared.entity.*;
 import com.filetransfer.shared.repository.*;
+import com.filetransfer.shared.security.Roles;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -27,6 +29,7 @@ import java.util.stream.Collectors;
  * - Checksum verification (source vs destination integrity)
  */
 @RestController @RequestMapping("/api/journey") @RequiredArgsConstructor @Slf4j
+@PreAuthorize(Roles.USER)
 public class TransferJourneyController {
 
     private final FileTransferRecordRepository transferRepo;

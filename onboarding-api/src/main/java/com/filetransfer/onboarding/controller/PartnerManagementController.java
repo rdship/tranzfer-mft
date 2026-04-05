@@ -3,6 +3,7 @@ package com.filetransfer.onboarding.controller;
 import com.filetransfer.onboarding.dto.request.CreateAccountRequest;
 import com.filetransfer.onboarding.dto.request.CreatePartnerRequest;
 import com.filetransfer.onboarding.dto.request.UpdatePartnerRequest;
+import com.filetransfer.shared.security.Roles;
 import com.filetransfer.onboarding.dto.response.PartnerDetailResponse;
 import com.filetransfer.onboarding.service.AccountService;
 import com.filetransfer.onboarding.service.PartnerService;
@@ -13,6 +14,7 @@ import com.filetransfer.shared.entity.TransferAccount;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,6 +25,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/partners")
 @RequiredArgsConstructor
+@PreAuthorize(Roles.OPERATOR)
 public class PartnerManagementController {
 
     private final PartnerService partnerService;

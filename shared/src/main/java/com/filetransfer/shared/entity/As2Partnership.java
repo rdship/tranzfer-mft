@@ -3,7 +3,6 @@ package com.filetransfer.shared.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -14,7 +13,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "as2_partnerships")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class As2Partnership {
+public class As2Partnership extends Auditable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -74,14 +73,4 @@ public class As2Partnership {
     @Builder.Default
     private boolean active = true;
 
-    @Column(nullable = false, updatable = false)
-    @Builder.Default
-    private Instant createdAt = Instant.now();
-
-    @Column(nullable = false)
-    @Builder.Default
-    private Instant updatedAt = Instant.now();
-
-    @PreUpdate
-    void onUpdate() { this.updatedAt = Instant.now(); }
 }

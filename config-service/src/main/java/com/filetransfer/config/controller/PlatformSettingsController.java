@@ -3,8 +3,10 @@ package com.filetransfer.config.controller;
 import com.filetransfer.config.service.PlatformSettingsService;
 import com.filetransfer.shared.entity.PlatformSetting;
 import com.filetransfer.shared.enums.Environment;
+import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -32,6 +34,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/platform-settings")
 @RequiredArgsConstructor
+@PreAuthorize(Roles.ADMIN)
 public class PlatformSettingsController {
 
     private final PlatformSettingsService service;

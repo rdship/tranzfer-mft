@@ -4,9 +4,11 @@ import com.filetransfer.onboarding.dto.request.CreateAccountRequest;
 import com.filetransfer.onboarding.dto.request.UpdateAccountRequest;
 import com.filetransfer.onboarding.dto.response.AccountResponse;
 import com.filetransfer.onboarding.service.AccountService;
+import com.filetransfer.shared.security.Roles;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,6 +17,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/accounts")
 @RequiredArgsConstructor
+@PreAuthorize(Roles.OPERATOR)
 public class AccountController {
 
     private final AccountService accountService;

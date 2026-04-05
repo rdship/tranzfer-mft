@@ -2,9 +2,11 @@ package com.filetransfer.config.controller;
 
 import com.filetransfer.shared.entity.As2Partnership;
 import com.filetransfer.shared.repository.As2PartnershipRepository;
+import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -24,6 +26,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/as2-partnerships")
 @RequiredArgsConstructor
+@PreAuthorize(Roles.OPERATOR)
 public class As2PartnershipController {
 
     private final As2PartnershipRepository repository;

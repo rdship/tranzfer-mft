@@ -17,7 +17,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "webhook_connectors")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class WebhookConnector {
+public class WebhookConnector extends Auditable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -73,7 +73,4 @@ public class WebhookConnector {
     private Instant lastTriggered;
     private int totalNotifications;
 
-    @Column(nullable = false, updatable = false)
-    @Builder.Default
-    private Instant createdAt = Instant.now();
 }

@@ -7,10 +7,12 @@ import com.filetransfer.analytics.repository.AlertRuleRepository;
 import com.filetransfer.analytics.service.DashboardService;
 import com.filetransfer.analytics.service.MetricsAggregationService;
 import com.filetransfer.analytics.service.PredictionService;
+import com.filetransfer.shared.security.Roles;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,6 +21,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/analytics")
 @RequiredArgsConstructor
+@PreAuthorize(Roles.VIEWER)
 public class AnalyticsController {
 
     private final DashboardService dashboardService;
@@ -54,12 +57,14 @@ public class AnalyticsController {
     }
 
     @PostMapping("/alerts")
+    @PreAuthorize(Roles.OPERATOR)
     public ResponseEntity<AlertRule> createAlertRule(@Valid @RequestBody AlertRule rule) {
         rule.setId(null);
         return ResponseEntity.status(HttpStatus.CREATED).body(alertRuleRepository.save(rule));
     }
 
     @PutMapping("/alerts/{id}")
+    @PreAuthorize(Roles.OPERATOR)
     public ResponseEntity<AlertRule> updateAlertRule(@PathVariable UUID id, @RequestBody AlertRule rule) {
         if (!alertRuleRepository.existsById(id)) return ResponseEntity.notFound().build();
         rule.setId(id);
@@ -67,6 +72,7 @@ public class AnalyticsController {
     }
 
     @DeleteMapping("/alerts/{id}")
+    @PreAuthorize(Roles.OPERATOR)
     public ResponseEntity<Void> deleteAlertRule(@PathVariable UUID id) {
         alertRuleRepository.deleteById(id);
         return ResponseEntity.noContent().build();

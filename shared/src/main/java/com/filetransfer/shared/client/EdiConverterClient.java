@@ -20,7 +20,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class EdiConverterClient extends BaseServiceClient {
+public class EdiConverterClient extends ResilientServiceClient {
 
     public EdiConverterClient(RestTemplate restTemplate,
                               PlatformConfig platformConfig,
@@ -33,63 +33,46 @@ public class EdiConverterClient extends BaseServiceClient {
     /** Detect the EDI format of the given content. */
     @SuppressWarnings("unchecked")
     public Map<String, String> detect(String content) {
-        try {
-            return post("/api/v1/convert/detect", Map.of("content", content), Map.class);
-        } catch (Exception e) {
-            throw serviceError("detect", e);
-        }
+        return withResilience("detect",
+                () -> post("/api/v1/convert/detect", Map.of("content", content), Map.class));
     }
 
     /** Parse EDI content into a structured document. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> parse(String content) {
-        try {
-            return post("/api/v1/convert/parse", Map.of("content", content), Map.class);
-        } catch (Exception e) {
-            throw serviceError("parse", e);
-        }
+        return withResilience("parse",
+                () -> post("/api/v1/convert/parse", Map.of("content", content), Map.class));
     }
 
     /** Convert EDI content to the target format (JSON, XML, CSV, YAML, etc.). */
     public String convert(String content, String targetFormat) {
-        try {
-            return post("/api/v1/convert/convert",
-                    Map.of("content", content, "target", targetFormat), String.class);
-        } catch (Exception e) {
-            throw serviceError("convert", e);
-        }
+        return withResilience("convert",
+                () -> post("/api/v1/convert/convert",
+                        Map.of("content", content, "target", targetFormat), String.class));
     }
 
     /** Convert a file to the target format. */
     @SuppressWarnings("unchecked")
     public String convertFile(Path filePath, String targetFormat) {
-        try {
-            Map<String, String> params = targetFormat != null ? Map.of("target", targetFormat) : Map.of();
+        Map<String, String> params = targetFormat != null ? Map.of("target", targetFormat) : Map.of();
+        return withResilience("convertFile", () -> {
             Map<String, Object> result = postMultipart("/api/v1/convert/convert/file", filePath, params);
             return result != null ? result.toString() : null;
-        } catch (Exception e) {
-            throw serviceError("convertFile", e);
-        }
+        });
     }
 
     /** Validate EDI content. Returns a validation report. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> validate(String content) {
-        try {
-            return post("/api/v1/convert/validate", Map.of("content", content), Map.class);
-        } catch (Exception e) {
-            throw serviceError("validate", e);
-        }
+        return withResilience("validate",
+                () -> post("/api/v1/convert/validate", Map.of("content", content), Map.class));
     }
 
     /** Explain EDI content in human-readable form. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> explain(String content) {
-        try {
-            return post("/api/v1/convert/explain", Map.of("content", content), Map.class);
-        } catch (Exception e) {
-            throw serviceError("explain", e);
-        }
+        return withResilience("explain",
+                () -> post("/api/v1/convert/explain", Map.of("content", content), Map.class));
     }
 
     // ── AI-powered operations ───────────────────────────────────────────
@@ -97,54 +80,39 @@ public class EdiConverterClient extends BaseServiceClient {
     /** Auto-heal broken EDI content. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> heal(String content, String format) {
-        try {
-            return post("/api/v1/convert/heal",
-                    Map.of("content", content, "format", format), Map.class);
-        } catch (Exception e) {
-            throw serviceError("heal", e);
-        }
+        return withResilience("heal",
+                () -> post("/api/v1/convert/heal",
+                        Map.of("content", content, "format", format), Map.class));
     }
 
     /** Generate EDI from natural language description. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> createFromNaturalLanguage(String text) {
-        try {
-            return post("/api/v1/convert/create", Map.of("text", text), Map.class);
-        } catch (Exception e) {
-            throw serviceError("createFromNaturalLanguage", e);
-        }
+        return withResilience("createFromNaturalLanguage",
+                () -> post("/api/v1/convert/create", Map.of("text", text), Map.class));
     }
 
     /** Generate field mapping between source and target EDI formats. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> generateMapping(String source, String target) {
-        try {
-            return post("/api/v1/convert/mapping/generate",
-                    Map.of("source", source, "target", target), Map.class);
-        } catch (Exception e) {
-            throw serviceError("generateMapping", e);
-        }
+        return withResilience("generateMapping",
+                () -> post("/api/v1/convert/mapping/generate",
+                        Map.of("source", source, "target", target), Map.class));
     }
 
     /** Semantic diff between two EDI documents. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> diff(String left, String right) {
-        try {
-            return post("/api/v1/convert/diff",
-                    Map.of("left", left, "right", right), Map.class);
-        } catch (Exception e) {
-            throw serviceError("diff", e);
-        }
+        return withResilience("diff",
+                () -> post("/api/v1/convert/diff",
+                        Map.of("left", left, "right", right), Map.class));
     }
 
     /** Compliance scoring for EDI content. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> compliance(String content) {
-        try {
-            return post("/api/v1/convert/compliance", Map.of("content", content), Map.class);
-        } catch (Exception e) {
-            throw serviceError("compliance", e);
-        }
+        return withResilience("compliance",
+                () -> post("/api/v1/convert/compliance", Map.of("content", content), Map.class));
     }
 
     // ── Partner profiles ────────────────────────────────────────────────
@@ -152,8 +120,9 @@ public class EdiConverterClient extends BaseServiceClient {
     /** List all EDI partner profiles. */
     public List<Map<String, Object>> listPartnerProfiles() {
         try {
-            return get("/api/v1/convert/partners",
-                    new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+            return withResilience("listPartnerProfiles",
+                    () -> get("/api/v1/convert/partners",
+                            new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
         } catch (Exception e) {
             log.warn("Failed to list EDI partner profiles: {}", e.getMessage());
             return Collections.emptyList();
@@ -165,8 +134,9 @@ public class EdiConverterClient extends BaseServiceClient {
     /** List available EDI templates. */
     public List<Map<String, Object>> listTemplates() {
         try {
-            return get("/api/v1/convert/templates",
-                    new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+            return withResilience("listTemplates",
+                    () -> get("/api/v1/convert/templates",
+                            new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
         } catch (Exception e) {
             log.warn("Failed to list EDI templates: {}", e.getMessage());
             return Collections.emptyList();
@@ -175,19 +145,17 @@ public class EdiConverterClient extends BaseServiceClient {
 
     /** Generate EDI from a template. */
     public String generateFromTemplate(String templateId, Map<String, String> values) {
-        try {
-            return post("/api/v1/convert/templates/" + templateId + "/generate",
-                    values, String.class);
-        } catch (Exception e) {
-            throw serviceError("generateFromTemplate", e);
-        }
+        return withResilience("generateFromTemplate",
+                () -> post("/api/v1/convert/templates/" + templateId + "/generate",
+                        values, String.class));
     }
 
     /** Get supported formats and features. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> formats() {
         try {
-            return get("/api/v1/convert/formats", Map.class);
+            return withResilience("formats",
+                    () -> get("/api/v1/convert/formats", Map.class));
         } catch (Exception e) {
             log.warn("EDI converter formats unavailable: {}", e.getMessage());
             return Collections.emptyMap();

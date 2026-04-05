@@ -5,7 +5,6 @@ import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -17,7 +16,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "file_flows")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class FileFlow {
+public class FileFlow extends Auditable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -72,17 +71,6 @@ public class FileFlow {
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;
-
-    @Column(nullable = false, updatable = false)
-    @Builder.Default
-    private Instant createdAt = Instant.now();
-
-    @Column(nullable = false)
-    @Builder.Default
-    private Instant updatedAt = Instant.now();
-
-    @PreUpdate
-    void onUpdate() { this.updatedAt = Instant.now(); }
 
     /**
      * A single step in the processing pipeline.

@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @Entity @Table(name = "tenants") @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class Tenant {
+public class Tenant extends Auditable {
     @Id @GeneratedValue(strategy = GenerationType.UUID) private UUID id;
     @Column(unique = true, nullable = false) private String slug;
     @Column(nullable = false) private String companyName;
@@ -25,5 +25,4 @@ public class Tenant {
     /** Custom domain (acme.tranzfer.io) */
     private String customDomain;
     @Builder.Default private boolean active = true;
-    @Column(nullable = false, updatable = false) @Builder.Default private Instant createdAt = Instant.now();
 }

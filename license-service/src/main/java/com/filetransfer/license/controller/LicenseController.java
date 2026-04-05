@@ -6,12 +6,14 @@ import com.filetransfer.license.dto.*;
 import com.filetransfer.license.entity.LicenseActivation;
 import com.filetransfer.license.entity.LicenseRecord;
 import com.filetransfer.license.service.LicenseService;
+import com.filetransfer.shared.security.Roles;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -21,6 +23,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/v1/licenses")
 @RequiredArgsConstructor
 @Slf4j
+@PreAuthorize(Roles.USER)
 public class LicenseController {
 
     private final LicenseService licenseService;
@@ -42,6 +45,7 @@ public class LicenseController {
     }
 
     @PostMapping("/issue")
+    @PreAuthorize(Roles.ADMIN)
     public ResponseEntity<Map<String, String>> issue(
             @RequestHeader("X-Admin-Key") String key,
             @Valid @RequestBody LicenseIssueRequest request) {
@@ -54,6 +58,7 @@ public class LicenseController {
     }
 
     @GetMapping
+    @PreAuthorize(Roles.ADMIN)
     public ResponseEntity<List<LicenseRecord>> getAllLicenses(
             @RequestHeader("X-Admin-Key") String key) {
         if (!adminKey.equals(key)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
@@ -61,6 +66,7 @@ public class LicenseController {
     }
 
     @DeleteMapping("/{licenseId}/revoke")
+    @PreAuthorize(Roles.ADMIN)
     public ResponseEntity<Void> revoke(
             @RequestHeader("X-Admin-Key") String key,
             @PathVariable String licenseId) {
@@ -70,6 +76,7 @@ public class LicenseController {
     }
 
     @GetMapping("/{licenseId}/activations")
+    @PreAuthorize(Roles.ADMIN)
     public ResponseEntity<List<LicenseActivation>> getActivations(
             @RequestHeader("X-Admin-Key") String key,
             @PathVariable String licenseId) {

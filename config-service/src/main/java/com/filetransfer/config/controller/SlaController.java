@@ -3,13 +3,16 @@ package com.filetransfer.config.controller;
 import com.filetransfer.shared.entity.PartnerAgreement;
 import com.filetransfer.shared.repository.PartnerAgreementRepository;
 import com.filetransfer.shared.scheduler.SlaBreachDetector;
+import com.filetransfer.shared.security.Roles;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.util.*;
 
 @RestController @RequestMapping("/api/sla") @RequiredArgsConstructor
+@PreAuthorize(Roles.OPERATOR)
 public class SlaController {
     private final PartnerAgreementRepository repo;
     private final SlaBreachDetector breachDetector;

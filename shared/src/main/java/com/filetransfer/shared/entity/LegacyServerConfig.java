@@ -4,7 +4,6 @@ import com.filetransfer.shared.enums.Protocol;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -14,7 +13,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "legacy_server_configs")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class LegacyServerConfig {
+public class LegacyServerConfig extends Auditable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -40,7 +39,4 @@ public class LegacyServerConfig {
     @Builder.Default
     private boolean active = true;
 
-    @Column(nullable = false, updatable = false)
-    @Builder.Default
-    private Instant createdAt = Instant.now();
 }

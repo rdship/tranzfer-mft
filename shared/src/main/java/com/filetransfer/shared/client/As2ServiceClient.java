@@ -20,7 +20,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class As2ServiceClient extends BaseServiceClient {
+public class As2ServiceClient extends ResilientServiceClient {
 
     public As2ServiceClient(RestTemplate restTemplate,
                             PlatformConfig platformConfig,
@@ -41,7 +41,7 @@ public class As2ServiceClient extends BaseServiceClient {
      */
     public String sendAs2Message(String as2From, String as2To, String messageId,
                                   String subject, byte[] payload, String contentType) {
-        try {
+        return withResilience("sendAs2Message", () -> {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.parseMediaType(
                     contentType != null ? contentType : "application/octet-stream"));
@@ -55,9 +55,7 @@ public class As2ServiceClient extends BaseServiceClient {
             ResponseEntity<String> response = restTemplate.postForEntity(
                     baseUrl() + "/as2/send", entity, String.class);
             return response.getBody();
-        } catch (Exception e) {
-            throw serviceError("sendAs2Message", e);
-        }
+        });
     }
 
     /**
@@ -71,28 +69,22 @@ public class As2ServiceClient extends BaseServiceClient {
     @SuppressWarnings("unchecked")
     public Map<String, Object> sendAs4Message(String partnerId, byte[] payload,
                                                Map<String, String> metadata) {
-        try {
-            Map<String, String> params = new java.util.HashMap<>();
-            params.put("partnerId", partnerId);
-            if (metadata != null) params.putAll(metadata);
-            return postMultipartBytes("/api/as4/send", "payload", payload, params);
-        } catch (Exception e) {
-            throw serviceError("sendAs4Message", e);
-        }
+        Map<String, String> params = new java.util.HashMap<>();
+        params.put("partnerId", partnerId);
+        if (metadata != null) params.putAll(metadata);
+        return withResilience("sendAs4Message",
+                () -> postMultipartBytes("/api/as4/send", "payload", payload, params));
     }
 
     /** Upload a file to the AS2 service for processing. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> uploadFile(String filename, byte[] fileBytes,
                                            String account, String trackId) {
-        try {
-            Map<String, String> params = new java.util.HashMap<>();
-            if (account != null) params.put("account", account);
-            if (trackId != null) params.put("trackId", trackId);
-            return postMultipartBytes("/api/files/upload", filename, fileBytes, params);
-        } catch (Exception e) {
-            throw serviceError("uploadFile", e);
-        }
+        Map<String, String> params = new java.util.HashMap<>();
+        if (account != null) params.put("account", account);
+        if (trackId != null) params.put("trackId", trackId);
+        return withResilience("uploadFile",
+                () -> postMultipartBytes("/api/files/upload", filename, fileBytes, params));
     }
 
     @Override
