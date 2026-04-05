@@ -56,6 +56,17 @@ ai:
     threshold-sigma: 3.0
     lookback-days: 30
 
+  # Proxy intelligence (AI-powered reverse proxy security)
+  proxy:
+    enabled: true
+    # Score decay interval (ms) — reputation scores drift toward neutral over time
+    decay-interval-ms: 300000
+    # Max tracked IPs before eviction
+    max-tracked-ips: 100000
+    # Connection pattern thresholds
+    max-connections-per-ip-per-minute: 60
+    ddos-threshold-per-minute: 5000
+
 platform:
   environment: ${PLATFORM_ENVIRONMENT:PROD}
   track-id:

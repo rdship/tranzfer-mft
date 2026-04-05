@@ -420,17 +420,26 @@ Client A uploads invoice.csv via SFTP
 
 ---
 
-# 📚 More Documentation
+# 📚 Documentation
+
+> **Full documentation index:** [docs/README.md](docs/README.md)
 
 | Document | What's Inside |
 |----------|--------------|
-| [INSTALLATION.md](docs/INSTALLATION.md) | Complete install guide — hardware, DB, network, firewall, 6 deployment recipes |
-| [CAPACITY-PLANNING.md](docs/CAPACITY-PLANNING.md) | How to scale to 100K partners / 10M files per day |
-| [PCI-DSS-COMPLIANCE.md](docs/PCI-DSS-COMPLIANCE.md) | PCI DSS compliance mapping |
-| [INSTALL-KUBERNETES.md](docs/INSTALL-KUBERNETES.md) | Kubernetes + Helm chart deployment |
-| [INSTALL-ON-PREMISE.md](docs/INSTALL-ON-PREMISE.md) | Bare metal / on-premise setup |
-| [MIGRATION-CHECKLIST.md](docs/MIGRATION-CHECKLIST.md) | 130-item checklist for enterprise migration |
-| [PRODUCT-ROADMAP.md](docs/PRODUCT-ROADMAP.md) | What's coming next |
+| [Architecture](docs/ARCHITECTURE.md) | System architecture, service communication, data flows, deployment topologies |
+| [Service Catalog](docs/SERVICES.md) | Every service explained — what it does, ports, config, how to run it |
+| [Security Architecture](docs/SECURITY-ARCHITECTURE.md) | DMZ proxy + AI engine security deep-dive, threat model, monitoring |
+| [API Reference](docs/API-REFERENCE.md) | All REST endpoints across all 20 services |
+| [Configuration](docs/CONFIGURATION.md) | Every environment variable, port, and default in one place |
+| [Developer Guide](docs/DEVELOPER-GUIDE.md) | Build, test, debug, contribute — IDE setup, common issues |
+| [Gap Analysis](docs/GAP-ANALYSIS.md) | Known gaps in docs, security, testing, and operations |
+| [Installation](docs/INSTALLATION.md) | Complete install guide — hardware, DB, network, firewall, 6 deployment recipes |
+| [Capacity Planning](docs/CAPACITY-PLANNING.md) | How to scale to 100K partners / 10M files per day |
+| [PCI Compliance](docs/PCI-DSS-COMPLIANCE.md) | PCI DSS compliance mapping |
+| [Kubernetes](docs/INSTALL-KUBERNETES.md) | Kubernetes + Helm chart deployment |
+| [On-Premise](docs/INSTALL-ON-PREMISE.md) | Bare metal / on-premise setup |
+| [Migration](docs/MIGRATION-CHECKLIST.md) | 130-item checklist for enterprise migration |
+| [Roadmap](docs/PRODUCT-ROADMAP.md) | What's coming next |
 
 ---
 

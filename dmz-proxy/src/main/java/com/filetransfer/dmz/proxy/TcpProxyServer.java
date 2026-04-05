@@ -1,5 +1,6 @@
 package com.filetransfer.dmz.proxy;
 
+import com.filetransfer.dmz.security.*;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
@@ -16,6 +17,9 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * A single Netty TCP proxy server for one port mapping.
  * Bidirectionally forwards bytes between the external client and the internal target.
+ *
+ * When security is enabled, an IntelligentProxyHandler is added as the first handler
+ * in the pipeline to inspect, rate-limit, and verdict every connection before relaying.
  */
 @Slf4j
 public class TcpProxyServer {
@@ -25,15 +29,45 @@ public class TcpProxyServer {
     private final NioEventLoopGroup workerGroup;
     private Channel serverChannel;
 
+    // Security components (null if security disabled)
+    private final ConnectionTracker connectionTracker;
+    private final RateLimiter rateLimiter;
+    private final AiVerdictClient aiVerdictClient;
+    private final ThreatEventReporter eventReporter;
+    private final SecurityMetrics securityMetrics;
+    private final boolean securityEnabled;
+
     @Getter
     private final AtomicLong bytesForwarded = new AtomicLong(0);
     @Getter
     private final AtomicLong activeConnections = new AtomicLong(0);
 
+    /**
+     * Create a proxy server without security (backward compatible).
+     */
     public TcpProxyServer(PortMapping mapping) {
+        this(mapping, null, null, null, null, null);
+    }
+
+    /**
+     * Create a proxy server with AI-powered security.
+     */
+    public TcpProxyServer(PortMapping mapping,
+                          ConnectionTracker connectionTracker,
+                          RateLimiter rateLimiter,
+                          AiVerdictClient aiVerdictClient,
+                          ThreatEventReporter eventReporter,
+                          SecurityMetrics securityMetrics) {
         this.mapping = mapping;
         this.bossGroup = new NioEventLoopGroup(1);
         this.workerGroup = new NioEventLoopGroup();
+        this.connectionTracker = connectionTracker;
+        this.rateLimiter = rateLimiter;
+        this.aiVerdictClient = aiVerdictClient;
+        this.eventReporter = eventReporter;
+        this.securityMetrics = securityMetrics;
+        this.securityEnabled = connectionTracker != null && rateLimiter != null
+            && aiVerdictClient != null && eventReporter != null && securityMetrics != null;
     }
 
     public void start() throws InterruptedException {
@@ -45,7 +79,17 @@ public class TcpProxyServer {
                     @Override
                     protected void initChannel(SocketChannel clientCh) {
                         activeConnections.incrementAndGet();
-                        // Connect to the backend
+
+                        // ── Security handler (first in pipeline) ──
+                        if (securityEnabled) {
+                            clientCh.pipeline().addLast("security",
+                                new IntelligentProxyHandler(
+                                    connectionTracker, rateLimiter,
+                                    aiVerdictClient, eventReporter, securityMetrics,
+                                    mapping.getListenPort(), mapping.getName()));
+                        }
+
+                        // ── Backend connection ──
                         Bootstrap backendBootstrap = new Bootstrap()
                                 .group(clientCh.eventLoop())
                                 .channel(NioSocketChannel.class)
@@ -57,17 +101,18 @@ public class TcpProxyServer {
                                     }
                                 });
 
-                        ChannelFuture backendFuture = backendBootstrap.connect(mapping.getTargetHost(), mapping.getTargetPort());
+                        ChannelFuture backendFuture = backendBootstrap.connect(
+                            mapping.getTargetHost(), mapping.getTargetPort());
                         Channel backendCh = backendFuture.channel();
 
-                        clientCh.pipeline().addLast(new RelayHandler(backendCh, bytesForwarded));
+                        clientCh.pipeline().addLast("relay", new RelayHandler(backendCh, bytesForwarded));
 
                         backendFuture.addListener((ChannelFutureListener) f -> {
                             if (f.isSuccess()) {
                                 clientCh.read();
                             } else {
-                                log.warn("Backend connection failed: {}:{} → {}", mapping.getName(),
-                                        mapping.getTargetHost(), mapping.getTargetPort());
+                                log.warn("Backend connection failed: {}:{} -> {}",
+                                    mapping.getName(), mapping.getTargetHost(), mapping.getTargetPort());
                                 clientCh.close();
                             }
                         });
@@ -80,9 +125,10 @@ public class TcpProxyServer {
                 });
 
         serverChannel = b.bind(mapping.getListenPort()).sync().channel();
-        log.info("DMZ proxy [{}]: listening :{}  →  {}:{}",
+        log.info("DMZ proxy [{}]: listening :{} -> {}:{} (security={})",
                 mapping.getName(), mapping.getListenPort(),
-                mapping.getTargetHost(), mapping.getTargetPort());
+                mapping.getTargetHost(), mapping.getTargetPort(),
+                securityEnabled ? "ON" : "OFF");
     }
 
     public void stop() {

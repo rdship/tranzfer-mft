@@ -21,5 +21,18 @@ dmz:
       target-host: ${FTPWEB_HOST:ftp-web-service}
       target-port: 8083
 
+  # AI-Powered Security Layer
+  security:
+    enabled: ${DMZ_SECURITY_ENABLED:true}
+    ai-engine-url: ${AI_ENGINE_URL:http://ai-engine:8091}
+    verdict-timeout-ms: ${VERDICT_TIMEOUT_MS:200}
+    default-rate-per-minute: ${DEFAULT_RATE_PER_MINUTE:60}
+    default-max-concurrent: ${DEFAULT_MAX_CONCURRENT:20}
+    default-max-bytes-per-minute: ${DEFAULT_MAX_BYTES_PER_MINUTE:500000000}
+    global-rate-per-minute: ${GLOBAL_RATE_PER_MINUTE:10000}
+    event-queue-capacity: 10000
+    event-batch-size: 50
+    event-flush-interval-ms: 5000
+
 platform:
   environment: ${PLATFORM_ENVIRONMENT:PROD}
