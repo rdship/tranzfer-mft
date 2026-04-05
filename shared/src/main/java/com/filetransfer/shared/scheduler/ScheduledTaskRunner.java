@@ -67,10 +67,19 @@ public class ScheduledTaskRunner {
         // Triggers push to external destination
     }
 
+    private static final java.util.regex.Pattern ALLOWED_SCRIPT_PATH =
+            java.util.regex.Pattern.compile("^[a-zA-Z0-9._/\\-]+$");
+
     private void executeScript(Map<String, String> cfg) throws Exception {
         String script = cfg.get("command");
         if (script == null) throw new IllegalArgumentException("No 'command' in task config");
         int timeout = Integer.parseInt(cfg.getOrDefault("timeoutSeconds", "300"));
+
+        // Validate script path doesn't contain shell metacharacters
+        String scriptCmd = script.split("\\s+")[0];
+        if (!ALLOWED_SCRIPT_PATH.matcher(scriptCmd).matches()) {
+            throw new SecurityException("Script path contains disallowed characters: " + scriptCmd);
+        }
 
         log.info("Executing script: {}", script);
         ProcessBuilder pb = new ProcessBuilder("sh", "-c", script);

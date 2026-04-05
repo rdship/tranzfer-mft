@@ -3,11 +3,14 @@ package com.filetransfer.onboarding.controller;
 import com.filetransfer.shared.entity.*;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.repository.*;
+import com.filetransfer.shared.util.JwtUtil;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
@@ -34,6 +37,16 @@ public class PartnerPortalController {
     private final AuditLogRepository auditLogRepo;
     private final FolderMappingRepository mappingRepo;
     private final FlowExecutionRepository flowExecRepo;
+    private final JwtUtil jwtUtil;
+
+    /** Extract the authenticated partner username from the SecurityContext (set by JwtAuthFilter). */
+    private String getAuthenticatedPartner() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getPrincipal() == null) {
+            throw new SecurityException("Not authenticated");
+        }
+        return auth.getName();
+    }
 
     // === Auth — partner login with transfer account credentials ===
 
@@ -54,9 +67,8 @@ public class PartnerPortalController {
             return ResponseEntity.status(401).body(Map.of("error", "Invalid credentials"));
         }
 
-        // Generate a simple token (in production, use JWT with PARTNER role)
-        String token = Base64.getEncoder().encodeToString(
-                (username + ":" + Instant.now().toEpochMilli()).getBytes());
+        // Generate a signed JWT with PARTNER role — validated by JwtAuthFilter on subsequent requests
+        String token = jwtUtil.generateToken(username, "PARTNER");
 
         log.info("Partner login: {}", username);
 
@@ -72,7 +84,8 @@ public class PartnerPortalController {
     // === Dashboard — overview stats for this partner ===
 
     @GetMapping("/dashboard")
-    public ResponseEntity<Map<String, Object>> dashboard(@RequestParam String username) {
+    public ResponseEntity<Map<String, Object>> dashboard() {
+        String username = getAuthenticatedPartner();
         List<FileTransferRecord> myTransfers = transferRepo
                 .findByFolderMappingSourceAccountIdOrderByUploadedAtDesc(
                         getAccountId(username));
@@ -106,11 +119,11 @@ public class PartnerPortalController {
 
     @GetMapping("/transfers")
     public List<Map<String, Object>> transfers(
-            @RequestParam String username,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String status) {
 
+        String username = getAuthenticatedPartner();
         UUID accountId = getAccountId(username);
         if (accountId == null) return List.of();
 
@@ -140,7 +153,8 @@ public class PartnerPortalController {
     // === Track — single transfer journey (partner can only see their own) ===
 
     @GetMapping("/track/{trackId}")
-    public ResponseEntity<?> track(@PathVariable String trackId, @RequestParam String username) {
+    public ResponseEntity<?> track(@PathVariable String trackId) {
+        String username = getAuthenticatedPartner();
         FileTransferRecord record = transferRepo.findByTrackId(trackId).orElse(null);
         if (record == null) return ResponseEntity.notFound().build();
 
@@ -197,7 +211,8 @@ public class PartnerPortalController {
     // === Delivery Receipt — downloadable proof of delivery ===
 
     @GetMapping("/receipt/{trackId}")
-    public ResponseEntity<Map<String, Object>> receipt(@PathVariable String trackId, @RequestParam String username) {
+    public ResponseEntity<Map<String, Object>> receipt(@PathVariable String trackId) {
+        String username = getAuthenticatedPartner();
         FileTransferRecord record = transferRepo.findByTrackId(trackId).orElse(null);
         if (record == null) return ResponseEntity.notFound().build();
 
@@ -224,7 +239,8 @@ public class PartnerPortalController {
     // === Connection Test — partner tests their SFTP/FTP connectivity ===
 
     @GetMapping("/test-connection")
-    public ResponseEntity<Map<String, Object>> testConnection(@RequestParam String username) {
+    public ResponseEntity<Map<String, Object>> testConnection() {
+        String username = getAuthenticatedPartner();
         TransferAccount account = findAccount(username);
         if (account == null) return ResponseEntity.notFound().build();
 
@@ -244,8 +260,8 @@ public class PartnerPortalController {
     // === SSH Key Rotation — partner uploads new public key ===
 
     @PostMapping("/rotate-key")
-    public ResponseEntity<Map<String, Object>> rotateKey(
-            @RequestParam String username, @RequestBody Map<String, String> body) {
+    public ResponseEntity<Map<String, Object>> rotateKey(@RequestBody Map<String, String> body) {
+        String username = getAuthenticatedPartner();
         TransferAccount account = findAccount(username);
         if (account == null) return ResponseEntity.notFound().build();
 
@@ -274,8 +290,8 @@ public class PartnerPortalController {
     // === Password Change ===
 
     @PostMapping("/change-password")
-    public ResponseEntity<Map<String, String>> changePassword(
-            @RequestParam String username, @RequestBody Map<String, String> body) {
+    public ResponseEntity<Map<String, String>> changePassword(@RequestBody Map<String, String> body) {
+        String username = getAuthenticatedPartner();
         TransferAccount account = findAccount(username);
         if (account == null) return ResponseEntity.notFound().build();
 
@@ -295,7 +311,8 @@ public class PartnerPortalController {
     // === My SLA Status ===
 
     @GetMapping("/sla")
-    public ResponseEntity<Map<String, Object>> slaStatus(@RequestParam String username) {
+    public ResponseEntity<Map<String, Object>> slaStatus() {
+        String username = getAuthenticatedPartner();
         UUID accountId = getAccountId(username);
         List<FileTransferRecord> records = transferRepo
                 .findByFolderMappingSourceAccountIdOrderByUploadedAtDesc(accountId);

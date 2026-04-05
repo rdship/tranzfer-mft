@@ -161,16 +161,39 @@ public class FlowProcessingEngine {
         return output.toString();
     }
 
+    private static final long MAX_ZIP_ENTRIES = 1000;
+    private static final long MAX_ZIP_TOTAL_SIZE = 512L * 1024 * 1024; // 512MB zip bomb guard
+
     private String decompressZip(Path input, Path workDir) throws IOException {
         String lastEntry = null;
+        Path normalizedWorkDir = workDir.toAbsolutePath().normalize();
+        long entryCount = 0;
+        long totalBytes = 0;
+
         try (ZipInputStream zipIn = new ZipInputStream(Files.newInputStream(input))) {
             ZipEntry entry;
             while ((entry = zipIn.getNextEntry()) != null) {
+                if (++entryCount > MAX_ZIP_ENTRIES) {
+                    throw new IOException("ZIP archive exceeds maximum entry count (" + MAX_ZIP_ENTRIES + ")");
+                }
                 if (!entry.isDirectory()) {
-                    Path out = workDir.resolve(entry.getName());
+                    // ZipSlip protection: ensure resolved path stays within workDir
+                    Path out = normalizedWorkDir.resolve(entry.getName()).normalize();
+                    if (!out.startsWith(normalizedWorkDir)) {
+                        throw new IOException("ZIP entry escapes target directory: " + entry.getName());
+                    }
                     Files.createDirectories(out.getParent());
                     try (OutputStream fout = Files.newOutputStream(out)) {
-                        zipIn.transferTo(fout);
+                        byte[] buf = new byte[8192];
+                        int n;
+                        while ((n = zipIn.read(buf)) != -1) {
+                            totalBytes += n;
+                            if (totalBytes > MAX_ZIP_TOTAL_SIZE) {
+                                throw new IOException("ZIP archive exceeds maximum uncompressed size ("
+                                        + MAX_ZIP_TOTAL_SIZE / (1024 * 1024) + "MB)");
+                            }
+                            fout.write(buf, 0, n);
+                        }
                     }
                     lastEntry = out.toString();
                 }
@@ -247,6 +270,15 @@ public class FlowProcessingEngine {
         return output.toString();
     }
 
+    private static final Pattern SAFE_SHELL_ARG = Pattern.compile("^[a-zA-Z0-9._/\\-]+$");
+
+    /** Shell-escape a value to prevent command injection. */
+    private static String shellEscape(String value) {
+        if (SAFE_SHELL_ARG.matcher(value).matches()) return value;
+        // Single-quote the value, escaping any embedded single quotes
+        return "'" + value.replace("'", "'\\''") + "'";
+    }
+
     /**
      * Execute a shell script as a flow step. The script receives the input file path
      * as an argument. If it exits non-zero, the flow fails.
@@ -255,9 +287,12 @@ public class FlowProcessingEngine {
     private String executeScript(Path input, Path workDir, Map<String, String> cfg, String trackId) throws Exception {
         String cmdTemplate = cfg.getOrDefault("command", "echo ${file}");
         int timeout = Integer.parseInt(cfg.getOrDefault("timeoutSeconds", "300"));
-        String cmd = cmdTemplate.replace("${file}", input.toAbsolutePath().toString())
-                .replace("${trackid}", trackId)
-                .replace("${workdir}", workDir.toAbsolutePath().toString());
+
+        // Shell-escape all interpolated values to prevent command injection
+        String cmd = cmdTemplate
+                .replace("${file}", shellEscape(input.toAbsolutePath().toString()))
+                .replace("${trackid}", shellEscape(trackId))
+                .replace("${workdir}", shellEscape(workDir.toAbsolutePath().toString()));
 
         log.info("[{}] Executing script: {}", trackId, cmd);
         ProcessBuilder pb = new ProcessBuilder("sh", "-c", cmd);

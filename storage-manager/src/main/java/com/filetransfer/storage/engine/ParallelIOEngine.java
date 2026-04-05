@@ -110,20 +110,27 @@ public class ParallelIOEngine {
 
         long start = System.nanoTime();
 
-        // Write destination file using parallel channel copies
+        // Write destination file using parallel positioned writes
         try (FileChannel src = FileChannel.open(tempFile, StandardOpenOption.READ);
              FileChannel dst = FileChannel.open(destination, StandardOpenOption.CREATE, StandardOpenOption.WRITE,
                      StandardOpenOption.TRUNCATE_EXISTING)) {
+
+            // Pre-allocate the destination file to the full size so positioned writes work
+            dst.truncate(totalSize);
 
             int stripes = (int) Math.ceil((double) totalSize / stripeSize);
             List<Future<?>> futures = new ArrayList<>();
 
             for (int i = 0; i < stripes; i++) {
                 final long offset = i * stripeSize;
-                final long length = Math.min(stripeSize, totalSize - offset);
+                final long length = (int) Math.min(stripeSize, totalSize - offset);
                 futures.add(ioPool.submit(() -> {
                     try {
-                        src.transferTo(offset, length, dst);
+                        // Use positioned read + positioned write for thread safety
+                        ByteBuffer buf = ByteBuffer.allocate((int) length);
+                        src.read(buf, offset);
+                        buf.flip();
+                        dst.write(buf, offset);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
