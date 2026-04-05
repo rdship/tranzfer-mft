@@ -100,6 +100,24 @@ public class DeliveryEndpoint {
     @Builder.Default
     private boolean tlsTrustAll = false;
 
+    // --- Proxy (optional — user decides per endpoint) ---
+
+    /** Whether to route this delivery through a proxy. Default: false (direct connection) */
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean proxyEnabled = false;
+
+    /** Proxy type: DMZ (platform DMZ proxy), HTTP, SOCKS5. Only used when proxyEnabled=true */
+    @Column(length = 20)
+    private String proxyType;
+
+    /** Proxy hostname, e.g. "dmz-proxy" for the platform DMZ proxy */
+    @Column(length = 500)
+    private String proxyHost;
+
+    /** Proxy port, e.g. 8088 for DMZ management API */
+    private Integer proxyPort;
+
     // --- Resilience ---
 
     @Builder.Default

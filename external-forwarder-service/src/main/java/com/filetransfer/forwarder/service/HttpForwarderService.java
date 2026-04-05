@@ -4,9 +4,12 @@ import com.filetransfer.shared.entity.DeliveryEndpoint;
 import com.filetransfer.shared.enums.AuthType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.util.Map;
 
 /**
@@ -56,7 +59,7 @@ public class HttpForwarderService {
 
         HttpEntity<byte[]> entity = new HttpEntity<>(fileBytes, headers);
 
-        RestTemplate rest = new RestTemplate();
+        RestTemplate rest = buildRestTemplate(endpoint);
         ResponseEntity<String> response = rest.exchange(url, method, entity, String.class);
 
         if (!response.getStatusCode().is2xxSuccessful()) {
@@ -64,8 +67,9 @@ public class HttpForwarderService {
                     + " " + response.getBody());
         }
 
-        log.info("HTTP forward complete: {} → {} {} ({} bytes, status={})",
-                filename, method, url, fileBytes.length, response.getStatusCode().value());
+        String proxyInfo = endpoint.isProxyEnabled() ? " via proxy " + endpoint.getProxyHost() + ":" + endpoint.getProxyPort() : "";
+        log.info("HTTP forward complete: {} → {} {}{} ({} bytes, status={})",
+                filename, method, url, proxyInfo, fileBytes.length, response.getStatusCode().value());
     }
 
     private void applyAuth(HttpHeaders headers, DeliveryEndpoint endpoint) {
@@ -93,6 +97,31 @@ public class HttpForwarderService {
             }
             default -> log.warn("Unsupported auth type for HTTP: {}", authType);
         }
+    }
+
+    /**
+     * Build a RestTemplate, optionally configured with HTTP or SOCKS5 proxy.
+     * When proxyEnabled=false or proxyType=DMZ (handled at controller level), no proxy is set.
+     */
+    private RestTemplate buildRestTemplate(DeliveryEndpoint endpoint) {
+        if (!endpoint.isProxyEnabled() || endpoint.getProxyHost() == null
+                || "DMZ".equalsIgnoreCase(endpoint.getProxyType())) {
+            return new RestTemplate();
+        }
+
+        Proxy.Type proxyType = "SOCKS5".equalsIgnoreCase(endpoint.getProxyType())
+                ? Proxy.Type.SOCKS : Proxy.Type.HTTP;
+        int proxyPort = endpoint.getProxyPort() != null ? endpoint.getProxyPort() : 8080;
+
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setProxy(new Proxy(proxyType,
+                new InetSocketAddress(endpoint.getProxyHost(), proxyPort)));
+        factory.setConnectTimeout(endpoint.getConnectionTimeoutMs());
+        factory.setReadTimeout(endpoint.getReadTimeoutMs());
+
+        log.info("Using {} proxy {}:{} for HTTP delivery",
+                proxyType, endpoint.getProxyHost(), proxyPort);
+        return new RestTemplate(factory);
     }
 
     private String decryptSecret(String encrypted) {

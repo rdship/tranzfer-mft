@@ -94,4 +94,21 @@ public class DeliveryEndpointController {
     public DeliveryProtocol[] getProtocols() {
         return DeliveryProtocol.values();
     }
+
+    @GetMapping("/auth-types")
+    public com.filetransfer.shared.enums.AuthType[] getAuthTypes() {
+        return com.filetransfer.shared.enums.AuthType.values();
+    }
+
+    @GetMapping("/proxy-types")
+    public List<Map<String, String>> getProxyTypes() {
+        return List.of(
+                Map.of("value", "DMZ", "label", "DMZ Proxy",
+                        "description", "Route through the platform DMZ proxy (auto-managed TCP relay)"),
+                Map.of("value", "HTTP", "label", "HTTP Proxy",
+                        "description", "Standard HTTP forward proxy"),
+                Map.of("value", "SOCKS5", "label", "SOCKS5 Proxy",
+                        "description", "SOCKS5 proxy for TCP-level tunneling")
+        );
+    }
 }

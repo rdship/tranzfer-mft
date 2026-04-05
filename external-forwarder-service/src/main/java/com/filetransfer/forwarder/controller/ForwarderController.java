@@ -15,9 +15,15 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
+import org.springframework.web.client.RestTemplate;
+
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * External Forwarder API
@@ -38,6 +44,12 @@ public class ForwarderController {
     private final FtpsForwarderService ftpsForwarder;
     private final HttpForwarderService httpForwarder;
     private final KafkaForwarderService kafkaForwarder;
+
+    @Value("${control-api.key:internal_control_secret}")
+    private String controlApiKey;
+
+    /** Port counter for dynamic DMZ proxy mappings (range 40000-49999) */
+    private final AtomicInteger dmzPortCounter = new AtomicInteger(40000);
 
     @PostMapping(value = "/{destinationId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.ACCEPTED)
@@ -84,34 +96,137 @@ public class ForwarderController {
     }
 
     private void dispatchDelivery(DeliveryEndpoint ep, String filename, byte[] bytes) throws Exception {
-        log.info("Delivering {} ({} bytes) → '{}' [{}://{}:{}]",
-                filename, bytes.length, ep.getName(), ep.getProtocol(), ep.getHost(), ep.getPort());
+        boolean useDmzProxy = ep.isProxyEnabled() && "DMZ".equalsIgnoreCase(ep.getProxyType());
+        String dmzMappingName = null;
+
+        log.info("Delivering {} ({} bytes) → '{}' [{}://{}:{}] proxy={}",
+                filename, bytes.length, ep.getName(), ep.getProtocol(),
+                ep.getHost(), ep.getPort(), ep.isProxyEnabled() ? ep.getProxyType() : "NONE");
+
+        // If DMZ proxy is selected, hot-add a temporary port mapping so traffic
+        // flows through the DMZ zone instead of going direct
+        int dmzListenPort = 0;
+        if (useDmzProxy) {
+            dmzListenPort = dmzPortCounter.getAndUpdate(p -> p >= 49999 ? 40000 : p + 1);
+            dmzMappingName = registerDmzMapping(ep, dmzListenPort);
+        }
 
         int attempts = 0;
         int maxRetries = ep.getRetryCount() > 0 ? ep.getRetryCount() : 1;
         Exception lastError = null;
 
-        while (attempts < maxRetries) {
-            try {
-                switch (ep.getProtocol()) {
-                    case SFTP -> sftpForwarder.forward(toExternalDest(ep), filename, bytes);
-                    case FTP -> ftpForwarder.forward(toExternalDest(ep), filename, bytes);
-                    case FTPS -> ftpsForwarder.forward(ep, filename, bytes);
-                    case HTTP, HTTPS, API -> httpForwarder.forward(ep, filename, bytes);
-                }
-                return; // success
-            } catch (Exception e) {
-                lastError = e;
-                attempts++;
-                if (attempts < maxRetries) {
-                    log.warn("Delivery attempt {}/{} failed for '{}': {} — retrying in {}ms",
-                            attempts, maxRetries, ep.getName(), e.getMessage(), ep.getRetryDelayMs());
-                    Thread.sleep(ep.getRetryDelayMs());
+        try {
+            while (attempts < maxRetries) {
+                try {
+                    // Build the effective endpoint — may be rewritten to point at DMZ proxy
+                    DeliveryEndpoint effective = useDmzProxy
+                            ? toDmzRoutedEndpoint(ep, dmzListenPort) : ep;
+
+                    switch (effective.getProtocol()) {
+                        case SFTP -> sftpForwarder.forward(toExternalDest(effective), filename, bytes);
+                        case FTP -> ftpForwarder.forward(toExternalDest(effective), filename, bytes);
+                        case FTPS -> ftpsForwarder.forward(effective, filename, bytes);
+                        case HTTP, HTTPS, API -> httpForwarder.forward(effective, filename, bytes);
+                    }
+                    return; // success
+                } catch (Exception e) {
+                    lastError = e;
+                    attempts++;
+                    if (attempts < maxRetries) {
+                        log.warn("Delivery attempt {}/{} failed for '{}': {} — retrying in {}ms",
+                                attempts, maxRetries, ep.getName(), e.getMessage(), ep.getRetryDelayMs());
+                        Thread.sleep(ep.getRetryDelayMs());
+                    }
                 }
             }
+            throw new RuntimeException("Delivery failed after " + maxRetries + " attempts to '"
+                    + ep.getName() + "': " + (lastError != null ? lastError.getMessage() : "unknown error"), lastError);
+        } finally {
+            // Always clean up the temporary DMZ mapping
+            if (dmzMappingName != null) {
+                unregisterDmzMapping(ep, dmzMappingName);
+            }
         }
-        throw new RuntimeException("Delivery failed after " + maxRetries + " attempts to '"
-                + ep.getName() + "': " + (lastError != null ? lastError.getMessage() : "unknown error"), lastError);
+    }
+
+    // --- DMZ Proxy integration ---
+
+    /**
+     * Hot-add a temporary port mapping on the DMZ proxy so that traffic for this
+     * delivery is routed through the DMZ zone.
+     * Returns the mapping name for later cleanup.
+     */
+    private String registerDmzMapping(DeliveryEndpoint ep, int listenPort) {
+        String dmzApiUrl = "http://" + ep.getProxyHost() + ":" + ep.getProxyPort();
+        String mappingName = "delivery-" + ep.getId().toString().substring(0, 8)
+                + "-" + System.currentTimeMillis();
+
+        Map<String, Object> mapping = new LinkedHashMap<>();
+        mapping.put("name", mappingName);
+        mapping.put("listenPort", listenPort);
+        mapping.put("targetHost", ep.getHost());
+        mapping.put("targetPort", ep.getPort());
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-Internal-Key", controlApiKey);
+
+        RestTemplate rest = new RestTemplate();
+        rest.postForEntity(dmzApiUrl + "/api/proxy/mappings",
+                new HttpEntity<>(mapping, headers), Map.class);
+
+        log.info("DMZ proxy mapping created: {} → {}:{} via :{}",
+                mappingName, ep.getHost(), ep.getPort(), listenPort);
+        return mappingName;
+    }
+
+    /** Remove the temporary DMZ proxy mapping after delivery completes */
+    private void unregisterDmzMapping(DeliveryEndpoint ep, String mappingName) {
+        try {
+            String dmzApiUrl = "http://" + ep.getProxyHost() + ":" + ep.getProxyPort();
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("X-Internal-Key", controlApiKey);
+
+            RestTemplate rest = new RestTemplate();
+            rest.exchange(dmzApiUrl + "/api/proxy/mappings/" + mappingName,
+                    HttpMethod.DELETE, new HttpEntity<>(headers), Void.class);
+
+            log.info("DMZ proxy mapping removed: {}", mappingName);
+        } catch (Exception e) {
+            log.warn("Failed to cleanup DMZ proxy mapping '{}': {}", mappingName, e.getMessage());
+        }
+    }
+
+    /**
+     * Rewrite the endpoint to route through the DMZ proxy.
+     * Host/port point to the DMZ proxy's listen port; all other config (auth, TLS, path) stays the same.
+     */
+    private DeliveryEndpoint toDmzRoutedEndpoint(DeliveryEndpoint original, int listenPort) {
+        return DeliveryEndpoint.builder()
+                .id(original.getId())
+                .name(original.getName())
+                .description(original.getDescription())
+                .protocol(original.getProtocol())
+                .host(original.getProxyHost())  // route through DMZ proxy host
+                .port(listenPort)               // route through DMZ proxy listen port
+                .basePath(original.getBasePath())
+                .authType(original.getAuthType())
+                .username(original.getUsername())
+                .encryptedPassword(original.getEncryptedPassword())
+                .sshPrivateKey(original.getSshPrivateKey())
+                .bearerToken(original.getBearerToken())
+                .apiKeyHeader(original.getApiKeyHeader())
+                .apiKeyValue(original.getApiKeyValue())
+                .httpMethod(original.getHttpMethod())
+                .httpHeaders(original.getHttpHeaders())
+                .contentType(original.getContentType())
+                .tlsEnabled(original.isTlsEnabled())
+                .tlsTrustAll(original.isTlsTrustAll())
+                .connectionTimeoutMs(original.getConnectionTimeoutMs())
+                .readTimeoutMs(original.getReadTimeoutMs())
+                .proxyEnabled(false) // no double-proxying
+                .active(true)
+                .build();
     }
 
     /** Adapt DeliveryEndpoint to ExternalDestination for legacy SFTP/FTP forwarders */
