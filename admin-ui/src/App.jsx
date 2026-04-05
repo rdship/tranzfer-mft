@@ -40,6 +40,10 @@ import Blockchain from './pages/Blockchain'
 import ServerInstances from './pages/ServerInstances'
 import PlatformConfig from './pages/PlatformConfig'
 import Partnerships from './pages/Partnerships'
+import Partners from './pages/Partners'
+import PartnerDetail from './pages/PartnerDetail'
+import PartnerSetup from './pages/PartnerSetup'
+import ServiceManagement from './pages/ServiceManagement'
 
 export default function App() {
   return (
@@ -51,6 +55,10 @@ export default function App() {
           <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
+            <Route path="partners" element={<Partners />} />
+            <Route path="partners/:id" element={<PartnerDetail />} />
+            <Route path="partner-setup" element={<PartnerSetup />} />
+            <Route path="services" element={<ServiceManagement />} />
             <Route path="accounts" element={<Accounts />} />
             <Route path="users" element={<Users />} />
             <Route path="folder-mappings" element={<FolderMappings />} />

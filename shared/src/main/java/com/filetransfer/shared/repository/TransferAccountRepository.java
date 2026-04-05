@@ -4,6 +4,7 @@ import com.filetransfer.shared.entity.TransferAccount;
 import com.filetransfer.shared.enums.Protocol;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -24,4 +25,9 @@ public interface TransferAccountRepository extends JpaRepository<TransferAccount
     // Find the specific server instance for a user (used by gateway routing)
     Optional<TransferAccount> findByUsernameAndProtocolAndActiveTrueAndServerInstance(
         String username, Protocol protocol, String serverInstance);
+
+    // Partner-scoped queries
+    List<TransferAccount> findByPartnerId(UUID partnerId);
+
+    long countByPartnerId(UUID partnerId);
 }

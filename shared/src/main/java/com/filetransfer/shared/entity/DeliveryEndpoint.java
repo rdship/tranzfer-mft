@@ -140,6 +140,10 @@ public class DeliveryEndpoint {
 
     // --- Metadata ---
 
+    /** Partner this endpoint belongs to (optional) */
+    @Column(name = "partner_id")
+    private UUID partnerId;
+
     /** Comma-separated tags for categorization and filtering */
     @Column(length = 500)
     private String tags;

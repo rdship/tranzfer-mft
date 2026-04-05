@@ -29,4 +29,9 @@ public interface DeliveryEndpointRepository extends JpaRepository<DeliveryEndpoi
 
     @Query("SELECT d.protocol, COUNT(d) FROM DeliveryEndpoint d WHERE d.active = true GROUP BY d.protocol")
     List<Object[]> countActiveByProtocol();
+
+    // Partner-scoped queries
+    List<DeliveryEndpoint> findByPartnerId(UUID partnerId);
+
+    long countByPartnerId(UUID partnerId);
 }

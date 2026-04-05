@@ -23,6 +23,10 @@ public class PartnerAgreement {
     @JoinColumn(name = "account_id")
     private TransferAccount account;
 
+    /** Partner this agreement belongs to (optional) */
+    @Column(name = "partner_id")
+    private UUID partnerId;
+
     /** Expected delivery window: earliest hour (UTC) */
     private int expectedDeliveryStartHour;
     /** Expected delivery window: latest hour (UTC) — breach if not received by this */

@@ -7,7 +7,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import {
   ChartBarIcon, ArrowUpTrayIcon, CheckCircleIcon, ServerIcon,
   ExclamationTriangleIcon, ArrowTrendingUpIcon, ClockIcon,
-  ShieldCheckIcon, BoltIcon, ArrowsRightLeftIcon
+  ShieldCheckIcon, BoltIcon, ArrowsRightLeftIcon, BuildingOfficeIcon
 } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
 import { NavLink } from 'react-router-dom'
@@ -22,11 +22,11 @@ function getGreeting() {
 }
 
 const quickActions = [
+  { label: 'Partners', to: '/partners', icon: BuildingOfficeIcon, color: 'indigo' },
   { label: 'Transfer Accounts', to: '/accounts', icon: ArrowsRightLeftIcon, color: 'blue' },
   { label: 'Processing Flows', to: '/flows', icon: BoltIcon, color: 'purple' },
   { label: 'AS2/AS4 Partners', to: '/as2-partnerships', icon: ArrowsRightLeftIcon, color: 'green' },
   { label: 'Transfer Journey', to: '/journey', icon: ArrowTrendingUpIcon, color: 'amber' },
-  { label: 'Security Profiles', to: '/security-profiles', icon: ShieldCheckIcon, color: 'red' },
   { label: 'Audit Logs', to: '/logs', icon: ClockIcon, color: 'gray' },
 ]
 

@@ -16,8 +16,10 @@ How to build, test, debug, and contribute to the project.
 8. [Debugging](#debugging)
 9. [Code Style](#code-style)
 10. [Adding a New Service](#adding-a-new-service)
-11. [Database Migrations](#database-migrations)
-12. [Common Issues](#common-issues)
+11. [Inter-Service Communication](#inter-service-communication)
+12. [Partner Management API](#partner-management-api)
+13. [Database Migrations](#database-migrations)
+14. [Common Issues](#common-issues)
 
 ---
 
@@ -296,12 +298,25 @@ npm run lint
 
 | File | Purpose |
 |------|---------|
-| `src/App.tsx` | Root component with routing |
+| `src/App.jsx` | Root component with routing |
 | `src/pages/` | Page components (one per admin page) |
 | `src/components/` | Reusable UI components |
 | `vite.config.js` | Build configuration |
 | `tailwind.config.js` | Tailwind theme |
 | `nginx.conf` | Production nginx config (Docker) |
+
+### Admin UI pages (partner management)
+
+The following pages were added to the Admin UI (`admin-ui`) for partner management:
+
+| Route | Page Component | Description |
+|-------|----------------|-------------|
+| `/partners` | `Partners` | Partners list with stats, status filters, search, and CRUD |
+| `/partners/:id` | `PartnerDetail` | 5-tab detail view: Overview, Accounts, Flows, Endpoints, Settings |
+| `/partner-setup` | `PartnerSetup` | 6-step onboarding wizard (Company Info, Protocols, Contacts, Account Setup, SLA, Review) |
+| `/services` | `ServiceManagement` | Microservice health dashboard with architecture overview |
+
+These pages are accessible from the sidebar navigation under "Partner Management", "Onboard Partner", and "Services". The main Dashboard page also includes a quick-action link for Partners.
 
 ---
 
@@ -532,6 +547,87 @@ Each client uses an appropriate error strategy:
 
 ---
 
+## Partner Management API
+
+The Partner Management system is served by the `onboarding-api` service (`:8080`). The controller is `PartnerManagementController` and the business logic lives in `PartnerService`.
+
+### Key source files
+
+| File | Module | Purpose |
+|------|--------|---------|
+| `shared/.../entity/Partner.java` | shared | JPA entity for the `partners` table |
+| `shared/.../entity/PartnerContact.java` | shared | JPA entity for the `partner_contacts` table |
+| `onboarding-api/.../controller/PartnerManagementController.java` | onboarding-api | REST controller with 12 endpoints at `/api/partners` |
+| `onboarding-api/.../service/PartnerService.java` | onboarding-api | CRUD + lifecycle operations |
+| `onboarding-api/.../dto/request/CreatePartnerRequest.java` | onboarding-api | Request DTO for creating a partner (includes nested contacts) |
+| `onboarding-api/.../dto/request/UpdatePartnerRequest.java` | onboarding-api | Request DTO for partial partner updates |
+| `onboarding-api/.../dto/response/PartnerDetailResponse.java` | onboarding-api | Response DTO with partner, contacts, and resource counts |
+
+### API endpoints
+
+All endpoints require authentication (JWT). Base path: `/api/partners`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/partners` | Create partner with optional contacts |
+| `GET` | `/api/partners` | List partners (filter: `?status=ACTIVE&type=EXTERNAL`) |
+| `GET` | `/api/partners/{id}` | Get detail view (partner + contacts + counts) |
+| `PUT` | `/api/partners/{id}` | Partial update |
+| `DELETE` | `/api/partners/{id}` | Soft-delete (sets status to `OFFBOARDED`) |
+| `POST` | `/api/partners/{id}/activate` | Set status=`ACTIVE`, phase=`LIVE` |
+| `POST` | `/api/partners/{id}/suspend` | Set status=`SUSPENDED` |
+| `GET` | `/api/partners/stats` | Counts by status (`total`, `PENDING`, `ACTIVE`, ...) |
+| `GET` | `/api/partners/{id}/accounts` | Transfer accounts for this partner |
+| `POST` | `/api/partners/{id}/accounts` | Create account and link to partner |
+| `GET` | `/api/partners/{id}/flows` | File flows for this partner |
+| `GET` | `/api/partners/{id}/endpoints` | Delivery endpoints for this partner |
+
+### Example: Create a partner
+
+```bash
+curl -X POST http://localhost:8080/api/partners \
+  -H "Authorization: Bearer <JWT>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "companyName": "Acme Corp",
+    "industry": "Financial Services",
+    "website": "https://acme.com",
+    "partnerType": "EXTERNAL",
+    "protocolsEnabled": ["SFTP", "AS2"],
+    "slaTier": "PREMIUM",
+    "maxFileSizeBytes": 1073741824,
+    "maxTransfersPerDay": 5000,
+    "retentionDays": 180,
+    "contacts": [
+      {
+        "name": "Jane Doe",
+        "email": "jane@acme.com",
+        "phone": "+1-555-0100",
+        "role": "Technical",
+        "primary": true
+      }
+    ]
+  }'
+```
+
+### Lifecycle operations
+
+```bash
+# Activate a partner (moves to ACTIVE status, LIVE phase)
+curl -X POST http://localhost:8080/api/partners/{id}/activate \
+  -H "Authorization: Bearer <JWT>"
+
+# Suspend a partner
+curl -X POST http://localhost:8080/api/partners/{id}/suspend \
+  -H "Authorization: Bearer <JWT>"
+
+# Soft-delete (offboard) a partner
+curl -X DELETE http://localhost:8080/api/partners/{id} \
+  -H "Authorization: Bearer <JWT>"
+```
+
+---
+
 ## Database Migrations
 
 TranzFer uses **Flyway** for database schema migrations. Migration files are in the `shared` module.
@@ -539,11 +635,28 @@ TranzFer uses **Flyway** for database schema migrations. Migration files are in 
 ### Location
 ```
 shared/src/main/resources/db/migration/
-├── V1__initial_schema.sql
-├── V2__add_audit_logs.sql
-├── V3__add_flow_tables.sql
-└── ...
+├── V1__baseline.sql
+├── V2__add_server_instance.sql
+├── V3__generalize_server_instances.sql
+├── V4__platform_settings.sql
+├── V5__cluster_awareness.sql
+├── V6__delivery_endpoints.sql
+├── V7__delivery_proxy_support.sql
+├── V8__shedlock_and_as2.sql
+├── V9__as2_protocol_support.sql
+├── V10__add_updated_at_to_file_transfer_records.sql
+├── V11__add_as2_partnership_id_to_delivery_endpoints.sql
+└── V12__add_partners.sql
 ```
+
+### V12: Partner Management Tables
+
+`V12__add_partners.sql` adds the partner management schema:
+
+- **`partners`** table — stores partner company info, status/lifecycle, onboarding phase, protocol config (JSONB), and SLA parameters
+- **`partner_contacts`** table — contact persons associated with a partner (many-to-one via `partner_id` FK with `ON DELETE CASCADE`)
+- **Foreign keys** added to existing tables: `partner_id` column on `transfer_accounts`, `delivery_endpoints`, `file_flows`, and `partner_agreements`
+- **Indexes** on `partners(status)`, `partners(partner_type)`, `partners(slug)`, `partner_contacts(partner_id)`, and partial indexes on the FK columns
 
 ### Adding a migration
 
@@ -597,6 +710,9 @@ Channel ch = mock(Channel.class);  // Fails on Java 21+
 // Do this instead:
 Channel ch = new EmbeddedChannel();  // Works
 ```
+
+### Mockito / Java 25 compatibility
+For Java 25+, the project uses `mockito-subclass` 5.14.2 as a Mockito mock-maker dependency (avoids illegal-access errors with the default inline mock-maker). The parent POM also includes surefire `--add-opens` arguments for `java.base` modules. If you see `InaccessibleObjectException` in tests, ensure you are building from the root POM or have the latest `shared` installed.
 
 ### "OutOfMemoryError" when building everything
 ```bash

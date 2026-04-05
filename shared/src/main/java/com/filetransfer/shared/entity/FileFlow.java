@@ -61,6 +61,10 @@ public class FileFlow {
     @JoinColumn(name = "external_destination_id")
     private ExternalDestination externalDestination;
 
+    /** Partner this flow belongs to (optional) */
+    @Column(name = "partner_id")
+    private UUID partnerId;
+
     /** Priority — lower number = evaluated first */
     @Builder.Default
     private int priority = 100;

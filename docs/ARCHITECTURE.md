@@ -11,10 +11,11 @@ This document explains how TranzFer's 20 microservices fit together, how data fl
 3. [Service Communication](#service-communication)
 4. [Data Flow: File Transfer](#data-flow-file-transfer)
 5. [Data Flow: Security (DMZ)](#data-flow-security-dmz)
-6. [Database Architecture](#database-architecture)
-7. [Messaging Architecture](#messaging-architecture)
-8. [Deployment Topologies](#deployment-topologies)
-9. [Network Diagram](#network-diagram)
+6. [Partner Management](#partner-management)
+7. [Database Architecture](#database-architecture)
+8. [Messaging Architecture](#messaging-architecture)
+9. [Deployment Topologies](#deployment-topologies)
+10. [Network Diagram](#network-diagram)
 
 ---
 
@@ -87,7 +88,7 @@ TranzFer is a **modular, microservice-based** Managed File Transfer platform. Ea
                     ┌──────────────────────────────────────────────┐
                     │         FRONTENDS                             │
                     │                                               │
-                    │   Admin UI (:3000)       — 34-page dashboard  │
+                    │   Admin UI (:3000)       — 38-page dashboard  │
                     │   FTP Web UI (:3001)     — File browser       │
                     │   Partner Portal (:3002) — Partner self-serve │
                     └──────────────────────────────────────────────┘
@@ -353,6 +354,93 @@ For detailed security documentation, see [SECURITY-ARCHITECTURE.md](SECURITY-ARC
 
 ---
 
+## Partner Management
+
+TranzFer includes a unified **Partner Management** system that models external and internal organizations exchanging files through the platform. Partners serve as the top-level organizational entity linking accounts, file flows, delivery endpoints, and SLA agreements.
+
+### Partner Entity and Relationships
+
+```
+Partner (partners)
+├── PartnerContact (partner_contacts)  — 1:N contact persons per partner
+├── TransferAccount (transfer_accounts) — 1:N accounts linked via partner_id FK
+├── FileFlow (file_flows)              — 1:N flows linked via partner_id FK
+├── DeliveryEndpoint (delivery_endpoints) — 1:N endpoints linked via partner_id FK
+└── PartnerAgreement (partner_agreements) — 1:N SLA agreements linked via partner_id FK
+```
+
+The `Partner` entity stores company metadata (name, slug, industry, website, logo), protocol configuration (JSONB array of enabled protocols such as `["SFTP","AS2"]`), and SLA parameters (tier, max file size, max transfers/day, retention days).
+
+**Partner types:** `INTERNAL`, `EXTERNAL`, `VENDOR`, `CLIENT`
+
+### Partner Lifecycle
+
+Partners progress through a status lifecycle managed by the `PartnerService`:
+
+```
+PENDING ──activate──► ACTIVE ──suspend──► SUSPENDED
+   │                    ▲                      │
+   │                    └────── activate ───────┘
+   │
+   └── delete (soft) ──► OFFBOARDED
+                              ▲
+              ACTIVE ─── delete (soft) ──┘
+```
+
+| Status | Meaning |
+|--------|---------|
+| `PENDING` | Partner created but not yet activated. Default initial status. |
+| `ACTIVE` | Partner is live and transferring files. |
+| `SUSPENDED` | Partner temporarily disabled. Can be re-activated. |
+| `OFFBOARDED` | Partner permanently retired (soft delete). |
+
+### Onboarding Phases
+
+Each partner tracks an onboarding phase that represents how far along they are in the setup process:
+
+```
+SETUP ──► CREDENTIALS ──► TESTING ──► LIVE
+```
+
+| Phase | Description |
+|-------|-------------|
+| `SETUP` | Initial company info and protocol selection. Default phase for new partners. |
+| `CREDENTIALS` | Account credentials and keys are being provisioned. |
+| `TESTING` | Partner is performing test transfers to validate connectivity. |
+| `LIVE` | Onboarding complete. Set automatically when a partner is activated. |
+
+The Admin UI provides a 6-step onboarding wizard at `/partner-setup` that walks operators through: Company Info, Protocols, Contacts, Account Setup, SLA Configuration, and Review.
+
+### Partner Management API
+
+All endpoints are served by the `PartnerManagementController` on the **onboarding-api** service (`:8080`).
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/partners` | Create a new partner (with optional contacts) |
+| `GET` | `/api/partners` | List all partners (filterable by `?status=` and `?type=`) |
+| `GET` | `/api/partners/{id}` | Get partner detail (includes contacts, account/flow/endpoint counts) |
+| `PUT` | `/api/partners/{id}` | Update partner fields (partial update) |
+| `DELETE` | `/api/partners/{id}` | Soft-delete partner (sets status to OFFBOARDED) |
+| `POST` | `/api/partners/{id}/activate` | Activate partner (status=ACTIVE, phase=LIVE) |
+| `POST` | `/api/partners/{id}/suspend` | Suspend partner (status=SUSPENDED) |
+| `GET` | `/api/partners/stats` | Get partner counts by status |
+| `GET` | `/api/partners/{id}/accounts` | List transfer accounts linked to partner |
+| `POST` | `/api/partners/{id}/accounts` | Create and link a new transfer account to partner |
+| `GET` | `/api/partners/{id}/flows` | List file flows linked to partner |
+| `GET` | `/api/partners/{id}/endpoints` | List delivery endpoints linked to partner |
+
+### Admin UI Pages
+
+| Route | Page | Description |
+|-------|------|-------------|
+| `/partners` | Partners List | Table with partner stats, status filters, and CRUD operations |
+| `/partners/:id` | Partner Detail | 5-tab view: Overview, Accounts, Flows, Endpoints, Settings |
+| `/partner-setup` | Partner Onboarding Wizard | 6-step wizard for onboarding new partners |
+| `/services` | Service Management | Microservice health dashboard with architecture overview |
+
+---
+
 ## Database Architecture
 
 All services share a single PostgreSQL instance with schema-based isolation via Flyway migrations.
@@ -363,7 +451,10 @@ PostgreSQL :5432
     ├── Tables owned by onboarding-api:
     │   ├── users, transfer_accounts, folder_mappings
     │   ├── ssh_keys, transfer_records, audit_logs
-    │   └── p2p_transfers, server_instances
+    │   ├── p2p_transfers, server_instances
+    │   ├── partners, partner_contacts
+    │   └── (partner_id FK on transfer_accounts, delivery_endpoints,
+    │        file_flows, partner_agreements)
     ├── Tables owned by config-service:
     │   ├── file_flows, flow_steps, connectors
     │   ├── security_profiles, sla_agreements

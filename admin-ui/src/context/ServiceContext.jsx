@@ -78,6 +78,11 @@ const PAGE_SERVICE_MAP = {
   '/server-instances': ['core'],
   '/platform-config': ['config'],
 
+  // Partner Management
+  '/partners': ['core'],
+  '/partner-setup': ['core'],
+  '/services': ['core'],
+
   // AI
   '/ai': ['aiEngine'],
   '/recommendations': ['aiEngine'],

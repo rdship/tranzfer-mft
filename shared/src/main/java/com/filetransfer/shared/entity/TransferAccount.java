@@ -55,6 +55,10 @@ public class TransferAccount {
     @Column(length = 64)
     private String serverInstance;
 
+    // Partner this account belongs to (optional)
+    @Column(name = "partner_id")
+    private UUID partnerId;
+
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;

@@ -7,7 +7,8 @@ import {
   ShieldCheckIcon, GlobeAltIcon, ChartBarIcon,
   CpuChipIcon, DocumentTextIcon, KeyIcon,
   Cog6ToothIcon, WifiIcon, BoltIcon, CommandLineIcon,
-  ArrowPathIcon, AdjustmentsHorizontalIcon
+  ArrowPathIcon, AdjustmentsHorizontalIcon,
+  BuildingOfficeIcon, RocketLaunchIcon, CircleStackIcon
 } from '@heroicons/react/24/outline'
 
 /**
@@ -23,6 +24,9 @@ const navGroups = [
     label: 'Overview',
     items: [
       { to: '/dashboard', icon: HomeIcon, label: 'Dashboard' },
+      { to: '/partners', icon: BuildingOfficeIcon, label: 'Partner Management' },
+      { to: '/partner-setup', icon: RocketLaunchIcon, label: 'Onboard Partner', role: 'ADMIN' },
+      { to: '/services', icon: CircleStackIcon, label: 'Services', role: 'ADMIN' },
       { to: '/journey', icon: DocumentTextIcon, label: 'Transfer Journey' },
       { to: '/activity', icon: WifiIcon, label: 'Live Activity' },
       { to: '/monitoring', icon: WifiIcon, label: 'Service Health' },

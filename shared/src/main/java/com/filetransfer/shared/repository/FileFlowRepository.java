@@ -31,6 +31,11 @@ public interface FileFlowRepository extends JpaRepository<FileFlow, UUID> {
 
     boolean existsByName(String name);
 
+    // Partner-scoped queries
+    List<FileFlow> findByPartnerId(UUID partnerId);
+
+    long countByPartnerId(UUID partnerId);
+
     @Query("SELECT f FROM FileFlow f " +
            "LEFT JOIN FETCH f.sourceAccount " +
            "LEFT JOIN FETCH f.destinationAccount " +
