@@ -28,7 +28,7 @@ public class ManagedKey {
     /** SSH_HOST_KEY, SSH_USER_KEY, PGP_PUBLIC, PGP_PRIVATE, PGP_KEYPAIR,
      *  AES_SYMMETRIC, TLS_CERTIFICATE, TLS_PRIVATE_KEY, TLS_KEYSTORE,
      *  HMAC_SECRET, API_KEY */
-    @Column(nullable = false, length = 20) private String keyType;
+    @Column(nullable = false, length = 30) private String keyType;
 
     /** Algorithm: RSA-2048, RSA-4096, EC-P256, AES-256, ED25519, PGP, X509 */
     private String algorithm;

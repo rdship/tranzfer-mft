@@ -626,6 +626,134 @@ curl -X DELETE http://localhost:8080/api/partners/{id} \
   -H "Authorization: Bearer <JWT>"
 ```
 
+### Keystore Manager API (port 8093)
+
+**Generate PGP keypair:**
+```bash
+curl -X POST http://localhost:8093/api/v1/keys/generate/pgp \
+  -H "Content-Type: application/json" \
+  -d '{"alias":"partner-acme-pgp","identity":"Acme Corp <sec@acme.com>","passphrase":"strong-pass"}'
+```
+
+**Generate SSH host key:**
+```bash
+curl -X POST http://localhost:8093/api/v1/keys/generate/ssh-host \
+  -H "Content-Type: application/json" \
+  -d '{"alias":"sftp-host-prod","ownerService":"sftp-service"}'
+```
+
+**Generate TLS certificate:**
+```bash
+curl -X POST http://localhost:8093/api/v1/keys/generate/tls \
+  -H "Content-Type: application/json" \
+  -d '{"alias":"tls-gateway","cn":"mft.company.com","validDays":"365"}'
+```
+
+**Import a key:**
+```bash
+curl -X POST http://localhost:8093/api/v1/keys/import \
+  -H "Content-Type: application/json" \
+  -d '{"alias":"partner-pgp-pub","keyType":"PGP_PUBLIC","keyMaterial":"-----BEGIN PGP PUBLIC KEY BLOCK-----\n...","description":"ACME PGP public key","ownerService":"sftp-service","partnerAccount":"acme-corp"}'
+```
+
+**Rotate a key:**
+```bash
+curl -X POST http://localhost:8093/api/v1/keys/sftp-host-prod/rotate \
+  -H "Content-Type: application/json" \
+  -d '{"newAlias":"sftp-host-prod-v2"}'
+```
+
+**Download public key:**
+```bash
+curl -O http://localhost:8093/api/v1/keys/partner-acme-pgp/download?part=public
+```
+
+**Deactivate a key:**
+```bash
+curl -X DELETE http://localhost:8093/api/v1/keys/old-key-alias
+```
+
+**View key statistics:**
+```bash
+curl http://localhost:8093/api/v1/keys/stats
+```
+
+**Check expiring keys:**
+```bash
+curl http://localhost:8093/api/v1/keys/expiring?days=30
+```
+
+### Gateway Service API (port 8085)
+
+**Get gateway status:**
+```bash
+curl http://localhost:8085/internal/gateway/status
+```
+
+**Get full route table:**
+```bash
+curl http://localhost:8085/internal/gateway/routes
+```
+
+**Get gateway statistics:**
+```bash
+curl http://localhost:8085/internal/gateway/stats
+```
+
+**List legacy server fallbacks:**
+```bash
+curl http://localhost:8085/internal/gateway/legacy-servers
+curl http://localhost:8085/internal/gateway/legacy-servers?protocol=SFTP
+```
+
+### DMZ Proxy API (port 8088)
+
+**Get proxy health:**
+```bash
+curl http://localhost:8088/api/proxy/health
+```
+
+**List port mappings (requires control key):**
+```bash
+curl -H "X-Internal-Key: internal_control_secret" http://localhost:8088/api/proxy/mappings
+```
+
+**Add a port mapping:**
+```bash
+curl -X POST http://localhost:8088/api/proxy/mappings \
+  -H "Content-Type: application/json" \
+  -H "X-Internal-Key: internal_control_secret" \
+  -d '{"name":"sftp-partner","listenPort":3333,"targetHost":"gateway-service","targetPort":2220}'
+```
+
+**Remove a port mapping:**
+```bash
+curl -X DELETE -H "X-Internal-Key: internal_control_secret" \
+  http://localhost:8088/api/proxy/mappings/sftp-partner
+```
+
+**Get security stats:**
+```bash
+curl -H "X-Internal-Key: internal_control_secret" http://localhost:8088/api/proxy/security/stats
+```
+
+**Get per-IP intelligence:**
+```bash
+curl -H "X-Internal-Key: internal_control_secret" http://localhost:8088/api/proxy/security/ip/203.0.113.5
+```
+
+### External Forwarder API (port 8087)
+
+**Check active transfers:**
+```bash
+curl http://localhost:8087/api/forward/transfers/active
+```
+
+**Forwarder health:**
+```bash
+curl http://localhost:8087/api/forward/health
+```
+
 ---
 
 ## Database Migrations

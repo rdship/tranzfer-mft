@@ -39,3 +39,4 @@ export const analyticsApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'htt
 export const licenseApi = axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8089' })
 export const gatewayApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8085' }))
 export const dmzApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8088' }))
+export const keystoreApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8093' }))

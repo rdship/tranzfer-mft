@@ -74,6 +74,41 @@ public class ForwarderController {
     /** Port counter for dynamic DMZ proxy mappings (range 40000-49999) */
     private final AtomicInteger dmzPortCounter = new AtomicInteger(40000);
 
+    // --- Active Transfer Monitoring ---
+
+    @GetMapping("/transfers/active")
+    public Map<String, Object> activeTransfers() {
+        var sessions = transferWatchdog.getActiveSessions();
+        var transfers = sessions.values().stream().map(s -> {
+            Map<String, Object> t = new LinkedHashMap<>();
+            t.put("transferId", s.getTransferId());
+            t.put("endpoint", s.getEndpointName());
+            t.put("filename", s.getFilename());
+            t.put("totalBytes", s.getTotalBytes());
+            t.put("bytesTransferred", s.getBytesTransferred());
+            t.put("progressPercent", s.getProgressPercent());
+            t.put("elapsedSeconds", s.getElapsedSeconds());
+            t.put("idleSeconds", s.getIdleSeconds());
+            t.put("stalled", s.isStalled());
+            return t;
+        }).toList();
+        return Map.of(
+                "activeCount", sessions.size(),
+                "stallTimeoutSeconds", transferWatchdog.getStallTimeoutSeconds(),
+                "transfers", transfers
+        );
+    }
+
+    @GetMapping("/health")
+    public Map<String, Object> health() {
+        return Map.of(
+                "status", "UP",
+                "service", "external-forwarder",
+                "activeTransfers", transferWatchdog.getActiveTransferCount(),
+                "stallTimeoutSeconds", transferWatchdog.getStallTimeoutSeconds()
+        );
+    }
+
     @PostMapping(value = "/{destinationId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.ACCEPTED)
     public Map<String, String> forward(@PathVariable UUID destinationId,

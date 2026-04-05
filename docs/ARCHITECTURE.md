@@ -12,10 +12,11 @@ This document explains how TranzFer's 20 microservices fit together, how data fl
 4. [Data Flow: File Transfer](#data-flow-file-transfer)
 5. [Data Flow: Security (DMZ)](#data-flow-security-dmz)
 6. [Partner Management](#partner-management)
-7. [Database Architecture](#database-architecture)
-8. [Messaging Architecture](#messaging-architecture)
-9. [Deployment Topologies](#deployment-topologies)
-10. [Network Diagram](#network-diagram)
+7. [Keystore Manager](#keystore-manager)
+8. [Database Architecture](#database-architecture)
+9. [Messaging Architecture](#messaging-architecture)
+10. [Deployment Topologies](#deployment-topologies)
+11. [Network Diagram](#network-diagram)
 
 ---
 
@@ -438,6 +439,126 @@ All endpoints are served by the `PartnerManagementController` on the **onboardin
 | `/partners/:id` | Partner Detail | 5-tab view: Overview, Accounts, Flows, Endpoints, Settings |
 | `/partner-setup` | Partner Onboarding Wizard | 6-step wizard for onboarding new partners |
 | `/services` | Service Management | Microservice health dashboard with architecture overview |
+
+---
+
+## Keystore Manager
+
+The **Keystore Manager** (port 8093) is the centralized PKI and key management service. All other services request keys through `KeystoreServiceClient` instead of managing keys locally.
+
+### Supported Key Types
+
+| Key Type | Algorithm | Use Case |
+|----------|-----------|----------|
+| `SSH_HOST_KEY` | EC P-256 | SFTP/SSH server identity |
+| `SSH_USER_KEY` | RSA-2048/4096 | Partner authentication |
+| `PGP_KEYPAIR` | RSA-4096 | File signing & encryption |
+| `PGP_PUBLIC` | — | Partner's PGP public key (imported) |
+| `PGP_PRIVATE` | — | PGP decryption key (imported) |
+| `AES_SYMMETRIC` | AES-256 | File-level encryption |
+| `TLS_CERTIFICATE` | RSA-2048 | HTTPS/TLS endpoints |
+| `TLS_KEYSTORE` | — | Java keystore (JKS/PKCS12) |
+| `HMAC_SECRET` | HmacSHA256 | Message signing & webhook verification |
+| `API_KEY` | — | Inter-service authentication |
+
+### Key Lifecycle
+
+```
+Generate/Import → Active → Rotate (deactivate old → generate new)
+                        └→ Deactivate (soft-delete)
+```
+
+- Keys are **never hard-deleted** — deactivated keys retain `rotatedToAlias` pointers for audit
+- Daily scheduled job (8am UTC, ShedLock-protected) warns about keys expiring within 30 days
+- Auto-rotation supported for: `AES_SYMMETRIC`, `SSH_HOST_KEY`, `HMAC_SECRET`
+
+### Keystore Manager API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/keys` | List active keys (filter: `?type=`, `?service=`, `?partner=`) |
+| GET | `/api/v1/keys/{alias}` | Get full key details |
+| GET | `/api/v1/keys/{alias}/public` | Get public key material (PEM, safe to share) |
+| GET | `/api/v1/keys/{alias}/download?part=public\|private` | Download key as file |
+| POST | `/api/v1/keys/generate/ssh-host` | Generate SSH host key |
+| POST | `/api/v1/keys/generate/ssh-user` | Generate SSH user key |
+| POST | `/api/v1/keys/generate/pgp` | Generate PGP keypair (RSA-4096) |
+| POST | `/api/v1/keys/generate/aes` | Generate AES-256 symmetric key |
+| POST | `/api/v1/keys/generate/tls` | Generate self-signed TLS certificate |
+| POST | `/api/v1/keys/generate/hmac` | Generate HMAC-SHA256 key |
+| POST | `/api/v1/keys/import` | Import existing key/certificate |
+| POST | `/api/v1/keys/{alias}/rotate` | Rotate a key |
+| DELETE | `/api/v1/keys/{alias}` | Deactivate (soft-delete) a key |
+| GET | `/api/v1/keys/stats` | Key statistics (by type, service, expiring) |
+| GET | `/api/v1/keys/expiring?days=30` | List keys expiring within N days |
+| GET | `/api/v1/keys/types` | List all supported key types |
+| GET | `/api/v1/keys/health` | Health check with key counts |
+
+### Admin UI — Keystore Manager Page
+
+| Feature | Description |
+|---------|-------------|
+| Stats Dashboard | Total active keys, counts by category (Protocol, Encryption, Certificate, Signing) |
+| Key List | Searchable, filterable table with type icons, fingerprints, expiry warnings |
+| Generate Wizard | 2-step: select key type card → fill type-specific form |
+| Import Key | Paste PEM or upload file, select type, assign owner/partner |
+| Key Detail Modal | Full metadata, public key viewer, copy-to-clipboard, download (public/private) |
+| Rotate | Confirmation dialog, generates replacement, deactivates old key |
+| Deactivate | Confirmation dialog, soft-deletes key |
+| Expiry Alerts | Banner showing keys expiring within 30 days with quick-rotate action |
+
+---
+
+## Network & Proxy Management
+
+The platform has three proxy-layer services that form the inbound/outbound network path:
+
+| Service | Port | Role |
+|---------|------|------|
+| **DMZ Proxy** | 8088 (mgmt), 2222/21/443 (traffic) | AI-powered reverse proxy in DMZ zone |
+| **Gateway Service** | 8085 (mgmt), 2220/2121 (traffic) | Protocol gateway with user-based routing |
+| **External Forwarder** | 8087 | Multi-protocol outbound file delivery |
+
+### Gateway Service API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/internal/gateway/status` | Gateway ports and running state |
+| GET | `/internal/gateway/routes` | Full route table (default + instance + legacy) |
+| GET | `/internal/gateway/stats` | Gateway statistics (instances, accounts, protocols) |
+| GET | `/internal/gateway/legacy-servers` | Legacy server fallback configurations |
+
+### DMZ Proxy API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/proxy/mappings` | List all port mappings with live stats |
+| POST | `/api/proxy/mappings` | Hot-add a new port mapping |
+| DELETE | `/api/proxy/mappings/{name}` | Remove a port mapping |
+| GET | `/api/proxy/health` | Health check with features list |
+| GET | `/api/proxy/security/stats` | Full security metrics dump |
+| GET | `/api/proxy/security/connections` | Connection tracker statistics |
+| GET | `/api/proxy/security/ip/{ip}` | Per-IP security intelligence |
+| GET | `/api/proxy/security/rate-limits` | Rate limiter state |
+| GET | `/api/proxy/security/summary` | Quick security summary |
+
+### External Forwarder API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/forward/transfers/active` | Active transfer monitoring (real-time) |
+| GET | `/api/forward/health` | Forwarder health with active transfer count |
+| POST | `/api/forward/{destinationId}` | Forward file to legacy destination |
+| POST | `/api/forward/deliver/{endpointId}` | Deliver file via modern endpoint |
+
+### Admin UI — Network & Proxy Page
+
+| Tab | Features |
+|-----|----------|
+| **Overview** | Architecture diagram, route table (internal/instance/legacy), DMZ mapping preview |
+| **DMZ Security** | Connection stats, AI verdict breakdown, throughput, protocol distribution, cache hit rate |
+| **Port Mappings** | Manage DMZ port forwarding rules (add/remove), live connection counts, bytes forwarded |
+| **Active Transfers** | Real-time transfer monitoring with progress bars, stall detection, bytes/percentage tracking |
 
 ---
 

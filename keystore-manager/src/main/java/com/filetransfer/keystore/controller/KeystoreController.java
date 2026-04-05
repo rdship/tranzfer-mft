@@ -73,6 +73,14 @@ public class KeystoreController {
         return created(keyService.generateHmacKey(body.get("alias"), body.get("ownerService")));
     }
 
+    // === Generate PGP ===
+
+    @PostMapping("/generate/pgp")
+    public ResponseEntity<ManagedKey> generatePgp(@RequestBody Map<String, String> body) throws Exception {
+        String passphrase = body.getOrDefault("passphrase", "");
+        return created(keyService.generatePgpKeypair(body.get("alias"), body.get("identity"), passphrase));
+    }
+
     // === Import ===
 
     @PostMapping("/import")
@@ -88,6 +96,52 @@ public class KeystoreController {
     public ResponseEntity<ManagedKey> rotateKey(@PathVariable String alias, @RequestBody Map<String, String> body) throws Exception {
         String newAlias = body.getOrDefault("newAlias", alias + "-" + System.currentTimeMillis());
         return ResponseEntity.ok(keyService.rotateKey(alias, newAlias));
+    }
+
+    // === Deactivate ===
+
+    @DeleteMapping("/{alias}")
+    public ResponseEntity<ManagedKey> deactivateKey(@PathVariable String alias) {
+        return ResponseEntity.ok(keyService.deactivateKey(alias));
+    }
+
+    // === Download key material as file ===
+
+    @GetMapping("/{alias}/download")
+    public ResponseEntity<byte[]> downloadKey(@PathVariable String alias,
+                                               @RequestParam(defaultValue = "public") String part) {
+        return keyService.getKey(alias).map(key -> {
+            String material;
+            String filename;
+            if ("private".equals(part) && key.getKeyMaterial() != null) {
+                material = key.getKeyMaterial();
+                filename = alias + "-private.pem";
+            } else if (key.getPublicKeyMaterial() != null) {
+                material = key.getPublicKeyMaterial();
+                filename = alias + "-public.pem";
+            } else {
+                material = key.getKeyMaterial();
+                filename = alias + ".key";
+            }
+            return ResponseEntity.ok()
+                    .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .body(material.getBytes());
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    // === Statistics ===
+
+    @GetMapping("/stats")
+    public Map<String, Object> stats() {
+        return keyService.getKeyStats();
+    }
+
+    // === Expiring keys ===
+
+    @GetMapping("/expiring")
+    public List<ManagedKey> expiringKeys(@RequestParam(defaultValue = "30") int days) {
+        return keyService.getExpiringKeys(days);
     }
 
     // === Health ===
@@ -108,6 +162,7 @@ public class KeystoreController {
                 Map.of("type", "SSH_USER_KEY", "description", "SFTP user authentication key"),
                 Map.of("type", "PGP_PUBLIC", "description", "PGP public key for encryption"),
                 Map.of("type", "PGP_PRIVATE", "description", "PGP private key for decryption"),
+                Map.of("type", "PGP_KEYPAIR", "description", "PGP keypair for sign + encrypt"),
                 Map.of("type", "AES_SYMMETRIC", "description", "AES-256 symmetric encryption key"),
                 Map.of("type", "TLS_CERTIFICATE", "description", "X.509 TLS certificate + private key"),
                 Map.of("type", "TLS_KEYSTORE", "description", "Java keystore (JKS/PKCS12)"),

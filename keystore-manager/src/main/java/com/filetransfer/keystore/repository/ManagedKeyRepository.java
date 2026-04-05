@@ -16,4 +16,7 @@ public interface ManagedKeyRepository extends JpaRepository<ManagedKey, UUID> {
     List<ManagedKey> findByActiveTrueAndExpiresAtBefore(Instant date);
     List<ManagedKey> findByActiveTrue();
     boolean existsByAlias(String alias);
+    long countByActiveTrue();
+    long countByKeyTypeAndActiveTrue(String keyType);
+    List<ManagedKey> findByRotatedToAliasIsNotNullAndActiveFalse();
 }

@@ -137,6 +137,19 @@ public class KeystoreServiceClient extends BaseServiceClient {
         }
     }
 
+    /** Generate and store a PGP keypair. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> generatePgpKeypair(String alias, String identity, String passphrase) {
+        try {
+            return post("/api/v1/keys/generate/pgp",
+                    Map.of("alias", alias, "identity", identity,
+                           "passphrase", passphrase != null ? passphrase : ""), Map.class);
+        } catch (Exception e) {
+            log.warn("Could not generate PGP keypair in Keystore Manager: {}", e.getMessage());
+            return null;
+        }
+    }
+
     // ── Key import and rotation ─────────────────────────────────────────
 
     /** Import an existing key into the Keystore Manager. */
@@ -162,6 +175,17 @@ public class KeystoreServiceClient extends BaseServiceClient {
         } catch (Exception e) {
             log.warn("Could not rotate key '{}': {}", alias, e.getMessage());
             return null;
+        }
+    }
+
+    /** Deactivate a key by alias. */
+    public boolean deactivateKey(String alias) {
+        try {
+            delete("/api/v1/keys/" + alias);
+            return true;
+        } catch (Exception e) {
+            log.warn("Could not deactivate key '{}': {}", alias, e.getMessage());
+            return false;
         }
     }
 

@@ -5,6 +5,7 @@ import com.filetransfer.keystore.repository.ManagedKeyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.openpgp.*;
+import org.bouncycastle.openpgp.operator.PGPDigestCalculator;
 import org.bouncycastle.openpgp.operator.jcajce.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -109,6 +110,53 @@ public class KeyManagementService {
                 .build());
     }
 
+    // === PGP Key Generation ===
+
+    public ManagedKey generatePgpKeypair(String alias, String identity, String passphrase) throws Exception {
+        Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
+
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", "BC");
+        kpg.initialize(4096, new SecureRandom());
+        KeyPair kp = kpg.generateKeyPair();
+
+        PGPKeyPair pgpKeyPair = new JcaPGPKeyPair(PGPPublicKey.RSA_GENERAL, kp, new Date());
+
+        // Build secret key
+        PGPDigestCalculator sha1Calc = new JcaPGPDigestCalculatorProviderBuilder().build()
+                .get(org.bouncycastle.bcpg.HashAlgorithmTags.SHA1);
+        PGPSecretKey secretKey = new PGPSecretKey(
+                PGPSignature.DEFAULT_CERTIFICATION, pgpKeyPair, identity, sha1Calc,
+                null, null,
+                new JcaPGPContentSignerBuilder(pgpKeyPair.getPublicKey().getAlgorithm(),
+                        org.bouncycastle.bcpg.HashAlgorithmTags.SHA256),
+                new JcePBESecretKeyEncryptorBuilder(
+                        org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags.AES_256, sha1Calc)
+                        .setProvider("BC").build(passphrase.toCharArray()));
+
+        // Export armored public key
+        ByteArrayOutputStream pubOut = new ByteArrayOutputStream();
+        try (org.bouncycastle.bcpg.ArmoredOutputStream armoredPub = new org.bouncycastle.bcpg.ArmoredOutputStream(pubOut)) {
+            secretKey.getPublicKey().encode(armoredPub);
+        }
+        String publicArmored = pubOut.toString();
+
+        // Export armored private key
+        ByteArrayOutputStream privOut = new ByteArrayOutputStream();
+        try (org.bouncycastle.bcpg.ArmoredOutputStream armoredPriv = new org.bouncycastle.bcpg.ArmoredOutputStream(privOut)) {
+            secretKey.encode(armoredPriv);
+        }
+        String privateArmored = privOut.toString();
+
+        String fingerprint = sha256Fingerprint(kp.getPublic().getEncoded());
+
+        return save(ManagedKey.builder()
+                .alias(alias).keyType("PGP_KEYPAIR").algorithm("RSA-4096")
+                .keyMaterial(privateArmored).publicKeyMaterial(publicArmored)
+                .fingerprint(fingerprint).keySizeBits(4096)
+                .description("PGP keypair for " + identity)
+                .build());
+    }
+
     // === Key Import ===
 
     public ManagedKey importKey(String alias, String keyType, String material, String description,
@@ -147,6 +195,51 @@ public class KeyManagementService {
 
     public List<ManagedKey> getAllActiveKeys() {
         return keyRepository.findByActiveTrue();
+    }
+
+    // === Key Deactivation ===
+
+    public ManagedKey deactivateKey(String alias) {
+        ManagedKey key = keyRepository.findByAliasAndActiveTrue(alias)
+                .orElseThrow(() -> new IllegalArgumentException("Key not found: " + alias));
+        key.setActive(false);
+        keyRepository.save(key);
+        log.info("Key deactivated: alias={} type={}", alias, key.getKeyType());
+        return key;
+    }
+
+    // === Statistics ===
+
+    public Map<String, Object> getKeyStats() {
+        List<ManagedKey> all = keyRepository.findByActiveTrue();
+        Map<String, Long> byType = new LinkedHashMap<>();
+        Map<String, Long> byService = new LinkedHashMap<>();
+        int expiringCount = 0;
+        Instant in30Days = Instant.now().plus(30, ChronoUnit.DAYS);
+
+        for (ManagedKey k : all) {
+            byType.merge(k.getKeyType(), 1L, Long::sum);
+            String owner = k.getOwnerService() != null ? k.getOwnerService() : "unassigned";
+            byService.merge(owner, 1L, Long::sum);
+            if (k.getExpiresAt() != null && k.getExpiresAt().isBefore(in30Days)) {
+                expiringCount++;
+            }
+        }
+
+        long rotatedCount = keyRepository.findByRotatedToAliasIsNotNullAndActiveFalse().size();
+
+        Map<String, Object> stats = new LinkedHashMap<>();
+        stats.put("totalActive", all.size());
+        stats.put("byType", byType);
+        stats.put("byService", byService);
+        stats.put("expiringSoon", expiringCount);
+        stats.put("rotatedKeys", rotatedCount);
+        return stats;
+    }
+
+    public List<ManagedKey> getExpiringKeys(int withinDays) {
+        Instant deadline = Instant.now().plus(withinDays, ChronoUnit.DAYS);
+        return keyRepository.findByActiveTrueAndExpiresAtBefore(deadline);
     }
 
     // === Key Rotation ===
