@@ -13,3 +13,5 @@ api:
   encryption-url: ${ENCRYPTION_API_URL:http://localhost:8086}
   forwarder-url: ${FORWARDER_API_URL:http://localhost:8087}
   dmz-url: ${DMZ_API_URL:http://localhost:8088}
+  license-url: ${LICENSE_API_URL:http://localhost:8089}
+  license-admin-key: ${LICENSE_ADMIN_KEY:license_admin_secret_key}

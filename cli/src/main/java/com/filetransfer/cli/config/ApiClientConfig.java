@@ -19,9 +19,13 @@ public class ApiClientConfig {
     private String encryptionUrl = "http://localhost:8086";
     private String forwarderUrl = "http://localhost:8087";
     private String dmzUrl = "http://localhost:8088";
+    private String licenseUrl = "http://localhost:8089";
 
     /** Stores the JWT token after login */
     private String authToken;
+
+    /** License admin key for admin operations */
+    private String licenseAdminKey;
 
     @Bean public WebClient onboardingClient() { return WebClient.builder().baseUrl(baseUrl).build(); }
     @Bean public WebClient configClient()     { return WebClient.builder().baseUrl(configUrl).build(); }
@@ -29,4 +33,5 @@ public class ApiClientConfig {
     @Bean public WebClient encryptionClient() { return WebClient.builder().baseUrl(encryptionUrl).build(); }
     @Bean public WebClient forwarderClient()  { return WebClient.builder().baseUrl(forwarderUrl).build(); }
     @Bean public WebClient dmzClient()        { return WebClient.builder().baseUrl(dmzUrl).build(); }
+    @Bean public WebClient licenseClient()    { return WebClient.builder().baseUrl(licenseUrl).build(); }
 }

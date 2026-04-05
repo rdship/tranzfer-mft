@@ -226,6 +226,21 @@ analyticsService:
     requests: { cpu: 250m, memory: 512Mi }
     limits: { cpu: 1, memory: 1Gi }
 
+as2Service:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: mft/as2-service
+  service:
+    type: ClusterIP
+    port: 8094
+  persistence:
+    enabled: true
+    size: 20Gi
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: 1, memory: 1Gi }
+
 aiEngine:
   enabled: true
   replicaCount: 1
