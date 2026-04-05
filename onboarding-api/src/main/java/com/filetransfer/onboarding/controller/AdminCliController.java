@@ -1,6 +1,8 @@
 package com.filetransfer.onboarding.controller;
 
+import com.filetransfer.shared.cluster.ClusterService;
 import com.filetransfer.shared.entity.*;
+import com.filetransfer.shared.enums.ClusterCommunicationMode;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.repository.*;
 import com.filetransfer.shared.util.TrackIdGenerator;
@@ -38,6 +40,8 @@ public class AdminCliController {
     private final FileFlowRepository flowRepository;
     private final FlowExecutionRepository flowExecutionRepository;
     private final TrackIdGenerator trackIdGenerator;
+    private final ClusterService clusterService;
+    private final ClusterNodeRepository clusterNodeRepository;
 
     @PostMapping("/execute")
     public ResponseEntity<Map<String, Object>> execute(@RequestBody Map<String, String> body) {
@@ -59,6 +63,7 @@ public class AdminCliController {
                 case "track" -> trackCommand(parts);
                 case "search" -> searchCommand(parts);
                 case "services" -> servicesCommand();
+                case "cluster" -> clusterCommand(parts);
                 case "logs" -> logsCommand(parts);
                 case "onboard" -> onboardCommand(parts);
                 case "whoami" -> "Admin CLI — TranzFer MFT Platform";
@@ -104,6 +109,14 @@ public class AdminCliController {
             SERVICES:
               services                     List registered service instances
 
+            CLUSTER:
+              cluster status               Show this instance's cluster info
+              cluster list                 List all known clusters
+              cluster services [id]        Services in a cluster
+              cluster mode                 Show current communication mode
+              cluster mode within          Set to within-cluster only
+              cluster mode cross           Set to cross-cluster (federated)
+
             LOGS:
               logs recent [N]              Show N most recent audit logs
               logs search <term>           Search audit logs
@@ -121,16 +134,22 @@ public class AdminCliController {
         long services = serviceRegistrationRepository.count();
         long flows = flowRepository.findByActiveTrueOrderByPriorityAsc().size();
         long executions = flowExecutionRepository.count();
+        List<String> clusters = clusterService.listClusters();
 
         return String.format("""
             === Platform Status ===
-            Users:           %d
-            Accounts:        %d active / %d total
-            Transfer Records: %d
-            Active Flows:    %d
-            Flow Executions: %d
-            Services:        %d registered
-            """, users, activeAccounts, accounts, transfers, flows, executions, services);
+            Users:             %d
+            Accounts:          %d active / %d total
+            Transfer Records:  %d
+            Active Flows:      %d
+            Flow Executions:   %d
+            Services:          %d registered
+            Cluster:           %s
+            Comm. Mode:        %s
+            Known Clusters:    %d (%s)
+            """, users, activeAccounts, accounts, transfers, flows, executions, services,
+                clusterService.getClusterId(), clusterService.getCommunicationMode(),
+                clusters.size(), String.join(", ", clusters));
     }
 
     private String accountsCommand(String[] parts) {
@@ -290,19 +309,124 @@ public class AdminCliController {
     private String servicesCommand() {
         List<ServiceRegistration> services = serviceRegistrationRepository.findAll();
         if (services.isEmpty()) return "No services registered.";
-        StringBuilder sb = new StringBuilder("Type | Host | Cluster | Active\n");
-        sb.append("-".repeat(50)).append("\n");
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("Communication mode: ").append(clusterService.getCommunicationMode())
+          .append(" (cluster: ").append(clusterService.getClusterId()).append(")\n\n");
+        sb.append("Type | Host | Cluster | Active\n");
+        sb.append("-".repeat(60)).append("\n");
         // Deduplicate by serviceInstanceId
         Map<String, ServiceRegistration> unique = new LinkedHashMap<>();
         for (ServiceRegistration s : services) {
             unique.put(s.getServiceType() + "@" + s.getHost(), s);
         }
         for (ServiceRegistration s : unique.values()) {
-            sb.append(String.format("%-12s | %-20s | %-12s | %s\n",
+            String marker = s.getClusterId().equals(clusterService.getClusterId()) ? "" : " *";
+            sb.append(String.format("%-12s | %-20s | %-12s | %s%s\n",
                     s.getServiceType(), s.getHost(), s.getClusterId(),
-                    s.isActive() ? "UP" : "DOWN"));
+                    s.isActive() ? "UP" : "DOWN", marker));
+        }
+        sb.append("\n* = different cluster");
+        return sb.toString();
+    }
+
+    private String clusterCommand(String[] parts) {
+        if (parts.length < 2) return clusterStatus();
+        String sub = parts[1].toLowerCase();
+        return switch (sub) {
+            case "status" -> clusterStatus();
+            case "list" -> clusterList();
+            case "services" -> clusterServices(parts.length >= 3 ? parts[2] : clusterService.getClusterId());
+            case "mode" -> {
+                if (parts.length >= 3) {
+                    yield clusterSetMode(parts[2]);
+                }
+                yield "Communication mode: " + clusterService.getCommunicationMode()
+                        + "\nCluster: " + clusterService.getClusterId();
+            }
+            default -> "Usage: cluster status | list | services [id] | mode [within|cross]";
+        };
+    }
+
+    private String clusterStatus() {
+        String clusterId = clusterService.getClusterId();
+        ClusterCommunicationMode mode = clusterService.getCommunicationMode();
+        List<ServiceRegistration> localServices = clusterService.getServicesInCluster(clusterId);
+        List<String> allClusters = clusterService.listClusters();
+
+        return String.format("""
+            === Cluster Status ===
+            Cluster ID:         %s
+            Instance ID:        %s
+            Communication Mode: %s
+            Services in cluster: %d
+            Known clusters:     %d (%s)
+            """, clusterId,
+                clusterService.getServiceInstanceId().substring(0, 8) + "...",
+                mode, localServices.size(), allClusters.size(),
+                String.join(", ", allClusters));
+    }
+
+    private String clusterList() {
+        List<ClusterNode> nodes = clusterNodeRepository.findByActiveTrue();
+        Map<String, Long> counts = clusterService.getClusterServiceCounts();
+        if (nodes.isEmpty()) return "No clusters registered.";
+
+        StringBuilder sb = new StringBuilder("Cluster ID | Name | Mode | Region | Services\n");
+        sb.append("-".repeat(70)).append("\n");
+        for (ClusterNode node : nodes) {
+            String marker = node.getClusterId().equals(clusterService.getClusterId()) ? " ◄" : "";
+            sb.append(String.format("%-16s | %-18s | %-14s | %-10s | %d%s\n",
+                    node.getClusterId(),
+                    node.getDisplayName() != null ? node.getDisplayName() : "—",
+                    node.getCommunicationMode(),
+                    node.getRegion() != null ? node.getRegion() : "—",
+                    counts.getOrDefault(node.getClusterId(), 0L),
+                    marker));
         }
         return sb.toString();
+    }
+
+    private String clusterServices(String clusterId) {
+        List<ServiceRegistration> services = clusterService.getServicesInCluster(clusterId);
+        if (services.isEmpty()) return "No active services in cluster: " + clusterId;
+
+        StringBuilder sb = new StringBuilder("Services in cluster '" + clusterId + "':\n");
+        sb.append("Type | Host | Port | Instance\n");
+        sb.append("-".repeat(60)).append("\n");
+        for (ServiceRegistration s : services) {
+            sb.append(String.format("%-12s | %-20s | %5d | %s\n",
+                    s.getServiceType(), s.getHost(), s.getControlPort(),
+                    s.getServiceInstanceId().substring(0, 8) + "..."));
+        }
+        return sb.toString();
+    }
+
+    private String clusterSetMode(String modeArg) {
+        ClusterCommunicationMode mode;
+        try {
+            mode = switch (modeArg.toLowerCase()) {
+                case "within", "within_cluster", "local" -> ClusterCommunicationMode.WITHIN_CLUSTER;
+                case "cross", "cross_cluster", "federated" -> ClusterCommunicationMode.CROSS_CLUSTER;
+                default -> ClusterCommunicationMode.valueOf(modeArg.toUpperCase());
+            };
+        } catch (IllegalArgumentException e) {
+            return "Invalid mode: " + modeArg + ". Use: within | cross";
+        }
+
+        clusterService.setCommunicationMode(mode);
+
+        // Persist to cluster_nodes table
+        clusterNodeRepository.findByClusterId(clusterService.getClusterId())
+                .ifPresent(node -> {
+                    node.setCommunicationMode(mode);
+                    clusterNodeRepository.save(node);
+                });
+
+        return "Communication mode set to: " + mode
+                + "\nCluster: " + clusterService.getClusterId()
+                + "\n\nNote: This affects routing on this instance immediately."
+                + "\nOther instances will pick up the change on next heartbeat cycle.";
     }
 
     private String logsCommand(String[] parts) {

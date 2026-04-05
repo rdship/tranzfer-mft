@@ -47,6 +47,8 @@ public class PlatformConfig {
         private String id = "default-cluster";
         private String host = "localhost";
         private String serviceType = "UNKNOWN";
+        /** WITHIN_CLUSTER = isolate to same cluster; CROSS_CLUSTER = federate across clusters */
+        private String communicationMode = "WITHIN_CLUSTER";
     }
 
     @Getter @Setter

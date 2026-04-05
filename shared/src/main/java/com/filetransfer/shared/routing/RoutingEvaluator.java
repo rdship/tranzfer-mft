@@ -1,5 +1,6 @@
 package com.filetransfer.shared.routing;
 
+import com.filetransfer.shared.cluster.ClusterService;
 import com.filetransfer.shared.entity.*;
 import com.filetransfer.shared.enums.FileTransferStatus;
 import com.filetransfer.shared.enums.ServiceType;
@@ -28,7 +29,7 @@ public class RoutingEvaluator {
 
     private final FolderMappingRepository mappingRepository;
     private final FileTransferRecordRepository recordRepository;
-    private final ServiceRegistrationRepository serviceRegistrationRepository;
+    private final ClusterService clusterService;
 
     @Data
     @Builder
@@ -73,12 +74,12 @@ public class RoutingEvaluator {
             recordRepository.save(record);
 
             ServiceType destServiceType = protocolToServiceType(dest.getProtocol());
-            ServiceRegistration destService = serviceRegistrationRepository
-                    .findByServiceTypeAndActiveTrue(destServiceType)
-                    .stream().findFirst().orElse(null);
+            ServiceRegistration destService = clusterService.discoverService(destServiceType)
+                    .orElse(null);
 
             if (destService == null) {
-                log.warn("No active {} service found for routing record={}", destServiceType, record.getId());
+                log.warn("No active {} service found for routing record={} (mode={})",
+                        destServiceType, record.getId(), clusterService.getCommunicationMode());
             }
 
             decisions.add(RoutingDecision.builder()

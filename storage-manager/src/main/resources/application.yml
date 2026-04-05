@@ -67,6 +67,7 @@ cluster:
   id: ${CLUSTER_ID:default-cluster}
   host: ${CLUSTER_HOST:storage-manager}
   service-type: STORAGE
+  communication-mode: ${CLUSTER_COMM_MODE:WITHIN_CLUSTER}
 
 platform:
   environment: ${PLATFORM_ENVIRONMENT:PROD}

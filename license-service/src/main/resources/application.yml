@@ -50,6 +50,12 @@ management:
       prometheus:
         enabled: true
 
+cluster:
+  id: ${CLUSTER_ID:default-cluster}
+  host: ${CLUSTER_HOST:license-service}
+  service-type: LICENSE
+  communication-mode: ${CLUSTER_COMM_MODE:WITHIN_CLUSTER}
+
 license:
   trial-days: 30
   issuer-name: "TranzFer MFT Platform"

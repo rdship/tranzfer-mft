@@ -13,6 +13,7 @@ x-common-env: &common-env
   JWT_SECRET: ${JWT_SECRET:-change_me_in_production_256bit_secret_key!!}
   CONTROL_API_KEY: ${CONTROL_API_KEY:-internal_control_secret}
   CLUSTER_ID: ${CLUSTER_ID:-cluster-1}
+  CLUSTER_COMM_MODE: ${CLUSTER_COMM_MODE:-WITHIN_CLUSTER}
   TRACK_ID_PREFIX: ${TRACK_ID_PREFIX:-TRZ}
   PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-PROD}
 

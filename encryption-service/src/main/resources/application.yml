@@ -50,6 +50,7 @@ cluster:
   id: ${CLUSTER_ID:default-cluster}
   host: ${CLUSTER_HOST:localhost}
   service-type: ENCRYPTION
+  communication-mode: ${CLUSTER_COMM_MODE:WITHIN_CLUSTER}
 
 encryption:
   master-key: ${ENCRYPTION_MASTER_KEY:0000000000000000000000000000000000000000000000000000000000000000}

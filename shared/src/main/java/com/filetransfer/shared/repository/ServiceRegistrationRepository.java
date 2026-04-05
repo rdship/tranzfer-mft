@@ -17,6 +17,23 @@ public interface ServiceRegistrationRepository extends JpaRepository<ServiceRegi
 
     List<ServiceRegistration> findByServiceTypeAndActiveTrue(ServiceType serviceType);
 
+    /** Find active services of a given type within a specific cluster */
+    List<ServiceRegistration> findByServiceTypeAndClusterIdAndActiveTrue(ServiceType serviceType, String clusterId);
+
+    /** Find all active services in a specific cluster */
+    List<ServiceRegistration> findByClusterIdAndActiveTrue(String clusterId);
+
+    /** Find all active services across all clusters */
+    List<ServiceRegistration> findByActiveTrue();
+
+    /** Get distinct cluster IDs from active registrations */
+    @Query("SELECT DISTINCT s.clusterId FROM ServiceRegistration s WHERE s.active = true ORDER BY s.clusterId")
+    List<String> findDistinctActiveClusterIds();
+
+    /** Count active services per cluster */
+    @Query("SELECT s.clusterId, COUNT(s) FROM ServiceRegistration s WHERE s.active = true GROUP BY s.clusterId")
+    List<Object[]> countActiveByCluster();
+
     @Modifying
     @Query("UPDATE ServiceRegistration s SET s.lastHeartbeat = :ts WHERE s.serviceInstanceId = :id")
     void updateHeartbeat(String id, Instant ts);

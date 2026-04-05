@@ -75,3 +75,4 @@ cluster:
   id: ${CLUSTER_ID:default-cluster}
   host: ${CLUSTER_HOST:ai-engine}
   service-type: AI_ENGINE
+  communication-mode: ${CLUSTER_COMM_MODE:WITHIN_CLUSTER}

@@ -1,7 +1,7 @@
 package com.filetransfer.shared.routing;
 
 import com.filetransfer.shared.audit.AuditService;
-import com.filetransfer.shared.cluster.ClusterContext;
+import com.filetransfer.shared.cluster.ClusterService;
 import com.filetransfer.shared.connector.ConnectorDispatcher;
 import com.filetransfer.shared.dto.FileForwardRequest;
 import com.filetransfer.shared.entity.*;
@@ -36,7 +36,7 @@ public class RoutingEngine {
 
     private final RoutingEvaluator evaluator;
     private final FileTransferRecordRepository recordRepository;
-    private final ClusterContext clusterContext;
+    private final ClusterService clusterService;
     private final RestTemplate restTemplate;
     private final TrackIdGenerator trackIdGenerator;
     private final FlowProcessingEngine flowEngine;
@@ -262,7 +262,7 @@ public class RoutingEngine {
     }
 
     private boolean isLocalService(ServiceRegistration service) {
-        return service.getServiceInstanceId().equals(clusterContext.getServiceInstanceId());
+        return clusterService.isLocalService(service);
     }
 
     @Transactional

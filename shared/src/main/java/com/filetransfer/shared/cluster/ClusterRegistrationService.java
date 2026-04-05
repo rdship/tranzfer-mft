@@ -1,7 +1,10 @@
 package com.filetransfer.shared.cluster;
 
+import com.filetransfer.shared.entity.ClusterNode;
 import com.filetransfer.shared.entity.ServiceRegistration;
+import com.filetransfer.shared.enums.ClusterCommunicationMode;
 import com.filetransfer.shared.enums.ServiceType;
+import com.filetransfer.shared.repository.ClusterNodeRepository;
 import com.filetransfer.shared.repository.ServiceRegistrationRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -28,6 +31,7 @@ import java.util.UUID;
 public class ClusterRegistrationService {
 
     private final ServiceRegistrationRepository repository;
+    private final ClusterNodeRepository clusterNodeRepository;
     private final ClusterContext clusterContext;
 
     @Value("${cluster.id:default-cluster}")
@@ -41,6 +45,9 @@ public class ClusterRegistrationService {
 
     @Value("${server.port:8080}")
     private int controlPort;
+
+    @Value("${cluster.communication-mode:WITHIN_CLUSTER}")
+    private String communicationModeStr;
 
     private String serviceInstanceId;
 
@@ -64,8 +71,33 @@ public class ClusterRegistrationService {
         clusterContext.setServiceInstanceId(serviceInstanceId);
         clusterContext.setClusterId(clusterId);
 
-        log.info("Registered service instance: id={} cluster={} type={} host={}:{}",
-                serviceInstanceId, clusterId, serviceType, host, controlPort);
+        ClusterCommunicationMode mode;
+        try {
+            mode = ClusterCommunicationMode.valueOf(communicationModeStr.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid cluster.communication-mode '{}', defaulting to WITHIN_CLUSTER", communicationModeStr);
+            mode = ClusterCommunicationMode.WITHIN_CLUSTER;
+        }
+        clusterContext.setCommunicationMode(mode);
+
+        // Ensure this cluster is registered in the cluster_nodes table
+        ensureClusterNodeExists(mode);
+
+        log.info("Registered service instance: id={} cluster={} type={} host={}:{} mode={}",
+                serviceInstanceId, clusterId, serviceType, host, controlPort, mode);
+    }
+
+    private void ensureClusterNodeExists(ClusterCommunicationMode mode) {
+        if (!clusterNodeRepository.existsByClusterId(clusterId)) {
+            ClusterNode node = ClusterNode.builder()
+                    .clusterId(clusterId)
+                    .displayName(clusterId)
+                    .description("Auto-registered by " + serviceType + " service")
+                    .communicationMode(mode)
+                    .build();
+            clusterNodeRepository.save(node);
+            log.info("Auto-registered cluster node: {}", clusterId);
+        }
     }
 
     @Scheduled(fixedDelay = 30_000)
@@ -74,6 +106,15 @@ public class ClusterRegistrationService {
         repository.updateHeartbeat(serviceInstanceId, Instant.now());
         // deactivate any instances that haven't heartbeated in 2 minutes
         repository.deactivateStale(Instant.now().minus(2, ChronoUnit.MINUTES));
+
+        // Sync communication mode from cluster_nodes table (picks up admin changes)
+        clusterNodeRepository.findByClusterId(clusterId).ifPresent(node -> {
+            if (node.getCommunicationMode() != clusterContext.getCommunicationMode()) {
+                log.info("Communication mode synced from cluster_nodes: {} -> {}",
+                        clusterContext.getCommunicationMode(), node.getCommunicationMode());
+                clusterContext.setCommunicationMode(node.getCommunicationMode());
+            }
+        });
     }
 
     @PreDestroy

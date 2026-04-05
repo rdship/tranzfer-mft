@@ -49,6 +49,7 @@ cluster:
   id: ${CLUSTER_ID:default-cluster}
   host: ${CLUSTER_HOST:localhost}
   service-type: CONFIG
+  communication-mode: ${CLUSTER_COMM_MODE:WITHIN_CLUSTER}
 
 rabbitmq:
   exchange: file-transfer.events

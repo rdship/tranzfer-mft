@@ -62,6 +62,7 @@ cluster:
   id: ${CLUSTER_ID:default-cluster}
   host: ${CLUSTER_HOST:localhost}
   service-type: GATEWAY
+  communication-mode: ${CLUSTER_COMM_MODE:WITHIN_CLUSTER}
 
 control-api:
   key: ${CONTROL_API_KEY:internal_control_secret}
