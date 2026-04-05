@@ -81,9 +81,10 @@ public class ForwarderController {
     @PostMapping(value = "/deliver/{endpointId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.ACCEPTED)
     public Map<String, String> deliverFile(@PathVariable UUID endpointId,
-                                            @RequestPart("file") MultipartFile file) throws Exception {
+                                            @RequestPart("file") MultipartFile file,
+                                            @RequestParam(required = false) String trackId) throws Exception {
         DeliveryEndpoint ep = findEndpoint(endpointId);
-        dispatchDelivery(ep, file.getOriginalFilename(), file.getBytes());
+        dispatchDelivery(ep, file.getOriginalFilename(), file.getBytes(), trackId);
         return Map.of("status", "delivered", "endpoint", ep.getName(),
                 "protocol", ep.getProtocol().name(), "file", file.getOriginalFilename());
     }
@@ -92,21 +93,22 @@ public class ForwarderController {
     @ResponseStatus(HttpStatus.ACCEPTED)
     public Map<String, String> deliverBase64(@PathVariable UUID endpointId,
                                               @RequestParam String filename,
+                                              @RequestParam(required = false) String trackId,
                                               @RequestBody String base64Content) throws Exception {
         DeliveryEndpoint ep = findEndpoint(endpointId);
         byte[] bytes = Base64.getDecoder().decode(base64Content);
-        dispatchDelivery(ep, filename, bytes);
+        dispatchDelivery(ep, filename, bytes, trackId);
         return Map.of("status", "delivered", "endpoint", ep.getName(),
                 "protocol", ep.getProtocol().name(), "file", filename);
     }
 
-    private void dispatchDelivery(DeliveryEndpoint ep, String filename, byte[] bytes) throws Exception {
+    private void dispatchDelivery(DeliveryEndpoint ep, String filename, byte[] bytes, String trackId) throws Exception {
         boolean useDmzProxy = ep.isProxyEnabled() && "DMZ".equalsIgnoreCase(ep.getProxyType());
         String dmzMappingName = null;
 
-        log.info("Delivering {} ({} bytes) → '{}' [{}://{}:{}] proxy={}",
+        log.info("Delivering {} ({} bytes) → '{}' [{}://{}:{}] proxy={} trackId={}",
                 filename, bytes.length, ep.getName(), ep.getProtocol(),
-                ep.getHost(), ep.getPort(), ep.isProxyEnabled() ? ep.getProxyType() : "NONE");
+                ep.getHost(), ep.getPort(), ep.isProxyEnabled() ? ep.getProxyType() : "NONE", trackId);
 
         // If DMZ proxy is selected, hot-add a temporary port mapping so traffic
         // flows through the DMZ zone instead of going direct
@@ -133,8 +135,8 @@ public class ForwarderController {
                         case FTP -> ftpForwarder.forward(toExternalDest(effective), filename, bytes);
                         case FTPS -> ftpsForwarder.forward(effective, filename, bytes);
                         case HTTP, HTTPS, API -> httpForwarder.forward(effective, filename, bytes);
-                        case AS2 -> dispatchAs2(effective, filename, bytes);
-                        case AS4 -> dispatchAs4(effective, filename, bytes);
+                        case AS2 -> dispatchAs2(effective, filename, bytes, trackId);
+                        case AS4 -> dispatchAs4(effective, filename, bytes, trackId);
                     }
                     if (attempts > 0) {
                         log.info("Delivery succeeded on attempt {}/{} for '{}'", attempts + 1, maxRetries, ep.getName());
@@ -289,21 +291,33 @@ public class ForwarderController {
         }
     }
 
-    private void dispatchAs2(DeliveryEndpoint ep, String filename, byte[] bytes) throws Exception {
-        As2Partnership partnership = as2PartnershipRepository
-                .findByPartnerNameAndActiveTrue(ep.getName())
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "No AS2 partnership found for endpoint: " + ep.getName()));
-        as2Forwarder.forward(partnership, filename, bytes, null);
+    private void dispatchAs2(DeliveryEndpoint ep, String filename, byte[] bytes, String trackId) throws Exception {
+        As2Partnership partnership = resolvePartnership(ep, "AS2");
+        as2Forwarder.forward(partnership, filename, bytes, trackId);
     }
 
-    private void dispatchAs4(DeliveryEndpoint ep, String filename, byte[] bytes) throws Exception {
-        As2Partnership partnership = as2PartnershipRepository
-                .findByPartnerNameAndActiveTrue(ep.getName())
-                .filter(p -> "AS4".equals(p.getProtocol()))
+    private void dispatchAs4(DeliveryEndpoint ep, String filename, byte[] bytes, String trackId) throws Exception {
+        As2Partnership partnership = resolvePartnership(ep, "AS4");
+        as4Forwarder.forward(partnership, filename, bytes, trackId);
+    }
+
+    /**
+     * Resolve AS2/AS4 partnership from endpoint config.
+     * Prefers direct as2PartnershipId link, falls back to name match.
+     */
+    private As2Partnership resolvePartnership(DeliveryEndpoint ep, String protocol) {
+        // Direct link via as2PartnershipId (preferred)
+        if (ep.getAs2PartnershipId() != null) {
+            return as2PartnershipRepository.findById(ep.getAs2PartnershipId())
+                    .filter(p -> p.isActive() && protocol.equals(p.getProtocol()))
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            protocol + " partnership not found or inactive: " + ep.getAs2PartnershipId()));
+        }
+        // Fallback: match by endpoint name = partnership name
+        return as2PartnershipRepository.findByPartnerNameAndActiveTrue(ep.getName())
+                .filter(p -> protocol.equals(p.getProtocol()))
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "No AS4 partnership found for endpoint: " + ep.getName()));
-        as4Forwarder.forward(partnership, filename, bytes, null);
+                        "No " + protocol + " partnership found for endpoint: " + ep.getName()));
     }
 
     /**

@@ -132,6 +132,12 @@ public class DeliveryEndpoint {
     @Builder.Default
     private int retryDelayMs = 5000;
 
+    // --- AS2/AS4 partnership link ---
+
+    /** Direct link to AS2 partnership config. Used when protocol is AS2 or AS4. */
+    @Column(name = "as2_partnership_id")
+    private UUID as2PartnershipId;
+
     // --- Metadata ---
 
     /** Comma-separated tags for categorization and filtering */

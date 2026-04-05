@@ -1,16 +1,11 @@
 package com.filetransfer.forwarder.controller;
 
-import com.filetransfer.forwarder.service.*;
-import com.filetransfer.shared.repository.As2PartnershipRepository;
-import com.filetransfer.shared.repository.DeliveryEndpointRepository;
-import com.filetransfer.shared.repository.ExternalDestinationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
 class ForwarderControllerRetryTest {
 
@@ -19,28 +14,10 @@ class ForwarderControllerRetryTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        ExternalDestinationRepository destinationRepository = mock(ExternalDestinationRepository.class);
-        DeliveryEndpointRepository deliveryEndpointRepository = mock(DeliveryEndpointRepository.class);
-        As2PartnershipRepository as2PartnershipRepository = mock(As2PartnershipRepository.class);
-        SftpForwarderService sftpForwarder = mock(SftpForwarderService.class);
-        FtpForwarderService ftpForwarder = mock(FtpForwarderService.class);
-        FtpsForwarderService ftpsForwarder = mock(FtpsForwarderService.class);
-        HttpForwarderService httpForwarder = mock(HttpForwarderService.class);
-        KafkaForwarderService kafkaForwarder = mock(KafkaForwarderService.class);
-        As2ForwarderService as2Forwarder = mock(As2ForwarderService.class);
-        As4ForwarderService as4Forwarder = mock(As4ForwarderService.class);
-
+        // Only testing isRetryableDeliveryError — no dependencies needed
         controller = new ForwarderController(
-                destinationRepository,
-                deliveryEndpointRepository,
-                as2PartnershipRepository,
-                sftpForwarder,
-                ftpForwarder,
-                ftpsForwarder,
-                httpForwarder,
-                kafkaForwarder,
-                as2Forwarder,
-                as4Forwarder
+                null, null, null,
+                null, null, null, null, null, null, null
         );
 
         isRetryableMethod = ForwarderController.class.getDeclaredMethod(

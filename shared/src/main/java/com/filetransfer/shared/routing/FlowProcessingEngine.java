@@ -523,7 +523,8 @@ public class FlowProcessingEngine {
         for (DeliveryEndpoint ep : endpoints) {
             try {
                 String url = forwarderUrl + "/api/forward/deliver/" + ep.getId() + "/base64"
-                        + "?filename=" + java.net.URLEncoder.encode(filename, "UTF-8");
+                        + "?filename=" + java.net.URLEncoder.encode(filename, "UTF-8")
+                        + "&trackId=" + java.net.URLEncoder.encode(trackId != null ? trackId : "", "UTF-8");
 
                 HttpHeaders headers = new HttpHeaders();
                 headers.setContentType(MediaType.TEXT_PLAIN);
