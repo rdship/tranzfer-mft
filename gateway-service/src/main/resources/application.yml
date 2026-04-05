@@ -35,6 +35,8 @@ gateway:
   internal-sftp-port: ${INTERNAL_SFTP_PORT:2222}
   internal-ftp-host: ${INTERNAL_FTP_HOST:ftp-service}
   internal-ftp-port: ${INTERNAL_FTP_PORT:21}
+  internal-ftpweb-host: ${INTERNAL_FTPWEB_HOST:ftp-web-service}
+  internal-ftpweb-port: ${INTERNAL_FTPWEB_PORT:8083}
 
 cluster:
   id: ${CLUSTER_ID:default-cluster}

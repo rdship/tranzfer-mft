@@ -4,6 +4,7 @@ import com.filetransfer.onboarding.dto.request.CreateServerInstanceRequest;
 import com.filetransfer.onboarding.dto.request.UpdateServerInstanceRequest;
 import com.filetransfer.onboarding.dto.response.ServerInstanceResponse;
 import com.filetransfer.onboarding.service.ServerInstanceService;
+import com.filetransfer.shared.enums.Protocol;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -20,7 +21,12 @@ public class ServerInstanceController {
     private final ServerInstanceService service;
 
     @GetMapping
-    public List<ServerInstanceResponse> listAll(@RequestParam(defaultValue = "false") boolean activeOnly) {
+    public List<ServerInstanceResponse> listAll(
+            @RequestParam(defaultValue = "false") boolean activeOnly,
+            @RequestParam(required = false) Protocol protocol) {
+        if (protocol != null) {
+            return service.listByProtocol(protocol, activeOnly);
+        }
         return activeOnly ? service.listActive() : service.listAll();
     }
 

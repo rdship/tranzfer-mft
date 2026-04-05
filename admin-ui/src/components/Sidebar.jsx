@@ -39,7 +39,7 @@ const navGroups = [
     label: 'Infrastructure',
     items: [
       { to: '/servers', icon: ServerStackIcon, label: 'Server Config' },
-      { to: '/sftp-servers', icon: ServerStackIcon, label: 'SFTP Servers' },
+      { to: '/server-instances', icon: ServerStackIcon, label: 'Server Instances' },
       { to: '/security-profiles', icon: ShieldCheckIcon, label: 'Security Profiles' },
       { to: '/encryption', icon: KeyIcon, label: 'Encryption Keys' },
       { to: '/keystore', icon: KeyIcon, label: 'Keystore Manager' },

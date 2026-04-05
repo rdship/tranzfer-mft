@@ -11,9 +11,11 @@ export const createFolderMapping = (data) => onboardingApi.post('/api/folder-map
 export const updateFolderMapping = (id, data) => onboardingApi.put(`/api/folder-mappings/${id}`, data).then(r => r.data)
 export const deleteFolderMapping = (id) => onboardingApi.delete(`/api/folder-mappings/${id}`)
 
-// SFTP Server Instances
-export const getSftpServers = () => onboardingApi.get('/api/servers').then(r => r.data)
-export const getSftpServersActive = () => onboardingApi.get('/api/servers?activeOnly=true').then(r => r.data)
-export const createSftpServer = (data) => onboardingApi.post('/api/servers', data).then(r => r.data)
-export const updateSftpServer = (id, data) => onboardingApi.patch(`/api/servers/${id}`, data).then(r => r.data)
-export const deleteSftpServer = (id) => onboardingApi.delete(`/api/servers/${id}`)
+// Server Instances (all protocols: SFTP, FTP, FTP_WEB, HTTPS)
+export const getServerInstances = () => onboardingApi.get('/api/servers').then(r => r.data)
+export const getServerInstancesActive = () => onboardingApi.get('/api/servers?activeOnly=true').then(r => r.data)
+export const getServerInstancesByProtocol = (protocol) => onboardingApi.get(`/api/servers?protocol=${protocol}`).then(r => r.data)
+export const getServerInstancesActiveByProtocol = (protocol) => onboardingApi.get(`/api/servers?activeOnly=true&protocol=${protocol}`).then(r => r.data)
+export const createServerInstance = (data) => onboardingApi.post('/api/servers', data).then(r => r.data)
+export const updateServerInstance = (id, data) => onboardingApi.patch(`/api/servers/${id}`, data).then(r => r.data)
+export const deleteServerInstance = (id) => onboardingApi.delete(`/api/servers/${id}`)

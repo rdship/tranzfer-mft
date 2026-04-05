@@ -127,7 +127,7 @@ public class RoutingEvaluator {
         return switch (protocol) {
             case SFTP -> ServiceType.SFTP;
             case FTP -> ServiceType.FTP;
-            case FTP_WEB -> ServiceType.FTP_WEB;
+            case FTP_WEB, HTTPS -> ServiceType.FTP_WEB;
         };
     }
 }

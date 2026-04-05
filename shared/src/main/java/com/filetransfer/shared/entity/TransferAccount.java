@@ -51,7 +51,7 @@ public class TransferAccount {
     @Builder.Default
     private Map<String, Boolean> permissions = Map.of("read", true, "write", true, "delete", false);
 
-    // SFTP server instance this account is assigned to (null = any instance)
+    // Server instance this account is assigned to (null = any instance, works for all protocols)
     @Column(length = 64)
     private String serverInstance;
 

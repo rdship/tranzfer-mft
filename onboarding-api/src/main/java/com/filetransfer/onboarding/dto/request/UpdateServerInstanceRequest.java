@@ -1,9 +1,11 @@
 package com.filetransfer.onboarding.dto.request;
 
+import com.filetransfer.shared.enums.Protocol;
 import lombok.Data;
 
 @Data
 public class UpdateServerInstanceRequest {
+    private Protocol protocol;
     private String name;
     private String description;
     private String internalHost;

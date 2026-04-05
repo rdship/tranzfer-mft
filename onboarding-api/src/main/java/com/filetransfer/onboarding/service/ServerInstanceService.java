@@ -3,8 +3,9 @@ package com.filetransfer.onboarding.service;
 import com.filetransfer.onboarding.dto.request.CreateServerInstanceRequest;
 import com.filetransfer.onboarding.dto.request.UpdateServerInstanceRequest;
 import com.filetransfer.onboarding.dto.response.ServerInstanceResponse;
-import com.filetransfer.shared.entity.SftpServerInstance;
-import com.filetransfer.shared.repository.SftpServerInstanceRepository;
+import com.filetransfer.shared.entity.ServerInstance;
+import com.filetransfer.shared.enums.Protocol;
+import com.filetransfer.shared.repository.ServerInstanceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,7 +18,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ServerInstanceService {
 
-    private final SftpServerInstanceRepository repository;
+    private final ServerInstanceRepository repository;
 
     public List<ServerInstanceResponse> listAll() {
         return repository.findAll().stream().map(this::toResponse).toList();
@@ -25,6 +26,13 @@ public class ServerInstanceService {
 
     public List<ServerInstanceResponse> listActive() {
         return repository.findByActiveTrue().stream().map(this::toResponse).toList();
+    }
+
+    public List<ServerInstanceResponse> listByProtocol(Protocol protocol, boolean activeOnly) {
+        if (activeOnly) {
+            return repository.findByProtocolAndActiveTrue(protocol).stream().map(this::toResponse).toList();
+        }
+        return repository.findByProtocol(protocol).stream().map(this::toResponse).toList();
     }
 
     public ServerInstanceResponse getById(UUID id) {
@@ -42,8 +50,9 @@ public class ServerInstanceService {
             throw new IllegalArgumentException("Instance ID already exists: " + request.getInstanceId());
         }
 
-        SftpServerInstance instance = SftpServerInstance.builder()
+        ServerInstance instance = ServerInstance.builder()
                 .instanceId(request.getInstanceId())
+                .protocol(request.getProtocol())
                 .name(request.getName())
                 .description(request.getDescription())
                 .internalHost(request.getInternalHost())
@@ -62,8 +71,9 @@ public class ServerInstanceService {
 
     @Transactional
     public ServerInstanceResponse update(UUID id, UpdateServerInstanceRequest request) {
-        SftpServerInstance instance = findById(id);
+        ServerInstance instance = findById(id);
 
+        if (request.getProtocol() != null) instance.setProtocol(request.getProtocol());
         if (request.getName() != null) instance.setName(request.getName());
         if (request.getDescription() != null) instance.setDescription(request.getDescription());
         if (request.getInternalHost() != null) instance.setInternalHost(request.getInternalHost());
@@ -82,20 +92,21 @@ public class ServerInstanceService {
 
     @Transactional
     public void delete(UUID id) {
-        SftpServerInstance instance = findById(id);
+        ServerInstance instance = findById(id);
         instance.setActive(false);
         repository.save(instance);
     }
 
-    private SftpServerInstance findById(UUID id) {
+    private ServerInstance findById(UUID id) {
         return repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Server instance not found: " + id));
     }
 
-    private ServerInstanceResponse toResponse(SftpServerInstance i) {
+    private ServerInstanceResponse toResponse(ServerInstance i) {
         return ServerInstanceResponse.builder()
                 .id(i.getId())
                 .instanceId(i.getInstanceId())
+                .protocol(i.getProtocol())
                 .name(i.getName())
                 .description(i.getDescription())
                 .internalHost(i.getInternalHost())

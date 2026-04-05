@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getAccounts, createAccount, deleteAccount, toggleAccount, getSftpServersActive } from '../api/accounts'
+import { getAccounts, createAccount, deleteAccount, toggleAccount, getServerInstancesActive } from '../api/accounts'
 import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import toast from 'react-hot-toast'
-import { PlusIcon, TrashIcon, PencilIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
 
 const PROTOCOLS = ['SFTP', 'FTP', 'FTP_WEB']
@@ -17,7 +17,7 @@ export default function Accounts() {
   const [form, setForm] = useState({ protocol: 'SFTP', username: '', password: '', homeDir: '', serverInstance: '' })
 
   const { data: accounts = [], isLoading } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts })
-  const { data: sftpServers = [] } = useQuery({ queryKey: ['sftp-servers-active'], queryFn: getSftpServersActive })
+  const { data: serverInstances = [] } = useQuery({ queryKey: ['server-instances-active'], queryFn: getServerInstancesActive })
   const createMut = useMutation({ mutationFn: createAccount,
     onSuccess: () => { qc.invalidateQueries(['accounts']); setShowCreate(false); toast.success('Account created') },
     onError: err => toast.error(err.response?.data?.error || 'Failed') })
@@ -29,6 +29,9 @@ export default function Accounts() {
   const filtered = accounts.filter(a =>
     a.username?.toLowerCase().includes(search.toLowerCase()) ||
     a.protocol?.toLowerCase().includes(search.toLowerCase()))
+
+  // Filter server instances by selected protocol in the create form
+  const filteredInstances = serverInstances.filter(s => s.protocol === form.protocol)
 
   if (isLoading) return <LoadingSpinner />
 
@@ -96,7 +99,7 @@ export default function Accounts() {
           <form onSubmit={e => { e.preventDefault(); createMut.mutate(form) }} className="space-y-4">
             <div>
               <label>Protocol</label>
-              <select value={form.protocol} onChange={e => setForm(f => ({ ...f, protocol: e.target.value }))}>
+              <select value={form.protocol} onChange={e => setForm(f => ({ ...f, protocol: e.target.value, serverInstance: '' }))}>
                 {PROTOCOLS.map(p => <option key={p}>{p}</option>)}
               </select>
             </div>
@@ -112,16 +115,16 @@ export default function Accounts() {
               <label>Home Directory</label>
               <input value={form.homeDir} onChange={e => setForm(f => ({ ...f, homeDir: e.target.value }))} placeholder="/data/sftp/partner_acme" />
             </div>
-            {form.protocol === 'SFTP' && sftpServers.length > 0 && (
+            {filteredInstances.length > 0 && (
               <div>
-                <label>SFTP Server Instance</label>
+                <label>Server Instance</label>
                 <select value={form.serverInstance} onChange={e => setForm(f => ({ ...f, serverInstance: e.target.value }))}>
                   <option value="">Any (no restriction)</option>
-                  {sftpServers.map(s => (
+                  {filteredInstances.map(s => (
                     <option key={s.instanceId} value={s.instanceId}>{s.name} ({s.instanceId})</option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-400 mt-1">Restrict this account to a specific SFTP server</p>
+                <p className="text-xs text-gray-400 mt-1">Restrict this account to a specific {form.protocol} server</p>
               </div>
             )}
             <div className="flex gap-3 justify-end pt-2">

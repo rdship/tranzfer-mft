@@ -30,6 +30,7 @@ jwt:
 
 ftpweb:
   home-base: ${FTPWEB_HOME_BASE:/data/ftpweb}
+  instance-id: ${FTPWEB_INSTANCE_ID:#{null}}
 
 rabbitmq:
   exchange: file-transfer.events

@@ -6,6 +6,7 @@ import com.filetransfer.shared.repository.TransferAccountRepository;
 import com.filetransfer.shared.routing.RoutingEngine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,9 @@ public class FileOperationService {
 
     private final TransferAccountRepository accountRepository;
     private final RoutingEngine routingEngine;
+
+    @Value("${ftpweb.instance-id:#{null}}")
+    private String instanceId;
 
     public record FileEntry(String name, String path, boolean directory, long size, Instant lastModified) {}
 
@@ -103,9 +107,15 @@ public class FileOperationService {
     }
 
     private TransferAccount findAccount(String username) {
-        return accountRepository
-                .findByUsernameAndProtocolAndActiveTrue(username, Protocol.FTP_WEB)
-                .orElseThrow(() -> new NoSuchElementException("FTP_WEB account not found: " + username));
+        Optional<TransferAccount> account;
+        if (instanceId != null) {
+            // Instance-aware: only accept users assigned to this instance or unassigned
+            account = accountRepository.findByUsernameAndProtocolAndInstance(
+                    username, Protocol.FTP_WEB, instanceId);
+        } else {
+            account = accountRepository.findByUsernameAndProtocolAndActiveTrue(username, Protocol.FTP_WEB);
+        }
+        return account.orElseThrow(() -> new NoSuchElementException("FTP_WEB account not found: " + username));
     }
 
     private void deleteRecursively(Path dir) throws IOException {

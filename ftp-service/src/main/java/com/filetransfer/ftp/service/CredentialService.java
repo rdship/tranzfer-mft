@@ -7,6 +7,7 @@ import com.filetransfer.shared.repository.AuditLogRepository;
 import com.filetransfer.shared.repository.TransferAccountRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,9 @@ public class CredentialService {
     private final TransferAccountRepository accountRepository;
     private final AuditLogRepository auditLogRepository;
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+
+    @Value("${ftp.instance-id:#{null}}")
+    private String instanceId;
 
     private final ConcurrentHashMap<String, TransferAccount> cache = new ConcurrentHashMap<>();
 
@@ -47,8 +51,14 @@ public class CredentialService {
         TransferAccount cached = cache.get(username);
         if (cached != null) return Optional.of(cached);
 
-        Optional<TransferAccount> dbAccount = accountRepository
-                .findByUsernameAndProtocolAndActiveTrue(username, Protocol.FTP);
+        Optional<TransferAccount> dbAccount;
+        if (instanceId != null) {
+            // Instance-aware: only accept users assigned to this instance or unassigned
+            dbAccount = accountRepository.findByUsernameAndProtocolAndInstance(
+                    username, Protocol.FTP, instanceId);
+        } else {
+            dbAccount = accountRepository.findByUsernameAndProtocolAndActiveTrue(username, Protocol.FTP);
+        }
         dbAccount.ifPresent(a -> cache.put(username, a));
         return dbAccount;
     }

@@ -1,5 +1,6 @@
 package com.filetransfer.shared.entity;
 
+import com.filetransfer.shared.enums.Protocol;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -7,13 +8,13 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "sftp_server_instances")
+@Table(name = "server_instances")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class SftpServerInstance {
+public class ServerInstance {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -21,6 +22,11 @@ public class SftpServerInstance {
 
     @Column(name = "instance_id", unique = true, nullable = false, length = 64)
     private String instanceId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    @Builder.Default
+    private Protocol protocol = Protocol.SFTP;
 
     @Column(nullable = false)
     private String name;

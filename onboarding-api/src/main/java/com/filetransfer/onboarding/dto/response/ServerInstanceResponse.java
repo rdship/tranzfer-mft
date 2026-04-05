@@ -1,5 +1,6 @@
 package com.filetransfer.onboarding.dto.response;
 
+import com.filetransfer.shared.enums.Protocol;
 import lombok.Builder;
 import lombok.Data;
 
@@ -11,6 +12,7 @@ import java.util.UUID;
 public class ServerInstanceResponse {
     private UUID id;
     private String instanceId;
+    private Protocol protocol;
     private String name;
     private String description;
     private String internalHost;

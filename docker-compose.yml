@@ -140,8 +140,34 @@ services:
       FTP_PASSIVE_PORTS: 21000-21010
       FTP_PUBLIC_HOST: ${FTP_PUBLIC_HOST:-127.0.0.1}
       FTP_HOME_BASE: /data/ftp
+      FTP_INSTANCE_ID: ftp-1
     volumes:
       - ftp_data:/data/ftp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  ftp-service-2:
+    build: ./ftp-service
+    container_name: mft-ftp-service-2
+    <<: *healthcheck
+    ports:
+      - "2121:2121"
+      - "21100-21110:21100-21110"
+      - "8097:8097"
+    environment:
+      <<: *common-env
+      CLUSTER_HOST: ftp-service-2
+      SERVER_PORT: 8097
+      FTP_PORT: 2121
+      FTP_PASSIVE_PORTS: 21100-21110
+      FTP_PUBLIC_HOST: ${FTP_PUBLIC_HOST:-127.0.0.1}
+      FTP_HOME_BASE: /data/ftp2
+      FTP_INSTANCE_ID: ftp-2
+    volumes:
+      - ftp2_data:/data/ftp2
     depends_on:
       postgres:
         condition: service_healthy
@@ -159,8 +185,29 @@ services:
       CLUSTER_HOST: ftp-web-service
       SERVER_PORT: 8083
       FTPWEB_HOME_BASE: /data/ftpweb
+      FTPWEB_INSTANCE_ID: ftpweb-1
     volumes:
       - ftpweb_data:/data/ftpweb
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  ftp-web-service-2:
+    build: ./ftp-web-service
+    container_name: mft-ftp-web-service-2
+    <<: *healthcheck
+    ports:
+      - "8098:8098"
+    environment:
+      <<: *common-env
+      CLUSTER_HOST: ftp-web-service-2
+      SERVER_PORT: 8098
+      FTPWEB_HOME_BASE: /data/ftpweb2
+      FTPWEB_INSTANCE_ID: ftpweb-2
+    volumes:
+      - ftpweb2_data:/data/ftpweb2
     depends_on:
       postgres:
         condition: service_healthy
@@ -189,16 +236,19 @@ services:
     <<: *healthcheck
     ports:
       - "2220:2220"
-      - "2121:2121"
+      - "2122:2122"
       - "8085:8085"
     environment:
       <<: *common-env
       CLUSTER_HOST: gateway-service
       SERVER_PORT: 8085
+      GATEWAY_FTP_PORT: 2122
       INTERNAL_SFTP_HOST: sftp-service
       INTERNAL_SFTP_PORT: 2222
       INTERNAL_FTP_HOST: ftp-service
       INTERNAL_FTP_PORT: 21
+      INTERNAL_FTPWEB_HOST: ftp-web-service
+      INTERNAL_FTPWEB_PORT: 8083
     depends_on:
       postgres:
         condition: service_healthy
@@ -408,5 +458,7 @@ volumes:
   sftp_data:
   sftp2_data:
   ftp_data:
+  ftp2_data:
   storage_data:
   ftpweb_data:
+  ftpweb2_data:

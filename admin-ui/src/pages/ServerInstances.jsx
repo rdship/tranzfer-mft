@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getSftpServers, createSftpServer, updateSftpServer, deleteSftpServer } from '../api/accounts'
+import { getServerInstances, createServerInstance, updateServerInstance, deleteServerInstance } from '../api/accounts'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
@@ -7,48 +7,65 @@ import toast from 'react-hot-toast'
 import { PlusIcon, TrashIcon, PencilIcon, ServerStackIcon, SignalIcon, SignalSlashIcon } from '@heroicons/react/24/outline'
 import { useState } from 'react'
 
+const PROTOCOLS = ['SFTP', 'FTP', 'FTP_WEB', 'HTTPS']
+
+const DEFAULT_PORTS = {
+  SFTP: 2222,
+  FTP: 21,
+  FTP_WEB: 8083,
+  HTTPS: 443
+}
+
+const PROTOCOL_LABELS = {
+  SFTP: 'SFTP',
+  FTP: 'FTP',
+  FTP_WEB: 'FTP-Web (HTTP/S)',
+  HTTPS: 'HTTPS'
+}
+
 const emptyForm = {
-  instanceId: '', name: '', description: '',
+  instanceId: '', protocol: 'SFTP', name: '', description: '',
   internalHost: '', internalPort: 2222,
   externalHost: '', externalPort: '',
   useProxy: false, proxyHost: '', proxyPort: '',
   maxConnections: 500
 }
 
-export default function SftpServers() {
+export default function ServerInstances() {
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
   const [editServer, setEditServer] = useState(null)
   const [form, setForm] = useState(emptyForm)
+  const [protocolFilter, setProtocolFilter] = useState('ALL')
 
-  const { data: servers = [], isLoading } = useQuery({ queryKey: ['sftp-servers'], queryFn: getSftpServers })
+  const { data: servers = [], isLoading } = useQuery({ queryKey: ['server-instances'], queryFn: getServerInstances })
 
   const createMut = useMutation({
-    mutationFn: createSftpServer,
-    onSuccess: () => { qc.invalidateQueries(['sftp-servers']); setShowCreate(false); setForm(emptyForm); toast.success('SFTP Server created') },
+    mutationFn: createServerInstance,
+    onSuccess: () => { qc.invalidateQueries(['server-instances']); setShowCreate(false); setForm(emptyForm); toast.success('Server instance created') },
     onError: err => toast.error(err.response?.data?.message || 'Failed to create server')
   })
 
   const updateMut = useMutation({
-    mutationFn: ({ id, data }) => updateSftpServer(id, data),
-    onSuccess: () => { qc.invalidateQueries(['sftp-servers']); setEditServer(null); toast.success('Server updated') },
+    mutationFn: ({ id, data }) => updateServerInstance(id, data),
+    onSuccess: () => { qc.invalidateQueries(['server-instances']); setEditServer(null); toast.success('Server updated') },
     onError: err => toast.error(err.response?.data?.message || 'Failed to update server')
   })
 
   const deleteMut = useMutation({
-    mutationFn: deleteSftpServer,
-    onSuccess: () => { qc.invalidateQueries(['sftp-servers']); toast.success('Server deactivated') }
+    mutationFn: deleteServerInstance,
+    onSuccess: () => { qc.invalidateQueries(['server-instances']); toast.success('Server deactivated') }
   })
 
   const toggleMut = useMutation({
-    mutationFn: ({ id, active }) => updateSftpServer(id, { active }),
-    onSuccess: () => { qc.invalidateQueries(['sftp-servers']); toast.success('Status updated') }
+    mutationFn: ({ id, active }) => updateServerInstance(id, { active }),
+    onSuccess: () => { qc.invalidateQueries(['server-instances']); toast.success('Status updated') }
   })
 
   const openEdit = (s) => {
     setEditServer(s)
     setForm({
-      instanceId: s.instanceId, name: s.name, description: s.description || '',
+      instanceId: s.instanceId, protocol: s.protocol, name: s.name, description: s.description || '',
       internalHost: s.internalHost, internalPort: s.internalPort,
       externalHost: s.externalHost || '', externalPort: s.externalPort || '',
       useProxy: s.useProxy, proxyHost: s.proxyHost || '', proxyPort: s.proxyPort || '',
@@ -56,14 +73,23 @@ export default function SftpServers() {
     })
   }
 
+  const filtered = protocolFilter === 'ALL'
+    ? servers
+    : servers.filter(s => s.protocol === protocolFilter)
+
+  const protocolCounts = PROTOCOLS.reduce((acc, p) => {
+    acc[p] = servers.filter(s => s.protocol === p).length
+    return acc
+  }, {})
+
   if (isLoading) return <LoadingSpinner />
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">SFTP Server Instances</h1>
-          <p className="text-gray-500 text-sm">Manage SFTP server instances and assign users to specific servers</p>
+          <h1 className="text-2xl font-bold text-gray-900">Server Instances</h1>
+          <p className="text-gray-500 text-sm">Manage server instances across all protocols and assign users to specific servers</p>
         </div>
         <button className="btn-primary" onClick={() => { setForm(emptyForm); setShowCreate(true) }}>
           <PlusIcon className="w-4 h-4" /> Add Server
@@ -71,7 +97,7 @@ export default function SftpServers() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         <div className="card p-4">
           <p className="text-xs text-gray-500 uppercase tracking-wider">Total Servers</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">{servers.length}</p>
@@ -84,17 +110,44 @@ export default function SftpServers() {
           <p className="text-xs text-gray-500 uppercase tracking-wider">With Proxy</p>
           <p className="text-2xl font-bold text-blue-600 mt-1">{servers.filter(s => s.useProxy).length}</p>
         </div>
+        <div className="card p-4">
+          <p className="text-xs text-gray-500 uppercase tracking-wider">Protocols</p>
+          <p className="text-2xl font-bold text-purple-600 mt-1">{new Set(servers.map(s => s.protocol)).size}</p>
+        </div>
+      </div>
+
+      {/* Protocol filter tabs */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setProtocolFilter('ALL')}
+          className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+            protocolFilter === 'ALL' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}>
+          All ({servers.length})
+        </button>
+        {PROTOCOLS.map(p => (
+          protocolCounts[p] > 0 || protocolFilter === p ? (
+            <button key={p}
+              onClick={() => setProtocolFilter(p)}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                protocolFilter === p ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}>
+              {PROTOCOL_LABELS[p]} ({protocolCounts[p] || 0})
+            </button>
+          ) : null
+        ))}
       </div>
 
       {/* Server list */}
-      {servers.length === 0 ? (
-        <div className="card"><EmptyState title="No SFTP servers configured" description="Add your first SFTP server instance to get started." /></div>
+      {filtered.length === 0 ? (
+        <div className="card"><EmptyState title="No server instances found" description="Add your first server instance to get started." /></div>
       ) : (
         <div className="card">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100">
                 <th className="table-header">Instance</th>
+                <th className="table-header">Protocol</th>
                 <th className="table-header">Name</th>
                 <th className="table-header">Internal</th>
                 <th className="table-header">Client Connection</th>
@@ -104,13 +157,20 @@ export default function SftpServers() {
               </tr>
             </thead>
             <tbody>
-              {servers.map(s => (
+              {filtered.map(s => (
                 <tr key={s.id} className="table-row">
                   <td className="table-cell">
                     <div className="flex items-center gap-2">
                       <ServerStackIcon className="w-4 h-4 text-blue-500" />
                       <span className="font-mono text-xs font-medium">{s.instanceId}</span>
                     </div>
+                  </td>
+                  <td className="table-cell">
+                    <span className={`badge ${
+                      s.protocol === 'SFTP' ? 'badge-blue' :
+                      s.protocol === 'FTP' ? 'badge-green' :
+                      s.protocol === 'FTP_WEB' ? 'badge-purple' : 'badge-yellow'
+                    }`}>{PROTOCOL_LABELS[s.protocol] || s.protocol}</span>
                   </td>
                   <td className="table-cell">
                     <div>
@@ -155,7 +215,7 @@ export default function SftpServers() {
 
       {/* Create Modal */}
       {showCreate && (
-        <Modal title="Add SFTP Server Instance" onClose={() => setShowCreate(false)}>
+        <Modal title="Add Server Instance" onClose={() => setShowCreate(false)}>
           <ServerForm form={form} setForm={setForm}
             onSubmit={() => createMut.mutate(form)}
             isPending={createMut.isPending}
@@ -183,34 +243,46 @@ export default function SftpServers() {
 
 function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel, showInstanceId }) {
   const f = (key, val) => setForm(prev => ({ ...prev, [key]: val }))
+  const handleProtocolChange = (protocol) => {
+    f('protocol', protocol)
+    f('internalPort', DEFAULT_PORTS[protocol] || 2222)
+  }
   return (
     <form onSubmit={e => { e.preventDefault(); onSubmit() }} className="space-y-4">
+      {/* Protocol selector */}
+      <div>
+        <label>Protocol</label>
+        <select value={form.protocol} onChange={e => handleProtocolChange(e.target.value)}>
+          {PROTOCOLS.map(p => <option key={p} value={p}>{PROTOCOL_LABELS[p]}</option>)}
+        </select>
+      </div>
+
       {showInstanceId && (
         <div>
           <label>Instance ID</label>
           <input value={form.instanceId} onChange={e => f('instanceId', e.target.value)} required
-            placeholder="sftp-3" pattern="[a-z0-9\-]+" title="Lowercase letters, numbers, hyphens" />
-          <p className="text-xs text-gray-400 mt-1">Unique identifier (e.g., sftp-3, sftp-eu-west)</p>
+            placeholder={`${form.protocol.toLowerCase()}-3`} pattern="[a-z0-9\-]+" title="Lowercase letters, numbers, hyphens" />
+          <p className="text-xs text-gray-400 mt-1">Unique identifier (e.g., sftp-3, ftp-eu-west, ftpweb-2)</p>
         </div>
       )}
       <div className="grid grid-cols-2 gap-4">
-        <div><label>Name</label><input value={form.name} onChange={e => f('name', e.target.value)} required placeholder="EU West SFTP" /></div>
+        <div><label>Name</label><input value={form.name} onChange={e => f('name', e.target.value)} required placeholder="EU West Server" /></div>
         <div><label>Max Connections</label><input type="number" value={form.maxConnections} onChange={e => f('maxConnections', parseInt(e.target.value))} /></div>
       </div>
-      <div><label>Description</label><input value={form.description} onChange={e => f('description', e.target.value)} placeholder="Production SFTP server for EU region" /></div>
+      <div><label>Description</label><input value={form.description} onChange={e => f('description', e.target.value)} placeholder="Production server for EU region" /></div>
 
       {/* Internal connection */}
       <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold pt-2">Internal Connection (Docker/Host)</p>
       <div className="grid grid-cols-2 gap-4">
-        <div><label>Host</label><input value={form.internalHost} onChange={e => f('internalHost', e.target.value)} required placeholder="sftp-service-3" /></div>
+        <div><label>Host</label><input value={form.internalHost} onChange={e => f('internalHost', e.target.value)} required placeholder={`${form.protocol.toLowerCase()}-service-3`} /></div>
         <div><label>Port</label><input type="number" value={form.internalPort} onChange={e => f('internalPort', parseInt(e.target.value))} /></div>
       </div>
 
       {/* External connection */}
       <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold pt-2">External Connection (Client-Facing)</p>
       <div className="grid grid-cols-2 gap-4">
-        <div><label>External Host</label><input value={form.externalHost} onChange={e => f('externalHost', e.target.value)} placeholder="sftp.example.com" /></div>
-        <div><label>External Port</label><input type="number" value={form.externalPort} onChange={e => f('externalPort', e.target.value ? parseInt(e.target.value) : '')} placeholder="22222" /></div>
+        <div><label>External Host</label><input value={form.externalHost} onChange={e => f('externalHost', e.target.value)} placeholder="files.example.com" /></div>
+        <div><label>External Port</label><input type="number" value={form.externalPort} onChange={e => f('externalPort', e.target.value ? parseInt(e.target.value) : '')} placeholder={String(DEFAULT_PORTS[form.protocol])} /></div>
       </div>
 
       {/* Reverse proxy */}

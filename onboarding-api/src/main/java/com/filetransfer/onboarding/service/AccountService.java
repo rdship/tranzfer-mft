@@ -9,8 +9,8 @@ import com.filetransfer.shared.dto.AccountUpdatedEvent;
 import com.filetransfer.shared.entity.TransferAccount;
 import com.filetransfer.shared.entity.User;
 import com.filetransfer.shared.enums.Protocol;
-import com.filetransfer.shared.entity.SftpServerInstance;
-import com.filetransfer.shared.repository.SftpServerInstanceRepository;
+import com.filetransfer.shared.entity.ServerInstance;
+import com.filetransfer.shared.repository.ServerInstanceRepository;
 import com.filetransfer.shared.repository.TransferAccountRepository;
 import com.filetransfer.shared.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -34,13 +34,16 @@ public class AccountService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AccountEventPublisher eventPublisher;
-    private final SftpServerInstanceRepository serverInstanceRepository;
+    private final ServerInstanceRepository serverInstanceRepository;
 
     @Value("${file-transfer.sftp-home-base:/data/sftp}")
     private String sftpHomeBase;
 
     @Value("${file-transfer.ftp-home-base:/data/ftp}")
     private String ftpHomeBase;
+
+    @Value("${file-transfer.ftpweb-home-base:/data/ftpweb}")
+    private String ftpWebHomeBase;
 
     @Transactional
     public AccountResponse createAccount(String ownerEmail, CreateAccountRequest request) {
@@ -136,7 +139,11 @@ public class AccountService {
     }
 
     private String resolveHomeDir(Protocol protocol, String username) {
-        String base = protocol == Protocol.SFTP ? sftpHomeBase : ftpHomeBase;
+        String base = switch (protocol) {
+            case SFTP -> sftpHomeBase;
+            case FTP -> ftpHomeBase;
+            case FTP_WEB, HTTPS -> ftpWebHomeBase;
+        };
         return base + "/" + username;
     }
 
@@ -149,12 +156,7 @@ public class AccountService {
     }
 
     private AccountResponse toResponse(TransferAccount account) {
-        String instructions;
-        if (account.getProtocol() == Protocol.SFTP) {
-            instructions = buildSftpInstructions(account);
-        } else {
-            instructions = "Connect via: ftp <host> (port 21), user: " + account.getUsername();
-        }
+        String instructions = buildConnectionInstructions(account);
 
         return AccountResponse.builder()
                 .id(account.getId())
@@ -169,17 +171,28 @@ public class AccountService {
                 .build();
     }
 
-    private String buildSftpInstructions(TransferAccount account) {
+    private String buildConnectionInstructions(TransferAccount account) {
         if (account.getServerInstance() != null) {
             var server = serverInstanceRepository.findByInstanceId(account.getServerInstance());
             if (server.isPresent()) {
-                SftpServerInstance s = server.get();
+                ServerInstance s = server.get();
                 String host = s.getClientConnectionHost();
                 int port = s.getClientConnectionPort();
-                return String.format("Connect via: sftp -P %d %s@%s (server: %s)",
-                        port, account.getUsername(), host, s.getName());
+                return switch (account.getProtocol()) {
+                    case SFTP -> String.format("Connect via: sftp -P %d %s@%s (server: %s)",
+                            port, account.getUsername(), host, s.getName());
+                    case FTP -> String.format("Connect via: ftp %s %d, user: %s (server: %s)",
+                            host, port, account.getUsername(), s.getName());
+                    case FTP_WEB, HTTPS -> String.format("Connect via: https://%s:%d/api/files, user: %s (server: %s)",
+                            host, port, account.getUsername(), s.getName());
+                };
             }
         }
-        return "Connect via: sftp -P 2222 " + account.getUsername() + "@<host>";
+        // Fallback: no server instance assigned
+        return switch (account.getProtocol()) {
+            case SFTP -> "Connect via: sftp -P 2222 " + account.getUsername() + "@<host>";
+            case FTP -> "Connect via: ftp <host> (port 21), user: " + account.getUsername();
+            case FTP_WEB, HTTPS -> "Connect via: https://<host>:8083/api/files, user: " + account.getUsername();
+        };
     }
 }
