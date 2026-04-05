@@ -39,6 +39,7 @@ import Tenants from './pages/Tenants'
 import Blockchain from './pages/Blockchain'
 import ServerInstances from './pages/ServerInstances'
 import PlatformConfig from './pages/PlatformConfig'
+import Partnerships from './pages/Partnerships'
 
 export default function App() {
   return (
@@ -57,6 +58,7 @@ export default function App() {
             <Route path="server-instances" element={<ServerInstances />} />
             <Route path="security-profiles" element={<SecurityProfiles />} />
             <Route path="external-destinations" element={<ExternalDestinations />} />
+            <Route path="as2-partnerships" element={<Partnerships />} />
             <Route path="analytics" element={<Analytics />} />
             <Route path="predictions" element={<Predictions />} />
             <Route path="monitoring" element={<Monitoring />} />

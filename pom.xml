@@ -56,6 +56,7 @@
         <module>keystore-manager</module>
         <module>storage-manager</module>
         <module>edi-converter</module>
+        <module>as2-service</module>
     </modules>
 
     <properties>

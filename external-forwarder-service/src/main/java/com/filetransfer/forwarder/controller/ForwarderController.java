@@ -119,6 +119,7 @@ public class ForwarderController {
         int attempts = 0;
         int maxRetries = ep.getRetryCount() > 0 ? ep.getRetryCount() : 1;
         Exception lastError = null;
+        long baseDelay = ep.getRetryDelayMs() > 0 ? ep.getRetryDelayMs() : 5000;
 
         try {
             while (attempts < maxRetries) {
@@ -135,18 +136,33 @@ public class ForwarderController {
                         case AS2 -> dispatchAs2(effective, filename, bytes);
                         case AS4 -> dispatchAs4(effective, filename, bytes);
                     }
+                    if (attempts > 0) {
+                        log.info("Delivery succeeded on attempt {}/{} for '{}'", attempts + 1, maxRetries, ep.getName());
+                    }
                     return; // success
                 } catch (Exception e) {
                     lastError = e;
                     attempts++;
+
+                    // Smart classification: don't retry non-transient errors
+                    if (!isRetryableDeliveryError(e)) {
+                        log.error("Non-retryable delivery error for '{}': {}", ep.getName(), e.getMessage());
+                        break;
+                    }
+
                     if (attempts < maxRetries) {
-                        log.warn("Delivery attempt {}/{} failed for '{}': {} — retrying in {}ms",
-                                attempts, maxRetries, ep.getName(), e.getMessage(), ep.getRetryDelayMs());
-                        Thread.sleep(ep.getRetryDelayMs());
+                        // Exponential backoff with jitter: base * 2^attempt * (0.75-1.25)
+                        long exponential = baseDelay * (1L << Math.min(attempts - 1, 6));
+                        long capped = Math.min(exponential, 120_000); // cap at 2 min
+                        double jitter = 0.75 + Math.random() * 0.5;
+                        long delay = (long) (capped * jitter);
+                        log.warn("Delivery attempt {}/{} failed for '{}': {} — retrying in {}ms (exponential backoff)",
+                                attempts, maxRetries, ep.getName(), e.getMessage(), delay);
+                        Thread.sleep(delay);
                     }
                 }
             }
-            throw new RuntimeException("Delivery failed after " + maxRetries + " attempts to '"
+            throw new RuntimeException("Delivery failed after " + attempts + " attempt(s) to '"
                     + ep.getName() + "': " + (lastError != null ? lastError.getMessage() : "unknown error"), lastError);
         } finally {
             // Always clean up the temporary DMZ mapping
@@ -288,6 +304,18 @@ public class ForwarderController {
                 .orElseThrow(() -> new IllegalArgumentException(
                         "No AS4 partnership found for endpoint: " + ep.getName()));
         as4Forwarder.forward(partnership, filename, bytes, null);
+    }
+
+    /**
+     * Determine if a delivery error is transient (worth retrying).
+     * Auth failures, permission errors, and format errors should not be retried.
+     */
+    private boolean isRetryableDeliveryError(Exception e) {
+        String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+        if (msg.contains("permission denied") || msg.contains("auth") || msg.contains("401") || msg.contains("403")) return false;
+        if (msg.contains("no such file") || msg.contains("not found") || msg.contains("404")) return false;
+        if (msg.contains("key expired") || msg.contains("certificate")) return false;
+        return true;
     }
 
     private ExternalDestination findDest(UUID id) {

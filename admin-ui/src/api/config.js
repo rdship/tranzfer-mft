@@ -9,3 +9,8 @@ export const deleteExternalDestination = (id) => configApi.delete(`/api/external
 export const getEncryptionKeys = () => configApi.get('/api/encryption-keys').then(r => r.data)
 export const createEncryptionKey = (data) => configApi.post('/api/encryption-keys', data).then(r => r.data)
 export const deleteEncryptionKey = (id) => configApi.delete(`/api/encryption-keys/${id}`)
+export const getPartnerships = () => configApi.get('/api/as2-partnerships').then(r => r.data)
+export const createPartnership = (data) => configApi.post('/api/as2-partnerships', data).then(r => r.data)
+export const updatePartnership = (id, data) => configApi.put(`/api/as2-partnerships/${id}`, data).then(r => r.data)
+export const togglePartnership = (id) => configApi.patch(`/api/as2-partnerships/${id}/toggle`).then(r => r.data)
+export const deletePartnership = (id) => configApi.delete(`/api/as2-partnerships/${id}`)

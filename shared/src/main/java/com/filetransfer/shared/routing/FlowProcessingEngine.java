@@ -77,31 +77,66 @@ public class FlowProcessingEngine {
 
         for (int i = 0; i < flow.getSteps().size(); i++) {
             FileFlow.FlowStep step = flow.getSteps().get(i);
-            long start = System.currentTimeMillis();
-            try {
-                String outputFile = processStep(step, currentFile, trackId, i);
-                long duration = System.currentTimeMillis() - start;
-                results.add(FlowExecution.StepResult.builder()
-                        .stepIndex(i).stepType(step.getType())
-                        .status("OK").inputFile(currentFile).outputFile(outputFile)
-                        .durationMs(duration).build());
-                currentFile = outputFile;
-                exec.setCurrentStep(i + 1);
-                exec.setCurrentFilePath(currentFile);
-                log.info("[{}] Step {}/{} ({}) completed in {}ms",
-                        trackId, i + 1, flow.getSteps().size(), step.getType(), duration);
-            } catch (Exception e) {
-                long duration = System.currentTimeMillis() - start;
-                results.add(FlowExecution.StepResult.builder()
-                        .stepIndex(i).stepType(step.getType())
-                        .status("FAILED").inputFile(currentFile)
-                        .durationMs(duration).error(e.getMessage()).build());
+            Map<String, String> stepCfg = step.getConfig() != null ? step.getConfig() : Map.of();
+            int maxStepRetries = Integer.parseInt(stepCfg.getOrDefault("retryCount", "0"));
+            boolean stepSucceeded = false;
+
+            for (int attempt = 0; attempt <= maxStepRetries; attempt++) {
+                long start = System.currentTimeMillis();
+                try {
+                    if (attempt > 0) {
+                        // Exponential backoff between step retries: 2s, 4s, 8s...
+                        long backoff = 2000L * (1L << (attempt - 1));
+                        log.info("[{}] Step {}/{} ({}) retry {}/{} — waiting {}ms",
+                                trackId, i + 1, flow.getSteps().size(), step.getType(),
+                                attempt, maxStepRetries, backoff);
+                        Thread.sleep(Math.min(backoff, 30000));
+                    }
+                    String outputFile = processStep(step, currentFile, trackId, i);
+                    long duration = System.currentTimeMillis() - start;
+                    results.add(FlowExecution.StepResult.builder()
+                            .stepIndex(i).stepType(step.getType())
+                            .status(attempt > 0 ? "OK_AFTER_RETRY_" + attempt : "OK")
+                            .inputFile(currentFile).outputFile(outputFile)
+                            .durationMs(duration).build());
+                    currentFile = outputFile;
+                    exec.setCurrentStep(i + 1);
+                    exec.setCurrentFilePath(currentFile);
+                    log.info("[{}] Step {}/{} ({}) completed in {}ms{}",
+                            trackId, i + 1, flow.getSteps().size(), step.getType(), duration,
+                            attempt > 0 ? " (after " + attempt + " retries)" : "");
+                    stepSucceeded = true;
+                    break;
+                } catch (Exception e) {
+                    long duration = System.currentTimeMillis() - start;
+                    if (attempt < maxStepRetries && isRetryableStepError(e)) {
+                        log.warn("[{}] Step {}/{} ({}) attempt {} failed (retryable): {}",
+                                trackId, i + 1, flow.getSteps().size(), step.getType(), attempt + 1, e.getMessage());
+                        continue;
+                    }
+                    // Final failure — no more retries
+                    results.add(FlowExecution.StepResult.builder()
+                            .stepIndex(i).stepType(step.getType())
+                            .status("FAILED").inputFile(currentFile)
+                            .durationMs(duration).error(e.getMessage()).build());
+                    exec.setStatus(FlowExecution.FlowStatus.FAILED);
+                    exec.setErrorMessage("Step " + i + " (" + step.getType() + ") failed"
+                            + (attempt > 0 ? " after " + (attempt + 1) + " attempts" : "")
+                            + ": " + e.getMessage());
+                    exec.setStepResults(results);
+                    exec.setCompletedAt(Instant.now());
+                    executionRepository.save(exec);
+                    log.error("[{}] Step {}/{} ({}) FAILED: {}", trackId, i + 1, flow.getSteps().size(),
+                            step.getType(), e.getMessage());
+                    return exec;
+                }
+            }
+            if (!stepSucceeded) {
                 exec.setStatus(FlowExecution.FlowStatus.FAILED);
-                exec.setErrorMessage("Step " + i + " (" + step.getType() + ") failed: " + e.getMessage());
+                exec.setErrorMessage("Step " + i + " (" + step.getType() + ") exhausted all retries");
                 exec.setStepResults(results);
                 exec.setCompletedAt(Instant.now());
                 executionRepository.save(exec);
-                log.error("[{}] Step {}/{} ({}) FAILED: {}", trackId, i + 1, flow.getSteps().size(), step.getType(), e.getMessage());
                 return exec;
             }
         }
@@ -519,12 +554,30 @@ public class FlowProcessingEngine {
         return input.toString(); // Pass through — delivery is a side effect
     }
 
+    /**
+     * Determine if a step failure is transient and worth retrying.
+     * Network errors, timeouts, and temporary service unavailability are retryable.
+     * Auth errors, format errors, and security blocks are not.
+     */
+    private boolean isRetryableStepError(Exception e) {
+        String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+        // Not retryable: auth, format, security, sanctions
+        if (msg.contains("permission denied") || msg.contains("auth") || msg.contains("401") || msg.contains("403")) return false;
+        if (msg.contains("sanctions") || msg.contains("blocked") || msg.contains("ofac")) return false;
+        if (msg.contains("schema") || msg.contains("format error") || msg.contains("malformed")) return false;
+        if (msg.contains("key expired") || msg.contains("key not found")) return false;
+        if (e instanceof IllegalArgumentException) return false;
+        // Retryable: network, timeout, temporary errors
+        return true;
+    }
+
     private ServiceType protocolToServiceType(Protocol protocol) {
         return switch (protocol) {
             case SFTP -> ServiceType.SFTP;
             case FTP -> ServiceType.FTP;
             case FTP_WEB -> ServiceType.FTP_WEB;
             case HTTPS -> ServiceType.FTP_WEB;
+            case AS2, AS4 -> ServiceType.SFTP; // AS2/AS4 route through platform storage
         };
     }
 

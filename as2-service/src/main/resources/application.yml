@@ -1,0 +1,86 @@
+server:
+  port: 8094
+
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/filetransfer}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 3
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      connection-timeout: 10000
+      pool-name: AS2-Pool
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 25
+          batch_versioned_data: true
+        order_inserts: true
+        order_updates: true
+        connection:
+          provider_disables_autocommit: true
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: "0"
+    locations: classpath:db/migration
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 500MB
+
+jwt:
+  secret: ${JWT_SECRET:change_me_in_production_256bit_secret_key!!}
+  expiration: 900000
+
+as2:
+  home-base: ${AS2_HOME_BASE:/data/as2}
+  instance-id: ${AS2_INSTANCE_ID:#{null}}
+  max-message-size: ${AS2_MAX_MESSAGE_SIZE:524288000}
+  mdn:
+    async-timeout-seconds: ${AS2_MDN_ASYNC_TIMEOUT:300}
+    our-url: ${AS2_MDN_OUR_URL:http://localhost:8094/as2/mdn}
+
+control-api:
+  key: ${CONTROL_API_KEY:internal_control_secret}
+
+cluster:
+  id: ${CLUSTER_ID:default-cluster}
+  host: ${CLUSTER_HOST:localhost}
+  service-type: AS2
+  communication-mode: ${CLUSTER_COMM_MODE:WITHIN_CLUSTER}
+
+platform:
+  environment: ${PLATFORM_ENVIRONMENT:PROD}
+  track-id:
+    prefix: ${TRACK_ID_PREFIX:TRZ}
+  cluster:
+    id: ${CLUSTER_ID:default-cluster}
+    host: ${CLUSTER_HOST:localhost}
+  security:
+    jwt-secret: ${JWT_SECRET:change_me_in_production_256bit_secret_key!!}
+    jwt-expiration-ms: ${JWT_EXPIRATION:900000}
+    control-api-key: ${CONTROL_API_KEY:internal_control_secret}
+  storage:
+    sftp-home: ${SFTP_HOME_BASE:/data/sftp}
+    ftp-home: ${FTP_HOME_BASE:/data/ftp}
+    ftpweb-home: ${FTPWEB_HOME_BASE:/data/ftpweb}
+  flow:
+    max-concurrent: ${FLOW_MAX_CONCURRENT:50}
+    work-dir: ${FLOW_WORK_DIR:/tmp/mft-flow-work}
+  proxy:
+    enabled: ${PROXY_ENABLED:false}
+    type: ${PROXY_TYPE:HTTP}
+    host: ${PROXY_HOST:dmz-proxy}
+    port: ${PROXY_PORT:8088}
+    no-proxy-hosts: ${PROXY_NO_PROXY_HOSTS:localhost,127.0.0.1,postgres,rabbitmq}

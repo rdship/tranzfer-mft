@@ -37,6 +37,7 @@ const navGroups = [
       { to: '/flows', icon: ArrowPathIcon, label: 'Processing Flows' },
       { to: '/p2p', icon: ArrowsRightLeftIcon, label: 'P2P Transfers' },
       { to: '/external-destinations', icon: GlobeAltIcon, label: 'External Destinations' },
+      { to: '/as2-partnerships', icon: ArrowsRightLeftIcon, label: 'AS2/AS4 Partnerships' },
     ]
   },
   {

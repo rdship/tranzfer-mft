@@ -4,5 +4,7 @@ public enum Protocol {
     SFTP,
     FTP,
     FTP_WEB,
-    HTTPS
+    HTTPS,
+    AS2,
+    AS4
 }
