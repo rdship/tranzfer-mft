@@ -68,9 +68,10 @@ public class As2RoutingHandler {
                 String ext = filename.contains(".")
                         ? filename.substring(filename.lastIndexOf('.'))
                         : "";
-                String shortId = message.getMessageId().length() > 8
-                        ? message.getMessageId().substring(0, 8)
-                        : message.getMessageId();
+                String messageId = message.getMessageId();
+                String shortId = messageId != null && messageId.length() > 8
+                        ? messageId.substring(0, 8)
+                        : (messageId != null ? messageId : "UNKNOWN");
                 filePath = inboxDir.resolve(baseName + "_" + shortId + ext);
             }
 

@@ -69,6 +69,7 @@ public class FileTransferRecord {
     private Instant completedAt;
 
     /** Updated on every save — used for retry backoff timing */
+    @Column(name = "updated_at")
     private Instant updatedAt;
 
     @PrePersist
