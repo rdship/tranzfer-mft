@@ -28,6 +28,7 @@
         <module>screening-service</module>
         <module>keystore-manager</module>
         <module>storage-manager</module>
+        <module>edi-converter</module>
     </modules>
 
     <properties>

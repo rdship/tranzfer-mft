@@ -299,6 +299,14 @@ services:
       postgres:
         condition: service_healthy
 
+  edi-converter:
+    build: ./edi-converter
+    container_name: mft-edi-converter
+    ports:
+      - "8095:8095"
+    environment:
+      SERVER_PORT: 8095
+
   screening-service:
     build: ./screening-service
     container_name: mft-screening-service

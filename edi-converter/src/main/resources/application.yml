@@ -1,0 +1,12 @@
+server:
+  port: 8095
+spring:
+  servlet:
+    multipart:
+      max-file-size: 100MB
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+edi:
+  internal-format-version: "1.0"
+  internal-format-name: "TIF"
