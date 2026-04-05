@@ -33,7 +33,7 @@ export default function Settings() {
       <div><h1 className="text-2xl font-bold text-gray-900">Settings</h1>
         <p className="text-gray-500 text-sm">Platform configuration and white-labeling</p></div>
       <div className="flex border-b border-gray-200 gap-4">
-        {['branding', 'services', 'security', 'notifications'].map(t => (
+        {['branding', 'ai', 'services', 'security', 'notifications'].map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`pb-3 text-sm font-medium capitalize transition-colors ${tab === t ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>
             {t}
@@ -69,6 +69,48 @@ export default function Settings() {
             <h4 className="font-medium text-gray-900 mb-2">Preview</h4>
             <div className="p-4 rounded-xl text-white text-sm font-medium" style={{ backgroundColor: form.primaryColor }}>
               {form.companyName || 'Your Company Name'} — Managed File Transfer Platform
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === 'ai' && (
+        <div className="card max-w-2xl space-y-4">
+          <h3 className="font-semibold text-gray-900">AI & LLM Configuration</h3>
+          <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-sm text-blue-800">
+            All AI features work out of the box — no LLM needed. Connecting an LLM
+            just makes the admin terminal smarter at understanding natural language.
+          </div>
+          <div className="space-y-3">
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <h4 className="font-medium text-gray-900 mb-2">Features that work WITHOUT any LLM</h4>
+              <div className="grid grid-cols-2 gap-1 text-sm text-gray-600">
+                {['PCI/PII Classification', 'OFAC Screening', 'Anomaly Detection', 'Smart Retry',
+                  'Threat Scoring', 'Partner Profiling', 'Predictive SLA', 'Auto-Remediation',
+                  'File Format Detection', 'Data Classification', 'Observability Recommendations',
+                  'Autonomous Onboarding'].map(f => (
+                  <div key={f} className="flex items-center gap-1"><span className="text-green-500">✓</span> {f}</div>
+                ))}
+              </div>
+            </div>
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <h4 className="font-medium text-gray-900 mb-2">Features ENHANCED by LLM (optional)</h4>
+              <div className="text-sm text-gray-600 space-y-1">
+                <div className="flex items-center gap-1"><span className="text-blue-500">↑</span> NLP Terminal — better natural language understanding</div>
+                <div className="flex items-center gap-1"><span className="text-blue-500">↑</span> Flow Builder — "describe what you need" in English</div>
+                <div className="flex items-center gap-1"><span className="text-blue-500">↑</span> NL Monitoring — ask complex questions about the platform</div>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">Without LLM: these use keyword matching (works for 90% of inputs)</p>
+            </div>
+          </div>
+          <div className="border-t pt-4">
+            <h4 className="font-medium text-gray-900 mb-2">Connect LLM (optional)</h4>
+            <p className="text-sm text-gray-500 mb-3">Set the CLAUDE_API_KEY environment variable and restart the AI engine.</p>
+            <div className="bg-gray-900 rounded-lg p-3 font-mono text-xs text-green-400">
+              <p># Option 1: In .env file</p>
+              <p>CLAUDE_API_KEY=sk-ant-your-key-here</p>
+              <p className="mt-2"># Option 2: Docker Compose</p>
+              <p>docker compose restart ai-engine</p>
             </div>
           </div>
         </div>

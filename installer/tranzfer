@@ -219,13 +219,44 @@ install_server() {
   local CONTROL_KEY=$(openssl rand -hex 16 2>/dev/null || echo "control-$(date +%s)")
   local TRACK_PREFIX=$(ask "Track ID prefix (3 chars)" "TRZ")
 
+  # LLM setup — totally optional, super chill
+  echo ""
+  echo -e "    ${BOLD}AI / LLM Setup${NC} (totally optional)"
+  echo ""
+  echo "    TranzFer's AI features work out of the box — no LLM needed."
+  echo "    All classification, screening, anomaly detection, and auto-remediation"
+  echo "    run locally with zero external dependencies."
+  echo ""
+  echo "    Connecting an LLM just makes the admin terminal smarter at"
+  echo "    understanding natural language. Everything else works the same."
+  echo ""
+  echo "    1) ${BOLD}No thanks${NC} — everything works fine without it (recommended)"
+  echo "    2) ${BOLD}Connect Claude${NC} — I have an Anthropic API key"
+  echo "    3) ${BOLD}Decide later${NC} — I can add it anytime in Settings"
+  echo ""
+  local llm_choice=$(ask "Select" "1")
+
+  local CLAUDE_KEY=""
+  case $llm_choice in
+    2)
+      CLAUDE_KEY=$(ask "Anthropic API key (sk-ant-...)")
+      if [ -n "$CLAUDE_KEY" ]; then
+        ok "Claude API key set — NLP terminal will use natural language"
+      fi ;;
+    *)
+      ok "No LLM — all AI features work locally. You can add one anytime."
+      info "To add later: set CLAUDE_API_KEY in .env and restart ai-engine" ;;
+  esac
+
   cat > .env << ENVEOF
 JWT_SECRET=${JWT_SECRET}
 CONTROL_API_KEY=${CONTROL_KEY}
 TRACK_ID_PREFIX=${TRACK_PREFIX}
+CLAUDE_API_KEY=${CLAUDE_KEY}
 ENVEOF
   ok "Generated .env with unique secrets"
   info "Track IDs will start with: ${TRACK_PREFIX}"
+  [ -n "$CLAUDE_KEY" ] && info "LLM: Claude connected" || info "LLM: None (all AI runs locally)"
 
   # Step 5: Build
   step "Building..."
