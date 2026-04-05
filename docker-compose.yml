@@ -67,6 +67,7 @@ services:
   onboarding-api:
     build: ./onboarding-api
     container_name: mft-onboarding-api
+    <<: *healthcheck
     ports:
       - "8080:8080"
     environment:
@@ -82,6 +83,7 @@ services:
   sftp-service:
     build: ./sftp-service
     container_name: mft-sftp-service
+    <<: *healthcheck
     ports:
       - "22222:2222"
       - "8081:8081"
@@ -102,6 +104,7 @@ services:
   ftp-service:
     build: ./ftp-service
     container_name: mft-ftp-service
+    <<: *healthcheck
     ports:
       - "21:21"
       - "21000-21010:21000-21010"
@@ -125,6 +128,7 @@ services:
   ftp-web-service:
     build: ./ftp-web-service
     container_name: mft-ftp-web-service
+    <<: *healthcheck
     ports:
       - "8083:8083"
     environment:
@@ -143,6 +147,7 @@ services:
   config-service:
     build: ./config-service
     container_name: mft-config-service
+    <<: *healthcheck
     ports:
       - "8084:8084"
     environment:
@@ -158,6 +163,7 @@ services:
   gateway-service:
     build: ./gateway-service
     container_name: mft-gateway-service
+    <<: *healthcheck
     ports:
       - "2220:2220"
       - "2121:2121"
@@ -179,6 +185,7 @@ services:
   encryption-service:
     build: ./encryption-service
     container_name: mft-encryption-service
+    <<: *healthcheck
     ports:
       - "8086:8086"
     environment:
@@ -193,6 +200,7 @@ services:
   external-forwarder-service:
     build: ./external-forwarder-service
     container_name: mft-forwarder-service
+    <<: *healthcheck
     ports:
       - "8087:8087"
     environment:
@@ -224,6 +232,7 @@ services:
   license-service:
     build: ./license-service
     container_name: mft-license-service
+    <<: *healthcheck
     ports:
       - "8089:8089"
     environment:
@@ -239,6 +248,7 @@ services:
   analytics-service:
     build: ./analytics-service
     container_name: mft-analytics-service
+    <<: *healthcheck
     ports:
       - "8090:8090"
     environment:
@@ -254,6 +264,7 @@ services:
   ai-engine:
     build: ./ai-engine
     container_name: mft-ai-engine
+    <<: *healthcheck
     ports:
       - "8091:8091"
     environment:
@@ -269,6 +280,7 @@ services:
   keystore-manager:
     build: ./keystore-manager
     container_name: mft-keystore-manager
+    <<: *healthcheck
     ports:
       - "8093:8093"
     environment:
@@ -283,6 +295,7 @@ services:
   storage-manager:
     build: ./storage-manager
     container_name: mft-storage-manager
+    <<: *healthcheck
     ports:
       - "8094:8094"
     environment:
@@ -310,6 +323,7 @@ services:
   screening-service:
     build: ./screening-service
     container_name: mft-screening-service
+    <<: *healthcheck
     ports:
       - "8092:8092"
     environment:

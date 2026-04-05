@@ -226,9 +226,87 @@ analyticsService:
     requests: { cpu: 250m, memory: 512Mi }
     limits: { cpu: 1, memory: 1Gi }
 
+aiEngine:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: mft/ai-engine
+  service:
+    type: ClusterIP
+    port: 8091
+  claudeApiKey: ""
+  claudeModel: "claude-sonnet-4-20250514"
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: 1, memory: 1Gi }
+
+screeningService:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: mft/screening-service
+  service:
+    type: ClusterIP
+    port: 8092
+  screeningThreshold: "0.82"
+  defaultAction: "BLOCK"
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: 1, memory: 1Gi }
+
+keystoreManager:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: mft/keystore-manager
+  service:
+    type: ClusterIP
+    port: 8093
+  masterPassword: "change-this-master-password"
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+storageManager:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: mft/storage-manager
+  service:
+    type: ClusterIP
+    port: 8094
+  persistence:
+    enabled: true
+    size: 100Gi
+    storageClass: ""
+  resources:
+    requests: { cpu: 500m, memory: 512Mi }
+    limits: { cpu: 2, memory: 2Gi }
+
+ediConverter:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: mft/edi-converter
+  service:
+    type: ClusterIP
+    port: 8095
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
 # =============================================================================
 # Frontend UIs
 # =============================================================================
+partnerPortal:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: mft/partner-portal
+  service:
+    type: ClusterIP
+    port: 80
+
 adminUi:
   enabled: true
   replicaCount: 2
@@ -246,6 +324,19 @@ ftpWebUi:
   service:
     type: ClusterIP
     port: 80
+
+apiGateway:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: mft/api-gateway
+  service:
+    type: LoadBalancer
+    httpPort: 80
+    httpsPort: 443
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 256Mi }
 
 # =============================================================================
 # Ingress
