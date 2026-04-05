@@ -35,6 +35,20 @@ services:
       POSTGRES_DB: filetransfer
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+    command: >
+      postgres
+      -c max_connections=150
+      -c shared_buffers=256MB
+      -c effective_cache_size=512MB
+      -c work_mem=4MB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c log_min_duration_statement=1000
+      -c idle_in_transaction_session_timeout=60000
+      -c statement_timeout=30000
     ports:
       - "5432:5432"
     volumes:

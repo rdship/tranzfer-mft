@@ -11,12 +11,31 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface FileFlowRepository extends JpaRepository<FileFlow, UUID> {
+
+    @Query("SELECT f FROM FileFlow f " +
+           "LEFT JOIN FETCH f.sourceAccount " +
+           "LEFT JOIN FETCH f.destinationAccount " +
+           "LEFT JOIN FETCH f.externalDestination " +
+           "WHERE f.active = true ORDER BY f.priority ASC")
     List<FileFlow> findByActiveTrueOrderByPriorityAsc();
+
     Optional<FileFlow> findByNameAndActiveTrue(String name);
-    List<FileFlow> findBySourceAccountAndActiveTrueOrderByPriorityAsc(TransferAccount sourceAccount);
+
+    @Query("SELECT f FROM FileFlow f " +
+           "LEFT JOIN FETCH f.sourceAccount " +
+           "LEFT JOIN FETCH f.destinationAccount " +
+           "LEFT JOIN FETCH f.externalDestination " +
+           "WHERE f.sourceAccount = :sourceAccount AND f.active = true " +
+           "ORDER BY f.priority ASC")
+    List<FileFlow> findBySourceAccountAndActiveTrueOrderByPriorityAsc(@Param("sourceAccount") TransferAccount sourceAccount);
+
     boolean existsByName(String name);
 
-    @Query("SELECT f FROM FileFlow f WHERE f.active = true AND " +
+    @Query("SELECT f FROM FileFlow f " +
+           "LEFT JOIN FETCH f.sourceAccount " +
+           "LEFT JOIN FETCH f.destinationAccount " +
+           "LEFT JOIN FETCH f.externalDestination " +
+           "WHERE f.active = true AND " +
            "(f.sourceAccount IS NULL OR f.sourceAccount = :account) " +
            "ORDER BY f.priority ASC")
     List<FileFlow> findMatchingFlows(@Param("account") TransferAccount account);

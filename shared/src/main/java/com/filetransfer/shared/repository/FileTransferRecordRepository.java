@@ -17,9 +17,18 @@ public interface FileTransferRecordRepository extends JpaRepository<FileTransfer
 
     @Query("SELECT r FROM FileTransferRecord r " +
            "JOIN FETCH r.folderMapping fm " +
+           "LEFT JOIN FETCH fm.sourceAccount " +
            "JOIN FETCH fm.destinationAccount da " +
            "WHERE da.id = :accountId AND r.destinationFilePath = :filePath AND r.status = :status")
-    Optional<FileTransferRecord> findByDestinationAndStatus(UUID accountId, String filePath, FileTransferStatus status);
+    Optional<FileTransferRecord> findByDestinationAndStatus(@Param("accountId") UUID accountId,
+                                                             @Param("filePath") String filePath,
+                                                             @Param("status") FileTransferStatus status);
 
-    List<FileTransferRecord> findByFolderMappingSourceAccountIdOrderByUploadedAtDesc(UUID accountId);
+    @Query("SELECT r FROM FileTransferRecord r " +
+           "JOIN FETCH r.folderMapping fm " +
+           "JOIN FETCH fm.sourceAccount sa " +
+           "LEFT JOIN FETCH fm.destinationAccount " +
+           "WHERE sa.id = :accountId " +
+           "ORDER BY r.uploadedAt DESC")
+    List<FileTransferRecord> findByFolderMappingSourceAccountIdOrderByUploadedAtDesc(@Param("accountId") UUID accountId);
 }
