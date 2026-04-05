@@ -50,6 +50,51 @@ sftp:
   home-base: ${SFTP_HOME_BASE:/data/sftp}
   instance-id: ${SFTP_INSTANCE_ID:#{null}}
 
+  # Connection management
+  max-connections: ${SFTP_MAX_CONNECTIONS:0}                         # 0 = unlimited
+  max-connections-per-user: ${SFTP_MAX_CONNECTIONS_PER_USER:0}       # 0 = unlimited
+  idle-timeout-seconds: ${SFTP_IDLE_TIMEOUT_SECONDS:0}               # 0 = no timeout
+  max-session-duration-seconds: ${SFTP_MAX_SESSION_DURATION_SECONDS:0}  # 0 = unlimited
+  banner-message: ${SFTP_BANNER_MESSAGE:}
+
+  # Authentication hardening
+  auth:
+    max-failed-attempts: ${SFTP_AUTH_MAX_FAILED_ATTEMPTS:5}          # 0 = disable lockout
+    lockout-duration-seconds: ${SFTP_AUTH_LOCKOUT_DURATION_SECONDS:900}
+
+  # IP access control (comma-separated, empty = disabled)
+  security:
+    ip-allowlist: ${SFTP_IP_ALLOWLIST:}
+    ip-denylist: ${SFTP_IP_DENYLIST:}
+
+  # File operation controls
+  files:
+    max-upload-size-bytes: ${SFTP_MAX_UPLOAD_SIZE_BYTES:0}           # 0 = unlimited
+    disk-quota-bytes: ${SFTP_DISK_QUOTA_BYTES:0}                     # 0 = unlimited
+    allowed-extensions: ${SFTP_ALLOWED_EXTENSIONS:}                  # e.g. csv,xml,txt
+    denied-extensions: ${SFTP_DENIED_EXTENSIONS:}                    # e.g. exe,bat,sh
+    prevent-symlink-traversal: ${SFTP_PREVENT_SYMLINK_TRAVERSAL:true}
+
+  # SSH algorithm configuration (comma-separated, empty = MINA defaults)
+  algorithms:
+    ciphers: ${SFTP_CIPHERS:}                                       # e.g. aes256-ctr,aes128-ctr
+    macs: ${SFTP_MACS:}                                              # e.g. hmac-sha2-256,hmac-sha2-512
+    kex: ${SFTP_KEX:}                                                # e.g. diffie-hellman-group16-sha512
+
+  # Bandwidth throttling
+  throttle:
+    upload-bytes-per-second: ${SFTP_THROTTLE_UPLOAD_BPS:0}           # 0 = unlimited
+    download-bytes-per-second: ${SFTP_THROTTLE_DOWNLOAD_BPS:0}       # 0 = unlimited
+
+  # Graceful shutdown
+  shutdown:
+    drain-timeout-seconds: ${SFTP_SHUTDOWN_DRAIN_TIMEOUT_SECONDS:30}
+
+  # Keystore Manager integration (centralized key storage)
+  keystore:
+    enabled: ${SFTP_KEYSTORE_MANAGER_ENABLED:false}
+    manager-url: ${SFTP_KEYSTORE_MANAGER_URL:http://keystore-manager:8093}
+
 rabbitmq:
   exchange: file-transfer.events
   queue:

@@ -51,6 +51,81 @@ ftp:
   home-base: ${FTP_HOME_BASE:/data/ftp}
   instance-id: ${FTP_INSTANCE_ID:#{null}}
 
+  # Connection management
+  idle-timeout-seconds: ${FTP_IDLE_TIMEOUT_SECONDS:300}
+  data-connection-timeout-seconds: ${FTP_DATA_CONNECTION_TIMEOUT_SECONDS:120}
+  banner-message: ${FTP_BANNER_MESSAGE:220 TranzFer MFT FTP Service Ready}
+  connection:
+    max-total: ${FTP_MAX_CONNECTIONS:200}
+    max-per-user: ${FTP_MAX_CONNECTIONS_PER_USER:10}
+    max-per-ip: ${FTP_MAX_CONNECTIONS_PER_IP:10}
+    max-logins: ${FTP_MAX_LOGINS:100}
+
+  # Authentication hardening
+  security:
+    max-login-failures: ${FTP_MAX_LOGIN_FAILURES:5}
+    lockout-duration-seconds: ${FTP_LOCKOUT_DURATION_SECONDS:900}
+    ip-allowlist: ${FTP_IP_ALLOWLIST:}
+    ip-denylist: ${FTP_IP_DENYLIST:}
+    bounce-prevention: ${FTP_BOUNCE_PREVENTION:true}
+
+  # Anonymous FTP (disabled by default)
+  anonymous:
+    enabled: ${FTP_ANONYMOUS_ENABLED:false}
+    home-dir: ${FTP_ANONYMOUS_HOME_DIR:${FTP_HOME_BASE:/data/ftp}/anonymous}
+
+  # FTPS hardening
+  ftps:
+    enabled: ${FTP_FTPS_ENABLED:false}
+    keystore-path: ${FTP_TLS_KEYSTORE_FILE:${FTP_FTPS_KEYSTORE_PATH:./ftp-keystore.jks}}
+    keystore-password: ${FTP_TLS_KEYSTORE_PASSWORD:${FTP_FTPS_KEYSTORE_PASSWORD:changeit}}
+    keystore-type: ${FTP_TLS_KEYSTORE_TYPE:JKS}
+    protocol: ${FTP_FTPS_PROTOCOL:TLSv1.2}
+    client-auth: ${FTP_TLS_CLIENT_AUTH:${FTP_FTPS_CLIENT_AUTH:none}}
+    implicit: ${FTP_IMPLICIT_TLS:${FTP_FTPS_IMPLICIT:false}}
+    require: ${FTP_REQUIRE_TLS:false}
+    require-data-tls: ${FTP_REQUIRE_DATA_TLS:false}
+    cipher-suites: ${FTP_TLS_CIPHER_SUITES:${FTP_FTPS_CIPHER_SUITES:}}
+    enabled-protocols: ${FTP_TLS_PROTOCOLS:${FTP_FTPS_ENABLED_PROTOCOLS:}}
+    truststore-path: ${FTP_TLS_TRUSTSTORE_FILE:${FTP_FTPS_TRUSTSTORE_PATH:}}
+    truststore-password: ${FTP_TLS_TRUSTSTORE_PASSWORD:${FTP_FTPS_TRUSTSTORE_PASSWORD:changeit}}
+
+  # File operation controls
+  file:
+    max-upload-size: ${FTP_MAX_UPLOAD_SIZE:0}
+    disk-quota: ${FTP_DISK_QUOTA:0}
+    allowed-extensions: ${FTP_ALLOWED_EXTENSIONS:}
+    denied-extensions: ${FTP_DENIED_EXTENSIONS:}
+
+  # Passive mode
+  passive:
+    epsv-enabled: ${FTP_EPSV_ENABLED:true}
+
+  # Active mode (PORT/EPRT commands)
+  active:
+    enabled: ${FTP_ACTIVE_MODE_ENABLED:true}
+    data-port-min: ${FTP_ACTIVE_DATA_PORT_MIN:0}
+    data-port-max: ${FTP_ACTIVE_DATA_PORT_MAX:0}
+    data-timeout-seconds: ${FTP_ACTIVE_DATA_TIMEOUT_SECONDS:30}
+
+  # Bandwidth throttling (bytes per second, 0 = unlimited)
+  throttle:
+    max-upload-rate: ${FTP_MAX_UPLOAD_RATE:0}
+    max-download-rate: ${FTP_MAX_DOWNLOAD_RATE:0}
+
+  # Audit logging
+  audit:
+    enabled: ${FTP_AUDIT_ENABLED:true}
+
+  # Graceful shutdown
+  shutdown:
+    drain-timeout-seconds: ${FTP_SHUTDOWN_DRAIN_TIMEOUT_SECONDS:30}
+
+  # Keystore Manager integration (centralized key/cert storage)
+  keystore:
+    enabled: ${FTP_KEYSTORE_MANAGER_ENABLED:false}
+    manager-url: ${FTP_KEYSTORE_MANAGER_URL:http://keystore-manager:8093}
+
 rabbitmq:
   exchange: file-transfer.events
   queue:

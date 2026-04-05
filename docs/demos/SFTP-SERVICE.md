@@ -590,6 +590,376 @@ Inbox files: [ 'invoice.csv' ]
 
 ---
 
+## Demo 4: Auth Hardening -- Failed Attempt Lockout
+
+This demo shows how the server locks an account after repeated failed login attempts and how to verify the lockout via the health endpoint.
+
+### Step 1 -- Configure lockout (default: 5 failures, 15-minute lockout)
+
+The defaults are already production-ready, but you can customize them in the Docker Compose environment:
+
+```yaml
+# In docker-compose-sftp-demo.yml, under sftp-service environment:
+SFTP_AUTH_MAX_FAILED_ATTEMPTS: 5
+SFTP_AUTH_LOCKOUT_DURATION_SECONDS: 900
+```
+
+Restart if you changed values:
+
+```bash
+docker compose -f docker-compose-sftp-demo.yml up -d sftp-service
+```
+
+### Step 2 -- Trigger lockout with bad passwords
+
+```bash
+# Attempt 1-5: use wrong password (each will fail with "Permission denied")
+for i in 1 2 3 4 5; do
+  echo "Attempt $i..."
+  sshpass -p 'WrongPassword!' sftp -P 2222 -oBatchMode=no -oStrictHostKeyChecking=no partner1@localhost <<< "exit" 2>&1 || true
+done
+```
+
+If you do not have `sshpass`, simply run `sftp -P 2222 partner1@localhost` five times and enter the wrong password each time.
+
+### Step 3 -- Verify the account is locked
+
+```bash
+# The 6th attempt will be rejected even with the correct password
+sftp -P 2222 partner1@localhost
+# Output: Permission denied (account locked)
+```
+
+### Step 4 -- Check locked accounts via the health endpoint
+
+```bash
+curl -s http://localhost:8081/internal/health | python3 -m json.tool
+```
+
+Expected output includes the locked account:
+
+```json
+{
+    "status": "UP",
+    "sftpServerRunning": true,
+    "sftpPort": 2222,
+    "instanceId": "sftp-1",
+    "activeConnections": 0,
+    "lockedAccounts": ["partner1"],
+    "authStats": {
+        "totalLogins": 2,
+        "failedLogins": 5,
+        "lockoutsTriggered": 1
+    }
+}
+```
+
+### Step 5 -- Wait for lockout to expire
+
+After 15 minutes (or the configured `SFTP_AUTH_LOCKOUT_DURATION_SECONDS`), the account is automatically unlocked:
+
+```bash
+# After 15 minutes, connect with the correct password
+sftp -P 2222 partner1@localhost
+# Enter: SecurePass99!
+# Output: Connected to localhost.
+```
+
+---
+
+## Demo 5: SSH Algorithm Configuration -- Restrict to Strong Ciphers
+
+This demo shows how to restrict the SSH server to only strong ciphers for compliance (e.g., FIPS 140-2, PCI-DSS).
+
+### Step 1 -- Set algorithm restrictions
+
+Update the Docker Compose environment for the SFTP service:
+
+```yaml
+# In docker-compose-sftp-demo.yml, under sftp-service environment:
+SFTP_CIPHERS: "aes256-ctr"
+SFTP_MACS: "hmac-sha2-256,hmac-sha2-512"
+SFTP_KEX: "ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521"
+```
+
+Restart the service:
+
+```bash
+docker compose -f docker-compose-sftp-demo.yml up -d sftp-service
+```
+
+### Step 2 -- Connect with a matching cipher (should succeed)
+
+```bash
+sftp -P 2222 -oCiphers=aes256-ctr partner1@localhost
+```
+
+Expected output:
+
+```
+partner1@localhost's password:
+Connected to localhost.
+sftp>
+```
+
+### Step 3 -- Connect with a disallowed cipher (should fail)
+
+```bash
+sftp -P 2222 -oCiphers=aes128-cbc partner1@localhost
+```
+
+Expected output:
+
+```
+Unable to negotiate with 127.0.0.1 port 2222: no matching cipher found.
+Their offer: aes256-ctr
+```
+
+### Step 4 -- Verify offered algorithms
+
+```bash
+ssh -vv -p 2222 partner1@localhost 2>&1 | grep "kex_input_kexinit"
+```
+
+The debug output will show only the configured algorithms being offered by the server.
+
+### Step 5 -- Revert to defaults
+
+Remove the `SFTP_CIPHERS`, `SFTP_MACS`, and `SFTP_KEX` variables (or set them to empty strings) and restart. The server will revert to Apache MINA SSHD defaults, which include a broad set of algorithms.
+
+---
+
+## Demo 6: Bandwidth Throttling
+
+This demo shows how to limit upload speed per user to prevent bandwidth saturation.
+
+### Step 1 -- Set a 1 MB/s upload limit
+
+```yaml
+# In docker-compose-sftp-demo.yml, under sftp-service environment:
+SFTP_THROTTLE_UPLOAD_BPS: 1048576   # 1 MB/s = 1,048,576 bytes/sec
+SFTP_THROTTLE_DOWNLOAD_BPS: 1048576
+```
+
+Restart:
+
+```bash
+docker compose -f docker-compose-sftp-demo.yml up -d sftp-service
+```
+
+### Step 2 -- Create a 10 MB test file
+
+```bash
+# Linux / macOS
+dd if=/dev/urandom of=/tmp/test-10mb.bin bs=1M count=10
+
+# Windows (PowerShell)
+$bytes = New-Object byte[] 10485760
+(New-Object Random).NextBytes($bytes)
+[System.IO.File]::WriteAllBytes("$env:TEMP\test-10mb.bin", $bytes)
+```
+
+### Step 3 -- Upload and observe the throttling
+
+```bash
+sftp -P 2222 partner1@localhost
+```
+
+```
+sftp> cd inbox
+sftp> put /tmp/test-10mb.bin
+Uploading /tmp/test-10mb.bin to /inbox/test-10mb.bin
+/tmp/test-10mb.bin                           100%   10MB   1.0MB/s   00:10
+```
+
+Without throttling the upload would complete in under a second on a local connection. With the 1 MB/s limit, it takes approximately 10 seconds.
+
+### Step 4 -- Compare with unlimited speed
+
+Remove `SFTP_THROTTLE_UPLOAD_BPS` and restart. The same upload will complete nearly instantly:
+
+```
+/tmp/test-10mb.bin                           100%   10MB  50.0MB/s   00:00
+```
+
+---
+
+## Demo 7: File Operation Controls -- Size Limits and Extension Filtering
+
+This demo shows how to enforce maximum file size and restrict allowed file extensions.
+
+### Step 1 -- Configure file controls
+
+```yaml
+# In docker-compose-sftp-demo.yml, under sftp-service environment:
+SFTP_MAX_UPLOAD_SIZE_BYTES: 5242880       # 5 MB max
+SFTP_ALLOWED_EXTENSIONS: ".csv,.xml,.txt,.json"
+SFTP_PREVENT_SYMLINK_TRAVERSAL: "true"
+```
+
+Restart:
+
+```bash
+docker compose -f docker-compose-sftp-demo.yml up -d sftp-service
+```
+
+### Step 2 -- Upload a file within limits (should succeed)
+
+```bash
+# Create a small CSV file
+echo "id,amount,currency" > /tmp/small-file.csv
+
+sftp -P 2222 partner1@localhost
+```
+
+```
+sftp> cd inbox
+sftp> put /tmp/small-file.csv
+Uploading /tmp/small-file.csv to /inbox/small-file.csv
+/tmp/small-file.csv                          100%   20     0.0KB/s   00:00
+```
+
+### Step 3 -- Upload a file that exceeds the size limit (should be rejected)
+
+```bash
+# Create a 10 MB file
+dd if=/dev/urandom of=/tmp/large-file.csv bs=1M count=10
+```
+
+```
+sftp> put /tmp/large-file.csv
+remote open("/inbox/large-file.csv"): Failure — file exceeds maximum upload size (5242880 bytes)
+```
+
+### Step 4 -- Upload a disallowed extension (should be rejected)
+
+```bash
+echo "#!/bin/bash" > /tmp/script.sh
+```
+
+```
+sftp> put /tmp/script.sh
+remote open("/inbox/script.sh"): Failure — file extension .sh is not allowed
+```
+
+### Step 5 -- Verify allowed extensions work
+
+```
+sftp> put /tmp/small-file.csv
+Uploading /tmp/small-file.csv to /inbox/small-file.csv
+/tmp/small-file.csv                          100%   20     0.0KB/s   00:00
+sftp> exit
+```
+
+---
+
+## Demo 8: Audit Log Viewing -- Structured JSON Events
+
+The SFTP service emits structured JSON audit events for every significant action. These are written to the container's standard output and can be viewed with Docker logs.
+
+### Step 1 -- Perform some actions
+
+Connect, upload a file, download it, and disconnect:
+
+```bash
+sftp -P 2222 partner1@localhost <<EOF
+cd inbox
+put /tmp/small-file.csv
+get /inbox/small-file.csv /tmp/downloaded.csv
+exit
+EOF
+```
+
+### Step 2 -- View the audit events in Docker logs
+
+```bash
+docker logs mft-sftp-service 2>&1 | grep '"event"' | python3 -m json.tool
+```
+
+Expected output (one JSON object per event):
+
+```json
+{
+    "timestamp": "2026-04-05T14:20:00.123Z",
+    "event": "LOGIN",
+    "username": "partner1",
+    "sourceIp": "172.18.0.1",
+    "instanceId": "sftp-1"
+}
+```
+
+```json
+{
+    "timestamp": "2026-04-05T14:20:01.456Z",
+    "event": "UPLOAD",
+    "username": "partner1",
+    "sourceIp": "172.18.0.1",
+    "path": "/inbox/small-file.csv",
+    "sizeBytes": 20,
+    "instanceId": "sftp-1"
+}
+```
+
+```json
+{
+    "timestamp": "2026-04-05T14:20:02.789Z",
+    "event": "DOWNLOAD",
+    "username": "partner1",
+    "sourceIp": "172.18.0.1",
+    "path": "/inbox/small-file.csv",
+    "sizeBytes": 20,
+    "instanceId": "sftp-1"
+}
+```
+
+```json
+{
+    "timestamp": "2026-04-05T14:20:03.012Z",
+    "event": "DISCONNECT",
+    "username": "partner1",
+    "sourceIp": "172.18.0.1",
+    "sessionDurationSeconds": 3,
+    "instanceId": "sftp-1"
+}
+```
+
+### Step 3 -- View failed login events
+
+```bash
+# Trigger a failed login
+sshpass -p 'WrongPassword!' sftp -P 2222 -oStrictHostKeyChecking=no partner1@localhost <<< "exit" 2>&1 || true
+
+# View the event
+docker logs mft-sftp-service 2>&1 | grep 'LOGIN_FAILED' | tail -1 | python3 -m json.tool
+```
+
+```json
+{
+    "timestamp": "2026-04-05T14:21:00.345Z",
+    "event": "LOGIN_FAILED",
+    "username": "partner1",
+    "sourceIp": "172.18.0.1",
+    "reason": "invalid_password",
+    "failedAttempts": 1,
+    "instanceId": "sftp-1"
+}
+```
+
+### Supported event types
+
+| Event | Trigger |
+|-------|---------|
+| `LOGIN` | Successful authentication |
+| `LOGIN_FAILED` | Failed authentication attempt |
+| `UPLOAD` | File uploaded |
+| `DOWNLOAD` | File downloaded |
+| `DELETE` | File deleted |
+| `MKDIR` | Directory created |
+| `RENAME` | File or directory renamed/moved |
+| `DISCONNECT` | Session ended |
+
+---
+
 ## Use Cases
 
 1. **Partner file exchange** -- Give each trading partner (supplier, bank, logistics provider) their own SFTP account with isolated `inbox`/`outbox` directories. Files uploaded to `inbox` are automatically routed to the correct recipient's `outbox` via flow rules.
@@ -609,6 +979,8 @@ Inbox files: [ 'invoice.csv' ]
 ---
 
 ## Environment Variables
+
+### Core
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -635,6 +1007,56 @@ Inbox files: [ 'invoice.csv' ]
 | `PROXY_ENABLED` | `false` | Enable outbound proxy for cross-cluster file forwarding |
 | `PROXY_HOST` | `dmz-proxy` | Proxy hostname (when enabled) |
 | `PROXY_PORT` | `8088` | Proxy port (when enabled) |
+
+### Connection Management
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SFTP_MAX_CONNECTIONS` | `0` (unlimited) | Maximum total concurrent SFTP connections |
+| `SFTP_MAX_CONNECTIONS_PER_USER` | `0` (unlimited) | Maximum concurrent connections per username |
+| `SFTP_IDLE_TIMEOUT_SECONDS` | `0` (no timeout) | Disconnect sessions idle longer than this many seconds |
+| `SFTP_MAX_SESSION_DURATION_SECONDS` | `0` (unlimited) | Maximum session lifetime in seconds |
+| `SFTP_BANNER_MESSAGE` | (empty) | Pre-authentication banner displayed to connecting clients |
+
+### Auth Hardening
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SFTP_AUTH_MAX_FAILED_ATTEMPTS` | `5` | Failed login attempts before account lockout (0 = disable) |
+| `SFTP_AUTH_LOCKOUT_DURATION_SECONDS` | `900` (15 min) | Duration of account lockout after reaching max failures |
+| `SFTP_IP_ALLOWLIST` | (empty = disabled) | Comma-separated IPs/CIDRs allowed to connect |
+| `SFTP_IP_DENYLIST` | (empty = disabled) | Comma-separated IPs/CIDRs blocked from connecting |
+
+### File Operation Controls
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SFTP_MAX_UPLOAD_SIZE_BYTES` | `0` (unlimited) | Maximum single-file upload size in bytes |
+| `SFTP_DISK_QUOTA_BYTES` | `0` (unlimited) | Maximum total disk usage per user home directory |
+| `SFTP_ALLOWED_EXTENSIONS` | (empty = all allowed) | Comma-separated permitted file extensions (e.g., `.csv,.xml,.txt`) |
+| `SFTP_DENIED_EXTENSIONS` | (empty = none denied) | Comma-separated blocked file extensions (e.g., `.exe,.bat,.sh`) |
+| `SFTP_PREVENT_SYMLINK_TRAVERSAL` | `true` | Block symlinks that escape the user's home directory |
+
+### SSH Algorithm Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SFTP_CIPHERS` | (empty = MINA defaults) | Comma-separated cipher names (e.g., `aes256-ctr,aes128-ctr`) |
+| `SFTP_MACS` | (empty = MINA defaults) | Comma-separated MAC algorithm names (e.g., `hmac-sha2-256`) |
+| `SFTP_KEX` | (empty = MINA defaults) | Comma-separated key exchange algorithm names |
+
+### Bandwidth Throttling
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SFTP_THROTTLE_UPLOAD_BPS` | `0` (unlimited) | Per-user upload speed limit in bytes per second |
+| `SFTP_THROTTLE_DOWNLOAD_BPS` | `0` (unlimited) | Per-user download speed limit in bytes per second |
+
+### Graceful Shutdown
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SFTP_SHUTDOWN_DRAIN_TIMEOUT_SECONDS` | `30` | Seconds to wait for active connections to drain before forced disconnect |
 
 The admin HTTP server port is configured via `server.port` (Spring Boot standard), default `8081`.
 
