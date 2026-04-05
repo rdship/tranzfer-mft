@@ -444,6 +444,7 @@ Client A uploads invoice.csv via SFTP
 | [Migration](docs/MIGRATION-CHECKLIST.md) | 130-item checklist for enterprise migration |
 | [Roadmap](docs/PRODUCT-ROADMAP.md) | What's coming next |
 | **[Standalone Products](docs/standalone-products/)** | **Each microservice as an independent product — curl examples, integration code, Docker setup** |
+| **[Demos & Quick Start](docs/demos/)** | **First-principles, cross-OS demo guides for every microservice — prerequisites, install, working demos** |
 
 ---
 

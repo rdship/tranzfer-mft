@@ -10,6 +10,7 @@
 |--------------|-----------|
 | **Understand the whole product** | [PRODUCT-GUIDE.md](PRODUCT-GUIDE.md) |
 | **Use a microservice as a standalone product** | [standalone-products/](standalone-products/) |
+| **Run a hands-on demo (any OS)** | [demos/](demos/) |
 | **Understand the architecture** | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | **Set up a specific service** | [SERVICES.md](SERVICES.md) or the service's own README |
 | **Understand the security layer** | [SECURITY-ARCHITECTURE.md](SECURITY-ARCHITECTURE.md) |
@@ -51,6 +52,27 @@ docs/
 ├── MIGRATION-CHECKLIST.md       130-item migration checklist
 ├── PCI-DSS-COMPLIANCE.md        PCI DSS compliance mapping
 ├── PRODUCT-ROADMAP.md           Feature roadmap
+│
+├── demos/                       ← First-principles demo guides (cross-OS)
+│   ├── README.md                Demo index & learning path
+│   ├── PREREQUISITES.md         System requirements for all OS
+│   ├── EDI-CONVERTER.md         EDI converter hands-on demo
+│   ├── DMZ-PROXY.md             DMZ proxy security demo
+│   ├── ENCRYPTION-SERVICE.md    Encryption round-trip demo
+│   ├── KEYSTORE-MANAGER.md      Key generation & rotation demo
+│   ├── SCREENING-SERVICE.md     Sanctions screening demo
+│   ├── LICENSE-SERVICE.md       License lifecycle demo
+│   ├── STORAGE-MANAGER.md       Tiered storage demo
+│   ├── AS2-SERVICE.md           B2B AS2/AS4 demo
+│   ├── AI-ENGINE.md             AI classification & threat demo
+│   ├── ANALYTICS-SERVICE.md     Dashboard & predictions demo
+│   ├── SFTP-SERVICE.md          SFTP server demo
+│   ├── FTP-SERVICE.md           FTP/FTPS server demo
+│   ├── FTP-WEB-SERVICE.md       HTTP file operations demo
+│   ├── GATEWAY-SERVICE.md       Protocol gateway demo
+│   ├── EXTERNAL-FORWARDER.md    Multi-protocol forwarding demo
+│   ├── ONBOARDING-API.md        Central API full-flow demo
+│   └── CONFIG-SERVICE.md        Flows & configuration demo
 │
 └── standalone-products/         ← Each microservice as a standalone product
     ├── README.md                Product catalog & integration patterns
@@ -141,6 +163,11 @@ Every microservice has its own `README.md` with detailed API endpoints, configur
 1. [standalone-products/](standalone-products/) — **Product catalog** with integration patterns
 2. Pick your product (e.g., [EDI Converter](standalone-products/EDI-CONVERTER.md), [Screening Service](standalone-products/SCREENING-SERVICE.md))
 3. Each guide includes: curl examples, Python/Java/Node.js integration code, Docker setup
+
+### I Want a Hands-On Demo (Any OS)
+1. [demos/PREREQUISITES.md](demos/PREREQUISITES.md) — Install Docker/Java on Linux, macOS, or Windows
+2. [demos/](demos/) — **Pick any service** — each guide walks you from zero to working demo
+3. Start with [EDI Converter](demos/EDI-CONVERTER.md) (zero dependencies) or [Onboarding API](demos/ONBOARDING-API.md) (full platform flow)
 
 ### I'm Evaluating TranzFer
 1. [PRODUCT-GUIDE.md](PRODUCT-GUIDE.md) — Complete product overview
