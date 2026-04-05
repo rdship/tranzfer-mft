@@ -159,12 +159,23 @@ mvn test -pl dmz-proxy -Dtest=ProtocolDetectorTest
 mvn test -pl ai-engine -Dtest="IpReputationServiceTest#newIpStartsAtNeutralScore"
 ```
 
+### Run integration tests
+
+```bash
+# DMZ proxy ↔ AI engine client tests (WireMock-based)
+mvn test -pl dmz-proxy -Dtest=AiVerdictClientIntegrationTest
+
+# AI engine REST endpoint tests (SpringBootTest)
+mvn test -pl ai-engine -Dtest=ProxyIntelligenceControllerIntegrationTest
+```
+
 ### Test summary
 
 | Module | Tests | What's tested |
 |--------|-------|---------------|
-| ai-engine | 79 | IP reputation, protocol threats, connection patterns, geo anomalies, proxy intelligence, data classification |
-| dmz-proxy | 29 | Protocol detection, rate limiting, connection tracking |
+| shared | 112 | Routing engine, resilience patterns, validation, encryption |
+| ai-engine | 91 | IP reputation, proxy intelligence, data classification, **REST integration (12 tests)** |
+| dmz-proxy | 44 | Protocol detection, rate limiting, **AI verdict client integration (15 tests)** |
 | Other modules | Varies | Unit tests for business logic |
 
 ---
@@ -939,7 +950,9 @@ shared/src/main/resources/db/migration/
 ├── V9__as2_protocol_support.sql
 ├── V10__add_updated_at_to_file_transfer_records.sql
 ├── V11__add_as2_partnership_id_to_delivery_endpoints.sql
-└── V12__add_partners.sql
+├── V12__add_partners.sql
+├── V13__add_audit_columns.sql
+└── V14__add_audit_columns_phase2.sql
 ```
 
 ### V12: Partner Management Tables
@@ -962,6 +975,48 @@ shared/src/main/resources/db/migration/
 - **Never modify existing migration files** — Flyway checksums will fail
 - **Always add new files** with incrementing version numbers
 - **Test migrations** on a fresh database: `docker compose down -v && docker compose up -d`
+
+---
+
+## Operations Scripts
+
+Scripts in `scripts/` for production operations:
+
+### Pre-Flight Security Check
+
+**Must run before any production deployment.**
+
+```bash
+# Check current environment variables
+./scripts/preflight-check.sh --env
+
+# Audit a docker-compose file for default secrets
+./scripts/preflight-check.sh --compose docker-compose.yml
+```
+
+Detects 9 categories of insecure defaults (JWT secret, DB password, encryption key, etc.). In PROD mode, any default found is a hard failure. See `ARCHITECTURE.md` for the full list.
+
+### Database Backup & Restore
+
+```bash
+# Backup (Docker mode)
+./scripts/backup.sh --docker --backup-dir ./backups --keep 30
+
+# Backup (direct connection)
+DB_HOST=db.prod DB_PASSWORD=secret ./scripts/backup.sh --host
+
+# Restore (requires --confirm)
+./scripts/restore.sh --docker backups/mft-backup-2026-04-05.dump --confirm
+
+# Data-only restore (schema stays, only data replaced)
+./scripts/restore.sh --docker backup.dump --data-only --confirm
+
+# Set up daily cron
+./scripts/backup-cron-setup.sh --mode docker --keep 30
+
+# Generate Kubernetes CronJob manifest
+./scripts/backup-cron-setup.sh --k8s-only
+```
 
 ---
 

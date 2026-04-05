@@ -858,6 +858,82 @@ The admin UI includes:
 - **useApiError hook**: Consistent API error parsing with correlation ID logging
 - **Correlation ID interceptor**: Logs `X-Correlation-ID` from all API error responses
 
+### Pre-Flight Security Checks
+
+Before deploying to production, operators MUST run the pre-flight security check:
+
+```bash
+./scripts/preflight-check.sh --env          # Check current environment variables
+./scripts/preflight-check.sh --compose docker-compose.yml  # Audit compose file
+```
+
+The script detects 9 categories of insecure defaults:
+
+| Secret | Default Value | Risk |
+|--------|--------------|------|
+| JWT_SECRET | `change_me_in_production_256bit_secret_key!!` | Critical — token forgery |
+| CONTROL_API_KEY | `internal_control_secret` | Critical — service impersonation |
+| ENCRYPTION_MASTER_KEY | 64 zeros | Critical — encryption nullified |
+| DB_PASSWORD | `postgres` | High — direct DB access |
+| KEYSTORE_MASTER_PASSWORD | `change-this-master-password` | High — key/cert exposure |
+| LICENSE_ADMIN_KEY | `license_admin_secret_key` | High — license bypass |
+| RABBITMQ_PASSWORD | `guest` | Medium — message queue access |
+| FTP TLS keystore/truststore | `changeit` | Medium — TLS compromise |
+
+When `PLATFORM_ENVIRONMENT=PROD`, all issues are **hard failures** (exit code 1). In dev/test, they are warnings.
+
+### Database Backup & Restore
+
+Production backup/restore is managed via scripts in `scripts/`:
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/backup.sh` | Automated pg_dump with integrity verification and retention pruning |
+| `scripts/restore.sh` | Safe restore with pre-restore backup, confirmation, and validation |
+| `scripts/backup-cron-setup.sh` | Set up daily cron job or generate Kubernetes CronJob YAML |
+
+```bash
+# Docker mode (development)
+./scripts/backup.sh --docker --keep 30
+
+# Direct mode (production)
+DB_HOST=db.prod DB_PASSWORD=... ./scripts/backup.sh --host --backup-dir /backups
+
+# Restore (requires --confirm)
+./scripts/restore.sh --docker backups/mft-backup-2026-04-05-020000.dump --confirm
+
+# Set up daily cron at 2 AM
+./scripts/backup-cron-setup.sh --mode docker --keep 30
+```
+
+For Kubernetes: `./scripts/backup-cron-setup.sh --k8s-only` generates a complete CronJob + PVC + ServiceAccount manifest.
+
+### Integration Testing
+
+The platform has layered test coverage:
+
+| Layer | Tests | Framework |
+|-------|-------|-----------|
+| Unit tests (shared) | 112 tests — routing, resilience, validation | JUnit 5, Mockito |
+| Unit tests (AI engine) | 79 tests — intelligence, classification, reputation | JUnit 5 |
+| Unit tests (DMZ proxy) | 29 tests — rate limiting, protocol detection | JUnit 5 |
+| Integration: AI engine REST | 12 tests — full HTTP verdict/event/blocklist cycle | SpringBootTest + TestRestTemplate |
+| Integration: DMZ ↔ AI engine | 15 tests — client cache, timeout, fallback, recovery | WireMock |
+
+**DMZ ↔ AI Engine integration tests** (`AiVerdictClientIntegrationTest`) verify:
+- Verdict request/response parsing over real HTTP
+- Local TTL cache behavior (hit, miss, expiry)
+- Graceful fallback when AI engine is unreachable or times out
+- Health-check-based recovery after engine comes back
+- Async event reporting (single + batch)
+- Cache invalidation (per-IP and global)
+
+**AI Engine controller tests** (`ProxyIntelligenceControllerIntegrationTest`) verify:
+- Full verdict lifecycle: new IP → ALLOW, blocked IP → BLACKHOLE, allowlisted → zero risk
+- Blocklist/allowlist CRUD operations via REST
+- Event processing (single + batch)
+- Dashboard, audit trail, and IP intelligence endpoints
+
 ### CI/CD Pipeline
 
 Tests are enabled in the CI pipeline with:
@@ -865,6 +941,7 @@ Tests are enabled in the CI pipeline with:
 - Dedicated `mvn test -B --fail-at-end` step with test profile
 - PostgreSQL 16 service container for integration tests
 - Secret scanning and Dockerfile validation
+- Pre-flight security check (`scripts/preflight-check.sh --env`) in deployment stage
 
 ---
 
