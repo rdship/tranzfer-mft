@@ -1,8 +1,11 @@
 package com.filetransfer.gateway.routing;
 
 import com.filetransfer.shared.entity.LegacyServerConfig;
+import com.filetransfer.shared.entity.SftpServerInstance;
+import com.filetransfer.shared.entity.TransferAccount;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.repository.LegacyServerConfigRepository;
+import com.filetransfer.shared.repository.SftpServerInstanceRepository;
 import com.filetransfer.shared.repository.TransferAccountRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,8 +16,9 @@ import java.util.Optional;
 
 /**
  * Decides where to route a connecting user:
- *  - Known user  → internal sftp-service / ftp-service
- *  - Unknown user → configured legacy server
+ *  - Known user with server assignment → assigned sftp-service instance
+ *  - Known user without assignment     → default internal sftp-service
+ *  - Unknown user                      → configured legacy server
  */
 @Slf4j
 @Service
@@ -23,6 +27,7 @@ public class UserRoutingService {
 
     private final TransferAccountRepository accountRepository;
     private final LegacyServerConfigRepository legacyServerConfigRepository;
+    private final SftpServerInstanceRepository serverInstanceRepository;
 
     @Value("${gateway.internal-sftp-host:sftp-service}")
     private String internalSftpHost;
@@ -37,11 +42,31 @@ public class UserRoutingService {
     private int internalFtpPort;
 
     public RouteDecision routeSftp(String username) {
-        boolean isKnown = accountRepository.existsByUsernameAndProtocol(username, Protocol.SFTP);
-        if (isKnown) {
-            log.info("SFTP gateway: routing {} → internal ({}:{})", username, internalSftpHost, internalSftpPort);
+        Optional<TransferAccount> account = accountRepository
+                .findByUsernameAndProtocolAndActiveTrue(username, Protocol.SFTP);
+
+        if (account.isPresent()) {
+            String assignedInstance = account.get().getServerInstance();
+
+            if (assignedInstance != null) {
+                // Route to the assigned server instance
+                Optional<SftpServerInstance> server = serverInstanceRepository
+                        .findByInstanceId(assignedInstance);
+                if (server.isPresent() && server.get().isActive()) {
+                    SftpServerInstance s = server.get();
+                    log.info("SFTP gateway: routing {} → instance {} ({}:{})",
+                            username, assignedInstance, s.getInternalHost(), s.getInternalPort());
+                    return new RouteDecision(s.getInternalHost(), s.getInternalPort(), false);
+                }
+                log.warn("SFTP gateway: user {} assigned to instance {} but instance not found/inactive, using default",
+                        username, assignedInstance);
+            }
+
+            // No assignment or instance not found — use default
+            log.info("SFTP gateway: routing {} → default ({}:{})", username, internalSftpHost, internalSftpPort);
             return new RouteDecision(internalSftpHost, internalSftpPort, false);
         }
+
         return routeToLegacy(username, Protocol.SFTP);
     }
 

@@ -15,12 +15,16 @@ public class HealthController {
 
     private final SshServer sshServer;
 
+    @org.springframework.beans.factory.annotation.Value("${sftp.instance-id:#{null}}")
+    private String instanceId;
+
     @GetMapping("/health")
     public Map<String, Object> health() {
-        return Map.of(
-                "status", "UP",
-                "sftpServerRunning", sshServer.isStarted(),
-                "sftpPort", sshServer.getPort()
-        );
+        var map = new java.util.LinkedHashMap<String, Object>();
+        map.put("status", "UP");
+        map.put("sftpServerRunning", sshServer.isStarted());
+        map.put("sftpPort", sshServer.getPort());
+        if (instanceId != null) map.put("instanceId", instanceId);
+        return map;
     }
 }

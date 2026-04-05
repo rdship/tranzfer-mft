@@ -17,6 +17,7 @@ public class AccountResponse {
     private String homeDir;
     private Map<String, Boolean> permissions;
     private boolean active;
+    private String serverInstance;
     private Instant createdAt;
     // Connection info
     private String connectionInstructions;

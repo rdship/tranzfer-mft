@@ -37,6 +37,7 @@ import ApiConsole from './pages/ApiConsole'
 import Edi from './pages/Edi'
 import Tenants from './pages/Tenants'
 import Blockchain from './pages/Blockchain'
+import SftpServers from './pages/SftpServers'
 
 export default function App() {
   return (
@@ -52,6 +53,7 @@ export default function App() {
             <Route path="users" element={<Users />} />
             <Route path="folder-mappings" element={<FolderMappings />} />
             <Route path="servers" element={<Servers />} />
+            <Route path="sftp-servers" element={<SftpServers />} />
             <Route path="security-profiles" element={<SecurityProfiles />} />
             <Route path="external-destinations" element={<ExternalDestinations />} />
             <Route path="analytics" element={<Analytics />} />

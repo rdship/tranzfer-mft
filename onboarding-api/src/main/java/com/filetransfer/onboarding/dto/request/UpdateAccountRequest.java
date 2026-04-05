@@ -10,4 +10,5 @@ public class UpdateAccountRequest {
     private String newPassword;
     private String publicKey;
     private Map<String, Boolean> permissions;
+    private String serverInstance;
 }

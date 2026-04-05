@@ -93,8 +93,31 @@ services:
       SERVER_PORT: 8081
       SFTP_PORT: 2222
       SFTP_HOME_BASE: /data/sftp
+      SFTP_INSTANCE_ID: sftp-1
     volumes:
       - sftp_data:/data/sftp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  sftp-service-2:
+    build: ./sftp-service
+    container_name: mft-sftp-service-2
+    <<: *healthcheck
+    ports:
+      - "22223:2223"
+      - "8096:8096"
+    environment:
+      <<: *common-env
+      CLUSTER_HOST: sftp-service-2
+      SERVER_PORT: 8096
+      SFTP_PORT: 2223
+      SFTP_HOME_BASE: /data/sftp2
+      SFTP_INSTANCE_ID: sftp-2
+    volumes:
+      - sftp2_data:/data/sftp2
     depends_on:
       postgres:
         condition: service_healthy
@@ -383,6 +406,7 @@ volumes:
   postgres_data:
   rabbitmq_data:
   sftp_data:
+  sftp2_data:
   ftp_data:
   storage_data:
   ftpweb_data:

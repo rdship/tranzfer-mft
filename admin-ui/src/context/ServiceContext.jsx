@@ -75,6 +75,7 @@ const PAGE_SERVICE_MAP = {
   '/storage': ['core'],
   '/activity': ['core'],
   '/encryption': ['encryption'],
+  '/sftp-servers': ['core'],
 
   // AI
   '/ai': ['aiEngine'],

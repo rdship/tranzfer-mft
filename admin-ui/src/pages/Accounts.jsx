@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getAccounts, createAccount, deleteAccount, toggleAccount } from '../api/accounts'
+import { getAccounts, createAccount, deleteAccount, toggleAccount, getSftpServersActive } from '../api/accounts'
 import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
@@ -14,9 +14,10 @@ export default function Accounts() {
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
   const [search, setSearch] = useState('')
-  const [form, setForm] = useState({ protocol: 'SFTP', username: '', password: '', homeDir: '' })
+  const [form, setForm] = useState({ protocol: 'SFTP', username: '', password: '', homeDir: '', serverInstance: '' })
 
   const { data: accounts = [], isLoading } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts })
+  const { data: sftpServers = [] } = useQuery({ queryKey: ['sftp-servers-active'], queryFn: getSftpServersActive })
   const createMut = useMutation({ mutationFn: createAccount,
     onSuccess: () => { qc.invalidateQueries(['accounts']); setShowCreate(false); toast.success('Account created') },
     onError: err => toast.error(err.response?.data?.error || 'Failed') })
@@ -56,6 +57,7 @@ export default function Accounts() {
               <tr className="border-b border-gray-100">
                 <th className="table-header">Username</th>
                 <th className="table-header">Protocol</th>
+                <th className="table-header">Server</th>
                 <th className="table-header">Home Directory</th>
                 <th className="table-header">Status</th>
                 <th className="table-header">Created</th>
@@ -67,6 +69,7 @@ export default function Accounts() {
                 <tr key={acc.id} className="table-row">
                   <td className="table-cell font-medium">{acc.username}</td>
                   <td className="table-cell"><span className="badge badge-blue">{acc.protocol}</span></td>
+                  <td className="table-cell text-xs text-gray-500">{acc.serverInstance || <span className="text-gray-300">Any</span>}</td>
                   <td className="table-cell text-gray-500 font-mono text-xs">{acc.homeDir}</td>
                   <td className="table-cell">
                     <button onClick={() => toggleMut.mutate({ id: acc.id, active: !acc.active })}
@@ -109,6 +112,18 @@ export default function Accounts() {
               <label>Home Directory</label>
               <input value={form.homeDir} onChange={e => setForm(f => ({ ...f, homeDir: e.target.value }))} placeholder="/data/sftp/partner_acme" />
             </div>
+            {form.protocol === 'SFTP' && sftpServers.length > 0 && (
+              <div>
+                <label>SFTP Server Instance</label>
+                <select value={form.serverInstance} onChange={e => setForm(f => ({ ...f, serverInstance: e.target.value }))}>
+                  <option value="">Any (no restriction)</option>
+                  {sftpServers.map(s => (
+                    <option key={s.instanceId} value={s.instanceId}>{s.name} ({s.instanceId})</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">Restrict this account to a specific SFTP server</p>
+              </div>
+            )}
             <div className="flex gap-3 justify-end pt-2">
               <button type="button" className="btn-secondary" onClick={() => setShowCreate(false)}>Cancel</button>
               <button type="submit" className="btn-primary" disabled={createMut.isPending}>

@@ -10,3 +10,10 @@ export const getFolderMappings = () => onboardingApi.get('/api/folder-mappings')
 export const createFolderMapping = (data) => onboardingApi.post('/api/folder-mappings', data).then(r => r.data)
 export const updateFolderMapping = (id, data) => onboardingApi.put(`/api/folder-mappings/${id}`, data).then(r => r.data)
 export const deleteFolderMapping = (id) => onboardingApi.delete(`/api/folder-mappings/${id}`)
+
+// SFTP Server Instances
+export const getSftpServers = () => onboardingApi.get('/api/servers').then(r => r.data)
+export const getSftpServersActive = () => onboardingApi.get('/api/servers?activeOnly=true').then(r => r.data)
+export const createSftpServer = (data) => onboardingApi.post('/api/servers', data).then(r => r.data)
+export const updateSftpServer = (id, data) => onboardingApi.patch(`/api/servers/${id}`, data).then(r => r.data)
+export const deleteSftpServer = (id) => onboardingApi.delete(`/api/servers/${id}`)

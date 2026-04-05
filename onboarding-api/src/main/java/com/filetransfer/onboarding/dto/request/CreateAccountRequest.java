@@ -26,4 +26,8 @@ public class CreateAccountRequest {
 
     // Optional: {"read": true, "write": true, "delete": false}
     private Map<String, Boolean> permissions;
+
+    // Optional: assign to a specific SFTP server instance (e.g. "sftp-1", "sftp-2")
+    // Null means the account can connect to any instance
+    private String serverInstance;
 }

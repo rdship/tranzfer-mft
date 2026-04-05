@@ -9,6 +9,8 @@ import com.filetransfer.shared.dto.AccountUpdatedEvent;
 import com.filetransfer.shared.entity.TransferAccount;
 import com.filetransfer.shared.entity.User;
 import com.filetransfer.shared.enums.Protocol;
+import com.filetransfer.shared.entity.SftpServerInstance;
+import com.filetransfer.shared.repository.SftpServerInstanceRepository;
 import com.filetransfer.shared.repository.TransferAccountRepository;
 import com.filetransfer.shared.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +34,7 @@ public class AccountService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AccountEventPublisher eventPublisher;
+    private final SftpServerInstanceRepository serverInstanceRepository;
 
     @Value("${file-transfer.sftp-home-base:/data/sftp}")
     private String sftpHomeBase;
@@ -63,6 +66,7 @@ public class AccountService {
                 .publicKey(request.getPublicKey())
                 .homeDir(homeDir)
                 .permissions(permissions)
+                .serverInstance(request.getServerInstance())
                 .build();
 
         accountRepository.save(account);
@@ -72,6 +76,7 @@ public class AccountService {
                 .protocol(account.getProtocol())
                 .username(account.getUsername())
                 .homeDir(account.getHomeDir())
+                .serverInstance(account.getServerInstance())
                 .build());
 
         return toResponse(account);
@@ -96,6 +101,9 @@ public class AccountService {
         }
         if (request.getPermissions() != null) {
             account.setPermissions(request.getPermissions());
+        }
+        if (request.getServerInstance() != null) {
+            account.setServerInstance(request.getServerInstance());
         }
 
         accountRepository.save(account);
@@ -141,9 +149,12 @@ public class AccountService {
     }
 
     private AccountResponse toResponse(TransferAccount account) {
-        String instructions = account.getProtocol() == Protocol.SFTP
-                ? "Connect via: sftp -P 2222 " + account.getUsername() + "@<host>"
-                : "Connect via: ftp <host> (port 21), user: " + account.getUsername();
+        String instructions;
+        if (account.getProtocol() == Protocol.SFTP) {
+            instructions = buildSftpInstructions(account);
+        } else {
+            instructions = "Connect via: ftp <host> (port 21), user: " + account.getUsername();
+        }
 
         return AccountResponse.builder()
                 .id(account.getId())
@@ -152,8 +163,23 @@ public class AccountService {
                 .homeDir(account.getHomeDir())
                 .permissions(account.getPermissions())
                 .active(account.isActive())
+                .serverInstance(account.getServerInstance())
                 .createdAt(account.getCreatedAt())
                 .connectionInstructions(instructions)
                 .build();
+    }
+
+    private String buildSftpInstructions(TransferAccount account) {
+        if (account.getServerInstance() != null) {
+            var server = serverInstanceRepository.findByInstanceId(account.getServerInstance());
+            if (server.isPresent()) {
+                SftpServerInstance s = server.get();
+                String host = s.getClientConnectionHost();
+                int port = s.getClientConnectionPort();
+                return String.format("Connect via: sftp -P %d %s@%s (server: %s)",
+                        port, account.getUsername(), host, s.getName());
+            }
+        }
+        return "Connect via: sftp -P 2222 " + account.getUsername() + "@<host>";
     }
 }

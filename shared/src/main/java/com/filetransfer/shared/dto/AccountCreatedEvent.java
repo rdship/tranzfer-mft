@@ -18,4 +18,5 @@ public class AccountCreatedEvent {
     private Protocol protocol;
     private String username;
     private String homeDir;
+    private String serverInstance;
 }

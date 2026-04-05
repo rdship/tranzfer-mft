@@ -24,6 +24,9 @@ public class CredentialService {
     private final AuditLogRepository auditLogRepository;
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
+    @org.springframework.beans.factory.annotation.Value("${sftp.instance-id:#{null}}")
+    private String instanceId;
+
     // Simple in-memory cache: username → account. Busted by RabbitMQ events.
     private final ConcurrentHashMap<String, TransferAccount> cache = new ConcurrentHashMap<>();
 
@@ -65,8 +68,14 @@ public class CredentialService {
         TransferAccount cached = cache.get(username);
         if (cached != null) return Optional.of(cached);
 
-        Optional<TransferAccount> dbAccount = accountRepository
-                .findByUsernameAndProtocolAndActiveTrue(username, Protocol.SFTP);
+        Optional<TransferAccount> dbAccount;
+        if (instanceId != null) {
+            // Instance-aware: only accept users assigned to this instance or unassigned
+            dbAccount = accountRepository.findByUsernameAndProtocolAndInstance(
+                    username, Protocol.SFTP, instanceId);
+        } else {
+            dbAccount = accountRepository.findByUsernameAndProtocolAndActiveTrue(username, Protocol.SFTP);
+        }
         dbAccount.ifPresent(a -> cache.put(username, a));
         return dbAccount;
     }

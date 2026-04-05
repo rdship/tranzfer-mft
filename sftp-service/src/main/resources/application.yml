@@ -28,6 +28,7 @@ sftp:
   port: ${SFTP_PORT:2222}
   host-key-path: ${SFTP_HOST_KEY_PATH:./sftp_host_key}
   home-base: ${SFTP_HOME_BASE:/data/sftp}
+  instance-id: ${SFTP_INSTANCE_ID:#{null}}
 
 rabbitmq:
   exchange: file-transfer.events
