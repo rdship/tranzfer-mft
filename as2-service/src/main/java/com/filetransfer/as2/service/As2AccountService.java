@@ -82,10 +82,8 @@ public class As2AccountService {
 
         User user = new User();
         user.setEmail("system@as2.internal");
-        user.setName("AS2 System");
         user.setPasswordHash("SYSTEM_NO_LOGIN");
-        user.setRole("SYSTEM");
-        user.setActive(true);
+        user.setRole(com.filetransfer.shared.enums.UserRole.SYSTEM);
         return userRepository.save(user);
     }
 
