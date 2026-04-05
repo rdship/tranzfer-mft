@@ -1,5 +1,6 @@
 package com.filetransfer.shared.routing;
 
+import com.filetransfer.shared.config.PlatformConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,6 +31,7 @@ public class AiClassificationClient {
     private boolean enabled;
 
     private final RestTemplate restTemplate;
+    private final PlatformConfig platformConfig;
 
     /**
      * Classify a file before routing.
@@ -43,6 +45,7 @@ public class AiClassificationClient {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            headers.set("X-Internal-Key", platformConfig.getSecurity().getControlApiKey());
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             body.add("file", new FileSystemResource(filePath.toFile()));
 

@@ -5,14 +5,18 @@ import com.filetransfer.encryption.service.PgpService;
 import com.filetransfer.shared.entity.EncryptionKey;
 import com.filetransfer.shared.enums.EncryptionAlgorithm;
 import com.filetransfer.shared.repository.EncryptionKeyRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.http.ResponseEntity;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -32,6 +36,21 @@ public class EncryptionController {
     private final PgpService pgpService;
     private final AesService aesService;
     private final EncryptionKeyRepository keyRepository;
+
+    @Value("${encryption.master-key}")
+    private String masterKeyHex;
+
+    private String masterKeyBase64;
+
+    @PostConstruct
+    void initMasterKey() {
+        byte[] keyBytes = new byte[masterKeyHex.length() / 2];
+        for (int i = 0; i < keyBytes.length; i++) {
+            keyBytes[i] = (byte) Integer.parseInt(masterKeyHex.substring(i * 2, i * 2 + 2), 16);
+        }
+        masterKeyBase64 = Base64.getEncoder().encodeToString(keyBytes);
+        log.info("Master key initialized for credential encryption (AES-256-GCM)");
+    }
 
     @PostMapping(value = "/encrypt", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<byte[]> encryptFile(@RequestParam UUID keyId,
@@ -71,6 +90,29 @@ public class EncryptionController {
         byte[] cipher = Base64.getDecoder().decode(base64Input);
         byte[] plain = performDecrypt(cipher, key);
         return Base64.getEncoder().encodeToString(plain);
+    }
+
+    // --- Credential encryption (uses master key directly, no keyId needed) ---
+
+    @PostMapping("/credential/encrypt")
+    public Map<String, String> encryptCredential(@RequestBody Map<String, String> request) throws Exception {
+        String plaintext = request.get("value");
+        if (plaintext == null || plaintext.isEmpty()) {
+            return Map.of("encrypted", "");
+        }
+        byte[] encrypted = aesService.encrypt(plaintext.getBytes(StandardCharsets.UTF_8), masterKeyBase64);
+        return Map.of("encrypted", Base64.getEncoder().encodeToString(encrypted));
+    }
+
+    @PostMapping("/credential/decrypt")
+    public Map<String, String> decryptCredential(@RequestBody Map<String, String> request) throws Exception {
+        String encrypted = request.get("encrypted");
+        if (encrypted == null || encrypted.isEmpty()) {
+            return Map.of("value", "");
+        }
+        byte[] ciphertext = Base64.getDecoder().decode(encrypted);
+        byte[] decrypted = aesService.decrypt(ciphertext, masterKeyBase64);
+        return Map.of("value", new String(decrypted, StandardCharsets.UTF_8));
     }
 
     private byte[] performEncrypt(byte[] data, EncryptionKey key) throws Exception {

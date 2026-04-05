@@ -1,5 +1,6 @@
 package com.filetransfer.config.controller;
 
+import com.filetransfer.shared.crypto.CredentialCryptoClient;
 import com.filetransfer.shared.entity.DeliveryEndpoint;
 import com.filetransfer.shared.enums.DeliveryProtocol;
 import com.filetransfer.shared.repository.DeliveryEndpointRepository;
@@ -24,6 +25,7 @@ import java.util.UUID;
 public class DeliveryEndpointController {
 
     private final DeliveryEndpointRepository repository;
+    private final CredentialCryptoClient credentialCrypto;
 
     @GetMapping
     public List<DeliveryEndpoint> listAll(@RequestParam(required = false) DeliveryProtocol protocol,
@@ -49,6 +51,7 @@ public class DeliveryEndpointController {
             throw new IllegalArgumentException("Endpoint name already exists: " + endpoint.getName());
         }
         endpoint.setId(null);
+        encryptSecrets(endpoint);
         return ResponseEntity.status(HttpStatus.CREATED).body(repository.save(endpoint));
     }
 
@@ -58,6 +61,7 @@ public class DeliveryEndpointController {
             throw new EntityNotFoundException("Delivery endpoint not found: " + id);
         }
         endpoint.setId(id);
+        encryptSecrets(endpoint);
         return repository.save(endpoint);
     }
 
@@ -110,5 +114,21 @@ public class DeliveryEndpointController {
                 Map.of("value", "SOCKS5", "label", "SOCKS5 Proxy",
                         "description", "SOCKS5 proxy for TCP-level tunneling")
         );
+    }
+
+    /** Encrypt secret fields before persisting to the database */
+    private void encryptSecrets(DeliveryEndpoint ep) {
+        if (ep.getEncryptedPassword() != null && !ep.getEncryptedPassword().isBlank()) {
+            ep.setEncryptedPassword(credentialCrypto.encrypt(ep.getEncryptedPassword()));
+        }
+        if (ep.getBearerToken() != null && !ep.getBearerToken().isBlank()) {
+            ep.setBearerToken(credentialCrypto.encrypt(ep.getBearerToken()));
+        }
+        if (ep.getApiKeyValue() != null && !ep.getApiKeyValue().isBlank()) {
+            ep.setApiKeyValue(credentialCrypto.encrypt(ep.getApiKeyValue()));
+        }
+        if (ep.getSshPrivateKey() != null && !ep.getSshPrivateKey().isBlank()) {
+            ep.setSshPrivateKey(credentialCrypto.encrypt(ep.getSshPrivateKey()));
+        }
     }
 }

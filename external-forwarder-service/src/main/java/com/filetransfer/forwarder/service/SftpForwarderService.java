@@ -1,6 +1,8 @@
 package com.filetransfer.forwarder.service;
 
+import com.filetransfer.shared.crypto.CredentialCryptoClient;
 import com.filetransfer.shared.entity.ExternalDestination;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.sshd.client.SshClient;
 import org.apache.sshd.client.session.ClientSession;
@@ -19,7 +21,10 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class SftpForwarderService {
+
+    private final CredentialCryptoClient credentialCrypto;
 
     public void forward(ExternalDestination dest, String filename, byte[] fileBytes) throws Exception {
         SshClient client = SshClient.setUpDefaultClient();
@@ -62,7 +67,6 @@ public class SftpForwarderService {
     }
 
     private String decryptPassword(String encryptedPassword) {
-        // TODO: Integrate with encryption-service to unwrap the password
-        return encryptedPassword;
+        return credentialCrypto.decrypt(encryptedPassword);
     }
 }

@@ -1,7 +1,9 @@
 package com.filetransfer.forwarder.service;
 
+import com.filetransfer.shared.crypto.CredentialCryptoClient;
 import com.filetransfer.shared.entity.DeliveryEndpoint;
 import com.filetransfer.shared.enums.AuthType;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -18,7 +20,10 @@ import java.util.Map;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class HttpForwarderService {
+
+    private final CredentialCryptoClient credentialCrypto;
 
     public void forward(DeliveryEndpoint endpoint, String filename, byte[] fileBytes) throws Exception {
         String scheme = endpoint.isTlsEnabled() ? "https" : "http";
@@ -125,7 +130,6 @@ public class HttpForwarderService {
     }
 
     private String decryptSecret(String encrypted) {
-        // TODO: Integrate with encryption-service to unwrap secrets
-        return encrypted;
+        return credentialCrypto.decrypt(encrypted);
     }
 }

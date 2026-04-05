@@ -1,6 +1,8 @@
 package com.filetransfer.forwarder.service;
 
+import com.filetransfer.shared.crypto.CredentialCryptoClient;
 import com.filetransfer.shared.entity.ExternalDestination;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.net.ftp.FTP;
 import org.apache.commons.net.ftp.FTPClient;
@@ -14,7 +16,10 @@ import java.io.ByteArrayInputStream;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class FtpForwarderService {
+
+    private final CredentialCryptoClient credentialCrypto;
 
     public void forward(ExternalDestination dest, String filename, byte[] fileBytes) throws Exception {
         FTPClient ftp = new FTPClient();
@@ -43,6 +48,6 @@ public class FtpForwarderService {
     }
 
     private String decryptPassword(String encryptedPassword) {
-        return encryptedPassword; // TODO: decrypt via encryption-service
+        return credentialCrypto.decrypt(encryptedPassword);
     }
 }

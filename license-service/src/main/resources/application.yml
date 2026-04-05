@@ -30,10 +30,6 @@ spring:
           provider_disables_autocommit: true
   cache:
     type: simple
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
-      - org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration
   flyway:
     enabled: true
     baseline-on-migrate: true

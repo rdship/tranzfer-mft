@@ -1,6 +1,8 @@
 package com.filetransfer.forwarder.service;
 
+import com.filetransfer.shared.crypto.CredentialCryptoClient;
 import com.filetransfer.shared.entity.DeliveryEndpoint;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.net.ftp.FTP;
 import org.apache.commons.net.ftp.FTPReply;
@@ -14,7 +16,10 @@ import java.io.ByteArrayInputStream;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class FtpsForwarderService {
+
+    private final CredentialCryptoClient credentialCrypto;
 
     public void forward(DeliveryEndpoint endpoint, String filename, byte[] fileBytes) throws Exception {
         FTPSClient ftps = new FTPSClient("TLS", false); // explicit TLS
@@ -61,7 +66,6 @@ public class FtpsForwarderService {
     }
 
     private String decryptPassword(String encryptedPassword) {
-        // TODO: Integrate with encryption-service to unwrap password
-        return encryptedPassword;
+        return credentialCrypto.decrypt(encryptedPassword);
     }
 }

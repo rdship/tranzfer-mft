@@ -30,10 +30,6 @@ spring:
   servlet:
     multipart:
       max-file-size: 10MB
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
-      - org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration
   flyway:
     enabled: true
     baseline-on-migrate: true

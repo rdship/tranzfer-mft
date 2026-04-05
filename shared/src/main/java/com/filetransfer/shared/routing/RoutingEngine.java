@@ -2,6 +2,7 @@ package com.filetransfer.shared.routing;
 
 import com.filetransfer.shared.audit.AuditService;
 import com.filetransfer.shared.cluster.ClusterService;
+import com.filetransfer.shared.config.PlatformConfig;
 import com.filetransfer.shared.connector.ConnectorDispatcher;
 import com.filetransfer.shared.dto.FileForwardRequest;
 import com.filetransfer.shared.entity.*;
@@ -44,6 +45,7 @@ public class RoutingEngine {
     private final AuditService auditService;
     private final AiClassificationClient aiClassifier;
     private final ConnectorDispatcher connectorDispatcher;
+    private final PlatformConfig platformConfig;
 
     /**
      * Called by each service when a file upload completes.
@@ -248,6 +250,7 @@ public class RoutingEngine {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-Internal-Key", platformConfig.getSecurity().getControlApiKey());
         HttpEntity<FileForwardRequest> entity = new HttpEntity<>(req, headers);
 
         ResponseEntity<Void> response = restTemplate.exchange(url, HttpMethod.POST, entity, Void.class);

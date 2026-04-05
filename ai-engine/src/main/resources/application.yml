@@ -28,10 +28,6 @@ spring:
         order_updates: true
         connection:
           provider_disables_autocommit: true
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
-      - org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration
   flyway:
     enabled: true
     baseline-on-migrate: true

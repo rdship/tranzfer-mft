@@ -1,6 +1,7 @@
 package com.filetransfer.shared.routing;
 
 import com.filetransfer.shared.cluster.ClusterService;
+import com.filetransfer.shared.config.PlatformConfig;
 import com.filetransfer.shared.entity.*;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.enums.ServiceType;
@@ -37,6 +38,7 @@ public class FlowProcessingEngine {
     private final DeliveryEndpointRepository deliveryEndpointRepository;
     private final ClusterService clusterService;
     private final RestTemplate restTemplate;
+    private final PlatformConfig platformConfig;
 
     /**
      * Called when a file arrives. Finds matching flows and executes them.
@@ -345,6 +347,7 @@ public class FlowProcessingEngine {
 
             org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
             headers.setContentType(org.springframework.http.MediaType.MULTIPART_FORM_DATA);
+            headers.set("X-Internal-Key", platformConfig.getSecurity().getControlApiKey());
 
             String url = screeningUrl + "/api/v1/screening/scan?trackId=" + trackId;
             if (cfg.containsKey("columns")) url += "&columns=" + cfg.get("columns");
@@ -437,6 +440,7 @@ public class FlowProcessingEngine {
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("X-Internal-Key", platformConfig.getSecurity().getControlApiKey());
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
 
             restTemplate.postForEntity(url, entity, Void.class);
@@ -487,6 +491,7 @@ public class FlowProcessingEngine {
 
                 HttpHeaders headers = new HttpHeaders();
                 headers.setContentType(MediaType.TEXT_PLAIN);
+                headers.set("X-Internal-Key", platformConfig.getSecurity().getControlApiKey());
                 HttpEntity<String> entity = new HttpEntity<>(base64Content, headers);
 
                 restTemplate.postForEntity(url, entity, Map.class);

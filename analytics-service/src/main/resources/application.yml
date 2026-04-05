@@ -33,10 +33,6 @@ spring:
     port: ${RABBITMQ_PORT:5672}
   cache:
     type: simple
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
-      - org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration
   flyway:
     enabled: true
     baseline-on-migrate: true

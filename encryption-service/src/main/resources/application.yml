@@ -32,10 +32,6 @@ spring:
     multipart:
       max-file-size: 512MB
       max-request-size: 512MB
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
-      - org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration
   flyway:
     enabled: true
     baseline-on-migrate: true
