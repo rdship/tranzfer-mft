@@ -38,6 +38,7 @@ import Edi from './pages/Edi'
 import Tenants from './pages/Tenants'
 import Blockchain from './pages/Blockchain'
 import ServerInstances from './pages/ServerInstances'
+import PlatformConfig from './pages/PlatformConfig'
 
 export default function App() {
   return (
@@ -77,6 +78,7 @@ export default function App() {
             <Route path="tenants" element={<Tenants />} />
             <Route path="blockchain" element={<Blockchain />} />
             <Route path="connectors" element={<Connectors />} />
+            <Route path="platform-config" element={<PlatformConfig />} />
             <Route path="p2p" element={<PeerTransfers />} />
             <Route path="terminal" element={<Terminal />} />
             <Route path="license" element={<License />} />

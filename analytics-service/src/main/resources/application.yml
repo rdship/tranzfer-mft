@@ -44,6 +44,7 @@ cluster:
   service-type: ANALYTICS
 
 platform:
+  environment: ${PLATFORM_ENVIRONMENT:PROD}
   track-id:
     prefix: ${TRACK_ID_PREFIX:TRZ}
   cluster:

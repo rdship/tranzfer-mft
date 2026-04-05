@@ -36,6 +36,7 @@ cluster:
   service-type: SCREENING
 
 platform:
+  environment: ${PLATFORM_ENVIRONMENT:PROD}
   track-id:
     prefix: ${TRACK_ID_PREFIX:TRZ}
   security:

@@ -76,6 +76,7 @@ const PAGE_SERVICE_MAP = {
   '/activity': ['core'],
   '/encryption': ['encryption'],
   '/server-instances': ['core'],
+  '/platform-config': ['config'],
 
   // AI
   '/ai': ['aiEngine'],

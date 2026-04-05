@@ -14,6 +14,7 @@ x-common-env: &common-env
   CONTROL_API_KEY: ${CONTROL_API_KEY:-internal_control_secret}
   CLUSTER_ID: ${CLUSTER_ID:-cluster-1}
   TRACK_ID_PREFIX: ${TRACK_ID_PREFIX:-TRZ}
+  PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-PROD}
 
 x-service-healthcheck: &healthcheck
   healthcheck:
@@ -413,12 +414,16 @@ services:
   # Frontend UIs
   # ---------------------------------------------------------------------------
   admin-ui:
-    build: ./admin-ui
-    container_name: mft-admin-ui
+    build:
+      context: ./admin-ui
+      args:
+        VITE_PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-PROD}
+    container_name: mft-command-center
     ports:
       - "3000:80"
     depends_on:
       - onboarding-api
+      - config-service
       - analytics-service
       - license-service
 

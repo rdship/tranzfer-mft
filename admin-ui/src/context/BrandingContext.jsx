@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 
 const defaults = {
-  companyName: 'TranzFer MFT',
+  companyName: 'TranzFer Command Center',
   logoUrl: '',
   primaryColor: '#3b82f6',
   accentColor: '#2563eb',
@@ -17,7 +17,7 @@ export function BrandingProvider({ children }) {
   })
 
   useEffect(() => {
-    document.title = branding.companyName + ' — Admin'
+    document.title = branding.companyName
     // Apply CSS variables
     const root = document.documentElement
     // Convert hex to use in CSS vars for tailwind brand colors

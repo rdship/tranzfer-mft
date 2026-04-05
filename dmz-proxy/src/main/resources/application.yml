@@ -20,3 +20,6 @@ dmz:
       listen-port: 443
       target-host: ${FTPWEB_HOST:ftp-web-service}
       target-port: 8083
+
+platform:
+  environment: ${PLATFORM_ENVIRONMENT:PROD}

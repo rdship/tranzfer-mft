@@ -28,3 +28,6 @@ cluster:
   id: ${CLUSTER_ID:default-cluster}
   host: ${CLUSTER_HOST:keystore-manager}
   service-type: KEYSTORE
+
+platform:
+  environment: ${PLATFORM_ENVIRONMENT:PROD}

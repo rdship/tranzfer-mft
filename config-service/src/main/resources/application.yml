@@ -34,6 +34,7 @@ rabbitmq:
   exchange: file-transfer.events
 
 platform:
+  environment: ${PLATFORM_ENVIRONMENT:PROD}
   track-id:
     prefix: ${TRACK_ID_PREFIX:TRZ}
   cluster:

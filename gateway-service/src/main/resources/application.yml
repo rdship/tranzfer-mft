@@ -47,6 +47,7 @@ control-api:
   key: ${CONTROL_API_KEY:internal_control_secret}
 
 platform:
+  environment: ${PLATFORM_ENVIRONMENT:PROD}
   track-id:
     prefix: ${TRACK_ID_PREFIX:TRZ}
   cluster:

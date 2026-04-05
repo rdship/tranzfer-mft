@@ -47,3 +47,6 @@ cluster:
   id: ${CLUSTER_ID:default-cluster}
   host: ${CLUSTER_HOST:storage-manager}
   service-type: STORAGE
+
+platform:
+  environment: ${PLATFORM_ENVIRONMENT:PROD}
