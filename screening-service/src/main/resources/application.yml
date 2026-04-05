@@ -62,3 +62,9 @@ platform:
     prefix: ${TRACK_ID_PREFIX:TRZ}
   security:
     control-api-key: ${CONTROL_API_KEY:internal_control_secret}
+  proxy:
+    enabled: ${PROXY_ENABLED:false}
+    type: ${PROXY_TYPE:HTTP}
+    host: ${PROXY_HOST:dmz-proxy}
+    port: ${PROXY_PORT:8088}
+    no-proxy-hosts: ${PROXY_NO_PROXY_HOSTS:localhost,127.0.0.1,postgres,rabbitmq}

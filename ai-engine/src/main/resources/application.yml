@@ -70,6 +70,12 @@ platform:
   security:
     jwt-secret: ${JWT_SECRET:change_me_in_production_256bit_secret_key!!}
     control-api-key: ${CONTROL_API_KEY:internal_control_secret}
+  proxy:
+    enabled: ${PROXY_ENABLED:false}
+    type: ${PROXY_TYPE:HTTP}
+    host: ${PROXY_HOST:dmz-proxy}
+    port: ${PROXY_PORT:8088}
+    no-proxy-hosts: ${PROXY_NO_PROXY_HOSTS:localhost,127.0.0.1,postgres,rabbitmq}
 
 cluster:
   id: ${CLUSTER_ID:default-cluster}

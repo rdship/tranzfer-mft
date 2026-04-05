@@ -82,3 +82,9 @@ platform:
   flow:
     max-concurrent: ${FLOW_MAX_CONCURRENT:50}
     work-dir: ${FLOW_WORK_DIR:/tmp/mft-flow-work}
+  proxy:
+    enabled: ${PROXY_ENABLED:false}
+    type: ${PROXY_TYPE:HTTP}
+    host: ${PROXY_HOST:dmz-proxy}
+    port: ${PROXY_PORT:8088}
+    no-proxy-hosts: ${PROXY_NO_PROXY_HOSTS:localhost,127.0.0.1,postgres,rabbitmq}

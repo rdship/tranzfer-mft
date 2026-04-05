@@ -35,6 +35,7 @@ public class PlatformConfig {
     private SecurityConfig security = new SecurityConfig();
     private StorageConfig storage = new StorageConfig();
     private FlowConfig flow = new FlowConfig();
+    private ProxyConfig proxy = new ProxyConfig();
 
     @Getter @Setter
     public static class TrackIdConfig {
@@ -73,5 +74,22 @@ public class PlatformConfig {
         private String workDir = "/tmp/mft-flow-work";
         /** Retain completed flow work files for N hours (0 = delete immediately) */
         private int retainWorkHours = 24;
+    }
+
+    @Getter @Setter
+    public static class ProxyConfig {
+        /** Whether this service routes outbound calls through a proxy. Default: false (direct) */
+        private boolean enabled = false;
+        /** Proxy type: HTTP, SOCKS5, DMZ */
+        private String type = "HTTP";
+        /** Proxy hostname, e.g. "dmz-proxy" */
+        private String host;
+        /** Proxy port */
+        private int port = 8080;
+        /**
+         * Comma-separated list of hosts to bypass the proxy for (direct connection).
+         * e.g. "localhost,postgres,rabbitmq" — internal infra should typically bypass.
+         */
+        private String noProxyHosts = "localhost,127.0.0.1,postgres,rabbitmq";
     }
 }

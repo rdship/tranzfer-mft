@@ -1,5 +1,6 @@
 package com.filetransfer.shared.routing;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
@@ -19,6 +20,7 @@ import java.util.Map;
  */
 @Component
 @Slf4j
+@RequiredArgsConstructor
 public class AiClassificationClient {
 
     @Value("${ai.engine.url:http://ai-engine:8091}")
@@ -27,7 +29,7 @@ public class AiClassificationClient {
     @Value("${ai.classification.enabled:true}")
     private boolean enabled;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
 
     /**
      * Classify a file before routing.

@@ -16,6 +16,11 @@ x-common-env: &common-env
   CLUSTER_COMM_MODE: ${CLUSTER_COMM_MODE:-WITHIN_CLUSTER}
   TRACK_ID_PREFIX: ${TRACK_ID_PREFIX:-TRZ}
   PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-PROD}
+  PROXY_ENABLED: ${PROXY_ENABLED:-false}
+  PROXY_TYPE: ${PROXY_TYPE:-HTTP}
+  PROXY_HOST: ${PROXY_HOST:-dmz-proxy}
+  PROXY_PORT: ${PROXY_PORT:-8088}
+  PROXY_NO_PROXY_HOSTS: ${PROXY_NO_PROXY_HOSTS:-localhost,127.0.0.1,postgres,rabbitmq}
 
 x-service-healthcheck: &healthcheck
   healthcheck:

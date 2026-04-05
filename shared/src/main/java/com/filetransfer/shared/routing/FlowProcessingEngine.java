@@ -36,6 +36,7 @@ public class FlowProcessingEngine {
     private final TransferAccountRepository accountRepository;
     private final DeliveryEndpointRepository deliveryEndpointRepository;
     private final ClusterService clusterService;
+    private final RestTemplate restTemplate;
 
     /**
      * Called when a file arrives. Finds matching flows and executes them.
@@ -243,8 +244,7 @@ public class FlowProcessingEngine {
             org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
             headers.setContentType(org.springframework.http.MediaType.TEXT_PLAIN);
             org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(base64Input, headers);
-            org.springframework.web.client.RestTemplate rest = new org.springframework.web.client.RestTemplate();
-            String base64Result = rest.postForObject(endpoint, entity, String.class);
+            String base64Result = restTemplate.postForObject(endpoint, entity, String.class);
 
             byte[] resultBytes = java.util.Base64.getDecoder().decode(base64Result);
             Files.write(output, resultBytes);
@@ -351,10 +351,8 @@ public class FlowProcessingEngine {
 
             org.springframework.http.HttpEntity<org.springframework.util.MultiValueMap<String, Object>> request =
                     new org.springframework.http.HttpEntity<>(body, headers);
-            org.springframework.web.client.RestTemplate rest = new org.springframework.web.client.RestTemplate();
-
             org.springframework.http.ResponseEntity<java.util.Map> response =
-                    rest.postForEntity(url, request, java.util.Map.class);
+                    restTemplate.postForEntity(url, request, java.util.Map.class);
 
             if (response.getBody() != null) {
                 String outcome = (String) response.getBody().get("outcome");
@@ -441,8 +439,7 @@ public class FlowProcessingEngine {
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
 
-            RestTemplate rest = new RestTemplate();
-            rest.postForEntity(url, entity, Void.class);
+            restTemplate.postForEntity(url, entity, Void.class);
             log.info("[{}] MAILBOX: forwarded to {}:{} for user {}", trackId,
                     svc.getHost(), svc.getControlPort(), destUsername);
         }
@@ -480,7 +477,6 @@ public class FlowProcessingEngine {
         String base64Content = Base64.getEncoder().encodeToString(fileBytes);
         String filename = input.getFileName().toString();
 
-        RestTemplate rest = new RestTemplate();
         int successCount = 0;
         List<String> failures = new ArrayList<>();
 
@@ -493,7 +489,7 @@ public class FlowProcessingEngine {
                 headers.setContentType(MediaType.TEXT_PLAIN);
                 HttpEntity<String> entity = new HttpEntity<>(base64Content, headers);
 
-                rest.postForEntity(url, entity, Map.class);
+                restTemplate.postForEntity(url, entity, Map.class);
                 successCount++;
                 log.info("[{}] FILE_DELIVERY: delivered to '{}' ({}://{}:{}) OK",
                         trackId, ep.getName(), ep.getProtocol(), ep.getHost(), ep.getPort());
