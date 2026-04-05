@@ -23,10 +23,15 @@ public class FormatDetector {
         // SWIFT MT: starts with {1: or contains :20: and :32A:
         if (trimmed.startsWith("{1:") || (trimmed.contains(":20:") && trimmed.contains(":32A:"))) return "SWIFT_MT";
 
+        // PEPPOL / UBL: XML with oasis-open or urn:oasis:names
+        if (trimmed.contains("urn:oasis:names:specification:ubl") || trimmed.contains("<Invoice xmlns")
+                || trimmed.contains("<CreditNote xmlns") || trimmed.contains("<Order xmlns")
+                || trimmed.contains("urn:cen.eu:en16931") || trimmed.contains("peppol")) return "PEPPOL";
+
         // SWIFT MX / ISO 20022: XML with urn:iso:std or <Document>
         if (trimmed.contains("urn:iso:std:iso:20022") || trimmed.contains("<BkToCstmrStmt>") || trimmed.contains("pacs.008")) return "ISO20022";
 
-        // HL7 v2: starts with MSH| 
+        // HL7 v2: starts with MSH|
         if (trimmed.startsWith("MSH|") || trimmed.contains("MSH|")) return "HL7";
 
         // NACHA/ACH: starts with 1 (file header) and has fixed-width 94-char records

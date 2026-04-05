@@ -48,6 +48,7 @@ public class UniversalEdiParser {
             case "BAI2" -> parseBai2(content);
             case "ISO20022" -> parseIso20022(content);
             case "FIX" -> parseFix(content);
+            case "PEPPOL" -> parsePeppol(content);
             default -> EdiDocument.builder().sourceFormat("UNKNOWN").rawContent(content).segments(List.of()).build();
         };
     }
@@ -273,6 +274,70 @@ public class UniversalEdiParser {
         return EdiDocument.builder().sourceFormat("ISO20022").documentType(msgType)
                 .documentName("ISO 20022 " + (msgType != null ? msgType : "Message"))
                 .segments(segments).rawContent(content).build();
+    }
+
+    // === PEPPOL / UBL Parser ===
+    private EdiDocument parsePeppol(String content) {
+        List<Segment> segments = new ArrayList<>();
+        Map<String, Object> biz = new LinkedHashMap<>();
+        String docType = null, senderId = null, receiverId = null, docNumber = null, docDate = null;
+
+        // Determine UBL document type
+        if (content.contains("<Invoice")) docType = "Invoice";
+        else if (content.contains("<CreditNote")) docType = "CreditNote";
+        else if (content.contains("<Order")) docType = "Order";
+        else if (content.contains("<DespatchAdvice")) docType = "DespatchAdvice";
+        else if (content.contains("<Catalogue")) docType = "Catalogue";
+        else docType = "UBL";
+
+        // Parse XML tags into segments
+        for (String line : content.split("\n")) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("<") && !trimmed.startsWith("<?") && !trimmed.startsWith("</")
+                    && !trimmed.startsWith("<!--")) {
+                String tag = trimmed.replaceAll("[<>/].*", "").replaceAll("\\s.*", "").replaceAll("^.*:", "");
+                String value = trimmed.replaceAll("<[^>]*>", "").trim();
+
+                if (!tag.isEmpty()) {
+                    Map<String, String> named = new LinkedHashMap<>();
+                    named.put("tag", tag);
+                    if (!value.isEmpty()) named.put("value", value);
+                    segments.add(Segment.builder().id(tag)
+                            .elements(value.isEmpty() ? List.of() : List.of(value))
+                            .namedFields(named).build());
+
+                    // Extract key business fields
+                    switch (tag) {
+                        case "ID" -> { if (docNumber == null) docNumber = value; }
+                        case "IssueDate" -> docDate = value;
+                        case "EndpointID" -> {
+                            if (senderId == null) senderId = value;
+                            else if (receiverId == null) receiverId = value;
+                        }
+                        case "Name" -> {
+                            if (biz.containsKey("supplierName")) biz.putIfAbsent("customerName", value);
+                            else biz.putIfAbsent("supplierName", value);
+                        }
+                        case "PayableAmount", "TaxInclusiveAmount" -> biz.put("totalAmount", value);
+                        case "TaxAmount" -> biz.put("taxAmount", value);
+                        case "InvoicedQuantity", "Quantity" -> biz.put("quantity", value);
+                        case "PriceAmount" -> biz.put("unitPrice", value);
+                        case "DocumentCurrencyCode" -> biz.put("currency", value);
+                        case "Note" -> biz.put("note", value);
+                        case "ProfileID" -> biz.put("profileId", value);
+                        case "CustomizationID" -> biz.put("customizationId", value);
+                    }
+                }
+            }
+        }
+
+        biz.put("ublDocumentType", docType);
+
+        return EdiDocument.builder().sourceFormat("PEPPOL").documentType(docType)
+                .documentName("PEPPOL/UBL " + docType)
+                .senderId(senderId).receiverId(receiverId)
+                .controlNumber(docNumber).documentDate(docDate)
+                .segments(segments).rawContent(content).businessData(biz).build();
     }
 
     // === FIX Parser ===

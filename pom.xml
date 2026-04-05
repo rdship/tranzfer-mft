@@ -40,7 +40,7 @@
         <jjwt.version>0.12.6</jjwt.version>
         <mina-sshd.version>2.12.0</mina-sshd.version>
         <ftpserver.version>1.2.0</ftpserver.version>
-        <lombok.version>1.18.30</lombok.version>
+        <lombok.version>1.18.38</lombok.version>
     </properties>
 
     <dependencyManagement>
