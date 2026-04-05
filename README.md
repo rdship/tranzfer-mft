@@ -422,10 +422,13 @@ Client A uploads invoice.csv via SFTP
 
 # 📚 Documentation
 
-> **Full documentation index:** [docs/README.md](docs/README.md)
+> **Full documentation index:** [docs/README.md](docs/README.md) | **Product guide:** [docs/PRODUCT-GUIDE.md](docs/PRODUCT-GUIDE.md)
+>
+> **Every microservice has its own detailed README.md** — click any module directory on GitHub to see it.
 
 | Document | What's Inside |
 |----------|--------------|
+| [Product Guide](docs/PRODUCT-GUIDE.md) | **Start here** — Complete product reference, concepts, file flow, editions |
 | [Architecture](docs/ARCHITECTURE.md) | System architecture, service communication, data flows, deployment topologies |
 | [Service Catalog](docs/SERVICES.md) | Every service explained — what it does, ports, config, how to run it |
 | [Security Architecture](docs/SECURITY-ARCHITECTURE.md) | DMZ proxy + AI engine security deep-dive, threat model, monitoring |
