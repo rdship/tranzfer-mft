@@ -94,11 +94,14 @@ public class FileFlowController {
 
     @GetMapping("/step-types")
     public Map<String, Object> getStepTypes() {
-        return Map.of(
-            "encryption", List.of("ENCRYPT_PGP", "DECRYPT_PGP", "ENCRYPT_AES", "DECRYPT_AES"),
-            "compression", List.of("COMPRESS_GZIP", "DECOMPRESS_GZIP", "COMPRESS_ZIP", "DECOMPRESS_ZIP"),
-            "transform", List.of("RENAME"),
-            "routing", List.of("ROUTE")
-        );
+        Map<String, Object> types = new java.util.LinkedHashMap<>();
+        types.put("encryption", List.of("ENCRYPT_PGP", "DECRYPT_PGP", "ENCRYPT_AES", "DECRYPT_AES"));
+        types.put("compression", List.of("COMPRESS_GZIP", "DECOMPRESS_GZIP", "COMPRESS_ZIP", "DECOMPRESS_ZIP"));
+        types.put("transform", List.of("RENAME"));
+        types.put("security", List.of("SCREEN"));
+        types.put("scripting", List.of("EXECUTE_SCRIPT"));
+        types.put("delivery", List.of("MAILBOX", "FILE_DELIVERY"));
+        types.put("routing", List.of("ROUTE"));
+        return types;
     }
 }

@@ -1,16 +1,18 @@
 package com.filetransfer.shared.routing;
 
-import com.filetransfer.shared.entity.FileFlow;
-import com.filetransfer.shared.entity.FlowExecution;
-import com.filetransfer.shared.entity.TransferAccount;
-import com.filetransfer.shared.repository.FileFlowRepository;
-import com.filetransfer.shared.repository.FlowExecutionRepository;
+import com.filetransfer.shared.cluster.ClusterService;
+import com.filetransfer.shared.entity.*;
+import com.filetransfer.shared.enums.Protocol;
+import com.filetransfer.shared.enums.ServiceType;
+import com.filetransfer.shared.repository.*;
 import com.filetransfer.shared.util.TrackIdGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
 import java.io.*;
 import java.nio.file.*;
@@ -31,6 +33,9 @@ public class FlowProcessingEngine {
     private final FileFlowRepository flowRepository;
     private final FlowExecutionRepository executionRepository;
     private final TrackIdGenerator trackIdGenerator;
+    private final TransferAccountRepository accountRepository;
+    private final DeliveryEndpointRepository deliveryEndpointRepository;
+    private final ClusterService clusterService;
 
     /**
      * Called when a file arrives. Finds matching flows and executes them.
@@ -124,6 +129,8 @@ public class FlowProcessingEngine {
             case "RENAME" -> renameFile(input, workDir, cfg, trackId);
             case "SCREEN" -> callScreeningService(input, trackId, cfg);
             case "EXECUTE_SCRIPT" -> executeScript(input, workDir, cfg, trackId);
+            case "MAILBOX" -> executeMailbox(input, cfg, trackId);
+            case "FILE_DELIVERY" -> executeFileDelivery(input, cfg, trackId);
             case "ROUTE" -> inputPath; // Route is handled by RoutingEngine after flow completes
             default -> throw new IllegalArgumentException("Unknown step type: " + step.getType());
         };
@@ -373,6 +380,151 @@ public class FlowProcessingEngine {
         }
 
         return input.toString(); // File passes through unchanged
+    }
+
+    /**
+     * MAILBOX step — delivers the file to a destination user's outbox within the platform.
+     * Config: {"destinationUsername": "bob", "protocol": "SFTP"}
+     * The file is always placed in the destination user's outbox folder.
+     */
+    private String executeMailbox(Path input, Map<String, String> cfg, String trackId) throws Exception {
+        String destUsername = cfg.get("destinationUsername");
+        if (destUsername == null || destUsername.isBlank()) {
+            throw new IllegalArgumentException("MAILBOX step requires 'destinationUsername' in config");
+        }
+
+        String protocolStr = cfg.getOrDefault("protocol", "SFTP");
+        Protocol protocol;
+        try {
+            protocol = Protocol.valueOf(protocolStr.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            protocol = Protocol.SFTP;
+        }
+
+        TransferAccount destAccount = accountRepository
+                .findByUsernameAndProtocolAndActiveTrue(destUsername, protocol)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Destination account not found: " + destUsername + " (" + protocol + ")"));
+
+        // Build outbox path: {homeDir}/outbox/{filename}
+        String homeDir = destAccount.getHomeDir();
+        String outboxDir = homeDir + "/outbox";
+        String filename = input.getFileName().toString();
+        Path outboxPath = Paths.get(outboxDir, filename);
+
+        // Determine which service hosts this account
+        ServiceType serviceType = protocolToServiceType(protocol);
+        Optional<ServiceRegistration> destService = clusterService.discoverService(serviceType);
+
+        if (destService.isEmpty() || clusterService.isLocalService(destService.get())) {
+            // Local delivery — copy file directly to outbox
+            Files.createDirectories(outboxPath.getParent());
+            Files.copy(input, outboxPath, StandardCopyOption.REPLACE_EXISTING);
+            log.info("[{}] MAILBOX: delivered locally to {} outbox: {}", trackId, destUsername, outboxPath);
+        } else {
+            // Remote delivery — POST to the destination service
+            ServiceRegistration svc = destService.get();
+            byte[] fileBytes = Files.readAllBytes(input);
+            String encoded = Base64.getEncoder().encodeToString(fileBytes);
+
+            String url = "http://" + svc.getHost() + ":" + svc.getControlPort()
+                    + "/internal/files/receive";
+
+            Map<String, Object> payload = Map.of(
+                    "destinationUsername", destUsername,
+                    "destinationAbsolutePath", outboxPath.toString(),
+                    "originalFilename", filename,
+                    "fileContentBase64", encoded
+            );
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
+
+            RestTemplate rest = new RestTemplate();
+            rest.postForEntity(url, entity, Void.class);
+            log.info("[{}] MAILBOX: forwarded to {}:{} for user {}", trackId,
+                    svc.getHost(), svc.getControlPort(), destUsername);
+        }
+
+        return input.toString(); // Pass through — file delivered as side effect
+    }
+
+    /**
+     * FILE_DELIVERY step — delivers the file to one or many external delivery endpoints.
+     * Config: {"deliveryEndpointIds": "uuid1,uuid2,uuid3"}
+     * Each endpoint is called via the external-forwarder-service.
+     */
+    private String executeFileDelivery(Path input, Map<String, String> cfg, String trackId) throws Exception {
+        String endpointIdsStr = cfg.get("deliveryEndpointIds");
+        if (endpointIdsStr == null || endpointIdsStr.isBlank()) {
+            throw new IllegalArgumentException("FILE_DELIVERY step requires 'deliveryEndpointIds' in config");
+        }
+
+        List<UUID> endpointIds = Arrays.stream(endpointIdsStr.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .map(UUID::fromString)
+                .toList();
+
+        List<DeliveryEndpoint> endpoints = deliveryEndpointRepository.findByIdInAndActiveTrue(endpointIds);
+
+        if (endpoints.isEmpty()) {
+            throw new IllegalArgumentException("No active delivery endpoints found for IDs: " + endpointIdsStr);
+        }
+
+        String forwarderUrl = System.getenv("FORWARDER_SERVICE_URL");
+        if (forwarderUrl == null) forwarderUrl = "http://external-forwarder-service:8087";
+
+        byte[] fileBytes = Files.readAllBytes(input);
+        String base64Content = Base64.getEncoder().encodeToString(fileBytes);
+        String filename = input.getFileName().toString();
+
+        RestTemplate rest = new RestTemplate();
+        int successCount = 0;
+        List<String> failures = new ArrayList<>();
+
+        for (DeliveryEndpoint ep : endpoints) {
+            try {
+                String url = forwarderUrl + "/api/forward/deliver/" + ep.getId() + "/base64"
+                        + "?filename=" + java.net.URLEncoder.encode(filename, "UTF-8");
+
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.TEXT_PLAIN);
+                HttpEntity<String> entity = new HttpEntity<>(base64Content, headers);
+
+                rest.postForEntity(url, entity, Map.class);
+                successCount++;
+                log.info("[{}] FILE_DELIVERY: delivered to '{}' ({}://{}:{}) OK",
+                        trackId, ep.getName(), ep.getProtocol(), ep.getHost(), ep.getPort());
+            } catch (Exception e) {
+                String msg = ep.getName() + ": " + e.getMessage();
+                failures.add(msg);
+                log.error("[{}] FILE_DELIVERY: failed for '{}': {}", trackId, ep.getName(), e.getMessage());
+            }
+        }
+
+        if (successCount == 0) {
+            throw new RuntimeException("FILE_DELIVERY failed for all " + endpoints.size()
+                    + " endpoints: " + String.join("; ", failures));
+        }
+
+        if (!failures.isEmpty()) {
+            log.warn("[{}] FILE_DELIVERY: {}/{} endpoints succeeded, {} failed: {}",
+                    trackId, successCount, endpoints.size(), failures.size(), failures);
+        }
+
+        log.info("[{}] FILE_DELIVERY: completed — {}/{} endpoints delivered", trackId, successCount, endpoints.size());
+        return input.toString(); // Pass through — delivery is a side effect
+    }
+
+    private ServiceType protocolToServiceType(Protocol protocol) {
+        return switch (protocol) {
+            case SFTP -> ServiceType.SFTP;
+            case FTP -> ServiceType.FTP;
+            case FTP_WEB -> ServiceType.FTP_WEB;
+            case HTTPS -> ServiceType.FTP_WEB;
+        };
     }
 
     private boolean matchesFlow(FileFlow flow, String filename, String path) {

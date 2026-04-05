@@ -87,7 +87,7 @@ public class FileFlow {
     public static class FlowStep {
         /** Step type: ENCRYPT_PGP, DECRYPT_PGP, ENCRYPT_AES, DECRYPT_AES,
          *  COMPRESS_GZIP, DECOMPRESS_GZIP, COMPRESS_ZIP, DECOMPRESS_ZIP,
-         *  RENAME, ROUTE */
+         *  RENAME, SCREEN, EXECUTE_SCRIPT, MAILBOX, FILE_DELIVERY, ROUTE */
         private String type;
 
         /** Step-specific config (e.g. {"keyId":"uuid"} for encryption,
