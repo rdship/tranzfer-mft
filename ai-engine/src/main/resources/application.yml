@@ -67,6 +67,93 @@ ai:
     max-connections-per-ip-per-minute: 60
     ddos-threshold-per-minute: 5000
 
+  # Threat intelligence
+  intelligence:
+    enabled: ${AI_INTELLIGENCE_ENABLED:true}
+    # Threat indicator store
+    max-indicators: ${AI_INTEL_MAX_INDICATORS:500000}
+    stale-days: ${AI_INTEL_STALE_DAYS:90}
+    max-cached-indicators: ${AI_INTEL_MAX_CACHE:100000}
+    stale-indicator-days: ${AI_INTEL_STALE_DAYS:90}
+    downgrade-after-days: ${AI_INTEL_DOWNGRADE_DAYS:30}
+    # External threat feeds (ThreatFeedConfig)
+    feeds:
+      enabled: true
+      abuseipdb:
+        enabled: true
+        api-key: ${ABUSEIPDB_API_KEY:}
+        confidence-minimum: 80
+        max-age: 30
+      urlhaus:
+        enabled: true
+        max-results: 1000
+      threatfox:
+        enabled: true
+        lookback-days: 7
+      feodo:
+        enabled: true
+      otx:
+        enabled: false
+        api-key: ${OTX_API_KEY:}
+        pulse-limit: 50
+    # GeoIP resolution
+    geo:
+      enabled: ${AI_GEO_ENABLED:true}
+      cache-size: ${AI_GEO_CACHE_SIZE:50000}
+      impossible-travel-speed-kmh: ${AI_GEO_TRAVEL_SPEED:900}
+
+  # Background agents
+  agents:
+    enabled: ${AI_AGENTS_ENABLED:true}
+    health-check-interval-seconds: ${AI_AGENTS_HEALTH_CHECK:60}
+    # OSINT collection
+    osint:
+      interval-minutes: ${AI_OSINT_INTERVAL:15}
+      abuseipdb-api-key: ${ABUSEIPDB_API_KEY:}
+      otx-api-key: ${OTX_API_KEY:}
+      virustotal-api-key: ${VIRUSTOTAL_API_KEY:}
+    # CVE monitoring
+    cve:
+      interval-minutes: ${AI_CVE_INTERVAL:60}
+    # Threat correlation
+    correlation:
+      interval-minutes: ${AI_CORRELATION_INTERVAL:2}
+      kill-chain-window-hours: ${AI_KILL_CHAIN_WINDOW:24}
+    # Reputation decay
+    decay:
+      interval-minutes: ${AI_DECAY_INTERVAL:5}
+
+  # ML detection models
+  detection:
+    # Anomaly ensemble
+    anomaly-ensemble:
+      enabled: ${AI_ANOMALY_ENSEMBLE_ENABLED:true}
+      isolation-forest-trees: ${AI_IF_TREES:100}
+      isolation-forest-subsample: ${AI_IF_SUBSAMPLE:256}
+      z-score-window-size: ${AI_ZSCORE_WINDOW:1000}
+    # Network behavior analysis
+    network-behavior:
+      enabled: ${AI_NETWORK_BEHAVIOR_ENABLED:true}
+      beaconing-min-samples: ${AI_BEACON_MIN_SAMPLES:20}
+      beaconing-cov-threshold: ${AI_BEACON_COV:0.3}
+      dga-entropy-threshold: ${AI_DGA_ENTROPY:3.5}
+      dga-score-threshold: ${AI_DGA_SCORE:0.7}
+      exfil-ratio-threshold: ${AI_EXFIL_RATIO:10}
+      exfil-baseline-multiplier: ${AI_EXFIL_BASELINE:3.0}
+    # Attack chain detection
+    attack-chain:
+      enabled: ${AI_ATTACK_CHAIN_ENABLED:true}
+      window-hours: ${AI_CHAIN_WINDOW:24}
+      min-stages-for-alert: ${AI_CHAIN_MIN_STAGES:2}
+      prune-interval-minutes: ${AI_CHAIN_PRUNE:10}
+
+  # Response playbooks
+  response:
+    enabled: ${AI_RESPONSE_ENABLED:true}
+    max-blocks-per-hour: ${AI_MAX_BLOCKS_HOUR:100}
+    max-alerts-per-hour: ${AI_MAX_ALERTS_HOUR:200}
+    max-execution-history: ${AI_MAX_EXEC_HISTORY:500}
+
 platform:
   services:
     onboarding-api:

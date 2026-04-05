@@ -72,7 +72,7 @@ public class IpReputationService {
             return (int) recentFailures.stream().filter(t -> t.isAfter(cutoff)).count();
         }
 
-        synchronized void recordConnection() {
+        public synchronized void recordConnection() {
             lastSeen = Instant.now();
             totalConnections.incrementAndGet();
             recentConnections.addLast(Instant.now());
@@ -80,25 +80,25 @@ public class IpReputationService {
             while (recentConnections.size() > 1000) recentConnections.pollFirst();
         }
 
-        synchronized void recordFailure() {
+        public synchronized void recordFailure() {
             failedConnections.incrementAndGet();
             recentFailures.addLast(Instant.now());
             while (recentFailures.size() > 500) recentFailures.pollFirst();
         }
 
-        void recordSuccess() { successfulConnections.incrementAndGet(); }
-        void recordRejection() { rejectedConnections.incrementAndGet(); }
-        void addBytes(long bytes) { bytesTransferred.addAndGet(bytes); }
-        void addProtocol(String proto) { if (proto != null) protocols.add(proto); }
-        void addCountry(String country) { if (country != null) countries.add(country); }
-        void addTag(String tag) { if (tag != null) tags.add(tag); }
-        void removeTag(String tag) { tags.remove(tag); }
+        public void recordSuccess() { successfulConnections.incrementAndGet(); }
+        public void recordRejection() { rejectedConnections.incrementAndGet(); }
+        public void addBytes(long bytes) { bytesTransferred.addAndGet(bytes); }
+        public void addProtocol(String proto) { if (proto != null) protocols.add(proto); }
+        public void addCountry(String country) { if (country != null) countries.add(country); }
+        public void addTag(String tag) { if (tag != null) tags.add(tag); }
+        public void removeTag(String tag) { tags.remove(tag); }
 
-        synchronized void adjustScore(double delta) {
+        public synchronized void adjustScore(double delta) {
             this.score = Math.max(0.0, Math.min(100.0, this.score + delta));
         }
 
-        void setScore(double score) {
+        public void setScore(double score) {
             this.score = Math.max(0.0, Math.min(100.0, score));
         }
 

@@ -4,8 +4,14 @@ import com.filetransfer.ai.service.proxy.ProtocolThreatDetector.ConnectionEvent;
 import com.filetransfer.ai.service.proxy.ProtocolThreatDetector.ThreatSignal;
 import com.filetransfer.ai.service.proxy.ConnectionPatternAnalyzer.PatternAnalysis;
 import com.filetransfer.ai.service.proxy.GeoAnomalyDetector.GeoAnomaly;
-import lombok.RequiredArgsConstructor;
+import com.filetransfer.ai.service.intelligence.ThreatIntelligenceStore;
+import com.filetransfer.ai.service.intelligence.MitreAttackMapper;
+import com.filetransfer.ai.service.detection.NetworkBehaviorAnalyzer;
+import com.filetransfer.ai.service.detection.AttackChainDetector;
+import com.filetransfer.ai.service.detection.ExplainabilityEngine;
+import com.filetransfer.ai.service.response.PlaybookEngine;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -29,13 +35,44 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ProxyIntelligenceService {
 
     private final IpReputationService reputationService;
     private final ProtocolThreatDetector threatDetector;
     private final ConnectionPatternAnalyzer patternAnalyzer;
     private final GeoAnomalyDetector geoDetector;
+
+    // ── Enhanced AI capabilities (optional — gracefully degrade if absent) ──
+    private final ThreatIntelligenceStore threatIntelStore;
+    private final MitreAttackMapper mitreMapper;
+    private final NetworkBehaviorAnalyzer networkAnalyzer;
+    private final AttackChainDetector attackChainDetector;
+    private final ExplainabilityEngine explainabilityEngine;
+    private final PlaybookEngine playbookEngine;
+
+    @Autowired
+    public ProxyIntelligenceService(
+            IpReputationService reputationService,
+            ProtocolThreatDetector threatDetector,
+            ConnectionPatternAnalyzer patternAnalyzer,
+            GeoAnomalyDetector geoDetector,
+            @Autowired(required = false) ThreatIntelligenceStore threatIntelStore,
+            @Autowired(required = false) MitreAttackMapper mitreMapper,
+            @Autowired(required = false) NetworkBehaviorAnalyzer networkAnalyzer,
+            @Autowired(required = false) AttackChainDetector attackChainDetector,
+            @Autowired(required = false) ExplainabilityEngine explainabilityEngine,
+            @Autowired(required = false) PlaybookEngine playbookEngine) {
+        this.reputationService = reputationService;
+        this.threatDetector = threatDetector;
+        this.patternAnalyzer = patternAnalyzer;
+        this.geoDetector = geoDetector;
+        this.threatIntelStore = threatIntelStore;
+        this.mitreMapper = mitreMapper;
+        this.networkAnalyzer = networkAnalyzer;
+        this.attackChainDetector = attackChainDetector;
+        this.explainabilityEngine = explainabilityEngine;
+        this.playbookEngine = playbookEngine;
+    }
 
     // ── Verdict Model ──────────────────────────────────────────────────
 
@@ -123,9 +160,9 @@ public class ProxyIntelligenceService {
                 300, null, List.of(), Map.of());
         }
 
-        // ── Gather intelligence from all analyzers ──
+        // ── Gather intelligence from all analyzers (all in-memory, sub-ms) ──
 
-        // 1. IP Reputation
+        // 1. IP Reputation (in-memory ConcurrentHashMap — O(1))
         double reputationScore = reputationService.getScore(sourceIp);
         boolean isNew = reputationService.isNewIp(sourceIp);
         reputationService.recordConnection(sourceIp, protocol);
@@ -135,13 +172,13 @@ public class ProxyIntelligenceService {
         metadata.put("reputationScore", Math.round(reputationScore * 10.0) / 10.0);
         metadata.put("isNewIp", isNew);
 
-        // 2. Connection Patterns
+        // 2. Connection Patterns (in-memory — O(1))
         patternAnalyzer.recordConnectionOpen(sourceIp, targetPort);
         PatternAnalysis patterns = patternAnalyzer.analyzeIp(sourceIp);
         signals.addAll(patterns.patterns());
         metadata.put("patternRisk", patterns.riskScore());
 
-        // 3. Geo Analysis (if country is cached)
+        // 3. Geo Analysis (cached in-memory — O(1))
         Optional<String> country = geoDetector.getCachedCountry(sourceIp);
         int geoRisk = 0;
         if (country.isPresent()) {
@@ -154,31 +191,61 @@ public class ProxyIntelligenceService {
         }
         metadata.put("geoRisk", geoRisk);
 
+        // 4. Threat Intelligence lookup (in-memory ConcurrentHashMap — O(1), zero latency impact)
+        double threatIntelRisk = 0;
+        if (threatIntelStore != null) {
+            int threatScore = threatIntelStore.getThreatScore(sourceIp);
+            if (threatScore > 0) {
+                threatIntelRisk = threatScore;
+                signals.add("THREAT_INTEL_MATCH:" + threatScore);
+                metadata.put("threatIntelScore", threatScore);
+                log.info("Threat intel match for {}: score={}", sourceIp, threatScore);
+            }
+        }
+
+        // 5. Network behavior analysis (in-memory — O(1), only adds signals)
+        double networkRisk = 0;
+        if (networkAnalyzer != null) {
+            var scanResult = networkAnalyzer.detectPortScan(sourceIp, targetPort, Instant.now());
+            if (scanResult.detected()) {
+                networkRisk = scanResult.confidence() * 100;
+                signals.add("PORT_SCAN:" + scanResult.scanType());
+                metadata.put("portScan", Map.of("type", scanResult.scanType(),
+                    "uniquePorts", scanResult.uniquePorts()));
+            }
+        }
+
         // ── Compute composite risk score ──
-        // Weighted formula:
-        //   - IP reputation inverted (100 - score): weight 0.35
-        //   - Connection pattern risk: weight 0.30
-        //   - Geo risk: weight 0.15
-        //   - New IP penalty: weight 0.10
-        //   - Protocol risk (SSH/FTP higher baseline): weight 0.10
+        // Enhanced weighted formula with threat intel + network behavior:
+        //   - IP reputation inverted (100 - score): weight 0.25 (reduced from 0.35)
+        //   - Connection pattern risk: weight 0.20 (reduced from 0.30)
+        //   - Threat intel feed match: weight 0.20 (NEW — high-confidence external data)
+        //   - Geo risk: weight 0.10 (reduced from 0.15)
+        //   - Network behavior risk: weight 0.10 (NEW)
+        //   - New IP penalty: weight 0.05 (reduced from 0.10)
+        //   - Protocol risk: weight 0.10
 
         double reputationRisk = 100.0 - reputationScore;
         double protocolRisk = getProtocolBaselineRisk(protocol);
         double newIpPenalty = isNew ? 15.0 : 0.0;
 
         double compositeRisk =
-            (reputationRisk * 0.35) +
-            (patterns.riskScore() * 0.30) +
-            (geoRisk * 0.15) +
-            (newIpPenalty * 0.10) +
+            (reputationRisk * 0.25) +
+            (patterns.riskScore() * 0.20) +
+            (threatIntelRisk * 0.20) +
+            (geoRisk * 0.10) +
+            (networkRisk * 0.10) +
+            (newIpPenalty * 0.05) +
             (protocolRisk * 0.10);
 
         int riskScore = (int) Math.min(100, Math.max(0, compositeRisk));
         metadata.put("compositeBreakdown", Map.of(
-            "reputation", Math.round(reputationRisk * 0.35),
-            "pattern", Math.round(patterns.riskScore() * 0.30),
-            "geo", Math.round(geoRisk * 0.15),
-            "newIp", Math.round(newIpPenalty * 0.10),
+            "reputation", Math.round(reputationRisk * 0.25),
+            "pattern", Math.round(patterns.riskScore() * 0.20),
+            "threatIntel", Math.round(threatIntelRisk * 0.20),
+            "geo", Math.round(geoRisk * 0.10),
+            "network", Math.round(networkRisk * 0.10),
+            "newIp", Math.round(newIpPenalty * 0.05),
             "protocol", Math.round(protocolRisk * 0.10)
         ));
 
@@ -432,7 +499,86 @@ public class ProxyIntelligenceService {
         alert.put("signals", signals);
         alert.put("action", action.name());
         alert.put("timestamp", Instant.now().toString());
+
+        // Enhanced: Map signals to MITRE ATT&CK techniques (in-memory, sub-ms)
+        if (mitreMapper != null) {
+            List<String> techniques = new ArrayList<>();
+            for (String signal : signals) {
+                String base = signal.contains(":") ? signal.substring(0, signal.indexOf(':')) : signal;
+                List<MitreAttackMapper.TechniqueInfo> matches =
+                    mitreMapper.mapBehaviorToTechniques(base, null, Map.of("ip", ip));
+                for (MitreAttackMapper.TechniqueInfo match : matches) {
+                    techniques.add(match.getId() + ":" + match.getName());
+                }
+            }
+            if (!techniques.isEmpty()) {
+                alert.put("mitreTechniques", techniques);
+            }
+        }
+
+        // Enhanced: Track attack chain progression (in-memory, sub-ms)
+        if (attackChainDetector != null && mitreMapper != null) {
+            for (String signal : signals) {
+                String base = signal.contains(":") ? signal.substring(0, signal.indexOf(':')) : signal;
+                List<MitreAttackMapper.TechniqueInfo> matches =
+                    mitreMapper.mapBehaviorToTechniques(base, null, Map.of("ip", ip));
+                for (MitreAttackMapper.TechniqueInfo match : matches) {
+                    for (String tacticId : match.getTactics()) {
+                        attackChainDetector.recordTactic(ip, tacticId, match.getId(),
+                            riskScore / 100.0, signal);
+                    }
+                }
+            }
+            // Check if kill chain is progressing
+            var chain = attackChainDetector.analyzeChain(ip);
+            if (chain != null && chain.stagesReached() >= 2) {
+                alert.put("attackChain", Map.of(
+                    "stages", chain.stagesReached(),
+                    "riskLevel", chain.riskLevel(),
+                    "currentStage", chain.currentStage(),
+                    "narrative", chain.narrative()
+                ));
+                log.warn("Attack chain detected for {}: {} stages, risk={}",
+                    ip, chain.stagesReached(), chain.riskLevel());
+            }
+        }
+
+        // Enhanced: Generate human-readable explanation (in-memory, sub-ms)
+        if (explainabilityEngine != null) {
+            String explanation = explainabilityEngine.explainVerdict(
+                ip, 0, "TCP", riskScore, action.name(),
+                Map.of("signals", signals));
+            alert.put("explanation", explanation);
+        }
+
         activeAlerts.put(ip, alert);
+
+        // Enhanced: Trigger automated response playbooks (fire-and-forget, async)
+        if (playbookEngine != null && riskScore >= 60) {
+            try {
+                String alertType = inferAlertType(signals);
+                Map<String, Object> context = new LinkedHashMap<>(alert);
+                context.put("sourceIp", ip);
+                playbookEngine.triggerForDetection(alertType, riskScore, riskScore / 100.0, context);
+            } catch (Exception e) {
+                log.debug("Playbook trigger failed (non-critical): {}", e.getMessage());
+            }
+        }
+    }
+
+    /** Infer the primary alert type from signals for playbook matching */
+    private String inferAlertType(List<String> signals) {
+        for (String signal : signals) {
+            String s = signal.toUpperCase();
+            if (s.contains("BRUTE_FORCE")) return "BRUTE_FORCE";
+            if (s.contains("PORT_SCAN") || s.contains("SCAN")) return "PORT_SCAN";
+            if (s.contains("DGA")) return "DGA";
+            if (s.contains("EXFIL")) return "DATA_EXFIL";
+            if (s.contains("BEACON")) return "C2_BEACONING";
+            if (s.contains("THREAT_INTEL")) return "THREAT_INTEL_MATCH";
+            if (s.contains("DDOS") || s.contains("FLOOD")) return "DDOS";
+        }
+        return "GENERIC_THREAT";
     }
 
     /** Expire alerts older than 30 minutes */

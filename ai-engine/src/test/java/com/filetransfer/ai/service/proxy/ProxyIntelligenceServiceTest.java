@@ -23,7 +23,8 @@ class ProxyIntelligenceServiceTest {
         patternAnalyzer = new ConnectionPatternAnalyzer();
         geoDetector = new GeoAnomalyDetector();
         service = new ProxyIntelligenceService(
-            reputationService, threatDetector, patternAnalyzer, geoDetector);
+            reputationService, threatDetector, patternAnalyzer, geoDetector,
+            null, null, null, null, null, null);
     }
 
     @Test

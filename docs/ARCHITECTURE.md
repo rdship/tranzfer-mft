@@ -17,7 +17,8 @@ This document explains how TranzFer's 20 microservices fit together, how data fl
 9. [Messaging Architecture](#messaging-architecture)
 10. [Deployment Topologies](#deployment-topologies)
 11. [Platform Maturity Infrastructure](#platform-maturity-infrastructure)
-12. [Network Diagram](#network-diagram)
+12. [AI Engine: Cybersecurity Intelligence](#ai-engine-cybersecurity-intelligence)
+13. [Network Diagram](#network-diagram)
 
 ---
 
@@ -132,7 +133,7 @@ TranzFer is a **modular, microservice-based** Managed File Transfer platform. Ea
 |---------|------|-------------|
 | **onboarding-api** | 8080 | User accounts, authentication, folder mappings, P2P transfers |
 | **config-service** | 8084 | File flows, connectors, security profiles, scheduler, SLA |
-| **ai-engine** | 8091 | AI classification, anomaly detection, NLP, proxy intelligence |
+| **ai-engine** | 8091 | AI classification, anomaly detection, NLP, proxy intelligence, threat intelligence, MITRE ATT&CK, automated response |
 | **screening-service** | 8092 | OFAC/EU/UN sanctions screening |
 | **encryption-service** | 8086 | AES-256 and PGP encryption/decryption |
 | **analytics-service** | 8090 | Transfer metrics, predictions, dashboards |
@@ -344,11 +345,17 @@ The DMZ proxy security layer operates in real-time:
               │  Geo Anomalies       │
               │                      │
               │  Weighted Verdict:   │
-              │  reputation   35%    │
-              │  patterns     30%    │
-              │  geo          15%    │
-              │  new IP       10%    │
+              │  reputation   25%    │
+              │  patterns     20%    │
+              │  threat intel 20%    │
+              │  geo          10%    │
+              │  network beh. 10%    │
+              │  new IP        5%    │
               │  protocol     10%    │
+              │                      │
+              │  + MITRE ATT&CK map  │
+              │  + Attack chain track│
+              │  + Playbook trigger  │
               └──────────────────────┘
 ```
 
@@ -581,6 +588,11 @@ PostgreSQL :5432
     │   ├── file_flows, flow_steps, connectors
     │   ├── security_profiles, sla_agreements
     │   └── delivery_endpoints, schedulers
+    ├── Tables owned by ai-engine:
+    │   ├── threat_indicators, security_alerts, security_events
+    │   ├── threat_actors, attack_campaigns
+    │   ├── verdict_records, security_incidents
+    │   └── (V15 migration — threat intelligence & incident management)
     ├── Tables owned by analytics-service:
     │   └── transfer_metrics, aggregated_stats
     ├── Tables owned by screening-service:
@@ -915,7 +927,7 @@ The platform has layered test coverage:
 | Layer | Tests | Framework |
 |-------|-------|-----------|
 | Unit tests (shared) | 112 tests — routing, resilience, validation | JUnit 5, Mockito |
-| Unit tests (AI engine) | 79 tests — intelligence, classification, reputation | JUnit 5 |
+| Unit tests (AI engine) | 79 tests — intelligence, classification, reputation, threat detection | JUnit 5 |
 | Unit tests (DMZ proxy) | 29 tests — rate limiting, protocol detection | JUnit 5 |
 | Integration: AI engine REST | 12 tests — full HTTP verdict/event/blocklist cycle | SpringBootTest + TestRestTemplate |
 | Integration: DMZ ↔ AI engine | 15 tests — client cache, timeout, fallback, recovery | WireMock |
@@ -942,6 +954,217 @@ Tests are enabled in the CI pipeline with:
 - PostgreSQL 16 service container for integration tests
 - Secret scanning and Dockerfile validation
 - Pre-flight security check (`scripts/preflight-check.sh --env`) in deployment stage
+
+---
+
+## AI Engine: Cybersecurity Intelligence
+
+The AI Engine (port 8091) was upgraded from a classification and proxy intelligence service to a full **cybersecurity intelligence platform**. This section covers the new architecture, which adds 30+ Java files across 6 new packages.
+
+### Architecture Overview
+
+```
+                 ┌──────────────────────────────────────────────────────┐
+                 │                  OSINT FEEDS                          │
+                 │  AbuseIPDB, URLhaus, FeodoTracker, ThreatFox, OTX   │
+                 └──────────────┬───────────────────────────────────────┘
+                                │ every 15 min
+                 ┌──────────────▼───────────────────────────────────────┐
+                 │         BACKGROUND AGENTS (AgentManager)             │
+                 │                                                       │
+                 │  OsintCollectorAgent    — Threat feed ingestion (15m) │
+                 │  CveMonitorAgent        — CVE/NVD monitoring (1h)    │
+                 │  ThreatCorrelationAgent — Cross-source correlation(2m)│
+                 │  ReputationDecayAgent   — IP decay & cleanup (5m)    │
+                 └──────────────┬───────────────────────────────────────┘
+                                │
+                 ┌──────────────▼───────────────────────────────────────┐
+                 │         THREAT INTELLIGENCE STORE                     │
+                 │                                                       │
+                 │  In-memory + PostgreSQL persistence                   │
+                 │  IOC lookup, dedup, aging, search                     │
+                 │  ThreatKnowledgeGraph (IPs→domains→actors→campaigns) │
+                 │  GeoIpResolver (ip-api.com + 50K cache)              │
+                 │  MitreAttackMapper (50+ techniques, kill chain)      │
+                 └──────────────┬───────────────────────────────────────┘
+                                │
+                 ┌──────────────▼───────────────────────────────────────┐
+                 │         ML DETECTION PIPELINE                         │
+                 │                                                       │
+                 │  AnomalyEnsemble — Isolation Forest + Z-score +      │
+                 │                    seasonal baselines                  │
+                 │  NetworkBehaviorAnalyzer — Beaconing (FFT/Goertzel), │
+                 │    DGA detection (Shannon entropy + bigrams),         │
+                 │    DNS tunneling, data exfil, port scan               │
+                 │  AttackChainDetector — MITRE ATT&CK kill chain       │
+                 │    progression tracking per entity                    │
+                 │  ExplainabilityEngine — Human-readable explanations   │
+                 └──────────────┬───────────────────────────────────────┘
+                                │
+                 ┌──────────────▼───────────────────────────────────────┐
+                 │         VERDICT PATH (ProxyIntelligenceService)       │
+                 │                                                       │
+                 │  Existing signals + threat intel store (0.20 weight)  │
+                 │  + network behavior analysis (0.10 weight)            │
+                 │  + MITRE ATT&CK mapping on all alerts                │
+                 │  + attack chain tracking on high-risk connections     │
+                 │  All new signals are in-memory, zero latency impact   │
+                 └──────────────┬───────────────────────────────────────┘
+                                │
+                 ┌──────────────▼───────────────────────────────────────┐
+                 │         RESPONSE AUTOMATION                           │
+                 │                                                       │
+                 │  PlaybookEngine — 8 built-in playbooks, rate-limited │
+                 │  IncidentManager — Lifecycle, timeline, reports       │
+                 │  Automated playbook triggering on alerts              │
+                 └───────────────────────────────────────────────────────┘
+```
+
+### Background Agent System
+
+The `AgentManager` manages 4 autonomous background agents, each with lifecycle management, metrics, and health checks. Agents are registered via `AgentRegistrar` (Spring configuration).
+
+| Agent | Schedule | Purpose |
+|-------|----------|---------|
+| `OsintCollectorAgent` | Every 15 min | Collects IOCs from 5 OSINT feeds: AbuseIPDB, URLhaus, FeodoTracker, ThreatFox, AlienVault OTX |
+| `CveMonitorAgent` | Every 1 hour | Monitors CVE/NVD for new vulnerabilities relevant to the platform |
+| `ThreatCorrelationAgent` | Every 2 min | Correlates indicators across sources, detects kill chain progressions, clusters campaigns |
+| `ReputationDecayAgent` | Every 5 min | Decays IP reputation scores over time, cleans up stale indicators |
+
+### ML Detection Pipeline
+
+**Anomaly Ensemble** (`AnomalyEnsemble`): Combines three detection methods:
+- **Isolation Forest** (pure Java implementation) -- detects outliers in multi-dimensional feature space
+- **Z-score detector** -- flags values beyond configurable standard deviation thresholds
+- **Seasonal baselines** -- learns normal patterns and detects deviations from expected behavior
+
+**Network Behavior Analyzer** (`NetworkBehaviorAnalyzer`): Detects advanced threats:
+- **Beaconing detection** -- FFT/Goertzel algorithm identifies periodic C2 callbacks
+- **DGA detection** -- Shannon entropy + bigram frequency analysis identifies algorithmically generated domains
+- **DNS tunneling** -- Detects data exfiltration via DNS queries
+- **Data exfiltration** -- Monitors for unusual outbound data volumes
+- **Port scan detection** -- Identifies horizontal and vertical port scanning activity
+
+**Attack Chain Detector** (`AttackChainDetector`): Tracks MITRE ATT&CK kill chain progression per entity. Builds human-readable narratives of multi-stage attacks as they unfold.
+
+**Explainability Engine** (`ExplainabilityEngine`): Generates human-readable explanations for every verdict, anomaly detection, and attack chain, supporting audit and compliance requirements.
+
+### MITRE ATT&CK Integration
+
+`MitreAttackMapper` provides a full MITRE ATT&CK technique/tactic database with 50+ techniques. Capabilities include:
+
+- Mapping detected behaviors to specific MITRE techniques and tactics
+- Kill chain analysis showing progression through reconnaissance, initial access, execution, persistence, etc.
+- Coverage reporting showing which ATT&CK techniques the platform can detect
+- Technique database queryable via REST endpoints
+
+### Threat Knowledge Graph
+
+`ThreatKnowledgeGraph` maintains an in-memory graph of threat relationships:
+
+```
+IP Address ──related──► Domain ──used_by──► Threat Actor ──part_of──► Campaign
+     │                                            │
+     └──────────── targeted ──────────────────────┘
+```
+
+Capabilities:
+- **BFS path finding** -- Discover shortest relationship path between any two IOCs
+- **PageRank** -- Identify the most significant threat actors and infrastructure
+- **Cluster detection** -- Group related indicators into threat clusters
+- Graph statistics available via REST endpoint
+
+### Response Automation
+
+**Playbook Engine** (`PlaybookEngine`): 8 built-in security playbooks with rate-limited execution and full audit trails:
+
+| Playbook | Trigger |
+|----------|---------|
+| Brute Force | Repeated authentication failures from same IP |
+| Port Scan | Horizontal/vertical scanning detected |
+| Data Exfiltration | Anomalous outbound data volume |
+| C2 Beaconing | Periodic callback pattern detected |
+| Kill Chain | Multi-stage attack progression |
+| DGA Activity | Domain generation algorithm detected |
+| DDoS | Volumetric traffic anomaly |
+| Threat Intel Match | IP/domain matches known threat indicator |
+
+**Incident Manager** (`IncidentManager`): Full security incident lifecycle management with timeline tracking and report generation.
+
+### New REST Endpoints
+
+The `ThreatIntelligenceController` exposes 30+ endpoints at `/api/v1/threats/`:
+
+| Category | Endpoint(s) | Description |
+|----------|-------------|-------------|
+| Indicators | `/threats/indicators` | IOC CRUD + search |
+| Hunting | `/threats/hunt` | Threat hunting across all data stores |
+| Network | `/threats/analyze/network` | Network behavior analysis |
+| Anomaly | `/threats/analyze/anomaly` | Anomaly detection |
+| Attack Chains | `/threats/chains` | Active attack chain listing |
+| MITRE Coverage | `/threats/mitre/coverage` | ATT&CK coverage report |
+| MITRE Techniques | `/threats/mitre/techniques` | Technique database query |
+| Graph Stats | `/threats/graph/stats` | Knowledge graph statistics |
+| Graph Lookup | `/threats/graph/related/{ioc}` | Related threat discovery from IOC |
+| Playbooks | `/threats/playbooks` | Playbook management and execution |
+| Incidents | `/threats/incidents` | Incident lifecycle management |
+| Agents | `/threats/agents` | Background agent management and health |
+| Dashboard | `/threats/dashboard` | Comprehensive security dashboard |
+| GeoIP | `/threats/geo/resolve/{ip}` | IP geolocation resolution |
+| Health | `/threats/health` | Threat intelligence subsystem health |
+
+### Database Schema (V15 Migration)
+
+The V15 Flyway migration adds 7 new tables:
+
+| Table | Purpose |
+|-------|---------|
+| `threat_indicators` | IOCs (IPs, domains, hashes, URLs) with type, severity, source, confidence |
+| `security_alerts` | Generated alerts with MITRE technique mapping |
+| `security_events` | Unified security event log (connections, verdicts, detections) |
+| `threat_actors` | Known threat actor profiles |
+| `attack_campaigns` | Campaigns linking multiple actors and indicators |
+| `verdict_records` | Persisted verdict history for every proxy decision |
+| `security_incidents` | Incident lifecycle records with timeline |
+
+### Configuration
+
+New `application.yml` sections for the cybersecurity features:
+
+```yaml
+ai:
+  intelligence:
+    threat-store:
+      max-indicators: 100000
+      aging-hours: 720          # 30 days
+    geoip:
+      provider: ip-api          # ip-api.com (free tier)
+      cache-size: 50000
+  agents:
+    osint:
+      interval-minutes: 15
+    cve-monitor:
+      interval-minutes: 60
+    correlation:
+      interval-minutes: 2
+    reputation-decay:
+      interval-minutes: 5
+  detection:
+    isolation-forest:
+      num-trees: 100
+      sample-size: 256
+    beaconing:
+      min-connections: 10
+      periodicity-threshold: 0.7
+    dga:
+      entropy-threshold: 3.5
+    attack-chain:
+      max-age-hours: 24
+  response:
+    playbook:
+      rate-limit-per-minute: 10
+      audit-enabled: true
+```
 
 ---
 

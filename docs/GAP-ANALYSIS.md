@@ -28,7 +28,7 @@ This document identifies gaps in documentation, configuration, security, testing
 | S1 | **Default secrets in source code** — JWT secret (`change_me_in_production_256bit_secret_key!!`), control API key (`internal_control_secret`), database password (`postgres`), encryption master key are hardcoded defaults in `application.yml` files. | Critical — If deployed without changing, all secrets are publicly known from the GitHub repo. | ✅ **RESOLVED**: `scripts/preflight-check.sh` detects 9 secret categories in env vars or compose files. Fails deployment in PROD mode. Defaults remain in dev/test YAML for local development convenience. |
 | S2 | **DMZ proxy management API (port 8088) has no TLS** — Only protected by `X-Internal-Key` header over plaintext HTTP. | High — If DMZ management port is exposed, the API key is sent in cleartext. | Add TLS support to management API or document that port 8088 must never be exposed externally. |
 | S3 | **No mutual TLS between DMZ proxy and AI engine** — Communication is plaintext HTTP on the internal network. | Medium — If internal network is compromised, verdict responses can be tampered with. | Add mTLS or at minimum a shared HMAC signature on verdict responses. |
-| S4 | **AI engine has no authentication on proxy endpoints** — Anyone on the internal network can call `/api/v1/proxy/verdict`, manipulate blocklists, or inject fake events. | Medium — Internal lateral movement could bypass all security. | Add API key or mTLS authentication to AI engine proxy endpoints. |
+| S4 | **AI engine has no authentication on proxy endpoints** — Anyone on the internal network can call `/api/v1/proxy/verdict`, manipulate blocklists, or inject fake events. Now also applies to 30+ new `/api/v1/threats/*` endpoints from `ThreatIntelligenceController`. | Medium — Internal lateral movement could bypass all security. | Add API key or mTLS authentication to AI engine proxy and threat intelligence endpoints. Note: `ThreatIntelligenceController` added with 30+ endpoints but auth is still pending (via shared module's JWT filter). |
 | S5 | **No TLS between services** — All inter-service HTTP is plaintext. Only external-facing connections use TLS. | Medium — Acceptable in a private Docker network but not in multi-tenant cloud deployments. | Document as a known limitation. Add service mesh (Istio/Linkerd) or Spring Boot TLS for production. |
 | S6 | **notification-service is a stub** — Empty module with no implementation. | Low — Security alerts, rate limit notifications, and brute force alerts have no delivery mechanism. | Implement email/Slack/webhook notification service or document as Phase 2. |
 
@@ -65,9 +65,9 @@ This document identifies gaps in documentation, configuration, security, testing
 |---|-----|--------|----------------|
 | F1 | **No FTPS listener in DMZ proxy** — Proxy relays raw TCP but doesn't terminate or detect FTPS (implicit TLS on port 990) as a first-class listener. | Low — FTPS works through port mapping but isn't exposed by default in docker-compose. | Add a default FTPS mapping (port 990 → gateway) if FTPS support is needed. |
 | F2 | **No WebSocket support for real-time dashboard** — Admin UI polls REST endpoints. No live-updating security dashboard. | Low — Acceptable for v1. | Add WebSocket/SSE endpoint for real-time security event streaming. |
-| F3 | **AI engine proxy intelligence has no persistence** — IP reputation, connection patterns, and verdicts are in-memory only. Service restart loses all learned data. | Medium — After restart, all IPs are "new" again, losing reputation history. | Add periodic snapshot to PostgreSQL or Redis. Restore on startup. |
+| F3 | **AI engine proxy intelligence has no persistence** — IP reputation, connection patterns, and verdicts are in-memory only. Service restart loses all learned data. | Medium — After restart, all IPs are "new" again, losing reputation history. | ✅ **RESOLVED**: V15 Flyway migration adds `verdict_records` and `security_events` tables. `ThreatIntelligenceStore` provides DB persistence with in-memory cache. All verdicts, threat indicators, and security events are persisted to PostgreSQL and restored on startup. |
 | F4 | **No rate limit for REST management APIs** — The proxy management API and AI engine API have no rate limiting on their own endpoints. | Low — Internal APIs, but could be abused if exposed. | Add Spring Security rate limiting or a simple token bucket on management endpoints. |
-| F5 | **GeoIP lookup not integrated** — `GeoAnomalyDetector` accepts country codes but has no MaxMind GeoIP2 or IP-API integration to resolve IP → country automatically. | Medium — Country-based threat detection requires manual country input or external feed. | Integrate MaxMind GeoLite2 database for automatic IP geolocation. |
+| F5 | **GeoIP lookup not integrated** — `GeoAnomalyDetector` accepts country codes but has no MaxMind GeoIP2 or IP-API integration to resolve IP → country automatically. | Medium — Country-based threat detection requires manual country input or external feed. | ✅ **RESOLVED**: `GeoIpResolver` service uses ip-api.com with a 50K IP cache, automatic country/city/ISP resolution, and impossible travel detection. Accessible via REST at `/api/v1/threats/geo/resolve/{ip}`. |
 | F6 | **No AS2 MDN verification** — AS2 service receives MDNs but verification logic is placeholder. | Medium — B2B compliance requires signed MDN verification. | Implement RFC 4130 MDN signature verification. |
 
 ---
@@ -86,14 +86,14 @@ This document identifies gaps in documentation, configuration, security, testing
 
 ### Should Fix (First Production Release)
 
-| ID | Description |
-|----|-------------|
-| S4 | Add authentication to AI engine proxy endpoints |
-| S2 | Add TLS to DMZ management API |
-| F3 | Add persistence for AI reputation data |
-| F5 | Integrate GeoIP database |
-| T3 | Add E2E file transfer test |
-| O1 | Set up centralized logging |
+| ID | Description | Status |
+|----|-------------|--------|
+| S4 | Add authentication to AI engine proxy + threat intel endpoints | Open — 30+ new threat intel endpoints also lack auth |
+| S2 | Add TLS to DMZ management API | Open |
+| F3 | Add persistence for AI reputation data | ✅ V15 migration + ThreatIntelligenceStore with DB persistence |
+| F5 | Integrate GeoIP database | ✅ GeoIpResolver with ip-api.com + 50K cache |
+| T3 | Add E2E file transfer test | Open |
+| O1 | Set up centralized logging | Open |
 
 ### Nice to Have (Future Releases)
 
@@ -109,13 +109,13 @@ This document identifies gaps in documentation, configuration, security, testing
 
 ## 7. Summary
 
-| Category | Critical | High | Medium | Low | Total |
-|----------|----------|------|--------|-----|-------|
-| Documentation | 0 | 3 | 4 | 1 | **8** |
-| Security | 1 | 1 | 3 | 1 | **6** |
-| Testing | 0 | 2 | 3 | 0 | **5** |
-| Operations | 0 | 1 | 3 | 2 | **6** |
-| Features | 0 | 0 | 3 | 3 | **6** |
-| **Total** | **1** | **7** | **16** | **7** | **31** |
+| Category | Critical | High | Medium | Low | Total | Resolved |
+|----------|----------|------|--------|-----|-------|----------|
+| Documentation | 0 | 3 | 4 | 1 | **8** | 6 |
+| Security | 1 | 1 | 3 | 1 | **6** | 1 |
+| Testing | 0 | 2 | 3 | 0 | **5** | 1 |
+| Operations | 0 | 1 | 3 | 2 | **6** | 1 |
+| Features | 0 | 0 | 3 | 3 | **6** | 2 |
+| **Total** | **1** | **7** | **16** | **7** | **31** | **11** |
 
-The platform is architecturally strong with comprehensive feature coverage. All **Must Fix** items are now resolved: S1 (pre-flight secret detection), O3 (backup/restore scripts), T1 (DMZ ↔ AI integration tests), D2 (API reference), D4 (security architecture). Remaining work focuses on TLS hardening (S2/S3/S4/S5), E2E testing (T3), and operational tooling (O1/O2).
+The platform is architecturally strong with comprehensive feature coverage. All **Must Fix** items are now resolved: S1 (pre-flight secret detection), O3 (backup/restore scripts), T1 (DMZ ↔ AI integration tests), D2 (API reference), D4 (security architecture). Two additional **Should Fix** items are now resolved: F3 (AI engine persistence via V15 migration + ThreatIntelligenceStore) and F5 (GeoIP integration via GeoIpResolver with ip-api.com). Remaining work focuses on TLS hardening (S2/S3/S5), AI engine authentication (S4 -- now more urgent with 30+ new threat intel endpoints), E2E testing (T3), and operational tooling (O1/O2).

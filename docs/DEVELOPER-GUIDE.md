@@ -63,7 +63,7 @@ file-transfer-platform/
 ├── ftp-web-service/            ← Web file upload API
 ├── gateway-service/            ← Protocol gateway
 ├── dmz-proxy/                  ← AI-powered DMZ proxy
-├── ai-engine/                  ← AI brain (classification, proxy intelligence)
+├── ai-engine/                  ← AI brain (classification, proxy intelligence, threat intel, MITRE ATT&CK, automated response)
 ├── encryption-service/         ← AES/PGP encryption
 ├── external-forwarder-service/ ← File forwarding
 ├── screening-service/          ← OFAC sanctions screening
@@ -169,12 +169,58 @@ mvn test -pl dmz-proxy -Dtest=AiVerdictClientIntegrationTest
 mvn test -pl ai-engine -Dtest=ProxyIntelligenceControllerIntegrationTest
 ```
 
+### AI Engine package structure
+
+The AI engine module is organized into the following packages:
+
+```
+ai-engine/src/main/java/com/filetransfer/ai/
+├── controller/
+│   ├── ProxyIntelligenceController.java   ← Proxy verdict endpoints
+│   └── ThreatIntelligenceController.java  ← 30+ threat intel endpoints (/api/v1/threats/*)
+├── entity/
+│   ├── threat/                            ← Security data models
+│   │   ├── SecurityEvent.java             ← Unified event schema (~600 lines)
+│   │   ├── SecurityAlert.java, SecurityEnums.java
+│   │   ├── ThreatActor.java, AttackCampaign.java, VerdictRecord.java
+│   │   └── ...
+│   └── intelligence/                      ← Threat indicator models
+│       ├── ThreatIndicator.java, IndicatorType.java, ThreatLevel.java
+│       └── ...
+├── service/
+│   ├── intelligence/                      ← Threat intelligence layer
+│   │   ├── MitreAttackMapper.java         ← 50+ MITRE ATT&CK techniques
+│   │   ├── ThreatIntelligenceStore.java   ← Central IOC store (in-memory + DB)
+│   │   ├── ThreatKnowledgeGraph.java      ← Graph DB: BFS, PageRank, clusters
+│   │   ├── GeoIpResolver.java             ← ip-api.com + 50K cache
+│   │   ├── ThreatFeedConfig.java          ← External feed configuration
+│   │   └── AttackSurfaceAnalyzer.java     ← Platform attack surface analysis
+│   ├── detection/                         ← ML-enhanced detection
+│   │   ├── AnomalyEnsemble.java           ← Isolation Forest + Z-score + baselines
+│   │   ├── NetworkBehaviorAnalyzer.java   ← Beaconing, DGA, DNS tunnel, exfil
+│   │   ├── AttackChainDetector.java       ← MITRE kill chain progression
+│   │   └── ExplainabilityEngine.java      ← Human-readable verdict explanations
+│   ├── agent/                             ← Autonomous background agents
+│   │   ├── BackgroundAgent.java           ← Abstract base (lifecycle, metrics)
+│   │   ├── AgentManager.java              ← Scheduling, health checks
+│   │   ├── OsintCollectorAgent.java       ← OSINT feeds (every 15 min)
+│   │   ├── CveMonitorAgent.java           ← CVE/NVD monitoring (every 1 hour)
+│   │   ├── ThreatCorrelationAgent.java    ← Cross-source correlation (every 2 min)
+│   │   ├── ReputationDecayAgent.java      ← IP decay + cleanup (every 5 min)
+│   │   └── AgentRegistrar.java            ← Spring config wiring all agents
+│   ├── response/                          ← Automated response
+│   │   ├── PlaybookEngine.java            ← 8 playbooks, rate-limited, audit trail
+│   │   └── IncidentManager.java           ← Incident lifecycle + reports
+│   └── ...                                ← Existing: classification, proxy, reputation
+└── ...
+```
+
 ### Test summary
 
 | Module | Tests | What's tested |
 |--------|-------|---------------|
 | shared | 112 | Routing engine, resilience patterns, validation, encryption |
-| ai-engine | 91 | IP reputation, proxy intelligence, data classification, **REST integration (12 tests)** |
+| ai-engine | 91 | IP reputation, proxy intelligence, data classification, threat intelligence, MITRE ATT&CK, anomaly detection, network behavior, attack chain, playbook engine, **REST integration (12 tests)** |
 | dmz-proxy | 44 | Protocol detection, rate limiting, **AI verdict client integration (15 tests)** |
 | Other modules | Varies | Unit tests for business logic |
 
@@ -242,7 +288,7 @@ mvn clean install -pl shared -DskipTests
 cd ai-engine
 mvn clean package
 
-# 3. Run tests
+# 3. Run tests (91 tests covering all subsystems)
 mvn test
 
 # 4. Run specific test
@@ -250,6 +296,22 @@ mvn test -Dtest=ProxyIntelligenceServiceTest
 
 # 5. Start for local development
 mvn spring-boot:run
+
+# 6. Test threat intelligence endpoints
+curl http://localhost:8091/api/v1/threats/health
+curl http://localhost:8091/api/v1/threats/dashboard
+curl http://localhost:8091/api/v1/threats/mitre/coverage
+
+# 7. Test background agents
+curl http://localhost:8091/api/v1/threats/agents
+
+# 8. Test network behavior analysis
+curl -X POST http://localhost:8091/api/v1/threats/analyze/network \
+  -H "Content-Type: application/json" \
+  -d '{"sourceIp":"203.0.113.5","destinationIp":"10.0.0.1","port":443}'
+
+# 9. Test GeoIP resolution
+curl http://localhost:8091/api/v1/threats/geo/resolve/8.8.8.8
 ```
 
 ### Example: Working on the DMZ Proxy
@@ -952,7 +1014,8 @@ shared/src/main/resources/db/migration/
 ├── V11__add_as2_partnership_id_to_delivery_endpoints.sql
 ├── V12__add_partners.sql
 ├── V13__add_audit_columns.sql
-└── V14__add_audit_columns_phase2.sql
+├── V14__add_audit_columns_phase2.sql
+└── V15__add_threat_intelligence_tables.sql
 ```
 
 ### V12: Partner Management Tables
@@ -963,6 +1026,18 @@ shared/src/main/resources/db/migration/
 - **`partner_contacts`** table — contact persons associated with a partner (many-to-one via `partner_id` FK with `ON DELETE CASCADE`)
 - **Foreign keys** added to existing tables: `partner_id` column on `transfer_accounts`, `delivery_endpoints`, `file_flows`, and `partner_agreements`
 - **Indexes** on `partners(status)`, `partners(partner_type)`, `partners(slug)`, `partner_contacts(partner_id)`, and partial indexes on the FK columns
+
+### V15: Threat Intelligence & Incident Management Tables
+
+`V15__add_threat_intelligence_tables.sql` adds the cybersecurity schema for the AI engine:
+
+- **`threat_indicators`** — Indicators of compromise (IPs, domains, hashes, URLs) with type, severity, source, and confidence scores
+- **`security_alerts`** — Generated security alerts with MITRE ATT&CK technique mapping
+- **`security_events`** — Unified security event log (connections, verdicts, detections)
+- **`threat_actors`** — Known threat actor profiles linked to campaigns and indicators
+- **`attack_campaigns`** — Campaign records linking multiple actors and indicators
+- **`verdict_records`** — Persisted verdict history for every proxy decision, enabling post-restart continuity
+- **`security_incidents`** — Incident lifecycle records with timeline and status tracking
 
 ### Adding a migration
 
