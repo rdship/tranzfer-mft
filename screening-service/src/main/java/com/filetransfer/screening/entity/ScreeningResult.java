@@ -17,7 +17,7 @@ import java.util.UUID;
 public class ScreeningResult {
     @Id @GeneratedValue(strategy = GenerationType.UUID) private UUID id;
     /** Track ID of the file transfer */
-    @Column(length = 12) private String trackId;
+    @Column(length = 64) private String trackId;
     /** File that was screened */
     @Column(nullable = false) private String filename;
     /** Account that submitted the file */

@@ -51,6 +51,7 @@ public class SanctionsListLoader {
     private volatile Map<String, Long> listCounts = new LinkedHashMap<>();
 
     @EventListener(ApplicationReadyEvent.class)
+    @Transactional
     public void onStartup() {
         log.info("Screening service starting — loading sanctions lists...");
         refreshAllLists();
