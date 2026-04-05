@@ -327,6 +327,14 @@ services:
       - analytics-service
       - license-service
 
+  partner-portal:
+    build: ./partner-portal
+    container_name: mft-partner-portal
+    ports:
+      - "3002:80"
+    depends_on:
+      - onboarding-api
+
   ftp-web-ui:
     build: ./ftp-web-ui
     container_name: mft-ftp-web-ui
