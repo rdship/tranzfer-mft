@@ -38,6 +38,12 @@ FORWARDER_PORT=8087
 DMZ_PORT=8088
 LICENSE_PORT=8089
 ANALYTICS_PORT=8090
+AI_ENGINE_PORT=8091
+SCREENING_PORT=8092
+KEYSTORE_PORT=8093
+STORAGE_PORT=8094
+EDI_PORT=8095
+PARTNER_PORTAL_PORT=3002
 SFTP_PORT=22222
 FTP_CMD_PORT=21
 ADMIN_UI_PORT=3000
@@ -115,7 +121,9 @@ run_container_health_tests() {
   local expected_containers=("mft-postgres" "mft-rabbitmq" "mft-onboarding-api" "mft-sftp-service"
     "mft-ftp-service" "mft-ftp-web-service" "mft-config-service" "mft-gateway-service"
     "mft-encryption-service" "mft-forwarder-service" "mft-dmz-proxy" "mft-license-service"
-    "mft-analytics-service" "mft-admin-ui" "mft-ftp-web-ui")
+    "mft-analytics-service" "mft-admin-ui" "mft-ftp-web-ui"
+    "mft-ai-engine" "mft-screening-service" "mft-keystore-manager" "mft-storage-manager"
+    "mft-edi-converter" "mft-partner-portal" "mft-api-gateway")
 
   local running_containers=$(docker ps --format '{{.Names}}' 2>/dev/null)
 
@@ -221,7 +229,12 @@ run_service_api_tests() {
 
   local names=( "Onboarding:Accounts" "Onboarding:FolderMappings" "Onboarding:ServiceRegistry"
     "Config:Servers" "Config:SecurityProfiles" "Config:Flows" "Config:StepTypes"
-    "Analytics:Dashboard" "Analytics:Predictions" "Analytics:AlertRules" "License:Health" )
+    "Analytics:Dashboard" "Analytics:Predictions" "Analytics:AlertRules" "License:Health"
+    "AI:Health" "AI:Anomalies" "AI:Recommendations"
+    "Screening:Health" "Screening:Lists"
+    "Keystore:Health"
+    "Storage:Health"
+    "EDI:Types" )
   local urls=(
     "${BASE_URL}:${ONBOARDING_PORT}/api/accounts"
     "${BASE_URL}:${ONBOARDING_PORT}/api/folder-mappings"
@@ -234,6 +247,14 @@ run_service_api_tests() {
     "${BASE_URL}:${ANALYTICS_PORT}/api/v1/analytics/predictions"
     "${BASE_URL}:${ANALYTICS_PORT}/api/v1/analytics/alerts"
     "${BASE_URL}:${LICENSE_PORT}/api/v1/licenses/health"
+    "${BASE_URL}:${AI_ENGINE_PORT}/api/v1/ai/health"
+    "${BASE_URL}:${AI_ENGINE_PORT}/api/v1/ai/anomalies"
+    "${BASE_URL}:${AI_ENGINE_PORT}/api/v1/ai/recommendations"
+    "${BASE_URL}:${SCREENING_PORT}/api/v1/screening/health"
+    "${BASE_URL}:${SCREENING_PORT}/api/v1/screening/lists"
+    "${BASE_URL}:${KEYSTORE_PORT}/actuator/health"
+    "${BASE_URL}:${STORAGE_PORT}/actuator/health"
+    "${BASE_URL}:${EDI_PORT}/api/v1/edi/types"
   )
 
   for i in "${!names[@]}"; do
@@ -442,8 +463,101 @@ run_frontend_tests() {
   fi
 }
 
+run_v2_service_tests() {
+  log_section "10. V2 PLATFORM SERVICES"
+
+  # AI Engine — data classification with inline text
+  local start end dur code body
+  start=$(python3 -c "import time; print(int(time.time()*1000))")
+  code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE_URL}:${AI_ENGINE_PORT}/api/v1/ai/classify/text" \
+    -H "Content-Type: text/plain" -H "Authorization: Bearer $TOKEN" \
+    -d "John Doe, SSN 123-45-6789, card 4111111111111111" 2>/dev/null)
+  end=$(python3 -c "import time; print(int(time.time()*1000))")
+  dur=$((end - start))
+  if [ "$code" = "200" ]; then
+    record_result "AI Engine" "Text Classification" "PASS" "" "$dur"
+  else
+    record_result "AI Engine" "Text Classification" "$([ "$code" = "000" ] && echo FAIL || echo WARN)" "HTTP $code" "$dur"
+  fi
+
+  # AI Engine — smart retry classification
+  start=$(python3 -c "import time; print(int(time.time()*1000))")
+  code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE_URL}:${AI_ENGINE_PORT}/api/v1/ai/smart-retry" \
+    -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" \
+    -d '{"errorMessage":"Connection timeout","filename":"test.csv","retryCount":0}' 2>/dev/null)
+  end=$(python3 -c "import time; print(int(time.time()*1000))")
+  dur=$((end - start))
+  if [ "$code" = "200" ]; then
+    record_result "AI Engine" "Smart Retry" "PASS" "" "$dur"
+  else
+    record_result "AI Engine" "Smart Retry" "$([ "$code" = "000" ] && echo FAIL || echo WARN)" "HTTP $code" "$dur"
+  fi
+
+  # AI Engine — threat scoring
+  start=$(python3 -c "import time; print(int(time.time()*1000))")
+  code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE_URL}:${AI_ENGINE_PORT}/api/v1/ai/threat-score" \
+    -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" \
+    -d '{"username":"testuser","ipAddress":"10.0.0.1","action":"UPLOAD","filename":"data.csv","fileSizeBytes":1024}' 2>/dev/null)
+  end=$(python3 -c "import time; print(int(time.time()*1000))")
+  dur=$((end - start))
+  if [ "$code" = "200" ]; then
+    record_result "AI Engine" "Threat Scoring" "PASS" "" "$dur"
+  else
+    record_result "AI Engine" "Threat Scoring" "$([ "$code" = "000" ] && echo FAIL || echo WARN)" "HTTP $code" "$dur"
+  fi
+
+  # Screening — sanctions list refresh
+  start=$(python3 -c "import time; print(int(time.time()*1000))")
+  code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE_URL}:${SCREENING_PORT}/api/v1/screening/lists/refresh" \
+    -H "Authorization: Bearer $TOKEN" 2>/dev/null)
+  end=$(python3 -c "import time; print(int(time.time()*1000))")
+  dur=$((end - start))
+  if [ "$code" = "200" ] || [ "$code" = "202" ]; then
+    record_result "Screening" "Sanctions list refresh" "PASS" "" "$dur"
+  else
+    record_result "Screening" "Sanctions list refresh" "$([ "$code" = "000" ] && echo FAIL || echo WARN)" "HTTP $code" "$dur"
+  fi
+
+  # Screening — inline text scan
+  start=$(python3 -c "import time; print(int(time.time()*1000))")
+  code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE_URL}:${SCREENING_PORT}/api/v1/screening/scan/text" \
+    -H "Content-Type: text/plain" -H "Authorization: Bearer $TOKEN" \
+    -d "name,country\nJohn Smith,US\nJane Doe,UK" 2>/dev/null)
+  end=$(python3 -c "import time; print(int(time.time()*1000))")
+  dur=$((end - start))
+  if [ "$code" = "200" ]; then
+    record_result "Screening" "Text Screening" "PASS" "" "$dur"
+  else
+    record_result "Screening" "Text Screening" "$([ "$code" = "000" ] && echo FAIL || echo WARN)" "HTTP $code" "$dur"
+  fi
+
+  # EDI Converter — detect format
+  start=$(python3 -c "import time; print(int(time.time()*1000))")
+  code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE_URL}:${EDI_PORT}/api/v1/edi/detect" \
+    -H "Content-Type: text/plain" -H "Authorization: Bearer $TOKEN" \
+    -d "ISA*00*          *00*          *ZZ*SENDER         *ZZ*RECEIVER       *200101*1253*^*00501*000000905*0*P*:~" 2>/dev/null)
+  end=$(python3 -c "import time; print(int(time.time()*1000))")
+  dur=$((end - start))
+  if [ "$code" = "200" ]; then
+    record_result "EDI Converter" "Format Detection" "PASS" "" "$dur"
+  else
+    record_result "EDI Converter" "Format Detection" "$([ "$code" = "000" ] && echo FAIL || echo WARN)" "HTTP $code" "$dur"
+  fi
+
+  # Partner Portal — UI served
+  start=$(python3 -c "import time; print(int(time.time()*1000))")
+  code=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}:${PARTNER_PORTAL_PORT}/" 2>/dev/null)
+  end=$(python3 -c "import time; print(int(time.time()*1000))")
+  dur=$((end - start))
+  if [ "$code" = "200" ]; then
+    record_result "Partner Portal" "UI served" "PASS" "" "$dur"
+  else
+    record_result "Partner Portal" "UI served" "$([ "$code" = "000" ] && echo FAIL || echo WARN)" "HTTP $code" "$dur"
+  fi
+}
+
 run_sftp_tests() {
-  log_section "10. PROTOCOL TESTS"
+  log_section "11. PROTOCOL TESTS"
 
   # SFTP port open
   local start end dur
@@ -708,6 +822,7 @@ main() {
   run_flow_tests
   run_cli_tests
   run_frontend_tests
+  run_v2_service_tests
   run_sftp_tests
   run_performance_benchmarks
 
