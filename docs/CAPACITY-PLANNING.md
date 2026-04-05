@@ -51,7 +51,6 @@
 | Cost per partner per month | **$0.41** |
 | Cost per TB transferred | **$4.06** |
 
-> **For comparison:** IBM Sterling MFT starts at ~$100K/year for far fewer partners.
 > TranzFer at $40K/month handles 10M files/day — that's $487K/year for 3.6 billion annual transfers.
 
 ---
@@ -361,13 +360,13 @@ spec:
 
 ---
 
-## Comparison with Competitors
+## Cost Highlights
 
-| Feature | TranzFer MFT | IBM Sterling | Axway | GoAnywhere |
-|---------|:------------:|:------------:|:-----:|:----------:|
-| 10M files/day | **$40K/mo** | $200K+/yr licensing alone | $150K+/yr | $80K+/yr |
-| AI classification | **Built-in** | Add-on | No | No |
-| OFAC screening | **Built-in** | No | No | No |
-| Kubernetes native | **Yes** | Partial | No | No |
-| Self-contained client | **Yes (bundled JRE)** | Requires Java | N/A | Requires Java |
-| Per-transfer cost | **$0.00014** | $0.001+ | $0.0005+ | $0.0003+ |
+| Feature | TranzFer MFT |
+|---------|:------------:|
+| 10M files/day | **$40K/mo** |
+| AI classification | **Built-in** |
+| OFAC screening | **Built-in** |
+| Kubernetes native | **Yes** |
+| Self-contained client | **Yes (bundled JRE)** |
+| Per-transfer cost | **$0.00014** |

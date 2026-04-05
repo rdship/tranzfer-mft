@@ -9,8 +9,8 @@ import java.util.*;
  * Instead of dealing with format-specific segments (ISA, UNB, MSH),
  * this model represents the BUSINESS MEANING: who sent what to whom, with what items.
  *
- * Inspired by Orderful's Mosaic approach: one schema per document type,
- * partner adapters on top. Any EDI format → Canonical → Any EDI format.
+ * One schema per document type, partner adapters on top.
+ * Any EDI format → Canonical → Any EDI format.
  *
  * Supported document types:
  *   PURCHASE_ORDER, INVOICE, SHIPMENT_NOTICE, PAYMENT, HEALTHCARE_CLAIM,

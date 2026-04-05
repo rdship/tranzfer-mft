@@ -22,7 +22,7 @@
 
 ## What is TranzFer?
 
-TranzFer is a **production-grade, AI-first Managed File Transfer platform** — an open-source alternative to IBM Sterling, Axway, and GoAnywhere. Cloud-native, AI-powered, and built to scale.
+TranzFer is a **production-grade, AI-first Managed File Transfer platform** — cloud-native, AI-powered, and built to scale.
 
 ---
 
@@ -174,7 +174,7 @@ Now you can send and receive files:
 
 ## Path 4: "I'm migrating from another product" 🚚
 
-Moving from IBM Sterling, Axway, GoAnywhere, Globalscape, or MOVEit? The migration tool handles everything:
+Moving from another MFT product? The migration tool handles everything:
 
 ```bash
 # Step 1: Make sure TranzFer server is running (Path 1 or 2 above)

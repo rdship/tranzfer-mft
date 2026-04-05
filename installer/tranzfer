@@ -1235,7 +1235,7 @@ case "${1:-}" in
     echo "Migration sources:"
     echo "  migrate --source ssh       From OpenSSH SFTP"
     echo "  migrate --source ftp       From vsftpd/ProFTPD"
-    echo "  migrate --source sterling  From IBM Sterling"
+    echo "  migrate --source api       From REST API-based MFT"
     echo "  migrate --import-csv f.csv From CSV file"
     echo ""
     echo "Roles:"

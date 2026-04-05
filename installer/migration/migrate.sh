@@ -68,16 +68,16 @@ discover() {
   echo "    Source system type:"
   echo "    1) Linux SSH/SFTP server (OpenSSH)"
   echo "    2) Linux FTP server (vsftpd/ProFTPD)"
-  echo "    3) IBM Sterling File Gateway"
-  echo "    4) Axway SecureTransport"
-  echo "    5) GoAnywhere MFT"
+  echo "    3) Enterprise MFT (REST API export)"
+  echo "    4) Enterprise MFT (agent-based export)"
+  echo "    5) Enterprise MFT (web console export)"
   echo "    6) CSV import (exported from any system)"
   echo ""
   local source=$(ask "Select" "1")
 
   case $source in
     1|2) discover_linux ;;
-    3) discover_sterling ;;
+    3) discover_rest_api ;;
     4|5) discover_generic_api ;;
     6) discover_csv ;;
     *) discover_csv ;;
@@ -212,32 +212,32 @@ parse_discovery() {
   ok "Parsed: ${COUNTS[users]} users, ${COUNTS[keys]} SSH keys, ${COUNTS[schedules]} cron jobs"
 }
 
-discover_sterling() {
-  local host=$(ask "Sterling server host")
-  local port=$(ask "Sterling API port" "8443")
-  local user=$(ask "Sterling admin username" "admin")
-  local pass=$(ask_secret "Sterling admin password")
+discover_rest_api() {
+  local host=$(ask "MFT server host")
+  local port=$(ask "MFT API port" "8443")
+  local user=$(ask "MFT admin username" "admin")
+  local pass=$(ask_secret "MFT admin password")
 
-  info "Connecting to Sterling REST API..."
+  info "Connecting to MFT REST API..."
 
   # Trading partners
   curl -sk -u "${user}:${pass}" "https://${host}:${port}/B2BAPIs/v1/tradingpartners" \
-    > "${SESSION_DIR}/discovery/sterling_partners.json" 2>/dev/null
+    > "${SESSION_DIR}/discovery/api_partners.json" 2>/dev/null
 
   # SSH keys
   curl -sk -u "${user}:${pass}" "https://${host}:${port}/B2BAPIs/v1/sshknownhostkeys" \
-    > "${SESSION_DIR}/discovery/sterling_keys.json" 2>/dev/null
+    > "${SESSION_DIR}/discovery/api_keys.json" 2>/dev/null
 
   # Routes/flows
   curl -sk -u "${user}:${pass}" "https://${host}:${port}/B2BAPIs/v1/routes" \
-    > "${SESSION_DIR}/discovery/sterling_routes.json" 2>/dev/null
+    > "${SESSION_DIR}/discovery/api_routes.json" 2>/dev/null
 
   # Parse partners
   echo "username,home_dir,shell,uid,gid,permissions,disk_usage" > "${SESSION_DIR}/discovery/users.csv"
   python3 -c "
 import json,sys
 try:
-    data = json.load(open('${SESSION_DIR}/discovery/sterling_partners.json'))
+    data = json.load(open('${SESSION_DIR}/discovery/api_partners.json'))
     partners = data if isinstance(data, list) else data.get('tradingPartners', data.get('content', []))
     for p in partners:
         name = p.get('partnerName', p.get('name', 'unknown'))
@@ -248,11 +248,11 @@ except: pass
 
   COUNTS[users]=$(wc -l < "${SESSION_DIR}/discovery/users.csv" | tr -d ' ')
   COUNTS[users]=$((${COUNTS[users]} - 1))  # subtract header
-  ok "Sterling discovery: ${COUNTS[users]} partners"
+  ok "REST API discovery: ${COUNTS[users]} partners"
 }
 
 discover_generic_api() {
-  info "For Axway/GoAnywhere, export users and config to CSV files."
+  info "Export users and config from your existing MFT platform to CSV files."
   info "Required CSV format: username,home_dir,protocol"
   discover_csv
 }
@@ -663,7 +663,7 @@ case "${1:-}" in
   --source) shift; case "$1" in
     ssh|openssh) main ;;
     ftp|vsftpd) main ;;
-    sterling) main ;;
+    api|rest) main ;;
     *) main ;; esac ;;
   --import-csv) SESSION_ID="csv-$(date +%Y%m%d-%H%M%S)"; SESSION_DIR="migration-sessions/${SESSION_ID}"
     init_session; discover_csv; analyze; confirm "Continue?" && { plan_strategy; connect_tranzfer && import_all && validate && generate_report; } ;;
@@ -674,7 +674,7 @@ case "${1:-}" in
     [ ! -d "$SESSION_DIR" ] && { fail "Session not found"; exit 1; }
     connect_tranzfer && validate ;;
   --rollback) rollback "$2" ;;
-  --help|-h) echo "Usage: migrate.sh [--source ssh|ftp|sterling] [--import-csv file.csv]"
+  --help|-h) echo "Usage: migrate.sh [--source ssh|ftp|api] [--import-csv file.csv]"
     echo "       migrate.sh --resume <session-id>"
     echo "       migrate.sh --validate <session-id>"
     echo "       migrate.sh --rollback <session-id>"

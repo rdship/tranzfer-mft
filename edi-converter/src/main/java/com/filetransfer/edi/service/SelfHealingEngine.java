@@ -17,7 +17,7 @@ import java.util.regex.Pattern;
  * 2. Applies the appropriate fix
  * 3. Returns the healed document with a detailed repair log
  *
- * Inspired by Cleo's Agentic AI — autonomous error resolution.
+ * Autonomous error resolution engine.
  * Handles 25+ common EDI error patterns.
  */
 @Service @Slf4j

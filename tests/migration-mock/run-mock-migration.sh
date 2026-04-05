@@ -122,18 +122,18 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 migrate_customer \
   "Global Bank Corp (Financial Services)" \
-  "IBM Sterling File Gateway" \
-  "${SCRIPT_DIR}/customer1_sterling_users.csv"
+  "Enterprise MFT Platform A" \
+  "${SCRIPT_DIR}/customer1_platform_a_users.csv"
 
 migrate_customer \
   "Healthcare Corp (Health/Pharma)" \
-  "Axway SecureTransport" \
-  "${SCRIPT_DIR}/customer2_axway_users.csv"
+  "Enterprise MFT Platform B" \
+  "${SCRIPT_DIR}/customer2_platform_b_users.csv"
 
 migrate_customer \
   "Retail Giant (Retail/Supply Chain)" \
-  "GoAnywhere MFT" \
-  "${SCRIPT_DIR}/customer3_goanywhere_users.csv"
+  "Enterprise MFT Platform C" \
+  "${SCRIPT_DIR}/customer3_platform_c_users.csv"
 
 migrate_customer \
   "Government Agency (Federal)" \
@@ -142,8 +142,8 @@ migrate_customer \
 
 migrate_customer \
   "Manufacturing Co (Industrial)" \
-  "Globalscape EFT" \
-  "${SCRIPT_DIR}/customer5_globalscape_users.csv"
+  "Enterprise MFT Platform D" \
+  "${SCRIPT_DIR}/customer5_platform_d_users.csv"
 
 # ============================================================
 # VALIDATION
@@ -247,11 +247,11 @@ echo -e "${BOLD}  MOCK MIGRATION — FINAL REPORT${NC}"
 echo -e "${BOLD}═══════════════════════════════════════════════════════════${NC}"
 echo ""
 echo -e "  ${BOLD}Customers Migrated:${NC}"
-echo "    1. Global Bank Corp        — IBM Sterling     → 20 partners"
-echo "    2. Healthcare Corp         — Axway            → 15 partners"
-echo "    3. Retail Giant             — GoAnywhere       → 15 partners"
+echo "    1. Global Bank Corp        — Enterprise MFT A → 20 partners"
+echo "    2. Healthcare Corp         — Enterprise MFT B → 15 partners"
+echo "    3. Retail Giant             — Enterprise MFT C → 15 partners"
 echo "    4. Government Agency        — OpenSSH          → 10 partners"
-echo "    5. Manufacturing Co         — Globalscape      → 12 partners"
+echo "    5. Manufacturing Co         — Enterprise MFT D → 12 partners"
 echo ""
 echo -e "  ${BOLD}Results:${NC}"
 echo -e "    Total partners migrated:  ${GREEN}${NEW_ACCOUNTS}${NC}"
@@ -261,11 +261,11 @@ echo -e "    Tests passed:             ${GREEN}${PASS}${NC}"
 echo -e "    Tests failed:             ${RED}${FAIL}${NC}"
 echo ""
 echo -e "  ${BOLD}Source Products Migrated From:${NC}"
-echo "    ✓ IBM Sterling File Gateway"
-echo "    ✓ Axway SecureTransport"
-echo "    ✓ GoAnywhere MFT"
+echo "    ✓ Enterprise MFT Platform A"
+echo "    ✓ Enterprise MFT Platform B"
+echo "    ✓ Enterprise MFT Platform C"
 echo "    ✓ OpenSSH (bare metal Linux)"
-echo "    ✓ Globalscape EFT"
+echo "    ✓ Enterprise MFT Platform D"
 echo ""
 echo -e "  ${BOLD}What Was Migrated:${NC}"
 echo "    ✓ User accounts (SFTP + FTP)"

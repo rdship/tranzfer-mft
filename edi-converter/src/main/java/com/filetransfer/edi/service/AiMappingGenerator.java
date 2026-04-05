@@ -14,8 +14,6 @@ import java.util.regex.Pattern;
 /**
  * AI Mapping Generator — upload a source EDI + desired output, get a mapping.
  *
- * Inspired by AWS B2B Data Interchange's GenAI mapping feature.
- *
  * Three modes:
  * 1. SAMPLE_BASED: Provide source EDI + target JSON → generates mapping rules
  * 2. SCHEMA_BASED: Provide source format + target schema → generates mapping

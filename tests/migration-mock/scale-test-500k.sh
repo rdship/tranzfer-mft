@@ -21,12 +21,12 @@ TRZ_TOKEN=""
 
 # Source product distribution
 declare -A PRODUCTS
-PRODUCTS[sterling]=150000    # 30% from IBM Sterling
-PRODUCTS[axway]=100000       # 20% from Axway
-PRODUCTS[goanywhere]=100000  # 20% from GoAnywhere
-PRODUCTS[openssh]=75000      # 15% from OpenSSH
-PRODUCTS[globalscape]=50000  # 10% from Globalscape
-PRODUCTS[other]=25000        #  5% from misc/CSV
+PRODUCTS[enterprise_a]=150000  # 30% from Enterprise MFT A
+PRODUCTS[enterprise_b]=100000  # 20% from Enterprise MFT B
+PRODUCTS[enterprise_c]=100000  # 20% from Enterprise MFT C
+PRODUCTS[openssh]=75000        # 15% from OpenSSH
+PRODUCTS[enterprise_d]=50000   # 10% from Enterprise MFT D
+PRODUCTS[other]=25000          #  5% from misc/CSV
 
 # Industry distribution
 INDUSTRIES=("banking" "healthcare" "retail" "government" "manufacturing" "logistics" "telecom" "energy" "insurance" "tech")

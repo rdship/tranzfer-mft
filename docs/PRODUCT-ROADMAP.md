@@ -22,7 +22,7 @@
 - 3 CLI tools (admin, client, migration)
 - Kubernetes Helm charts
 - Cross-platform MFT client (bundled JRE)
-- Enterprise migration tool (IBM Sterling, Axway, GoAnywhere)
+- Enterprise migration tool (supports major MFT platforms)
 - License-aware dynamic UI
 - 66-test suite + scale testing
 
