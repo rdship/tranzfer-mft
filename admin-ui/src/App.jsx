@@ -32,6 +32,11 @@ import Recommendations from './pages/Recommendations'
 import Storage from './pages/Storage'
 import Activity from './pages/Activity'
 import Encryption from './pages/Encryption'
+import TwoFactor from './pages/TwoFactor'
+import ApiConsole from './pages/ApiConsole'
+import Edi from './pages/Edi'
+import Tenants from './pages/Tenants'
+import Blockchain from './pages/Blockchain'
 
 export default function App() {
   return (
@@ -64,6 +69,11 @@ export default function App() {
             <Route path="storage" element={<Storage />} />
             <Route path="activity" element={<Activity />} />
             <Route path="encryption" element={<Encryption />} />
+            <Route path="2fa" element={<TwoFactor />} />
+            <Route path="api-console" element={<ApiConsole />} />
+            <Route path="edi" element={<Edi />} />
+            <Route path="tenants" element={<Tenants />} />
+            <Route path="blockchain" element={<Blockchain />} />
             <Route path="connectors" element={<Connectors />} />
             <Route path="p2p" element={<PeerTransfers />} />
             <Route path="terminal" element={<Terminal />} />

@@ -42,6 +42,7 @@ const navGroups = [
       { to: '/security-profiles', icon: ShieldCheckIcon, label: 'Security Profiles' },
       { to: '/encryption', icon: KeyIcon, label: 'Encryption Keys' },
       { to: '/keystore', icon: KeyIcon, label: 'Keystore Manager' },
+      { to: '/2fa', icon: ShieldCheckIcon, label: 'Two-Factor Auth' },
       { to: '/storage', icon: ServerStackIcon, label: 'Storage Manager' },
       { to: '/gateway', icon: BoltIcon, label: 'Gateway & DMZ' },
       { to: '/scheduler', icon: CpuChipIcon, label: 'Scheduler' },
@@ -52,7 +53,16 @@ const navGroups = [
     items: [
       { to: '/screening', icon: ShieldCheckIcon, label: 'OFAC Screening' },
       { to: '/sla', icon: DocumentTextIcon, label: 'SLA Agreements' },
+      { to: '/blockchain', icon: ShieldCheckIcon, label: 'Blockchain Proof' },
       { to: '/connectors', icon: BoltIcon, label: 'Connectors' },
+    ]
+  },
+  {
+    label: 'Developer',
+    items: [
+      { to: '/api-console', icon: CommandLineIcon, label: 'Transfer API v2' },
+      { to: '/edi', icon: DocumentTextIcon, label: 'EDI Translation' },
+      { to: '/tenants', icon: ServerStackIcon, label: 'Multi-Tenant' },
     ]
   },
   {
