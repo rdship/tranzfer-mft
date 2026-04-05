@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Shared logback configuration for all TranzFer services.
+  Include from service-specific logback.xml:
+    <include resource="logback-platform.xml"/>
+
+  Log format includes correlation ID and service name from MDC.
+-->
+<included>
+    <property name="LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{correlationId:-none}] [%X{service:-?}] %-5level [%thread] %logger{36} - %msg%n"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/${SERVICE_NAME:-platform}.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>logs/${SERVICE_NAME:-platform}.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>50MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <!-- JSON appender for production (ELK/Datadog ingestion) -->
+    <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <pattern>{"timestamp":"%d{ISO8601}","correlationId":"%X{correlationId:-none}","service":"%X{service:-?}","level":"%level","logger":"%logger{36}","message":"%replace(%msg){'\"','\\\"'}","thread":"%thread"}%n</pattern>
+        </encoder>
+    </appender>
+</included>

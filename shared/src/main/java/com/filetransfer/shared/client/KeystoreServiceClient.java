@@ -22,7 +22,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class KeystoreServiceClient extends BaseServiceClient {
+public class KeystoreServiceClient extends ResilientServiceClient {
 
     public KeystoreServiceClient(RestTemplate restTemplate,
                                  PlatformConfig platformConfig,
@@ -39,7 +39,9 @@ public class KeystoreServiceClient extends BaseServiceClient {
             if (type != null) path.append("type=").append(type).append("&");
             if (service != null) path.append("service=").append(service).append("&");
             if (partner != null) path.append("partner=").append(partner);
-            return get(path.toString(), new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+            String finalPath = path.toString();
+            return withResilience("listKeys",
+                    () -> get(finalPath, new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
         } catch (Exception e) {
             log.warn("Could not list keys from Keystore Manager: {}", e.getMessage());
             return Collections.emptyList();
@@ -50,7 +52,8 @@ public class KeystoreServiceClient extends BaseServiceClient {
     @SuppressWarnings("unchecked")
     public Map<String, Object> getKey(String alias) {
         try {
-            return get("/api/v1/keys/" + alias, Map.class);
+            return withResilience("getKey",
+                    () -> get("/api/v1/keys/" + alias, Map.class));
         } catch (Exception e) {
             log.warn("Could not retrieve key '{}' from Keystore Manager: {}", alias, e.getMessage());
             return null;
@@ -67,7 +70,8 @@ public class KeystoreServiceClient extends BaseServiceClient {
     /** Retrieve the public key (PEM format) for a given alias. */
     public String getPublicKey(String alias) {
         try {
-            return get("/api/v1/keys/" + alias + "/public", String.class);
+            return withResilience("getPublicKey",
+                    () -> get("/api/v1/keys/" + alias + "/public", String.class));
         } catch (Exception e) {
             log.warn("Could not retrieve public key '{}': {}", alias, e.getMessage());
             return null;
@@ -80,8 +84,9 @@ public class KeystoreServiceClient extends BaseServiceClient {
     @SuppressWarnings("unchecked")
     public Map<String, Object> generateSshHostKey(String alias, String ownerService) {
         try {
-            return post("/api/v1/keys/generate/ssh-host",
-                    Map.of("alias", alias, "ownerService", ownerService), Map.class);
+            return withResilience("generateSshHostKey",
+                    () -> post("/api/v1/keys/generate/ssh-host",
+                            Map.of("alias", alias, "ownerService", ownerService), Map.class));
         } catch (Exception e) {
             log.warn("Could not generate SSH host key in Keystore Manager: {}", e.getMessage());
             return null;
@@ -92,9 +97,10 @@ public class KeystoreServiceClient extends BaseServiceClient {
     @SuppressWarnings("unchecked")
     public Map<String, Object> generateSshUserKey(String alias, String partnerAccount, int keySize) {
         try {
-            return post("/api/v1/keys/generate/ssh-user",
-                    Map.of("alias", alias, "partnerAccount", partnerAccount,
-                           "keySize", String.valueOf(keySize)), Map.class);
+            return withResilience("generateSshUserKey",
+                    () -> post("/api/v1/keys/generate/ssh-user",
+                            Map.of("alias", alias, "partnerAccount", partnerAccount,
+                                   "keySize", String.valueOf(keySize)), Map.class));
         } catch (Exception e) {
             log.warn("Could not generate SSH user key in Keystore Manager: {}", e.getMessage());
             return null;
@@ -105,8 +111,9 @@ public class KeystoreServiceClient extends BaseServiceClient {
     @SuppressWarnings("unchecked")
     public Map<String, Object> generateAesKey(String alias, String ownerService) {
         try {
-            return post("/api/v1/keys/generate/aes",
-                    Map.of("alias", alias, "ownerService", ownerService), Map.class);
+            return withResilience("generateAesKey",
+                    () -> post("/api/v1/keys/generate/aes",
+                            Map.of("alias", alias, "ownerService", ownerService), Map.class));
         } catch (Exception e) {
             log.warn("Could not generate AES key in Keystore Manager: {}", e.getMessage());
             return null;
@@ -117,8 +124,9 @@ public class KeystoreServiceClient extends BaseServiceClient {
     @SuppressWarnings("unchecked")
     public Map<String, Object> generateTlsCert(String alias, String cn, int validDays) {
         try {
-            return post("/api/v1/keys/generate/tls",
-                    Map.of("alias", alias, "cn", cn, "validDays", String.valueOf(validDays)), Map.class);
+            return withResilience("generateTlsCert",
+                    () -> post("/api/v1/keys/generate/tls",
+                            Map.of("alias", alias, "cn", cn, "validDays", String.valueOf(validDays)), Map.class));
         } catch (Exception e) {
             log.warn("Could not generate TLS cert in Keystore Manager: {}", e.getMessage());
             return null;
@@ -129,8 +137,9 @@ public class KeystoreServiceClient extends BaseServiceClient {
     @SuppressWarnings("unchecked")
     public Map<String, Object> generateHmacKey(String alias, String ownerService) {
         try {
-            return post("/api/v1/keys/generate/hmac",
-                    Map.of("alias", alias, "ownerService", ownerService), Map.class);
+            return withResilience("generateHmacKey",
+                    () -> post("/api/v1/keys/generate/hmac",
+                            Map.of("alias", alias, "ownerService", ownerService), Map.class));
         } catch (Exception e) {
             log.warn("Could not generate HMAC key in Keystore Manager: {}", e.getMessage());
             return null;
@@ -141,9 +150,10 @@ public class KeystoreServiceClient extends BaseServiceClient {
     @SuppressWarnings("unchecked")
     public Map<String, Object> generatePgpKeypair(String alias, String identity, String passphrase) {
         try {
-            return post("/api/v1/keys/generate/pgp",
-                    Map.of("alias", alias, "identity", identity,
-                           "passphrase", passphrase != null ? passphrase : ""), Map.class);
+            return withResilience("generatePgpKeypair",
+                    () -> post("/api/v1/keys/generate/pgp",
+                            Map.of("alias", alias, "identity", identity,
+                                   "passphrase", passphrase != null ? passphrase : ""), Map.class));
         } catch (Exception e) {
             log.warn("Could not generate PGP keypair in Keystore Manager: {}", e.getMessage());
             return null;
@@ -157,9 +167,10 @@ public class KeystoreServiceClient extends BaseServiceClient {
     public Map<String, Object> importKey(String alias, String keyType, String keyMaterial,
                                           String description, String ownerService) {
         try {
-            return post("/api/v1/keys/import",
-                    Map.of("alias", alias, "keyType", keyType, "keyMaterial", keyMaterial,
-                           "description", description, "ownerService", ownerService), Map.class);
+            return withResilience("importKey",
+                    () -> post("/api/v1/keys/import",
+                            Map.of("alias", alias, "keyType", keyType, "keyMaterial", keyMaterial,
+                                   "description", description, "ownerService", ownerService), Map.class));
         } catch (Exception e) {
             log.warn("Could not import key '{}' to Keystore Manager: {}", alias, e.getMessage());
             return null;
@@ -171,7 +182,8 @@ public class KeystoreServiceClient extends BaseServiceClient {
     public Map<String, Object> rotateKey(String alias, String newAlias) {
         try {
             Map<String, String> body = newAlias != null ? Map.of("newAlias", newAlias) : Map.of();
-            return post("/api/v1/keys/" + alias + "/rotate", body, Map.class);
+            return withResilience("rotateKey",
+                    () -> post("/api/v1/keys/" + alias + "/rotate", body, Map.class));
         } catch (Exception e) {
             log.warn("Could not rotate key '{}': {}", alias, e.getMessage());
             return null;
@@ -181,7 +193,8 @@ public class KeystoreServiceClient extends BaseServiceClient {
     /** Deactivate a key by alias. */
     public boolean deactivateKey(String alias) {
         try {
-            delete("/api/v1/keys/" + alias);
+            withResilience("deactivateKey",
+                    () -> { delete("/api/v1/keys/" + alias); });
             return true;
         } catch (Exception e) {
             log.warn("Could not deactivate key '{}': {}", alias, e.getMessage());

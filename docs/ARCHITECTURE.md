@@ -16,7 +16,8 @@ This document explains how TranzFer's 20 microservices fit together, how data fl
 8. [Database Architecture](#database-architecture)
 9. [Messaging Architecture](#messaging-architecture)
 10. [Deployment Topologies](#deployment-topologies)
-11. [Network Diagram](#network-diagram)
+11. [Platform Maturity Infrastructure](#platform-maturity-infrastructure)
+12. [Network Diagram](#network-diagram)
 
 ---
 
@@ -688,6 +689,178 @@ docker compose up --build -d
 ```
 
 The DMZ proxy is intentionally designed with **no database access** — it cannot leak internal data even if compromised.
+
+---
+
+## Platform Maturity Infrastructure
+
+The platform includes enterprise-grade infrastructure for resilience, observability, security, and API quality — all centralized in the shared module so every service inherits automatically.
+
+### Resilience (Resilience4j)
+
+All inter-service REST communication is protected by circuit breakers and retry with exponential backoff.
+
+| Pattern | Default Config | Purpose |
+|---------|---------------|---------|
+| Circuit Breaker | 50% failure rate, 10-call window, 30s open wait | Prevents cascading failures when a service goes down |
+| Retry | 3 attempts, 500ms backoff, connection errors only | Handles transient network issues |
+| Timeout | Configurable per-service via `readTimeoutMs` | Prevents thread blocking on slow services |
+
+**Key class**: `ResilientServiceClient` extends `BaseServiceClient` — subclasses get protection automatically.
+
+**Configuration** (`application.yml`):
+```yaml
+platform:
+  resilience:
+    circuit-breaker:
+      failure-rate-threshold: 50
+      sliding-window-size: 10
+      wait-duration-seconds: 30
+    retry:
+      max-attempts: 3
+      wait-duration-ms: 500
+```
+
+Currently resilient: EncryptionServiceClient, AnalyticsServiceClient, KeystoreServiceClient. Others can be migrated by changing `extends BaseServiceClient` to `extends ResilientServiceClient`.
+
+### Observability
+
+#### Correlation IDs (Distributed Tracing)
+
+Every HTTP request gets a correlation ID that propagates across all service calls:
+
+1. `CorrelationIdFilter` checks for incoming `X-Correlation-ID` header
+2. If absent, generates a short UUID (8 chars)
+3. Puts it into SLF4J MDC — all log lines include `[correlationId]`
+4. `BaseServiceClient` propagates it in outgoing `X-Correlation-ID` headers
+5. Response includes the correlation ID for client-side debugging
+
+Log format: `2024-01-15 10:30:00.123 [a1b2c3d4] [onboarding-api] INFO  ...`
+
+#### Prometheus Metrics
+
+All services expose JVM and business metrics at `/actuator/prometheus`:
+
+| Metric Category | Metrics |
+|----------------|---------|
+| JVM Memory | Heap/non-heap usage, buffer pools |
+| JVM GC | GC pauses, collections, allocation rates |
+| JVM Threads | Thread states, daemon/non-daemon counts |
+| System | CPU usage, system load, uptime |
+| HTTP | Request counts, latencies, error rates (via Spring Boot Actuator) |
+
+Every metric is tagged with `service` and `cluster` for Grafana filtering.
+
+#### Structured Logging
+
+Shared logback configuration (`logback-platform.xml`) provides 3 appenders:
+- **CONSOLE**: Human-readable with correlation IDs
+- **FILE**: Rolling file appender (50MB/file, 1GB total, 30-day retention)
+- **JSON**: Structured JSON for ELK/Datadog ingestion
+
+### Error Handling
+
+Standardized error responses across all 20 services via `PlatformExceptionHandler`:
+
+```json
+{
+  "timestamp": "2024-01-15T10:30:00Z",
+  "status": 404,
+  "error": "Not Found",
+  "code": "ENTITY_NOT_FOUND",
+  "message": "Account with ID abc123 not found",
+  "path": "/api/accounts/abc123",
+  "correlationId": "a1b2c3d4"
+}
+```
+
+| Error Code | HTTP Status | When |
+|-----------|-------------|------|
+| ENTITY_NOT_FOUND | 404 | Requested resource doesn't exist |
+| VALIDATION_FAILED | 400 | @Valid constraint violations |
+| ILLEGAL_ARGUMENT | 400 | Invalid request parameter |
+| ACCESS_DENIED | 403 | RBAC role check failed |
+| UNAUTHORIZED | 401 | Missing/invalid JWT |
+| SERVICE_UNAVAILABLE | 503 | Downstream service unreachable |
+| CIRCUIT_OPEN | 503 | Circuit breaker tripped |
+| LICENSE_EXPIRED | 402 | License validation failed |
+| QUOTA_EXCEEDED | 429 | Transfer quota limit hit |
+| INTERNAL_ERROR | 500 | Unhandled exception |
+
+**Opt-out**: Set `platform.exception-handler.shared=false` for custom handling.
+
+### Role-Based Access Control (RBAC)
+
+Six roles with hierarchical permissions:
+
+| Role | Description | Access Level |
+|------|------------|-------------|
+| ADMIN | Full platform administration | Everything |
+| OPERATOR | Day-to-day operations | Transfers, monitoring, config |
+| USER | Standard file transfer user | Own transfers, limited views |
+| VIEWER | Read-only access | Dashboards, logs, reports |
+| PARTNER | External partner portal | Partner-specific resources |
+| SYSTEM | Internal service-to-service | Internal endpoints only |
+
+**Usage in controllers**:
+```java
+@PreAuthorize(Roles.ADMIN)           // Admin only
+@PreAuthorize(Roles.OPERATOR)        // Admin + Operator
+@PreAuthorize(Roles.USER)            // Admin + Operator + User
+@PreAuthorize(Roles.VIEWER)          // All authenticated roles
+@PreAuthorize(Roles.PARTNER)         // Admin + Partner
+```
+
+Method-level security enabled via `@EnableMethodSecurity` in `PlatformSecurityConfig`.
+
+### Entity Auditing
+
+Base class `Auditable` provides automatic audit fields for any JPA entity:
+
+| Column | Annotation | Auto-populated |
+|--------|-----------|----------------|
+| created_at | @CreatedDate | On insert |
+| updated_at | @LastModifiedDate | On insert + update |
+| created_by | @CreatedBy | From SecurityContext |
+| updated_by | @LastModifiedBy | From SecurityContext |
+
+Flyway migration `V13__add_audit_columns.sql` adds these columns to 9 existing tables.
+
+### OpenAPI Documentation
+
+Every service automatically gets Swagger UI and OpenAPI 3.0 spec:
+
+| Endpoint | Description |
+|----------|------------|
+| `/swagger-ui.html` | Interactive API documentation |
+| `/v3/api-docs` | OpenAPI 3.0 JSON spec |
+| `/v3/api-docs.yaml` | OpenAPI 3.0 YAML spec |
+
+Security schemes configured: JWT Bearer token and X-Internal-Key header.
+
+### Environment Profiles
+
+| Profile | Activation | Purpose |
+|---------|-----------|---------|
+| `dev` | `SPRING_PROFILES_ACTIVE=dev` | Local development, debug logging, Swagger UI enabled |
+| `test` | `SPRING_PROFILES_ACTIVE=test` | CI pipeline, minimal logging, Swagger disabled |
+| `prod` | `SPRING_PROFILES_ACTIVE=prod` | Production, env-var secrets, tuned resilience, Swagger disabled |
+
+### Frontend Error Handling
+
+The admin UI includes:
+- **ErrorBoundary**: Catches React render errors, shows recovery UI
+- **PageErrorBoundary**: Per-page isolation so one page crash doesn't affect others
+- **useApiError hook**: Consistent API error parsing with correlation ID logging
+- **Correlation ID interceptor**: Logs `X-Correlation-ID` from all API error responses
+
+### CI/CD Pipeline
+
+Tests are enabled in the CI pipeline with:
+- `mvn clean package -B` (tests run during build)
+- Dedicated `mvn test -B --fail-at-end` step with test profile
+- PostgreSQL 16 service container for integration tests
+- Secret scanning and Dockerfile validation
 
 ---
 

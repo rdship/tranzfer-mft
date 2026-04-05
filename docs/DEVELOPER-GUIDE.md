@@ -17,9 +17,10 @@ How to build, test, debug, and contribute to the project.
 9. [Code Style](#code-style)
 10. [Adding a New Service](#adding-a-new-service)
 11. [Inter-Service Communication](#inter-service-communication)
-12. [Partner Management API](#partner-management-api)
-13. [Database Migrations](#database-migrations)
-14. [Common Issues](#common-issues)
+12. [Platform Infrastructure](#platform-infrastructure)
+13. [Partner Management API](#partner-management-api)
+14. [Database Migrations](#database-migrations)
+15. [Common Issues](#common-issues)
 
 ---
 
@@ -544,6 +545,170 @@ Each client uses an appropriate error strategy:
 2. Add a `ServiceEndpoint` field to `ServiceClientProperties`
 3. Add the URL config to all `application.yml` files
 4. Annotate with `@Component` — auto-discovered by Spring
+
+---
+
+## Platform Infrastructure
+
+### Resilience Patterns
+
+All inter-service REST clients use circuit breakers and retry. To make a service client resilient:
+
+```java
+// Change extends BaseServiceClient to extends ResilientServiceClient
+public class MyServiceClient extends ResilientServiceClient {
+    
+    // Wrap REST calls with withResilience()
+    public Data getData(String id) {
+        return withResilience("getData", () -> get("/api/data/" + id, Data.class));
+    }
+}
+```
+
+Monitor circuit breaker state:
+```bash
+# Check circuit breaker state via actuator
+curl http://localhost:8080/actuator/health
+
+# Override resilience defaults in application.yml
+platform:
+  resilience:
+    circuit-breaker:
+      failure-rate-threshold: 50
+      sliding-window-size: 10
+      wait-duration-seconds: 30
+    retry:
+      max-attempts: 3
+      wait-duration-ms: 500
+```
+
+### Correlation IDs
+
+Every request gets a correlation ID that flows across services:
+
+```bash
+# Pass correlation ID manually
+curl -H "X-Correlation-ID: my-debug-123" http://localhost:8080/api/accounts
+
+# Response includes the correlation ID
+# X-Correlation-ID: my-debug-123
+
+# Search logs by correlation ID
+grep "my-debug-123" logs/*.log
+```
+
+Log format: `2024-01-15 10:30:00.123 [a1b2c3d4] [onboarding-api] INFO ...`
+
+### Prometheus Metrics
+
+All services expose Prometheus metrics:
+
+```bash
+# Scrape metrics
+curl http://localhost:8080/actuator/prometheus
+
+# Key metrics
+jvm_memory_used_bytes{area="heap"}
+jvm_gc_pause_seconds_count
+system_cpu_usage
+http_server_requests_seconds_count
+```
+
+### Error Handling
+
+All services return standardized error responses:
+
+```bash
+# Example: Entity not found
+curl http://localhost:8080/api/accounts/nonexistent
+# Response:
+# {
+#   "timestamp": "2024-01-15T10:30:00Z",
+#   "status": 404,
+#   "error": "Not Found",
+#   "code": "ENTITY_NOT_FOUND",
+#   "message": "Account with ID nonexistent not found",
+#   "path": "/api/accounts/nonexistent",
+#   "correlationId": "a1b2c3d4"
+# }
+
+# Throw platform exceptions in your code:
+throw new EntityNotFoundException("Account", id);
+throw new ServiceUnavailableException("encryption-service");
+throw new PlatformException(ErrorCode.QUOTA_EXCEEDED, "Monthly transfer limit reached");
+```
+
+### RBAC (Role-Based Access Control)
+
+Protect endpoints with role annotations:
+
+```java
+import com.filetransfer.shared.security.Roles;
+
+@RestController
+public class AdminController {
+    
+    @GetMapping("/api/users")
+    @PreAuthorize(Roles.ADMIN)           // Admin only
+    public List<User> listUsers() { ... }
+    
+    @GetMapping("/api/transfers")
+    @PreAuthorize(Roles.OPERATOR)        // Admin + Operator
+    public List<Transfer> listTransfers() { ... }
+    
+    @GetMapping("/api/dashboard")
+    @PreAuthorize(Roles.VIEWER)          // Any authenticated role
+    public Dashboard getDashboard() { ... }
+}
+```
+
+Available roles: ADMIN > OPERATOR > USER > VIEWER. Plus PARTNER (external) and SYSTEM (inter-service).
+
+### Entity Auditing
+
+New entities can extend `Auditable` for automatic audit fields:
+
+```java
+@Entity
+public class MyEntity extends Auditable {
+    @Id @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+    private String name;
+    // created_at, updated_at, created_by, updated_by are automatic
+}
+```
+
+### OpenAPI / Swagger
+
+Every service has auto-generated API docs:
+
+```bash
+# Swagger UI (interactive)
+open http://localhost:8080/swagger-ui.html
+
+# OpenAPI spec (JSON)
+curl http://localhost:8080/v3/api-docs
+
+# OpenAPI spec (YAML)
+curl http://localhost:8080/v3/api-docs.yaml
+```
+
+### Environment Profiles
+
+```bash
+# Development (default) — debug logging, Swagger UI
+SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run
+
+# Test — CI pipeline mode
+SPRING_PROFILES_ACTIVE=test mvn test
+
+# Production — env-var secrets, tuned resilience
+SPRING_PROFILES_ACTIVE=prod java -jar service.jar
+```
+
+Production requires these environment variables:
+- `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD`
+- `JWT_SECRET`, `CONTROL_API_KEY`
 
 ---
 

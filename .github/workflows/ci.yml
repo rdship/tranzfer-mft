@@ -41,7 +41,22 @@ jobs:
           cache: 'maven'
 
       - name: Build all modules
-        run: mvn clean package -DskipTests -B
+        run: mvn clean package -B
+        env:
+          SPRING_PROFILES_ACTIVE: test
+          JWT_SECRET: test_jwt_secret_key_for_ci_256bit_long!!
+          DATABASE_URL: jdbc:postgresql://localhost:5432/filetransfer
+          DATABASE_USER: postgres
+          DATABASE_PASSWORD: postgres
+
+      - name: Run tests
+        run: mvn test -B --fail-at-end
+        env:
+          SPRING_PROFILES_ACTIVE: test
+          JWT_SECRET: test_jwt_secret_key_for_ci_256bit_long!!
+          DATABASE_URL: jdbc:postgresql://localhost:5432/filetransfer
+          DATABASE_USER: postgres
+          DATABASE_PASSWORD: postgres
 
       - name: Verify module count
         run: |

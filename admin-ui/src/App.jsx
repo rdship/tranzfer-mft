@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { BrandingProvider } from './context/BrandingContext'
 import { ServiceProvider } from './context/ServiceContext'
+import ErrorBoundary from './components/ErrorBoundary'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
 import Login from './pages/Login'
@@ -47,6 +48,7 @@ import ServiceManagement from './pages/ServiceManagement'
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <BrandingProvider>
       <ServiceProvider>
       <AuthProvider>
@@ -99,5 +101,6 @@ export default function App() {
       </AuthProvider>
       </ServiceProvider>
     </BrandingProvider>
+    </ErrorBoundary>
   )
 }

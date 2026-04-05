@@ -20,7 +20,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Component
-public class AnalyticsServiceClient extends BaseServiceClient {
+public class AnalyticsServiceClient extends ResilientServiceClient {
 
     public AnalyticsServiceClient(RestTemplate restTemplate,
                                   PlatformConfig platformConfig,
@@ -32,7 +32,8 @@ public class AnalyticsServiceClient extends BaseServiceClient {
     @SuppressWarnings("unchecked")
     public Map<String, Object> getDashboard() {
         try {
-            return get("/api/v1/analytics/dashboard", Map.class);
+            return withResilience("getDashboard",
+                    () -> get("/api/v1/analytics/dashboard", Map.class));
         } catch (Exception e) {
             log.warn("Analytics dashboard unavailable: {}", e.getMessage());
             return Collections.emptyMap();
@@ -42,8 +43,9 @@ public class AnalyticsServiceClient extends BaseServiceClient {
     /** Get scaling predictions for all services. */
     public List<Map<String, Object>> getAllPredictions() {
         try {
-            return get("/api/v1/analytics/predictions",
-                    new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+            return withResilience("getAllPredictions",
+                    () -> get("/api/v1/analytics/predictions",
+                            new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
         } catch (Exception e) {
             log.warn("Analytics predictions unavailable: {}", e.getMessage());
             return Collections.emptyList();
@@ -54,7 +56,8 @@ public class AnalyticsServiceClient extends BaseServiceClient {
     @SuppressWarnings("unchecked")
     public Map<String, Object> getPrediction(String serviceType) {
         try {
-            return get("/api/v1/analytics/predictions/" + serviceType, Map.class);
+            return withResilience("getPrediction",
+                    () -> get("/api/v1/analytics/predictions/" + serviceType, Map.class));
         } catch (Exception e) {
             log.warn("Analytics prediction unavailable for {}: {}", serviceType, e.getMessage());
             return Collections.emptyMap();
@@ -66,7 +69,9 @@ public class AnalyticsServiceClient extends BaseServiceClient {
         try {
             String path = "/api/v1/analytics/timeseries?hours=" + hours;
             if (service != null) path += "&service=" + service;
-            return get(path, new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+            String finalPath = path;
+            return withResilience("getTimeSeries",
+                    () -> get(finalPath, new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
         } catch (Exception e) {
             log.warn("Analytics time-series unavailable: {}", e.getMessage());
             return Collections.emptyList();
@@ -76,8 +81,9 @@ public class AnalyticsServiceClient extends BaseServiceClient {
     /** Get all alert rules. */
     public List<Map<String, Object>> getAlertRules() {
         try {
-            return get("/api/v1/analytics/alerts",
-                    new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+            return withResilience("getAlertRules",
+                    () -> get("/api/v1/analytics/alerts",
+                            new ParameterizedTypeReference<List<Map<String, Object>>>() {}));
         } catch (Exception e) {
             log.warn("Analytics alert rules unavailable: {}", e.getMessage());
             return Collections.emptyList();
@@ -87,17 +93,15 @@ public class AnalyticsServiceClient extends BaseServiceClient {
     /** Create a new alert rule. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> createAlertRule(Map<String, Object> rule) {
-        try {
-            return post("/api/v1/analytics/alerts", rule, Map.class);
-        } catch (Exception e) {
-            throw serviceError("createAlertRule", e);
-        }
+        return withResilience("createAlertRule",
+                () -> post("/api/v1/analytics/alerts", rule, Map.class));
     }
 
     /** Delete an alert rule. */
     public void deleteAlertRule(UUID ruleId) {
         try {
-            delete("/api/v1/analytics/alerts/" + ruleId);
+            withResilience("deleteAlertRule",
+                    () -> { delete("/api/v1/analytics/alerts/" + ruleId); });
         } catch (Exception e) {
             log.warn("Failed to delete alert rule {}: {}", ruleId, e.getMessage());
         }

@@ -40,3 +40,20 @@ export const licenseApi = axios.create({ baseURL: GATEWAY_URL || 'http://localho
 export const gatewayApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8085' }))
 export const dmzApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8088' }))
 export const keystoreApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8093' }))
+
+// Log correlation IDs from API errors for debugging
+const logCorrelationId = (error) => {
+  const correlationId = error?.response?.headers?.['x-correlation-id']
+  const errorCode = error?.response?.data?.code
+  if (correlationId) {
+    console.debug(`[API] ${error.config?.method?.toUpperCase()} ${error.config?.url} → ${error.response?.status} [${correlationId}] ${errorCode || ''}`)
+  }
+  return Promise.reject(error)
+}
+
+onboardingApi.interceptors.response.use(r => r, logCorrelationId)
+configApi.interceptors.response.use(r => r, logCorrelationId)
+licenseApi.interceptors.response.use(r => r, logCorrelationId)
+analyticsApi.interceptors.response.use(r => r, logCorrelationId)
+dmzApi.interceptors.response.use(r => r, logCorrelationId)
+keystoreApi.interceptors.response.use(r => r, logCorrelationId)

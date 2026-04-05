@@ -2,6 +2,7 @@ package com.filetransfer.shared.client;
 
 import com.filetransfer.shared.config.PlatformConfig;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.*;
@@ -67,6 +68,11 @@ public abstract class BaseServiceClient {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("X-Internal-Key", platformConfig.getSecurity().getControlApiKey());
+        // Propagate correlation ID for distributed tracing
+        String correlationId = MDC.get("correlationId");
+        if (correlationId != null) {
+            headers.set("X-Correlation-ID", correlationId);
+        }
         return headers;
     }
 
@@ -75,6 +81,11 @@ public abstract class BaseServiceClient {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
         headers.set("X-Internal-Key", platformConfig.getSecurity().getControlApiKey());
+        // Propagate correlation ID for distributed tracing
+        String correlationId = MDC.get("correlationId");
+        if (correlationId != null) {
+            headers.set("X-Correlation-ID", correlationId);
+        }
         return headers;
     }
 

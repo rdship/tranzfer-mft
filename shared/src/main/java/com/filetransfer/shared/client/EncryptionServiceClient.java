@@ -18,7 +18,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Component
-public class EncryptionServiceClient extends BaseServiceClient {
+public class EncryptionServiceClient extends ResilientServiceClient {
 
     public EncryptionServiceClient(RestTemplate restTemplate,
                                    PlatformConfig platformConfig,
@@ -30,22 +30,26 @@ public class EncryptionServiceClient extends BaseServiceClient {
 
     /** Encrypt a file using the specified encryption key. Returns encrypted bytes. */
     public byte[] encryptFile(UUID keyId, Path filePath) {
-        return postMultipartForBytes("/api/encrypt/encrypt?keyId=" + keyId, filePath);
+        return withResilience("encryptFile",
+                () -> postMultipartForBytes("/api/encrypt/encrypt?keyId=" + keyId, filePath));
     }
 
     /** Decrypt a file using the specified encryption key. Returns decrypted bytes. */
     public byte[] decryptFile(UUID keyId, Path filePath) {
-        return postMultipartForBytes("/api/encrypt/decrypt?keyId=" + keyId, filePath);
+        return withResilience("decryptFile",
+                () -> postMultipartForBytes("/api/encrypt/decrypt?keyId=" + keyId, filePath));
     }
 
     /** Encrypt Base64-encoded content. */
     public String encryptBase64(UUID keyId, String base64Input) {
-        return post("/api/encrypt/encrypt/base64?keyId=" + keyId, base64Input, String.class);
+        return withResilience("encryptBase64",
+                () -> post("/api/encrypt/encrypt/base64?keyId=" + keyId, base64Input, String.class));
     }
 
     /** Decrypt Base64-encoded content. */
     public String decryptBase64(UUID keyId, String base64Input) {
-        return post("/api/encrypt/decrypt/base64?keyId=" + keyId, base64Input, String.class);
+        return withResilience("decryptBase64",
+                () -> post("/api/encrypt/decrypt/base64?keyId=" + keyId, base64Input, String.class));
     }
 
     // ── Credential encryption (master key, no keyId needed) ─────────────
@@ -54,26 +58,22 @@ public class EncryptionServiceClient extends BaseServiceClient {
     @SuppressWarnings("unchecked")
     public String encryptCredential(String plaintext) {
         if (plaintext == null || plaintext.isEmpty()) return plaintext;
-        try {
+        return withResilience("encryptCredential", () -> {
             Map<String, Object> response = post("/api/encrypt/credential/encrypt",
                     Map.of("value", plaintext), Map.class);
             return (String) response.get("encrypted");
-        } catch (Exception e) {
-            throw serviceError("encryptCredential", e);
-        }
+        });
     }
 
     /** Decrypt a Base64-encoded ciphertext back to plaintext. */
     @SuppressWarnings("unchecked")
     public String decryptCredential(String encrypted) {
         if (encrypted == null || encrypted.isEmpty()) return encrypted;
-        try {
+        return withResilience("decryptCredential", () -> {
             Map<String, Object> response = post("/api/encrypt/credential/decrypt",
                     Map.of("encrypted", encrypted), Map.class);
             return (String) response.get("value");
-        } catch (Exception e) {
-            throw serviceError("decryptCredential", e);
-        }
+        });
     }
 
     // ── Internal helpers ────────────────────────────────────────────────

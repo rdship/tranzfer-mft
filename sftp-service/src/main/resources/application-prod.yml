@@ -1,0 +1,44 @@
+# Production profile — deployed environment
+# Activate: SPRING_PROFILES_ACTIVE=prod
+
+spring:
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USER}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+  jpa:
+    show-sql: false
+
+logging:
+  level:
+    root: WARN
+    com.filetransfer: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      show-details: never
+
+springdoc:
+  swagger-ui:
+    enabled: false
+
+platform:
+  security:
+    jwt-secret: ${JWT_SECRET}
+    control-api-key: ${CONTROL_API_KEY}
+  resilience:
+    circuit-breaker:
+      failure-rate-threshold: 50
+      sliding-window-size: 20
+      wait-duration-seconds: 60
+    retry:
+      max-attempts: 3
+      wait-duration-ms: 1000
