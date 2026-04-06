@@ -251,6 +251,14 @@ Cache and API security measures to prevent intelligence leakage and exploitation
 15. **Race condition fix** — `IpReputation.setScore()` now `synchronized`.
 16. **Test coverage** — 33 AI engine tests (incl. 5 validation + 2 auth rejection) + 44 DMZ proxy tests.
 
+**Production safety guards & transport security:**
+17. **Startup secret validation** — `SecretSafetyValidator` blocks startup in PROD/STAGING/CERT if JWT secret, control API key, or DB password are still default values. Also validates minimum secret lengths.
+18. **GeoIP HTTPS enforcement** — Default API URL changed to `https://ip-api.com`; redirect prevention added; startup blocks loopback/internal URLs.
+19. **FTPS keystore password guard** — `FtpsConfig` throws `IllegalStateException` in production if keystore password is "changeit".
+20. **`tlsTrustAll` production block** — `HttpForwarderService` throws `SecurityException` in PROD/STAGING/CERT when endpoint has `tlsTrustAll=true`.
+21. **Service URL transport audit** — `SecretSafetyValidator` scans all `ServiceClientProperties` URLs and logs ERROR for HTTP in production.
+22. **OpenTelemetry TLS** — Production Helm values enforce HTTPS for OTEL collector; OTLP exporter `insecure` set to `false`.
+
 ### Test summary
 
 | Module | Tests | What's tested |

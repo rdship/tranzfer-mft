@@ -95,6 +95,10 @@ public class FtpsConfig {
     @Value("${ftp.ftps.truststore-password:changeit}")
     private String truststorePassword;
 
+    /** Platform environment: PROD, STAGING, CERT, DEV, TEST. */
+    @Value("${platform.environment:PROD}")
+    private String environment;
+
     public boolean isEnabled() { return enabled; }
 
     /** Whether implicit FTPS mode is configured. */
@@ -158,6 +162,17 @@ public class FtpsConfig {
             return null;
         }
 
+        // Production safety guard: reject default keystore password in production-like environments
+        String env = (environment != null) ? environment.trim().toUpperCase() : "PROD";
+        if ("changeit".equals(keystorePassword)) {
+            if ("PROD".equals(env) || "STAGING".equals(env) || "CERT".equals(env)) {
+                log.error("FTPS enabled with default keystore password 'changeit' in {} environment — this is a critical security risk", env);
+                throw new IllegalStateException("FTPS keystore password must be changed from default in production environments");
+            } else if ("DEV".equals(env) || "TEST".equals(env)) {
+                log.warn("FTPS using default keystore password 'changeit' in {} environment — acceptable for development only", env);
+            }
+        }
+
         File ksFile = new File(keystorePath);
         if (!ksFile.exists()) {
             // Try to get TLS certificate from Keystore Manager first
@@ -199,6 +214,10 @@ public class FtpsConfig {
                 if (tsFile.exists()) {
                     sslFactory.setTruststoreFile(tsFile);
                     sslFactory.setTruststorePassword(truststorePassword);
+                    if ("changeit".equals(truststorePassword)
+                            && ("PROD".equals(env) || "STAGING".equals(env) || "CERT".equals(env))) {
+                        log.warn("FTPS truststore using default password 'changeit' in {} environment — consider changing for production use", env);
+                    }
                     log.info("FTPS truststore configured: {}", truststorePath);
                 } else {
                     log.warn("FTPS truststore not found: {} -- client cert validation may fail", truststorePath);

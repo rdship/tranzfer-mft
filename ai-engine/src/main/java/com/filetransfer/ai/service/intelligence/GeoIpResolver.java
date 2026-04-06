@@ -4,6 +4,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
+
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -84,7 +86,7 @@ public class GeoIpResolver {
     @Value("${ai.geo.cache-size:50000}")
     private int maxCacheSize;
 
-    @Value("${ai.geo.api-base-url:http://ip-api.com}")
+    @Value("${ai.geo.api-base-url:https://ip-api.com}")
     private String apiBaseUrl;
 
     // ── State ──────────────────────────────────────────────────────────
@@ -93,7 +95,69 @@ public class GeoIpResolver {
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(HTTP_TIMEOUT)
+            .followRedirects(HttpClient.Redirect.NEVER)
             .build();
+
+    // ── Startup Validation ────────────────────────────────────────────
+
+    /**
+     * Validates the configured API base URL at startup to prevent SSRF
+     * and ensure HTTPS is used in production environments.
+     */
+    @PostConstruct
+    void validateApiBaseUrl() {
+        if (apiBaseUrl == null || apiBaseUrl.isBlank()) {
+            throw new IllegalStateException("ai.geo.api-base-url must not be blank");
+        }
+
+        // Warn if HTTP is used instead of HTTPS
+        if (apiBaseUrl.startsWith("http://")) {
+            log.warn("GeoIP API base URL is using HTTP ({}). HTTPS is strongly recommended for production. "
+                    + "Set ai.geo.api-base-url to an https:// URL.", apiBaseUrl);
+        } else if (!apiBaseUrl.startsWith("https://")) {
+            throw new IllegalStateException(
+                    "ai.geo.api-base-url must use https:// (or http:// for non-production): " + apiBaseUrl);
+        }
+
+        // Extract hostname and validate it does not point to internal/loopback addresses
+        try {
+            URI uri = URI.create(apiBaseUrl);
+            String host = uri.getHost();
+            if (host == null) {
+                throw new IllegalStateException("ai.geo.api-base-url has no valid host: " + apiBaseUrl);
+            }
+
+            String hostLower = host.toLowerCase();
+
+            // Block loopback and internal addresses
+            if (hostLower.equals("localhost")
+                    || hostLower.equals("[::1]")
+                    || hostLower.startsWith("127.")
+                    || hostLower.startsWith("169.254.")
+                    || hostLower.startsWith("10.")
+                    || hostLower.startsWith("192.168.")) {
+                throw new IllegalStateException(
+                        "ai.geo.api-base-url must not point to an internal/loopback address: " + apiBaseUrl);
+            }
+
+            // Also block 172.16.0.0/12 range
+            if (hostLower.startsWith("172.")) {
+                try {
+                    int secondOctet = Integer.parseInt(hostLower.split("\\.")[1]);
+                    if (secondOctet >= 16 && secondOctet <= 31) {
+                        throw new IllegalStateException(
+                                "ai.geo.api-base-url must not point to an internal address: " + apiBaseUrl);
+                    }
+                } catch (NumberFormatException ignored) {
+                    // not a numeric IP, allow it
+                }
+            }
+
+            log.info("GeoIP API base URL validated: {}", apiBaseUrl);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("ai.geo.api-base-url is not a valid URI: " + apiBaseUrl, e);
+        }
+    }
 
     // ── Single IP Resolution ───────────────────────────────────────────
 

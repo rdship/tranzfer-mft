@@ -58,4 +58,4 @@ monitoring:
 
 otel:
   enabled: true
-  endpoint: "http://otel-collector:4318"
+  endpoint: "https://otel-collector:4318"

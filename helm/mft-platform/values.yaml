@@ -387,5 +387,5 @@ monitoring:
 # =============================================================================
 otel:
   enabled: false
-  endpoint: "http://otel-collector:4318"
+  endpoint: "https://otel-collector:4318"
   serviceName: "mft-platform"

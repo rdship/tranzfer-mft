@@ -1221,6 +1221,19 @@ Additional hardening against input validation attacks, reputation manipulation, 
 | 15 | **HTTP client follows redirects** — compromised AI engine URL could redirect to SSRF target | `HttpClient.Redirect.NEVER` on DMZ proxy's verdict client | Redirect-chain SSRF attacks blocked |
 | 16 | **Race condition in reputation scoring** — `setScore()` not synchronized while `adjustScore()` was | `setScore()` now `synchronized`, consistent with `adjustScore()` | Concurrent decay + failure events cannot corrupt score |
 
+### Security Hardening (Production Safety Guards & Transport Security)
+
+Runtime guards that prevent insecure configurations from reaching production and enforce transport security:
+
+| # | Vulnerability | Fix | Effect |
+|---|--------------|-----|--------|
+| 17 | **Default secrets ship in source** — JWT secret, control API key, and DB password all have weak defaults that work in production | `SecretSafetyValidator` component in shared module: blocks startup in PROD/STAGING/CERT if defaults detected; validates minimum secret lengths (JWT ≥ 32 chars, API key ≥ 16 chars) | Platform cannot start with known-weak credentials in production |
+| 18 | **GeoIP resolver uses plain HTTP** — IP addresses sent to ip-api.com over unencrypted HTTP | Default changed to HTTPS; redirect prevention (`HttpClient.Redirect.NEVER`); startup validation blocks loopback/internal URLs | GeoIP lookups encrypted in transit; SSRF via redirect impossible |
+| 19 | **FTPS keystore password "changeit"** — Java default password allows key extraction with filesystem access | Production guard in `FtpsConfig`: throws `IllegalStateException` in PROD/STAGING/CERT if password is "changeit"; warns in DEV/TEST | FTPS cannot start with default keystore password in production |
+| 20 | **`tlsTrustAll` bypasses certificate validation** — disabling TLS verification enables MITM attacks | Production guard in `HttpForwarderService`: throws `SecurityException` in PROD/STAGING/CERT; warns in DEV/TEST | Certificate validation cannot be bypassed in production environments |
+| 21 | **Service URLs use plain HTTP** — all 17 inter-service URLs default to `http://` | `SecretSafetyValidator` scans all `ServiceClientProperties` URLs; logs ERROR in production for HTTP URLs | Visibility into HTTP-only service communication; prerequisite for mTLS migration |
+| 22 | **OpenTelemetry data in plaintext** — traces and metrics sent to collector over HTTP with `tls.insecure: true` | Production Helm values changed to `https://`; OTLP exporter `insecure` changed to `false` | Observability data encrypted in transit |
+
 ---
 
 ## Network Diagram

@@ -8,6 +8,7 @@ import com.filetransfer.shared.entity.DeliveryEndpoint;
 import com.filetransfer.shared.enums.AuthType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
@@ -34,7 +35,21 @@ public class HttpForwarderService {
     private final CredentialCryptoClient credentialCrypto;
     private final TransferWatchdog transferWatchdog;
 
+    @Value("${platform.environment:PROD}")
+    private String environment;
+
     public void forward(DeliveryEndpoint endpoint, String filename, byte[] fileBytes) throws Exception {
+        if (endpoint.isTlsTrustAll()) {
+            String env = environment != null ? environment.toUpperCase() : "PROD";
+            if ("PROD".equals(env) || "STAGING".equals(env) || "CERT".equals(env)) {
+                log.error("BLOCKED: tlsTrustAll=true on endpoint '{}' in {} environment — " +
+                        "certificate validation cannot be bypassed in production", endpoint.getName(), env);
+                throw new SecurityException("tlsTrustAll is not permitted in " + env + " environment");
+            }
+            log.warn("tlsTrustAll=true on endpoint '{}' in {} environment — " +
+                    "all certificate validation is disabled, MITM attacks possible", endpoint.getName(), env);
+        }
+
         String scheme = endpoint.isTlsEnabled() ? "https" : "http";
         int port = endpoint.getPort() != null ? endpoint.getPort() : (endpoint.isTlsEnabled() ? 443 : 80);
         String basePath = endpoint.getBasePath() != null ? endpoint.getBasePath() : "";

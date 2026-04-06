@@ -54,7 +54,7 @@ exporters:
   otlp/jaeger:
     endpoint: "jaeger:4317"
     tls:
-      insecure: true
+      insecure: false
 
 service:
   pipelines:
