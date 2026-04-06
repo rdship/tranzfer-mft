@@ -3,12 +3,12 @@
 ## v2.3.0 (2026-04-06)
 
 ### Per-Listener Security Profiles
-- **3-Tier Security**: Each server listener (SFTP, FTP, AS2, etc.) gets its own security profile — MANUAL, AI, or AI+LLM
-- **MANUAL tier** (<1ms): IP whitelist/blacklist with CIDR support, geo-blocking/allowing by country, rate limiting per source IP, concurrent connection limits, bandwidth throttling, file extension filters, file size limits, transfer windows (day/time restrictions), idle timeout, max auth attempts, require encryption, connection logging
-- **AI tier** (~5ms avg): Everything in MANUAL + internal AI engine verdict (IP reputation, geo-anomaly detection, protocol threat detection, connection pattern analysis, threat intelligence). 90%+ cache hit rate for sub-ms typical latency
+- **3-Tier Security**: Each server listener (SFTP, FTP, AS2, etc.) gets its own security profile — RULES, AI, or AI+LLM
+- **RULES tier** (<1ms): IP whitelist/blacklist with CIDR support, geo-blocking/allowing by country, rate limiting per source IP, concurrent connection limits, bandwidth throttling, file extension filters, file size limits, transfer windows (day/time restrictions), idle timeout, max auth attempts, require encryption, connection logging
+- **AI tier** (~5ms avg): Everything in RULES + internal AI engine verdict (IP reputation, geo-anomaly detection, protocol threat detection, connection pattern analysis, threat intelligence). 90%+ cache hit rate for sub-ms typical latency
 - **AI+LLM tier** (~50ms avg): Everything in AI + Claude LLM escalation for borderline cases (risk score 30-70). LLM only fires for ~5-10% of connections. Requires `ai.llm.enabled=true`
 - **Same proxy, different security**: Different listeners on different ports can have different security tiers through the same DMZ proxy
-- **Outbound = MANUAL only**: External destinations get proxy routing + manual security rules (no AI overhead for outbound connections you initiate)
+- **Outbound = RULES only**: External destinations get proxy routing + security rules (no AI overhead for outbound connections you initiate)
 - **Dynamic proxy detection**: UI only shows running proxy services in dropdown, auto-fills DMZ proxy config when detected
 - **Overhead estimates**: UI displays real-time latency estimates per security tier
 

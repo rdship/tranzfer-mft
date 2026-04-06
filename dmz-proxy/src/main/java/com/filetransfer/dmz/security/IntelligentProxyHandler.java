@@ -17,8 +17,8 @@ import java.net.InetSocketAddress;
  * Pipeline position: FIRST handler (before RelayHandler).
  *
  * Supports per-mapping security tiers:
- * - MANUAL: local IP/geo/rate checks only, zero network calls
- * - AI: MANUAL + AI engine verdict
+ * - RULES: local IP/geo/rate checks only, zero network calls
+ * - AI: RULES + AI engine verdict
  * - AI_LLM: AI + LLM escalation for borderline cases
  *
  * When securityPolicy is null, falls back to existing global AI behavior.
@@ -120,7 +120,7 @@ public class IntelligentProxyHandler extends ChannelInboundHandlerAdapter {
         }
 
         // ── Step 3: AI verdict (AI and AI_LLM tiers only) ──
-        if (!"MANUAL".equals(securityTier)) {
+        if (!"RULES".equals(securityTier)) {
             CachedVerdict verdict = aiClient.getVerdict(sourceIp, listenPort, null, securityTier);
             metrics.recordAiVerdictRequest();
 
@@ -178,13 +178,13 @@ public class IntelligentProxyHandler extends ChannelInboundHandlerAdapter {
                 }
             }
         } else {
-            // MANUAL tier: no AI, just allow through after manual + rate limit checks
+            // RULES tier: no AI, just allow through after rules + rate limit checks
             metrics.recordAllowed();
-            metrics.recordAction("MANUAL_ALLOW");
+            metrics.recordAction("RULES_ALLOW");
             connectionAllowed = true;
             boolean shouldLog = securityPolicy == null || securityPolicy.isConnectionLogging();
             if (shouldLog) {
-                log.info("[{}] MANUAL tier: allowed {} on port {}", mappingName, sourceIp, listenPort);
+                log.info("[{}] RULES tier: allowed {} on port {}", mappingName, sourceIp, listenPort);
             }
         }
 

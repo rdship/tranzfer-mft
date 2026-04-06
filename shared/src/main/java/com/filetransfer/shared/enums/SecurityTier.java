@@ -1,7 +1,7 @@
 package com.filetransfer.shared.enums;
 
 public enum SecurityTier {
-    MANUAL,
+    RULES,
     AI,
     AI_LLM
 }

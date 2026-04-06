@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { ChevronDownIcon, ChevronUpIcon, ShieldCheckIcon } from '@heroicons/react/24/outline'
 
 const TIER_INFO = {
-  MANUAL: {
-    label: 'Manual Rules',
+  RULES: {
+    label: 'Security Rules',
     badge: 'badge-yellow',
-    badgeLabel: 'Manual',
+    badgeLabel: 'Rules',
     overhead: '<1ms',
     description: 'IP whitelist/blacklist, rate limiting, geo-blocking. Zero network calls.',
   },
@@ -43,7 +43,7 @@ const DEFAULT_POLICY = {
 }
 
 export default function SecurityTierSelector({
-  tier = 'MANUAL',
+  tier = 'RULES',
   onTierChange,
   showAiTiers = true,
   policy = {},
@@ -60,12 +60,12 @@ export default function SecurityTierSelector({
   }
 
   const tiers = [
-    'MANUAL',
+    'RULES',
     ...(showAiTiers ? ['AI'] : []),
     ...(showAiTiers ? ['AI_LLM'] : []),
   ]
 
-  const currentInfo = TIER_INFO[tier] || TIER_INFO.MANUAL
+  const currentInfo = TIER_INFO[tier] || TIER_INFO.RULES
 
   // Compact mode — just a badge
   if (compact) {

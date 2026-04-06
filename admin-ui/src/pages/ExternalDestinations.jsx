@@ -16,7 +16,7 @@ export default function ExternalDestinations() {
   const [form, setForm] = useState({
     name: '', type: 'SFTP', host: '', port: 22, username: '', encryptedPassword: '', remotePath: '/incoming',
     proxyEnabled: false, proxyType: 'DMZ', proxyHost: 'dmz-proxy', proxyPort: 8088,
-    securityTier: 'MANUAL', securityPolicy: {}
+    securityTier: 'RULES', securityPolicy: {}
   })
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState(null)
@@ -70,7 +70,7 @@ export default function ExternalDestinations() {
               <span className="badge badge-blue">{d.type}</span>
               {d.proxyEnabled && <span className="badge badge-purple">Via {d.proxyType || 'Proxy'}</span>}
               {d.proxyEnabled && (
-                <span className="badge badge-yellow">Manual</span>
+                <span className="badge badge-yellow">Rules</span>
               )}
               {!d.proxyEnabled && (
                 <span className="text-gray-400 text-xs">Direct</span>
@@ -160,8 +160,8 @@ export default function ExternalDestinations() {
                   {/* Outbound security — MANUAL only, no AI tiers */}
                   <div className="pt-2">
                     <SecurityTierSelector
-                      tier="MANUAL"
-                      onTierChange={() => {}} // locked to MANUAL for outbound
+                      tier="RULES"
+                      onTierChange={() => {}} // locked to RULES for outbound
                       showAiTiers={false}
                       policy={form.securityPolicy}
                       onPolicyChange={policy => setForm(f => ({...f, securityPolicy: policy}))}

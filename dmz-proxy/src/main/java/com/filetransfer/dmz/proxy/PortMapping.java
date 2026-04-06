@@ -29,9 +29,9 @@ public class PortMapping {
      * When null, the global security behavior applies (AI tier with global defaults).
      *
      * Security tiers:
-     * - MANUAL: Only manual rules (IP whitelist/blacklist, geo, rate limits, transfer windows). No AI.
-     * - AI: Manual rules + AI verdict (default).
-     * - AI_LLM: Manual rules + AI verdict with LLM-enhanced analysis.
+     * - RULES: Admin-managed rules only (IP whitelist/blacklist, geo, rate limits, transfer windows). No AI.
+     * - AI: Rules + AI verdict (default).
+     * - AI_LLM: Rules + AI verdict with LLM-enhanced analysis.
      */
     @Data
     @Builder

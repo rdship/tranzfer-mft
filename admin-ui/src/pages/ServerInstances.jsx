@@ -27,7 +27,7 @@ const PROTOCOL_LABELS = {
 }
 
 const SECURITY_BADGES = {
-  MANUAL: { badge: 'badge-yellow', label: 'Manual' },
+  RULES: { badge: 'badge-yellow', label: 'Rules' },
   AI: { badge: 'badge-blue', label: 'AI' },
   AI_LLM: { badge: 'badge-purple', label: 'AI+LLM' },
 }
@@ -172,7 +172,7 @@ export default function ServerInstances() {
             <tbody>
               {filtered.map(s => {
                 const tierInfo = s.useProxy && s.securityTier
-                  ? SECURITY_BADGES[s.securityTier] || SECURITY_BADGES.MANUAL
+                  ? SECURITY_BADGES[s.securityTier] || SECURITY_BADGES.RULES
                   : null
                 return (
                   <tr key={s.id} className="table-row">

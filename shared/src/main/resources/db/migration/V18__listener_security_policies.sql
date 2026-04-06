@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS listener_security_policies (
         (server_instance_id IS NOT NULL AND external_destination_id IS NULL) OR
         (server_instance_id IS NULL AND external_destination_id IS NOT NULL)
     ),
-    CONSTRAINT chk_security_tier CHECK (security_tier IN ('MANUAL', 'AI', 'AI_LLM'))
+    CONSTRAINT chk_security_tier CHECK (security_tier IN ('RULES', 'AI', 'AI_LLM'))
 );
 
 CREATE INDEX idx_lsp_server ON listener_security_policies(server_instance_id);

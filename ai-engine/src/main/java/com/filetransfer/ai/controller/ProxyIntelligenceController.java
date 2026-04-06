@@ -382,7 +382,7 @@ public class ProxyIntelligenceController {
     @GetMapping("/overhead-estimates")
     public ResponseEntity<Map<String, Object>> overheadEstimates() {
         return ResponseEntity.ok(Map.of(
-            "MANUAL", Map.of("avgMs", 0, "maxMs", 1, "description", "Local checks only, zero network calls"),
+            "RULES", Map.of("avgMs", 0, "maxMs", 1, "description", "Admin-managed rules only, zero network calls"),
             "AI", Map.of("avgMs", 5, "maxMs", 50, "cacheHitRate", "90%+", "description", "Internal AI engine verdict with caching"),
             "AI_LLM", Map.of("avgMs", 50, "maxMs", 2000, "llmTriggerRate", "5-10%", "description", "AI + Claude LLM for borderline cases")
         ));
