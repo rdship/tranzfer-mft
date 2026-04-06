@@ -126,7 +126,11 @@ public class ProxyIntelligenceController {
             return ResponseEntity.badRequest().body(Map.of("error", "valid sourceIp is required"));
         }
 
-        Verdict verdict = intelligenceService.computeVerdict(sourceIp, targetPort, protocol);
+        // If securityTier is present, use the tier-aware overload (supports LLM escalation)
+        String securityTier = (String) request.get("securityTier");
+        Verdict verdict = securityTier != null
+            ? intelligenceService.computeVerdict(sourceIp, targetPort, protocol, securityTier)
+            : intelligenceService.computeVerdict(sourceIp, targetPort, protocol);
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("action", verdict.action().name());
@@ -367,6 +371,21 @@ public class ProxyIntelligenceController {
     public ResponseEntity<Map<String, Object>> getGeoStats(@RequestHeader("X-Internal-Key") String key) {
         authenticate(key);
         return ResponseEntity.ok(geoDetector.getStats());
+    }
+
+    // ── Overhead Estimates (public, no auth) ─────────────────────────────
+
+    /**
+     * Static overhead estimates for each security tier.
+     * Public endpoint — no auth required, returns static informational data.
+     */
+    @GetMapping("/overhead-estimates")
+    public ResponseEntity<Map<String, Object>> overheadEstimates() {
+        return ResponseEntity.ok(Map.of(
+            "MANUAL", Map.of("avgMs", 0, "maxMs", 1, "description", "Local checks only, zero network calls"),
+            "AI", Map.of("avgMs", 5, "maxMs", 50, "cacheHitRate", "90%+", "description", "Internal AI engine verdict with caching"),
+            "AI_LLM", Map.of("avgMs", 50, "maxMs", 2000, "llmTriggerRate", "5-10%", "description", "AI + Claude LLM for borderline cases")
+        ));
     }
 
     // ── Health ──────────────────────────────────────────────────────────

@@ -66,6 +66,19 @@ public class ProxyManagementController {
         proxyManager.remove(name);
     }
 
+    @PutMapping("/mappings/{name}/security-policy")
+    public ResponseEntity<?> updateSecurityPolicy(
+            @RequestHeader("X-Internal-Key") String key,
+            @PathVariable String name,
+            @RequestBody PortMapping.SecurityPolicy policy) {
+        validateKey(key);
+        proxyManager.updateSecurityPolicy(name, policy);
+        return ResponseEntity.ok(Map.of(
+            "mapping", name,
+            "securityTier", policy.getSecurityTier(),
+            "message", "Security policy updated"));
+    }
+
     // ── Security Intelligence ──────────────────────────────────────────
 
     @GetMapping("/security/stats")

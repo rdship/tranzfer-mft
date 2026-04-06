@@ -1,6 +1,7 @@
 package com.filetransfer.dmz.proxy;
 
 import com.filetransfer.dmz.security.*;
+import com.filetransfer.dmz.security.ManualSecurityFilter;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.Getter;
@@ -92,9 +93,21 @@ public class ProxyManager {
 
         TcpProxyServer server;
         if (securityEnabled) {
+            ManualSecurityFilter manualFilter = null;
+            PortMapping.SecurityPolicy policy = mapping.getSecurityPolicy();
+            if (policy != null) {
+                manualFilter = new ManualSecurityFilter(policy);
+                // Apply per-mapping rate limits
+                rateLimiter.setPortDefaults(mapping.getListenPort(),
+                    policy.getRateLimitPerMinute(), policy.getMaxConcurrent(),
+                    policy.getMaxBytesPerMinute());
+                log.info("Mapping [{}]: security tier={}, manual filter active",
+                    mapping.getName(), policy.getSecurityTier());
+            }
             server = new TcpProxyServer(mapping,
                 connectionTracker, rateLimiter,
-                aiVerdictClient, eventReporter, securityMetrics);
+                aiVerdictClient, eventReporter, securityMetrics,
+                manualFilter);
         } else {
             server = new TcpProxyServer(mapping);
         }
@@ -106,6 +119,19 @@ public class ProxyManager {
         } catch (Exception e) {
             throw new RuntimeException("Failed to start proxy for " + mapping.getName(), e);
         }
+    }
+
+    /** Update the security policy for an existing mapping (hot-reconfigure). */
+    public void updateSecurityPolicy(String name, PortMapping.SecurityPolicy policy) {
+        PortMapping existing = mappings.get(name);
+        if (existing == null) {
+            throw new IllegalArgumentException("Mapping not found: " + name);
+        }
+        existing.setSecurityPolicy(policy);
+        // Restart the mapping to apply new security
+        remove(name);
+        add(existing);
+        log.info("Hot-reconfigured security for mapping [{}]: tier={}", name, policy.getSecurityTier());
     }
 
     public void remove(String name) {
@@ -127,6 +153,11 @@ public class ProxyManager {
             entry.put("bytesForwarded", server != null ? server.getBytesForwarded().get() : 0);
             entry.put("activeConnections", server != null ? server.getActiveConnections().get() : 0);
             entry.put("securityEnabled", securityEnabled);
+            if (mapping.getSecurityPolicy() != null) {
+                entry.put("securityTier", mapping.getSecurityPolicy().getSecurityTier());
+            } else {
+                entry.put("securityTier", securityEnabled ? "AI" : "NONE");
+            }
             result.add(entry);
         });
         return result;

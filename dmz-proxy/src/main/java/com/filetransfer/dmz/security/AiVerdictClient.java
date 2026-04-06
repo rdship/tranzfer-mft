@@ -92,6 +92,15 @@ public class AiVerdictClient {
      * Falls back to local heuristics if AI engine is unavailable.
      */
     public CachedVerdict getVerdict(String sourceIp, int targetPort, String protocol) {
+        return getVerdict(sourceIp, targetPort, protocol, "AI");
+    }
+
+    /**
+     * Get a verdict with security tier awareness.
+     * The securityTier is forwarded to the AI engine so it can decide
+     * whether to invoke LLM escalation (AI_LLM tier only).
+     */
+    public CachedVerdict getVerdict(String sourceIp, int targetPort, String protocol, String securityTier) {
         // 1. Check cache first (sub-millisecond)
         CachedVerdict cached = verdictCache.get(cacheKey(sourceIp, targetPort));
         if (cached != null && !cached.isExpired()) {
@@ -106,11 +115,14 @@ public class AiVerdictClient {
 
         // 3. Query AI engine synchronously (with timeout)
         try {
-            String body = objectMapper.writeValueAsString(Map.of(
-                "sourceIp", sourceIp,
-                "targetPort", targetPort,
-                "detectedProtocol", protocol != null ? protocol : "TCP"
-            ));
+            Map<String, Object> requestMap = new LinkedHashMap<>();
+            requestMap.put("sourceIp", sourceIp);
+            requestMap.put("targetPort", targetPort);
+            requestMap.put("detectedProtocol", protocol != null ? protocol : "TCP");
+            if (securityTier != null) {
+                requestMap.put("securityTier", securityTier);
+            }
+            String body = objectMapper.writeValueAsString(requestMap);
 
             HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(aiEngineUrl + "/api/v1/proxy/verdict"))

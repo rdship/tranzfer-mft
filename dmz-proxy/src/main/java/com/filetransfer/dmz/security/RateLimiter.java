@@ -107,6 +107,12 @@ public class RateLimiter {
         }
     }
 
+    // ── Per-Port Defaults ─────────────────────────────────────────────
+
+    public record PortLimits(int maxPerMinute, int maxConcurrent, long maxBytesPerMinute) {}
+
+    private final ConcurrentHashMap<Integer, PortLimits> portDefaults = new ConcurrentHashMap<>();
+
     // ── State ──────────────────────────────────────────────────────────
 
     private final ConcurrentHashMap<String, IpBucket> buckets = new ConcurrentHashMap<>();
@@ -120,6 +126,35 @@ public class RateLimiter {
     private volatile int globalMaxPerMinute = 10_000;
 
     private static final int MAX_TRACKED_IPS = 50_000;
+
+    // ── Per-Port Operations ───────────────────────────────────────────
+
+    /**
+     * Set default rate limits for a specific port (from per-mapping SecurityPolicy).
+     * These override global defaults but can still be overridden by AI verdict per-IP.
+     */
+    public void setPortDefaults(int port, int maxPerMinute, int maxConcurrent, long maxBytesPerMinute) {
+        portDefaults.put(port, new PortLimits(maxPerMinute, maxConcurrent, maxBytesPerMinute));
+        log.info("Set port {} rate limits: {}/min, {} concurrent, {} bytes/min", port, maxPerMinute, maxConcurrent, maxBytesPerMinute);
+    }
+
+    /**
+     * Try to allow a connection from this IP on a specific port.
+     * Uses port-specific defaults if available and the IP has no custom (AI-set) limits yet.
+     * @return true if allowed, false if rate limited
+     */
+    public boolean tryAcquire(String ip, int port) {
+        PortLimits pl = portDefaults.get(port);
+        if (pl != null) {
+            // Use port-specific defaults for this IP if no custom IP limits set
+            IpBucket bucket = buckets.get(ip);
+            if (bucket == null) {
+                // First time seeing this IP on this port — apply port defaults
+                setIpLimits(ip, pl.maxPerMinute(), pl.maxConcurrent(), pl.maxBytesPerMinute());
+            }
+        }
+        return tryAcquire(ip);
+    }
 
     // ── Core Operations ────────────────────────────────────────────────
 

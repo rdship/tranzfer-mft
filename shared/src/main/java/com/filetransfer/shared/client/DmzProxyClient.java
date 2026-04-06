@@ -58,6 +58,13 @@ public class DmzProxyClient extends ResilientServiceClient {
                 () -> post("/api/proxy/mappings", mapping, Map.class));
     }
 
+    /** Update the security policy for an existing proxy mapping. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> updateMappingSecurityPolicy(String mappingName, Map<String, Object> policy) {
+        return withResilience("updateSecurityPolicy",
+                () -> put("/api/proxy/mappings/" + mappingName + "/security-policy", policy, Map.class));
+    }
+
     /** Delete a proxy mapping. */
     public void deleteMapping(String mappingId) {
         try {

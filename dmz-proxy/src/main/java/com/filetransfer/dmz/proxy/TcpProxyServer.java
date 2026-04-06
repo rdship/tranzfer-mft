@@ -37,6 +37,9 @@ public class TcpProxyServer {
     private final SecurityMetrics securityMetrics;
     private final boolean securityEnabled;
 
+    // Per-mapping security (null for global defaults)
+    private final ManualSecurityFilter manualFilter;
+
     @Getter
     private final AtomicLong bytesForwarded = new AtomicLong(0);
     @Getter
@@ -46,11 +49,11 @@ public class TcpProxyServer {
      * Create a proxy server without security (backward compatible).
      */
     public TcpProxyServer(PortMapping mapping) {
-        this(mapping, null, null, null, null, null);
+        this(mapping, null, null, null, null, null, null);
     }
 
     /**
-     * Create a proxy server with AI-powered security.
+     * Create a proxy server with AI-powered security (global defaults).
      */
     public TcpProxyServer(PortMapping mapping,
                           ConnectionTracker connectionTracker,
@@ -58,6 +61,19 @@ public class TcpProxyServer {
                           AiVerdictClient aiVerdictClient,
                           ThreatEventReporter eventReporter,
                           SecurityMetrics securityMetrics) {
+        this(mapping, connectionTracker, rateLimiter, aiVerdictClient, eventReporter, securityMetrics, null);
+    }
+
+    /**
+     * Create a proxy server with per-mapping security policy.
+     */
+    public TcpProxyServer(PortMapping mapping,
+                          ConnectionTracker connectionTracker,
+                          RateLimiter rateLimiter,
+                          AiVerdictClient aiVerdictClient,
+                          ThreatEventReporter eventReporter,
+                          SecurityMetrics securityMetrics,
+                          ManualSecurityFilter manualFilter) {
         this.mapping = mapping;
         this.bossGroup = new NioEventLoopGroup(1);
         this.workerGroup = new NioEventLoopGroup();
@@ -66,6 +82,7 @@ public class TcpProxyServer {
         this.aiVerdictClient = aiVerdictClient;
         this.eventReporter = eventReporter;
         this.securityMetrics = securityMetrics;
+        this.manualFilter = manualFilter;
         this.securityEnabled = connectionTracker != null && rateLimiter != null
             && aiVerdictClient != null && eventReporter != null && securityMetrics != null;
     }
@@ -86,7 +103,8 @@ public class TcpProxyServer {
                                 new IntelligentProxyHandler(
                                     connectionTracker, rateLimiter,
                                     aiVerdictClient, eventReporter, securityMetrics,
-                                    mapping.getListenPort(), mapping.getName()));
+                                    mapping.getListenPort(), mapping.getName(),
+                                    mapping.getSecurityPolicy(), manualFilter));
                         }
 
                         // ── Backend connection ──

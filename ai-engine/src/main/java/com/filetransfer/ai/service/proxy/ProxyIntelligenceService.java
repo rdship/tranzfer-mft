@@ -50,6 +50,7 @@ public class ProxyIntelligenceService {
     private final AttackChainDetector attackChainDetector;
     private final ExplainabilityEngine explainabilityEngine;
     private final PlaybookEngine playbookEngine;
+    private final LlmSecurityEscalation llmEscalation;
 
     @Autowired
     public ProxyIntelligenceService(
@@ -57,6 +58,7 @@ public class ProxyIntelligenceService {
             ProtocolThreatDetector threatDetector,
             ConnectionPatternAnalyzer patternAnalyzer,
             GeoAnomalyDetector geoDetector,
+            LlmSecurityEscalation llmEscalation,
             @Autowired(required = false) ThreatIntelligenceStore threatIntelStore,
             @Autowired(required = false) MitreAttackMapper mitreMapper,
             @Autowired(required = false) NetworkBehaviorAnalyzer networkAnalyzer,
@@ -67,6 +69,7 @@ public class ProxyIntelligenceService {
         this.threatDetector = threatDetector;
         this.patternAnalyzer = patternAnalyzer;
         this.geoDetector = geoDetector;
+        this.llmEscalation = llmEscalation;
         this.threatIntelStore = threatIntelStore;
         this.mitreMapper = mitreMapper;
         this.networkAnalyzer = networkAnalyzer;
@@ -359,6 +362,96 @@ public class ProxyIntelligenceService {
         recordVerdict(sourceIp, action, riskScore, reason);
 
         return verdict;
+    }
+
+    // ── Tier-Aware Verdict (with optional LLM escalation) ────────────────
+
+    /**
+     * Tier-aware verdict: computes a standard verdict, then optionally escalates
+     * to the Claude LLM for borderline cases when securityTier is AI_LLM.
+     *
+     * LLM is only invoked when:
+     *   - securityTier == "AI_LLM"
+     *   - Risk score is borderline (30-70)
+     *   - LLM is enabled and API key is configured
+     *
+     * On LLM failure/timeout, falls through to the existing rule-based verdict.
+     */
+    @SuppressWarnings("unchecked")
+    public Verdict computeVerdict(String sourceIp, int targetPort, String protocol, String securityTier) {
+        // Call existing rule-based verdict first
+        Verdict baseVerdict = computeVerdict(sourceIp, targetPort, protocol);
+
+        // If AI_LLM tier and risk is borderline (30-70), escalate to LLM
+        if ("AI_LLM".equals(securityTier)) {
+            int riskScore = baseVerdict.riskScore();
+            if (riskScore >= 30 && riskScore <= 70 && llmEscalation.isAvailable()) {
+                List<String> signals = baseVerdict.signals();
+                Map<String, Object> llmMetadata = new LinkedHashMap<>();
+                llmMetadata.put("riskScore", riskScore);
+                llmMetadata.put("originalAction", baseVerdict.action().name());
+                llmMetadata.putAll(baseVerdict.metadata());
+
+                Optional<LlmSecurityEscalation.LlmVerdictResult> llmResult =
+                    llmEscalation.evaluate(sourceIp, targetPort, protocol, riskScore, signals, llmMetadata);
+
+                if (llmResult.isPresent()) {
+                    var lr = llmResult.get();
+
+                    // Map LLM action string to Action enum
+                    Action llmAction = switch (lr.action()) {
+                        case "BLOCK" -> Action.BLOCK;
+                        case "THROTTLE" -> Action.THROTTLE;
+                        default -> Action.ALLOW;
+                    };
+
+                    // Adjust risk score based on LLM action
+                    int adjustedRisk;
+                    if ("BLOCK".equals(lr.action())) adjustedRisk = Math.max(riskScore, 85);
+                    else if ("THROTTLE".equals(lr.action())) adjustedRisk = Math.max(riskScore, 60);
+                    else adjustedRisk = Math.min(riskScore, 30);
+
+                    // Compute rate limit for throttle
+                    RateLimit rateLimit = llmAction == Action.THROTTLE
+                        ? computeRateLimit(adjustedRisk, protocol) : baseVerdict.rateLimit();
+
+                    // Build enriched metadata
+                    Map<String, Object> enrichedMeta = new LinkedHashMap<>(baseVerdict.metadata());
+                    enrichedMeta.put("llmUsed", true);
+                    enrichedMeta.put("llmLatencyMs", lr.latencyMs());
+                    enrichedMeta.put("llmConfidence", lr.confidence());
+
+                    return new Verdict(
+                        llmAction, adjustedRisk,
+                        "LLM: " + lr.reasoning(),
+                        baseVerdict.ttlSeconds(),
+                        rateLimit,
+                        baseVerdict.signals(),
+                        enrichedMeta
+                    );
+                } else {
+                    // LLM unavailable/failed — return base verdict with llmUsed=false
+                    Map<String, Object> enrichedMeta = new LinkedHashMap<>(baseVerdict.metadata());
+                    enrichedMeta.put("llmUsed", false);
+                    return new Verdict(
+                        baseVerdict.action(), baseVerdict.riskScore(),
+                        baseVerdict.reason(), baseVerdict.ttlSeconds(),
+                        baseVerdict.rateLimit(), baseVerdict.signals(),
+                        enrichedMeta
+                    );
+                }
+            }
+        }
+
+        // Non-AI_LLM tier or risk outside borderline range — return base verdict with llmUsed=false
+        Map<String, Object> enrichedMeta = new LinkedHashMap<>(baseVerdict.metadata());
+        enrichedMeta.put("llmUsed", false);
+        return new Verdict(
+            baseVerdict.action(), baseVerdict.riskScore(),
+            baseVerdict.reason(), baseVerdict.ttlSeconds(),
+            baseVerdict.rateLimit(), baseVerdict.signals(),
+            enrichedMeta
+        );
     }
 
     // ── Batch Verdict (Improvement #5) ──────────────────────────────────

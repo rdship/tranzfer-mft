@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getExternalDestinations, createExternalDestination, deleteExternalDestination } from '../api/config'
 import { testEndpointConnection } from '../api/forwarder'
 import { useServices } from '../context/ServiceContext'
+import SecurityTierSelector from '../components/SecurityTierSelector'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
@@ -14,7 +15,8 @@ export default function ExternalDestinations() {
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState({
     name: '', type: 'SFTP', host: '', port: 22, username: '', encryptedPassword: '', remotePath: '/incoming',
-    proxyEnabled: false, proxyType: 'DMZ', proxyHost: 'dmz-proxy', proxyPort: 8088
+    proxyEnabled: false, proxyType: 'DMZ', proxyHost: 'dmz-proxy', proxyPort: 8088,
+    securityTier: 'MANUAL', securityPolicy: {}
   })
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState(null)
@@ -67,13 +69,19 @@ export default function ExternalDestinations() {
               <span className={`badge ${d.active ? 'badge-green' : 'badge-red'}`}>{d.active ? 'Active' : 'Disabled'}</span>
               <span className="badge badge-blue">{d.type}</span>
               {d.proxyEnabled && <span className="badge badge-purple">Via {d.proxyType || 'Proxy'}</span>}
+              {d.proxyEnabled && (
+                <span className="badge badge-yellow">Manual</span>
+              )}
+              {!d.proxyEnabled && (
+                <span className="text-gray-400 text-xs">Direct</span>
+              )}
               <button onClick={() => { if(confirm('Delete?')) deleteMut.mutate(d.id) }} className="p-1.5 rounded hover:bg-red-50 text-red-500"><TrashIcon className="w-4 h-4" /></button>
             </div>
           ))}
         </div>
       )}
       {showCreate && (
-        <Modal title="Add External Destination" onClose={() => setShowCreate(false)}>
+        <Modal title="Add External Destination" onClose={() => setShowCreate(false)} size="lg">
           <form onSubmit={e => { e.preventDefault(); createMut.mutate(form) }} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div><label>Name</label><input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} required placeholder="partner-acme-sftp" /></div>
@@ -100,33 +108,67 @@ export default function ExternalDestinations() {
                 </label>
               </div>
               {form.proxyEnabled && (
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label>Proxy Type</label>
-                    <select value={form.proxyType} onChange={e => setForm(f => ({...f, proxyType: e.target.value}))}>
-                      <option value="DMZ">DMZ Proxy (Platform)</option>
-                      <option value="HTTP">HTTP Proxy</option>
-                      <option value="SOCKS5">SOCKS5 Proxy</option>
-                    </select>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label>Proxy Type</label>
+                      <select value={form.proxyType} onChange={e => setForm(f => ({...f, proxyType: e.target.value}))}>
+                        {dmzDetected ? (
+                          <option value="DMZ">DMZ Proxy (Platform)</option>
+                        ) : (
+                          <option value="DMZ" disabled className="text-gray-400">DMZ Proxy (Offline)</option>
+                        )}
+                        <option value="HTTP">HTTP Proxy</option>
+                        <option value="SOCKS5">SOCKS5 Proxy</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label>Proxy Host</label>
+                      <input value={form.proxyHost}
+                        onChange={e => setForm(f => ({...f, proxyHost: e.target.value}))}
+                        placeholder={form.proxyType === 'DMZ' ? 'dmz-proxy' : 'proxy.company.com'} />
+                    </div>
+                    <div>
+                      <label>Proxy Port</label>
+                      <input type="number" value={form.proxyPort}
+                        onChange={e => setForm(f => ({...f, proxyPort: parseInt(e.target.value) || 0}))} />
+                    </div>
                   </div>
-                  <div>
-                    <label>Proxy Host</label>
-                    <input value={form.proxyHost}
-                      onChange={e => setForm(f => ({...f, proxyHost: e.target.value}))}
-                      placeholder={form.proxyType === 'DMZ' ? 'dmz-proxy' : 'proxy.company.com'} />
-                  </div>
-                  <div>
-                    <label>Proxy Port</label>
-                    <input type="number" value={form.proxyPort}
-                      onChange={e => setForm(f => ({...f, proxyPort: parseInt(e.target.value) || 0}))} />
+
+                  {/* DMZ detection status */}
+                  {form.proxyType === 'DMZ' && dmzDetected && (
+                    <p className="text-xs text-green-600 flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />
+                      DMZ Proxy detected and running on port 8088
+                    </p>
+                  )}
+                  {form.proxyType === 'DMZ' && !dmzDetected && (
+                    <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
+                      <p className="text-xs text-amber-700 flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
+                        DMZ Proxy is offline — start the DMZ service or select a different proxy type
+                      </p>
+                    </div>
+                  )}
+
+                  {form.proxyType === 'DMZ' && (
+                    <p className="text-xs text-gray-500">
+                      Traffic will be routed through the platform's DMZ Proxy for network isolation.
+                    </p>
+                  )}
+
+                  {/* Outbound security — MANUAL only, no AI tiers */}
+                  <div className="pt-2">
+                    <SecurityTierSelector
+                      tier="MANUAL"
+                      onTierChange={() => {}} // locked to MANUAL for outbound
+                      showAiTiers={false}
+                      policy={form.securityPolicy}
+                      onPolicyChange={policy => setForm(f => ({...f, securityPolicy: policy}))}
+                      llmEnabled={false}
+                    />
                   </div>
                 </div>
-              )}
-              {form.proxyEnabled && form.proxyType === 'DMZ' && (
-                <p className="text-xs text-gray-500 mt-2">
-                  Traffic will be routed through the platform's DMZ Proxy for network isolation.
-                  The proxy must be running and accessible.
-                </p>
               )}
               {!form.proxyEnabled && dmzDetected && (
                 <p className="text-xs text-blue-600 mt-1">

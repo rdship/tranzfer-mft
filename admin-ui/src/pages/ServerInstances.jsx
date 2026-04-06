@@ -1,11 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getServerInstances, createServerInstance, updateServerInstance, deleteServerInstance } from '../api/accounts'
+import { getPlatformSettings } from '../api/platformSettings'
+import { useServices } from '../context/ServiceContext'
+import SecurityTierSelector from '../components/SecurityTierSelector'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
 import toast from 'react-hot-toast'
 import { PlusIcon, TrashIcon, PencilIcon, ServerStackIcon, SignalIcon, SignalSlashIcon } from '@heroicons/react/24/outline'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const PROTOCOLS = ['SFTP', 'FTP', 'FTP_WEB', 'HTTPS']
 
@@ -23,12 +26,19 @@ const PROTOCOL_LABELS = {
   HTTPS: 'HTTPS'
 }
 
+const SECURITY_BADGES = {
+  MANUAL: { badge: 'badge-yellow', label: 'Manual' },
+  AI: { badge: 'badge-blue', label: 'AI' },
+  AI_LLM: { badge: 'badge-purple', label: 'AI+LLM' },
+}
+
 const emptyForm = {
   instanceId: '', protocol: 'SFTP', name: '', description: '',
   internalHost: '', internalPort: 2222,
   externalHost: '', externalPort: '',
   useProxy: false, proxyHost: '', proxyPort: '',
-  maxConnections: 500
+  maxConnections: 500,
+  securityTier: 'AI', securityPolicy: {}
 }
 
 export default function ServerInstances() {
@@ -69,7 +79,9 @@ export default function ServerInstances() {
       internalHost: s.internalHost, internalPort: s.internalPort,
       externalHost: s.externalHost || '', externalPort: s.externalPort || '',
       useProxy: s.useProxy, proxyHost: s.proxyHost || '', proxyPort: s.proxyPort || '',
-      maxConnections: s.maxConnections
+      maxConnections: s.maxConnections,
+      securityTier: s.securityTier || 'AI',
+      securityPolicy: s.securityPolicy || {}
     })
   }
 
@@ -152,62 +164,75 @@ export default function ServerInstances() {
                 <th className="table-header">Internal</th>
                 <th className="table-header">Client Connection</th>
                 <th className="table-header">Proxy</th>
+                <th className="table-header">Security</th>
                 <th className="table-header">Status</th>
                 <th className="table-header">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map(s => (
-                <tr key={s.id} className="table-row">
-                  <td className="table-cell">
-                    <div className="flex items-center gap-2">
-                      <ServerStackIcon className="w-4 h-4 text-blue-500" />
-                      <span className="font-mono text-xs font-medium">{s.instanceId}</span>
-                    </div>
-                  </td>
-                  <td className="table-cell">
-                    <span className={`badge ${
-                      s.protocol === 'SFTP' ? 'badge-blue' :
-                      s.protocol === 'FTP' ? 'badge-green' :
-                      s.protocol === 'FTP_WEB' ? 'badge-purple' : 'badge-yellow'
-                    }`}>{PROTOCOL_LABELS[s.protocol] || s.protocol}</span>
-                  </td>
-                  <td className="table-cell">
-                    <div>
-                      <p className="font-medium text-gray-900">{s.name}</p>
-                      {s.description && <p className="text-xs text-gray-400">{s.description}</p>}
-                    </div>
-                  </td>
-                  <td className="table-cell font-mono text-xs text-gray-500">{s.internalHost}:{s.internalPort}</td>
-                  <td className="table-cell font-mono text-xs text-gray-700">{s.clientHost}:{s.clientPort}</td>
-                  <td className="table-cell">
-                    {s.useProxy ? (
-                      <span className="badge badge-blue">Proxy: {s.proxyHost}:{s.proxyPort}</span>
-                    ) : (
-                      <span className="text-gray-400 text-xs">Direct</span>
-                    )}
-                  </td>
-                  <td className="table-cell">
-                    <button onClick={() => toggleMut.mutate({ id: s.id, active: !s.active })}
-                      className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
-                        s.active ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-red-50 text-red-700 hover:bg-red-100'
-                      }`}>
-                      {s.active ? <><SignalIcon className="w-3 h-3" /> Active</> : <><SignalSlashIcon className="w-3 h-3" /> Inactive</>}
-                    </button>
-                  </td>
-                  <td className="table-cell">
-                    <div className="flex gap-1">
-                      <button onClick={() => openEdit(s)} className="p-1.5 rounded hover:bg-blue-50 text-blue-500">
-                        <PencilIcon className="w-4 h-4" />
+              {filtered.map(s => {
+                const tierInfo = s.useProxy && s.securityTier
+                  ? SECURITY_BADGES[s.securityTier] || SECURITY_BADGES.MANUAL
+                  : null
+                return (
+                  <tr key={s.id} className="table-row">
+                    <td className="table-cell">
+                      <div className="flex items-center gap-2">
+                        <ServerStackIcon className="w-4 h-4 text-blue-500" />
+                        <span className="font-mono text-xs font-medium">{s.instanceId}</span>
+                      </div>
+                    </td>
+                    <td className="table-cell">
+                      <span className={`badge ${
+                        s.protocol === 'SFTP' ? 'badge-blue' :
+                        s.protocol === 'FTP' ? 'badge-green' :
+                        s.protocol === 'FTP_WEB' ? 'badge-purple' : 'badge-yellow'
+                      }`}>{PROTOCOL_LABELS[s.protocol] || s.protocol}</span>
+                    </td>
+                    <td className="table-cell">
+                      <div>
+                        <p className="font-medium text-gray-900">{s.name}</p>
+                        {s.description && <p className="text-xs text-gray-400">{s.description}</p>}
+                      </div>
+                    </td>
+                    <td className="table-cell font-mono text-xs text-gray-500">{s.internalHost}:{s.internalPort}</td>
+                    <td className="table-cell font-mono text-xs text-gray-700">{s.clientHost}:{s.clientPort}</td>
+                    <td className="table-cell">
+                      {s.useProxy ? (
+                        <span className="badge badge-blue">Proxy: {s.proxyHost}:{s.proxyPort}</span>
+                      ) : (
+                        <span className="text-gray-400 text-xs">Direct</span>
+                      )}
+                    </td>
+                    <td className="table-cell">
+                      {tierInfo ? (
+                        <span className={`badge ${tierInfo.badge}`}>{tierInfo.label}</span>
+                      ) : (
+                        <span className="text-gray-400 text-xs">Direct</span>
+                      )}
+                    </td>
+                    <td className="table-cell">
+                      <button onClick={() => toggleMut.mutate({ id: s.id, active: !s.active })}
+                        className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
+                          s.active ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-red-50 text-red-700 hover:bg-red-100'
+                        }`}>
+                        {s.active ? <><SignalIcon className="w-3 h-3" /> Active</> : <><SignalSlashIcon className="w-3 h-3" /> Inactive</>}
                       </button>
-                      <button onClick={() => { if(confirm('Deactivate this server?')) deleteMut.mutate(s.id) }}
-                        className="p-1.5 rounded hover:bg-red-50 text-red-500">
-                        <TrashIcon className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="table-cell">
+                      <div className="flex gap-1">
+                        <button onClick={() => openEdit(s)} className="p-1.5 rounded hover:bg-blue-50 text-blue-500">
+                          <PencilIcon className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => { if(confirm('Deactivate this server?')) deleteMut.mutate(s.id) }}
+                          className="p-1.5 rounded hover:bg-red-50 text-red-500">
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -215,7 +240,7 @@ export default function ServerInstances() {
 
       {/* Create Modal */}
       {showCreate && (
-        <Modal title="Add Server Instance" onClose={() => setShowCreate(false)}>
+        <Modal title="Add Server Instance" onClose={() => setShowCreate(false)} size="lg">
           <ServerForm form={form} setForm={setForm}
             onSubmit={() => createMut.mutate(form)}
             isPending={createMut.isPending}
@@ -228,7 +253,7 @@ export default function ServerInstances() {
 
       {/* Edit Modal */}
       {editServer && (
-        <Modal title={`Edit: ${editServer.name}`} onClose={() => setEditServer(null)}>
+        <Modal title={`Edit: ${editServer.name}`} onClose={() => setEditServer(null)} size="lg">
           <ServerForm form={form} setForm={setForm}
             onSubmit={() => updateMut.mutate({ id: editServer.id, data: form })}
             isPending={updateMut.isPending}
@@ -242,11 +267,34 @@ export default function ServerInstances() {
 }
 
 function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel, showInstanceId }) {
+  const { services } = useServices() || { services: {} }
+  const dmzRunning = services?.dmz !== false
+
+  // Check if LLM is enabled in platform settings
+  const { data: aiSettings = [] } = useQuery({
+    queryKey: ['platform-settings-ai'],
+    queryFn: () => getPlatformSettings({ category: 'AI' })
+  })
+  const llmEnabled = aiSettings.some(s => s.settingKey === 'ai.llm.enabled' && s.settingValue === 'true')
+
   const f = (key, val) => setForm(prev => ({ ...prev, [key]: val }))
+
   const handleProtocolChange = (protocol) => {
     f('protocol', protocol)
     f('internalPort', DEFAULT_PORTS[protocol] || 2222)
   }
+
+  // Auto-suggest DMZ proxy when proxy is enabled and DMZ is running
+  useEffect(() => {
+    if (form.useProxy && dmzRunning && !form.proxyHost) {
+      setForm(prev => ({
+        ...prev,
+        proxyHost: prev.proxyHost || 'dmz-proxy',
+        proxyPort: prev.proxyPort || 8088
+      }))
+    }
+  }, [form.useProxy, dmzRunning])
+
   return (
     <form onSubmit={e => { e.preventDefault(); onSubmit() }} className="space-y-4">
       {/* Protocol selector */}
@@ -292,10 +340,48 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
         <label htmlFor="useProxy" className="text-sm font-medium text-gray-700">Use Reverse Proxy</label>
       </div>
       {form.useProxy && (
-        <div className="grid grid-cols-2 gap-4 pl-7">
-          <div><label>Proxy Host</label><input value={form.proxyHost} onChange={e => f('proxyHost', e.target.value)} placeholder="proxy.example.com" /></div>
-          <div><label>Proxy Port</label><input type="number" value={form.proxyPort} onChange={e => f('proxyPort', e.target.value ? parseInt(e.target.value) : '')} placeholder="2222" /></div>
-        </div>
+        <>
+          <div className="grid grid-cols-2 gap-4 pl-7">
+            <div>
+              <label>Proxy Host</label>
+              <input value={form.proxyHost} onChange={e => f('proxyHost', e.target.value)} placeholder="proxy.example.com" />
+            </div>
+            <div>
+              <label>Proxy Port</label>
+              <input type="number" value={form.proxyPort} onChange={e => f('proxyPort', e.target.value ? parseInt(e.target.value) : '')} placeholder="2222" />
+            </div>
+          </div>
+
+          {/* Dynamic proxy detection */}
+          {dmzRunning && form.proxyHost === 'dmz-proxy' && (
+            <div className="pl-7">
+              <p className="text-xs text-green-600 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />
+                DMZ Proxy detected and running on port 8088
+              </p>
+            </div>
+          )}
+          {!dmzRunning && form.proxyHost === 'dmz-proxy' && (
+            <div className="pl-7">
+              <p className="text-xs text-amber-600 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
+                DMZ Proxy is not running — proxy routing may fail
+              </p>
+            </div>
+          )}
+
+          {/* Security Tier (inbound = full 3-tier) */}
+          <div className="pl-7 pt-2">
+            <SecurityTierSelector
+              tier={form.securityTier}
+              onTierChange={tier => f('securityTier', tier)}
+              showAiTiers={true}
+              policy={form.securityPolicy}
+              onPolicyChange={policy => f('securityPolicy', policy)}
+              llmEnabled={llmEnabled}
+            />
+          </div>
+        </>
       )}
 
       <div className="flex gap-3 justify-end pt-4 border-t">
