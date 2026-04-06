@@ -32,6 +32,7 @@ public class EdiConverterController {
     private final PartnerProfileManager partnerProfileManager;
     private final AiMappingGenerator aiMappingGenerator;
     private final NaturalLanguageEdiCreator nlEdiCreator;
+    private final TrainedMapConsumer trainedMapConsumer;
 
     // ===================================================================
     // CORE CONVERSION
@@ -236,8 +237,16 @@ public class EdiConverterController {
     }
 
     // ===================================================================
-    // NEW: AI MAPPING GENERATOR
+    // AI MAPPING GENERATOR
     // ===================================================================
+
+    /** Smart mapping: uses trained map if available, falls back to sample-based */
+    @PostMapping("/mapping/smart")
+    public AiMappingGenerator.MappingResult smartMapping(@RequestBody Map<String, String> body) {
+        return aiMappingGenerator.generateSmart(
+                body.get("source"), body.get("target"),
+                body.get("targetFormat"), body.get("partnerId"));
+    }
 
     /** Generate mapping from source EDI + target JSON samples */
     @PostMapping("/mapping/generate")
@@ -252,7 +261,67 @@ public class EdiConverterController {
     }
 
     // ===================================================================
-    // NEW: NATURAL LANGUAGE EDI CREATION
+    // TRAINED MAP CONVERSION
+    // ===================================================================
+
+    /** Convert using a trained map from the AI Engine (highest accuracy path) */
+    @PostMapping("/convert/trained")
+    public ResponseEntity<?> convertWithTrainedMap(@RequestBody Map<String, String> body) {
+        String content = body.get("content");
+        String targetFormat = body.getOrDefault("targetFormat", "JSON");
+        String partnerId = body.get("partnerId");
+
+        var result = trainedMapConsumer.convertWithTrainedMap(content, targetFormat, partnerId);
+
+        if (result.isEmpty()) {
+            return ResponseEntity.status(404).body(Map.of(
+                    "error", "No trained map available for this conversion path",
+                    "suggestion", "Use POST /api/v1/edi/training/samples on the AI Engine to add training samples, then POST /api/v1/edi/training/train to build a map"));
+        }
+
+        var converted = result.get();
+        return ResponseEntity.ok(Map.of(
+                "output", converted.getOutput(),
+                "mapKey", converted.getMapKey(),
+                "mapVersion", converted.getMapVersion(),
+                "mapConfidence", converted.getMapConfidence(),
+                "fieldsApplied", converted.getFieldsApplied(),
+                "fieldsSkipped", converted.getFieldsSkipped(),
+                "totalMappings", converted.getTotalMappings()));
+    }
+
+    /** Check if a trained map exists for a conversion path */
+    @GetMapping("/convert/trained/check")
+    public Map<String, Object> checkTrainedMap(@RequestParam String sourceFormat,
+                                                @RequestParam(required = false) String sourceType,
+                                                @RequestParam String targetFormat,
+                                                @RequestParam(required = false) String partnerId) {
+        boolean exists = trainedMapConsumer.hasTrainedMap(sourceFormat, sourceType, targetFormat, partnerId);
+        var result = new LinkedHashMap<String, Object>();
+        result.put("available", exists);
+        result.put("sourceFormat", sourceFormat);
+        result.put("targetFormat", targetFormat);
+        if (exists) {
+            trainedMapConsumer.getTrainedMap(sourceFormat, sourceType, targetFormat, partnerId)
+                    .ifPresent(map -> {
+                        result.put("mapKey", map.getMapKey());
+                        result.put("version", map.getVersion());
+                        result.put("confidence", map.getConfidence());
+                        result.put("fieldMappings", map.getFieldMappings().size());
+                    });
+        }
+        return result;
+    }
+
+    /** Invalidate the trained map cache (after retraining) */
+    @PostMapping("/convert/trained/invalidate-cache")
+    public Map<String, String> invalidateTrainedMapCache() {
+        trainedMapConsumer.invalidateCache();
+        return Map.of("status", "cache_invalidated");
+    }
+
+    // ===================================================================
+    // NATURAL LANGUAGE EDI CREATION
     // ===================================================================
 
     /** Describe what you need in English → get valid EDI */
@@ -275,7 +344,14 @@ public class EdiConverterController {
         result.put("features", List.of(
                 "auto-detect", "convert", "explain", "validate-with-fix", "templates", "generate",
                 "canonical-model", "streaming", "self-healing", "semantic-diff",
-                "compliance-scoring", "partner-profiles", "ai-mapping", "nl-create"));
+                "compliance-scoring", "partner-profiles", "ai-mapping", "smart-mapping",
+                "trained-map-conversion", "nl-create"));
+        result.put("newInV4", Map.of(
+                "trainedMapConversion", "Convert using AI-trained maps — more samples = more accuracy",
+                "smartMapping", "Auto-selects trained map or falls back to sample-based generation",
+                "trainedMapCheck", "Check if a trained map exists before conversion",
+                "aiTrainingPipeline", "5-strategy ML training: exact value, statistical, structural, semantic, transform"
+        ));
         result.put("newInV3", Map.of(
                 "canonical", "Universal JSON schema per document type — one model for all formats",
                 "streaming", "StAX-style parser for 100GB+ files — O(1) memory per segment",
@@ -295,7 +371,7 @@ public class EdiConverterController {
         var result = new LinkedHashMap<String, Object>();
         result.put("status", "UP");
         result.put("service", "edi-converter");
-        result.put("version", "3.0");
+        result.put("version", "4.0");
         result.put("inputFormats", 11);
         result.put("outputFormats", 6);
         result.put("totalConversionPaths", 66);
@@ -304,7 +380,8 @@ public class EdiConverterController {
         result.put("features", List.of(
                 "convert", "explain", "validate", "templates", "generate",
                 "canonical", "streaming", "self-healing", "semantic-diff",
-                "compliance", "partner-profiles", "ai-mapping", "nl-create", "peppol"));
+                "compliance", "partner-profiles", "ai-mapping", "smart-mapping",
+                "trained-map-conversion", "nl-create", "peppol"));
         return result;
     }
 }

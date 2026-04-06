@@ -14,18 +14,20 @@ import java.util.regex.Pattern;
 /**
  * AI Mapping Generator — upload a source EDI + desired output, get a mapping.
  *
- * Three modes:
- * 1. SAMPLE_BASED: Provide source EDI + target JSON → generates mapping rules
- * 2. SCHEMA_BASED: Provide source format + target schema → generates mapping
- * 3. AUTO_LEARN: Feed multiple samples → learns the mapping pattern
+ * Four modes:
+ * 1. TRAINED_MAP: Use a pre-trained map from the AI Engine (highest accuracy)
+ * 2. SAMPLE_BASED: Provide source EDI + target JSON → generates mapping rules
+ * 3. SCHEMA_BASED: Provide source format + target schema → generates mapping
+ * 4. AUTO_LEARN: Feed multiple samples → learns the mapping pattern
  *
- * No LLM required — uses structural analysis and pattern matching.
- * With LLM (optional): handles complex/ambiguous mappings better.
+ * When a trained map exists, it takes priority over real-time generation.
+ * Falls back to structural analysis and pattern matching when no trained map is available.
  */
 @Service @RequiredArgsConstructor @Slf4j
 public class AiMappingGenerator {
 
     private final UniversalEdiParser parser;
+    private final TrainedMapConsumer trainedMapConsumer;
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class MappingResult {
@@ -50,6 +52,75 @@ public class AiMappingGenerator {
         private String transformParam;  // Parameter for transform
         private int confidence;         // 0-100 for this specific rule
         private String reasoning;       // Why this mapping was chosen
+    }
+
+    /**
+     * Smart mapping: tries trained map first, falls back to sample-based generation.
+     * This is the preferred entry point for conversion — it automatically uses the
+     * highest-accuracy mapping available.
+     */
+    public MappingResult generateSmart(String sourceEdi, String targetJson, String targetFormat, String partnerId) {
+        // Try trained map first
+        EdiDocument doc = parser.parse(sourceEdi);
+        if (doc != null && doc.getSourceFormat() != null && targetFormat != null) {
+            try {
+                Optional<TrainedMapConsumer.TrainedMap> trainedMap = trainedMapConsumer.getTrainedMap(
+                        doc.getSourceFormat(), doc.getDocumentType(), targetFormat, partnerId);
+
+                if (trainedMap.isPresent()) {
+                    TrainedMapConsumer.TrainedMap tm = trainedMap.get();
+                    log.info("Using trained map '{}' v{} ({}% confidence) for {}→{}",
+                            tm.getMapKey(), tm.getVersion(), tm.getConfidence(),
+                            doc.getSourceFormat(), targetFormat);
+
+                    // Convert trained map rules to MappingResult format
+                    List<MappingRule> rules = tm.getFieldMappings().stream()
+                            .map(fm -> MappingRule.builder()
+                                    .sourceField(fm.getSourceField())
+                                    .targetField(fm.getTargetField())
+                                    .transform(fm.getTransform())
+                                    .transformParam(fm.getTransformParam())
+                                    .confidence(fm.getConfidence())
+                                    .reasoning("[TRAINED v" + tm.getVersion() + "] " + fm.getReasoning())
+                                    .build())
+                            .toList();
+
+                    return MappingResult.builder()
+                            .mappingId("trained-" + tm.getMapKey())
+                            .rules(rules)
+                            .confidence(tm.getConfidence())
+                            .fieldsMatched(rules.size())
+                            .fieldsTotal(rules.size())
+                            .sourceFormat(doc.getSourceFormat())
+                            .targetFormat(targetFormat)
+                            .unmappedSourceFields(List.of())
+                            .unmappedTargetFields(List.of())
+                            .suggestions(List.of("Using trained map v" + tm.getVersion()
+                                    + " with " + tm.getConfidence() + "% confidence"))
+                            .generatedCode(tm.getGeneratedCode())
+                            .build();
+                }
+            } catch (Exception e) {
+                log.debug("Trained map lookup failed, falling back to sample-based: {}", e.getMessage());
+            }
+        }
+
+        // Fall back to sample-based generation
+        if (targetJson != null && !targetJson.isBlank()) {
+            return generateFromSamples(sourceEdi, targetJson);
+        }
+
+        // If no target JSON provided, return minimal result
+        return MappingResult.builder()
+                .mappingId("none")
+                .rules(List.of())
+                .confidence(0)
+                .fieldsMatched(0)
+                .fieldsTotal(0)
+                .sourceFormat(doc != null ? doc.getSourceFormat() : "UNKNOWN")
+                .targetFormat(targetFormat != null ? targetFormat : "UNKNOWN")
+                .suggestions(List.of("No trained map available. Provide target JSON sample for on-the-fly mapping."))
+                .build();
     }
 
     /**

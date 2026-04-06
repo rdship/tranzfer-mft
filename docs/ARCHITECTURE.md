@@ -1314,4 +1314,113 @@ INTERNAL (service-to-service):
   Transfer services → Encryption Service :8086   [HTTP]
   Transfer services → Screening Service :8092    [HTTP]
   Transfer services → AI Engine :8091            [HTTP]
+  EDI Converter → AI Engine :8091               [HTTP trained map lookups]
 ```
+
+---
+
+## AI-Powered EDI Map Training System
+
+### Architecture Decision: Federated Intelligence Pattern
+
+The AI training system uses a **federated intelligence** architecture where the **AI Engine** (port 8091) acts as the training brain and the **EDI Converter** (port 8095) acts as the execution engine:
+
+| Concern | Service | Rationale |
+|---------|---------|-----------|
+| Training, model storage, versioning | **AI Engine** | CPU-intensive bursty workload; needs PostgreSQL for persistence |
+| Map application, conversion execution | **EDI Converter** | Steady-state I/O workload; stateless with local cache |
+
+**Why separate services?**
+1. **Scalability** — Training is CPU-intensive and bursty; conversion is steady-state I/O. Different scaling profiles.
+2. **Deployment independence** — Upgrade ML models without touching the conversion pipeline.
+3. **Data isolation** — Training data (potentially sensitive sample pairs) stays in the AI Engine's PostgreSQL.
+4. **Existing pattern** — The platform already uses this: AI Engine provides intelligence to 15+ services.
+
+### Data Flow
+
+```
+                                    ┌──────────────────────────┐
+                                    │       AI Engine          │
+  Samples In ──────────────────────►│  ┌──────────────────┐   │
+  (POST /api/v1/edi/training/       │  │ Training Engine   │   │
+     samples)                       │  │  5-strategy ML    │   │
+                                    │  └────────┬─────────┘   │
+  Train Trigger ───────────────────►│           │              │
+  (POST /api/v1/edi/training/       │  ┌────────▼─────────┐   │
+     train)                         │  │ Trained Map Store │   │
+                                    │  │ (PostgreSQL +     │   │
+                                    │  │  hot cache)       │   │
+                                    │  └────────┬─────────┘   │
+                                    └───────────┼──────────────┘
+                                                │
+                            GET /maps/lookup    │ Versioned maps
+                                                │
+                                    ┌───────────▼──────────────┐
+                                    │     EDI Converter         │
+                                    │  ┌──────────────────┐    │
+                                    │  │ TrainedMapConsumer│    │
+                                    │  │ (5-min TTL cache) │    │
+                                    │  └────────┬─────────┘    │
+                                    │           │               │
+                                    │  ┌────────▼─────────┐    │
+                                    │  │ AiMappingGenerator│    │
+                                    │  │ (smart fallback)  │    │──► Converted Output
+                                    │  └──────────────────┘    │
+                                    └──────────────────────────┘
+```
+
+### Training Pipeline (5-Strategy ML Engine)
+
+Each training run executes five strategies in sequence, each building on the previous:
+
+| # | Strategy | What It Does | Confidence Range |
+|---|----------|-------------|-----------------|
+| 1 | **Exact Value Alignment** | Matches identical values across multiple samples | 70-99% |
+| 2 | **Statistical Correlation** | Frequency-based co-occurrence analysis (needs 3+ samples) | up to 85% |
+| 3 | **Structural Position** | Same position in source/target = same meaning | 30-70% |
+| 4 | **Semantic Embedding** | TF-IDF n-gram + domain synonym matching on field names | up to 75% |
+| 5 | **Transform Detection** | Detects DATE_REFORMAT, TRIM, UPPERCASE, ZERO_PAD transforms | +5% boost |
+
+### Database Tables (AI Engine)
+
+| Table | Purpose |
+|-------|---------|
+| `edi_training_samples` | Input/output pairs for training (indexed by format, type, partner) |
+| `edi_conversion_maps` | Versioned trained maps with field mappings (one active per map key) |
+| `edi_training_sessions` | Audit trail of all training runs with metrics |
+
+### Map Key Format
+
+Maps are keyed by conversion path + partner:
+```
+{sourceFormat}:{sourceType}→{targetFormat}:{targetType}@{partnerId}
+```
+Examples:
+- `X12:850→JSON:*@_default` — Generic X12 850 to JSON
+- `EDIFACT:ORDERS→X12:850@acme_corp` — ACME's custom EDIFACT-to-X12 map
+- `HL7:*→JSON:*@_default` — Generic HL7 to JSON
+
+### API Endpoints
+
+**AI Engine Training API** (`/api/v1/edi/training/`):
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/samples` | Add a single training sample |
+| POST | `/samples/bulk` | Bulk add up to 500 samples |
+| GET | `/samples/counts` | Sample counts by map key |
+| POST | `/train` | Trigger training on accumulated samples |
+| POST | `/quick-train` | Upload samples + train in one call |
+| GET | `/maps` | List all active trained maps |
+| GET | `/maps/lookup?sourceFormat=X12&targetFormat=JSON` | Get active map (used by converter) |
+| GET | `/maps/history?mapKey=...` | Version history for a map |
+| POST | `/maps/rollback?mapKey=...&version=N` | Rollback to a previous version |
+| GET | `/sessions` | Recent training sessions (audit) |
+
+**EDI Converter Trained Map Endpoints** (`/api/v1/convert/`):
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/convert/trained` | Convert using trained map (highest accuracy) |
+| GET | `/convert/trained/check` | Check if trained map exists |
+| POST | `/mapping/smart` | Auto-selects trained map or falls back to sample-based |

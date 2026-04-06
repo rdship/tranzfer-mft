@@ -1200,3 +1200,124 @@ For Java 25+, the project uses `mockito-subclass` 5.14.2 as a Mockito mock-maker
 export MAVEN_OPTS="-Xmx2g"
 mvn clean package -DskipTests
 ```
+
+---
+
+## AI-Powered EDI Map Training
+
+### Overview
+
+The platform includes a machine learning training pipeline that builds custom EDI conversion maps from sample input/output pairs. More samples produce more accurate maps. This is especially useful for building partner-specific maps where each trading partner has unique field conventions.
+
+### Architecture
+
+- **AI Engine** (`ai-engine:8091`) — Owns training data, runs ML pipeline, stores versioned maps
+- **EDI Converter** (`edi-converter:8095`) — Fetches and applies trained maps, caches locally with 5-min TTL
+
+### New Files
+
+**AI Engine:**
+- `entity/edi/TrainingSample.java` — JPA entity for input/output training pairs
+- `entity/edi/ConversionMap.java` — JPA entity for versioned trained maps
+- `entity/edi/TrainingSession.java` — JPA entity for training run audit trail
+- `repository/edi/` — Spring Data repositories for all three entities
+- `service/edi/FieldEmbeddingEngine.java` — Pure-Java TF-IDF n-gram + synonym similarity engine
+- `service/edi/EdiMapTrainingEngine.java` — 5-strategy ML training engine
+- `service/edi/TrainedMapStore.java` — Versioned map persistence with hot cache
+- `service/edi/EdiTrainingDataService.java` — Sample CRUD + bulk ingestion + quality scoring
+- `controller/EdiMapTrainingController.java` — REST API for all training operations
+
+**EDI Converter:**
+- `service/TrainedMapConsumer.java` — Fetches trained maps from AI Engine with local caching
+- Enhanced `AiMappingGenerator.java` — New `generateSmart()` method auto-selects trained map or falls back
+- Enhanced `EdiConverterController.java` — New `/convert/trained`, `/mapping/smart`, and check endpoints
+
+### Training a Map
+
+**Step 1: Upload training samples**
+```bash
+# Add a single sample
+curl -X POST http://ai-engine:8091/api/v1/edi/training/samples \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "sourceFormat": "X12",
+    "sourceType": "850",
+    "targetFormat": "JSON",
+    "partnerId": "acme_corp",
+    "inputContent": "ISA*00*...(full X12 850 content)...",
+    "outputContent": "{\"poNumber\": \"PO-12345\", ...}"
+  }'
+
+# Bulk upload
+curl -X POST http://ai-engine:8091/api/v1/edi/training/samples/bulk \
+  -H 'Content-Type: application/json' \
+  -d '[{...sample1...}, {...sample2...}, {...sampleN...}]'
+```
+
+**Step 2: Trigger training**
+```bash
+curl -X POST http://ai-engine:8091/api/v1/edi/training/train \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "sourceFormat": "X12",
+    "sourceType": "850",
+    "targetFormat": "JSON",
+    "partnerId": "acme_corp"
+  }'
+# Returns: mapKey, version, confidence%, testAccuracy%, field mappings, training report
+```
+
+**Step 3: Convert using trained map**
+```bash
+curl -X POST http://edi-converter:8095/api/v1/convert/convert/trained \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "content": "ISA*00*...(new X12 850 from ACME)...",
+    "targetFormat": "JSON",
+    "partnerId": "acme_corp"
+  }'
+# Returns: converted output + mapKey, version, confidence, fields applied/skipped
+```
+
+**Quick-train (upload + train in one call):**
+```bash
+curl -X POST http://ai-engine:8091/api/v1/edi/training/quick-train \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "sourceFormat": "X12", "sourceType": "850", "targetFormat": "JSON",
+    "partnerId": "acme_corp",
+    "samples": [{...}, {...}, {...}]
+  }'
+```
+
+### Training Strategies
+
+The ML engine applies 5 strategies in sequence:
+
+1. **Exact Value Alignment** — Match identical values between source and target across samples (99% confidence)
+2. **Statistical Correlation** — Frequency analysis across 3+ samples to find co-occurring fields
+3. **Structural Position** — Fields at the same position tend to map to each other
+4. **Semantic Embedding** — TF-IDF character n-gram + domain synonym matching (20+ EDI synonym groups)
+5. **Transform Detection** — Auto-detects DATE_REFORMAT, TRIM, UPPERCASE, LOWERCASE, ZERO_PAD
+
+### Map Versioning
+
+- Each training run produces a new map version
+- Only one version is active per map key at a time
+- Rollback to any previous version via `POST /maps/rollback?mapKey=...&version=N`
+- Full audit trail in `edi_training_sessions` table
+
+### Smart Mapping Fallback Chain
+
+When the converter receives a request through `POST /mapping/smart`:
+1. Check for a partner-specific trained map
+2. Check for a default trained map (no partner)
+3. Fall back to real-time sample-based generation (existing `AiMappingGenerator`)
+
+### Sample Data Sources
+
+For populating training data, these open-source EDI sample repositories are useful:
+- **EdiFabric/X12.NET** — X12 4010/5010 samples (210, 214, 810, 850, 855, 856, 837, etc.)
+- **EdiFabric/EDIFACT.NET** — EDIFACT INVOIC, ORDERS, DESADV, IFTMIN across D96A/D03B
+- **olmelabs/EdiEngine** — 004010 maps with test .edi files
+- **databricks-industry-solutions/x12-edi-parser** — Bulk X12 835 test data generation
