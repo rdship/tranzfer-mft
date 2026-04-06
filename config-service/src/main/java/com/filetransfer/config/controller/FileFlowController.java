@@ -105,6 +105,7 @@ public class FileFlowController {
         types.put("scripting", List.of("EXECUTE_SCRIPT"));
         types.put("delivery", List.of("MAILBOX", "FILE_DELIVERY"));
         types.put("routing", List.of("ROUTE"));
+        types.put("conversion", List.of("CONVERT_EDI"));
         return types;
     }
 }

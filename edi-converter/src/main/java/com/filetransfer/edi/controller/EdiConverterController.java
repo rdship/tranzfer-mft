@@ -313,6 +313,45 @@ public class EdiConverterController {
         return result;
     }
 
+    /**
+     * Test conversion with custom field mappings (used by mapping correction flow).
+     * Applies the provided mappings to the source content without needing a persisted trained map.
+     */
+    @PostMapping("/convert/test-mappings")
+    public ResponseEntity<?> testCustomMappings(@RequestBody Map<String, Object> body) {
+        String sourceContent = (String) body.get("sourceContent");
+        if (sourceContent == null || sourceContent.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "sourceContent is required"));
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rawMappings = (List<Map<String, Object>>) body.get("fieldMappings");
+        if (rawMappings == null || rawMappings.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "fieldMappings is required"));
+        }
+
+        // Convert raw maps to FieldMapping objects
+        List<TrainedMapConsumer.FieldMapping> mappings = rawMappings.stream()
+                .map(m -> TrainedMapConsumer.FieldMapping.builder()
+                        .sourceField((String) m.get("sourceField"))
+                        .targetField((String) m.get("targetField"))
+                        .transform((String) m.getOrDefault("transform", "DIRECT"))
+                        .transformParam((String) m.get("transformParam"))
+                        .confidence(m.containsKey("confidence") ? ((Number) m.get("confidence")).intValue() : 100)
+                        .strategy((String) m.getOrDefault("strategy", "PARTNER_CORRECTION"))
+                        .reasoning((String) m.get("reasoning"))
+                        .build())
+                .toList();
+
+        var result = trainedMapConsumer.applyCustomMappings(sourceContent, mappings);
+
+        return ResponseEntity.ok(Map.of(
+                "output", result.getOutput(),
+                "fieldsApplied", result.getFieldsApplied(),
+                "fieldsSkipped", result.getFieldsSkipped(),
+                "totalMappings", result.getTotalMappings()));
+    }
+
     /** Invalidate the trained map cache (after retraining) */
     @PostMapping("/convert/trained/invalidate-cache")
     public Map<String, String> invalidateTrainedMapCache() {

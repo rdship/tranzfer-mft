@@ -109,6 +109,7 @@ public class NlpService {
             - DECOMPRESS_ZIP (config: {})
             - RENAME (config: {"pattern": "${basename}_${trackid}${ext}"})
             - ROUTE (config: {})
+            - CONVERT_EDI (config: {"targetFormat": "JSON|XML|CSV", "partnerId": "optional-partner-id"})
             
             Return ONLY valid JSON in this format:
             {
@@ -220,6 +221,7 @@ public class NlpService {
         if (lower.contains("compress") || lower.contains("gzip") || lower.contains("zip")) steps.add(Map.of("type", "COMPRESS_GZIP", "config", Map.of(), "order", order++));
         if (lower.contains("encrypt") && lower.contains("pgp")) steps.add(Map.of("type", "ENCRYPT_PGP", "config", Map.of(), "order", order++));
         if (lower.contains("encrypt") && lower.contains("aes")) steps.add(Map.of("type", "ENCRYPT_AES", "config", Map.of(), "order", order++));
+        if (lower.contains("convert") || lower.contains("edi") || lower.contains("translate") || lower.contains("transform")) steps.add(Map.of("type", "CONVERT_EDI", "config", Map.of("targetFormat", "JSON"), "order", order++));
         if (lower.contains("rename")) steps.add(Map.of("type", "RENAME", "config", Map.of("pattern", "${basename}_${trackid}${ext}"), "order", order++));
         if (lower.contains("route") || lower.contains("forward") || lower.contains("deliver")) steps.add(Map.of("type", "ROUTE", "config", Map.of(), "order", order++));
 

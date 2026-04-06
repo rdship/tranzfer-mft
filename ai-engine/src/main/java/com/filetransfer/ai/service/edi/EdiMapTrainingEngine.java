@@ -754,6 +754,14 @@ public class EdiMapTrainingEngine {
     // Code Generation
     // ========================================================================
 
+    /**
+     * Generate executable mapping code from field mappings.
+     * Package-accessible for use by MappingCorrectionService.
+     */
+    public String generateMappingCode(List<FieldMapping> mappings) {
+        return generateCode(mappings);
+    }
+
     private String generateCode(List<FieldMapping> mappings) {
         StringBuilder code = new StringBuilder();
         code.append("// Auto-generated from AI training engine\n");

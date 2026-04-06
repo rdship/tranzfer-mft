@@ -174,6 +174,7 @@ public class FlowProcessingEngine {
             case "EXECUTE_SCRIPT" -> executeScript(input, workDir, cfg, trackId);
             case "MAILBOX" -> executeMailbox(input, cfg, trackId);
             case "FILE_DELIVERY" -> executeFileDelivery(input, cfg, trackId);
+            case "CONVERT_EDI" -> callEdiConverter(input, workDir, cfg, trackId);
             case "ROUTE" -> inputPath; // Route is handled by RoutingEngine after flow completes
             default -> throw new IllegalArgumentException("Unknown step type: " + step.getType());
         };
@@ -583,6 +584,55 @@ public class FlowProcessingEngine {
             case HTTPS -> ServiceType.FTP_WEB;
             case AS2, AS4 -> ServiceType.SFTP; // AS2/AS4 route through platform storage
         };
+    }
+
+    /**
+     * CONVERT_EDI step — calls the EDI Converter service to convert the file using a trained map.
+     * Config: {"targetFormat": "JSON|XML|CSV", "partnerId": "optional-partner-id"}
+     */
+    private String callEdiConverter(Path input, Path workDir, Map<String, String> cfg, String trackId) throws Exception {
+        String converterUrl = serviceProps.getEdiConverter().getUrl();
+        String targetFormat = cfg.getOrDefault("targetFormat", "JSON");
+        String partnerId = cfg.get("partnerId");
+
+        String content = Files.readString(input);
+
+        Map<String, String> body = new LinkedHashMap<>();
+        body.put("content", content);
+        body.put("targetFormat", targetFormat);
+        if (partnerId != null && !partnerId.isBlank()) {
+            body.put("partnerId", partnerId);
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-Internal-Key", platformConfig.getSecurity().getControlApiKey());
+        HttpEntity<Map<String, String>> entity = new HttpEntity<>(body, headers);
+
+        @SuppressWarnings("unchecked")
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                converterUrl + "/api/v1/convert/trained",
+                HttpMethod.POST, entity,
+                (Class<Map<String, Object>>) (Class<?>) Map.class);
+
+        String output = response.getBody() != null ? (String) response.getBody().get("output") : "";
+
+        String ext = switch (targetFormat.toUpperCase()) {
+            case "JSON" -> ".json";
+            case "XML" -> ".xml";
+            case "CSV" -> ".csv";
+            case "YAML" -> ".yaml";
+            default -> ".txt";
+        };
+
+        String baseName = input.getFileName().toString();
+        if (baseName.contains(".")) baseName = baseName.substring(0, baseName.lastIndexOf('.'));
+        Path outputFile = workDir.resolve(baseName + ext);
+        Files.writeString(outputFile, output);
+
+        log.info("[{}] CONVERT_EDI: {} -> {} (targetFormat={}, partnerId={})",
+                trackId, input.getFileName(), outputFile.getFileName(), targetFormat, partnerId);
+        return outputFile.toString();
     }
 
     private boolean matchesFlow(FileFlow flow, String filename, String path) {

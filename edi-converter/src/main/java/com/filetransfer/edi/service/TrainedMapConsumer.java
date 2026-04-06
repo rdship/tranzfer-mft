@@ -228,6 +228,28 @@ public class TrainedMapConsumer {
         current.put(parts[parts.length - 1], value);
     }
 
+    /**
+     * Apply custom field mappings to source EDI content (without requiring a trained map in cache).
+     * Used by the mapping correction flow to test corrections before persisting them.
+     */
+    public TrainedConversionResult applyCustomMappings(String sourceContent, List<FieldMapping> customMappings) {
+        EdiDocument doc = parser.parse(sourceContent);
+        if (doc == null) {
+            return TrainedConversionResult.builder()
+                    .output("{}").fieldsApplied(0).fieldsSkipped(customMappings.size())
+                    .totalMappings(customMappings.size()).build();
+        }
+
+        TrainedMap tempMap = TrainedMap.builder()
+                .mapKey("custom-test")
+                .version(0)
+                .confidence(0)
+                .fieldMappings(customMappings)
+                .build();
+
+        return applyMap(doc, sourceContent, tempMap);
+    }
+
     /** Invalidate the local cache (called when maps are retrained) */
     public void invalidateCache() {
         mapCache.clear();
