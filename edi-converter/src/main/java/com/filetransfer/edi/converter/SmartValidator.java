@@ -143,7 +143,7 @@ public class SmartValidator {
         long warnings = issues.stream().filter(i -> "WARNING".equals(i.severity)).count();
         return ValidationReport.builder()
                 .valid(errors == 0).format(doc.getSourceFormat()).documentType(doc.getDocumentType())
-                .errors((int) errors).warnings((int) warnings).totalSegments(doc.getSegments().size())
+                .errors((int) errors).warnings((int) warnings).totalSegments(doc.getSegments() != null ? doc.getSegments().size() : 0)
                 .issues(issues)
                 .verdict(errors == 0 ? (warnings == 0 ? "✅ Perfect — no issues found" : "⚠️ Valid but has " + warnings + " warning(s)") : "❌ Invalid — " + errors + " error(s) must be fixed")
                 .build();
