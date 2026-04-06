@@ -76,6 +76,10 @@ function AiSettingsTab() {
   }
 
   const saveApiKey = async () => {
+    if (llmBaseUrl && !llmBaseUrl.startsWith('https://')) {
+      toast.error('API endpoint must use HTTPS — API keys must not be sent over unencrypted connections')
+      return
+    }
     setSaving(true)
     try {
       await saveSetting('ai.llm.api-key', llmApiKey)
@@ -144,13 +148,9 @@ function AiSettingsTab() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">API Endpoint</label>
-            <select value={llmBaseUrl} onChange={e => setLlmBaseUrl(e.target.value)} className="w-full">
-              <option value="https://api.anthropic.com">https://api.anthropic.com (Default)</option>
-              <option value="http://api.anthropic.com">http://api.anthropic.com (No TLS)</option>
-            </select>
             <input value={llmBaseUrl} onChange={e => setLlmBaseUrl(e.target.value)}
-              placeholder="https://api.anthropic.com" className="w-full mt-1" />
-            <p className="text-xs text-gray-500 mt-1">Use HTTPS in production. Custom URL for proxied or self-hosted LLM endpoints.</p>
+              placeholder="https://api.anthropic.com" className="w-full" />
+            <p className="text-xs text-gray-500 mt-1">HTTPS only — API keys must not be sent over unencrypted connections. Custom URL for proxied or self-hosted endpoints.</p>
           </div>
           <div className="flex gap-3 pt-1">
             <button className="btn-primary" onClick={saveApiKey} disabled={saving}>
