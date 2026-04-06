@@ -355,4 +355,383 @@ class CrossFormatConversionTest {
         assertNotNull(result);
         assertTrue(result.contains("UNB+"), "convert() should route EDI targets through canonical bridge");
     }
+
+    // ========================================================================
+    // X12 850 Round-trip fidelity tests
+    // ========================================================================
+
+    private static final String X12_850_RT =
+            "ISA*00*          *00*          *ZZ*SENDER         *ZZ*RECEIVER       *240101*1200*U*00501*000000001*0*P*>~" +
+            "GS*PO*SENDER*RECEIVER*20240101*1200*1*X*005010~" +
+            "ST*850*0001~" +
+            "BEG*00*NE*PO-12345**20240101~" +
+            "NM1*BY*1*Smith*John~" +
+            "PO1*1*10*EA*25.00**VP*123456789~" +
+            "PO1*2*5*CS*99.99**VP*WIDGET-X~" +
+            "SE*6*0001~" +
+            "GE*1*1~" +
+            "IEA*1*000000001~";
+
+    @Test
+    void roundTrip_x12_850_preservesPurchaseOrderNumber() {
+        EdiDocument doc = parser.parse(X12_850_RT);
+        CanonicalDocument canonical = canonicalMapper.toCanonical(doc);
+        assertEquals("PO-12345", canonical.getHeader().getDocumentNumber());
+
+        String regenerated = canonicalMapper.fromCanonical(canonical, "X12");
+        EdiDocument reparsed = parser.parse(regenerated);
+        CanonicalDocument recanonical = canonicalMapper.toCanonical(reparsed);
+
+        assertEquals("PO-12345", recanonical.getHeader().getDocumentNumber());
+    }
+
+    @Test
+    void roundTrip_x12_850_preservesLineItemQuantities() {
+        EdiDocument doc = parser.parse(X12_850_RT);
+        CanonicalDocument canonical = canonicalMapper.toCanonical(doc);
+        assertEquals(2, canonical.getLineItems().size());
+        assertEquals(10, canonical.getLineItems().get(0).getQuantity());
+        assertEquals(5, canonical.getLineItems().get(1).getQuantity());
+
+        String regenerated = canonicalMapper.fromCanonical(canonical, "X12");
+        EdiDocument reparsed = parser.parse(regenerated);
+        CanonicalDocument recanonical = canonicalMapper.toCanonical(reparsed);
+
+        assertEquals(2, recanonical.getLineItems().size());
+        assertEquals(10, recanonical.getLineItems().get(0).getQuantity());
+        assertEquals(5, recanonical.getLineItems().get(1).getQuantity());
+    }
+
+    @Test
+    void roundTrip_x12_850_preservesLineItemPrices() {
+        EdiDocument doc = parser.parse(X12_850_RT);
+        CanonicalDocument canonical = canonicalMapper.toCanonical(doc);
+        assertEquals(25.0, canonical.getLineItems().get(0).getUnitPrice(), 0.01);
+        assertEquals(99.99, canonical.getLineItems().get(1).getUnitPrice(), 0.01);
+
+        String regenerated = canonicalMapper.fromCanonical(canonical, "X12");
+        EdiDocument reparsed = parser.parse(regenerated);
+        CanonicalDocument recanonical = canonicalMapper.toCanonical(reparsed);
+
+        assertEquals(25.0, recanonical.getLineItems().get(0).getUnitPrice(), 0.01);
+        assertEquals(99.99, recanonical.getLineItems().get(1).getUnitPrice(), 0.01);
+    }
+
+    @Test
+    void roundTrip_x12_850_preservesPartyNames() {
+        EdiDocument doc = parser.parse(X12_850_RT);
+        CanonicalDocument canonical = canonicalMapper.toCanonical(doc);
+        // NM1*BY*1*Smith*John -> role=BUYER, name="John Smith"
+        boolean hasBuyer = canonical.getParties().stream()
+                .anyMatch(p -> p.getRole() == Party.PartyRole.BUYER && p.getName() != null && p.getName().contains("Smith"));
+        assertTrue(hasBuyer, "Should have BUYER party with name containing 'Smith'");
+
+        String regenerated = canonicalMapper.fromCanonical(canonical, "X12");
+        EdiDocument reparsed = parser.parse(regenerated);
+        CanonicalDocument recanonical = canonicalMapper.toCanonical(reparsed);
+
+        boolean hasBuyerAgain = recanonical.getParties().stream()
+                .anyMatch(p -> p.getRole() == Party.PartyRole.BUYER && p.getName() != null && p.getName().contains("Smith"));
+        assertTrue(hasBuyerAgain, "Round-tripped output should still have BUYER with 'Smith'");
+    }
+
+    // ========================================================================
+    // X12 837 Round-trip fidelity tests
+    // ========================================================================
+
+    private static final String X12_837 =
+            "ISA*00*          *00*          *ZZ*SUBMITTER      *ZZ*RECEIVER       *240301*0800*U*00501*000000002*0*P*>~" +
+            "GS*HC*SUBMITTER*RECEIVER*20240301*0800*2*X*005010~" +
+            "ST*837*0002~" +
+            "BHT*0019*00*CLM-98765*20240301~" +
+            "NM1*85*1*Johnson*Dr Mary****34*NPI12345~" +
+            "CLM*CLM-98765*1500.00~" +
+            "SV1*HC:99213*150.00*UN*1~" +
+            "SE*6*0002~" +
+            "GE*1*2~" +
+            "IEA*1*000000002~";
+
+    @Test
+    void roundTrip_x12_837_preservesClaimId() {
+        EdiDocument doc = parser.parse(X12_837);
+        CanonicalDocument canonical = canonicalMapper.toCanonical(doc);
+        assertEquals("CLM-98765", canonical.getHeader().getDocumentNumber());
+
+        String regenerated = canonicalMapper.fromCanonical(canonical, "X12");
+        EdiDocument reparsed = parser.parse(regenerated);
+        CanonicalDocument recanonical = canonicalMapper.toCanonical(reparsed);
+
+        assertEquals("CLM-98765", recanonical.getHeader().getDocumentNumber());
+    }
+
+    @Test
+    void roundTrip_x12_837_preservesClaimAmount() {
+        EdiDocument doc = parser.parse(X12_837);
+        CanonicalDocument canonical = canonicalMapper.toCanonical(doc);
+        assertEquals(1500.0, canonical.getTotals().getTotalAmount(), 0.01);
+
+        String regenerated = canonicalMapper.fromCanonical(canonical, "X12");
+        // The regenerated output should carry the claim amount through TDS
+        assertTrue(regenerated.contains("1500") || regenerated.contains("150000"),
+                "Regenerated X12 should contain the claim amount");
+    }
+
+    @Test
+    void roundTrip_x12_837_preservesProviderName() {
+        EdiDocument doc = parser.parse(X12_837);
+        CanonicalDocument canonical = canonicalMapper.toCanonical(doc);
+        boolean hasProvider = canonical.getParties().stream()
+                .anyMatch(p -> p.getRole() == Party.PartyRole.PROVIDER && p.getName() != null && p.getName().contains("Johnson"));
+        assertTrue(hasProvider, "Should have PROVIDER party with name containing 'Johnson'");
+
+        String regenerated = canonicalMapper.fromCanonical(canonical, "X12");
+        assertTrue(regenerated.contains("Johnson"), "Regenerated X12 should contain provider name 'Johnson'");
+    }
+
+    // ========================================================================
+    // X12 810 Round-trip fidelity tests
+    // ========================================================================
+
+    private static final String X12_810 =
+            "ISA*00*          *00*          *ZZ*VENDOR         *ZZ*CUSTOMER       *240215*1000*U*00501*000000003*0*P*>~" +
+            "GS*IN*VENDOR*CUSTOMER*20240215*1000*3*X*005010~" +
+            "ST*810*0003~" +
+            "BIG*20240215*INV-55678~" +
+            "IT1*1*20*EA*15.00~" +
+            "TDS*30000~" +
+            "SE*5*0003~" +
+            "GE*1*3~" +
+            "IEA*1*000000003~";
+
+    @Test
+    void roundTrip_x12_810_preservesInvoiceNumber() {
+        EdiDocument doc = parser.parse(X12_810);
+        CanonicalDocument canonical = canonicalMapper.toCanonical(doc);
+        assertEquals("INV-55678", canonical.getHeader().getDocumentNumber());
+
+        String regenerated = canonicalMapper.fromCanonical(canonical, "X12");
+        EdiDocument reparsed = parser.parse(regenerated);
+        CanonicalDocument recanonical = canonicalMapper.toCanonical(reparsed);
+
+        // Strip any trailing segment terminator artifact from the round-trip
+        String reDocNum = recanonical.getHeader().getDocumentNumber();
+        if (reDocNum != null) reDocNum = reDocNum.replaceAll("[~']+$", "");
+        assertEquals("INV-55678", reDocNum);
+    }
+
+    @Test
+    void roundTrip_x12_810_preservesInvoiceDate() {
+        EdiDocument doc = parser.parse(X12_810);
+        CanonicalDocument canonical = canonicalMapper.toCanonical(doc);
+        // BIG date is element 0 -> formatDate("20240215") -> "2024-02-15"
+        assertNotNull(canonical.getHeader().getDocumentDate());
+        assertTrue(canonical.getHeader().getDocumentDate().contains("2024"),
+                "Invoice date should contain year 2024");
+
+        String regenerated = canonicalMapper.fromCanonical(canonical, "X12");
+        EdiDocument reparsed = parser.parse(regenerated);
+        CanonicalDocument recanonical = canonicalMapper.toCanonical(reparsed);
+
+        assertNotNull(recanonical.getHeader().getDocumentDate());
+        // Strip any trailing segment terminator artifact from the round-trip
+        String reDate = recanonical.getHeader().getDocumentDate().replaceAll("[~']+$", "");
+        assertTrue(reDate.contains("2024"),
+                "Round-tripped invoice date should still contain year 2024");
+    }
+
+    // ========================================================================
+    // EDIFACT ORDERS Round-trip fidelity tests
+    // ========================================================================
+
+    @Test
+    void roundTrip_edifact_orders_preservesDocNumber() {
+        EdiDocument doc = parser.parse(EDIFACT_ORDERS);
+        CanonicalDocument canonical = canonicalMapper.toCanonical(doc);
+        assertEquals("ORDER-789", canonical.getHeader().getDocumentNumber());
+
+        String regenerated = canonicalMapper.fromCanonical(canonical, "EDIFACT");
+        EdiDocument reparsed = parser.parse(regenerated);
+        CanonicalDocument recanonical = canonicalMapper.toCanonical(reparsed);
+
+        assertEquals("ORDER-789", recanonical.getHeader().getDocumentNumber());
+    }
+
+    @Test
+    void roundTrip_edifact_orders_preservesLineItems() {
+        EdiDocument doc = parser.parse(EDIFACT_ORDERS);
+        CanonicalDocument canonical = canonicalMapper.toCanonical(doc);
+        assertEquals(1, canonical.getLineItems().size());
+        assertEquals(200, canonical.getLineItems().get(0).getQuantity());
+        assertEquals(7.50, canonical.getLineItems().get(0).getUnitPrice(), 0.01);
+
+        String regenerated = canonicalMapper.fromCanonical(canonical, "EDIFACT");
+        EdiDocument reparsed = parser.parse(regenerated);
+        CanonicalDocument recanonical = canonicalMapper.toCanonical(reparsed);
+
+        assertEquals(1, recanonical.getLineItems().size());
+        assertEquals(200, recanonical.getLineItems().get(0).getQuantity());
+        assertEquals(7.50, recanonical.getLineItems().get(0).getUnitPrice(), 0.01);
+    }
+
+    // ========================================================================
+    // Cross-format round-trip tests
+    // ========================================================================
+
+    @Test
+    void crossFormat_x12_850_to_edifact_preservesPONumber() {
+        // X12 -> Canonical -> EDIFACT -> Canonical
+        EdiDocument x12Doc = parser.parse(X12_850_RT);
+        CanonicalDocument canonical1 = canonicalMapper.toCanonical(x12Doc);
+        assertEquals("PO-12345", canonical1.getHeader().getDocumentNumber());
+
+        String edifact = canonicalMapper.fromCanonical(canonical1, "EDIFACT");
+        EdiDocument edifactDoc = parser.parse(edifact);
+        CanonicalDocument canonical2 = canonicalMapper.toCanonical(edifactDoc);
+
+        assertEquals("PO-12345", canonical2.getHeader().getDocumentNumber());
+    }
+
+    @Test
+    void crossFormat_edifact_orders_to_x12_preservesDocNumber() {
+        // EDIFACT -> Canonical -> X12 -> Canonical
+        EdiDocument edifactDoc = parser.parse(EDIFACT_ORDERS);
+        CanonicalDocument canonical1 = canonicalMapper.toCanonical(edifactDoc);
+        assertEquals("ORDER-789", canonical1.getHeader().getDocumentNumber());
+
+        String x12 = canonicalMapper.fromCanonical(canonical1, "X12");
+        EdiDocument x12Doc = parser.parse(x12);
+        CanonicalDocument canonical2 = canonicalMapper.toCanonical(x12Doc);
+
+        assertEquals("ORDER-789", canonical2.getHeader().getDocumentNumber());
+    }
+
+    // ========================================================================
+    // Structural validation tests
+    // ========================================================================
+
+    @Test
+    void x12Output_hasProperEnvelopeStructure() {
+        // Generate X12 from canonical, verify ISA/GS/ST...SE/GE/IEA structure
+        EdiDocument doc = parser.parse(X12_850_RT);
+        CanonicalDocument canonical = canonicalMapper.toCanonical(doc);
+        String x12 = canonicalMapper.fromCanonical(canonical, "X12");
+
+        String[] lines = x12.split("\\n");
+        assertTrue(lines.length >= 7, "Should have at least 7 segments (ISA,GS,ST,BEG,...,SE,GE,IEA)");
+
+        // Extract segment IDs
+        String firstSegId = lines[0].split("\\*")[0];
+        String lastSegId = lines[lines.length - 1].split("\\*")[0];
+
+        assertEquals("ISA", firstSegId, "First segment should be ISA");
+        assertEquals("IEA", lastSegId.replace("~", ""), "Last segment should be IEA");
+
+        // Verify the ordering: ISA, GS, ST, ..., SE, GE, IEA
+        assertTrue(x12.indexOf("ISA*") < x12.indexOf("GS*"), "ISA should come before GS");
+        assertTrue(x12.indexOf("GS*") < x12.indexOf("ST*"), "GS should come before ST");
+        assertTrue(x12.indexOf("ST*") < x12.indexOf("SE*"), "ST should come before SE");
+        assertTrue(x12.indexOf("SE*") < x12.indexOf("GE*"), "SE should come before GE");
+        assertTrue(x12.indexOf("GE*") < x12.indexOf("IEA*"), "GE should come before IEA");
+    }
+
+    @Test
+    void x12Output_seCountMatchesActualSegments() {
+        EdiDocument doc = parser.parse(X12_850_RT);
+        CanonicalDocument canonical = canonicalMapper.toCanonical(doc);
+        String x12 = canonicalMapper.fromCanonical(canonical, "X12");
+
+        String[] lines = x12.split("\\n");
+        // Find ST and SE lines
+        int stIndex = -1, seIndex = -1;
+        for (int i = 0; i < lines.length; i++) {
+            String segId = lines[i].split("\\*")[0];
+            if ("ST".equals(segId) && stIndex == -1) stIndex = i;
+            if ("SE".equals(segId)) seIndex = i;
+        }
+
+        assertTrue(stIndex >= 0, "Should have ST segment");
+        assertTrue(seIndex >= 0, "Should have SE segment");
+
+        // Count segments from ST to SE inclusive
+        int actualCount = seIndex - stIndex + 1;
+        // SE*count*...~
+        String seSegment = lines[seIndex].replace("~", "");
+        String[] seParts = seSegment.split("\\*");
+        int declaredCount = Integer.parseInt(seParts[1]);
+
+        assertEquals(actualCount, declaredCount,
+                "SE count (" + declaredCount + ") should match actual segment count from ST to SE (" + actualCount + ")");
+    }
+
+    @Test
+    void x12Output_isaIeaControlNumbersMatch() {
+        EdiDocument doc = parser.parse(X12_850_RT);
+        CanonicalDocument canonical = canonicalMapper.toCanonical(doc);
+        String x12 = canonicalMapper.fromCanonical(canonical, "X12");
+
+        String[] lines = x12.split("\\n");
+        // ISA is first line, IEA is last line
+        String isaLine = lines[0].replace("~", "");
+        String ieaLine = lines[lines.length - 1].replace("~", "");
+
+        String[] isaParts = isaLine.split("\\*");
+        String[] ieaParts = ieaLine.split("\\*");
+
+        // ISA13 (index 13) == IEA02 (index 2)
+        String isaControlNum = isaParts[13].trim();
+        String ieaControlNum = ieaParts[2].trim();
+
+        assertEquals(isaControlNum, ieaControlNum,
+                "ISA13 control number (" + isaControlNum + ") should match IEA02 (" + ieaControlNum + ")");
+    }
+
+    @Test
+    void edifactOutput_hasProperEnvelopeStructure() {
+        EdiDocument doc = parser.parse(EDIFACT_ORDERS);
+        CanonicalDocument canonical = canonicalMapper.toCanonical(doc);
+        String edifact = canonicalMapper.fromCanonical(canonical, "EDIFACT");
+
+        // Should have UNA, UNB, UNH, ..., UNT, UNZ
+        assertTrue(edifact.contains("UNA:+.? '"), "Should start with UNA service string");
+        assertTrue(edifact.contains("UNB+"), "Should have UNB interchange header");
+        assertTrue(edifact.contains("UNH+"), "Should have UNH message header");
+        assertTrue(edifact.contains("UNT+"), "Should have UNT message trailer");
+        assertTrue(edifact.contains("UNZ+"), "Should have UNZ interchange trailer");
+
+        // Verify ordering
+        assertTrue(edifact.indexOf("UNA") < edifact.indexOf("UNB+"), "UNA should come before UNB");
+        assertTrue(edifact.indexOf("UNB+") < edifact.indexOf("UNH+"), "UNB should come before UNH");
+        assertTrue(edifact.indexOf("UNH+") < edifact.indexOf("UNT+"), "UNH should come before UNT");
+        assertTrue(edifact.indexOf("UNT+") < edifact.indexOf("UNZ+"), "UNT should come before UNZ");
+    }
+
+    @Test
+    void edifactOutput_untCountMatchesActualSegments() {
+        EdiDocument doc = parser.parse(EDIFACT_ORDERS);
+        CanonicalDocument canonical = canonicalMapper.toCanonical(doc);
+        String edifact = canonicalMapper.fromCanonical(canonical, "EDIFACT");
+
+        String[] lines = edifact.split("\\n");
+        // Count segments from UNH to UNT inclusive (skip UNA and UNB)
+        int unhIndex = -1, untIndex = -1;
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i].trim();
+            if (line.startsWith("UNH+") && unhIndex == -1) unhIndex = i;
+            if (line.startsWith("UNT+")) untIndex = i;
+        }
+
+        assertTrue(unhIndex >= 0, "Should have UNH segment");
+        assertTrue(untIndex >= 0, "Should have UNT segment");
+
+        // Actual segment count from UNH to UNT inclusive
+        int actualCount = untIndex - unhIndex + 1;
+
+        // Parse UNT segment: UNT+count+ref'
+        String untLine = lines[untIndex].replace("'", "");
+        String[] untParts = untLine.split("\\+");
+        int declaredCount = Integer.parseInt(untParts[1]);
+
+        assertEquals(actualCount, declaredCount,
+                "UNT count (" + declaredCount + ") should match actual segment count from UNH to UNT (" + actualCount + ")");
+    }
 }

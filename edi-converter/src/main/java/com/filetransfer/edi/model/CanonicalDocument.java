@@ -27,6 +27,10 @@ public class CanonicalDocument {
     private List<LineItem> lineItems;
     private List<Party> parties;
     private MonetaryTotal totals;
+    private List<Reference> references;      // REF segments, RFF segments
+    private List<DateInfo> dates;            // DTM/DTP segments
+    private List<Contact> contacts;          // PER segments
+    private List<Note> notes;               // FTX/NTE segments
     private Map<String, Object> extensions; // Format-specific extras
     private String createdAt;
 
@@ -98,5 +102,34 @@ public class CanonicalDocument {
         private double discountAmount;
         private double netAmount;
         private String currency;
+    }
+
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class Reference {
+        private String qualifier;   // REF01 (EI=employer ID, SY=SSN, etc.)
+        private String value;       // REF02
+        private String description; // REF03 (optional)
+    }
+
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class DateInfo {
+        private String qualifier;   // DTP01/DTM01 (472=service, 471=prescription, 434=statement)
+        private String format;      // D8=CCYYMMDD, RD8=range
+        private String value;       // The actual date/range
+    }
+
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class Contact {
+        private String type;        // IC=information contact, IP=insured party
+        private String name;
+        private String phone;
+        private String email;
+        private String fax;
+    }
+
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class Note {
+        private String type;
+        private String text;
     }
 }

@@ -8,17 +8,24 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Maps EdiDocument (raw parsed segments) → CanonicalDocument (business meaning).
- * Also maps CanonicalDocument → EdiDocument for reverse conversion.
+ * Maps EdiDocument (raw parsed segments) -> CanonicalDocument (business meaning).
+ * Also maps CanonicalDocument -> EdiDocument for reverse conversion.
  *
  * This is the "Rosetta Stone" that eliminates per-partner mapping.
  */
 @Service
 public class CanonicalMapper {
 
-    // === Forward: EdiDocument → CanonicalDocument ===
+    private static final AtomicLong CONTROL_COUNTER = new AtomicLong(1);
+
+    private String nextControlNumber() {
+        return String.format("%09d", CONTROL_COUNTER.getAndIncrement() % 1_000_000_000);
+    }
+
+    // === Forward: EdiDocument -> CanonicalDocument ===
 
     public CanonicalDocument toCanonical(EdiDocument doc) {
         return switch (doc.getSourceFormat()) {
@@ -32,11 +39,15 @@ public class CanonicalMapper {
         };
     }
 
-    // === X12 → Canonical ===
+    // === X12 -> Canonical ===
     private CanonicalDocument mapX12(EdiDocument doc) {
         DocumentType type = resolveX12Type(doc.getDocumentType());
         List<Party> parties = new ArrayList<>();
         List<LineItem> items = new ArrayList<>();
+        List<Reference> refs = new ArrayList<>();
+        List<DateInfo> dates = new ArrayList<>();
+        List<Contact> contacts = new ArrayList<>();
+        List<Note> notes = new ArrayList<>();
         Header.HeaderBuilder hdr = Header.builder();
         MonetaryTotal.MonetaryTotalBuilder totals = MonetaryTotal.builder();
         Map<String, Object> ext = new LinkedHashMap<>();
@@ -66,6 +77,22 @@ public class CanonicalMapper {
                     Party party = parseX12Party(e);
                     if (party != null) parties.add(party);
                 }
+                case "N1" -> { // Simpler party identification (not NM1)
+                    if (e.size() > 1) {
+                        Party.PartyRole role = switch (e.get(0)) {
+                            case "ST" -> Party.PartyRole.SHIP_TO;
+                            case "BT" -> Party.PartyRole.BILL_TO;
+                            case "BY" -> Party.PartyRole.BUYER;
+                            case "SE" -> Party.PartyRole.SELLER;
+                            case "PE" -> Party.PartyRole.PAYEE;
+                            case "PR" -> Party.PartyRole.PAYER;
+                            default -> Party.PartyRole.SENDER;
+                        };
+                        Party.PartyBuilder p = Party.builder().role(role).name(e.get(1));
+                        if (e.size() > 3) p.qualifier(e.get(2)).id(e.get(3));
+                        parties.add(p.build());
+                    }
+                }
                 case "N3" -> { // Address line
                     if (!parties.isEmpty() && e.size() > 0) {
                         Party last = parties.get(parties.size() - 1);
@@ -80,6 +107,35 @@ public class CanonicalMapper {
                         last.getAddress().setCity(e.get(0));
                         last.getAddress().setState(e.get(1));
                         last.getAddress().setPostalCode(e.get(2));
+                    }
+                }
+                case "REF" -> {
+                    if (e.size() > 1) {
+                        refs.add(Reference.builder()
+                                .qualifier(e.get(0))
+                                .value(e.get(1))
+                                .description(e.size() > 2 ? e.get(2) : null).build());
+                    }
+                }
+                case "DTP" -> {
+                    if (e.size() > 2) {
+                        dates.add(DateInfo.builder()
+                                .qualifier(e.get(0)).format(e.get(1)).value(e.get(2)).build());
+                    }
+                }
+                case "DTM" -> {
+                    if (e.size() > 1) {
+                        dates.add(DateInfo.builder()
+                                .qualifier(e.get(0)).value(e.get(1)).build());
+                    }
+                }
+                case "PER" -> {
+                    if (e.size() > 1) {
+                        Contact.ContactBuilder c = Contact.builder().type(e.get(0)).name(e.get(1));
+                        if (e.size() > 3 && "TE".equals(e.get(2))) c.phone(e.get(3));
+                        if (e.size() > 5 && "EM".equals(e.get(4))) c.email(e.get(5));
+                        if (e.size() > 5 && "FX".equals(e.get(4))) c.fax(e.get(5));
+                        contacts.add(c.build());
                     }
                 }
                 case "PO1" -> { // Purchase Order line item
@@ -119,6 +175,58 @@ public class CanonicalMapper {
                     if (e.size() > 5) ext.put("senderQualifier", e.get(4));
                     if (e.size() > 7) ext.put("receiverQualifier", e.get(6));
                 }
+                case "HL" -> {
+                    if (e.size() > 2) ext.put("hl_" + e.get(0), Map.of(
+                            "parentId", e.size() > 1 ? e.get(1) : "",
+                            "levelCode", e.get(2)));
+                }
+                case "SBR" -> {
+                    if (e.size() > 0) ext.put("subscriberPayerResponsibility", e.get(0));
+                    if (e.size() > 8) ext.put("claimFilingIndicator", e.get(8));
+                }
+                case "DMG" -> {
+                    if (e.size() > 1) ext.put("dateOfBirth", e.get(1));
+                    if (e.size() > 2) ext.put("genderCode", e.get(2));
+                }
+                case "PAT" -> {
+                    if (e.size() > 0) ext.put("patientRelationship", e.get(0));
+                }
+                case "AMT" -> {
+                    if (e.size() > 1) ext.put("amount_" + e.get(0), e.get(1));
+                }
+                case "BPR" -> {
+                    if (e.size() > 1) totals.totalAmount(parseDouble(e.get(1)));
+                    if (e.size() > 2) ext.put("creditDebitFlag", e.get(2));
+                }
+                case "TRN" -> {
+                    if (e.size() > 1) hdr.referenceNumber(e.get(1));
+                }
+                case "CTT" -> {
+                    if (e.size() > 0) ext.put("lineItemCount", e.get(0));
+                }
+                case "BSN" -> {
+                    if (e.size() > 1) hdr.documentNumber(e.get(1));
+                    if (e.size() > 2) hdr.documentDate(formatDate(e.get(2)));
+                }
+                case "SN1" -> {
+                    lineNum++;
+                    LineItem.LineItemBuilder item = LineItem.builder().lineNumber(lineNum);
+                    if (e.size() > 1) item.quantity(parseDouble(e.get(1)));
+                    if (e.size() > 2) item.unitOfMeasure(e.get(2));
+                    items.add(item.build());
+                }
+                case "AK1" -> ext.put("ackFuncIdCode", e.size() > 0 ? e.get(0) : "");
+                case "AK9" -> {
+                    if (e.size() > 0) ext.put("funcGroupAckCode", e.get(0));
+                    hdr.status(e.size() > 0 ? e.get(0) : "");
+                }
+                case "NTE" -> {
+                    if (e.size() > 1) {
+                        notes.add(Note.builder().type(e.get(0)).text(e.get(1)).build());
+                    } else if (e.size() > 0) {
+                        notes.add(Note.builder().text(e.get(0)).build());
+                    }
+                }
                 default -> {} // Other segments stored as raw in extensions
             }
         }
@@ -135,6 +243,10 @@ public class CanonicalMapper {
                 .documentId(UUID.randomUUID().toString())
                 .type(type).sourceFormat("X12").sourceDocumentType(doc.getDocumentType())
                 .header(hdr.build()).lineItems(items).parties(parties)
+                .references(refs.isEmpty() ? null : refs)
+                .dates(dates.isEmpty() ? null : dates)
+                .contacts(contacts.isEmpty() ? null : contacts)
+                .notes(notes.isEmpty() ? null : notes)
                 .totals(totals.build()).extensions(ext)
                 .createdAt(Instant.now().toString()).build();
     }
@@ -163,13 +275,17 @@ public class CanonicalMapper {
         return Party.builder().role(role).name(name.trim()).id(id).qualifier(qualifier).build();
     }
 
-    // === EDIFACT → Canonical ===
+    // === EDIFACT -> Canonical ===
     private CanonicalDocument mapEdifact(EdiDocument doc) {
         DocumentType type = resolveEdifactType(doc.getDocumentType());
         List<Party> parties = new ArrayList<>();
         List<LineItem> items = new ArrayList<>();
+        List<Reference> refs = new ArrayList<>();
+        List<DateInfo> dates = new ArrayList<>();
+        List<Note> notes = new ArrayList<>();
         Header.HeaderBuilder hdr = Header.builder();
         MonetaryTotal.MonetaryTotalBuilder totals = MonetaryTotal.builder();
+        Map<String, Object> ext = new LinkedHashMap<>();
         int lineNum = 0;
 
         for (Segment seg : doc.getSegments()) {
@@ -182,6 +298,12 @@ public class CanonicalMapper {
                     if (e.size() > 0) {
                         String[] dtmParts = e.get(0).split(":");
                         if (dtmParts.length > 1) hdr.documentDate(formatDate(dtmParts[1]));
+                        if (dtmParts.length > 0) {
+                            dates.add(DateInfo.builder()
+                                    .qualifier(dtmParts[0])
+                                    .value(dtmParts.length > 1 ? dtmParts[1] : "")
+                                    .format(dtmParts.length > 2 ? dtmParts[2] : null).build());
+                        }
                     }
                 }
                 case "NAD" -> {
@@ -197,6 +319,67 @@ public class CanonicalMapper {
                         parties.add(Party.builder().role(role).id(e.get(1))
                                 .name(e.size() > 3 ? e.get(3) : "").build());
                     }
+                }
+                case "RFF" -> {
+                    if (e.size() > 0) {
+                        String[] rffParts = e.get(0).split(":");
+                        if (rffParts.length > 1) {
+                            refs.add(Reference.builder()
+                                    .qualifier(rffParts[0])
+                                    .value(rffParts[1]).build());
+                        }
+                    }
+                }
+                case "FTX" -> {
+                    if (e.size() > 0) {
+                        String noteType = e.get(0);
+                        String text = e.size() > 3 ? e.get(3) : (e.size() > 1 ? e.get(1) : "");
+                        notes.add(Note.builder().type(noteType).text(text).build());
+                    }
+                }
+                case "PIA" -> {
+                    if (!items.isEmpty() && e.size() > 1) {
+                        String[] piaParts = e.get(1).split(":");
+                        if (piaParts.length > 0) {
+                            items.get(items.size() - 1).setProductCode(piaParts[0]);
+                        }
+                    }
+                }
+                case "TAX" -> {
+                    if (e.size() > 0) {
+                        ext.put("taxType", e.get(0));
+                        if (e.size() > 4) {
+                            String[] taxParts = e.get(4).split(":");
+                            if (taxParts.length > 0) ext.put("taxRate", taxParts[taxParts.length - 1]);
+                        }
+                    }
+                }
+                case "ALC" -> {
+                    if (e.size() > 0) {
+                        ext.put("allowanceChargeIndicator", e.get(0));
+                    }
+                }
+                case "TDT" -> {
+                    if (e.size() > 0) ext.put("transportStageQualifier", e.get(0));
+                    if (e.size() > 3) ext.put("carrierIdentification", e.get(3));
+                }
+                case "LOC" -> {
+                    if (e.size() > 1) {
+                        ext.put("location_" + e.get(0), e.get(1));
+                    }
+                }
+                case "PAC" -> {
+                    if (e.size() > 0) ext.put("numberOfPackages", e.get(0));
+                }
+                case "CNT" -> {
+                    if (e.size() > 0) {
+                        String[] cntParts = e.get(0).split(":");
+                        if (cntParts.length > 1) ext.put("controlCount_" + cntParts[0], cntParts[1]);
+                    }
+                }
+                case "UNS" -> {
+                    // Section control separator - just marks boundary between detail and summary
+                    ext.put("sectionSeparator", e.size() > 0 ? e.get(0) : "S");
                 }
                 case "LIN" -> {
                     lineNum++;
@@ -241,14 +424,21 @@ public class CanonicalMapper {
                 .documentId(UUID.randomUUID().toString())
                 .type(type).sourceFormat("EDIFACT").sourceDocumentType(doc.getDocumentType())
                 .header(hdr.build()).lineItems(items).parties(parties)
-                .totals(totals.build()).createdAt(Instant.now().toString()).build();
+                .references(refs.isEmpty() ? null : refs)
+                .dates(dates.isEmpty() ? null : dates)
+                .notes(notes.isEmpty() ? null : notes)
+                .totals(totals.build()).extensions(ext)
+                .createdAt(Instant.now().toString()).build();
     }
 
-    // === HL7 → Canonical ===
+    // === HL7 -> Canonical ===
     private CanonicalDocument mapHl7(EdiDocument doc) {
         Header.HeaderBuilder hdr = Header.builder();
         List<Party> parties = new ArrayList<>();
+        List<LineItem> items = new ArrayList<>();
+        List<Note> notes = new ArrayList<>();
         Map<String, Object> ext = new LinkedHashMap<>();
+        int lineNum = 0;
 
         for (Segment seg : doc.getSegments()) {
             List<String> e = seg.getElements() != null ? seg.getElements() : List.of();
@@ -274,6 +464,60 @@ public class CanonicalMapper {
                                 .name(e.get(7).replace("^", " ")).build());
                     }
                 }
+                case "EVN" -> {
+                    if (e.size() > 0) ext.put("eventTypeCode", e.get(0));
+                    if (e.size() > 1) ext.put("recordedDateTime", e.get(1));
+                }
+                case "OBR" -> {
+                    lineNum++;
+                    LineItem.LineItemBuilder item = LineItem.builder().lineNumber(lineNum);
+                    if (e.size() > 3) {
+                        String obsId = e.get(3);
+                        item.productCode(obsId);
+                        // Parse composite: code^description
+                        if (obsId.contains("^")) {
+                            String[] parts = obsId.split("\\^", 2);
+                            item.productCode(parts[0]);
+                            item.description(parts[1]);
+                        }
+                    }
+                    items.add(item.build());
+                }
+                case "OBX" -> {
+                    if (e.size() > 4) {
+                        ext.put("observation_" + (e.size() > 2 ? e.get(2) : lineNum),
+                                Map.of("valueType", e.size() > 1 ? e.get(1) : "",
+                                        "observationId", e.size() > 2 ? e.get(2) : "",
+                                        "value", e.get(4)));
+                    }
+                }
+                case "ORC" -> {
+                    if (e.size() > 0) ext.put("orderControl", e.get(0));
+                    if (e.size() > 1) hdr.referenceNumber(e.get(1));
+                }
+                case "AL1" -> {
+                    if (e.size() > 2) {
+                        ext.put("allergy_" + e.get(0), Map.of(
+                                "allergyType", e.size() > 1 ? e.get(1) : "",
+                                "allergenCode", e.get(2)));
+                    }
+                }
+                case "DG1" -> {
+                    if (e.size() > 2) {
+                        ext.put("diagnosis_" + e.get(0), Map.of(
+                                "codingMethod", e.size() > 1 ? e.get(1) : "",
+                                "diagnosisCode", e.get(2)));
+                    }
+                }
+                case "IN1" -> {
+                    if (e.size() > 2) {
+                        Party.PartyBuilder insurer = Party.builder()
+                                .role(Party.PartyRole.PAYER)
+                                .id(e.get(1));
+                        if (e.size() > 3) insurer.name(e.get(3));
+                        parties.add(insurer.build());
+                    }
+                }
                 default -> {}
             }
         }
@@ -282,15 +526,17 @@ public class CanonicalMapper {
                 .documentId(UUID.randomUUID().toString())
                 .type(DocumentType.PATIENT_ADMISSION).sourceFormat("HL7")
                 .sourceDocumentType(doc.getDocumentType())
-                .header(hdr.build()).parties(parties).lineItems(List.of())
+                .header(hdr.build()).parties(parties).lineItems(items.isEmpty() ? List.of() : items)
+                .notes(notes.isEmpty() ? null : notes)
                 .extensions(ext).createdAt(Instant.now().toString()).build();
     }
 
-    // === SWIFT MT → Canonical ===
+    // === SWIFT MT -> Canonical ===
     private CanonicalDocument mapSwift(EdiDocument doc) {
         Header.HeaderBuilder hdr = Header.builder();
         List<Party> parties = new ArrayList<>();
         MonetaryTotal.MonetaryTotalBuilder totals = MonetaryTotal.builder();
+        Map<String, Object> ext = new LinkedHashMap<>();
 
         Map<String, Object> biz = doc.getBusinessData() != null ? doc.getBusinessData() : Map.of();
         if (biz.containsKey("reference")) hdr.documentNumber((String) biz.get("reference"));
@@ -308,10 +554,24 @@ public class CanonicalMapper {
             String tag = fields.getOrDefault("tag", "");
             String value = fields.getOrDefault("value", "");
             switch (tag) {
+                case "20" -> hdr.referenceNumber(value);
+                case "23B" -> ext.put("bankOperationCode", value);
+                case "32A" -> {
+                    // valueDate(6) + currency(3) + amount
+                    if (value.length() >= 9) {
+                        hdr.documentDate(value.substring(0, 6));
+                        totals.currency(value.substring(6, 9));
+                        if (value.length() > 9) totals.totalAmount(parseDouble(value.substring(9).replace(",", ".")));
+                    }
+                }
                 case "50K", "50A" -> parties.add(Party.builder().role(Party.PartyRole.PAYER).name(value).build());
-                case "59", "59A" -> parties.add(Party.builder().role(Party.PartyRole.PAYEE).name(value).build());
                 case "52A" -> parties.add(Party.builder().role(Party.PartyRole.BANK_SENDER).id(value).build());
+                case "53A" -> ext.put("sendersCorrespondent", value);
                 case "57A" -> parties.add(Party.builder().role(Party.PartyRole.BANK_RECEIVER).id(value).build());
+                case "59", "59A" -> parties.add(Party.builder().role(Party.PartyRole.PAYEE).name(value).build());
+                case "70" -> ext.put("remittanceInfo", value);
+                case "71A" -> ext.put("detailsOfCharges", value);
+                case "79" -> ext.put("narrativeText", value);
             }
         }
 
@@ -320,10 +580,11 @@ public class CanonicalMapper {
                 .type(DocumentType.WIRE_TRANSFER).sourceFormat("SWIFT_MT")
                 .sourceDocumentType(doc.getDocumentType())
                 .header(hdr.build()).parties(parties).lineItems(List.of())
-                .totals(totals.build()).createdAt(Instant.now().toString()).build();
+                .totals(totals.build()).extensions(ext)
+                .createdAt(Instant.now().toString()).build();
     }
 
-    // === NACHA → Canonical ===
+    // === NACHA -> Canonical ===
     private CanonicalDocument mapNacha(EdiDocument doc) {
         Header.HeaderBuilder hdr = Header.builder();
         List<Party> parties = new ArrayList<>();
@@ -344,7 +605,7 @@ public class CanonicalMapper {
                 .createdAt(Instant.now().toString()).build();
     }
 
-    // === FIX → Canonical ===
+    // === FIX -> Canonical ===
     private CanonicalDocument mapFix(EdiDocument doc) {
         Header.HeaderBuilder hdr = Header.builder();
         Map<String, Object> biz = doc.getBusinessData() != null ? doc.getBusinessData() : Map.of();
@@ -384,7 +645,7 @@ public class CanonicalMapper {
     }
 
     // ===================================================================
-    // REVERSE: CanonicalDocument → EDI string
+    // REVERSE: CanonicalDocument -> EDI string
     // ===================================================================
 
     /**
@@ -402,12 +663,16 @@ public class CanonicalMapper {
         };
     }
 
-    // === Canonical → X12 ===
+    // === Canonical -> X12 ===
     private String generateX12(CanonicalDocument doc) {
+        char elemSep = '*';
+        char compSep = ':';
+        char segTerm = '~';
+
         String txnType = resolveX12TxnType(doc.getType());
         String date = compactDate(doc.getHeader() != null ? doc.getHeader().getDocumentDate() : null);
         String time = currentTime4();
-        String controlNum = padRight(String.valueOf(System.nanoTime() % 1_000_000_000), 9, '0');
+        String controlNum = nextControlNumber();
         String docNumber = doc.getHeader() != null && doc.getHeader().getDocumentNumber() != null
                 ? doc.getHeader().getDocumentNumber() : "DOC001";
         String senderId = findPartyId(doc, Party.PartyRole.SENDER, Party.PartyRole.BUYER);
@@ -417,25 +682,92 @@ public class CanonicalMapper {
 
         List<String> segments = new ArrayList<>();
 
-        // ISA
-        segments.add("ISA*00*" + padRight("", 10, ' ') + "*00*" + padRight("", 10, ' ')
-                + "*ZZ*" + padRight(senderId, 15, ' ') + "*ZZ*" + padRight(receiverId, 15, ' ')
-                + "*" + date6() + "*" + time + "*U*00401*" + controlNum + "*0*P*~");
+        // ISA — build to EXACTLY 106 characters per spec
+        StringBuilder isa = new StringBuilder();
+        isa.append("ISA");
+        isa.append(elemSep);
+        isa.append(padRight("00", 2, ' '));        // ISA01: Auth qualifier (2)
+        isa.append(elemSep);
+        isa.append(padRight("", 10, ' '));          // ISA02: Auth info (10)
+        isa.append(elemSep);
+        isa.append(padRight("00", 2, ' '));        // ISA03: Security qualifier (2)
+        isa.append(elemSep);
+        isa.append(padRight("", 10, ' '));          // ISA04: Security info (10)
+        isa.append(elemSep);
+        isa.append(padRight("ZZ", 2, ' '));        // ISA05: Sender qualifier (2)
+        isa.append(elemSep);
+        isa.append(padRight(senderId, 15, ' '));   // ISA06: Sender ID (15)
+        isa.append(elemSep);
+        isa.append(padRight("ZZ", 2, ' '));        // ISA07: Receiver qualifier (2)
+        isa.append(elemSep);
+        isa.append(padRight(receiverId, 15, ' ')); // ISA08: Receiver ID (15)
+        isa.append(elemSep);
+        isa.append(date6());                        // ISA09: Date YYMMDD (6)
+        isa.append(elemSep);
+        isa.append(time);                           // ISA10: Time HHMM (4)
+        isa.append(elemSep);
+        isa.append("U");                            // ISA11: Repetition sep (1)
+        isa.append(elemSep);
+        isa.append("00501");                        // ISA12: Version (5)
+        isa.append(elemSep);
+        isa.append(padRight(controlNum, 9, '0'));  // ISA13: Control number (9)
+        isa.append(elemSep);
+        isa.append("0");                            // ISA14: Ack requested (1)
+        isa.append(elemSep);
+        isa.append("P");                            // ISA15: Usage (1)
+        isa.append(elemSep);
+        isa.append(compSep);                        // ISA16: Component separator (1)
+        isa.append(segTerm);
+        segments.add(isa.toString());
 
         // GS
         String gsCode = resolveGsFuncCode(doc.getType());
-        segments.add("GS*" + gsCode + "*" + senderId + "*" + receiverId + "*" + date + "*" + time + "*1*X*004010~");
+        segments.add("GS" + elemSep + gsCode + elemSep + senderId + elemSep + receiverId
+                + elemSep + date + elemSep + time + elemSep + "1" + elemSep + "X" + elemSep + "005010" + segTerm);
 
         // ST
-        segments.add("ST*" + txnType + "*0001~");
+        segments.add("ST" + elemSep + txnType + elemSep + "0001" + segTerm);
 
         // Transaction-specific header
         switch (doc.getType()) {
-            case PURCHASE_ORDER -> segments.add("BEG*" + purpose + "*NE*" + docNumber + "**" + date + "~");
-            case INVOICE -> segments.add("BIG*" + date + "*" + docNumber + "~");
-            case HEALTHCARE_CLAIM -> segments.add("BHT*0019*00*" + docNumber + "*" + date + "~");
-            case PAYMENT, REMITTANCE -> segments.add("BPR*I*" + formatAmount(doc.getTotals()) + "*C*ACH~");
-            default -> segments.add("BEG*00*NE*" + docNumber + "**" + date + "~");
+            case PURCHASE_ORDER -> segments.add("BEG" + elemSep + purpose + elemSep + "NE" + elemSep + docNumber + elemSep + elemSep + date + segTerm);
+            case INVOICE -> segments.add("BIG" + elemSep + date + elemSep + docNumber + segTerm);
+            case HEALTHCARE_CLAIM -> segments.add("BHT" + elemSep + "0019" + elemSep + "00" + elemSep + docNumber + elemSep + date + segTerm);
+            case PAYMENT, REMITTANCE -> segments.add("BPR" + elemSep + "I" + elemSep + formatAmount(doc.getTotals()) + elemSep + "C" + elemSep + "ACH" + segTerm);
+            default -> segments.add("BEG" + elemSep + "00" + elemSep + "NE" + elemSep + docNumber + elemSep + elemSep + date + segTerm);
+        }
+
+        // REF segments
+        if (doc.getReferences() != null) {
+            for (Reference ref : doc.getReferences()) {
+                StringBuilder refSeg = new StringBuilder("REF" + elemSep + safe(ref.getQualifier()) + elemSep + safe(ref.getValue()));
+                if (ref.getDescription() != null) refSeg.append(elemSep).append(ref.getDescription());
+                refSeg.append(segTerm);
+                segments.add(refSeg.toString());
+            }
+        }
+
+        // DTP segments
+        if (doc.getDates() != null) {
+            for (DateInfo di : doc.getDates()) {
+                if (di.getFormat() != null) {
+                    segments.add("DTP" + elemSep + safe(di.getQualifier()) + elemSep + di.getFormat() + elemSep + safe(di.getValue()) + segTerm);
+                } else {
+                    segments.add("DTM" + elemSep + safe(di.getQualifier()) + elemSep + safe(di.getValue()) + segTerm);
+                }
+            }
+        }
+
+        // PER segments
+        if (doc.getContacts() != null) {
+            for (Contact ct : doc.getContacts()) {
+                StringBuilder perSeg = new StringBuilder("PER" + elemSep + safe(ct.getType()) + elemSep + safe(ct.getName()));
+                if (ct.getPhone() != null) perSeg.append(elemSep + "TE" + elemSep).append(ct.getPhone());
+                if (ct.getEmail() != null) perSeg.append(elemSep + "EM" + elemSep).append(ct.getEmail());
+                if (ct.getFax() != null) perSeg.append(elemSep + "FX" + elemSep).append(ct.getFax());
+                perSeg.append(segTerm);
+                segments.add(perSeg.toString());
+            }
         }
 
         // NM1 segments for parties
@@ -445,20 +777,20 @@ public class CanonicalMapper {
                     continue; // Already in ISA/GS envelope
                 String entityCode = partyRoleToX12(party.getRole());
                 String[] nameParts = splitName(party.getName());
-                String nm1 = "NM1*" + entityCode + "*1*" + nameParts[0] + "*" + nameParts[1];
+                String nm1 = "NM1" + elemSep + entityCode + elemSep + "1" + elemSep + nameParts[0] + elemSep + nameParts[1];
                 if (party.getQualifier() != null || party.getId() != null) {
-                    nm1 += "***" + (party.getQualifier() != null ? "*" + party.getQualifier() : "*")
-                            + "*" + (party.getId() != null ? party.getId() : "");
+                    nm1 += elemSep + elemSep + elemSep + (party.getQualifier() != null ? elemSep + party.getQualifier() : "" + elemSep)
+                            + elemSep + (party.getId() != null ? party.getId() : "");
                 }
-                segments.add(nm1 + "~");
+                segments.add(nm1 + segTerm);
 
                 // N3/N4 address
                 if (party.getAddress() != null) {
                     Address addr = party.getAddress();
-                    if (addr.getLine1() != null) segments.add("N3*" + addr.getLine1() + "~");
+                    if (addr.getLine1() != null) segments.add("N3" + elemSep + addr.getLine1() + segTerm);
                     if (addr.getCity() != null)
-                        segments.add("N4*" + addr.getCity() + "*" + safe(addr.getState())
-                                + "*" + safe(addr.getPostalCode()) + "~");
+                        segments.add("N4" + elemSep + addr.getCity() + elemSep + safe(addr.getState())
+                                + elemSep + safe(addr.getPostalCode()) + segTerm);
                 }
             }
         }
@@ -467,45 +799,54 @@ public class CanonicalMapper {
         if (doc.getLineItems() != null) {
             for (LineItem item : doc.getLineItems()) {
                 switch (doc.getType()) {
-                    case PURCHASE_ORDER -> segments.add("PO1*" + item.getLineNumber()
-                            + "*" + (int) item.getQuantity()
-                            + "*" + safe(item.getUnitOfMeasure(), "EA")
-                            + "*" + formatPrice(item.getUnitPrice())
-                            + "**VP*" + safe(item.getProductCode()) + "~");
-                    case INVOICE -> segments.add("IT1*" + item.getLineNumber()
-                            + "*" + (int) item.getQuantity()
-                            + "*" + safe(item.getUnitOfMeasure(), "EA")
-                            + "*" + formatPrice(item.getUnitPrice()) + "~");
-                    case HEALTHCARE_CLAIM -> segments.add("SV1*" + safe(item.getProductCode())
-                            + "*" + formatPrice(item.getUnitPrice())
-                            + "*UN*" + (int) item.getQuantity() + "~");
-                    default -> segments.add("PO1*" + item.getLineNumber()
-                            + "*" + (int) item.getQuantity()
-                            + "*EA*" + formatPrice(item.getUnitPrice()) + "~");
+                    case PURCHASE_ORDER -> segments.add("PO1" + elemSep + item.getLineNumber()
+                            + elemSep + (int) item.getQuantity()
+                            + elemSep + safe(item.getUnitOfMeasure(), "EA")
+                            + elemSep + formatPrice(item.getUnitPrice())
+                            + elemSep + elemSep + "VP" + elemSep + safe(item.getProductCode()) + segTerm);
+                    case INVOICE -> segments.add("IT1" + elemSep + item.getLineNumber()
+                            + elemSep + (int) item.getQuantity()
+                            + elemSep + safe(item.getUnitOfMeasure(), "EA")
+                            + elemSep + formatPrice(item.getUnitPrice()) + segTerm);
+                    case HEALTHCARE_CLAIM -> segments.add("SV1" + elemSep + safe(item.getProductCode())
+                            + elemSep + formatPrice(item.getUnitPrice())
+                            + elemSep + "UN" + elemSep + (int) item.getQuantity() + segTerm);
+                    default -> segments.add("PO1" + elemSep + item.getLineNumber()
+                            + elemSep + (int) item.getQuantity()
+                            + elemSep + "EA" + elemSep + formatPrice(item.getUnitPrice()) + segTerm);
                 }
             }
         }
 
         // Totals
         if (doc.getTotals() != null && doc.getTotals().getTotalAmount() > 0) {
-            segments.add("TDS*" + (int) (doc.getTotals().getTotalAmount() * 100) + "~");
+            segments.add("TDS" + elemSep + (int) (doc.getTotals().getTotalAmount() * 100) + segTerm);
         }
 
         // Currency
         if (doc.getTotals() != null && doc.getTotals().getCurrency() != null) {
-            segments.add("CUR*BY*" + doc.getTotals().getCurrency() + "~");
+            segments.add("CUR" + elemSep + "BY" + elemSep + doc.getTotals().getCurrency() + segTerm);
         }
 
         // SE/GE/IEA trailers
-        int segCount = segments.size() - 2 + 1; // ST + body + SE, minus ISA and GS
-        segments.add("SE*" + segCount + "*0001~");
-        segments.add("GE*1*1~");
-        segments.add("IEA*1*" + controlNum + "~");
+        // SE count = number of segments from ST to SE inclusive (ST + body + SE)
+        // ST is at index 2 (after ISA, GS), so body segments from index 2 onwards
+        int stIndex = -1;
+        for (int i = 0; i < segments.size(); i++) {
+            if (segments.get(i).startsWith("ST" + elemSep)) {
+                stIndex = i;
+                break;
+            }
+        }
+        int seCount = segments.size() - stIndex + 1; // +1 for SE itself
+        segments.add("SE" + elemSep + seCount + elemSep + "0001" + segTerm);
+        segments.add("GE" + elemSep + "1" + elemSep + "1" + segTerm);
+        segments.add("IEA" + elemSep + "1" + elemSep + controlNum + segTerm);
 
         return String.join("\n", segments);
     }
 
-    // === Canonical → EDIFACT ===
+    // === Canonical -> EDIFACT ===
     private String generateEdifact(CanonicalDocument doc) {
         String msgType = resolveEdifactMsgType(doc.getType());
         String date = compactDate(doc.getHeader() != null ? doc.getHeader().getDocumentDate() : null);
@@ -514,14 +855,14 @@ public class CanonicalMapper {
                 ? doc.getHeader().getDocumentNumber() : "DOC001";
         String senderId = findPartyId(doc, Party.PartyRole.SENDER, Party.PartyRole.BUYER);
         String receiverId = findPartyId(doc, Party.PartyRole.RECEIVER, Party.PartyRole.SELLER);
-        String controlRef = String.valueOf(System.nanoTime() % 1_000_000);
+        String controlRef = nextControlNumber();
 
         List<String> segments = new ArrayList<>();
 
         // UNA (service string advice)
         segments.add("UNA:+.? '");
 
-        // UNB (interchange header)
+        // UNB (interchange header) — use YYMMDD for date
         segments.add("UNB+UNOA:4+" + senderId + ":ZZ+" + receiverId + ":ZZ+" + date6Edifact() + ":" + time + "+" + controlRef + "'");
 
         // UNH (message header)
@@ -539,6 +880,13 @@ public class CanonicalMapper {
         // DTM (date/time)
         if (date != null && !date.isEmpty()) {
             segments.add("DTM+137:" + date + ":102'");
+        }
+
+        // RFF (references)
+        if (doc.getReferences() != null) {
+            for (Reference ref : doc.getReferences()) {
+                segments.add("RFF+" + safe(ref.getQualifier()) + ":" + safe(ref.getValue()) + "'");
+            }
         }
 
         // NAD (name and address) for parties
@@ -563,6 +911,13 @@ public class CanonicalMapper {
                         segments.remove(segments.size() - 2);
                     }
                 }
+            }
+        }
+
+        // FTX (free text notes)
+        if (doc.getNotes() != null) {
+            for (Note note : doc.getNotes()) {
+                segments.add("FTX+" + safe(note.getType(), "AAA") + "+++" + safe(note.getText()) + "'");
             }
         }
 
@@ -595,13 +950,21 @@ public class CanonicalMapper {
             segments.add("MOA+86:" + formatPrice(doc.getTotals().getTotalAmount()) + "'");
         }
 
-        // CNT (control total — line item count)
+        // CNT (control total -- line item count)
         int lineCount = doc.getLineItems() != null ? doc.getLineItems().size() : 0;
         segments.add("CNT+2:" + lineCount + "'");
 
-        // UNT (message trailer) — count includes UNH and UNT
-        int msgSegCount = segments.size() - 1; // everything after UNB, including UNT itself
-        segments.add("UNT+" + msgSegCount + "+1'");
+        // UNT (message trailer) -- count segments from UNH to UNT inclusive
+        // Find UNH index
+        int unhIndex = -1;
+        for (int i = 0; i < segments.size(); i++) {
+            if (segments.get(i).startsWith("UNH+")) {
+                unhIndex = i;
+                break;
+            }
+        }
+        int untCount = segments.size() - unhIndex + 1; // +1 for UNT itself
+        segments.add("UNT+" + untCount + "+1'");
 
         // UNZ (interchange trailer)
         segments.add("UNZ+1+" + controlRef + "'");
@@ -609,7 +972,7 @@ public class CanonicalMapper {
         return String.join("\n", segments);
     }
 
-    // === Canonical → HL7 ===
+    // === Canonical -> HL7 ===
     private String generateHl7(CanonicalDocument doc) {
         String date = compactDate(doc.getHeader() != null ? doc.getHeader().getDocumentDate() : null);
         String docNumber = doc.getHeader() != null && doc.getHeader().getDocumentNumber() != null
@@ -643,7 +1006,7 @@ public class CanonicalMapper {
         return String.join("\r", segments); // HL7 uses \r as segment delimiter
     }
 
-    // === Canonical → SWIFT MT103 ===
+    // === Canonical -> SWIFT MT103 ===
     private String generateSwift(CanonicalDocument doc) {
         String docNumber = doc.getHeader() != null && doc.getHeader().getDocumentNumber() != null
                 ? doc.getHeader().getDocumentNumber() : "REF001";
