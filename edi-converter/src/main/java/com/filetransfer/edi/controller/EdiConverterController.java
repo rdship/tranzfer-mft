@@ -378,18 +378,20 @@ public class EdiConverterController {
         var result = new LinkedHashMap<String, Object>();
         result.put("inputFormats", List.of("X12", "EDIFACT", "TRADACOMS", "SWIFT_MT", "HL7",
                 "NACHA", "BAI2", "ISO20022", "FIX", "PEPPOL", "AUTO"));
-        result.put("outputFormats", List.of("JSON", "XML", "CSV", "YAML", "FLAT", "TIF"));
-        result.put("totalConversions", "11 input x 6 output = 66 paths");
+        result.put("outputFormats", List.of("JSON", "XML", "CSV", "YAML", "FLAT", "TIF",
+                "X12", "EDIFACT", "HL7", "SWIFT_MT"));
+        result.put("totalConversions", "11 input x 10 output = 110 paths (including cross-format EDI)");
         result.put("features", List.of(
                 "auto-detect", "convert", "explain", "validate-with-fix", "templates", "generate",
                 "canonical-model", "streaming", "self-healing", "semantic-diff",
                 "compliance-scoring", "partner-profiles", "ai-mapping", "smart-mapping",
-                "trained-map-conversion", "nl-create"));
+                "trained-map-conversion", "nl-create", "compare-suite"));
         result.put("newInV4", Map.of(
                 "trainedMapConversion", "Convert using AI-trained maps — more samples = more accuracy",
                 "smartMapping", "Auto-selects trained map or falls back to sample-based generation",
                 "trainedMapCheck", "Check if a trained map exists before conversion",
-                "aiTrainingPipeline", "5-strategy ML training: exact value, statistical, structural, semantic, transform"
+                "aiTrainingPipeline", "5-strategy ML training: exact value, statistical, structural, semantic, transform",
+                "compareSuite", "Batch comparison of conversion outputs between two systems with summary reports"
         ));
         result.put("newInV3", Map.of(
                 "canonical", "Universal JSON schema per document type — one model for all formats",
@@ -412,15 +414,15 @@ public class EdiConverterController {
         result.put("service", "edi-converter");
         result.put("version", "4.0");
         result.put("inputFormats", 11);
-        result.put("outputFormats", 6);
-        result.put("totalConversionPaths", 66);
+        result.put("outputFormats", 10);
+        result.put("totalConversionPaths", 110);
         result.put("templates", templateLibrary.listTemplates().size());
         result.put("partnerProfiles", partnerProfileManager.getAllProfiles().size());
         result.put("features", List.of(
                 "convert", "explain", "validate", "templates", "generate",
                 "canonical", "streaming", "self-healing", "semantic-diff",
                 "compliance", "partner-profiles", "ai-mapping", "smart-mapping",
-                "trained-map-conversion", "nl-create", "peppol"));
+                "trained-map-conversion", "nl-create", "peppol", "compare-suite"));
         return result;
     }
 }

@@ -1,12 +1,11 @@
 package com.filetransfer.edi.converter;
 
 import com.filetransfer.edi.model.EdiDocument;
+import com.filetransfer.edi.service.CanonicalMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Map;
@@ -14,10 +13,9 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for UniversalConverter covering all output formats (JSON, XML, CSV, YAML, TIF)
+ * Tests for UniversalConverter covering all output formats (JSON, XML, CSV, YAML, TIF, X12, EDIFACT)
  * and resilience for invalid/null inputs.
  */
-@ExtendWith(MockitoExtension.class)
 class UniversalConverterTest {
 
     private UniversalConverter converter;
@@ -25,7 +23,7 @@ class UniversalConverterTest {
 
     @BeforeEach
     void setUp() {
-        converter = new UniversalConverter();
+        converter = new UniversalConverter(new CanonicalMapper());
 
         sampleDoc = EdiDocument.builder()
                 .sourceFormat("X12")
@@ -263,7 +261,7 @@ class UniversalConverterTest {
     // === Invalid target format ===
 
     @ParameterizedTest
-    @ValueSource(strings = {"WORD", "PDF", "BANANA", "X12", ""})
+    @ValueSource(strings = {"WORD", "PDF", "BANANA", ""})
     void convertToInvalidFormat_throwsIllegalArgument(String format) {
         // Empty string causes toUpperCase to still not match known formats
         if (format.isEmpty()) return; // toUpperCase of "" is "" which is unsupported

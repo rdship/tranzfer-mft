@@ -713,6 +713,170 @@ The output JSON will have nested objects (`header.poNumber`, `buyer.name`).
 
 ---
 
+## Demo 6: Cross-Format EDI Conversion (X12 → EDIFACT)
+
+Convert an ANSI X12 850 Purchase Order into a UN/EDIFACT ORDERS message using the Canonical Data Model bridge.
+
+### Step 6a: Convert X12 850 to EDIFACT ORDERS
+
+```bash
+curl -X POST http://localhost:8095/api/v1/convert/convert \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "ISA*00*          *00*          *ZZ*ACME           *ZZ*WIDGETCO       *210101*1200*U*00401*000000001*0*P*~\nGS*PO*ACME*WIDGETCO*20210101*1200*1*X*004010~\nST*850*0001~\nBEG*00*NE*PO-12345**20210101~\nNM1*BY*1*Smith*John~\nPO1*1*100*EA*5.00**VP*WIDGET-A~\nPO1*2*50*EA*12.50**VP*GADGET-B~\nSE*6*0001~\nGE*1*1~\nIEA*1*000000001~",
+    "target": "EDIFACT"
+  }'
+```
+
+**Expected response (EDIFACT ORDERS):**
+```
+UNA:+.? '
+UNB+UNOA:4+ACME:ZZ+WIDGETCO:ZZ+260406:1200+123456'
+UNH+1+ORDERS:D:01B:UN'
+BGM+220+PO-12345+9'
+DTM+137:20210101:102'
+NAD+BY+++Smith John'
+LIN+1++WIDGET-A:SA'
+QTY+21:100'
+PRI+AAA:5'
+LIN+2++GADGET-B:SA'
+QTY+21:50'
+PRI+AAA:12.50'
+UNS+S'
+CNT+2:2'
+UNT+12+1'
+UNZ+1+123456'
+```
+
+### Step 6b: Convert EDIFACT back to X12
+
+```bash
+curl -X POST http://localhost:8095/api/v1/convert/convert \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "UNA:+.? '"'"'\nUNB+UNOA:4+SUPPLIER:ZZ+BUYER:ZZ+260406:0900+REF001'"'"'\nUNH+1+ORDERS:D:01B:UN'"'"'\nBGM+220+ORDER-789+9'"'"'\nDTM+137:20260406:102'"'"'\nNAD+BY+BUYER-ID::91++Acme Corp'"'"'\nLIN+1++PART-001:SA'"'"'\nQTY+21:200'"'"'\nPRI+AAA:7.50'"'"'\nUNS+S'"'"'\nMOA+86:1500'"'"'\nCNT+2:1'"'"'\nUNT+11+1'"'"'\nUNZ+1+REF001'"'"'",
+    "target": "X12"
+  }'
+```
+
+**Supported cross-format conversions via Canonical bridge:**
+- X12 ↔ EDIFACT (Purchase Orders, Invoices, Ship Notices, Payments)
+- X12/EDIFACT → HL7 (with clinical data)
+- X12/EDIFACT → SWIFT MT (with financial data)
+- Any input format → Any output format
+
+---
+
+## Demo 7: Compare Suite — Batch Conversion Output Comparison
+
+Compare conversion outputs between two systems (e.g., migrating from old converter to TranzFer). The engine scans directories, matches files, runs field-level semantic diffs, and generates a summary report with fix recommendations.
+
+### Step 6a: Prepare comparison (directory scan)
+
+```bash
+curl -X POST http://localhost:8095/api/v1/convert/compare/prepare \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceInputPath": "/data/old-system/input",
+    "sourceOutputPath": "/data/old-system/output",
+    "targetInputPath": "/data/new-system/input",
+    "targetOutputPath": "/data/new-system/output",
+    "reportOutputPath": "/data/reports"
+  }'
+```
+
+**Expected response:**
+```json
+{
+  "sessionId": "a1b2c3d4-...",
+  "totalSourceFiles": 15,
+  "totalTargetFiles": 14,
+  "matchedPairs": 14,
+  "filePairs": [
+    {
+      "sourceOutputFile": "/data/old-system/output/850_order1.json",
+      "targetOutputFile": "/data/new-system/output/850_order1.json",
+      "detectedFormat": "JSON",
+      "sourceOutputSize": 1234,
+      "targetOutputSize": 1240,
+      "mapLabel": "JSON:850"
+    }
+  ],
+  "unmatchedSource": ["850_order15.json"],
+  "unmatchedTarget": [],
+  "status": "READY",
+  "message": "Found 14 matched file pairs. 1 source-only, 0 target-only. Ready to compare."
+}
+```
+
+### Step 6b: Or prepare from CSV mapping file
+
+```bash
+# CSV format: sourceInputFile,sourceOutputFile,targetInputFile,targetOutputFile,mapLabel
+curl -X POST http://localhost:8095/api/v1/convert/compare/prepare/upload \
+  -F "mappingFile=@file-pairs.csv" \
+  -F "reportOutputPath=/data/reports"
+```
+
+### Step 6c: Execute comparison (after reviewing preview)
+
+```bash
+curl -X POST http://localhost:8095/api/v1/convert/compare/execute/a1b2c3d4-...
+```
+
+**Expected response (abbreviated):**
+```json
+{
+  "reportId": "a1b2c3d4-...",
+  "generatedAt": "2026-04-06T12:00:00Z",
+  "durationMs": 450,
+  "totalPairsCompared": 14,
+  "identicalPairs": 10,
+  "differentPairs": 4,
+  "errorPairs": 0,
+  "mapSummaries": [
+    {
+      "mapLabel": "JSON:850",
+      "totalFiles": 8,
+      "identicalFiles": 6,
+      "differentFiles": 2,
+      "commonIssues": ["header.date (in 2 files)"],
+      "patternInsights": ["All different files have the SAME differing fields — a single mapping fix will resolve all."],
+      "verdict": "MOSTLY_GOOD"
+    }
+  ],
+  "recommendations": [
+    {
+      "category": "TRANSFORM_DATE",
+      "severity": "HIGH",
+      "field": "header.date",
+      "issue": "Field 'header.date' has date format difference: '20260406' vs '2026-04-06'",
+      "fix": "Add DATE_REFORMAT transform. Use NL correction: \"Format header.date as yyyyMMdd\"",
+      "affectedFiles": 4
+    },
+    {
+      "category": "TRANSFORM_CASE",
+      "severity": "MEDIUM",
+      "field": "buyer.name",
+      "issue": "Field 'buyer.name' has case difference: 'ACME CORP' vs 'acme corp'",
+      "fix": "Add UPPERCASE or LOWERCASE transform. Use NL correction: \"Make buyer.name uppercase\"",
+      "affectedFiles": 2
+    }
+  ],
+  "overallVerdict": "NEEDS_WORK — 10/14 pairs identical (71%), 4 different, 0 errors. See recommendations."
+}
+```
+
+### Step 6d: Get human-readable summary
+
+```bash
+curl http://localhost:8095/api/v1/convert/compare/reports/a1b2c3d4-.../summary
+```
+
+Returns a formatted text report with verdict, per-map breakdown, prioritized recommendations, and file-level details.
+
+---
+
 ## Use Cases
 
 - **ERP integration** -- Receive X12 850 purchase orders from trading partners, convert to JSON for your order management system

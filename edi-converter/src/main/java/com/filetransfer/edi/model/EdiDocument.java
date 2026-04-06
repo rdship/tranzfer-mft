@@ -36,12 +36,51 @@ public class EdiDocument {
     private Map<String, Object> businessData;
     /** Raw content */
     private String rawContent;
+    /** Detected delimiter information for the parsed document */
+    private DelimiterInfo delimiterInfo;
+    /** Errors encountered during parsing (non-fatal) */
+    private List<String> parseErrors;
+    /** Warnings encountered during parsing */
+    private List<String> parseWarnings;
+    /** Detected loop structures in the document */
+    private List<LoopStructure> loops;
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class Segment {
         private String id;
+        /** Element values as simple strings — backward compatible */
         private List<String> elements;
         private Map<String, String> namedFields;
         private List<Segment> children;
+        /** Sub-component breakdown of each element. Position i = sub-components of elements[i].
+         *  If element is not composite, it's a single-item list. */
+        private List<List<String>> compositeElements;
+        /** For elements with repetition separator. Position i = repetitions of elements[i].
+         *  If element does not repeat, it's a single-item list. */
+        private List<List<String>> repeatingElements;
+        /** Loop identifier this segment belongs to */
+        private String loopId;
+        /** Nesting level of the loop this segment belongs to */
+        private int loopLevel;
+    }
+
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class DelimiterInfo {
+        private char elementSeparator;
+        private char componentSeparator;
+        private char segmentTerminator;
+        private char repetitionSeparator;
+        private char releaseCharacter;
+        private char decimalNotation;
+    }
+
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class LoopStructure {
+        private String loopId;
+        private String triggerSegmentId;
+        private int level;
+        private int startIndex;
+        private int endIndex;
+        private List<LoopStructure> children;
     }
 }

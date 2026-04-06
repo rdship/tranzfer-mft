@@ -8,7 +8,7 @@
 
 ## Why Use This
 
-- **66 conversion paths** — 11 input formats × 6 output formats
+- **110 conversion paths** — 11 input formats × 10 output formats (including cross-format EDI)
 - **Zero setup** — `java -jar edi-converter.jar` and you're running
 - **Auto-detection** — Send any EDI content, the engine detects the format
 - **Self-healing** — Auto-fixes 25+ common EDI errors
@@ -74,7 +74,7 @@ curl http://localhost:8095/api/v1/convert/health
 | **PEPPOL/UBL** | `urn:oasis:names` | European e-invoicing |
 | **AUTO** | (auto-detect) | Let the engine figure it out |
 
-### Output Formats (6)
+### Output Formats (10)
 
 | Format | Content-Type | Use Case |
 |--------|-------------|----------|
@@ -84,6 +84,10 @@ curl http://localhost:8095/api/v1/convert/health
 | **YAML** | `application/yaml` | Configuration, human-readable |
 | **FLAT** | `text/plain` | Fixed-width mainframe systems |
 | **TIF** | `text/plain` | TranzFer Internal Format |
+| **X12** | `text/plain` | Cross-format: generate ANSI X12 from any input |
+| **EDIFACT** | `text/plain` | Cross-format: generate UN/EDIFACT from any input |
+| **HL7** | `text/plain` | Cross-format: generate HL7 v2.x from any input |
+| **SWIFT_MT** | `text/plain` | Cross-format: generate SWIFT MT from any input |
 
 ---
 
@@ -731,5 +735,11 @@ No database, no message queue, no external services required.
 | POST | `/api/v1/convert/trained` | Convert using trained/partner-specific map |
 | POST | `/api/v1/convert/test-mappings` | Test custom field mappings |
 | POST | `/api/v1/convert/trained/invalidate-cache` | Invalidate trained map cache |
+| POST | `/api/v1/convert/compare/prepare` | Scan dirs, match files, return preview |
+| POST | `/api/v1/convert/compare/prepare/upload` | Upload CSV with file pair mappings |
+| POST | `/api/v1/convert/compare/execute/{id}` | Execute comparison (after confirmation) |
+| GET | `/api/v1/convert/compare/reports/{id}` | Retrieve comparison report (JSON) |
+| GET | `/api/v1/convert/compare/reports/{id}/summary` | Human-readable text summary |
+| GET | `/api/v1/convert/compare/sessions/{id}` | Get session preview |
 | GET | `/api/v1/convert/formats` | List supported formats |
 | GET | `/api/v1/convert/health` | Health check |

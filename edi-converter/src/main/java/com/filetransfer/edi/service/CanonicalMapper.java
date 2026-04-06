@@ -383,6 +383,457 @@ public class CanonicalMapper {
                 .createdAt(Instant.now().toString()).build();
     }
 
+    // ===================================================================
+    // REVERSE: CanonicalDocument → EDI string
+    // ===================================================================
+
+    /**
+     * Convert a CanonicalDocument to a raw EDI string in the target format.
+     * Supported targets: X12, EDIFACT, HL7, SWIFT_MT
+     */
+    public String fromCanonical(CanonicalDocument doc, String targetFormat) {
+        return switch (targetFormat.toUpperCase()) {
+            case "X12" -> generateX12(doc);
+            case "EDIFACT" -> generateEdifact(doc);
+            case "HL7" -> generateHl7(doc);
+            case "SWIFT_MT", "SWIFT" -> generateSwift(doc);
+            default -> throw new IllegalArgumentException(
+                    "Unsupported EDI output format: " + targetFormat + ". Supported: X12, EDIFACT, HL7, SWIFT_MT");
+        };
+    }
+
+    // === Canonical → X12 ===
+    private String generateX12(CanonicalDocument doc) {
+        String txnType = resolveX12TxnType(doc.getType());
+        String date = compactDate(doc.getHeader() != null ? doc.getHeader().getDocumentDate() : null);
+        String time = currentTime4();
+        String controlNum = padRight(String.valueOf(System.nanoTime() % 1_000_000_000), 9, '0');
+        String docNumber = doc.getHeader() != null && doc.getHeader().getDocumentNumber() != null
+                ? doc.getHeader().getDocumentNumber() : "DOC001";
+        String senderId = findPartyId(doc, Party.PartyRole.SENDER, Party.PartyRole.BUYER);
+        String receiverId = findPartyId(doc, Party.PartyRole.RECEIVER, Party.PartyRole.SELLER);
+        String purpose = doc.getHeader() != null && doc.getHeader().getPurpose() != null
+                ? encodePurpose(doc.getHeader().getPurpose()) : "00";
+
+        List<String> segments = new ArrayList<>();
+
+        // ISA
+        segments.add("ISA*00*" + padRight("", 10, ' ') + "*00*" + padRight("", 10, ' ')
+                + "*ZZ*" + padRight(senderId, 15, ' ') + "*ZZ*" + padRight(receiverId, 15, ' ')
+                + "*" + date6() + "*" + time + "*U*00401*" + controlNum + "*0*P*~");
+
+        // GS
+        String gsCode = resolveGsFuncCode(doc.getType());
+        segments.add("GS*" + gsCode + "*" + senderId + "*" + receiverId + "*" + date + "*" + time + "*1*X*004010~");
+
+        // ST
+        segments.add("ST*" + txnType + "*0001~");
+
+        // Transaction-specific header
+        switch (doc.getType()) {
+            case PURCHASE_ORDER -> segments.add("BEG*" + purpose + "*NE*" + docNumber + "**" + date + "~");
+            case INVOICE -> segments.add("BIG*" + date + "*" + docNumber + "~");
+            case HEALTHCARE_CLAIM -> segments.add("BHT*0019*00*" + docNumber + "*" + date + "~");
+            case PAYMENT, REMITTANCE -> segments.add("BPR*I*" + formatAmount(doc.getTotals()) + "*C*ACH~");
+            default -> segments.add("BEG*00*NE*" + docNumber + "**" + date + "~");
+        }
+
+        // NM1 segments for parties
+        if (doc.getParties() != null) {
+            for (Party party : doc.getParties()) {
+                if (party.getRole() == Party.PartyRole.SENDER || party.getRole() == Party.PartyRole.RECEIVER)
+                    continue; // Already in ISA/GS envelope
+                String entityCode = partyRoleToX12(party.getRole());
+                String[] nameParts = splitName(party.getName());
+                String nm1 = "NM1*" + entityCode + "*1*" + nameParts[0] + "*" + nameParts[1];
+                if (party.getQualifier() != null || party.getId() != null) {
+                    nm1 += "***" + (party.getQualifier() != null ? "*" + party.getQualifier() : "*")
+                            + "*" + (party.getId() != null ? party.getId() : "");
+                }
+                segments.add(nm1 + "~");
+
+                // N3/N4 address
+                if (party.getAddress() != null) {
+                    Address addr = party.getAddress();
+                    if (addr.getLine1() != null) segments.add("N3*" + addr.getLine1() + "~");
+                    if (addr.getCity() != null)
+                        segments.add("N4*" + addr.getCity() + "*" + safe(addr.getState())
+                                + "*" + safe(addr.getPostalCode()) + "~");
+                }
+            }
+        }
+
+        // Line items
+        if (doc.getLineItems() != null) {
+            for (LineItem item : doc.getLineItems()) {
+                switch (doc.getType()) {
+                    case PURCHASE_ORDER -> segments.add("PO1*" + item.getLineNumber()
+                            + "*" + (int) item.getQuantity()
+                            + "*" + safe(item.getUnitOfMeasure(), "EA")
+                            + "*" + formatPrice(item.getUnitPrice())
+                            + "**VP*" + safe(item.getProductCode()) + "~");
+                    case INVOICE -> segments.add("IT1*" + item.getLineNumber()
+                            + "*" + (int) item.getQuantity()
+                            + "*" + safe(item.getUnitOfMeasure(), "EA")
+                            + "*" + formatPrice(item.getUnitPrice()) + "~");
+                    case HEALTHCARE_CLAIM -> segments.add("SV1*" + safe(item.getProductCode())
+                            + "*" + formatPrice(item.getUnitPrice())
+                            + "*UN*" + (int) item.getQuantity() + "~");
+                    default -> segments.add("PO1*" + item.getLineNumber()
+                            + "*" + (int) item.getQuantity()
+                            + "*EA*" + formatPrice(item.getUnitPrice()) + "~");
+                }
+            }
+        }
+
+        // Totals
+        if (doc.getTotals() != null && doc.getTotals().getTotalAmount() > 0) {
+            segments.add("TDS*" + (int) (doc.getTotals().getTotalAmount() * 100) + "~");
+        }
+
+        // Currency
+        if (doc.getTotals() != null && doc.getTotals().getCurrency() != null) {
+            segments.add("CUR*BY*" + doc.getTotals().getCurrency() + "~");
+        }
+
+        // SE/GE/IEA trailers
+        int segCount = segments.size() - 2 + 1; // ST + body + SE, minus ISA and GS
+        segments.add("SE*" + segCount + "*0001~");
+        segments.add("GE*1*1~");
+        segments.add("IEA*1*" + controlNum + "~");
+
+        return String.join("\n", segments);
+    }
+
+    // === Canonical → EDIFACT ===
+    private String generateEdifact(CanonicalDocument doc) {
+        String msgType = resolveEdifactMsgType(doc.getType());
+        String date = compactDate(doc.getHeader() != null ? doc.getHeader().getDocumentDate() : null);
+        String time = currentTime4();
+        String docNumber = doc.getHeader() != null && doc.getHeader().getDocumentNumber() != null
+                ? doc.getHeader().getDocumentNumber() : "DOC001";
+        String senderId = findPartyId(doc, Party.PartyRole.SENDER, Party.PartyRole.BUYER);
+        String receiverId = findPartyId(doc, Party.PartyRole.RECEIVER, Party.PartyRole.SELLER);
+        String controlRef = String.valueOf(System.nanoTime() % 1_000_000);
+
+        List<String> segments = new ArrayList<>();
+
+        // UNA (service string advice)
+        segments.add("UNA:+.? '");
+
+        // UNB (interchange header)
+        segments.add("UNB+UNOA:4+" + senderId + ":ZZ+" + receiverId + ":ZZ+" + date6Edifact() + ":" + time + "+" + controlRef + "'");
+
+        // UNH (message header)
+        segments.add("UNH+1+" + msgType + ":D:01B:UN'");
+
+        // BGM (beginning of message)
+        String bgmCode = switch (doc.getType()) {
+            case PURCHASE_ORDER -> "220";
+            case INVOICE -> "380";
+            case SHIPMENT_NOTICE -> "351";
+            default -> "220";
+        };
+        segments.add("BGM+" + bgmCode + "+" + docNumber + "+9'");
+
+        // DTM (date/time)
+        if (date != null && !date.isEmpty()) {
+            segments.add("DTM+137:" + date + ":102'");
+        }
+
+        // NAD (name and address) for parties
+        if (doc.getParties() != null) {
+            for (Party party : doc.getParties()) {
+                if (party.getRole() == Party.PartyRole.SENDER || party.getRole() == Party.PartyRole.RECEIVER)
+                    continue;
+                String nadCode = partyRoleToEdifact(party.getRole());
+                String partyId = safe(party.getId());
+                String partyName = safe(party.getName());
+                segments.add("NAD+" + nadCode + "+" + partyId + "::91++" + partyName + "'");
+
+                if (party.getAddress() != null) {
+                    Address addr = party.getAddress();
+                    if (addr.getLine1() != null) {
+                        segments.add("NAD+" + nadCode + "+" + partyId + "::91++" + partyName
+                                + "+" + safe(addr.getLine1())
+                                + "+" + safe(addr.getCity())
+                                + "++" + safe(addr.getPostalCode())
+                                + "+" + safe(addr.getCountry(), "US") + "'");
+                        // Remove the simple NAD we just added
+                        segments.remove(segments.size() - 2);
+                    }
+                }
+            }
+        }
+
+        // CUX (currency)
+        if (doc.getTotals() != null && doc.getTotals().getCurrency() != null) {
+            segments.add("CUX+2:" + doc.getTotals().getCurrency() + ":4'");
+        }
+
+        // LIN/QTY/PRI for line items
+        if (doc.getLineItems() != null) {
+            for (LineItem item : doc.getLineItems()) {
+                segments.add("LIN+" + item.getLineNumber() + "++" + safe(item.getProductCode()) + ":SA'");
+                if (item.getQuantity() > 0) {
+                    segments.add("QTY+21:" + (int) item.getQuantity() + "'");
+                }
+                if (item.getUnitPrice() > 0) {
+                    segments.add("PRI+AAA:" + formatPrice(item.getUnitPrice()) + "'");
+                }
+                if (item.getDescription() != null) {
+                    segments.add("IMD+F++:::" + item.getDescription() + "'");
+                }
+            }
+        }
+
+        // UNS (section control)
+        segments.add("UNS+S'");
+
+        // MOA (total amount)
+        if (doc.getTotals() != null && doc.getTotals().getTotalAmount() > 0) {
+            segments.add("MOA+86:" + formatPrice(doc.getTotals().getTotalAmount()) + "'");
+        }
+
+        // CNT (control total — line item count)
+        int lineCount = doc.getLineItems() != null ? doc.getLineItems().size() : 0;
+        segments.add("CNT+2:" + lineCount + "'");
+
+        // UNT (message trailer) — count includes UNH and UNT
+        int msgSegCount = segments.size() - 1; // everything after UNB, including UNT itself
+        segments.add("UNT+" + msgSegCount + "+1'");
+
+        // UNZ (interchange trailer)
+        segments.add("UNZ+1+" + controlRef + "'");
+
+        return String.join("\n", segments);
+    }
+
+    // === Canonical → HL7 ===
+    private String generateHl7(CanonicalDocument doc) {
+        String date = compactDate(doc.getHeader() != null ? doc.getHeader().getDocumentDate() : null);
+        String docNumber = doc.getHeader() != null && doc.getHeader().getDocumentNumber() != null
+                ? doc.getHeader().getDocumentNumber() : "MSG001";
+        String senderId = findPartyId(doc, Party.PartyRole.SENDER, Party.PartyRole.PROVIDER);
+        String receiverId = findPartyId(doc, Party.PartyRole.RECEIVER, Party.PartyRole.PROVIDER);
+
+        List<String> segments = new ArrayList<>();
+
+        // MSH
+        segments.add("MSH|^~\\&|" + senderId + "||" + receiverId + "||" + date + "||ADT^A01|" + docNumber + "|P|2.5");
+
+        // EVN (event type)
+        segments.add("EVN|A01|" + date);
+
+        // PID (patient info)
+        Party patient = findParty(doc, Party.PartyRole.PATIENT);
+        if (patient != null) {
+            String[] name = splitName(patient.getName());
+            segments.add("PID|1||" + safe(patient.getId()) + "||" + name[0] + "^" + name[1]);
+        } else {
+            segments.add("PID|1||UNKNOWN||UNKNOWN^PATIENT");
+        }
+
+        // PV1 (patient visit)
+        Party provider = findParty(doc, Party.PartyRole.PROVIDER);
+        String providerName = provider != null && provider.getName() != null
+                ? provider.getName().replace(" ", "^") : "";
+        segments.add("PV1|1|I|||||||" + providerName);
+
+        return String.join("\r", segments); // HL7 uses \r as segment delimiter
+    }
+
+    // === Canonical → SWIFT MT103 ===
+    private String generateSwift(CanonicalDocument doc) {
+        String docNumber = doc.getHeader() != null && doc.getHeader().getDocumentNumber() != null
+                ? doc.getHeader().getDocumentNumber() : "REF001";
+        double amount = doc.getTotals() != null ? doc.getTotals().getTotalAmount() : 0;
+        String currency = doc.getTotals() != null && doc.getTotals().getCurrency() != null
+                ? doc.getTotals().getCurrency() : "USD";
+        String date = compactDate(doc.getHeader() != null ? doc.getHeader().getDocumentDate() : null);
+
+        Party payer = findParty(doc, Party.PartyRole.PAYER, Party.PartyRole.SENDER);
+        Party payee = findParty(doc, Party.PartyRole.PAYEE, Party.PartyRole.RECEIVER);
+        Party senderBank = findParty(doc, Party.PartyRole.BANK_SENDER);
+        Party receiverBank = findParty(doc, Party.PartyRole.BANK_RECEIVER);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("{1:F01").append(safe(senderBank != null ? senderBank.getId() : "BANKUS33")).append("0000000000}")
+          .append("{2:O1030000").append(date).append(safe(receiverBank != null ? receiverBank.getId() : "BANKGB22")).append("00000000000000N}");
+        sb.append("{4:\n");
+        sb.append(":20:").append(docNumber).append("\n");
+        sb.append(":23B:CRED\n");
+        sb.append(":32A:").append(date).append(currency).append(String.format("%.2f", amount).replace(",", ".")).append("\n");
+        if (senderBank != null && senderBank.getId() != null)
+            sb.append(":52A:").append(senderBank.getId()).append("\n");
+        if (payer != null) sb.append(":50K:/\n").append(safe(payer.getName())).append("\n");
+        if (receiverBank != null && receiverBank.getId() != null)
+            sb.append(":57A:").append(receiverBank.getId()).append("\n");
+        if (payee != null) sb.append(":59:/\n").append(safe(payee.getName())).append("\n");
+        sb.append(":71A:OUR\n");
+        sb.append("-}");
+
+        return sb.toString();
+    }
+
+    // ===================================================================
+    // Reverse conversion helpers
+    // ===================================================================
+
+    private String resolveX12TxnType(DocumentType type) {
+        return switch (type) {
+            case PURCHASE_ORDER -> "850";
+            case INVOICE -> "810";
+            case SHIPMENT_NOTICE -> "856";
+            case PAYMENT, REMITTANCE -> "820";
+            case HEALTHCARE_CLAIM -> "837";
+            case ELIGIBILITY_INQUIRY -> "270";
+            case ELIGIBILITY_RESPONSE -> "271";
+            case FUNCTIONAL_ACK -> "997";
+            default -> "850";
+        };
+    }
+
+    private String resolveEdifactMsgType(DocumentType type) {
+        return switch (type) {
+            case PURCHASE_ORDER -> "ORDERS";
+            case INVOICE -> "INVOIC";
+            case SHIPMENT_NOTICE -> "DESADV";
+            case PAYMENT, REMITTANCE -> "PAYORD";
+            case CUSTOMS_DECLARATION -> "CUSCAR";
+            default -> "ORDERS";
+        };
+    }
+
+    private String resolveGsFuncCode(DocumentType type) {
+        return switch (type) {
+            case PURCHASE_ORDER -> "PO";
+            case INVOICE -> "IN";
+            case HEALTHCARE_CLAIM -> "HC";
+            case PAYMENT, REMITTANCE -> "RA";
+            default -> "PO";
+        };
+    }
+
+    private String partyRoleToX12(Party.PartyRole role) {
+        return switch (role) {
+            case BUYER -> "BY";
+            case SELLER -> "SE";
+            case SHIP_TO -> "ST";
+            case SHIP_FROM -> "SF";
+            case BILL_TO -> "BT";
+            case PAYER -> "PR";
+            case PAYEE -> "PE";
+            case PATIENT -> "IL";
+            case PROVIDER -> "82";
+            default -> "BY";
+        };
+    }
+
+    private String partyRoleToEdifact(Party.PartyRole role) {
+        return switch (role) {
+            case BUYER -> "BY";
+            case SELLER -> "SE";
+            case SHIP_TO -> "ST";
+            case BILL_TO -> "IV";
+            case SHIP_FROM -> "SF";
+            case PAYER -> "PR";
+            case PAYEE -> "PE";
+            default -> "BY";
+        };
+    }
+
+    private String encodePurpose(String purpose) {
+        if (purpose == null) return "00";
+        return switch (purpose.toLowerCase()) {
+            case "original" -> "00";
+            case "cancellation" -> "01";
+            case "replace" -> "05";
+            case "confirmation" -> "06";
+            case "duplicate" -> "07";
+            default -> "00";
+        };
+    }
+
+    private String findPartyId(CanonicalDocument doc, Party.PartyRole... roles) {
+        if (doc.getParties() == null) return "UNKNOWN";
+        for (Party.PartyRole role : roles) {
+            for (Party p : doc.getParties()) {
+                if (p.getRole() == role) {
+                    return p.getId() != null ? p.getId() : (p.getName() != null ? p.getName() : "UNKNOWN");
+                }
+            }
+        }
+        return "UNKNOWN";
+    }
+
+    private Party findParty(CanonicalDocument doc, Party.PartyRole... roles) {
+        if (doc.getParties() == null) return null;
+        for (Party.PartyRole role : roles) {
+            for (Party p : doc.getParties()) {
+                if (p.getRole() == role) return p;
+            }
+        }
+        return null;
+    }
+
+    private String[] splitName(String fullName) {
+        if (fullName == null || fullName.isEmpty()) return new String[]{"", ""};
+        String[] parts = fullName.trim().split("\\s+", 2);
+        if (parts.length == 1) return new String[]{parts[0], ""};
+        // EDI convention: Last*First
+        return new String[]{parts[parts.length - 1], parts[0]};
+    }
+
+    private String compactDate(String date) {
+        if (date == null || date.isEmpty()) {
+            // Use today's date
+            java.time.LocalDate now = java.time.LocalDate.now();
+            return String.format("%04d%02d%02d", now.getYear(), now.getMonthValue(), now.getDayOfMonth());
+        }
+        return date.replaceAll("[^0-9]", "");
+    }
+
+    private String date6() {
+        java.time.LocalDate now = java.time.LocalDate.now();
+        return String.format("%02d%02d%02d", now.getYear() % 100, now.getMonthValue(), now.getDayOfMonth());
+    }
+
+    private String date6Edifact() {
+        java.time.LocalDate now = java.time.LocalDate.now();
+        return String.format("%02d%02d%02d", now.getYear() % 100, now.getMonthValue(), now.getDayOfMonth());
+    }
+
+    private String currentTime4() {
+        java.time.LocalTime now = java.time.LocalTime.now();
+        return String.format("%02d%02d", now.getHour(), now.getMinute());
+    }
+
+    private String padRight(String s, int len, char c) {
+        if (s == null) s = "";
+        StringBuilder sb = new StringBuilder(s);
+        while (sb.length() < len) sb.append(c);
+        return sb.substring(0, len);
+    }
+
+    private String safe(String s) {
+        return s != null ? s : "";
+    }
+
+    private String safe(String s, String defaultVal) {
+        return s != null && !s.isEmpty() ? s : defaultVal;
+    }
+
+    private String formatPrice(double price) {
+        if (price == (int) price) return String.valueOf((int) price);
+        return String.format("%.2f", price);
+    }
+
+    private String formatAmount(MonetaryTotal totals) {
+        if (totals == null || totals.getTotalAmount() == 0) return "0.00";
+        return String.format("%.2f", totals.getTotalAmount());
+    }
+
     // === Helpers ===
 
     private DocumentType resolveX12Type(String txnType) {

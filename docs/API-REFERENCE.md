@@ -457,6 +457,21 @@ curl -X POST http://localhost:8092/api/v1/screening/check \
 | POST | `/api/v1/convert/trained` | Convert using trained/partner-specific map |
 | POST | `/api/v1/convert/test-mappings` | Test custom field mappings against sample EDI |
 | POST | `/api/v1/convert/trained/invalidate-cache` | Invalidate trained map cache |
+| POST | `/api/v1/convert/compare/prepare` | Scan dirs, match files, return preview for confirmation |
+| POST | `/api/v1/convert/compare/prepare/upload` | Upload CSV with explicit file pair mappings |
+| POST | `/api/v1/convert/compare/execute/{id}` | Execute comparison after user confirmation |
+| GET | `/api/v1/convert/compare/reports/{id}` | Retrieve comparison report |
+| GET | `/api/v1/convert/compare/reports/{id}/summary` | Human-readable text summary |
+| GET | `/api/v1/convert/compare/sessions/{id}` | Get session preview |
+
+**Output formats:** JSON, XML, CSV, YAML, FLAT, TIF, **X12**, **EDIFACT**, **HL7**, **SWIFT_MT** (110 total paths)
+
+**Example — Cross-format: X12 850 → EDIFACT ORDERS:**
+```bash
+curl -X POST http://localhost:8095/api/v1/convert/convert \
+  -H "Content-Type: application/json" \
+  -d '{"content": "ISA*00*...", "target": "EDIFACT"}'
+```
 
 **Example — Convert EDI:**
 ```bash
@@ -477,6 +492,25 @@ curl -X POST http://localhost:8095/api/v1/convert/test-mappings \
       {"sourceField": "NM1*03", "targetField": "buyerName", "transform": "TRIM"}
     ]
   }'
+```
+
+**Example — Compare conversion outputs:**
+```bash
+# Step 1: Prepare (scan directories, get preview)
+curl -X POST http://localhost:8095/api/v1/convert/compare/prepare \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceInputPath": "/data/old-system/input",
+    "sourceOutputPath": "/data/old-system/output",
+    "targetInputPath": "/data/new-system/input",
+    "targetOutputPath": "/data/new-system/output",
+    "reportOutputPath": "/data/reports"
+  }'
+# Returns: { sessionId, matchedPairs, filePairs[], status: "READY" }
+
+# Step 2: Execute (after user reviews preview)
+curl -X POST http://localhost:8095/api/v1/convert/compare/execute/{sessionId}
+# Returns: full report with per-file diffs, map summaries, recommendations
 ```
 
 ---

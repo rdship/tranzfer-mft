@@ -191,6 +191,46 @@ curl -X POST http://localhost:8095/api/v1/convert/test-mappings \
 
 **Supported transforms:** `DIRECT`, `TRIM`, `UPPERCASE`, `LOWERCASE`, `ZERO_PAD`, `DATE_REFORMAT`
 
+### Compare Suite (Conversion Output Comparison)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/convert/compare/prepare` | Scan dirs, match files, return preview |
+| POST | `/api/v1/convert/compare/prepare/upload` | Upload CSV mapping file |
+| POST | `/api/v1/convert/compare/execute/{id}` | Execute comparison (after confirmation) |
+| GET | `/api/v1/convert/compare/reports/{id}` | Get comparison report |
+| GET | `/api/v1/convert/compare/reports/{id}/summary` | Human-readable summary |
+| GET | `/api/v1/convert/compare/sessions/{id}` | Get session preview |
+
+**Prepare comparison (4 directory paths):**
+```bash
+curl -X POST http://localhost:8095/api/v1/convert/compare/prepare \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceInputPath": "/data/old-system/input",
+    "sourceOutputPath": "/data/old-system/output",
+    "targetInputPath": "/data/new-system/input",
+    "targetOutputPath": "/data/new-system/output",
+    "reportOutputPath": "/data/reports"
+  }'
+```
+
+**Or provide a CSV mapping file:**
+```bash
+curl -X POST http://localhost:8095/api/v1/convert/compare/prepare/upload \
+  -F "mappingFile=@file-pairs.csv" \
+  -F "reportOutputPath=/data/reports"
+```
+
+CSV format: `sourceInputFile,sourceOutputFile,targetInputFile,targetOutputFile[,mapLabel]`
+
+**Execute (after reviewing preview):**
+```bash
+curl -X POST http://localhost:8095/api/v1/convert/compare/execute/{sessionId}
+```
+
+**Report includes:** per-file field-level diffs, per-map aggregation, pattern detection, fix recommendations with NL correction hints, human-readable summary.
+
 ---
 
 ## Supported Formats
@@ -211,7 +251,7 @@ curl -X POST http://localhost:8095/api/v1/convert/test-mappings \
 | PEPPOL | XML namespace | EU e-invoicing |
 | AUTO | — | Auto-detect from content |
 
-### Output Formats (6)
+### Output Formats (10)
 
 | Format | Description |
 |--------|-------------|
@@ -221,6 +261,27 @@ curl -X POST http://localhost:8095/api/v1/convert/test-mappings \
 | YAML | YAML structure |
 | FLAT | Fixed-width (field name padded to 30 chars) |
 | TIF | TranzFer Internal Format v1.0 |
+| X12 | ANSI X12 (cross-format via Canonical model) |
+| EDIFACT | UN/EDIFACT (cross-format via Canonical model) |
+| HL7 | HL7 v2.x (cross-format via Canonical model) |
+| SWIFT_MT | SWIFT MT messages (cross-format via Canonical model) |
+
+### Cross-Format EDI Conversion
+
+Convert between any EDI formats via the Canonical Data Model bridge:
+
+```
+X12 850 → CanonicalDocument → EDIFACT ORDERS
+EDIFACT INVOIC → CanonicalDocument → X12 810
+HL7 ADT → CanonicalDocument → X12
+```
+
+**Example — X12 850 to EDIFACT ORDERS:**
+```bash
+curl -X POST http://localhost:8095/convert \
+  -H "Content-Type: application/json" \
+  -d '{"content": "ISA*00*...", "target": "EDIFACT"}'
+```
 
 ### Supported X12 Transaction Types
 

@@ -1,6 +1,7 @@
 package com.filetransfer.edi.service;
 
 import com.filetransfer.edi.model.EdiDocument;
+import com.filetransfer.edi.model.EdiDocument.DelimiterInfo;
 import com.filetransfer.edi.model.EdiDocument.Segment;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +11,7 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 /**
  * StAX-style Streaming EDI Parser — processes EDI documents segment-by-segment
@@ -25,6 +27,13 @@ import java.util.function.Consumer;
  *
  * Supports: X12, EDIFACT, HL7, CSV, fixed-width
  * Memory: O(1) per segment — can process 100GB files
+ *
+ * Production features:
+ * - ISA-driven delimiter detection for X12 (reads first 106 chars)
+ * - UNA-aware delimiter detection for EDIFACT with release character handling
+ * - HL7 component/repeating element parsing (^, ~, \)
+ * - Composite and repeating element parsing on every segment
+ * - Per-segment error recovery — one bad segment doesn't stop the stream
  */
 @Service @Slf4j
 public class StreamingEdiParser {
@@ -37,6 +46,8 @@ public class StreamingEdiParser {
         private int segmentNumber;
         private long bytesProcessed;
         private Map<String, String> metadata;
+        /** Populated for ERROR events at segment level */
+        private String errorMessage;
 
         public enum EventType {
             DOCUMENT_START, SEGMENT, DOCUMENT_END, ERROR
@@ -51,6 +62,10 @@ public class StreamingEdiParser {
         private long durationMs;
         private List<String> errors;
         private Map<String, String> metadata;
+        /** Number of segments that had parse errors */
+        private int errorCount;
+        /** Number of warnings */
+        private int warningCount;
     }
 
     /**
@@ -62,6 +77,7 @@ public class StreamingEdiParser {
         List<String> errors = new ArrayList<>();
         Map<String, String> metadata = new LinkedHashMap<>();
         int segCount = 0;
+        int errorCount = 0;
         long bytesRead = 0;
 
         try {
@@ -72,7 +88,7 @@ public class StreamingEdiParser {
 
             BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8));
 
-            segCount = switch (format.toUpperCase()) {
+            int[] counts = switch (format.toUpperCase()) {
                 case "X12" -> streamX12(reader, callback, metadata, errors);
                 case "EDIFACT" -> streamEdifact(reader, callback, metadata, errors);
                 case "HL7" -> streamHl7(reader, callback, metadata, errors);
@@ -81,6 +97,9 @@ public class StreamingEdiParser {
                 case "FIX" -> streamFix(reader, callback, metadata, errors);
                 default -> streamLineByLine(reader, callback, metadata, errors);
             };
+
+            segCount = counts[0];
+            errorCount = counts[1];
 
             // Emit DOCUMENT_END
             callback.accept(ParseEvent.builder()
@@ -91,14 +110,18 @@ public class StreamingEdiParser {
             errors.add("Stream error: " + e.getMessage());
             callback.accept(ParseEvent.builder()
                     .type(ParseEvent.EventType.ERROR)
-                    .metadata(Map.of("error", e.getMessage())).build());
+                    .errorMessage(e.getMessage())
+                    .metadata(Map.of("error", e.getMessage() != null ? e.getMessage() : "unknown")).build());
         }
 
         return StreamResult.builder()
                 .format(format).totalSegments(segCount)
                 .totalBytes(bytesRead)
                 .durationMs(System.currentTimeMillis() - start)
-                .errors(errors).metadata(metadata).build();
+                .errors(errors).metadata(metadata)
+                .errorCount(errorCount)
+                .warningCount(0)
+                .build();
     }
 
     /**
@@ -130,201 +153,527 @@ public class StreamingEdiParser {
                 .build();
     }
 
-    // === X12 Streaming ===
-    private int streamX12(BufferedReader reader, Consumer<ParseEvent> callback,
-                          Map<String, String> metadata, List<String> errors) throws IOException {
-        // Read first line to detect segment terminator
-        StringBuilder buffer = new StringBuilder();
-        int segCount = 0;
-        char segTerminator = '~';
-        char elemDelimiter = '*';
-        boolean firstSegment = true;
+    // ========================================================================
+    // X12 Streaming — ISA-driven delimiter detection
+    // ========================================================================
 
+    /**
+     * Stream X12 content with full ISA-driven delimiter detection.
+     * Reads first 106 characters to detect ISA delimiters, then uses them
+     * consistently for the entire stream.
+     *
+     * @return int[2]: [0]=segmentCount, [1]=errorCount
+     */
+    private int[] streamX12(BufferedReader reader, Consumer<ParseEvent> callback,
+                            Map<String, String> metadata, List<String> errors) throws IOException {
+        // Read the initial buffer to detect ISA delimiters
+        char[] isaBuffer = new char[106];
+        int charsRead = 0;
+        while (charsRead < 106) {
+            int r = reader.read(isaBuffer, charsRead, 106 - charsRead);
+            if (r == -1) break;
+            charsRead += r;
+        }
+
+        String isaBlock = new String(isaBuffer, 0, charsRead);
+
+        // Detect delimiters from ISA segment
+        char elemDelimiter;
+        char segTerminator;
+        char compSeparator;
+        char repSeparator;
+
+        if (charsRead >= 106 && isaBlock.startsWith("ISA")) {
+            elemDelimiter = isaBlock.charAt(3);
+            segTerminator = isaBlock.charAt(105);
+            compSeparator = isaBlock.charAt(104);
+
+            // ISA11 is the repetition separator
+            String[] isaElems = isaBlock.split(Pattern.quote(String.valueOf(elemDelimiter)), -1);
+            repSeparator = '^'; // default
+            if (isaElems.length > 11 && !isaElems[11].isEmpty()) {
+                repSeparator = isaElems[11].charAt(0);
+            }
+        } else {
+            // Fallback defaults
+            elemDelimiter = '*';
+            segTerminator = '~';
+            compSeparator = '>';
+            repSeparator = '^';
+        }
+
+        // Store delimiter info in metadata
+        metadata.put("elementSeparator", String.valueOf(elemDelimiter));
+        metadata.put("segmentTerminator", String.valueOf(segTerminator));
+        metadata.put("componentSeparator", String.valueOf(compSeparator));
+        metadata.put("repetitionSeparator", String.valueOf(repSeparator));
+
+        // Now parse segment-by-segment: process the ISA buffer first, then continue reading
+        StringBuilder buffer = new StringBuilder(isaBlock);
+        int segCount = 0;
+        int errorCount = 0;
+        boolean firstIsaProcessed = false;
+
+        // Continue reading from the stream
         int ch;
         while ((ch = reader.read()) != -1) {
-            char c = (char) ch;
+            buffer.append((char) ch);
+        }
 
-            if (firstSegment && buffer.length() == 3 && buffer.toString().equals("ISA") && c == '*') {
-                elemDelimiter = c;
-            }
+        // Now split by segment terminator (character-by-character was already done via buffered read)
+        String fullContent = buffer.toString();
+        String[] rawSegments = fullContent.split(Pattern.quote(String.valueOf(segTerminator)));
 
-            if (c == segTerminator || (c == '\n' && !buffer.toString().contains("~"))) {
-                String seg = buffer.toString().trim();
-                if (!seg.isEmpty()) {
-                    segCount++;
-                    Segment segment = parseX12Segment(seg, elemDelimiter);
-                    callback.accept(ParseEvent.builder()
-                            .type(ParseEvent.EventType.SEGMENT).segment(segment)
-                            .segmentNumber(segCount).build());
+        for (String raw : rawSegments) {
+            String seg = raw.replaceAll("[\\r\\n]", "").trim();
+            if (seg.isEmpty()) continue;
 
-                    // Extract metadata from ISA/ST
-                    if (firstSegment && "ISA".equals(segment.getId())) {
-                        List<String> e = segment.getElements();
-                        if (e.size() > 5) metadata.put("senderId", e.get(5).trim());
-                        if (e.size() > 7) metadata.put("receiverId", e.get(7).trim());
-                        if (e.size() > 12) metadata.put("controlNumber", e.get(12).trim());
-                        // ISA16 is the component separator; ISA segment terminator follows
-                        firstSegment = false;
-                    }
-                    if ("ST".equals(segment.getId()) && segment.getElements().size() > 0) {
-                        metadata.put("documentType", segment.getElements().get(0).trim());
-                    }
+            try {
+                segCount++;
+                Segment segment = parseX12Segment(seg, elemDelimiter, compSeparator, repSeparator);
+                callback.accept(ParseEvent.builder()
+                        .type(ParseEvent.EventType.SEGMENT).segment(segment)
+                        .segmentNumber(segCount).build());
+
+                // Extract metadata from ISA/ST
+                if ("ISA".equals(segment.getId())) {
+                    List<String> e = segment.getElements();
+                    if (e.size() > 5) metadata.put("senderId", e.get(5).trim());
+                    if (e.size() > 7) metadata.put("receiverId", e.get(7).trim());
+                    if (e.size() > 12) metadata.put("controlNumber", e.get(12).trim());
                 }
-                buffer.setLength(0);
-            } else if (c != '\r') {
-                buffer.append(c);
+                if ("ST".equals(segment.getId()) && !segment.getElements().isEmpty()) {
+                    metadata.put("documentType", segment.getElements().get(0).trim());
+                }
+            } catch (Exception e) {
+                errorCount++;
+                errors.add("Segment " + (segCount) + ": " + e.getMessage());
+                callback.accept(ParseEvent.builder()
+                        .type(ParseEvent.EventType.ERROR)
+                        .segmentNumber(segCount)
+                        .errorMessage("Error parsing segment: " + e.getMessage())
+                        .build());
             }
         }
 
-        // Handle trailing segment without terminator
-        String remaining = buffer.toString().trim();
-        if (!remaining.isEmpty()) {
-            segCount++;
-            callback.accept(ParseEvent.builder()
-                    .type(ParseEvent.EventType.SEGMENT)
-                    .segment(parseX12Segment(remaining, elemDelimiter))
-                    .segmentNumber(segCount).build());
-        }
-
-        return segCount;
+        return new int[]{segCount, errorCount};
     }
 
-    private Segment parseX12Segment(String raw, char delim) {
-        String[] parts = raw.split("\\" + delim, -1);
+    /**
+     * Parse a single X12 segment with composite and repeating element support.
+     */
+    private Segment parseX12Segment(String raw, char elemDelim, char compSep, char repSep) {
+        String elemDelimQ = Pattern.quote(String.valueOf(elemDelim));
+        String[] parts = raw.split(elemDelimQ, -1);
         String id = parts[0].trim();
         List<String> elements = new ArrayList<>();
         for (int i = 1; i < parts.length; i++) elements.add(parts[i]);
-        return Segment.builder().id(id).elements(elements).build();
+
+        // Composite element parsing
+        List<List<String>> composites = new ArrayList<>();
+        for (String elem : elements) {
+            if (compSep != '\0' && elem.indexOf(compSep) >= 0) {
+                composites.add(Arrays.asList(elem.split(Pattern.quote(String.valueOf(compSep)), -1)));
+            } else {
+                composites.add(List.of(elem));
+            }
+        }
+
+        // Repeating element parsing
+        List<List<String>> repeating = new ArrayList<>();
+        for (String elem : elements) {
+            if (repSep != '\0' && elem.indexOf(repSep) >= 0) {
+                repeating.add(Arrays.asList(elem.split(Pattern.quote(String.valueOf(repSep)), -1)));
+            } else {
+                repeating.add(List.of(elem));
+            }
+        }
+
+        return Segment.builder()
+                .id(id)
+                .elements(elements)
+                .compositeElements(composites)
+                .repeatingElements(repeating)
+                .build();
     }
 
-    // === EDIFACT Streaming ===
-    private int streamEdifact(BufferedReader reader, Consumer<ParseEvent> callback,
-                              Map<String, String> metadata, List<String> errors) throws IOException {
-        StringBuilder buffer = new StringBuilder();
-        int segCount = 0;
-        char segTerminator = '\'';
+    // ========================================================================
+    // EDIFACT Streaming — UNA-aware delimiter detection, release char handling
+    // ========================================================================
 
+    /**
+     * Stream EDIFACT content with UNA-aware delimiter detection.
+     * Handles release character during segment splitting (?' is NOT a terminator).
+     *
+     * @return int[2]: [0]=segmentCount, [1]=errorCount
+     */
+    private int[] streamEdifact(BufferedReader reader, Consumer<ParseEvent> callback,
+                                Map<String, String> metadata, List<String> errors) throws IOException {
+        // Read enough to check for UNA service string
+        char[] unaBuffer = new char[9];
+        int charsRead = 0;
+        while (charsRead < 9) {
+            int r = reader.read(unaBuffer, charsRead, 9 - charsRead);
+            if (r == -1) break;
+            charsRead += r;
+        }
+        String unaBlock = new String(unaBuffer, 0, charsRead);
+
+        // Detect delimiters
+        char compSep;
+        char elemSep;
+        char decimalNotation;
+        char releaseChar;
+        char segTerminator;
+
+        boolean hasUna = unaBlock.startsWith("UNA") && charsRead >= 9;
+        if (hasUna) {
+            compSep = unaBlock.charAt(3);
+            elemSep = unaBlock.charAt(4);
+            decimalNotation = unaBlock.charAt(5);
+            releaseChar = unaBlock.charAt(6);
+            // Position 7 is reserved
+            segTerminator = unaBlock.charAt(8);
+        } else {
+            // EDIFACT defaults
+            compSep = ':';
+            elemSep = '+';
+            decimalNotation = '.';
+            releaseChar = '?';
+            segTerminator = '\'';
+        }
+
+        // Store delimiter info in metadata
+        metadata.put("componentSeparator", String.valueOf(compSep));
+        metadata.put("elementSeparator", String.valueOf(elemSep));
+        metadata.put("segmentTerminator", String.valueOf(segTerminator));
+        metadata.put("releaseCharacter", String.valueOf(releaseChar));
+
+        // Read content character-by-character respecting release character
+        StringBuilder buffer = new StringBuilder();
+        // If we didn't have UNA, the initial read is data that needs to be processed
+        if (!hasUna) {
+            buffer.append(unaBlock);
+        }
+
+        List<String> rawSegments = new ArrayList<>();
+        boolean escaped = false;
         int ch;
         while ((ch = reader.read()) != -1) {
             char c = (char) ch;
+            if (escaped) {
+                buffer.append(releaseChar);
+                buffer.append(c);
+                escaped = false;
+                continue;
+            }
+            if (releaseChar != '\0' && c == releaseChar) {
+                escaped = true;
+                continue;
+            }
             if (c == segTerminator) {
                 String seg = buffer.toString().trim();
                 if (!seg.isEmpty()) {
-                    segCount++;
-                    String[] parts = seg.split("\\+", -1);
-                    String id = parts[0];
-                    List<String> elements = new ArrayList<>();
-                    for (int i = 1; i < parts.length; i++) elements.add(parts[i]);
-                    Segment segment = Segment.builder().id(id).elements(elements).build();
-                    callback.accept(ParseEvent.builder()
-                            .type(ParseEvent.EventType.SEGMENT).segment(segment)
-                            .segmentNumber(segCount).build());
-
-                    if ("UNB".equals(id) && parts.length > 3) {
-                        metadata.put("senderId", parts[2]);
-                        metadata.put("receiverId", parts[3]);
-                    }
-                    if ("UNH".equals(id) && parts.length > 2) {
-                        String[] msgParts = parts[2].split(":");
-                        metadata.put("documentType", msgParts[0]);
-                    }
+                    rawSegments.add(seg);
                 }
                 buffer.setLength(0);
-            } else if (c != '\r' && c != '\n') {
+                continue;
+            }
+            if (c != '\r' && c != '\n') {
                 buffer.append(c);
             }
         }
-        return segCount;
-    }
+        // Handle trailing content
+        String remaining = buffer.toString().trim();
+        if (!remaining.isEmpty()) {
+            rawSegments.add(remaining);
+        }
 
-    // === HL7 Streaming ===
-    private int streamHl7(BufferedReader reader, Consumer<ParseEvent> callback,
-                          Map<String, String> metadata, List<String> errors) throws IOException {
-        String line;
         int segCount = 0;
-        while ((line = reader.readLine()) != null) {
-            if (line.trim().isEmpty()) continue;
-            segCount++;
-            String[] fields = line.split("\\|", -1);
-            String id = fields[0];
-            List<String> elements = new ArrayList<>();
-            for (int i = 1; i < fields.length; i++) elements.add(fields[i]);
-            Segment segment = Segment.builder().id(id).elements(elements).build();
-            callback.accept(ParseEvent.builder()
-                    .type(ParseEvent.EventType.SEGMENT).segment(segment)
-                    .segmentNumber(segCount).build());
+        int errorCount = 0;
 
-            if ("MSH".equals(id)) {
-                if (fields.length > 3) metadata.put("senderId", fields[3]);
-                if (fields.length > 9) metadata.put("documentType", fields[9]);
+        for (String seg : rawSegments) {
+            try {
+                segCount++;
+                List<String> partsList = splitRespectingRelease(seg, elemSep, releaseChar);
+                String segId = partsList.get(0);
+
+                List<String> elements = new ArrayList<>();
+                for (int i = 1; i < partsList.size(); i++) {
+                    elements.add(partsList.get(i));
+                }
+
+                // Composite element parsing
+                List<List<String>> composites = new ArrayList<>();
+                for (String elem : elements) {
+                    if (compSep != '\0' && elem.indexOf(compSep) >= 0) {
+                        composites.add(splitRespectingRelease(elem, compSep, releaseChar));
+                    } else {
+                        composites.add(List.of(elem));
+                    }
+                }
+
+                Segment segment = Segment.builder()
+                        .id(segId)
+                        .elements(elements)
+                        .compositeElements(composites)
+                        .build();
+                callback.accept(ParseEvent.builder()
+                        .type(ParseEvent.EventType.SEGMENT).segment(segment)
+                        .segmentNumber(segCount).build());
+
+                if ("UNB".equals(segId) && partsList.size() > 3) {
+                    metadata.put("senderId", partsList.get(2));
+                    metadata.put("receiverId", partsList.get(3));
+                }
+                if ("UNH".equals(segId) && partsList.size() > 2) {
+                    String[] msgParts = partsList.get(2).split(Pattern.quote(String.valueOf(compSep)));
+                    metadata.put("documentType", msgParts[0]);
+                }
+            } catch (Exception e) {
+                errorCount++;
+                errors.add("Segment " + segCount + ": " + e.getMessage());
+                callback.accept(ParseEvent.builder()
+                        .type(ParseEvent.EventType.ERROR)
+                        .segmentNumber(segCount)
+                        .errorMessage("Error parsing EDIFACT segment: " + e.getMessage())
+                        .build());
             }
         }
-        return segCount;
+
+        return new int[]{segCount, errorCount};
     }
 
-    // === Fixed-Width Streaming (NACHA) ===
-    private int streamFixedWidth(BufferedReader reader, Consumer<ParseEvent> callback,
-                                  Map<String, String> metadata, List<String> errors, int recordLength) throws IOException {
+    /**
+     * Split a string by a delimiter, respecting the release (escape) character.
+     */
+    private List<String> splitRespectingRelease(String input, char delimiter, char releaseChar) {
+        List<String> parts = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean escaped = false;
+
+        for (int i = 0; i < input.length(); i++) {
+            char c = input.charAt(i);
+            if (escaped) {
+                current.append(c);
+                escaped = false;
+                continue;
+            }
+            if (releaseChar != '\0' && c == releaseChar) {
+                escaped = true;
+                continue;
+            }
+            if (c == delimiter) {
+                parts.add(current.toString());
+                current.setLength(0);
+                continue;
+            }
+            current.append(c);
+        }
+        parts.add(current.toString());
+        return parts;
+    }
+
+    // ========================================================================
+    // HL7 Streaming — component/repeating element parsing
+    // ========================================================================
+
+    /**
+     * Stream HL7 content with component and repeating element parsing.
+     * HL7 encoding characters: ^ (component), ~ (repetition), \ (escape), & (sub-component).
+     *
+     * @return int[2]: [0]=segmentCount, [1]=errorCount
+     */
+    private int[] streamHl7(BufferedReader reader, Consumer<ParseEvent> callback,
+                            Map<String, String> metadata, List<String> errors) throws IOException {
         String line;
         int segCount = 0;
+        int errorCount = 0;
+
+        // HL7 default encoding characters from MSH-2: ^~\&
+        char hl7CompSep = '^';
+        char hl7RepSep = '~';
+        char hl7EscChar = '\\';
+
         while ((line = reader.readLine()) != null) {
             if (line.trim().isEmpty()) continue;
-            segCount++;
-            String recType = line.substring(0, 1);
-            String name = switch (recType) {
-                case "1" -> "FILE_HEADER"; case "5" -> "BATCH_HEADER";
-                case "6" -> "ENTRY_DETAIL"; case "7" -> "ADDENDA";
-                case "8" -> "BATCH_CONTROL"; case "9" -> "FILE_CONTROL";
-                default -> "RECORD_" + recType;
-            };
-            Segment segment = Segment.builder().id(name).elements(List.of(line))
-                    .namedFields(Map.of("recordType", recType)).build();
-            callback.accept(ParseEvent.builder()
-                    .type(ParseEvent.EventType.SEGMENT).segment(segment)
-                    .segmentNumber(segCount).build());
+
+            try {
+                segCount++;
+                String[] fields = line.split("\\|", -1);
+                String id = fields[0];
+                List<String> elements = new ArrayList<>();
+                for (int i = 1; i < fields.length; i++) elements.add(fields[i]);
+
+                // Extract encoding characters from MSH-2 if present
+                if ("MSH".equals(id) && fields.length > 2 && fields[1].length() >= 4) {
+                    hl7CompSep = fields[1].charAt(0);
+                    hl7RepSep = fields[1].charAt(1);
+                    hl7EscChar = fields[1].charAt(2);
+                }
+
+                // Composite element parsing (component separator is ^)
+                List<List<String>> composites = new ArrayList<>();
+                for (String elem : elements) {
+                    if (elem.indexOf(hl7CompSep) >= 0) {
+                        composites.add(Arrays.asList(elem.split(Pattern.quote(String.valueOf(hl7CompSep)), -1)));
+                    } else {
+                        composites.add(List.of(elem));
+                    }
+                }
+
+                // Repeating element parsing (repetition separator is ~)
+                List<List<String>> repeating = new ArrayList<>();
+                for (String elem : elements) {
+                    if (elem.indexOf(hl7RepSep) >= 0) {
+                        repeating.add(Arrays.asList(elem.split(Pattern.quote(String.valueOf(hl7RepSep)), -1)));
+                    } else {
+                        repeating.add(List.of(elem));
+                    }
+                }
+
+                Segment segment = Segment.builder()
+                        .id(id)
+                        .elements(elements)
+                        .compositeElements(composites)
+                        .repeatingElements(repeating)
+                        .build();
+                callback.accept(ParseEvent.builder()
+                        .type(ParseEvent.EventType.SEGMENT).segment(segment)
+                        .segmentNumber(segCount).build());
+
+                if ("MSH".equals(id)) {
+                    if (fields.length > 3) metadata.put("senderId", fields[3]);
+                    if (fields.length > 9) metadata.put("documentType", fields[9]);
+                }
+            } catch (Exception e) {
+                errorCount++;
+                errors.add("Segment " + segCount + ": " + e.getMessage());
+                callback.accept(ParseEvent.builder()
+                        .type(ParseEvent.EventType.ERROR)
+                        .segmentNumber(segCount)
+                        .errorMessage("Error parsing HL7 segment: " + e.getMessage())
+                        .build());
+            }
         }
-        return segCount;
+        return new int[]{segCount, errorCount};
     }
 
-    // === Delimited Streaming (BAI2, CSV) ===
-    private int streamDelimited(BufferedReader reader, Consumer<ParseEvent> callback,
-                                 Map<String, String> metadata, List<String> errors, String delim) throws IOException {
+    // ========================================================================
+    // Fixed-Width Streaming (NACHA)
+    // ========================================================================
+
+    /**
+     * @return int[2]: [0]=segmentCount, [1]=errorCount
+     */
+    private int[] streamFixedWidth(BufferedReader reader, Consumer<ParseEvent> callback,
+                                   Map<String, String> metadata, List<String> errors, int recordLength) throws IOException {
         String line;
         int segCount = 0;
+        int errorCount = 0;
         while ((line = reader.readLine()) != null) {
             if (line.trim().isEmpty()) continue;
-            segCount++;
-            String[] parts = line.split(delim, -1);
-            String id = parts[0];
-            List<String> elements = new ArrayList<>();
-            for (int i = 1; i < parts.length; i++) elements.add(parts[i]);
-            callback.accept(ParseEvent.builder()
-                    .type(ParseEvent.EventType.SEGMENT)
-                    .segment(Segment.builder().id(id).elements(elements).build())
-                    .segmentNumber(segCount).build());
+
+            try {
+                segCount++;
+                String recType = line.substring(0, 1);
+                String name = switch (recType) {
+                    case "1" -> "FILE_HEADER"; case "5" -> "BATCH_HEADER";
+                    case "6" -> "ENTRY_DETAIL"; case "7" -> "ADDENDA";
+                    case "8" -> "BATCH_CONTROL"; case "9" -> "FILE_CONTROL";
+                    default -> "RECORD_" + recType;
+                };
+                Segment segment = Segment.builder().id(name).elements(List.of(line))
+                        .namedFields(Map.of("recordType", recType)).build();
+                callback.accept(ParseEvent.builder()
+                        .type(ParseEvent.EventType.SEGMENT).segment(segment)
+                        .segmentNumber(segCount).build());
+            } catch (Exception e) {
+                errorCount++;
+                errors.add("Record " + segCount + ": " + e.getMessage());
+                callback.accept(ParseEvent.builder()
+                        .type(ParseEvent.EventType.ERROR)
+                        .segmentNumber(segCount)
+                        .errorMessage("Error parsing fixed-width record: " + e.getMessage())
+                        .build());
+            }
         }
-        return segCount;
+        return new int[]{segCount, errorCount};
     }
 
-    // === FIX Streaming ===
-    private int streamFix(BufferedReader reader, Consumer<ParseEvent> callback,
-                           Map<String, String> metadata, List<String> errors) throws IOException {
+    // ========================================================================
+    // Delimited Streaming (BAI2, CSV)
+    // ========================================================================
+
+    /**
+     * @return int[2]: [0]=segmentCount, [1]=errorCount
+     */
+    private int[] streamDelimited(BufferedReader reader, Consumer<ParseEvent> callback,
+                                  Map<String, String> metadata, List<String> errors, String delim) throws IOException {
+        String line;
+        int segCount = 0;
+        int errorCount = 0;
+        while ((line = reader.readLine()) != null) {
+            if (line.trim().isEmpty()) continue;
+
+            try {
+                segCount++;
+                String[] parts = line.split(delim, -1);
+                String id = parts[0];
+                List<String> elements = new ArrayList<>();
+                for (int i = 1; i < parts.length; i++) elements.add(parts[i]);
+                callback.accept(ParseEvent.builder()
+                        .type(ParseEvent.EventType.SEGMENT)
+                        .segment(Segment.builder().id(id).elements(elements).build())
+                        .segmentNumber(segCount).build());
+            } catch (Exception e) {
+                errorCount++;
+                errors.add("Record " + segCount + ": " + e.getMessage());
+                callback.accept(ParseEvent.builder()
+                        .type(ParseEvent.EventType.ERROR)
+                        .segmentNumber(segCount)
+                        .errorMessage("Error parsing delimited record: " + e.getMessage())
+                        .build());
+            }
+        }
+        return new int[]{segCount, errorCount};
+    }
+
+    // ========================================================================
+    // FIX Streaming
+    // ========================================================================
+
+    /**
+     * @return int[2]: [0]=segmentCount, [1]=errorCount
+     */
+    private int[] streamFix(BufferedReader reader, Consumer<ParseEvent> callback,
+                            Map<String, String> metadata, List<String> errors) throws IOException {
         StringBuilder buffer = new StringBuilder();
-        int ch, segCount = 0;
+        int ch, segCount = 0, errorCount = 0;
         while ((ch = reader.read()) != -1) {
             char c = (char) ch;
             if (c == '\001' || c == '|') { // SOH or pipe
                 String field = buffer.toString();
                 if (!field.isEmpty()) {
-                    segCount++;
-                    String[] kv = field.split("=", 2);
-                    if (kv.length == 2) {
+                    try {
+                        segCount++;
+                        String[] kv = field.split("=", 2);
+                        if (kv.length == 2) {
+                            callback.accept(ParseEvent.builder()
+                                    .type(ParseEvent.EventType.SEGMENT)
+                                    .segment(Segment.builder().id("Tag" + kv[0]).elements(List.of(kv[1]))
+                                            .namedFields(Map.of("tag", kv[0], "value", kv[1])).build())
+                                    .segmentNumber(segCount).build());
+                            if ("35".equals(kv[0])) metadata.put("documentType", kv[1]);
+                        }
+                    } catch (Exception e) {
+                        errorCount++;
+                        errors.add("Field " + segCount + ": " + e.getMessage());
                         callback.accept(ParseEvent.builder()
-                                .type(ParseEvent.EventType.SEGMENT)
-                                .segment(Segment.builder().id("Tag" + kv[0]).elements(List.of(kv[1]))
-                                        .namedFields(Map.of("tag", kv[0], "value", kv[1])).build())
-                                .segmentNumber(segCount).build());
-                        if ("35".equals(kv[0])) metadata.put("documentType", kv[1]);
+                                .type(ParseEvent.EventType.ERROR)
+                                .segmentNumber(segCount)
+                                .errorMessage("Error parsing FIX field: " + e.getMessage())
+                                .build());
                     }
                 }
                 buffer.setLength(0);
@@ -332,22 +681,40 @@ public class StreamingEdiParser {
                 buffer.append(c);
             }
         }
-        return segCount;
+        return new int[]{segCount, errorCount};
     }
 
-    // === Generic line-by-line ===
-    private int streamLineByLine(BufferedReader reader, Consumer<ParseEvent> callback,
-                                  Map<String, String> metadata, List<String> errors) throws IOException {
+    // ========================================================================
+    // Generic line-by-line
+    // ========================================================================
+
+    /**
+     * @return int[2]: [0]=segmentCount, [1]=errorCount
+     */
+    private int[] streamLineByLine(BufferedReader reader, Consumer<ParseEvent> callback,
+                                   Map<String, String> metadata, List<String> errors) throws IOException {
         String line;
         int segCount = 0;
+        int errorCount = 0;
         while ((line = reader.readLine()) != null) {
             if (line.trim().isEmpty()) continue;
-            segCount++;
-            callback.accept(ParseEvent.builder()
-                    .type(ParseEvent.EventType.SEGMENT)
-                    .segment(Segment.builder().id("LINE").elements(List.of(line)).build())
-                    .segmentNumber(segCount).build());
+
+            try {
+                segCount++;
+                callback.accept(ParseEvent.builder()
+                        .type(ParseEvent.EventType.SEGMENT)
+                        .segment(Segment.builder().id("LINE").elements(List.of(line)).build())
+                        .segmentNumber(segCount).build());
+            } catch (Exception e) {
+                errorCount++;
+                errors.add("Line " + segCount + ": " + e.getMessage());
+                callback.accept(ParseEvent.builder()
+                        .type(ParseEvent.EventType.ERROR)
+                        .segmentNumber(segCount)
+                        .errorMessage("Error processing line: " + e.getMessage())
+                        .build());
+            }
         }
-        return segCount;
+        return new int[]{segCount, errorCount};
     }
 }

@@ -6,6 +6,8 @@ import com.fasterxml.jackson.dataformat.csv.CsvMapper;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.filetransfer.edi.model.EdiDocument;
+import com.filetransfer.edi.service.CanonicalMapper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -13,10 +15,13 @@ import java.util.*;
 
 /**
  * Universal output converter — renders EdiDocument into any target format.
- * Supports: JSON, XML, CSV, YAML, FLAT (fixed-width), TIF (TranzFer Internal)
+ * Supports: JSON, XML, CSV, YAML, FLAT (fixed-width), TIF (TranzFer Internal),
+ *           X12, EDIFACT, HL7, SWIFT_MT (via Canonical model bridge)
  */
-@Service @Slf4j
+@Service @Slf4j @RequiredArgsConstructor
 public class UniversalConverter {
+
+    private final CanonicalMapper canonicalMapper;
 
     private final ObjectMapper jsonMapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
     private final XmlMapper xmlMapper = (XmlMapper) new XmlMapper().enable(SerializationFeature.INDENT_OUTPUT);
@@ -30,8 +35,18 @@ public class UniversalConverter {
             case "YAML" -> toYaml(doc);
             case "FLAT", "FIXED" -> toFlatFile(doc);
             case "TIF", "INTERNAL" -> toTif(doc);
+            case "X12", "EDIFACT", "HL7", "SWIFT_MT", "SWIFT" -> toEdi(doc, targetFormat);
             default -> throw new IllegalArgumentException("Unsupported target format: " + targetFormat);
         };
+    }
+
+    /**
+     * Cross-format EDI conversion via the Canonical model bridge:
+     *   Source EDI → EdiDocument → CanonicalDocument → Target EDI
+     */
+    private String toEdi(EdiDocument doc, String targetFormat) {
+        var canonical = canonicalMapper.toCanonical(doc);
+        return canonicalMapper.fromCanonical(canonical, targetFormat);
     }
 
     private String toJson(EdiDocument doc) {

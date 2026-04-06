@@ -4,6 +4,8 @@
 
 ### New Features
 - **Natural Language Mapping Correction** — Partners can fix EDI field mappings through plain English instructions. The AI interprets corrections ("Company name should come from NM1*03"), applies changes, runs sample tests, and iterates until the partner approves. On approval, a new partner-specific ConversionMap is persisted and the file flow is updated automatically.
+- **Cross-Format EDI Conversion** — Convert between any EDI formats via the Canonical Data Model bridge. X12 850 → EDIFACT ORDERS, EDIFACT INVOIC → X12 810, HL7 → X12, etc. 4 new output formats (X12, EDIFACT, HL7, SWIFT_MT) bringing total to 110 conversion paths.
+- **Compare Suite** — Batch comparison of conversion outputs between two systems. Provide 4 directory paths (or CSV mapping file), engine scans and matches files, runs field-level semantic diffs (EDI/JSON/text), aggregates per-map, and generates a summary report with prioritized fix recommendations including NL correction hints. Supports user confirmation flow before execution.
 - **CONVERT_EDI Flow Step** — New file flow step type that applies trained/partner-specific EDI conversion maps during file processing
 - **Test Custom Mappings Endpoint** — EDI Converter can now test arbitrary field mappings against sample EDI content without persisting anything (`POST /api/v1/convert/test-mappings`)
 
@@ -17,12 +19,17 @@
 ### New Endpoints (EDI Converter)
 - `POST /api/v1/convert/test-mappings` — Test custom field mappings
 - `POST /api/v1/convert/trained` — Convert using trained partner-specific map
+- `POST /api/v1/convert/compare/prepare` — Prepare batch comparison (scan + match)
+- `POST /api/v1/convert/compare/prepare/upload` — Prepare from CSV mapping file
+- `POST /api/v1/convert/compare/execute/{id}` — Execute comparison
+- `GET /api/v1/convert/compare/reports/{id}` — Get comparison report
+- `GET /api/v1/convert/compare/reports/{id}/summary` — Human-readable summary
 
 ### Database
 - V16 migration: `edi_mapping_correction_sessions` table for correction session state
 
 ### Tests
-- 60 new tests (759 total across 19 services, 0 failures)
+- 112 new tests (811 total across 19 services, 0 failures)
 
 ## v2.0.0 (2026-04-04)
 
