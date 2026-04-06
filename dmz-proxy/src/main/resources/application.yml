@@ -35,6 +35,74 @@ dmz:
     event-flush-interval-ms: 5000
     internal-api-key: ${CONTROL_API_KEY:internal_control_secret}
 
+  # TLS Termination at the proxy edge
+  tls:
+    enabled: ${DMZ_TLS_ENABLED:false}
+    keystore-manager-url: ${KEYSTORE_MANAGER_URL:http://keystore-manager:8093}
+    cert-cache-dir: ${DMZ_CERT_CACHE_DIR:./cert-cache}
+    cert-refresh-interval-seconds: 3600
+    min-tls-version: TLSv1.2
+    block-weak-ciphers: true
+
+  # Persistent audit logging (compliance-grade)
+  audit:
+    enabled: ${DMZ_AUDIT_ENABLED:true}
+    log-directory: ${DMZ_AUDIT_DIR:./audit-logs}
+    max-days: 90
+    max-file-size-mb: 100
+
+  # Network zone enforcement
+  zones:
+    enabled: ${DMZ_ZONES_ENABLED:true}
+    cidrs:
+      INTERNAL:
+        - "10.0.0.0/8"
+        - "172.16.0.0/12"
+        - "192.168.0.0/16"
+      MANAGEMENT:
+        - "10.255.0.0/16"
+
+  # Egress filtering (anti-SSRF, anti-exfiltration)
+  egress:
+    enabled: ${DMZ_EGRESS_ENABLED:true}
+    block-metadata-service: true
+    block-loopback: true
+    block-link-local: true
+    dns-pinning: true
+    max-dns-resolution-ms: 2000
+    blocked-ports:
+      - "25"    # SMTP
+      - "53"    # DNS
+      - "135"   # MS RPC
+      - "137"   # NetBIOS
+      - "138"   # NetBIOS
+      - "139"   # NetBIOS
+      - "445"   # SMB
+
+  # Deep packet inspection
+  inspection:
+    enabled: ${DMZ_INSPECTION_ENABLED:true}
+    block-ssh-v1: true
+    block-sql-injection: true
+    block-command-injection: true
+    block-path-traversal: true
+    ftp-filter-enabled: true
+    screening-service-url: ${SCREENING_SERVICE_URL:http://screening-service:8092}
+
+  # Backend health checking
+  health-check:
+    enabled: ${DMZ_HEALTH_CHECK_ENABLED:true}
+    interval-seconds: 10
+    timeout-seconds: 3
+    unhealthy-threshold: 3
+    healthy-threshold: 1
+
+  # Bandwidth QoS
+  qos:
+    enabled: ${DMZ_QOS_ENABLED:false}
+    global-max-bytes-per-second: 0
+    per-mapping-max-bytes-per-second: 0
+
 platform:
   services:
     onboarding-api:

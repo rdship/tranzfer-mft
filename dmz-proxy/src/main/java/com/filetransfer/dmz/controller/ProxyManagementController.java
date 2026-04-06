@@ -1,5 +1,7 @@
 package com.filetransfer.dmz.controller;
 
+import com.filetransfer.dmz.audit.AuditLogger;
+import com.filetransfer.dmz.health.BackendHealthChecker;
 import com.filetransfer.dmz.proxy.PortMapping;
 import com.filetransfer.dmz.proxy.ProxyManager;
 import com.filetransfer.dmz.security.*;
@@ -13,21 +15,30 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.*;
 
 /**
- * DMZ Proxy Management API — extended with AI security intelligence endpoints.
+ * DMZ Proxy Management API — enterprise security endpoints.
  *
  * Port Mapping:
- *   GET    /api/proxy/mappings               — list all port mappings + live stats
- *   POST   /api/proxy/mappings               — add a new port mapping (hot-add)
- *   DELETE /api/proxy/mappings/{name}        — remove a port mapping (hot-remove)
+ *   GET    /api/proxy/mappings                          — list all mappings + live stats
+ *   POST   /api/proxy/mappings                          — add new mapping (hot-add)
+ *   DELETE /api/proxy/mappings/{name}                   — remove mapping (graceful drain)
+ *   PUT    /api/proxy/mappings/{name}/security-policy   — hot-update security tier + rules
  *
  * Security Intelligence:
- *   GET    /api/proxy/security/stats          — full security metrics
- *   GET    /api/proxy/security/connections    — connection tracker stats
- *   GET    /api/proxy/security/ip/{ip}        — per-IP security details
- *   GET    /api/proxy/security/rate-limits    — rate limiter stats
+ *   GET    /api/proxy/security/stats                    — full security metrics
+ *   GET    /api/proxy/security/connections              — connection tracker stats
+ *   GET    /api/proxy/security/ip/{ip}                  — per-IP security details
+ *   GET    /api/proxy/security/rate-limits              — rate limiter stats
+ *   GET    /api/proxy/security/summary                  — quick security overview
+ *
+ * Enterprise Security:
+ *   GET    /api/proxy/backends/health                   — backend health status
+ *   GET    /api/proxy/audit/stats                       — audit logger stats
+ *   GET    /api/proxy/zones/rules                       — zone enforcement rules
+ *   GET    /api/proxy/zones/check                       — test a zone transition
+ *   GET    /api/proxy/egress/stats                      — egress filter stats
  *
  * Health:
- *   GET    /api/proxy/health                  — overall health + security status
+ *   GET    /api/proxy/health                            — overall health + all features
  */
 @RestController
 @RequestMapping("/api/proxy")
@@ -99,6 +110,18 @@ public class ProxyManagementController {
             "verdictCacheSize", proxyManager.getAiVerdictClient().getCacheSize(),
             "pendingEvents", proxyManager.getEventReporter().getPendingEventCount()
         ));
+
+        // Enterprise component stats
+        if (proxyManager.getAuditLogger() != null) {
+            stats.put("audit", proxyManager.getAuditLogger().getStats());
+        }
+        if (proxyManager.getEgressFilter() != null) {
+            stats.put("egress", proxyManager.getEgressFilter().getStats());
+        }
+        if (proxyManager.getZoneEnforcer() != null) {
+            stats.put("zones", proxyManager.getZoneEnforcer().getStats());
+        }
+
         return ResponseEntity.ok(stats);
     }
 
@@ -162,6 +185,115 @@ public class ProxyManagementController {
         return ResponseEntity.ok(summary);
     }
 
+    // ── Backend Health ─────────────────────────────────────────────────
+
+    @GetMapping("/backends/health")
+    public ResponseEntity<?> backendHealth(@RequestHeader("X-Internal-Key") String key) {
+        validateKey(key);
+        BackendHealthChecker hc = proxyManager.getHealthChecker();
+        if (hc == null) {
+            return ResponseEntity.ok(Map.of("healthCheckEnabled", false));
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("healthCheckEnabled", true);
+        result.put("backends", hc.getAllHealth());
+        result.put("unhealthy", hc.getUnhealthyBackends());
+        return ResponseEntity.ok(result);
+    }
+
+    // ── Audit ──────────────────────────────────────────────────────────
+
+    @GetMapping("/audit/stats")
+    public ResponseEntity<?> auditStats(@RequestHeader("X-Internal-Key") String key) {
+        validateKey(key);
+        AuditLogger audit = proxyManager.getAuditLogger();
+        if (audit == null) {
+            return ResponseEntity.ok(Map.of("auditEnabled", false));
+        }
+        return ResponseEntity.ok(audit.getStats());
+    }
+
+    @PostMapping("/audit/flush")
+    public ResponseEntity<?> auditFlush(@RequestHeader("X-Internal-Key") String key) {
+        validateKey(key);
+        AuditLogger audit = proxyManager.getAuditLogger();
+        if (audit == null) {
+            return ResponseEntity.ok(Map.of("auditEnabled", false));
+        }
+        audit.flush();
+        return ResponseEntity.ok(Map.of("message", "Audit log flushed"));
+    }
+
+    // ── Zone Enforcement ───────────────────────────────────────────────
+
+    @GetMapping("/zones/rules")
+    public ResponseEntity<?> zoneRules(@RequestHeader("X-Internal-Key") String key) {
+        validateKey(key);
+        ZoneEnforcer ze = proxyManager.getZoneEnforcer();
+        if (ze == null) {
+            return ResponseEntity.ok(Map.of("zoneEnforcementEnabled", false));
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("zoneEnforcementEnabled", true);
+        result.put("rules", ze.getRules());
+        result.put("stats", ze.getStats());
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/zones/check")
+    public ResponseEntity<?> zoneCheck(
+            @RequestHeader("X-Internal-Key") String key,
+            @RequestParam String sourceIp,
+            @RequestParam String targetHost,
+            @RequestParam int targetPort) {
+        validateKey(key);
+        ZoneEnforcer ze = proxyManager.getZoneEnforcer();
+        if (ze == null) {
+            return ResponseEntity.ok(Map.of("zoneEnforcementEnabled", false));
+        }
+        ZoneEnforcer.ZoneCheckResult result = ze.checkTransition(sourceIp, targetHost, targetPort);
+        return ResponseEntity.ok(Map.of(
+            "sourceIp", sourceIp,
+            "targetHost", targetHost,
+            "targetPort", targetPort,
+            "sourceZone", result.sourceZone().name(),
+            "targetZone", result.targetZone().name(),
+            "allowed", result.allowed(),
+            "reason", result.reason()));
+    }
+
+    // ── Egress Filter ──────────────────────────────────────────────────
+
+    @GetMapping("/egress/stats")
+    public ResponseEntity<?> egressStats(@RequestHeader("X-Internal-Key") String key) {
+        validateKey(key);
+        EgressFilter ef = proxyManager.getEgressFilter();
+        if (ef == null) {
+            return ResponseEntity.ok(Map.of("egressFilterEnabled", false));
+        }
+        return ResponseEntity.ok(ef.getStats());
+    }
+
+    @GetMapping("/egress/check")
+    public ResponseEntity<?> egressCheck(
+            @RequestHeader("X-Internal-Key") String key,
+            @RequestParam String host,
+            @RequestParam int port) {
+        validateKey(key);
+        EgressFilter ef = proxyManager.getEgressFilter();
+        if (ef == null) {
+            return ResponseEntity.ok(Map.of("egressFilterEnabled", false));
+        }
+        EgressFilter.EgressCheckResult result = ef.checkDestination(host, port);
+        return ResponseEntity.ok(Map.of(
+            "host", host,
+            "port", port,
+            "allowed", result.allowed(),
+            "resolvedIp", result.resolvedIp() != null ? result.resolvedIp() : "N/A",
+            "reason", result.reason()));
+    }
+
     // ── Health ─────────────────────────────────────────────────────────
 
     @GetMapping("/health")
@@ -176,11 +308,36 @@ public class ProxyManagementController {
             health.put("aiEngineAvailable", proxyManager.getAiVerdictClient().isAiEngineAvailable());
             health.put("activeConnections", proxyManager.getConnectionTracker().getActiveConnectionCount());
             health.put("totalConnections", proxyManager.getConnectionTracker().getTotalConnections());
-            health.put("features", List.of(
-                "protocol_detection", "ai_verdict", "rate_limiting",
+        }
+
+        // Feature inventory
+        List<String> features = new ArrayList<>();
+        features.add("protocol_detection");
+        if (proxyManager.isSecurityEnabled()) {
+            features.addAll(List.of("ai_verdict", "rate_limiting",
                 "connection_tracking", "threat_event_reporting",
-                "adaptive_rate_limits", "graceful_degradation"
-            ));
+                "adaptive_rate_limits", "graceful_degradation"));
+        }
+        if (proxyManager.getTlsTerminator() != null) features.add("tls_termination");
+        if (proxyManager.getZoneEnforcer() != null) features.add("zone_enforcement");
+        if (proxyManager.getEgressFilter() != null) features.add("egress_filtering");
+        if (proxyManager.getDeepPacketInspector() != null) features.add("deep_packet_inspection");
+        if (proxyManager.getFtpCommandFilter() != null) features.add("ftp_command_filter");
+        if (proxyManager.getHealthChecker() != null) features.add("backend_health_check");
+        if (proxyManager.getAuditLogger() != null) features.add("audit_logging");
+        if (proxyManager.getBandwidthQoS() != null) features.add("bandwidth_qos");
+        features.add("proxy_protocol");
+        features.add("connection_draining");
+        health.put("features", features);
+
+        // Backend health summary
+        BackendHealthChecker hc = proxyManager.getHealthChecker();
+        if (hc != null) {
+            List<String> unhealthy = hc.getUnhealthyBackends();
+            health.put("unhealthyBackends", unhealthy);
+            if (!unhealthy.isEmpty()) {
+                health.put("status", "DEGRADED");
+            }
         }
 
         return health;
@@ -196,8 +353,6 @@ public class ProxyManagementController {
         }
     }
 
-    /** Validate port mapping target to prevent SSRF attacks.
-     *  Blocks loopback, link-local, cloud metadata, and private ranges unless explicitly allowed. */
     private void validateMapping(PortMapping mapping) {
         String host = mapping.getTargetHost();
         if (host == null || host.isBlank()) {
@@ -214,12 +369,11 @@ public class ProxyManagementController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "listenPort must be 1-65535");
         }
 
-        // Block dangerous targets
         String lower = host.toLowerCase().trim();
         if (lower.equals("localhost") || lower.equals("0.0.0.0")
                 || lower.startsWith("127.") || lower.equals("::1")
-                || lower.startsWith("169.254.")   // link-local / cloud metadata
-                || lower.startsWith("metadata.")  // GCP metadata
+                || lower.startsWith("169.254.")
+                || lower.startsWith("metadata.")
                 || lower.equals("[::1]")) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                 "targetHost blocked: loopback and metadata addresses are not allowed");

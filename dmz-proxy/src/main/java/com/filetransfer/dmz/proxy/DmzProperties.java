@@ -5,6 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Component
@@ -15,39 +16,138 @@ public class DmzProperties {
     /** AI-powered security configuration */
     private Security security = new Security();
 
+    /** TLS termination defaults */
+    private Tls tls = new Tls();
+
+    /** Audit logging */
+    private Audit audit = new Audit();
+
+    /** Network zone enforcement */
+    private Zones zones = new Zones();
+
+    /** Egress filtering defaults */
+    private Egress egress = new Egress();
+
+    /** Deep packet inspection defaults */
+    private Inspection inspection = new Inspection();
+
+    /** Backend health checking defaults */
+    private HealthCheck healthCheck = new HealthCheck();
+
+    /** Bandwidth QoS defaults */
+    private Qos qos = new Qos();
+
     @Data
     public static class Security {
-        /** Enable AI-powered security layer */
         private boolean enabled = true;
-
-        /** AI engine base URL for verdict and event APIs */
         private String aiEngineUrl = "http://ai-engine:8091";
-
-        /** Timeout for verdict queries to AI engine (ms) */
         private long verdictTimeoutMs = 200;
-
-        /** Default max connections per IP per minute */
         private int defaultRatePerMinute = 60;
-
-        /** Default max concurrent connections per IP */
         private int defaultMaxConcurrent = 20;
-
-        /** Default max bytes per IP per minute (500 MB) */
         private long defaultMaxBytesPerMinute = 500_000_000L;
-
-        /** Global max connections per minute (DDoS threshold) */
         private int globalRatePerMinute = 10_000;
-
-        /** Event queue capacity */
         private int eventQueueCapacity = 10_000;
-
-        /** Event batch size for flushing to AI engine */
         private int eventBatchSize = 50;
-
-        /** Event flush interval in milliseconds */
         private long eventFlushIntervalMs = 5_000;
-
-        /** Internal API key for authenticating with AI engine */
         private String internalApiKey = "${CONTROL_API_KEY:internal_control_secret}";
+    }
+
+    @Data
+    public static class Tls {
+        /** Enable TLS termination at the proxy edge */
+        private boolean enabled = false;
+        /** Keystore Manager URL for certificate management */
+        private String keystoreManagerUrl = "http://keystore-manager:8093";
+        /** Local directory for caching certificates from Keystore Manager */
+        private String certCacheDir = "./cert-cache";
+        /** How often to check for certificate updates (seconds) */
+        private long certRefreshIntervalSeconds = 3600;
+        /** Minimum TLS version (TLSv1.2 or TLSv1.3) */
+        private String minTlsVersion = "TLSv1.2";
+        /** Block weak cipher suites (NULL, EXPORT, DES, RC4, MD5) */
+        private boolean blockWeakCiphers = true;
+    }
+
+    @Data
+    public static class Audit {
+        /** Enable persistent audit logging */
+        private boolean enabled = true;
+        /** Directory for audit log files */
+        private String logDirectory = "./audit-logs";
+        /** Retention period in days (compliance: 90 days) */
+        private int maxDays = 90;
+        /** Max single log file size in MB before rotation */
+        private long maxFileSizeMb = 100;
+    }
+
+    @Data
+    public static class Zones {
+        /** Enable network zone enforcement */
+        private boolean enabled = true;
+        /** CIDR ranges per zone. Keys: EXTERNAL, DMZ, INTERNAL, MANAGEMENT */
+        private Map<String, List<String>> cidrs = Map.of(
+            "INTERNAL", List.of("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"),
+            "MANAGEMENT", List.of("10.255.0.0/16")
+        );
+    }
+
+    @Data
+    public static class Egress {
+        /** Enable egress filtering */
+        private boolean enabled = true;
+        /** Block connections to cloud metadata endpoints */
+        private boolean blockMetadataService = true;
+        /** Block connections to loopback addresses */
+        private boolean blockLoopback = true;
+        /** Block connections to link-local addresses */
+        private boolean blockLinkLocal = true;
+        /** Enable DNS pinning (resolve once, cache IP) */
+        private boolean dnsPinning = true;
+        /** DNS resolution timeout (ms) */
+        private int maxDnsResolutionMs = 2000;
+        /** Always-blocked destination ports */
+        private List<String> blockedPorts = List.of("25", "53", "135", "137", "138", "139", "445");
+    }
+
+    @Data
+    public static class Inspection {
+        /** Enable deep packet inspection */
+        private boolean enabled = true;
+        /** Block SSH protocol v1 */
+        private boolean blockSshV1 = true;
+        /** Block SQL injection patterns in HTTP */
+        private boolean blockSqlInjection = true;
+        /** Block command injection patterns in HTTP */
+        private boolean blockCommandInjection = true;
+        /** Block path traversal attempts */
+        private boolean blockPathTraversal = true;
+        /** Enable FTP command filtering */
+        private boolean ftpFilterEnabled = true;
+        /** Screening service URL for content screening */
+        private String screeningServiceUrl = "http://screening-service:8092";
+    }
+
+    @Data
+    public static class HealthCheck {
+        /** Enable backend health checking */
+        private boolean enabled = true;
+        /** Probe interval (seconds) */
+        private int intervalSeconds = 10;
+        /** TCP connect timeout (seconds) */
+        private int timeoutSeconds = 3;
+        /** Consecutive failures before marking unhealthy */
+        private int unhealthyThreshold = 3;
+        /** Consecutive successes before marking healthy */
+        private int healthyThreshold = 1;
+    }
+
+    @Data
+    public static class Qos {
+        /** Enable bandwidth QoS */
+        private boolean enabled = false;
+        /** Global max bytes per second (0 = unlimited) */
+        private long globalMaxBytesPerSecond = 0;
+        /** Default per-mapping max bytes per second (0 = unlimited) */
+        private long perMappingMaxBytesPerSecond = 0;
     }
 }
