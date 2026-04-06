@@ -30,6 +30,13 @@ public class FileOperationService {
     @Value("${ftpweb.instance-id:#{null}}")
     private String instanceId;
 
+    /** Blocked file extensions — executable or server-side script types that could be weaponized */
+    private static final Set<String> BLOCKED_EXTENSIONS = Set.of(
+            ".jsp", ".jspx", ".exe", ".bat", ".cmd", ".sh", ".ps1", ".com",
+            ".msi", ".scr", ".pif", ".vbs", ".vbe", ".wsf", ".wsh", ".jar",
+            ".war", ".class", ".dll", ".so", ".dylib", ".cgi", ".php", ".asp",
+            ".aspx", ".py", ".rb", ".pl");
+
     public record FileEntry(String name, String path, boolean directory, long size, Instant lastModified) {}
 
     public List<FileEntry> list(String username, String relativePath) throws IOException {
@@ -51,9 +58,24 @@ public class FileOperationService {
     }
 
     public void upload(String username, String relativeDirPath, MultipartFile file) throws IOException {
+        String originalFilename = Objects.requireNonNull(file.getOriginalFilename(), "filename is required");
+
+        // Reject dangerous file extensions
+        String lowerName = originalFilename.toLowerCase();
+        for (String ext : BLOCKED_EXTENSIONS) {
+            if (lowerName.endsWith(ext)) {
+                throw new SecurityException("File extension not allowed: " + ext);
+            }
+        }
+        // Reject filenames with path separators or special names
+        if (originalFilename.contains("/") || originalFilename.contains("\\")
+                || ".".equals(originalFilename) || "..".equals(originalFilename)) {
+            throw new SecurityException("Invalid filename: " + originalFilename);
+        }
+
         Path dir = resolveAndValidate(username, relativeDirPath);
         Files.createDirectories(dir);
-        Path dest = dir.resolve(Objects.requireNonNull(file.getOriginalFilename()));
+        Path dest = dir.resolve(originalFilename);
         file.transferTo(dest);
 
         TransferAccount account = findAccount(username);

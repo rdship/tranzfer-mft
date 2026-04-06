@@ -16,6 +16,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -49,7 +51,7 @@ public class LicenseController {
     public ResponseEntity<Map<String, String>> issue(
             @RequestHeader("X-Admin-Key") String key,
             @Valid @RequestBody LicenseIssueRequest request) {
-        if (!adminKey.equals(key)) {
+        if (!constantTimeEquals(adminKey, key)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Invalid admin key"));
         }
@@ -61,7 +63,7 @@ public class LicenseController {
     @PreAuthorize(Roles.ADMIN)
     public ResponseEntity<List<LicenseRecord>> getAllLicenses(
             @RequestHeader("X-Admin-Key") String key) {
-        if (!adminKey.equals(key)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        if (!constantTimeEquals(adminKey, key)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         return ResponseEntity.ok(licenseService.getAllLicenses());
     }
 
@@ -70,7 +72,7 @@ public class LicenseController {
     public ResponseEntity<Void> revoke(
             @RequestHeader("X-Admin-Key") String key,
             @PathVariable String licenseId) {
-        if (!adminKey.equals(key)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        if (!constantTimeEquals(adminKey, key)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         licenseService.revokeLicense(licenseId);
         return ResponseEntity.noContent().build();
     }
@@ -80,7 +82,7 @@ public class LicenseController {
     public ResponseEntity<List<LicenseActivation>> getActivations(
             @RequestHeader("X-Admin-Key") String key,
             @PathVariable String licenseId) {
-        if (!adminKey.equals(key)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        if (!constantTimeEquals(adminKey, key)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         return ResponseEntity.ok(licenseService.getActivations(licenseId));
     }
 
@@ -135,6 +137,14 @@ public class LicenseController {
             return m;
         }).collect(Collectors.toList());
         return ResponseEntity.ok(tiers);
+    }
+
+    /** Constant-time string comparison to prevent timing attacks on API key validation */
+    private static boolean constantTimeEquals(String expected, String actual) {
+        if (expected == null || actual == null) return false;
+        return MessageDigest.isEqual(
+                expected.getBytes(StandardCharsets.UTF_8),
+                actual.getBytes(StandardCharsets.UTF_8));
     }
 
     /** Get components for a specific license key (what the customer is entitled to) */

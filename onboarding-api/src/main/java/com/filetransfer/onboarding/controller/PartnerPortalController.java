@@ -216,6 +216,12 @@ public class PartnerPortalController {
         FileTransferRecord record = transferRepo.findByTrackId(trackId).orElse(null);
         if (record == null) return ResponseEntity.notFound().build();
 
+        // Verify this transfer belongs to this partner (same check as /track)
+        if (record.getFolderMapping() == null ||
+                !username.equals(record.getFolderMapping().getSourceAccount().getUsername())) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
         Map<String, Object> receipt = new LinkedHashMap<>();
         receipt.put("receiptId", "RCP-" + trackId);
         receipt.put("trackId", trackId);

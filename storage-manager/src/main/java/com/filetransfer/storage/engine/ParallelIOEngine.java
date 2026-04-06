@@ -36,6 +36,10 @@ public class ParallelIOEngine {
     @Value("${storage.write-buffer-mb:64}")
     private int writeBufferMb;
 
+    /** Maximum allowed file size in bytes (default 10 GB). Prevents memory exhaustion from crafted uploads. */
+    @Value("${storage.max-file-size-bytes:10737418240}")
+    private long maxFileSizeBytes;
+
     private ExecutorService ioPool;
 
     @jakarta.annotation.PostConstruct
@@ -54,6 +58,10 @@ public class ParallelIOEngine {
      * Returns the SHA-256 checksum.
      */
     public WriteResult write(InputStream input, Path destination, long expectedSize) throws Exception {
+        if (expectedSize > maxFileSizeBytes) {
+            throw new IllegalArgumentException(String.format(
+                    "File size %d bytes exceeds maximum allowed %d bytes", expectedSize, maxFileSizeBytes));
+        }
         Files.createDirectories(destination.getParent());
         long stripeSize = stripeSizeKb * 1024L;
 
@@ -107,6 +115,11 @@ public class ParallelIOEngine {
             }
         }
         totalSize = Files.size(tempFile);
+        if (totalSize > maxFileSizeBytes) {
+            Files.deleteIfExists(tempFile);
+            throw new IllegalArgumentException(String.format(
+                    "File size %d bytes exceeds maximum allowed %d bytes", totalSize, maxFileSizeBytes));
+        }
 
         long start = System.nanoTime();
 
@@ -161,6 +174,10 @@ public class ParallelIOEngine {
      */
     public ReadResult read(Path source) throws Exception {
         long size = Files.size(source);
+        if (size > maxFileSizeBytes) {
+            throw new IllegalArgumentException(String.format(
+                    "File size %d bytes exceeds maximum allowed %d bytes", size, maxFileSizeBytes));
+        }
         long start = System.nanoTime();
         byte[] data = Files.readAllBytes(source);
         double elapsed = (System.nanoTime() - start) / 1_000_000.0;

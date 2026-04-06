@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 
 @RestController
 @RequestMapping("/internal/files")
@@ -24,7 +26,8 @@ public class FileReceiveController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void receive(@RequestHeader("X-Internal-Key") String key,
                         @RequestBody FileForwardRequest request) throws IOException {
-        if (!controlApiKey.equals(key)) {
+        if (!MessageDigest.isEqual(controlApiKey.getBytes(StandardCharsets.UTF_8),
+                key.getBytes(StandardCharsets.UTF_8))) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid internal API key");
         }
         routingEngine.receiveForwardedFile(request);

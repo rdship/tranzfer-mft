@@ -43,12 +43,21 @@ public class AdminCliController {
     private final ClusterService clusterService;
     private final ClusterNodeRepository clusterNodeRepository;
 
+    private static final int MAX_COMMAND_LENGTH = 500;
+    private static final int MAX_SEARCH_RESULTS = 100;
+
     @PostMapping("/execute")
     public ResponseEntity<Map<String, Object>> execute(@RequestBody Map<String, String> body) {
         String input = body.getOrDefault("command", "").trim();
         if (input.isEmpty()) {
             return ok("Type 'help' for available commands.");
         }
+        // Cap command length to prevent abuse
+        if (input.length() > MAX_COMMAND_LENGTH) {
+            return ok("Error: command too long (max " + MAX_COMMAND_LENGTH + " characters)");
+        }
+        // Strip control characters to prevent log injection
+        input = input.replaceAll("[\\r\\n\\t]", " ");
 
         String[] parts = input.split("\\s+", 10);
         String cmd = parts[0].toLowerCase();
@@ -278,6 +287,7 @@ public class AdminCliController {
         if (parts.length < 3) return "Usage: search file <pattern> | search account <username> | search recent [N]";
         if (parts[1].equals("recent")) {
             int n = parts.length >= 3 ? Integer.parseInt(parts[2]) : 10;
+            n = Math.max(1, Math.min(n, MAX_SEARCH_RESULTS));
             List<FileTransferRecord> records = transferRecordRepository.findAll(
                     PageRequest.of(0, n, Sort.by(Sort.Direction.DESC, "uploadedAt"))).getContent();
             if (records.isEmpty()) return "No transfer records found.";
@@ -432,6 +442,7 @@ public class AdminCliController {
     private String logsCommand(String[] parts) {
         if (parts.length >= 2 && parts[1].equals("recent")) {
             int n = parts.length >= 3 ? Integer.parseInt(parts[2]) : 20;
+            n = Math.max(1, Math.min(n, MAX_SEARCH_RESULTS));
             List<AuditLog> logs = auditLogRepository.findAll(
                     PageRequest.of(0, n, Sort.by(Sort.Direction.DESC, "timestamp"))).getContent();
             if (logs.isEmpty()) return "No audit logs found.";
@@ -451,6 +462,11 @@ public class AdminCliController {
         if (parts.length < 3) return "Usage: onboard <email> <password>";
         String email = parts[1];
         String password = parts[2];
+        // Validate email format to prevent injection via crafted input
+        if (!email.matches("^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$")) {
+            return "Invalid email format: " + email.replaceAll("[^a-zA-Z0-9@._\\-]", "");
+        }
+        if (password.length() < 8) return "Password must be at least 8 characters";
         if (userRepository.findByEmail(email).isPresent()) return "User already exists: " + email;
 
         BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();

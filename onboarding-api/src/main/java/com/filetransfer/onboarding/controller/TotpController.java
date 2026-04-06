@@ -7,11 +7,15 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.*;
@@ -28,13 +32,45 @@ public class TotpController {
 
     private final TotpConfigRepository totpRepo;
     private static final String BASE32_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    private static final String BACKUP_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I/O/0/1 ambiguity
     private static final int CODE_DIGITS = 6;
     private static final int TIME_STEP = 30;
+    private static final int BACKUP_CODE_LENGTH = 12;
 
-    /** Enable 2FA for a user — returns secret + QR provisioning URI */
+    /** Extract authenticated username from SecurityContext — prevents cross-user 2FA manipulation */
+    private String getAuthenticatedUsername() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getPrincipal() == null) {
+            throw new SecurityException("Not authenticated");
+        }
+        return auth.getName();
+    }
+
+    /** Hash a backup code with SHA-256 for safe storage */
+    private String hashBackupCode(String code) {
+        try {
+            byte[] hash = MessageDigest.getInstance("SHA-256")
+                    .digest(code.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (Exception e) {
+            throw new RuntimeException("SHA-256 not available", e);
+        }
+    }
+
+    /** Generate cryptographically strong alphanumeric backup code */
+    private String generateBackupCode() {
+        SecureRandom rng = new SecureRandom();
+        StringBuilder sb = new StringBuilder(BACKUP_CODE_LENGTH);
+        for (int i = 0; i < BACKUP_CODE_LENGTH; i++) {
+            sb.append(BACKUP_CODE_CHARS.charAt(rng.nextInt(BACKUP_CODE_CHARS.length())));
+        }
+        return sb.toString();
+    }
+
+    /** Enable 2FA for the authenticated user — returns secret + QR provisioning URI */
     @PostMapping("/enable")
     public ResponseEntity<Map<String, Object>> enable(@RequestBody Map<String, String> body) {
-        String username = body.get("username");
+        String username = getAuthenticatedUsername();
         String method = body.getOrDefault("method", "TOTP_APP");
 
         TotpConfig config = totpRepo.findByUsername(username)
@@ -47,11 +83,14 @@ public class TotpController {
         config.setMethod(method);
         if (body.containsKey("email")) config.setOtpEmail(body.get("email"));
 
-        // Generate 10 backup codes
+        // Generate 10 strong backup codes (12-char alphanumeric); store hashed
         List<String> backupCodes = IntStream.range(0, 10)
-                .mapToObj(i -> String.format("%08d", new SecureRandom().nextInt(100000000)))
+                .mapToObj(i -> generateBackupCode())
                 .collect(Collectors.toList());
-        config.setBackupCodes(String.join(",", backupCodes));
+        List<String> hashedCodes = backupCodes.stream()
+                .map(this::hashBackupCode)
+                .collect(Collectors.toList());
+        config.setBackupCodes(String.join(",", hashedCodes));
         totpRepo.save(config);
 
         String issuer = "TranzFer";
@@ -70,7 +109,7 @@ public class TotpController {
     /** Verify a TOTP code (completes enrollment on first success) */
     @PostMapping("/verify")
     public ResponseEntity<Map<String, Object>> verify(@RequestBody Map<String, String> body) {
-        String username = body.get("username");
+        String username = getAuthenticatedUsername();
         String code = body.get("code");
 
         TotpConfig config = totpRepo.findByUsername(username).orElse(null);
@@ -88,10 +127,11 @@ public class TotpController {
             }
         }
 
-        // Check backup codes if TOTP didn't match
+        // Check backup codes (stored as hashes) if TOTP didn't match
         if (!valid && config.getBackupCodes() != null) {
+            String codeHash = hashBackupCode(code);
             List<String> backups = new ArrayList<>(Arrays.asList(config.getBackupCodes().split(",")));
-            if (backups.remove(code)) {
+            if (backups.remove(codeHash)) {
                 valid = true;
                 config.setBackupCodes(String.join(",", backups));
                 log.warn("Backup code used for {}", username);
@@ -111,9 +151,13 @@ public class TotpController {
                 "enrolled", config.isEnrolled()));
     }
 
-    /** Check if user has 2FA enabled */
+    /** Check if the authenticated user has 2FA enabled */
     @GetMapping("/status/{username}")
     public ResponseEntity<Map<String, Object>> status(@PathVariable String username) {
+        String authenticatedUser = getAuthenticatedUsername();
+        if (!authenticatedUser.equals(username)) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
         TotpConfig config = totpRepo.findByUsername(username).orElse(null);
         if (config == null) return ResponseEntity.ok(Map.of("enabled", false, "username", username));
         return ResponseEntity.ok(Map.of("enabled", config.isEnabled(), "enrolled", config.isEnrolled(),
@@ -121,10 +165,10 @@ public class TotpController {
                 "lastUsed", config.getLastUsedAt() != null ? config.getLastUsedAt().toString() : "never"));
     }
 
-    /** Disable 2FA */
+    /** Disable 2FA for the authenticated user */
     @PostMapping("/disable")
     public ResponseEntity<Map<String, String>> disable(@RequestBody Map<String, String> body) {
-        String username = body.get("username");
+        String username = getAuthenticatedUsername();
         totpRepo.findByUsername(username).ifPresent(c -> { c.setEnabled(false); totpRepo.save(c); });
         return ResponseEntity.ok(Map.of("status", "DISABLED", "username", username));
     }

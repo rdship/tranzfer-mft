@@ -1234,6 +1234,26 @@ Runtime guards that prevent insecure configurations from reaching production and
 | 21 | **Service URLs use plain HTTP** — all 17 inter-service URLs default to `http://` | `SecretSafetyValidator` scans all `ServiceClientProperties` URLs; logs ERROR in production for HTTP URLs | Visibility into HTTP-only service communication; prerequisite for mTLS migration |
 | 22 | **OpenTelemetry data in plaintext** — traces and metrics sent to collector over HTTP with `tls.insecure: true` | Production Helm values changed to `https://`; OTLP exporter `insecure` changed to `false` | Observability data encrypted in transit |
 
+### Security Hardening Phase 4 (Authentication, Authorization & Input Validation)
+
+Cross-service hardening for authentication bypass, authorization gaps, input validation, and denial-of-service:
+
+| # | Vulnerability | Fix | Effect |
+|---|--------------|-----|--------|
+| 23 | **Timing attack on API key comparison** — `String.equals()` leaks key length/characters via response timing | `MessageDigest.isEqual()` for constant-time comparison in `LicenseController` + all 4 `FileReceiveController` variants (AS2, FTP, FTP-Web, SFTP) | API keys cannot be extracted character-by-character via timing side-channel |
+| 24 | **Gateway status endpoints unauthenticated** — `/internal/gateway/*` exposes routes, ports, instance topology with no auth | All 4 endpoints now require `X-Internal-Key` header with constant-time validation | Internal infrastructure no longer discoverable without credentials |
+| 25 | **TOTP 2FA cross-user manipulation** — request body `username` field allows any authenticated user to enable/disable 2FA for other users | All TOTP endpoints now extract username from `SecurityContext` (authenticated principal), ignoring request body | Users can only manage their own 2FA; account takeover via 2FA disabled |
+| 26 | **Unrestricted file size in storage engine** — `ParallelIOEngine.read()`/`write()` allocate unbounded memory buffers | Configurable `storage.max-file-size-bytes` (default 10 GB); validated at entry points and after streaming to temp | Memory exhaustion via crafted oversized uploads prevented |
+| 27 | **Keystore master password default** — `change-this-master-password` ships as default; no startup check | `@PostConstruct` validator blocks startup in PROD/STAGING/CERT if default password or length < 16 chars | All key material protected by strong master password in production |
+| 28 | **IDOR on partner delivery receipts** — `/api/partner/receipt/{trackId}` returned any transfer's receipt without ownership check | Ownership verification added: partner's username must match `folderMapping.sourceAccount.username` | Partners can only access their own delivery receipts |
+| 29 | **Admin CLI input injection risk** — no length limit, no control-char stripping, uncapped search results, no email validation | Command length cap (500 chars), control-char stripping, search result cap (100), email regex validation on `onboard` | CLI command abuse and log injection prevented |
+| 30 | **Unrestricted file upload extensions** — FTP-Web upload accepts `.jsp`, `.exe`, `.sh` and other executable types | Blocklist of 28 dangerous extensions; rejects path separators and special filenames (`.`, `..`) in upload | Server-side script execution and executable upload prevented |
+| 31 | **Unbounded batch API requests** — `/verdicts/batch` and `/events` accept unlimited list size | `MAX_BATCH_SIZE = 1000` enforced on both batch endpoints with 400 response on violation | Memory exhaustion via massive batch payloads prevented |
+| 32 | **Weak TOTP backup codes stored in plaintext** — 8-digit numeric codes (10^8 space); stored unhashed in database | 12-char alphanumeric codes (32^12 ≈ 10^18 space); SHA-256 hashed before database storage; comparison via hash | Backup codes resistant to brute force; database compromise does not expose codes |
+| 33 | **No IP-based rate limiting on auth endpoints** — per-email brute force exists but distributed attacks bypass it | IP-based rate limiter on `/api/auth/login` and `/api/auth/register`: 20 requests/minute/IP | Distributed credential stuffing and registration spam throttled |
+| 34 | **Unsafe Content-Disposition header encoding** — filename injected unescaped into download header | `ContentDisposition.attachment().filename(name, UTF_8)` generates RFC 6266 compliant `filename*=` header | XSS/header injection via crafted filenames prevented |
+| 35 | **Partner portal login loads all accounts** — `findAll()` with stream filter instead of indexed query | *(Documented — fix is authorization-layer; no data leakage due to ownership check at application level)* | Noted for query optimization in next sprint |
+
 ---
 
 ## Network Diagram

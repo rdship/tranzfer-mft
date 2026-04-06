@@ -154,11 +154,17 @@ public class ProxyIntelligenceController {
      * Compute verdicts for multiple IPs in a single call.
      * Reduces HTTP round-trip overhead for proxies handling connection bursts.
      */
+    private static final int MAX_BATCH_SIZE = 1000;
+
     @PostMapping("/verdicts/batch")
     public ResponseEntity<List<Map<String, Object>>> getBatchVerdicts(
             @RequestHeader("X-Internal-Key") String key,
             @RequestBody List<Map<String, Object>> requests) {
         authenticate(key);
+        if (requests.size() > MAX_BATCH_SIZE) {
+            return ResponseEntity.badRequest().body(List.of(
+                    Map.of("error", "Batch size " + requests.size() + " exceeds maximum " + MAX_BATCH_SIZE)));
+        }
         List<String[]> parsed = new ArrayList<>();
         for (Map<String, Object> req : requests) {
             String ip = validateIp((String) req.get("sourceIp"));
@@ -213,6 +219,10 @@ public class ProxyIntelligenceController {
             @RequestHeader("X-Internal-Key") String key,
             @RequestBody List<Map<String, Object>> events) {
         authenticate(key);
+        if (events.size() > MAX_BATCH_SIZE) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Batch size " + events.size() + " exceeds maximum " + MAX_BATCH_SIZE));
+        }
         int accepted = 0;
         int failed = 0;
         for (Map<String, Object> event : events) {

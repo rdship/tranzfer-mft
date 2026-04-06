@@ -259,6 +259,20 @@ Cache and API security measures to prevent intelligence leakage and exploitation
 21. **Service URL transport audit** — `SecretSafetyValidator` scans all `ServiceClientProperties` URLs and logs ERROR for HTTP in production.
 22. **OpenTelemetry TLS** — Production Helm values enforce HTTPS for OTEL collector; OTLP exporter `insecure` set to `false`.
 
+**Phase 4 — Authentication, authorization & input validation hardening:**
+23. **Constant-time API key comparison** — `MessageDigest.isEqual()` replaces `String.equals()` in `LicenseController` + all 4 `FileReceiveController` variants (AS2, FTP, FTP-Web, SFTP).
+24. **Gateway status endpoint authentication** — All `/internal/gateway/*` endpoints now require `X-Internal-Key` header with constant-time validation.
+25. **TOTP 2FA authorization fix** — All TOTP endpoints extract username from `SecurityContext` instead of request body, preventing cross-user 2FA manipulation.
+26. **Storage engine file size limits** — `ParallelIOEngine` validates configurable `storage.max-file-size-bytes` (default 10 GB) at all entry points.
+27. **Keystore master password guard** — `KeyManagementService` blocks startup in PROD/STAGING/CERT if master password is default or < 16 chars.
+28. **Partner receipt IDOR fix** — `/api/partner/receipt/{trackId}` now verifies ownership before returning delivery receipt.
+29. **Admin CLI input hardening** — Command length cap (500), control-char stripping, search result cap (100), email validation on `onboard`.
+30. **File upload extension blocklist** — FTP-Web rejects 28 dangerous extensions (`.jsp`, `.exe`, `.sh`, etc.) and special filenames.
+31. **Batch API size limit** — `/verdicts/batch` and `/events` capped at 1000 items per request.
+32. **Strong TOTP backup codes** — 12-char alphanumeric codes (32^12 entropy), SHA-256 hashed before storage.
+33. **IP-based auth rate limiting** — `/api/auth/login` and `/register` throttled to 20 requests/minute/IP.
+34. **Safe Content-Disposition headers** — RFC 6266 compliant `filename*=UTF-8''` encoding on file downloads.
+
 ### Test summary
 
 | Module | Tests | What's tested |

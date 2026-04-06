@@ -27,6 +27,36 @@ public class KeyManagementService {
     @Value("${keystore.master-password:change-this-master-password}")
     private String masterPassword;
 
+    @Value("${platform.environment:PROD}")
+    private String environment;
+
+    private static final String DEFAULT_MASTER_PASSWORD = "change-this-master-password";
+
+    @jakarta.annotation.PostConstruct
+    void validateMasterPassword() {
+        String env = (environment != null) ? environment.trim().toUpperCase() : "PROD";
+        if (DEFAULT_MASTER_PASSWORD.equals(masterPassword)) {
+            if ("PROD".equals(env) || "STAGING".equals(env) || "CERT".equals(env)) {
+                log.error("BLOCKED: keystore.master-password is the default value in {} environment", env);
+                throw new IllegalStateException(
+                        "Keystore master password must be changed from default in production environments");
+            } else {
+                log.warn("Keystore using default master password in {} environment — change before promoting", env);
+            }
+        }
+        if (masterPassword != null && masterPassword.length() < 16) {
+            if ("PROD".equals(env) || "STAGING".equals(env) || "CERT".equals(env)) {
+                log.error("BLOCKED: keystore.master-password is too short ({} chars) in {} environment",
+                        masterPassword.length(), env);
+                throw new IllegalStateException(
+                        "Keystore master password must be at least 16 characters in production environments");
+            } else {
+                log.warn("Keystore master password is only {} chars in {} — minimum 16 recommended",
+                        masterPassword.length(), env);
+            }
+        }
+    }
+
     // === Key Generation ===
 
     public ManagedKey generateSshHostKey(String alias, String ownerService) throws Exception {
