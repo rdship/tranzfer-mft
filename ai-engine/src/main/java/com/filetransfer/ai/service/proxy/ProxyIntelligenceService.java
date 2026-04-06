@@ -17,7 +17,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -126,10 +127,26 @@ public class ProxyIntelligenceService {
     private final AtomicLong totalBlocked = new AtomicLong(0);
     private final AtomicLong totalBlackholed = new AtomicLong(0);
     private final AtomicLong totalEvents = new AtomicLong(0);
+    private final AtomicLong cacheHits = new AtomicLong(0);
 
-    // Recent verdicts ring buffer for audit trail
-    private final Deque<Map<String, Object>> recentVerdicts = new ArrayDeque<>();
-    private static final int MAX_RECENT_VERDICTS = 500;
+    // ── Lock-free ring buffer for verdict audit trail (Improvement #3) ──
+    private static final int MAX_RECENT_VERDICTS = 512; // power of 2 for fast modulo
+    @SuppressWarnings("unchecked")
+    private final Map<String, Object>[] verdictRing = new Map[MAX_RECENT_VERDICTS];
+    private final AtomicInteger verdictRingHead = new AtomicInteger(0);
+
+    // ── Verdict cache: avoids recomputing for same IP within TTL (Improvement #2) ──
+    private static final long VERDICT_CACHE_TTL_MS = 10_000; // 10 second TTL
+    private static final int VERDICT_CACHE_MAX_SIZE = 50_000;
+    private final ConcurrentHashMap<String, CachedVerdict> verdictCache = new ConcurrentHashMap<>();
+
+    private record CachedVerdict(Verdict verdict, long expiresAt) {
+        boolean isExpired() { return System.currentTimeMillis() > expiresAt; }
+    }
+
+    // ── Async alert enrichment thread pool (Improvement #1) ──
+    private final ExecutorService alertExecutor = Executors.newFixedThreadPool(2,
+        r -> { Thread t = new Thread(r, "alert-enrichment"); t.setDaemon(true); return t; });
 
     // Active threat alerts
     private final ConcurrentHashMap<String, Map<String, Object>> activeAlerts = new ConcurrentHashMap<>();
@@ -142,6 +159,14 @@ public class ProxyIntelligenceService {
      */
     public Verdict computeVerdict(String sourceIp, int targetPort, String protocol) {
         totalVerdicts.incrementAndGet();
+
+        // ── Verdict cache: return cached result if still valid (Improvement #2) ──
+        CachedVerdict cached = verdictCache.get(sourceIp);
+        if (cached != null && !cached.isExpired()) {
+            cacheHits.incrementAndGet();
+            return cached.verdict();
+        }
+
         List<String> signals = new ArrayList<>();
         Map<String, Object> metadata = new LinkedHashMap<>();
 
@@ -287,14 +312,42 @@ public class ProxyIntelligenceService {
             totalAllowed.incrementAndGet();
         }
 
-        // Generate alert if high risk
+        // Generate alert if high risk — async to keep verdict path fast (Improvement #1)
         if (riskScore >= 60) {
-            raiseAlert(sourceIp, riskScore, signals, action);
+            final List<String> alertSignals = List.copyOf(signals);
+            final Action alertAction = action;
+            final int alertRisk = riskScore;
+            alertExecutor.execute(() -> raiseAlert(sourceIp, alertRisk, alertSignals, alertAction));
+        }
+
+        Verdict verdict = new Verdict(action, riskScore, reason, ttl, rateLimit, signals, metadata);
+
+        // Cache the verdict for repeat lookups within TTL (Improvement #2)
+        if (verdictCache.size() < VERDICT_CACHE_MAX_SIZE) {
+            long ttlMs = Math.min(ttl * 1000L, VERDICT_CACHE_TTL_MS);
+            verdictCache.put(sourceIp, new CachedVerdict(verdict, System.currentTimeMillis() + ttlMs));
         }
 
         recordVerdict(sourceIp, action, riskScore, reason);
 
-        return new Verdict(action, riskScore, reason, ttl, rateLimit, signals, metadata);
+        return verdict;
+    }
+
+    // ── Batch Verdict (Improvement #5) ──────────────────────────────────
+
+    /**
+     * Compute verdicts for multiple IPs in a single call.
+     * Reduces HTTP overhead for proxies handling connection bursts.
+     */
+    public List<Verdict> computeVerdictBatch(List<String[]> requests) {
+        List<Verdict> results = new ArrayList<>(requests.size());
+        for (String[] req : requests) {
+            String ip = req[0];
+            int port = req.length > 1 ? Integer.parseInt(req[1]) : 0;
+            String protocol = req.length > 2 ? req[2] : "TCP";
+            results.add(computeVerdict(ip, port, protocol));
+        }
+        return results;
     }
 
     // ── Event Processing (async, from proxy) ───────────────────────────
@@ -386,14 +439,17 @@ public class ProxyIntelligenceService {
 
     public void blockIp(String ip, String reason) {
         reputationService.blockIp(ip, reason);
+        invalidateVerdictCache(ip);
     }
 
     public void unblockIp(String ip) {
         reputationService.unblockIp(ip);
+        invalidateVerdictCache(ip);
     }
 
     public void allowIp(String ip) {
         reputationService.allowIp(ip);
+        invalidateVerdictCache(ip);
     }
 
     public Set<String> getBlocklist() {
@@ -417,6 +473,11 @@ public class ProxyIntelligenceService {
         verdicts.put("blocked", totalBlocked.get());
         verdicts.put("blackholed", totalBlackholed.get());
         verdicts.put("eventsProcessed", totalEvents.get());
+        verdicts.put("cacheHits", cacheHits.get());
+        verdicts.put("cacheSize", verdictCache.size());
+        double hitRate = totalVerdicts.get() > 0
+            ? (cacheHits.get() * 100.0 / totalVerdicts.get()) : 0;
+        verdicts.put("cacheHitRate", Math.round(hitRate * 10.0) / 10.0 + "%");
         dashboard.put("verdicts", verdicts);
 
         // Sub-service stats
@@ -438,11 +499,15 @@ public class ProxyIntelligenceService {
     }
 
     public List<Map<String, Object>> getRecentVerdicts(int limit) {
-        synchronized (recentVerdicts) {
-            return recentVerdicts.stream()
-                .limit(Math.min(limit, MAX_RECENT_VERDICTS))
-                .toList();
+        List<Map<String, Object>> result = new ArrayList<>();
+        int head = verdictRingHead.get();
+        int count = Math.min(limit, MAX_RECENT_VERDICTS);
+        for (int i = 0; i < count; i++) {
+            int idx = (head - 1 - i + MAX_RECENT_VERDICTS) & (MAX_RECENT_VERDICTS - 1);
+            Map<String, Object> entry = verdictRing[idx];
+            if (entry != null) result.add(entry);
         }
+        return result;
     }
 
     public Map<String, Object> getIpIntelligence(String ip) {
@@ -478,6 +543,7 @@ public class ProxyIntelligenceService {
         return new RateLimit(maxConn, maxConcurrent, maxBytes);
     }
 
+    /** Lock-free ring buffer write — no synchronization on the verdict hot path (Improvement #3) */
     private void recordVerdict(String ip, Action action, int risk, String reason) {
         Map<String, Object> record = Map.of(
             "ip", ip,
@@ -486,10 +552,8 @@ public class ProxyIntelligenceService {
             "reason", reason,
             "timestamp", Instant.now().toString()
         );
-        synchronized (recentVerdicts) {
-            recentVerdicts.addFirst(record);
-            while (recentVerdicts.size() > MAX_RECENT_VERDICTS) recentVerdicts.pollLast();
-        }
+        int idx = verdictRingHead.getAndIncrement() & (MAX_RECENT_VERDICTS - 1);
+        verdictRing[idx] = record;
     }
 
     private void raiseAlert(String ip, int riskScore, List<String> signals, Action action) {
@@ -581,7 +645,7 @@ public class ProxyIntelligenceService {
         return "GENERIC_THREAT";
     }
 
-    /** Expire alerts older than 30 minutes */
+    /** Expire alerts older than 30 minutes + evict stale verdict cache entries */
     @Scheduled(fixedRate = 60_000)
     public void expireAlerts() {
         Instant cutoff = Instant.now().minusSeconds(1800);
@@ -589,11 +653,18 @@ public class ProxyIntelligenceService {
             String ts = (String) e.getValue().get("timestamp");
             return ts != null && Instant.parse(ts).isBefore(cutoff);
         });
+        // Evict expired verdict cache entries (Improvement #2)
+        verdictCache.entrySet().removeIf(e -> e.getValue().isExpired());
     }
 
     /** Periodic cleanup of stale connection profiles */
     @Scheduled(fixedRate = 3600_000)
     public void cleanup() {
         patternAnalyzer.evictStaleProfiles(24);
+    }
+
+    /** Invalidate verdict cache for a specific IP (called on block/allow changes) */
+    private void invalidateVerdictCache(String ip) {
+        verdictCache.remove(ip);
     }
 }

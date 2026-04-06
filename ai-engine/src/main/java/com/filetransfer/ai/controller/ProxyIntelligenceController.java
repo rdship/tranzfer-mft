@@ -75,6 +75,39 @@ public class ProxyIntelligenceController {
         return ResponseEntity.ok(response);
     }
 
+    // ── Batch Verdict (Improvement #5) ──────────────────────────────────
+
+    /**
+     * Compute verdicts for multiple IPs in a single call.
+     * Reduces HTTP round-trip overhead for proxies handling connection bursts.
+     */
+    @PostMapping("/verdicts/batch")
+    public ResponseEntity<List<Map<String, Object>>> getBatchVerdicts(
+            @RequestBody List<Map<String, Object>> requests) {
+        List<String[]> parsed = new ArrayList<>();
+        for (Map<String, Object> req : requests) {
+            String ip = (String) req.get("sourceIp");
+            if (ip == null) continue;
+            String port = String.valueOf(req.getOrDefault("targetPort", "0"));
+            String protocol = (String) req.getOrDefault("detectedProtocol", "TCP");
+            parsed.add(new String[]{ip, port, protocol});
+        }
+
+        List<Verdict> verdicts = intelligenceService.computeVerdictBatch(parsed);
+
+        List<Map<String, Object>> results = new ArrayList<>();
+        for (Verdict v : verdicts) {
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("action", v.action().name());
+            r.put("riskScore", v.riskScore());
+            r.put("reason", v.reason());
+            r.put("ttlSeconds", v.ttlSeconds());
+            r.put("signals", v.signals());
+            results.add(r);
+        }
+        return ResponseEntity.ok(results);
+    }
+
     // ── Event Reporting (Async) ────────────────────────────────────────
 
     /**

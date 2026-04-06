@@ -8,6 +8,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 /**
  * Connection Pattern Analyzer — detects DDoS, connection floods, slow-loris attacks,
@@ -96,6 +97,7 @@ public class ConnectionPatternAnalyzer {
     }
 
     private final ConcurrentHashMap<String, IpConnectionProfile> profiles = new ConcurrentHashMap<>();
+    private static final int MAX_TRACKED_IPS = 100_000;
 
     // ── Global Tracking ────────────────────────────────────────────────
 
@@ -115,6 +117,10 @@ public class ConnectionPatternAnalyzer {
     // ── Event Recording ────────────────────────────────────────────────
 
     public void recordConnectionOpen(String ip, int port) {
+        // Evict oldest profiles if at capacity (Improvement #4: LRU cap)
+        if (profiles.size() >= MAX_TRACKED_IPS) {
+            evictOldestProfiles();
+        }
         IpConnectionProfile profile = profiles.computeIfAbsent(ip, k -> new IpConnectionProfile());
         profile.recordConnection(port);
         synchronized (globalConnections) {
@@ -273,5 +279,17 @@ public class ConnectionPatternAnalyzer {
     public void evictStaleProfiles(int hoursOld) {
         Instant cutoff = Instant.now().minus(hoursOld, ChronoUnit.HOURS);
         profiles.entrySet().removeIf(e -> e.getValue().lastSeen.isBefore(cutoff));
+    }
+
+    /** Evict the 10% oldest profiles when at capacity (Improvement #4) */
+    private void evictOldestProfiles() {
+        int toEvict = MAX_TRACKED_IPS / 10;
+        profiles.entrySet().stream()
+            .sorted(Comparator.comparing(e -> e.getValue().lastSeen))
+            .limit(toEvict)
+            .map(Map.Entry::getKey)
+            .toList()
+            .forEach(profiles::remove);
+        log.info("Evicted {} stale IP profiles, remaining: {}", toEvict, profiles.size());
     }
 }

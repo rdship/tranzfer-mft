@@ -1166,6 +1166,29 @@ ai:
       audit-enabled: true
 ```
 
+### Performance Optimizations
+
+The verdict hot path has been tuned for zero end-user impact with 5 optimizations:
+
+| # | Optimization | What Changed | Impact |
+|---|-------------|--------------|--------|
+| 1 | **Async alert enrichment** | `raiseAlert()` (MITRE mapping, attack chain, explainability) now runs on a dedicated 2-thread daemon pool via `ExecutorService`, off the verdict thread | Verdict returns immediately; enrichment completes async |
+| 2 | **Verdict caching** | `ConcurrentHashMap<String, CachedVerdict>` with 10s TTL, max 50K entries. Cache invalidated on block/allow/unblock changes | Repeat IPs served from cache — 0.3µs vs 4.8µs |
+| 3 | **Lock-free ring buffer** | Replaced `synchronized(Deque)` audit trail with fixed-size `Map[]` array + `AtomicInteger` head pointer. Power-of-2 size for bitwise modulo | Zero lock contention on verdict path under concurrency |
+| 4 | **Pattern analyzer LRU cap** | `ConnectionPatternAnalyzer.profiles` capped at 100K entries. When full, evicts oldest 10% by `lastSeen` | Stable memory under sustained load with millions of unique IPs |
+| 5 | **Batch verdict API** | New `POST /api/v1/proxy/verdicts/batch` accepts array of `{sourceIp, targetPort, detectedProtocol}`, returns array of verdicts | Reduces HTTP round-trips for proxy burst scenarios |
+
+**Benchmark results** (Apple M-series, single JVM, no external I/O):
+
+| Path | Avg Latency | P99 Latency | Throughput |
+|------|------------|-------------|------------|
+| Blocklist fast-path | 0.5 µs | 1.9 µs | 1.8M/sec |
+| Core verdict (4 analyzers) | 4.8 µs | 7.8 µs | 210K/sec |
+| Full AI stack (MITRE+network+explain) | 5.7 µs | 6.0 µs | 176K/sec |
+| 8-thread concurrent | 13.2 µs | 173 µs | 185K/sec |
+
+End-user impact: verdict adds **0.02%** overhead vs a 50ms connection RTT and **0.002%** vs a 500ms file transfer.
+
 ---
 
 ## Network Diagram

@@ -215,6 +215,18 @@ ai-engine/src/main/java/com/filetransfer/ai/
 └── ...
 ```
 
+### AI Engine performance optimizations
+
+The verdict hot path includes 5 built-in optimizations:
+
+1. **Async alert enrichment** — `raiseAlert()` runs MITRE/explainability on a separate `alertExecutor` thread pool (2 daemon threads). Verdict returns without waiting.
+2. **Verdict caching** — `ConcurrentHashMap<String, CachedVerdict>` with 10s TTL, 50K max. Auto-invalidated on block/allow changes. Evicted every 60s.
+3. **Lock-free ring buffer** — Audit trail uses `Map[512]` + `AtomicInteger` instead of `synchronized(Deque)`. No locks on the hot path.
+4. **Pattern analyzer LRU cap** — `ConnectionPatternAnalyzer` evicts oldest 10% when profile count exceeds 100K.
+5. **Batch verdict API** — `POST /api/v1/proxy/verdicts/batch` for bulk verdict requests.
+
+Run the benchmark: `mvn test -pl ai-engine -Dtest=ProxyIntelligenceLoadTest`
+
 ### Test summary
 
 | Module | Tests | What's tested |
