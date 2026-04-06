@@ -60,7 +60,8 @@ class ProxyIntelligenceControllerIntegrationTest {
         IpReputationService.class,
         ProtocolThreatDetector.class,
         ConnectionPatternAnalyzer.class,
-        GeoAnomalyDetector.class
+        GeoAnomalyDetector.class,
+        LlmSecurityEscalation.class
     })
     static class TestConfig {}
 
