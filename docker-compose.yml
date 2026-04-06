@@ -43,7 +43,7 @@ services:
       POSTGRES_PASSWORD: postgres
     command: >
       postgres
-      -c max_connections=150
+      -c max_connections=300
       -c shared_buffers=256MB
       -c effective_cache_size=512MB
       -c work_mem=4MB
@@ -106,8 +106,8 @@ services:
     container_name: mft-sftp-service
     <<: *healthcheck
     ports:
-      - "22222:2222"
-      - "8081:8081"
+      - "127.0.0.1:2222:2222"
+      - "127.0.0.1:8081:8081"
     environment:
       <<: *common-env
       CLUSTER_HOST: sftp-service
@@ -128,17 +128,17 @@ services:
     container_name: mft-sftp-service-2
     <<: *healthcheck
     ports:
-      - "22223:2223"
-      - "8096:8096"
+      - "127.0.0.2:2222:2222"
+      - "127.0.0.2:8081:8081"
     environment:
       <<: *common-env
       CLUSTER_HOST: sftp-service-2
-      SERVER_PORT: 8096
-      SFTP_PORT: 2223
-      SFTP_HOME_BASE: /data/sftp2
+      SERVER_PORT: 8081
+      SFTP_PORT: 2222
+      SFTP_HOME_BASE: /data/sftp
       SFTP_INSTANCE_ID: sftp-2
     volumes:
-      - sftp2_data:/data/sftp2
+      - sftp_data:/data/sftp
     depends_on:
       postgres:
         condition: service_healthy
@@ -150,9 +150,9 @@ services:
     container_name: mft-ftp-service
     <<: *healthcheck
     ports:
-      - "21:21"
-      - "21000-21010:21000-21010"
-      - "8082:8082"
+      - "127.0.0.1:21:21"
+      - "127.0.0.1:21000-21010:21000-21010"
+      - "127.0.0.1:8082:8082"
     environment:
       <<: *common-env
       CLUSTER_HOST: ftp-service
@@ -162,6 +162,7 @@ services:
       FTP_PUBLIC_HOST: ${FTP_PUBLIC_HOST:-127.0.0.1}
       FTP_HOME_BASE: /data/ftp
       FTP_INSTANCE_ID: ftp-1
+      PLATFORM_REPLICA_COUNT: 2
     volumes:
       - ftp_data:/data/ftp
     depends_on:
@@ -175,20 +176,21 @@ services:
     container_name: mft-ftp-service-2
     <<: *healthcheck
     ports:
-      - "2121:2121"
-      - "21100-21110:21100-21110"
-      - "8097:8097"
+      - "127.0.0.2:21:21"
+      - "127.0.0.2:21000-21010:21000-21010"
+      - "127.0.0.2:8082:8082"
     environment:
       <<: *common-env
       CLUSTER_HOST: ftp-service-2
-      SERVER_PORT: 8097
-      FTP_PORT: 2121
-      FTP_PASSIVE_PORTS: 21100-21110
-      FTP_PUBLIC_HOST: ${FTP_PUBLIC_HOST:-127.0.0.1}
-      FTP_HOME_BASE: /data/ftp2
+      SERVER_PORT: 8082
+      FTP_PORT: 21
+      FTP_PASSIVE_PORTS: 21000-21010
+      FTP_PUBLIC_HOST: ${FTP_PUBLIC_HOST:-127.0.0.2}
+      FTP_HOME_BASE: /data/ftp
       FTP_INSTANCE_ID: ftp-2
+      PLATFORM_REPLICA_COUNT: 2
     volumes:
-      - ftp2_data:/data/ftp2
+      - ftp_data:/data/ftp
     depends_on:
       postgres:
         condition: service_healthy
@@ -200,7 +202,7 @@ services:
     container_name: mft-ftp-web-service
     <<: *healthcheck
     ports:
-      - "8083:8083"
+      - "127.0.0.1:8083:8083"
     environment:
       <<: *common-env
       CLUSTER_HOST: ftp-web-service
@@ -220,15 +222,15 @@ services:
     container_name: mft-ftp-web-service-2
     <<: *healthcheck
     ports:
-      - "8098:8098"
+      - "127.0.0.2:8083:8083"
     environment:
       <<: *common-env
       CLUSTER_HOST: ftp-web-service-2
-      SERVER_PORT: 8098
-      FTPWEB_HOME_BASE: /data/ftpweb2
+      SERVER_PORT: 8083
+      FTPWEB_HOME_BASE: /data/ftpweb
       FTPWEB_INSTANCE_ID: ftpweb-2
     volumes:
-      - ftpweb2_data:/data/ftpweb2
+      - ftpweb_data:/data/ftpweb
     depends_on:
       postgres:
         condition: service_healthy
@@ -480,10 +482,7 @@ services:
 volumes:
   postgres_data:
   rabbitmq_data:
-  sftp_data:
-  sftp2_data:
-  ftp_data:
-  ftp2_data:
+  sftp_data:       # Shared across all SFTP replicas
+  ftp_data:        # Shared across all FTP replicas
   storage_data:
-  ftpweb_data:
-  ftpweb2_data:
+  ftpweb_data:     # Shared across all FTP-Web replicas

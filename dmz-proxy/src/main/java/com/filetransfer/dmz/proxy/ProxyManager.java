@@ -61,6 +61,11 @@ public class ProxyManager {
             rateLimiter.setDefaultMaxBytesPerMinute(secConfig.getDefaultMaxBytesPerMinute());
             rateLimiter.setGlobalMaxPerMinute(secConfig.getGlobalRatePerMinute());
 
+            // Adjust for multi-replica deployment
+            int replicaCount = Integer.parseInt(
+                    System.getenv().getOrDefault("REPLICA_COUNT", "1"));
+            rateLimiter.setReplicaCount(replicaCount);
+
             // AI verdict client (with internal API key for authenticated communication)
             this.aiVerdictClient = new AiVerdictClient(
                 secConfig.getAiEngineUrl(), secConfig.getVerdictTimeoutMs(),

@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -12,7 +13,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Tracks active FTP connections globally, per-user, and per-IP.
  * Enforces configurable limits at each level.
  *
- * <p>All operations are thread-safe.
+ * <p>All operations are thread-safe. Limits are automatically divided by the
+ * replica count so that N replicas collectively enforce the intended global limit.</p>
  */
 @Slf4j
 @Service
@@ -26,6 +28,20 @@ public class ConnectionTracker {
 
     @Value("${ftp.connection.max-per-ip:10}")
     private int maxPerIp;
+
+    @Value("${platform.replica-count:1}")
+    private int replicaCount;
+
+    @PostConstruct
+    void adjustForReplicas() {
+        if (replicaCount > 1) {
+            maxTotal = Math.max(1, maxTotal / replicaCount);
+            maxPerUser = Math.max(1, maxPerUser / replicaCount);
+            maxPerIp = Math.max(1, maxPerIp / replicaCount);
+            log.info("Connection limits adjusted for {} replicas: total={}, perUser={}, perIp={}",
+                    replicaCount, maxTotal, maxPerUser, maxPerIp);
+        }
+    }
 
     private final AtomicInteger totalConnections = new AtomicInteger(0);
     private final ConcurrentHashMap<String, AtomicInteger> perUser = new ConcurrentHashMap<>();

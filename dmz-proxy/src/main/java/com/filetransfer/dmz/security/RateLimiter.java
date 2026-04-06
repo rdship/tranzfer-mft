@@ -229,6 +229,27 @@ public class RateLimiter {
     public int getDefaultMaxPerMinute() { return defaultMaxPerMinute; }
     public int getDefaultMaxConcurrent() { return defaultMaxConcurrent; }
 
+    // ── Replica Awareness ─────────────────────────────────────────────
+
+    /**
+     * Adjust all default limits for multi-replica deployment.
+     * Each replica gets 1/N of the total limits so that N replicas
+     * collectively enforce the intended global limit.
+     *
+     * @param count number of replicas (1 = no adjustment)
+     */
+    public void setReplicaCount(int count) {
+        if (count > 1) {
+            this.defaultMaxPerMinute = Math.max(1, this.defaultMaxPerMinute / count);
+            this.defaultMaxConcurrent = Math.max(1, this.defaultMaxConcurrent / count);
+            this.defaultMaxBytesPerMinute = Math.max(1, this.defaultMaxBytesPerMinute / count);
+            this.globalMaxPerMinute = Math.max(1, this.globalMaxPerMinute / count);
+            globalTokens.set(globalMaxPerMinute);
+            log.info("Rate limits adjusted for {} replicas: {}/min, {} concurrent, {} bytes/min, global {}/min",
+                    count, defaultMaxPerMinute, defaultMaxConcurrent, defaultMaxBytesPerMinute, globalMaxPerMinute);
+        }
+    }
+
     // ── Stats ──────────────────────────────────────────────────────────
 
     public Map<String, Object> getStats() {

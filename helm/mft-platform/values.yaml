@@ -80,8 +80,8 @@ onboardingApi:
     requests: { cpu: 250m, memory: 512Mi }
     limits: { cpu: 1, memory: 1Gi }
   autoscaling:
-    enabled: false
-    minReplicas: 1
+    enabled: true
+    minReplicas: 2
     maxReplicas: 5
     targetCPUUtilizationPercentage: 70
 
@@ -147,6 +147,11 @@ configService:
   resources:
     requests: { cpu: 250m, memory: 256Mi }
     limits: { cpu: 500m, memory: 512Mi }
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70
 
 gatewayService:
   enabled: true
@@ -161,6 +166,11 @@ gatewayService:
   resources:
     requests: { cpu: 500m, memory: 512Mi }
     limits: { cpu: 2, memory: 2Gi }
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 60
 
 encryptionService:
   enabled: true
@@ -174,6 +184,11 @@ encryptionService:
   resources:
     requests: { cpu: 500m, memory: 512Mi }
     limits: { cpu: 2, memory: 2Gi }
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
 
 externalForwarderService:
   enabled: true
@@ -186,6 +201,11 @@ externalForwarderService:
   resources:
     requests: { cpu: 250m, memory: 512Mi }
     limits: { cpu: 1, memory: 1Gi }
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70
 
 dmzProxy:
   enabled: true
@@ -216,7 +236,7 @@ licenseService:
 
 analyticsService:
   enabled: true
-  replicaCount: 1
+  replicaCount: 2
   image:
     repository: mft/analytics-service
   service:
@@ -243,7 +263,7 @@ as2Service:
 
 aiEngine:
   enabled: true
-  replicaCount: 1
+  replicaCount: 2
   image:
     repository: mft/ai-engine
   service:
@@ -257,7 +277,7 @@ aiEngine:
 
 screeningService:
   enabled: true
-  replicaCount: 1
+  replicaCount: 2
   image:
     repository: mft/screening-service
   service:

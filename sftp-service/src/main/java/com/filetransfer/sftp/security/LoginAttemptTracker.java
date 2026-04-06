@@ -1,19 +1,21 @@
 package com.filetransfer.sftp.security;
 
+import com.filetransfer.shared.entity.LoginAttempt;
+import com.filetransfer.shared.repository.LoginAttemptRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Tracks failed login attempts and enforces account lockout after a configurable
  * number of consecutive failures. Lockout duration is also configurable.
  *
- * <p>Uses an in-memory store keyed by username. Lockout state is not persisted
- * across restarts; this is intentional to avoid permanent lockouts after crashes.</p>
+ * <p>Uses the database for storage so lockout state is consistent across all
+ * service replicas. A user locked on replica-1 is also locked on replica-2.</p>
  */
 @Slf4j
 @Component
@@ -25,101 +27,94 @@ public class LoginAttemptTracker {
     @Value("${sftp.auth.lockout-duration-seconds:900}")
     private int lockoutDurationSeconds;
 
-    private final ConcurrentHashMap<String, AttemptRecord> attempts = new ConcurrentHashMap<>();
+    private final LoginAttemptRepository repository;
+
+    public LoginAttemptTracker(LoginAttemptRepository repository) {
+        this.repository = repository;
+    }
 
     /**
      * Checks whether the given username is currently locked out.
-     *
-     * @param username the username to check
-     * @return true if the account is locked
      */
+    @Transactional(readOnly = true)
     public boolean isLocked(String username) {
         if (maxFailedAttempts <= 0) return false;
 
-        AttemptRecord record = attempts.get(username);
-        if (record == null) return false;
-
-        if (record.lockedUntil != null && Instant.now().isBefore(record.lockedUntil)) {
-            return true;
-        }
-
-        // Lockout expired: reset
-        if (record.lockedUntil != null && !Instant.now().isBefore(record.lockedUntil)) {
-            attempts.remove(username);
-            return false;
-        }
-
-        return false;
+        return repository.findByUsername(username)
+                .map(attempt -> {
+                    if (attempt.getLockedUntil() == null) return false;
+                    if (Instant.now().isBefore(attempt.getLockedUntil())) return true;
+                    // Lockout expired — will be cleaned on next failure or success
+                    return false;
+                })
+                .orElse(false);
     }
 
     /**
-     * Records a failed login attempt for the given username. If the failure
-     * count exceeds the configured maximum, the account is locked for
-     * the configured duration.
-     *
-     * @param username the username that failed authentication
+     * Records a failed login attempt. If failures exceed the configured maximum,
+     * the account is locked for the configured duration across all replicas.
      */
+    @Transactional
     public void recordFailure(String username) {
         if (maxFailedAttempts <= 0) return;
 
-        AttemptRecord record = attempts.computeIfAbsent(username, k -> new AttemptRecord());
-        record.failureCount++;
-        record.lastFailure = Instant.now();
+        LoginAttempt attempt = repository.findByUsername(username)
+                .orElseGet(() -> {
+                    LoginAttempt a = new LoginAttempt();
+                    a.setUsername(username);
+                    return a;
+                });
 
-        if (record.failureCount >= maxFailedAttempts) {
-            record.lockedUntil = Instant.now().plusSeconds(lockoutDurationSeconds);
-            log.warn("Account locked: username={} failures={} lockedUntil={}",
-                    username, record.failureCount, record.lockedUntil);
+        // If lockout expired, reset count
+        if (attempt.getLockedUntil() != null && !Instant.now().isBefore(attempt.getLockedUntil())) {
+            attempt.setFailureCount(0);
+            attempt.setLockedUntil(null);
         }
+
+        attempt.setFailureCount(attempt.getFailureCount() + 1);
+        attempt.setLastFailureAt(Instant.now());
+
+        if (attempt.getFailureCount() >= maxFailedAttempts) {
+            attempt.setLockedUntil(Instant.now().plusSeconds(lockoutDurationSeconds));
+            log.warn("Account locked: username={} failures={} lockedUntil={}",
+                    username, attempt.getFailureCount(), attempt.getLockedUntil());
+        }
+
+        repository.save(attempt);
     }
 
     /**
-     * Clears the failure record for the given username. Called on successful login.
-     *
-     * @param username the username to reset
+     * Clears the failure record on successful login.
      */
+    @Transactional
     public void recordSuccess(String username) {
-        attempts.remove(username);
+        repository.deleteByUsername(username);
     }
 
     /**
      * Returns a snapshot of currently locked accounts with their unlock times.
      */
+    @Transactional(readOnly = true)
     public Map<String, Instant> getLockedAccounts() {
         Map<String, Instant> locked = new LinkedHashMap<>();
-        Instant now = Instant.now();
-        attempts.forEach((username, record) -> {
-            if (record.lockedUntil != null && now.isBefore(record.lockedUntil)) {
-                locked.put(username, record.lockedUntil);
-            }
-        });
+        repository.findByLockedUntilAfter(Instant.now())
+                .forEach(a -> locked.put(a.getUsername(), a.getLockedUntil()));
         return Collections.unmodifiableMap(locked);
     }
 
     /**
      * Returns total number of tracked usernames (including non-locked).
      */
+    @Transactional(readOnly = true)
     public int getTrackedCount() {
-        return attempts.size();
+        return (int) repository.count();
     }
 
-    /**
-     * Returns the configured maximum failed attempts before lockout.
-     */
     public int getMaxFailedAttempts() {
         return maxFailedAttempts;
     }
 
-    /**
-     * Returns the configured lockout duration in seconds.
-     */
     public int getLockoutDurationSeconds() {
         return lockoutDurationSeconds;
-    }
-
-    private static class AttemptRecord {
-        int failureCount;
-        Instant lastFailure;
-        Instant lockedUntil;
     }
 }

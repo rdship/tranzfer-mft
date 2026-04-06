@@ -1,5 +1,26 @@
 # Changelog
 
+## v2.4.0 (2026-04-06)
+
+### Multi-Replica Deployment Support
+- **DB-backed login lockout**: SFTP login attempt tracking moved from in-memory `ConcurrentHashMap` to PostgreSQL — lockout state is now consistent across all replicas
+- **Replica-aware connection limits**: FTP `ConnectionTracker` divides `max-total`, `max-per-user`, `max-per-ip` by `PLATFORM_REPLICA_COUNT` so N replicas collectively enforce the intended limits
+- **Replica-aware rate limiting**: DMZ Proxy `RateLimiter` divides all defaults by `REPLICA_COUNT` env var — per-IP and global limits are enforced across the cluster
+- **Shared volumes**: Docker Compose replicas now share the same data volume (sftp_data, ftp_data, ftpweb_data) — files uploaded to any replica are visible on all others
+- **Interface binding**: Replicas bind to different loopback interfaces (127.0.0.1, 127.0.0.2, etc.) on the same port — no port conflicts, clean local development
+- **PostgreSQL max_connections**: Increased from 150 to 300 for multi-replica deployments
+
+### Database
+- V19 migration: `login_attempts` table for cross-replica login lockout tracking
+
+### Kubernetes / Helm
+- HPA enabled for: onboarding-api, config-service, encryption-service, gateway-service, external-forwarder
+- Bumped default replicas: analytics (2), ai-engine (2), screening (2)
+- SFTP/FTP remain at 1 replica per StatefulSet (port binding — scale via additional StatefulSets)
+
+### Tests
+- All 1135+ tests pass, 0 failures across 21 modules
+
 ## v2.3.0 (2026-04-06)
 
 ### Per-Listener Security Profiles
