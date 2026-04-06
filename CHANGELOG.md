@@ -1,5 +1,37 @@
 # Changelog
 
+## v2.2.0 (2026-04-06)
+
+### EDI Converter — Production Hardening (4 Phases)
+- **Phase 1: Real Parsing** — ISA-driven delimiter detection, composite/repeating element support, UNA-aware EDIFACT parsing with release character handling, hierarchical loop detection (10 X12 transaction types), per-segment error recovery
+- **Phase 2: Real Validation** — 35 X12 + 21 EDIFACT segment definition registries, element-level validation (type, length, code set), 19 business rules (X12/EDIFACT/HL7), version-aware validation (005010/004010)
+- **Phase 3: Real Conversion** — Full canonical model (references, dates, contacts, notes), 40+ new segment mappings (forward + reverse), spec-compliant ISA generation (106 chars, AtomicLong control numbers), round-trip fidelity
+- **Phase 4: Real AI** — Claude API integration for mapping inference + NL entity extraction, persistent trained maps (file-based, survive restarts), cache statistics and management endpoints
+
+### LLM Opt-In
+- External LLM usage is now explicitly opt-in via `ai.llm.enabled` platform setting (default: off)
+- Settings > AI tab: toggle, API key, model selector (Sonnet/Haiku/Opus), endpoint URL (http/https), connection test
+- All AI features continue to work without LLM using built-in pattern matching
+- V17 migration seeds AI platform settings
+
+### External Endpoint Enhancements
+- Full protocol selection: SFTP, FTP, FTPS, HTTP, HTTPS, API
+- Proxy routing: DMZ, HTTP, SOCKS5 proxy configuration per destination
+- Connection test: `POST /api/forward/test-connection` with proxy support
+- Auto-detection of DMZ Proxy service with setup guidance
+
+### New Endpoints
+- `POST /api/forward/test-connection` — Test external endpoint connectivity (with optional proxy)
+- `GET /api/v1/convert/trained/maps` — List persisted trained maps
+- `GET /api/v1/convert/trained/cache-stats` — Cache statistics
+- `POST /api/v1/convert/trained/invalidate-all` — Full cache invalidation (memory + disk)
+
+### Database
+- V17 migration: `ai.llm.enabled`, `ai.llm.api-key`, `ai.llm.model`, `ai.llm.base-url` platform settings
+
+### Tests
+- 324 new tests (1135 total across 19 services, 0 failures)
+
 ## v2.1.0 (2026-04-06)
 
 ### New Features
