@@ -87,12 +87,14 @@ public class TrainingSession {
     public void markCompleted() {
         this.status = Status.COMPLETED;
         this.completedAt = Instant.now();
+        if (startedAt == null) startedAt = completedAt;
         this.durationMs = Duration.between(startedAt, completedAt).toMillis();
     }
 
     public void markFailed(String error) {
         this.status = Status.FAILED;
         this.completedAt = Instant.now();
+        if (startedAt == null) startedAt = completedAt;
         this.durationMs = Duration.between(startedAt, completedAt).toMillis();
         this.errorMessage = error;
     }

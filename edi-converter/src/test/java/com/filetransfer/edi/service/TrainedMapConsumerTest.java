@@ -296,4 +296,147 @@ class TrainedMapConsumerTest {
         assertEquals(1, result.getFieldsSkipped());
         assertEquals(6, result.getTotalMappings());
     }
+
+    // ===================================================================
+    // applyCustomMappings tests
+    // ===================================================================
+
+    private static final String SAMPLE_X12_850 =
+            "ISA*00*          *00*          *ZZ*ACME           *ZZ*GLOBALSUP      *240101*1200*U*00501*000000001*0*P*>~"
+            + "GS*PO*ACME*GLOBALSUP*20240101*1200*1*X*005010~"
+            + "ST*850*0001~"
+            + "BEG*00*NE*PO-123**20240101~"
+            + "NM1*BY*1*Acme Corp*John~"
+            + "PO1*001*500*EA*12.50*PE*VP*WIDGET-100~"
+            + "SE*6*0001~GE*1*1~IEA*1*000000001~";
+
+    @Test
+    void applyCustomMappings_singleMapping() {
+        List<FieldMapping> mappings = List.of(
+                FieldMapping.builder()
+                        .sourceField("BEG*03").targetField("poNumber")
+                        .transform("DIRECT").confidence(100)
+                        .build());
+
+        TrainedConversionResult result = consumer.applyCustomMappings(SAMPLE_X12_850, mappings);
+
+        assertNotNull(result.getOutput());
+        assertTrue(result.getOutput().contains("poNumber"));
+        assertTrue(result.getOutput().contains("PO-123"));
+        assertEquals(1, result.getFieldsApplied());
+        assertEquals(0, result.getFieldsSkipped());
+    }
+
+    @Test
+    void applyCustomMappings_multipleMappings() {
+        List<FieldMapping> mappings = List.of(
+                FieldMapping.builder()
+                        .sourceField("BEG*03").targetField("poNumber")
+                        .transform("DIRECT").confidence(100).build(),
+                FieldMapping.builder()
+                        .sourceField("NM1*03").targetField("buyerName")
+                        .transform("DIRECT").confidence(100).build(),
+                FieldMapping.builder()
+                        .sourceField("BEG*05").targetField("orderDate")
+                        .transform("DIRECT").confidence(100).build()
+        );
+
+        TrainedConversionResult result = consumer.applyCustomMappings(SAMPLE_X12_850, mappings);
+
+        assertTrue(result.getOutput().contains("PO-123"));
+        assertTrue(result.getOutput().contains("Acme Corp"));
+        assertTrue(result.getOutput().contains("20240101"));
+        assertEquals(3, result.getFieldsApplied());
+    }
+
+    @Test
+    void applyCustomMappings_withTransforms() {
+        List<FieldMapping> mappings = List.of(
+                FieldMapping.builder()
+                        .sourceField("NM1*03").targetField("buyerName")
+                        .transform("UPPERCASE").confidence(100).build(),
+                FieldMapping.builder()
+                        .sourceField("BEG*03").targetField("poNumber")
+                        .transform("TRIM").confidence(100).build()
+        );
+
+        TrainedConversionResult result = consumer.applyCustomMappings(SAMPLE_X12_850, mappings);
+
+        assertTrue(result.getOutput().contains("ACME CORP"));
+        assertTrue(result.getOutput().contains("PO-123"));
+    }
+
+    @Test
+    void applyCustomMappings_nestedTargetField() {
+        List<FieldMapping> mappings = List.of(
+                FieldMapping.builder()
+                        .sourceField("NM1*03").targetField("buyer.name")
+                        .transform("DIRECT").confidence(100).build(),
+                FieldMapping.builder()
+                        .sourceField("BEG*03").targetField("header.poNumber")
+                        .transform("DIRECT").confidence(100).build()
+        );
+
+        TrainedConversionResult result = consumer.applyCustomMappings(SAMPLE_X12_850, mappings);
+
+        assertTrue(result.getOutput().contains("\"buyer\""));
+        assertTrue(result.getOutput().contains("\"name\""));
+        assertTrue(result.getOutput().contains("\"header\""));
+        assertTrue(result.getOutput().contains("\"poNumber\""));
+    }
+
+    @Test
+    void applyCustomMappings_emptyMappings() {
+        TrainedConversionResult result = consumer.applyCustomMappings(SAMPLE_X12_850, List.of());
+
+        assertNotNull(result.getOutput());
+        assertEquals(0, result.getFieldsApplied());
+        assertEquals(0, result.getTotalMappings());
+    }
+
+    @Test
+    void applyCustomMappings_unmatchedSourceField() {
+        List<FieldMapping> mappings = List.of(
+                FieldMapping.builder()
+                        .sourceField("NONEXISTENT*99").targetField("ghostField")
+                        .transform("DIRECT").confidence(100).build()
+        );
+
+        TrainedConversionResult result = consumer.applyCustomMappings(SAMPLE_X12_850, mappings);
+
+        assertEquals(0, result.getFieldsApplied());
+        assertEquals(1, result.getFieldsSkipped());
+    }
+
+    @Test
+    void applyCustomMappings_invalidContent_returnsEmptyOutput() {
+        List<FieldMapping> mappings = List.of(
+                FieldMapping.builder()
+                        .sourceField("BEG*03").targetField("poNumber")
+                        .transform("DIRECT").confidence(100).build()
+        );
+
+        // Completely invalid content
+        TrainedConversionResult result = consumer.applyCustomMappings("not edi at all", mappings);
+
+        assertNotNull(result);
+        // Parser may still parse it (as UNKNOWN format) — just verify no crash
+    }
+
+    @Test
+    void applyCustomMappings_dateReformat() {
+        List<FieldMapping> mappings = List.of(
+                FieldMapping.builder()
+                        .sourceField("BEG*05").targetField("orderDate")
+                        .transform("DATE_REFORMAT")
+                        .transformParam("yyyyMMdd→yyyy-MM-dd")
+                        .confidence(100).build()
+        );
+
+        TrainedConversionResult result = consumer.applyCustomMappings(SAMPLE_X12_850, mappings);
+
+        // The date 20240101 should be reformatted to 2024-01-01
+        assertTrue(result.getOutput().contains("2024-01-01"));
+        assertEquals(1, result.getFieldsApplied());
+    }
 }
