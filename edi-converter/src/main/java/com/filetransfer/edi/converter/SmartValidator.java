@@ -1,6 +1,8 @@
 package com.filetransfer.edi.converter;
 
 import com.filetransfer.edi.model.EdiDocument;
+import com.filetransfer.edi.parser.X12VersionRegistry;
+import com.filetransfer.edi.service.BusinessRuleEngine;
 import lombok.*;
 import org.springframework.stereotype.Service;
 
@@ -12,7 +14,11 @@ import java.util.stream.Collectors;
  * tells you EXACTLY what's wrong and HOW to fix it.
  */
 @Service
+@RequiredArgsConstructor
 public class SmartValidator {
+
+    private final BusinessRuleEngine businessRuleEngine;
+    private final X12VersionRegistry versionRegistry;
 
     public ValidationReport validate(EdiDocument doc) {
         List<Issue> issues = new ArrayList<>();
@@ -23,7 +29,7 @@ public class SmartValidator {
                     .fix("Check that the file is in a supported EDI format (X12, EDIFACT, HL7, etc.)")
                     .example("X12 files should start with ISA*00*...")
                     .build());
-            return report(doc, issues);
+            return report(doc, issues, List.of());
         }
 
         if ("X12".equals(doc.getSourceFormat())) validateX12(doc, issues);
@@ -31,7 +37,20 @@ public class SmartValidator {
         else if ("HL7".equals(doc.getSourceFormat())) validateHl7(doc, issues);
         else genericValidation(doc, issues);
 
-        return report(doc, issues);
+        // Run business rules for all formats
+        List<BusinessRuleEngine.RuleResult> bizResults = businessRuleEngine.evaluate(doc);
+        for (var r : bizResults) {
+            if (!r.isPassed()) {
+                issues.add(Issue.builder()
+                    .severity(r.getSeverity())
+                    .segment(r.getAffectedSegment())
+                    .problem("[" + r.getRuleId() + "] " + r.getMessage())
+                    .fix(r.getRecommendation())
+                    .build());
+            }
+        }
+
+        return report(doc, issues, bizResults);
     }
 
     private void validateX12(EdiDocument doc, List<Issue> issues) {
@@ -110,6 +129,25 @@ public class SmartValidator {
             }
         }
 
+        // Version-aware validation
+        String txnType = doc.getDocumentType();
+        Set<String> present = new HashSet<>(segIds);
+        // The basic required segments already checked above
+        Set<String> alreadyChecked = Set.of("ISA", "GS", "ST", "SE", "GE", "IEA");
+        if (txnType != null) {
+            X12VersionRegistry.VersionDef vDef = versionRegistry.getVersionDef(doc.getVersion(), txnType);
+            if (vDef != null) {
+                for (String req : vDef.getRequiredSegments()) {
+                    if (!present.contains(req) && !alreadyChecked.contains(req)) {
+                        issues.add(Issue.builder().severity("WARNING").segment(req)
+                                .problem("Version " + vDef.getVersion() + " requires segment " + req + " for " + txnType)
+                                .fix("Add " + req + " segment as required by implementation guide " + vDef.getImplementationGuide())
+                                .build());
+                    }
+                }
+            }
+        }
+
         if (issues.isEmpty()) {
             issues.add(Issue.builder().severity("OK").segment("(all)")
                     .problem("No issues found — this is a valid X12 " + doc.getDocumentType() + " document!")
@@ -138,13 +176,14 @@ public class SmartValidator {
         else issues.add(Issue.builder().severity("OK").problem("Basic structure looks valid (" + doc.getSegments().size() + " segments)").build());
     }
 
-    private ValidationReport report(EdiDocument doc, List<Issue> issues) {
+    private ValidationReport report(EdiDocument doc, List<Issue> issues, List<BusinessRuleEngine.RuleResult> bizResults) {
         long errors = issues.stream().filter(i -> "ERROR".equals(i.severity)).count();
         long warnings = issues.stream().filter(i -> "WARNING".equals(i.severity)).count();
         return ValidationReport.builder()
                 .valid(errors == 0).format(doc.getSourceFormat()).documentType(doc.getDocumentType())
                 .errors((int) errors).warnings((int) warnings).totalSegments(doc.getSegments() != null ? doc.getSegments().size() : 0)
                 .issues(issues)
+                .businessRuleResults(bizResults)
                 .verdict(errors == 0 ? (warnings == 0 ? "✅ Perfect — no issues found" : "⚠️ Valid but has " + warnings + " warning(s)") : "❌ Invalid — " + errors + " error(s) must be fixed")
                 .build();
     }
@@ -158,6 +197,7 @@ public class SmartValidator {
         private int warnings;
         private int totalSegments;
         private List<Issue> issues;
+        private List<BusinessRuleEngine.RuleResult> businessRuleResults;
         private String verdict;
     }
 

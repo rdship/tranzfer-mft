@@ -1,6 +1,8 @@
 package com.filetransfer.edi.converter;
 
 import com.filetransfer.edi.model.EdiDocument;
+import com.filetransfer.edi.parser.X12VersionRegistry;
+import com.filetransfer.edi.service.BusinessRuleEngine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -11,7 +13,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for SmartValidator covering X12, EDIFACT, HL7 structure validation,
- * missing segments, segment count mismatches, and empty document handling.
+ * missing segments, segment count mismatches, empty document handling,
+ * business rule integration, and version-aware validation.
  */
 class SmartValidatorTest {
 
@@ -19,7 +22,7 @@ class SmartValidatorTest {
 
     @BeforeEach
     void setUp() {
-        validator = new SmartValidator();
+        validator = new SmartValidator(new BusinessRuleEngine(), new X12VersionRegistry());
     }
 
     /** Build a segment with the given ID and elements */
@@ -347,5 +350,85 @@ class SmartValidatorTest {
         assertTrue(report.getIssues().stream()
                 .filter(i -> "ERROR".equals(i.getSeverity()))
                 .anyMatch(i -> i.getFix() != null && !i.getFix().isEmpty()));
+    }
+
+    // === Business rule integration tests ===
+
+    @Test
+    void validateX12_businessRules_controlNumberMismatch_flagged() {
+        // ISA control number = 000000001, IEA control number = 000000099 (mismatch)
+        // ST at 2, SE at 5 -> count = 4
+        EdiDocument d = doc("X12", "850",
+                seg("ISA", "00","          ","00","          ","ZZ","SENDER         ","ZZ","RECEIVER       ","240101","1200","U","00501","000000001","0","P"),
+                seg("GS", "PO","SENDER","RECEIVER","20240101","1200","1","X","005010"),
+                seg("ST", "850","0001"),
+                seg("BEG", "00","NE","PO-12345","","20240101"),
+                seg("PO1", "1","10","EA","25.00","","UP","123456789"),
+                seg("SE", "4","0001"),
+                seg("GE", "1","1"),
+                seg("IEA", "1","000000099"));
+
+        SmartValidator.ValidationReport report = validator.validate(d);
+        // Should flag the ISA/IEA mismatch via business rule X12-001
+        assertTrue(report.getIssues().stream()
+                .anyMatch(i -> i.getProblem() != null && i.getProblem().contains("X12-001")),
+                "Expected X12-001 control number mismatch issue but got: " + report.getIssues());
+    }
+
+    @Test
+    void validateX12_businessRules_allControlNumbersMatch_passes() {
+        // All control numbers match: ISA13=IEA02, GS06=GE02, ST02=SE02
+        // ST at 2, SE at 5 -> count = 4
+        EdiDocument d = doc("X12", "850",
+                seg("ISA", "00","          ","00","          ","ZZ","SENDER         ","ZZ","RECEIVER       ","240101","1200","U","00501","000000001","0","P"),
+                seg("GS", "PO","SENDER","RECEIVER","20240101","1200","1","X","005010"),
+                seg("ST", "850","0001"),
+                seg("BEG", "00","NE","PO-12345","","20240101"),
+                seg("PO1", "1","10","EA","25.00","","UP","123456789"),
+                seg("SE", "4","0001"),
+                seg("GE", "1","1"),
+                seg("IEA", "1","000000001"));
+
+        SmartValidator.ValidationReport report = validator.validate(d);
+        // X12-001 should NOT appear as a failed issue
+        assertFalse(report.getIssues().stream()
+                .anyMatch(i -> i.getProblem() != null && i.getProblem().contains("X12-001")),
+                "X12-001 should not flag when control numbers match");
+        // businessRuleResults should be populated
+        assertNotNull(report.getBusinessRuleResults());
+        assertFalse(report.getBusinessRuleResults().isEmpty());
+    }
+
+    @Test
+    void validateX12_versionAware_missingRequiredFor837_flagged() {
+        // 837 with version 005010 requires BHT, HL, NM1, CLM, SV1 — we omit them
+        // ST at 2, SE at 3 -> count = 2
+        EdiDocument d = EdiDocument.builder()
+                .sourceFormat("X12")
+                .documentType("837")
+                .version("005010")
+                .segments(List.of(
+                    seg("ISA", "00","          ","00","          ","ZZ","SENDER         ","ZZ","RECEIVER       ","240101","1200","U","00501","000000001","0","P"),
+                    seg("GS", "HP","SENDER","RECEIVER","20240101","1200","1","X","005010"),
+                    seg("ST", "837","0001"),
+                    seg("SE", "2","0001"),
+                    seg("GE", "1","1"),
+                    seg("IEA", "1","000000001")
+                ))
+                .build();
+
+        SmartValidator.ValidationReport report = validator.validate(d);
+        // Should have warnings about missing version-required segments (BHT, HL, NM1, CLM, SV1)
+        assertTrue(report.getIssues().stream()
+                .anyMatch(i -> "WARNING".equals(i.getSeverity()) && i.getProblem() != null
+                        && i.getProblem().contains("requires segment")),
+                "Expected version-aware missing segment warnings but got: " + report.getIssues());
+        // Check specific segments
+        assertTrue(report.getIssues().stream()
+                .anyMatch(i -> i.getProblem() != null && i.getProblem().contains("BHT")),
+                "Expected BHT missing warning");
+        assertTrue(report.getIssues().stream()
+                .anyMatch(i -> i.getProblem() != null && i.getProblem().contains("CLM")),
+                "Expected CLM missing warning");
     }
 }
