@@ -134,6 +134,38 @@ class LlmSecurityEscalationTest {
         assertEquals("key: \\\"val\\\\ue\\\"\\nnext", escaped);
     }
 
+    // ---- additional evaluate tests ----
+
+    @Test
+    void evaluateNullSourceIpReturnsEmpty() throws Exception {
+        setField("llmEnabled", true);
+        setField("apiKey", "sk-test-key");
+        setField("model", "claude-sonnet-4-20250514");
+        // Use an invalid URL so we never reach a real API
+        setField("baseUrl", "http://localhost:1");
+
+        Optional<LlmVerdictResult> result = service.evaluate(
+                null, 22, "SFTP", 55,
+                List.of("UNUSUAL_TIME"), Map.of());
+
+        assertTrue(result.isEmpty(), "Null sourceIp should be handled gracefully and return empty");
+    }
+
+    @Test
+    void evaluateInvalidUrlReturnsEmpty() throws Exception {
+        setField("llmEnabled", true);
+        setField("apiKey", "sk-test-key");
+        setField("model", "claude-sonnet-4-20250514");
+        setField("baseUrl", "http://localhost:99999");
+
+        Optional<LlmVerdictResult> result = service.evaluate(
+                "10.0.0.1", 22, "SSH", 45,
+                List.of("GEO_MISMATCH"),
+                Map.of("country", "XX"));
+
+        assertTrue(result.isEmpty(), "Invalid port in URL should cause connection failure and return empty");
+    }
+
     // ---- helpers ----
 
     private void setField(String fieldName, Object value) throws Exception {

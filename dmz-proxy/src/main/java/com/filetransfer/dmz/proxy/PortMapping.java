@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import com.filetransfer.dmz.security.ZoneEnforcer;
+
 import java.util.List;
 import java.util.Map;
 
@@ -31,6 +33,9 @@ public class PortMapping {
     private HealthCheckPolicy healthCheckPolicy;
     @Builder.Default private boolean proxyProtocolEnabled = false;
     @Builder.Default private boolean auditEnabled = true;
+
+    /** Pre-resolved target zone — set by ProxyManager.add() to avoid DNS on the event loop. */
+    private transient ZoneEnforcer.Zone cachedTargetZone;
 
     /**
      * Per-mapping security policy. Defines the security tier and manual rules.

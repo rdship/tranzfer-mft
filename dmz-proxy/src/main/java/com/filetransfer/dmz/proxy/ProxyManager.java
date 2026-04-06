@@ -268,6 +268,25 @@ public class ProxyManager {
             throw new IllegalArgumentException("Mapping already exists: " + mapping.getName());
         }
 
+        // ── Fail-fast: egress filter on static backend target (DNS resolved once here, not per-connection) ──
+        if (egressFilter != null) {
+            EgressFilter.EgressCheckResult egress = egressFilter.checkDestination(
+                mapping.getTargetHost(), mapping.getTargetPort());
+            if (!egress.allowed()) {
+                throw new IllegalArgumentException(
+                    "Egress filter blocked backend " + mapping.getTargetHost() + ":"
+                    + mapping.getTargetPort() + " for mapping " + mapping.getName()
+                    + ": " + egress.reason());
+            }
+        }
+
+        // ── Fail-fast: zone enforcement on static backend target (DNS resolved once here) ──
+        if (zoneEnforcer != null) {
+            // Pre-resolve target zone so per-connection checks only classify the source IP (no DNS)
+            ZoneEnforcer.Zone targetZone = zoneEnforcer.classifyHost(mapping.getTargetHost());
+            mapping.setCachedTargetZone(targetZone);
+        }
+
         // Register backend for health checking
         if (healthChecker != null) {
             PortMapping.HealthCheckPolicy hcp = mapping.getHealthCheckPolicy();

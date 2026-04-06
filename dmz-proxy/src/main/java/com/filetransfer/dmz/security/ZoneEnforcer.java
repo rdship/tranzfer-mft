@@ -284,6 +284,64 @@ public class ZoneEnforcer {
     }
 
     /**
+     * Classify a hostname or IP into a zone. Resolves DNS if needed.
+     * Intended for one-time pre-resolution at mapping creation — NOT for use on the event loop.
+     *
+     * @param host hostname or IP address
+     * @return the zone
+     */
+    public Zone classifyHost(String host) {
+        return classifyIp(resolveToIp(host));
+    }
+
+    /**
+     * Fast zone transition check using a pre-resolved target zone.
+     * No DNS resolution — only classifies the source IP (which is always an IP literal).
+     * Safe to call on the Netty event loop.
+     *
+     * @param sourceIp    the originating IP (dotted-decimal — no DNS needed)
+     * @param targetZone  the pre-resolved target zone (from {@link #classifyHost})
+     * @param targetPort  the destination port (for logging/context only)
+     * @return the check result
+     */
+    public ZoneCheckResult checkTransitionFast(String sourceIp, Zone targetZone, int targetPort) {
+        Zone sourceZone = classifyIp(sourceIp);
+
+        if (targetZone == null) {
+            targetZone = Zone.EXTERNAL;
+        }
+
+        String pairKey = sourceZone + "->" + targetZone;
+
+        if (sourceZone == targetZone) {
+            recordAllowed(pairKey);
+            return new ZoneCheckResult(true, sourceZone, targetZone,
+                    "Same-zone traffic (" + sourceZone + ")");
+        }
+
+        List<ZoneRule> rules = rulesRef.get();
+        for (ZoneRule rule : rules) {
+            if (rule.source() == sourceZone && rule.target() == targetZone) {
+                if (rule.allowed()) {
+                    recordAllowed(pairKey);
+                    return new ZoneCheckResult(true, sourceZone, targetZone, rule.description());
+                } else {
+                    recordBlocked(pairKey);
+                    log.warn("Zone transition BLOCKED: {} ({}) -> {} (port {}): {}",
+                            sourceZone, sourceIp, targetZone, targetPort, rule.description());
+                    return new ZoneCheckResult(false, sourceZone, targetZone, rule.description());
+                }
+            }
+        }
+
+        recordBlocked(pairKey);
+        log.warn("Zone transition BLOCKED (no rule): {} ({}) -> {} (port {})",
+                sourceZone, sourceIp, targetZone, targetPort);
+        return new ZoneCheckResult(false, sourceZone, targetZone,
+                "No rule defined for " + sourceZone + " -> " + targetZone + " (default deny)");
+    }
+
+    /**
      * Add or update a zone transition rule at runtime.
      * If a rule with the same source and target already exists, it is replaced.
      * The operation is atomic with respect to concurrent readers.

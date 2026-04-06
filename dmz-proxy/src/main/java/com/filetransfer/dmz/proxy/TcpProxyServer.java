@@ -140,29 +140,20 @@ public class TcpProxyServer {
                             return;
                         }
 
-                        // ── Step 4: Egress filter check on target ──
-                        EgressFilter ef = manager != null ? manager.getEgressFilter() : null;
-                        if (ef != null) {
-                            EgressFilter.EgressCheckResult egress = ef.checkDestination(
-                                mapping.getTargetHost(), mapping.getTargetPort());
-                            if (!egress.allowed()) {
-                                log.warn("[{}] Egress filter blocked backend {}:{}: {}",
-                                    mapping.getName(), mapping.getTargetHost(),
-                                    mapping.getTargetPort(), egress.reason());
-                                auditConnection("EGRESS_BLOCKED", clientCh, egress.reason());
-                                activeConnections.decrementAndGet();
-                                clientCh.close();
-                                return;
-                            }
-                        }
+                        // ── Step 4: Egress filter — SKIPPED (pre-checked at mapping creation) ──
+                        // EgressFilter.checkDestination() involves DNS resolution for hostnames.
+                        // Since the backend target (host:port) is static per mapping, the check
+                        // runs once in ProxyManager.add() — not here on the event loop.
 
-                        // ── Step 5: Zone enforcement ──
+                        // ── Step 5: Zone enforcement (source IP only — target pre-resolved) ──
                         ZoneEnforcer ze = manager != null ? manager.getZoneEnforcer() : null;
                         if (ze != null) {
                             InetSocketAddress remote = (InetSocketAddress) clientCh.remoteAddress();
                             String sourceIp = remote != null ? remote.getAddress().getHostAddress() : "unknown";
-                            ZoneEnforcer.ZoneCheckResult zoneResult = ze.checkTransition(
-                                sourceIp, mapping.getTargetHost(), mapping.getTargetPort());
+                            // Source IP is always an IP literal — classifyIp does NO DNS lookup.
+                            // Target zone was pre-resolved at mapping creation (no DNS here).
+                            ZoneEnforcer.ZoneCheckResult zoneResult = ze.checkTransitionFast(
+                                sourceIp, mapping.getCachedTargetZone(), mapping.getTargetPort());
                             if (!zoneResult.allowed()) {
                                 log.warn("[{}] Zone violation: {} → {}: {}",
                                     mapping.getName(), zoneResult.sourceZone(),
