@@ -58,7 +58,7 @@ public class ParallelIOEngine {
      * Returns the SHA-256 checksum.
      */
     public WriteResult write(InputStream input, Path destination, long expectedSize) throws Exception {
-        if (expectedSize > maxFileSizeBytes) {
+        if (maxFileSizeBytes > 0 && expectedSize > maxFileSizeBytes) {
             throw new IllegalArgumentException(String.format(
                     "File size %d bytes exceeds maximum allowed %d bytes", expectedSize, maxFileSizeBytes));
         }
@@ -115,7 +115,7 @@ public class ParallelIOEngine {
             }
         }
         totalSize = Files.size(tempFile);
-        if (totalSize > maxFileSizeBytes) {
+        if (maxFileSizeBytes > 0 && totalSize > maxFileSizeBytes) {
             Files.deleteIfExists(tempFile);
             throw new IllegalArgumentException(String.format(
                     "File size %d bytes exceeds maximum allowed %d bytes", totalSize, maxFileSizeBytes));
@@ -174,7 +174,7 @@ public class ParallelIOEngine {
      */
     public ReadResult read(Path source) throws Exception {
         long size = Files.size(source);
-        if (size > maxFileSizeBytes) {
+        if (maxFileSizeBytes > 0 && size > maxFileSizeBytes) {
             throw new IllegalArgumentException(String.format(
                     "File size %d bytes exceeds maximum allowed %d bytes", size, maxFileSizeBytes));
         }
