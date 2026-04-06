@@ -46,13 +46,13 @@ class ProxyIntelligenceLoadTest {
     private ProxyIntelligenceService coreService() {
         return new ProxyIntelligenceService(
             reputationService, threatDetector, patternAnalyzer, geoDetector,
-            null, null, null, null, null, null);
+            new LlmSecurityEscalation(), null, null, null, null, null, null);
     }
 
     private ProxyIntelligenceService fullService() {
         return new ProxyIntelligenceService(
             reputationService, threatDetector, patternAnalyzer, geoDetector,
-            null, new MitreAttackMapper(), new NetworkBehaviorAnalyzer(),
+            new LlmSecurityEscalation(), null, new MitreAttackMapper(), new NetworkBehaviorAnalyzer(),
             new AttackChainDetector(), new ExplainabilityEngine(), null);
     }
 

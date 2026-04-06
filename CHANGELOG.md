@@ -1,5 +1,32 @@
 # Changelog
 
+## v2.3.0 (2026-04-06)
+
+### Per-Listener Security Profiles
+- **3-Tier Security**: Each server listener (SFTP, FTP, AS2, etc.) gets its own security profile — MANUAL, AI, or AI+LLM
+- **MANUAL tier** (<1ms): IP whitelist/blacklist with CIDR support, geo-blocking/allowing by country, rate limiting per source IP, concurrent connection limits, bandwidth throttling, file extension filters, file size limits, transfer windows (day/time restrictions), idle timeout, max auth attempts, require encryption, connection logging
+- **AI tier** (~5ms avg): Everything in MANUAL + internal AI engine verdict (IP reputation, geo-anomaly detection, protocol threat detection, connection pattern analysis, threat intelligence). 90%+ cache hit rate for sub-ms typical latency
+- **AI+LLM tier** (~50ms avg): Everything in AI + Claude LLM escalation for borderline cases (risk score 30-70). LLM only fires for ~5-10% of connections. Requires `ai.llm.enabled=true`
+- **Same proxy, different security**: Different listeners on different ports can have different security tiers through the same DMZ proxy
+- **Outbound = MANUAL only**: External destinations get proxy routing + manual security rules (no AI overhead for outbound connections you initiate)
+- **Dynamic proxy detection**: UI only shows running proxy services in dropdown, auto-fills DMZ proxy config when detected
+- **Overhead estimates**: UI displays real-time latency estimates per security tier
+
+### New Endpoints
+- `GET /api/listener-security-policies` — List all security policies
+- `POST /api/listener-security-policies` — Create policy (auto-pushes to DMZ proxy)
+- `PUT /api/listener-security-policies/{id}` — Update policy (hot-reconfigures proxy)
+- `GET /api/listener-security-policies/server/{id}` — Policy for a server instance
+- `GET /api/listener-security-policies/destination/{id}` — Policy for an external destination
+- `PUT /api/proxy/mappings/{name}/security-policy` — Hot-update proxy security policy
+- `GET /api/v1/proxy/overhead-estimates` — Security tier overhead estimates
+
+### Database
+- V18 migration: `listener_security_policies` table with JSONB rules, FK to server_instances and external_destinations
+
+### Tests
+- 52 new tests (ManualSecurityFilter: 40, LlmSecurityEscalation: 12)
+
 ## v2.2.0 (2026-04-06)
 
 ### EDI Converter — Production Hardening (4 Phases)
