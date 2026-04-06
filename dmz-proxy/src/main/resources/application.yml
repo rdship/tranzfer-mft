@@ -33,6 +33,7 @@ dmz:
     event-queue-capacity: 10000
     event-batch-size: 50
     event-flush-interval-ms: 5000
+    internal-api-key: ${CONTROL_API_KEY:internal_control_secret}
 
 platform:
   services:

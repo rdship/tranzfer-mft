@@ -165,4 +165,41 @@ class ProxyIntelligenceServiceTest {
         assertTrue(verdict.riskScore() > 0);
         assertTrue(verdict.signals().contains("HIGH_RISK_REGION"));
     }
+
+    @Test
+    void eventRateLimitingThrottlesExcessiveEvents() {
+        // Use two IPs: one to prove rate limiting works (capped at 30/min),
+        // another to prove unlimited events cause MORE damage.
+
+        // IP A: flood with 200 CONNECTION_OPENED events (benign, just tests throttle)
+        for (int i = 0; i < 200; i++) {
+            ThreatEvent event = new ThreatEvent(
+                "CONNECTION_OPENED", "10.0.0.60", 54321, 22,
+                "SSH", 0, 0, 0,
+                false, null, null, null, Map.of());
+            service.processEvent(event);
+        }
+
+        // IP B: flood with exactly 30 CONNECTION_OPENED events (under limit)
+        for (int i = 0; i < 30; i++) {
+            ThreatEvent event = new ThreatEvent(
+                "CONNECTION_OPENED", "10.0.0.61", 54321, 22,
+                "SSH", 0, 0, 0,
+                false, null, null, null, Map.of());
+            service.processEvent(event);
+        }
+
+        // Both IPs should have the same number of recorded connections (30)
+        // because IP A was capped at 30 by rate limiting.
+        // This proves that 170 events were silently dropped.
+        service.computeVerdict("10.0.0.60", 22, "SSH");
+        service.computeVerdict("10.0.0.61", 22, "SSH");
+        double scoreA = reputationService.getScore("10.0.0.60");
+        double scoreB = reputationService.getScore("10.0.0.61");
+
+        // Scores should be approximately equal since both had 30 events processed
+        assertTrue(Math.abs(scoreA - scoreB) < 5.0,
+            "Rate-limited IP should have similar score to non-limited IP, " +
+            "proving excess events were dropped. A=" + scoreA + " B=" + scoreB);
+    }
 }

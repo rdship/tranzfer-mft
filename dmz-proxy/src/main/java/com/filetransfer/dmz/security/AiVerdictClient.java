@@ -51,6 +51,7 @@ public class AiVerdictClient {
     // ── State ──────────────────────────────────────────────────────────
 
     private final String aiEngineUrl;
+    private final String internalApiKey;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ConcurrentHashMap<String, CachedVerdict> verdictCache = new ConcurrentHashMap<>();
@@ -62,12 +63,25 @@ public class AiVerdictClient {
     private volatile Instant lastHealthCheck = Instant.EPOCH;
     private static final int MAX_CACHE_SIZE = 100_000;
 
-    public AiVerdictClient(String aiEngineUrl, long verdictTimeoutMs) {
+    // Security: cap local cache TTL regardless of what AI engine returns
+    // Prevents stale ALLOW verdicts from persisting too long in DMZ
+    private static final long MAX_LOCAL_CACHE_TTL_SECONDS = 60;       // hard cap
+    private static final long MAX_ALLOW_CACHE_TTL_SECONDS = 15;       // stricter for ALLOWs
+    private static final long MAX_BLOCK_CACHE_TTL_SECONDS = 300;      // blocks can be cached longer
+
+    public AiVerdictClient(String aiEngineUrl, long verdictTimeoutMs, String internalApiKey) {
         this.aiEngineUrl = aiEngineUrl;
         this.verdictTimeoutMs = verdictTimeoutMs;
+        this.internalApiKey = internalApiKey;
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofMillis(verdictTimeoutMs))
+            .followRedirects(HttpClient.Redirect.NEVER)
             .build();
+    }
+
+    /** Backwards-compatible constructor (uses default key) */
+    public AiVerdictClient(String aiEngineUrl, long verdictTimeoutMs) {
+        this(aiEngineUrl, verdictTimeoutMs, "internal_control_secret");
     }
 
     // ── Core Verdict Query ─────────────────────────────────────────────
@@ -101,6 +115,7 @@ public class AiVerdictClient {
             HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(aiEngineUrl + "/api/v1/proxy/verdict"))
                 .header("Content-Type", "application/json")
+                .header("X-Internal-Key", internalApiKey)
                 .timeout(Duration.ofMillis(verdictTimeoutMs))
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
@@ -145,6 +160,7 @@ public class AiVerdictClient {
                 HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(aiEngineUrl + "/api/v1/proxy/event"))
                     .header("Content-Type", "application/json")
+                    .header("X-Internal-Key", internalApiKey)
                     .timeout(Duration.ofSeconds(5))
                     .POST(HttpRequest.BodyPublishers.ofString(body))
                     .build();
@@ -167,6 +183,7 @@ public class AiVerdictClient {
                 HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(aiEngineUrl + "/api/v1/proxy/events"))
                     .header("Content-Type", "application/json")
+                    .header("X-Internal-Key", internalApiKey)
                     .timeout(Duration.ofSeconds(10))
                     .POST(HttpRequest.BodyPublishers.ofString(body))
                     .build();
@@ -220,10 +237,17 @@ public class AiVerdictClient {
             for (JsonNode s : sigNode) signals.add(s.asText());
         }
 
+        // Security: cap local cache TTL based on action — prevents stale ALLOW in DMZ
+        long cappedTtl = switch (action) {
+            case BLOCK, BLACKHOLE -> Math.min(ttl, MAX_BLOCK_CACHE_TTL_SECONDS);
+            case ALLOW -> Math.min(ttl, MAX_ALLOW_CACHE_TTL_SECONDS);
+            default -> Math.min(ttl, MAX_LOCAL_CACHE_TTL_SECONDS);
+        };
+
         Instant now = Instant.now();
         return new CachedVerdict(action, riskScore, reason,
             maxConn, maxConcurrent, maxBytes,
-            signals, now, now.plusSeconds(ttl));
+            signals, now, now.plusSeconds(cappedTtl));
     }
 
     /**
@@ -248,6 +272,16 @@ public class AiVerdictClient {
     private void cacheVerdict(String ip, int port, CachedVerdict verdict) {
         if (verdictCache.size() >= MAX_CACHE_SIZE) {
             evictExpired();
+            // If still at capacity after evicting expired, forcibly evict oldest 10%
+            if (verdictCache.size() >= MAX_CACHE_SIZE) {
+                int toEvict = MAX_CACHE_SIZE / 10;
+                verdictCache.entrySet().stream()
+                    .sorted(java.util.Comparator.comparing(e -> e.getValue().cachedAt()))
+                    .limit(toEvict)
+                    .map(java.util.Map.Entry::getKey)
+                    .toList()
+                    .forEach(verdictCache::remove);
+            }
         }
         verdictCache.put(cacheKey(ip, port), verdict);
     }
@@ -269,6 +303,7 @@ public class AiVerdictClient {
             try {
                 HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(aiEngineUrl + "/api/v1/proxy/health"))
+                    .header("X-Internal-Key", internalApiKey)
                     .timeout(Duration.ofSeconds(3))
                     .GET().build();
                 HttpResponse<String> resp = httpClient.send(request, HttpResponse.BodyHandlers.ofString());

@@ -135,13 +135,36 @@ public class ProxyIntelligenceService {
     private final Map<String, Object>[] verdictRing = new Map[MAX_RECENT_VERDICTS];
     private final AtomicInteger verdictRingHead = new AtomicInteger(0);
 
-    // ── Verdict cache: avoids recomputing for same IP within TTL (Improvement #2) ──
-    private static final long VERDICT_CACHE_TTL_MS = 10_000; // 10 second TTL
+    // ── Verdict cache: avoids recomputing for same IP+port+protocol within TTL ──
+    // Security: asymmetric TTL — BLOCK/BLACKHOLE cached longer (conservative), ALLOW cached short
+    // Security: borderline verdicts (risk 30-59) are NEVER cached (too close to action threshold)
+    // Security: composite key prevents cross-port/protocol verdict reuse
+    private static final long CACHE_TTL_BLOCK_MS = 300_000;    // 5 min — safe to cache denials
+    private static final long CACHE_TTL_THROTTLE_MS = 30_000;  // 30s — re-evaluate throttled IPs quickly
+    private static final long CACHE_TTL_ALLOW_MS = 10_000;     // 10s max for allows — short window
+    private static final long CACHE_TTL_ALLOW_TRUSTED_MS = 30_000; // 30s for very low risk (score < 10)
     private static final int VERDICT_CACHE_MAX_SIZE = 50_000;
     private final ConcurrentHashMap<String, CachedVerdict> verdictCache = new ConcurrentHashMap<>();
 
     private record CachedVerdict(Verdict verdict, long expiresAt) {
         boolean isExpired() { return System.currentTimeMillis() > expiresAt; }
+    }
+
+    /** Composite cache key — prevents cross-port/protocol verdict reuse */
+    private static String verdictCacheKey(String ip, int port, String protocol) {
+        return ip + ":" + port + ":" + (protocol != null ? protocol.toUpperCase() : "TCP");
+    }
+
+    /** Risk-based TTL — conservative: denials cached long, allows cached short, borderline never cached */
+    private static long computeCacheTtlMs(Action action, int riskScore) {
+        // NEVER cache borderline verdicts — too close to action thresholds
+        if (riskScore >= 30 && riskScore < 60) return 0;
+        return switch (action) {
+            case BLACKHOLE, BLOCK -> CACHE_TTL_BLOCK_MS;
+            case THROTTLE -> CACHE_TTL_THROTTLE_MS;
+            case ALLOW -> riskScore < 10 ? CACHE_TTL_ALLOW_TRUSTED_MS : CACHE_TTL_ALLOW_MS;
+            case CHALLENGE -> CACHE_TTL_THROTTLE_MS;
+        };
     }
 
     // ── Async alert enrichment thread pool (Improvement #1) ──
@@ -150,6 +173,10 @@ public class ProxyIntelligenceService {
 
     // Active threat alerts
     private final ConcurrentHashMap<String, Map<String, Object>> activeAlerts = new ConcurrentHashMap<>();
+
+    // ── Event rate limiting: prevents reputation manipulation via fake event flooding ──
+    private static final int MAX_EVENTS_PER_IP_PER_MINUTE = 30;
+    private final ConcurrentHashMap<String, long[]> eventRateTracker = new ConcurrentHashMap<>();
 
     // ── Verdict Computation (hot path) ─────────────────────────────────
 
@@ -160,8 +187,9 @@ public class ProxyIntelligenceService {
     public Verdict computeVerdict(String sourceIp, int targetPort, String protocol) {
         totalVerdicts.incrementAndGet();
 
-        // ── Verdict cache: return cached result if still valid (Improvement #2) ──
-        CachedVerdict cached = verdictCache.get(sourceIp);
+        // ── Verdict cache: return cached result if still valid ──
+        String cacheKey = verdictCacheKey(sourceIp, targetPort, protocol);
+        CachedVerdict cached = verdictCache.get(cacheKey);
         if (cached != null && !cached.isExpired()) {
             cacheHits.incrementAndGet();
             return cached.verdict();
@@ -224,7 +252,7 @@ public class ProxyIntelligenceService {
                 threatIntelRisk = threatScore;
                 signals.add("THREAT_INTEL_MATCH:" + threatScore);
                 metadata.put("threatIntelScore", threatScore);
-                log.info("Threat intel match for {}: score={}", sourceIp, threatScore);
+                log.info("Threat intel match for {}: score={}", maskIp(sourceIp), threatScore);
             }
         }
 
@@ -322,10 +350,10 @@ public class ProxyIntelligenceService {
 
         Verdict verdict = new Verdict(action, riskScore, reason, ttl, rateLimit, signals, metadata);
 
-        // Cache the verdict for repeat lookups within TTL (Improvement #2)
-        if (verdictCache.size() < VERDICT_CACHE_MAX_SIZE) {
-            long ttlMs = Math.min(ttl * 1000L, VERDICT_CACHE_TTL_MS);
-            verdictCache.put(sourceIp, new CachedVerdict(verdict, System.currentTimeMillis() + ttlMs));
+        // Cache the verdict — risk-based TTL, borderline verdicts never cached
+        long cacheTtlMs = computeCacheTtlMs(action, riskScore);
+        if (cacheTtlMs > 0 && verdictCache.size() < VERDICT_CACHE_MAX_SIZE) {
+            verdictCache.put(cacheKey, new CachedVerdict(verdict, System.currentTimeMillis() + cacheTtlMs));
         }
 
         recordVerdict(sourceIp, action, riskScore, reason);
@@ -360,6 +388,12 @@ public class ProxyIntelligenceService {
         totalEvents.incrementAndGet();
         String ip = event.sourceIp();
 
+        // Rate-limit events per IP to prevent reputation manipulation attacks
+        if (!checkEventRate(ip)) {
+            log.debug("Event rate limit exceeded for IP: {}", maskIp(ip));
+            return;
+        }
+
         switch (event.eventType()) {
             case "CONNECTION_OPENED" -> {
                 reputationService.recordConnection(ip, event.detectedProtocol());
@@ -389,7 +423,7 @@ public class ProxyIntelligenceService {
 
                     if (maxSeverity >= 70) {
                         log.warn("High-severity threat from {}: {} (severity={})",
-                            ip, reasons, maxSeverity);
+                            maskIp(ip), reasons, maxSeverity);
                     }
                 } else {
                     reputationService.recordSuccess(ip);
@@ -414,7 +448,7 @@ public class ProxyIntelligenceService {
                     rep.getFailuresInWindow(5), 5);
                 if (bruteForce != null && bruteForce.severity() >= 80) {
                     reputationService.blockIp(ip, "auto:brute_force");
-                    log.warn("Auto-blocked {} for brute force on {}", ip, event.detectedProtocol());
+                    log.warn("Auto-blocked {} for brute force on {}", maskIp(ip), event.detectedProtocol());
                 }
             }
 
@@ -543,10 +577,11 @@ public class ProxyIntelligenceService {
         return new RateLimit(maxConn, maxConcurrent, maxBytes);
     }
 
-    /** Lock-free ring buffer write — no synchronization on the verdict hot path (Improvement #3) */
+    /** Lock-free ring buffer write — no synchronization on the verdict hot path.
+     *  Security: IPs are masked in the audit trail to prevent intelligence leakage via /verdicts endpoint. */
     private void recordVerdict(String ip, Action action, int risk, String reason) {
         Map<String, Object> record = Map.of(
-            "ip", ip,
+            "ip", maskIp(ip),
             "action", action.name(),
             "riskScore", risk,
             "reason", reason,
@@ -554,6 +589,17 @@ public class ProxyIntelligenceService {
         );
         int idx = verdictRingHead.getAndIncrement() & (MAX_RECENT_VERDICTS - 1);
         verdictRing[idx] = record;
+    }
+
+    /** Mask last octet of IPv4 (e.g. 192.168.1.100 → 192.168.1.***) or last group of IPv6.
+     *  Allows pattern analysis without exposing exact IPs in audit endpoints. */
+    private static String maskIp(String ip) {
+        if (ip == null) return "unknown";
+        int lastDot = ip.lastIndexOf('.');
+        int lastColon = ip.lastIndexOf(':');
+        if (lastDot > 0) return ip.substring(0, lastDot + 1) + "***";       // IPv4
+        if (lastColon > 0) return ip.substring(0, lastColon + 1) + "****";  // IPv6
+        return "***";
     }
 
     private void raiseAlert(String ip, int riskScore, List<String> signals, Action action) {
@@ -603,7 +649,7 @@ public class ProxyIntelligenceService {
                     "narrative", chain.narrative()
                 ));
                 log.warn("Attack chain detected for {}: {} stages, risk={}",
-                    ip, chain.stagesReached(), chain.riskLevel());
+                    maskIp(ip), chain.stagesReached(), chain.riskLevel());
             }
         }
 
@@ -655,6 +701,9 @@ public class ProxyIntelligenceService {
         });
         // Evict expired verdict cache entries (Improvement #2)
         verdictCache.entrySet().removeIf(e -> e.getValue().isExpired());
+        // Evict stale event rate trackers (older than 2 minutes)
+        long twoMinutesAgo = System.currentTimeMillis() / 60_000 - 2;
+        eventRateTracker.entrySet().removeIf(e -> e.getValue()[0] < twoMinutesAgo);
     }
 
     /** Periodic cleanup of stale connection profiles */
@@ -663,8 +712,25 @@ public class ProxyIntelligenceService {
         patternAnalyzer.evictStaleProfiles(24);
     }
 
-    /** Invalidate verdict cache for a specific IP (called on block/allow changes) */
+    /** Rate-limit events per source IP — returns true if event should be processed, false if throttled.
+     *  Uses a simple sliding window counter (current minute). Prevents reputation manipulation attacks. */
+    private boolean checkEventRate(String ip) {
+        long currentMinute = System.currentTimeMillis() / 60_000;
+        long[] tracker = eventRateTracker.computeIfAbsent(ip, k -> new long[]{currentMinute, 0});
+        synchronized (tracker) {
+            if (tracker[0] != currentMinute) {
+                tracker[0] = currentMinute;
+                tracker[1] = 0;
+            }
+            tracker[1]++;
+            return tracker[1] <= MAX_EVENTS_PER_IP_PER_MINUTE;
+        }
+    }
+
+    /** Invalidate ALL verdict cache entries for a specific IP (called on block/allow changes).
+     *  Must scan all composite keys since cache key is ip:port:protocol. */
     private void invalidateVerdictCache(String ip) {
-        verdictCache.remove(ip);
+        String prefix = ip + ":";
+        verdictCache.keySet().removeIf(k -> k.startsWith(prefix));
     }
 }

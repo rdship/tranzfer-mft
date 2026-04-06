@@ -46,5 +46,8 @@ public class DmzProperties {
 
         /** Event flush interval in milliseconds */
         private long eventFlushIntervalMs = 5_000;
+
+        /** Internal API key for authenticating with AI engine */
+        private String internalApiKey = "${CONTROL_API_KEY:internal_control_secret}";
     }
 }

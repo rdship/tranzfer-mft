@@ -220,19 +220,43 @@ ai-engine/src/main/java/com/filetransfer/ai/
 The verdict hot path includes 5 built-in optimizations:
 
 1. **Async alert enrichment** — `raiseAlert()` runs MITRE/explainability on a separate `alertExecutor` thread pool (2 daemon threads). Verdict returns without waiting.
-2. **Verdict caching** — `ConcurrentHashMap<String, CachedVerdict>` with 10s TTL, 50K max. Auto-invalidated on block/allow changes. Evicted every 60s.
+2. **Verdict caching** — `ConcurrentHashMap<String, CachedVerdict>` with risk-based TTL (BLOCK=5min, ALLOW=10s), 50K max. Auto-invalidated on block/allow changes. Evicted every 60s.
 3. **Lock-free ring buffer** — Audit trail uses `Map[512]` + `AtomicInteger` instead of `synchronized(Deque)`. No locks on the hot path.
 4. **Pattern analyzer LRU cap** — `ConnectionPatternAnalyzer` evicts oldest 10% when profile count exceeds 100K.
 5. **Batch verdict API** — `POST /api/v1/proxy/verdicts/batch` for bulk verdict requests.
 
 Run the benchmark: `mvn test -pl ai-engine -Dtest=ProxyIntelligenceLoadTest`
 
+### AI Engine & DMZ proxy security hardening
+
+Cache and API security measures to prevent intelligence leakage and exploitation:
+
+**Cache & API layer:**
+1. **API authentication** — All `/api/v1/proxy/*` endpoints require `X-Internal-Key` header. DMZ proxy sends this on every request.
+2. **Composite cache key** — Verdict cache key is `ip:port:protocol` (not just IP), preventing cross-port/protocol verdict reuse.
+3. **Asymmetric cache TTL** — BLOCK/BLACKHOLE cached 5 min (safe to cache denials). ALLOW cached 10–30s only. Borderline verdicts (risk 30–59) are **never cached**.
+4. **DMZ proxy TTL cap** — Local cache enforces strict ceiling: ALLOW≤15s, THROTTLE≤60s, BLOCK≤300s — regardless of AI engine response.
+5. **IP masking in audit trail** — Verdict ring buffer masks last octet (e.g. `192.168.1.***`).
+6. **Actuator lockdown** — `heapdump`, `env`, `configprops` disabled.
+
+**Input validation & defense-in-depth:**
+7. **Event rate limiting** — Max 30 events/IP/minute prevents reputation manipulation via fake AUTH_FAILURE floods.
+8. **Full input validation** — IPv4/IPv6 regex + octet range, port 0–65535, event type whitelist, metadata max 50 keys, country alpha-only.
+9. **Log injection prevention** — Control characters stripped from all inputs; IPs masked in log messages.
+10. **Constant-time key comparison** — `MessageDigest.isEqual()` replaces `String.equals()` in both controllers (timing attack prevention).
+11. **SSRF protection** — Port mapping rejects loopback, link-local, cloud metadata, and `0.0.0.0` as targets.
+12. **Error message sanitization** — Generic errors returned to callers; full exceptions logged server-side only.
+13. **CORS lockdown** — Origins restricted to `localhost:*`; production must override.
+14. **No HTTP redirects** — DMZ proxy verdict client uses `Redirect.NEVER` to prevent redirect-chain SSRF.
+15. **Race condition fix** — `IpReputation.setScore()` now `synchronized`.
+16. **Test coverage** — 33 AI engine tests (incl. 5 validation + 2 auth rejection) + 44 DMZ proxy tests.
+
 ### Test summary
 
 | Module | Tests | What's tested |
 |--------|-------|---------------|
 | shared | 112 | Routing engine, resilience patterns, validation, encryption |
-| ai-engine | 91 | IP reputation, proxy intelligence, data classification, threat intelligence, MITRE ATT&CK, anomaly detection, network behavior, attack chain, playbook engine, **REST integration (12 tests)** |
+| ai-engine | 100 | IP reputation, proxy intelligence (14 unit + 19 integration), data classification, threat intelligence, MITRE ATT&CK, anomaly detection, network behavior, attack chain, playbook engine |
 | dmz-proxy | 44 | Protocol detection, rate limiting, **AI verdict client integration (15 tests)** |
 | Other modules | Varies | Unit tests for business logic |
 

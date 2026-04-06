@@ -52,6 +52,7 @@ public class ProxyManagementController {
     public PortMapping add(@RequestHeader("X-Internal-Key") String key,
                             @RequestBody PortMapping mapping) {
         validateKey(key);
+        validateMapping(mapping);
         mapping.setActive(true);
         proxyManager.add(mapping);
         return mapping;
@@ -175,8 +176,40 @@ public class ProxyManagementController {
     // ── Internal ───────────────────────────────────────────────────────
 
     private void validateKey(String key) {
-        if (!controlApiKey.equals(key)) {
+        if (key == null || !java.security.MessageDigest.isEqual(
+                controlApiKey.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                key.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid internal API key");
+        }
+    }
+
+    /** Validate port mapping target to prevent SSRF attacks.
+     *  Blocks loopback, link-local, cloud metadata, and private ranges unless explicitly allowed. */
+    private void validateMapping(PortMapping mapping) {
+        String host = mapping.getTargetHost();
+        if (host == null || host.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "targetHost is required");
+        }
+
+        int port = mapping.getTargetPort();
+        if (port < 1 || port > 65535) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "targetPort must be 1-65535");
+        }
+
+        int listenPort = mapping.getListenPort();
+        if (listenPort < 1 || listenPort > 65535) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "listenPort must be 1-65535");
+        }
+
+        // Block dangerous targets
+        String lower = host.toLowerCase().trim();
+        if (lower.equals("localhost") || lower.equals("0.0.0.0")
+                || lower.startsWith("127.") || lower.equals("::1")
+                || lower.startsWith("169.254.")   // link-local / cloud metadata
+                || lower.startsWith("metadata.")  // GCP metadata
+                || lower.equals("[::1]")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                "targetHost blocked: loopback and metadata addresses are not allowed");
         }
     }
 }

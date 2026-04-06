@@ -1189,6 +1189,38 @@ The verdict hot path has been tuned for zero end-user impact with 5 optimization
 
 End-user impact: verdict adds **0.02%** overhead vs a 50ms connection RTT and **0.002%** vs a 500ms file transfer.
 
+### Security Hardening (Cache & API)
+
+The verdict caching layer and proxy intelligence API have been hardened against the following attack vectors:
+
+| # | Vulnerability | Fix | Effect |
+|---|--------------|-----|--------|
+| 1 | **AI engine endpoints had no authentication** — blocklist/allowlist/dashboard/geo-feeds were unprotected | All `/api/v1/proxy/*` endpoints now require `X-Internal-Key` header validated against `platform.security.control-api-key` | Unauthorized callers cannot manipulate blocklists, allowlists, TOR node feeds, or read intelligence |
+| 2 | **Cache key was IP-only** — verdict for SSH:22 was reused for FTP:21 | Composite cache key: `ip:port:protocol` | Each IP+port+protocol combination is evaluated independently |
+| 3 | **ALLOW verdicts cached 5 minutes** — large window for attackers to exploit after clean probe | Risk-based asymmetric TTL: BLOCK=5min, THROTTLE=30s, ALLOW=10s (trusted=30s). Borderline verdicts (risk 30–59) are **never cached** | Stale ALLOW window reduced from 300s to 10–30s; borderline cases always re-evaluated |
+| 4 | **No cross-service cache invalidation** — DMZ proxy retained stale ALLOW after AI engine blocked IP | DMZ proxy caps local TTL: ALLOW≤15s, THROTTLE≤60s, BLOCK≤300s regardless of AI engine response | Even if AI engine sends a long TTL, DMZ proxy enforces its own strict ceiling |
+| 5 | **Verdict audit trail leaked full IPs** — `/verdicts` endpoint exposed exact IPs with risk scores | IPs masked in ring buffer: `192.168.1.100` → `192.168.1.***` | Audit trail useful for pattern analysis without exposing exact intelligence targets |
+| 6 | **DMZ→AI engine communication unauthenticated** — any network peer could forge verdicts | All HTTP requests from DMZ proxy to AI engine include `X-Internal-Key` header | Man-in-the-middle or rogue services on the network cannot manipulate verdicts |
+| 7 | **Actuator heapdump could expose cache data** — IPs, verdicts, signals stored in cleartext heap | `heapdump`, `env`, `configprops` endpoints disabled; only `health`, `prometheus`, `info` exposed | Heap inspection cannot leak intelligence data |
+
+**Architecture principle**: the verdict cache follows an *asymmetric trust model* — denials (BLOCK/BLACKHOLE) are cached aggressively because false-positives are correctable, while permissions (ALLOW) are cached minimally because false-negatives are exploitable.
+
+### Security Hardening (Input Validation & Defense-in-Depth)
+
+Additional hardening against input validation attacks, reputation manipulation, and reconnaissance:
+
+| # | Vulnerability | Fix | Effect |
+|---|--------------|-----|--------|
+| 8 | **Reputation manipulation via fake events** — attacker submits AUTH_FAILURE events to auto-blocklist victim IPs | Per-IP event rate limiting: max 30 events/IP/minute. Excess events silently dropped | Bounds damage from event flooding; 170 of 200 flood events are discarded |
+| 9 | **No input validation on endpoints** — sourceIp, targetPort, eventType, metadata all accepted without checks | Full validation: IPv4/IPv6 regex + octet range, port 0–65535, event type whitelist (6 values), metadata capped at 50 keys, country code alpha-only max 3 chars | Invalid, oversized, or injection payloads rejected at controller boundary |
+| 10 | **Log injection via IP field** — attacker sends `"10.0.0.1\n[WARN] Fake entry"` as sourceIp | Control characters stripped from all string inputs; IPs validated against regex before any processing; log messages use `maskIp()` | Forged log entries impossible; real IPs never appear in logs |
+| 11 | **Timing attack on API key** — `String.equals()` leaks key length via response timing | Both controllers use `MessageDigest.isEqual()` for constant-time comparison | Brute-force attacks cannot extract key character-by-character |
+| 12 | **SSRF via port mapping** — management API allows mapping to `127.0.0.1`, `169.254.169.254` (cloud metadata) | `validateMapping()` blocks loopback, link-local, cloud metadata, and `0.0.0.0` targets | Cannot pivot to internal services or cloud credential endpoints |
+| 13 | **Error messages leak internal state** — `e.getMessage()` returned in REST responses | Generic error messages returned; full exceptions logged server-side only | Attackers cannot extract Java class names, stack details, or internal paths |
+| 14 | **CORS allows all origins with credentials** — any website can make authenticated requests | CORS restricted to `http(s)://localhost:*`; production deployments must override | Cross-site credential theft prevented |
+| 15 | **HTTP client follows redirects** — compromised AI engine URL could redirect to SSRF target | `HttpClient.Redirect.NEVER` on DMZ proxy's verdict client | Redirect-chain SSRF attacks blocked |
+| 16 | **Race condition in reputation scoring** — `setScore()` not synchronized while `adjustScore()` was | `setScore()` now `synchronized`, consistent with `adjustScore()` | Concurrent decay + failure events cannot corrupt score |
+
 ---
 
 ## Network Diagram

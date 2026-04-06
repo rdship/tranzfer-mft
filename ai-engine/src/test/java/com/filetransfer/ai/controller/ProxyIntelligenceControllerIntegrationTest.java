@@ -70,12 +70,17 @@ class ProxyIntelligenceControllerIntegrationTest {
     private HttpHeaders jsonHeaders;
     private HttpHeaders getHeaders;
 
+    /** Internal API key — must match platform.security.control-api-key default in application.yml */
+    private static final String INTERNAL_KEY = "internal_control_secret";
+
     @BeforeEach
     void setUp() {
         jsonHeaders = new HttpHeaders();
         jsonHeaders.setContentType(MediaType.APPLICATION_JSON);
+        jsonHeaders.set("X-Internal-Key", INTERNAL_KEY);
 
         getHeaders = new HttpHeaders();
+        getHeaders.set("X-Internal-Key", INTERNAL_KEY);
     }
 
     // ── 1. Verdict: new IP returns OK ─────────────────────────────────────
@@ -424,7 +429,57 @@ class ProxyIntelligenceControllerIntegrationTest {
         assertTrue(verdicts.size() >= 3);
     }
 
-    // ── 12. IP intelligence endpoint ──────────────────────────────────────
+    // ── 12. Security: unauthenticated requests are rejected ────────────
+
+    @Test
+    void verdict_withoutApiKey_returns401() {
+        HttpHeaders noAuth = new HttpHeaders();
+        noAuth.setContentType(MediaType.APPLICATION_JSON);
+
+        Map<String, Object> request = Map.of(
+            "sourceIp", "10.0.0.99", "targetPort", 22, "detectedProtocol", "SSH"
+        );
+
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+            "/api/v1/proxy/verdict",
+            HttpMethod.POST,
+            new HttpEntity<>(request, noAuth),
+            new ParameterizedTypeReference<>() {}
+        );
+
+        // Spring will return 400 (missing required header) or custom handler returns 401
+        assertTrue(response.getStatusCode().is4xxClientError(),
+            "Unauthenticated request should be rejected, got: " + response.getStatusCode());
+    }
+
+    @Test
+    void blocklist_withWrongApiKey_isRejected() {
+        HttpHeaders wrongKey = new HttpHeaders();
+        wrongKey.setContentType(MediaType.APPLICATION_JSON);
+        wrongKey.set("X-Internal-Key", "wrong_key");
+
+        Map<String, String> blockRequest = Map.of("ip", "10.0.0.99", "reason", "test");
+
+        // TestRestTemplate + HttpURLConnection throws on HTTP 401 (auth challenge),
+        // so we verify via exception rather than status code
+        try {
+            ResponseEntity<Map<String, String>> response = restTemplate.exchange(
+                "/api/v1/proxy/blocklist",
+                HttpMethod.POST,
+                new HttpEntity<>(blockRequest, wrongKey),
+                new ParameterizedTypeReference<>() {}
+            );
+            // If it doesn't throw, verify it's still a 4xx rejection
+            assertTrue(response.getStatusCode().is4xxClientError(),
+                "Wrong API key should be rejected, got: " + response.getStatusCode());
+        } catch (Exception e) {
+            // HttpURLConnection wraps 401 as ResourceAccessException — this IS the expected rejection
+            assertTrue(e.getMessage().contains("authentication") || e.getMessage().contains("401"),
+                "Expected auth rejection, got: " + e.getMessage());
+        }
+    }
+
+    // ── 13. IP intelligence endpoint ──────────────────────────────────────
 
     @Test
     void ipIntelligence_returnsDetails() {
@@ -451,5 +506,103 @@ class ProxyIntelligenceControllerIntegrationTest {
         assertNotNull(body.get("reputation"));
         assertNotNull(body.get("connectionPattern"));
         assertFalse((Boolean) body.get("blocked"));
+    }
+
+    // ── 14. Input validation: invalid IP rejected ───────────────────────
+
+    @Test
+    void verdict_invalidIpFormat_returns400() {
+        Map<String, Object> request = Map.of(
+            "sourceIp", "not-an-ip-address",
+            "targetPort", 22,
+            "detectedProtocol", "SSH"
+        );
+
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+            "/api/v1/proxy/verdict",
+            HttpMethod.POST,
+            new HttpEntity<>(request, jsonHeaders),
+            new ParameterizedTypeReference<>() {}
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    }
+
+    @Test
+    void verdict_logInjectionInIp_returns400() {
+        Map<String, Object> request = Map.of(
+            "sourceIp", "10.0.0.1\n[WARN] Fake log entry",
+            "targetPort", 22,
+            "detectedProtocol", "SSH"
+        );
+
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+            "/api/v1/proxy/verdict",
+            HttpMethod.POST,
+            new HttpEntity<>(request, jsonHeaders),
+            new ParameterizedTypeReference<>() {}
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    }
+
+    @Test
+    void event_invalidEventType_returns400() {
+        Map<String, Object> event = Map.of(
+            "eventType", "DROP_TABLES",
+            "sourceIp", "10.0.0.5",
+            "targetPort", 22
+        );
+
+        ResponseEntity<Map<String, String>> response = restTemplate.exchange(
+            "/api/v1/proxy/event",
+            HttpMethod.POST,
+            new HttpEntity<>(event, jsonHeaders),
+            new ParameterizedTypeReference<>() {}
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    }
+
+    @Test
+    void event_oversizedMetadata_returns400() {
+        // Build metadata with 60 keys (exceeds limit of 50)
+        Map<String, Object> bigMetadata = new java.util.HashMap<>();
+        for (int i = 0; i < 60; i++) {
+            bigMetadata.put("key" + i, "value" + i);
+        }
+
+        Map<String, Object> event = new java.util.HashMap<>();
+        event.put("eventType", "CONNECTION_OPENED");
+        event.put("sourceIp", "10.0.0.5");
+        event.put("targetPort", 22);
+        event.put("metadata", bigMetadata);
+
+        ResponseEntity<Map<String, String>> response = restTemplate.exchange(
+            "/api/v1/proxy/event",
+            HttpMethod.POST,
+            new HttpEntity<>(event, jsonHeaders),
+            new ParameterizedTypeReference<>() {}
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    }
+
+    @Test
+    void verdict_validIpv6_returnsOk() {
+        Map<String, Object> request = Map.of(
+            "sourceIp", "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+            "targetPort", 22,
+            "detectedProtocol", "SSH"
+        );
+
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+            "/api/v1/proxy/verdict",
+            HttpMethod.POST,
+            new HttpEntity<>(request, jsonHeaders),
+            new ParameterizedTypeReference<>() {}
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
     }
 }

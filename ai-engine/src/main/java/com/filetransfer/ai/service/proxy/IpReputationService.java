@@ -98,7 +98,7 @@ public class IpReputationService {
             this.score = Math.max(0.0, Math.min(100.0, this.score + delta));
         }
 
-        public void setScore(double score) {
+        public synchronized void setScore(double score) {
             this.score = Math.max(0.0, Math.min(100.0, score));
         }
 

@@ -1,6 +1,23 @@
 server:
   port: 8091
 
+# Security: restrict actuator endpoints — heapdump/env/configprops MUST be disabled
+# to prevent cache/intelligence data leakage via heap inspection
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,info
+  endpoint:
+    health:
+      show-details: when_authorized
+    heapdump:
+      enabled: false
+    env:
+      enabled: false
+    configprops:
+      enabled: false
+
 spring:
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/filetransfer}

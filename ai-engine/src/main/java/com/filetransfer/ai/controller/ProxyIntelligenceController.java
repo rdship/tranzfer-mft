@@ -4,11 +4,15 @@ import com.filetransfer.ai.service.proxy.GeoAnomalyDetector;
 import com.filetransfer.ai.service.proxy.IpReputationService;
 import com.filetransfer.ai.service.proxy.ProxyIntelligenceService;
 import com.filetransfer.ai.service.proxy.ProxyIntelligenceService.*;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.*;
 
 /**
@@ -30,12 +34,78 @@ import java.util.*;
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/proxy")
-@RequiredArgsConstructor
 public class ProxyIntelligenceController {
 
     private final ProxyIntelligenceService intelligenceService;
     private final IpReputationService reputationService;
     private final GeoAnomalyDetector geoDetector;
+
+    @Value("${platform.security.control-api-key:internal_control_secret}")
+    private String controlApiKey;
+
+    public ProxyIntelligenceController(
+            ProxyIntelligenceService intelligenceService,
+            IpReputationService reputationService,
+            GeoAnomalyDetector geoDetector) {
+        this.intelligenceService = intelligenceService;
+        this.reputationService = reputationService;
+        this.geoDetector = geoDetector;
+    }
+
+    /** Validate internal API key — all endpoints require this */
+    private void authenticate(String key) {
+        if (key == null || !MessageDigest.isEqual(
+                controlApiKey.getBytes(StandardCharsets.UTF_8),
+                key.getBytes(StandardCharsets.UTF_8))) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or missing X-Internal-Key");
+        }
+    }
+
+    /** Validate IPv4/IPv6 format — rejects log injection payloads, empty strings, and malformed IPs */
+    private static String validateIp(String ip) {
+        if (ip == null || ip.isEmpty()) return null;
+        // Strip control characters (log injection defense)
+        String sanitized = ip.replaceAll("[\\r\\n\\t]", "");
+        if (sanitized.length() > 45) return null; // max IPv6 length
+        // IPv4: 1.2.3.4
+        if (sanitized.matches("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$")) {
+            for (String octet : sanitized.split("\\.")) {
+                int val = Integer.parseInt(octet);
+                if (val < 0 || val > 255) return null;
+            }
+            return sanitized;
+        }
+        // IPv6: simplified check (hex groups separated by colons)
+        if (sanitized.matches("^[0-9a-fA-F:]+$") && sanitized.contains(":")) {
+            return sanitized;
+        }
+        return null;
+    }
+
+    /** Validate port range 0-65535 */
+    private static int validatePort(Object portObj) {
+        if (portObj == null) return 0;
+        int port = ((Number) portObj).intValue();
+        return (port >= 0 && port <= 65535) ? port : 0;
+    }
+
+    /** Cap metadata map size to prevent memory exhaustion */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> validateMetadata(Object meta) {
+        if (!(meta instanceof Map)) return Map.of();
+        Map<String, Object> map = (Map<String, Object>) meta;
+        if (map.size() > 50) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "metadata exceeds maximum 50 keys");
+        }
+        return map;
+    }
+
+    /** Validate event type against known types */
+    private static final Set<String> VALID_EVENT_TYPES = Set.of(
+        "CONNECTION_OPENED", "CONNECTION_CLOSED", "BYTES_TRANSFERRED",
+        "RATE_LIMIT_HIT", "REJECTED", "AUTH_FAILURE"
+    );
 
     // ── Verdict (Hot Path) ─────────────────────────────────────────────
 
@@ -44,13 +114,16 @@ public class ProxyIntelligenceController {
      * Called by the DMZ proxy before allowing a connection through.
      */
     @PostMapping("/verdict")
-    public ResponseEntity<Map<String, Object>> getVerdict(@RequestBody Map<String, Object> request) {
-        String sourceIp = (String) request.get("sourceIp");
-        int targetPort = ((Number) request.getOrDefault("targetPort", 0)).intValue();
+    public ResponseEntity<Map<String, Object>> getVerdict(
+            @RequestHeader("X-Internal-Key") String key,
+            @RequestBody Map<String, Object> request) {
+        authenticate(key);
+        String sourceIp = validateIp((String) request.get("sourceIp"));
+        int targetPort = validatePort(request.get("targetPort"));
         String protocol = (String) request.getOrDefault("detectedProtocol", "TCP");
 
-        if (sourceIp == null || sourceIp.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "sourceIp is required"));
+        if (sourceIp == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "valid sourceIp is required"));
         }
 
         Verdict verdict = intelligenceService.computeVerdict(sourceIp, targetPort, protocol);
@@ -83,10 +156,12 @@ public class ProxyIntelligenceController {
      */
     @PostMapping("/verdicts/batch")
     public ResponseEntity<List<Map<String, Object>>> getBatchVerdicts(
+            @RequestHeader("X-Internal-Key") String key,
             @RequestBody List<Map<String, Object>> requests) {
+        authenticate(key);
         List<String[]> parsed = new ArrayList<>();
         for (Map<String, Object> req : requests) {
-            String ip = (String) req.get("sourceIp");
+            String ip = validateIp((String) req.get("sourceIp"));
             if (ip == null) continue;
             String port = String.valueOf(req.getOrDefault("targetPort", "0"));
             String protocol = (String) req.getOrDefault("detectedProtocol", "TCP");
@@ -115,14 +190,17 @@ public class ProxyIntelligenceController {
      * Fire-and-forget from the proxy's perspective.
      */
     @PostMapping("/event")
-    public ResponseEntity<Map<String, String>> reportEvent(@RequestBody Map<String, Object> event) {
+    public ResponseEntity<Map<String, String>> reportEvent(
+            @RequestHeader("X-Internal-Key") String key,
+            @RequestBody Map<String, Object> event) {
+        authenticate(key);
         try {
             ThreatEvent te = mapToThreatEvent(event);
             intelligenceService.processEvent(te);
             return ResponseEntity.ok(Map.of("status", "accepted"));
         } catch (Exception e) {
             log.warn("Failed to process event: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.badRequest().body(Map.of("error", "invalid event format"));
         }
     }
 
@@ -131,7 +209,10 @@ public class ProxyIntelligenceController {
      * More efficient for high-volume proxies.
      */
     @PostMapping("/events")
-    public ResponseEntity<Map<String, Object>> reportEvents(@RequestBody List<Map<String, Object>> events) {
+    public ResponseEntity<Map<String, Object>> reportEvents(
+            @RequestHeader("X-Internal-Key") String key,
+            @RequestBody List<Map<String, Object>> events) {
+        authenticate(key);
         int accepted = 0;
         int failed = 0;
         for (Map<String, Object> event : events) {
@@ -148,7 +229,8 @@ public class ProxyIntelligenceController {
     // ── Blocklist Management ───────────────────────────────────────────
 
     @GetMapping("/blocklist")
-    public ResponseEntity<Map<String, Object>> getBlocklist() {
+    public ResponseEntity<Map<String, Object>> getBlocklist(@RequestHeader("X-Internal-Key") String key) {
+        authenticate(key);
         Set<String> blocked = intelligenceService.getBlocklist();
         return ResponseEntity.ok(Map.of(
             "count", blocked.size(),
@@ -157,7 +239,10 @@ public class ProxyIntelligenceController {
     }
 
     @PostMapping("/blocklist")
-    public ResponseEntity<Map<String, String>> addToBlocklist(@RequestBody Map<String, String> request) {
+    public ResponseEntity<Map<String, String>> addToBlocklist(
+            @RequestHeader("X-Internal-Key") String key,
+            @RequestBody Map<String, String> request) {
+        authenticate(key);
         String ip = request.get("ip");
         String reason = request.getOrDefault("reason", "manual");
         if (ip == null) return ResponseEntity.badRequest().body(Map.of("error", "ip is required"));
@@ -167,7 +252,10 @@ public class ProxyIntelligenceController {
     }
 
     @DeleteMapping("/blocklist/{ip}")
-    public ResponseEntity<Map<String, String>> removeFromBlocklist(@PathVariable String ip) {
+    public ResponseEntity<Map<String, String>> removeFromBlocklist(
+            @RequestHeader("X-Internal-Key") String key,
+            @PathVariable String ip) {
+        authenticate(key);
         intelligenceService.unblockIp(ip);
         return ResponseEntity.ok(Map.of("status", "unblocked", "ip", ip));
     }
@@ -175,7 +263,8 @@ public class ProxyIntelligenceController {
     // ── Allowlist Management ───────────────────────────────────────────
 
     @GetMapping("/allowlist")
-    public ResponseEntity<Map<String, Object>> getAllowlist() {
+    public ResponseEntity<Map<String, Object>> getAllowlist(@RequestHeader("X-Internal-Key") String key) {
+        authenticate(key);
         Set<String> allowed = intelligenceService.getAllowlist();
         return ResponseEntity.ok(Map.of(
             "count", allowed.size(),
@@ -184,7 +273,10 @@ public class ProxyIntelligenceController {
     }
 
     @PostMapping("/allowlist")
-    public ResponseEntity<Map<String, String>> addToAllowlist(@RequestBody Map<String, String> request) {
+    public ResponseEntity<Map<String, String>> addToAllowlist(
+            @RequestHeader("X-Internal-Key") String key,
+            @RequestBody Map<String, String> request) {
+        authenticate(key);
         String ip = request.get("ip");
         if (ip == null) return ResponseEntity.badRequest().body(Map.of("error", "ip is required"));
 
@@ -195,27 +287,36 @@ public class ProxyIntelligenceController {
     // ── IP Intelligence ────────────────────────────────────────────────
 
     @GetMapping("/ip/{ip}")
-    public ResponseEntity<Map<String, Object>> getIpIntelligence(@PathVariable String ip) {
+    public ResponseEntity<Map<String, Object>> getIpIntelligence(
+            @RequestHeader("X-Internal-Key") String key,
+            @PathVariable String ip) {
+        authenticate(key);
         return ResponseEntity.ok(intelligenceService.getIpIntelligence(ip));
     }
 
     // ── Dashboard & Audit ──────────────────────────────────────────────
 
     @GetMapping("/dashboard")
-    public ResponseEntity<Map<String, Object>> getDashboard() {
+    public ResponseEntity<Map<String, Object>> getDashboard(@RequestHeader("X-Internal-Key") String key) {
+        authenticate(key);
         return ResponseEntity.ok(intelligenceService.getFullDashboard());
     }
 
     @GetMapping("/verdicts")
     public ResponseEntity<List<Map<String, Object>>> getRecentVerdicts(
+            @RequestHeader("X-Internal-Key") String key,
             @RequestParam(defaultValue = "50") int limit) {
+        authenticate(key);
         return ResponseEntity.ok(intelligenceService.getRecentVerdicts(limit));
     }
 
     // ── Geo Threat Feed Management ─────────────────────────────────────
 
     @PostMapping("/geo/high-risk-countries")
-    public ResponseEntity<Map<String, Object>> setHighRiskCountries(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<Map<String, Object>> setHighRiskCountries(
+            @RequestHeader("X-Internal-Key") String key,
+            @RequestBody Map<String, Object> request) {
+        authenticate(key);
         @SuppressWarnings("unchecked")
         List<String> countries = (List<String>) request.get("countries");
         if (countries != null) {
@@ -227,7 +328,10 @@ public class ProxyIntelligenceController {
     }
 
     @PostMapping("/geo/tor-nodes")
-    public ResponseEntity<Map<String, Object>> updateTorExitNodes(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<Map<String, Object>> updateTorExitNodes(
+            @RequestHeader("X-Internal-Key") String key,
+            @RequestBody Map<String, Object> request) {
+        authenticate(key);
         @SuppressWarnings("unchecked")
         List<String> nodes = (List<String>) request.get("nodes");
         if (nodes != null) {
@@ -237,7 +341,10 @@ public class ProxyIntelligenceController {
     }
 
     @PostMapping("/geo/vpn-prefixes")
-    public ResponseEntity<Map<String, Object>> updateVpnPrefixes(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<Map<String, Object>> updateVpnPrefixes(
+            @RequestHeader("X-Internal-Key") String key,
+            @RequestBody Map<String, Object> request) {
+        authenticate(key);
         @SuppressWarnings("unchecked")
         List<String> prefixes = (List<String>) request.get("prefixes");
         if (prefixes != null) {
@@ -247,14 +354,16 @@ public class ProxyIntelligenceController {
     }
 
     @GetMapping("/geo/stats")
-    public ResponseEntity<Map<String, Object>> getGeoStats() {
+    public ResponseEntity<Map<String, Object>> getGeoStats(@RequestHeader("X-Internal-Key") String key) {
+        authenticate(key);
         return ResponseEntity.ok(geoDetector.getStats());
     }
 
     // ── Health ──────────────────────────────────────────────────────────
 
     @GetMapping("/health")
-    public ResponseEntity<Map<String, Object>> health() {
+    public ResponseEntity<Map<String, Object>> health(@RequestHeader("X-Internal-Key") String key) {
+        authenticate(key);
         Map<String, Object> health = new LinkedHashMap<>();
         health.put("status", "UP");
         health.put("service", "proxy-intelligence");
@@ -273,26 +382,40 @@ public class ProxyIntelligenceController {
     // ── Helper ─────────────────────────────────────────────────────────
 
     private ThreatEvent mapToThreatEvent(Map<String, Object> event) {
+        String ip = validateIp((String) event.get("sourceIp"));
+        if (ip == null) throw new IllegalArgumentException("invalid sourceIp");
+
+        String eventType = (String) event.getOrDefault("eventType", "CONNECTION_OPENED");
+        if (!VALID_EVENT_TYPES.contains(eventType)) {
+            throw new IllegalArgumentException("invalid eventType");
+        }
+
+        int sourcePort = validatePort(event.get("sourcePort"));
+        int targetPort = validatePort(event.get("targetPort"));
+
+        String protocol = (String) event.getOrDefault("detectedProtocol", "TCP");
+        // Strip control chars from protocol
+        protocol = protocol.replaceAll("[\\r\\n\\t]", "");
+
+        long bytesIn = event.get("bytesIn") != null ? Math.max(0, ((Number) event.get("bytesIn")).longValue()) : 0;
+        long bytesOut = event.get("bytesOut") != null ? Math.max(0, ((Number) event.get("bytesOut")).longValue()) : 0;
+        long durationMs = event.get("durationMs") != null ? Math.max(0, ((Number) event.get("durationMs")).longValue()) : 0;
+
+        String country = (String) event.get("country");
+        if (country != null) {
+            country = country.replaceAll("[^A-Za-z]", "");
+            if (country.length() > 3) country = country.substring(0, 3);
+        }
+
+        Map<String, Object> metadata = event.containsKey("metadata") ? validateMetadata(event.get("metadata")) : Map.of();
+
         return new ThreatEvent(
-            (String) event.getOrDefault("eventType", "CONNECTION_OPENED"),
-            (String) event.get("sourceIp"),
-            event.get("sourcePort") != null ? ((Number) event.get("sourcePort")).intValue() : 0,
-            event.get("targetPort") != null ? ((Number) event.get("targetPort")).intValue() : 0,
-            (String) event.getOrDefault("detectedProtocol", "TCP"),
-            event.get("bytesIn") != null ? ((Number) event.get("bytesIn")).longValue() : 0,
-            event.get("bytesOut") != null ? ((Number) event.get("bytesOut")).longValue() : 0,
-            event.get("durationMs") != null ? ((Number) event.get("durationMs")).longValue() : 0,
+            eventType, ip, sourcePort, targetPort, protocol,
+            bytesIn, bytesOut, durationMs,
             Boolean.TRUE.equals(event.get("blocked")),
             (String) event.getOrDefault("blockReason", ""),
             (String) event.get("account"),
-            (String) event.get("country"),
-            event.containsKey("metadata") ? safeCastMetadata(event.get("metadata")) : Map.of()
+            country, metadata
         );
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> safeCastMetadata(Object meta) {
-        if (meta instanceof Map) return (Map<String, Object>) meta;
-        return Map.of();
     }
 }

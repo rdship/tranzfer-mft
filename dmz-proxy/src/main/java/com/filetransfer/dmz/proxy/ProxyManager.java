@@ -60,9 +60,10 @@ public class ProxyManager {
             rateLimiter.setDefaultMaxBytesPerMinute(secConfig.getDefaultMaxBytesPerMinute());
             rateLimiter.setGlobalMaxPerMinute(secConfig.getGlobalRatePerMinute());
 
-            // AI verdict client
+            // AI verdict client (with internal API key for authenticated communication)
             this.aiVerdictClient = new AiVerdictClient(
-                secConfig.getAiEngineUrl(), secConfig.getVerdictTimeoutMs());
+                secConfig.getAiEngineUrl(), secConfig.getVerdictTimeoutMs(),
+                secConfig.getInternalApiKey());
 
             // Event reporter
             this.eventReporter = new ThreatEventReporter(
