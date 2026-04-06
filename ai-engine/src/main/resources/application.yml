@@ -56,6 +56,9 @@ edi:
     seed-on-startup: false
 
 ai:
+  # LLM opt-in toggle — must be explicitly enabled by the administrator
+  llm:
+    enabled: ${AI_LLM_ENABLED:false}
   # Anthropic Claude API for NLP features
   claude:
     api-key: ${CLAUDE_API_KEY:}

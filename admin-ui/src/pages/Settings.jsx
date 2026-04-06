@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useBranding } from '../context/BrandingContext'
 import { useServices } from '../context/ServiceContext'
+import { getPlatformSettings, updatePlatformSettingValue } from '../api/platformSettings'
 import toast from 'react-hot-toast'
 
 const SERVICE_LABELS = {
@@ -18,6 +20,178 @@ const SERVICE_LABELS = {
   aiEngine: 'AI Engine (Classification, NLP, Anomaly)',
   screening: 'OFAC/AML Screening',
   keystore: 'Keystore Manager',
+}
+
+function AiSettingsTab() {
+  const queryClient = useQueryClient()
+  const [llmEnabled, setLlmEnabled] = useState(false)
+  const [llmApiKey, setLlmApiKey] = useState('')
+  const [llmModel, setLlmModel] = useState('claude-sonnet-4-20250514')
+  const [llmBaseUrl, setLlmBaseUrl] = useState('https://api.anthropic.com')
+  const [testResult, setTestResult] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  const { data: aiSettings = [] } = useQuery({
+    queryKey: ['platform-settings-ai'],
+    queryFn: () => getPlatformSettings({ category: 'AI' })
+  })
+
+  // Sync fetched settings into local state
+  useEffect(() => {
+    if (!aiSettings.length) return
+    const findVal = (key) => {
+      const s = aiSettings.find(s => s.settingKey === key)
+      return s ? s.settingValue : null
+    }
+    const enabled = findVal('ai.llm.enabled')
+    if (enabled !== null) setLlmEnabled(enabled === 'true')
+    const key = findVal('ai.llm.api-key')
+    if (key !== null) setLlmApiKey(key)
+    const model = findVal('ai.llm.model')
+    if (model !== null) setLlmModel(model)
+    const baseUrl = findVal('ai.llm.base-url')
+    if (baseUrl !== null) setLlmBaseUrl(baseUrl)
+  }, [aiSettings])
+
+  const findSetting = (key) => aiSettings.find(s => s.settingKey === key)
+
+  const saveSetting = async (key, value) => {
+    const setting = findSetting(key)
+    if (setting) {
+      await updatePlatformSettingValue(setting.id, String(value))
+    }
+  }
+
+  const toggleLlm = async () => {
+    const next = !llmEnabled
+    setLlmEnabled(next)
+    try {
+      await saveSetting('ai.llm.enabled', next)
+      queryClient.invalidateQueries({ queryKey: ['platform-settings-ai'] })
+      toast.success(next ? 'LLM enabled' : 'LLM disabled')
+    } catch (e) {
+      setLlmEnabled(!next)
+      toast.error('Failed to update setting')
+    }
+  }
+
+  const saveApiKey = async () => {
+    setSaving(true)
+    try {
+      await saveSetting('ai.llm.api-key', llmApiKey)
+      await saveSetting('ai.llm.model', llmModel)
+      await saveSetting('ai.llm.base-url', llmBaseUrl)
+      queryClient.invalidateQueries({ queryKey: ['platform-settings-ai'] })
+      toast.success('AI settings saved')
+    } catch (e) {
+      toast.error('Failed to save settings')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const testConnection = async () => {
+    setTestResult(null)
+    try {
+      // Use the ai-engine health endpoint as a basic connectivity check
+      const resp = await fetch(
+        (import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:8091') + '/api/v1/ai/health'
+      )
+      if (resp.ok) {
+        setTestResult({ ok: true, message: 'AI engine is reachable. LLM will be used on next request.' })
+      } else {
+        setTestResult({ ok: false, message: 'AI engine returned status ' + resp.status })
+      }
+    } catch (e) {
+      setTestResult({ ok: false, message: 'Cannot reach AI engine: ' + e.message })
+    }
+  }
+
+  return (
+    <div className="card max-w-2xl space-y-4">
+      <h3 className="font-semibold text-gray-900">AI & LLM Configuration</h3>
+      <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-sm text-blue-800">
+        All AI features work out of the box — no LLM needed. Connecting an LLM
+        just makes the admin terminal smarter at understanding natural language.
+      </div>
+
+      {/* LLM Toggle */}
+      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+        <div>
+          <h4 className="font-medium text-gray-900">Enable External LLM</h4>
+          <p className="text-sm text-gray-500">Connect to Claude for enhanced AI features</p>
+        </div>
+        <button onClick={toggleLlm} className={`relative w-12 h-6 rounded-full transition-colors ${llmEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}>
+          <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${llmEnabled ? 'translate-x-6' : ''}`} />
+        </button>
+      </div>
+
+      {/* API Key & Model — shown only when LLM is enabled */}
+      {llmEnabled && (
+        <div className="space-y-3 p-4 border border-blue-100 rounded-lg bg-white">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+            <input type="password" value={llmApiKey} onChange={e => setLlmApiKey(e.target.value)}
+              placeholder="sk-ant-..." className="w-full" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
+            <select value={llmModel} onChange={e => setLlmModel(e.target.value)} className="w-full">
+              <option value="claude-sonnet-4-20250514">Claude Sonnet 4 (Recommended)</option>
+              <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (Faster)</option>
+              <option value="claude-opus-4-6">Claude Opus 4.6 (Most capable)</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">API Endpoint</label>
+            <select value={llmBaseUrl} onChange={e => setLlmBaseUrl(e.target.value)} className="w-full">
+              <option value="https://api.anthropic.com">https://api.anthropic.com (Default)</option>
+              <option value="http://api.anthropic.com">http://api.anthropic.com (No TLS)</option>
+            </select>
+            <input value={llmBaseUrl} onChange={e => setLlmBaseUrl(e.target.value)}
+              placeholder="https://api.anthropic.com" className="w-full mt-1" />
+            <p className="text-xs text-gray-500 mt-1">Use HTTPS in production. Custom URL for proxied or self-hosted LLM endpoints.</p>
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button className="btn-primary" onClick={saveApiKey} disabled={saving}>
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+            <button className="btn-secondary" onClick={testConnection}>Test Connection</button>
+          </div>
+          {testResult && (
+            <div className={`text-sm ${testResult.ok ? 'text-green-600' : 'text-red-600'}`}>
+              {testResult.message}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="space-y-3">
+        <div className="p-4 bg-gray-50 rounded-lg">
+          <h4 className="font-medium text-gray-900 mb-2">Features that work WITHOUT any LLM</h4>
+          <div className="grid grid-cols-2 gap-1 text-sm text-gray-600">
+            {['PCI/PII Classification', 'OFAC Screening', 'Anomaly Detection', 'Smart Retry',
+              'Threat Scoring', 'Partner Profiling', 'Predictive SLA', 'Auto-Remediation',
+              'File Format Detection', 'Data Classification', 'Observability Recommendations',
+              'Autonomous Onboarding'].map(f => (
+              <div key={f} className="flex items-center gap-1"><span className="text-green-500">✓</span> {f}</div>
+            ))}
+          </div>
+        </div>
+        <div className="p-4 bg-gray-50 rounded-lg">
+          <h4 className="font-medium text-gray-900 mb-2">Features ENHANCED by LLM (optional)</h4>
+          <div className="text-sm text-gray-600 space-y-1">
+            <div className="flex items-center gap-1"><span className="text-blue-500">↑</span> NLP Terminal — better natural language understanding</div>
+            <div className="flex items-center gap-1"><span className="text-blue-500">↑</span> Flow Builder — "describe what you need" in English</div>
+            <div className="flex items-center gap-1"><span className="text-blue-500">↑</span> NL Monitoring — ask complex questions about the platform</div>
+            <div className="flex items-center gap-1"><span className="text-blue-500">↑</span> EDI AI Mapping — intelligent field mapping from natural language</div>
+            <div className="flex items-center gap-1"><span className="text-blue-500">↑</span> Natural Language EDI Creation — describe EDI corrections in plain English</div>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">Without LLM: these use keyword matching (works for 90% of inputs)</p>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function Settings() {
@@ -75,45 +249,7 @@ export default function Settings() {
       )}
 
       {tab === 'ai' && (
-        <div className="card max-w-2xl space-y-4">
-          <h3 className="font-semibold text-gray-900">AI & LLM Configuration</h3>
-          <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-sm text-blue-800">
-            All AI features work out of the box — no LLM needed. Connecting an LLM
-            just makes the admin terminal smarter at understanding natural language.
-          </div>
-          <div className="space-y-3">
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <h4 className="font-medium text-gray-900 mb-2">Features that work WITHOUT any LLM</h4>
-              <div className="grid grid-cols-2 gap-1 text-sm text-gray-600">
-                {['PCI/PII Classification', 'OFAC Screening', 'Anomaly Detection', 'Smart Retry',
-                  'Threat Scoring', 'Partner Profiling', 'Predictive SLA', 'Auto-Remediation',
-                  'File Format Detection', 'Data Classification', 'Observability Recommendations',
-                  'Autonomous Onboarding'].map(f => (
-                  <div key={f} className="flex items-center gap-1"><span className="text-green-500">✓</span> {f}</div>
-                ))}
-              </div>
-            </div>
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <h4 className="font-medium text-gray-900 mb-2">Features ENHANCED by LLM (optional)</h4>
-              <div className="text-sm text-gray-600 space-y-1">
-                <div className="flex items-center gap-1"><span className="text-blue-500">↑</span> NLP Terminal — better natural language understanding</div>
-                <div className="flex items-center gap-1"><span className="text-blue-500">↑</span> Flow Builder — "describe what you need" in English</div>
-                <div className="flex items-center gap-1"><span className="text-blue-500">↑</span> NL Monitoring — ask complex questions about the platform</div>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">Without LLM: these use keyword matching (works for 90% of inputs)</p>
-            </div>
-          </div>
-          <div className="border-t pt-4">
-            <h4 className="font-medium text-gray-900 mb-2">Connect LLM (optional)</h4>
-            <p className="text-sm text-gray-500 mb-3">Set the CLAUDE_API_KEY environment variable and restart the AI engine.</p>
-            <div className="bg-gray-900 rounded-lg p-3 font-mono text-xs text-green-400">
-              <p># Option 1: In .env file</p>
-              <p>CLAUDE_API_KEY=sk-ant-your-key-here</p>
-              <p className="mt-2"># Option 2: Docker Compose</p>
-              <p>docker compose restart ai-engine</p>
-            </div>
-          </div>
-        </div>
+        <AiSettingsTab />
       )}
 
       {tab === 'services' && (

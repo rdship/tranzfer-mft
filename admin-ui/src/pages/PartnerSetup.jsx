@@ -462,6 +462,14 @@ export default function PartnerSetup() {
           )
         })}
       </div>
+
+      {form.protocolsEnabled.length > 0 && (
+        <div className="mt-4 bg-amber-50 border border-amber-100 rounded-lg p-3 text-sm text-amber-800">
+          <span className="font-medium">Network Routing:</span> If this partner connects to external endpoints,
+          you can route traffic through the DMZ Proxy for network isolation. Configure proxy settings when
+          creating <a href="/external-destinations" className="underline">External Destinations</a> for this partner.
+        </div>
+      )}
     </div>
   )
 
@@ -936,6 +944,12 @@ export default function PartnerSetup() {
             <span className="ml-2 font-medium text-gray-900">{form.retentionDays} days</span>
           </div>
         </div>
+      </div>
+
+      {/* AI tip */}
+      <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700">
+        <span className="font-medium">Tip:</span> Enable AI-powered features like smart EDI mapping and natural language commands in{' '}
+        <a href="/settings" className="underline font-medium">Settings → AI</a>.
       </div>
     </div>
   )

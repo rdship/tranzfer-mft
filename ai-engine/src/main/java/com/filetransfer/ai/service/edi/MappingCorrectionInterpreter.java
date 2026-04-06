@@ -26,6 +26,9 @@ import java.util.regex.Pattern;
 @Slf4j
 public class MappingCorrectionInterpreter {
 
+    @Value("${ai.llm.enabled:false}")
+    private boolean llmEnabled;
+
     @Value("${ai.claude.api-key:}")
     private String apiKey;
 
@@ -45,7 +48,7 @@ public class MappingCorrectionInterpreter {
                                                          String sourceFormat,
                                                          String sourceType,
                                                          String sampleInput) {
-        if (apiKey == null || apiKey.isBlank()) {
+        if (!llmEnabled || apiKey == null || apiKey.isBlank()) {
             return fallbackInterpret(instruction, currentMappings);
         }
 

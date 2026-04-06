@@ -6,11 +6,16 @@ import com.filetransfer.edi.parser.UniversalEdiParser;
 import com.filetransfer.edi.service.TrainedMapConsumer.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -438,5 +443,238 @@ class TrainedMapConsumerTest {
         // The date 20240101 should be reformatted to 2024-01-01
         assertTrue(result.getOutput().contains("2024-01-01"));
         assertEquals(1, result.getFieldsApplied());
+    }
+
+    // ===================================================================
+    // PERSISTENCE TESTS
+    // ===================================================================
+
+    /** Helper: create a consumer with storageDir and persistToDisk set via reflection */
+    private TrainedMapConsumer createPersistentConsumer(Path tempDir) throws Exception {
+        TrainedMapConsumer c = new TrainedMapConsumer(
+                new UniversalEdiParser(new FormatDetector()), new ObjectMapper());
+        setField(c, "storageDir", tempDir.toString());
+        setField(c, "persistToDisk", true);
+        setField(c, "aiEngineUrl", "http://localhost:99999"); // unreachable
+        return c;
+    }
+
+    private void setField(Object target, String fieldName, Object value) throws Exception {
+        Field field = findField(target.getClass(), fieldName);
+        field.setAccessible(true);
+        field.set(target, value);
+    }
+
+    private Field findField(Class<?> clazz, String name) throws NoSuchFieldException {
+        while (clazz != null) {
+            try { return clazz.getDeclaredField(name); }
+            catch (NoSuchFieldException e) { clazz = clazz.getSuperclass(); }
+        }
+        throw new NoSuchFieldException(name);
+    }
+
+    /** Helper: invoke the private persistMap method */
+    private void invokePersistMap(TrainedMapConsumer c, String cacheKey, TrainedMap map) throws Exception {
+        Method m = TrainedMapConsumer.class.getDeclaredMethod("persistMap", String.class, TrainedMap.class);
+        m.setAccessible(true);
+        m.invoke(c, cacheKey, map);
+    }
+
+    /** Helper: invoke the private loadPersistedMap method */
+    @SuppressWarnings("unchecked")
+    private Optional<TrainedMap> invokeLoadPersistedMap(TrainedMapConsumer c, String cacheKey) throws Exception {
+        Method m = TrainedMapConsumer.class.getDeclaredMethod("loadPersistedMap", String.class);
+        m.setAccessible(true);
+        return (Optional<TrainedMap>) m.invoke(c, cacheKey);
+    }
+
+    private TrainedMap buildTestMap(String mapKey, int version, int confidence, int fieldCount) {
+        List<FieldMapping> mappings = new ArrayList<>();
+        for (int i = 0; i < fieldCount; i++) {
+            mappings.add(FieldMapping.builder()
+                    .sourceField("SRC*" + String.format("%02d", i + 1))
+                    .targetField("target.field" + (i + 1))
+                    .transform("DIRECT")
+                    .confidence(confidence)
+                    .build());
+        }
+        return TrainedMap.builder()
+                .mapKey(mapKey)
+                .version(version)
+                .confidence(confidence)
+                .fieldMappings(mappings)
+                .build();
+    }
+
+    @Test
+    void persistAndLoadMap_roundTrip(@TempDir Path tempDir) throws Exception {
+        TrainedMapConsumer c = createPersistentConsumer(tempDir);
+        String cacheKey = "X12:850→JSON@ACME";
+        TrainedMap original = buildTestMap("X12:850→JSON@ACME", 3, 92, 5);
+
+        // Persist
+        invokePersistMap(c, cacheKey, original);
+
+        // Verify file exists
+        String fileName = TrainedMapConsumer.cacheKeyToFileName(cacheKey);
+        assertTrue(Files.exists(tempDir.resolve(fileName)), "Persisted file should exist");
+
+        // Load back
+        Optional<TrainedMap> loaded = invokeLoadPersistedMap(c, cacheKey);
+        assertTrue(loaded.isPresent(), "Loaded map should be present");
+        assertEquals(original.getMapKey(), loaded.get().getMapKey());
+        assertEquals(original.getVersion(), loaded.get().getVersion());
+        assertEquals(original.getConfidence(), loaded.get().getConfidence());
+        assertEquals(original.getFieldMappings().size(), loaded.get().getFieldMappings().size());
+    }
+
+    @Test
+    void loadPersistedMap_notFound_returnsEmpty(@TempDir Path tempDir) throws Exception {
+        TrainedMapConsumer c = createPersistentConsumer(tempDir);
+        Optional<TrainedMap> loaded = invokeLoadPersistedMap(c, "NONEXISTENT:000→NOPE@NOBODY");
+        assertTrue(loaded.isEmpty(), "Loading a non-existent map should return empty");
+    }
+
+    @Test
+    void listPersistedMaps_returnsAllPersistedMaps(@TempDir Path tempDir) throws Exception {
+        TrainedMapConsumer c = createPersistentConsumer(tempDir);
+
+        invokePersistMap(c, "X12:850→JSON@ACME", buildTestMap("map1", 1, 90, 3));
+        invokePersistMap(c, "EDIFACT:ORDERS→XML@PARTNER2", buildTestMap("map2", 2, 85, 5));
+        invokePersistMap(c, "HL7:ADT→JSON@_", buildTestMap("map3", 1, 75, 2));
+
+        List<TrainedMapInfo> maps = c.listPersistedMaps();
+        assertEquals(3, maps.size(), "Should list all 3 persisted maps");
+
+        // Verify the map keys are all represented
+        Set<String> keys = new HashSet<>();
+        maps.forEach(m -> keys.add(m.getMapKey()));
+        assertTrue(keys.contains("map1"));
+        assertTrue(keys.contains("map2"));
+        assertTrue(keys.contains("map3"));
+    }
+
+    @Test
+    void invalidateCache_doesNotDeleteDiskFiles(@TempDir Path tempDir) throws Exception {
+        TrainedMapConsumer c = createPersistentConsumer(tempDir);
+        String cacheKey = "X12:850→JSON@ACME";
+        invokePersistMap(c, cacheKey, buildTestMap("map1", 1, 90, 3));
+
+        // Invalidate in-memory only
+        c.invalidateCache();
+
+        // Disk file should still exist
+        String fileName = TrainedMapConsumer.cacheKeyToFileName(cacheKey);
+        assertTrue(Files.exists(tempDir.resolve(fileName)), "Disk file should survive in-memory invalidation");
+
+        // Should still be loadable from disk
+        Optional<TrainedMap> loaded = invokeLoadPersistedMap(c, cacheKey);
+        assertTrue(loaded.isPresent(), "Map should still be loadable from disk after cache clear");
+    }
+
+    @Test
+    void invalidateAll_deletesDiskFilesToo(@TempDir Path tempDir) throws Exception {
+        TrainedMapConsumer c = createPersistentConsumer(tempDir);
+        invokePersistMap(c, "X12:850→JSON@ACME", buildTestMap("map1", 1, 90, 3));
+        invokePersistMap(c, "EDIFACT:ORDERS→XML@PARTNER2", buildTestMap("map2", 2, 85, 5));
+
+        // Verify files exist before invalidation
+        try (Stream<Path> files = Files.list(tempDir)) {
+            assertEquals(2, files.filter(p -> p.toString().endsWith(".json")).count());
+        }
+
+        // Invalidate all
+        c.invalidateAll();
+
+        // Both disk and memory should be empty
+        try (Stream<Path> files = Files.list(tempDir)) {
+            assertEquals(0, files.filter(p -> p.toString().endsWith(".json")).count(),
+                    "All disk files should be deleted after invalidateAll");
+        }
+        List<TrainedMapInfo> maps = c.listPersistedMaps();
+        assertEquals(0, maps.size(), "No maps should be listed after invalidateAll");
+    }
+
+    @Test
+    void invalidateMap_removesSpecificMap(@TempDir Path tempDir) throws Exception {
+        TrainedMapConsumer c = createPersistentConsumer(tempDir);
+        invokePersistMap(c, "X12:850→JSON@ACME", buildTestMap("map1", 1, 90, 3));
+        invokePersistMap(c, "EDIFACT:ORDERS→XML@PARTNER2", buildTestMap("map2", 2, 85, 5));
+
+        // Invalidate only the first map
+        c.invalidateMap("X12", "850", "JSON", "ACME");
+
+        // First map should be gone from disk
+        String fileName1 = TrainedMapConsumer.cacheKeyToFileName("X12:850→JSON@ACME");
+        assertFalse(Files.exists(tempDir.resolve(fileName1)), "Invalidated map file should be deleted");
+
+        // Second map should still exist
+        String fileName2 = TrainedMapConsumer.cacheKeyToFileName("EDIFACT:ORDERS→XML@PARTNER2");
+        assertTrue(Files.exists(tempDir.resolve(fileName2)), "Other map file should still exist");
+
+        // List should only contain the second map
+        List<TrainedMapInfo> maps = c.listPersistedMaps();
+        assertEquals(1, maps.size());
+        assertEquals("map2", maps.get(0).getMapKey());
+    }
+
+    @Test
+    void cacheStats_tracksHitsAndMisses(@TempDir Path tempDir) throws Exception {
+        TrainedMapConsumer c = createPersistentConsumer(tempDir);
+
+        // Initial stats should be zero
+        CacheStats stats = c.getCacheStats();
+        assertEquals(0, stats.getInMemoryCount());
+        assertEquals(0, stats.getPersistedCount());
+        assertEquals(0, stats.getHitCount());
+        assertEquals(0, stats.getMissCount());
+        assertEquals(0, stats.getFetchCount());
+
+        // Trigger a fetch attempt (AI engine is unreachable, no disk fallback)
+        c.getTrainedMap("X12", "850", "JSON", null);
+
+        stats = c.getCacheStats();
+        assertEquals(1, stats.getFetchCount(), "Should have attempted one fetch");
+        assertEquals(1, stats.getMissCount(), "Should have one miss (AI engine down, no disk)");
+        assertEquals(1, stats.getInMemoryCount(), "Miss should still be cached in memory");
+
+        // Second request for the same key should be a cache hit (cached miss)
+        c.getTrainedMap("X12", "850", "JSON", null);
+        stats = c.getCacheStats();
+        assertEquals(1, stats.getFetchCount(), "Should NOT have fetched again (cached miss)");
+        assertEquals(1, stats.getHitCount(), "Should have one hit from cached miss");
+
+        // Persist a map and verify persisted count
+        invokePersistMap(c, "X12:850→JSON@_", buildTestMap("test", 1, 90, 2));
+        stats = c.getCacheStats();
+        assertEquals(1, stats.getPersistedCount(), "Should have one persisted map");
+    }
+
+    @Test
+    void getTrainedMap_aiEngineDown_fallsToDisk(@TempDir Path tempDir) throws Exception {
+        TrainedMapConsumer c = createPersistentConsumer(tempDir);
+        String cacheKey = "X12:850→JSON@ACME";
+
+        // Pre-persist a map to disk (simulating a previous successful fetch)
+        invokePersistMap(c, cacheKey, buildTestMap("X12:850→JSON@ACME", 3, 92, 5));
+
+        // Now request the map — AI engine is unreachable, should fall back to disk
+        Optional<TrainedMap> result = c.getTrainedMap("X12", "850", "JSON", "ACME");
+
+        assertTrue(result.isPresent(), "Should load from disk when AI engine is down");
+        assertEquals("X12:850→JSON@ACME", result.get().getMapKey());
+        assertEquals(3, result.get().getVersion());
+        assertEquals(92, result.get().getConfidence());
+        assertEquals(5, result.get().getFieldMappings().size());
+    }
+
+    @Test
+    void cacheKeyToFileName_producesValidFileName() {
+        String fileName = TrainedMapConsumer.cacheKeyToFileName("X12:850→JSON@ACME");
+        assertFalse(fileName.contains(":"), "Filename should not contain colons");
+        assertFalse(fileName.contains("→"), "Filename should not contain arrow chars");
+        assertFalse(fileName.contains("@"), "Filename should not contain @ sign");
+        assertTrue(fileName.endsWith(".json"), "Filename should end with .json");
+        assertEquals("X12_850_to_JSON_at_ACME.json", fileName);
     }
 }

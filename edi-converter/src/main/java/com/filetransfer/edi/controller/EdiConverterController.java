@@ -352,11 +352,30 @@ public class EdiConverterController {
                 "totalMappings", result.getTotalMappings()));
     }
 
-    /** Invalidate the trained map cache (after retraining) */
+    /** Invalidate the trained map in-memory cache (after retraining) — disk files preserved */
     @PostMapping("/convert/trained/invalidate-cache")
     public Map<String, String> invalidateTrainedMapCache() {
         trainedMapConsumer.invalidateCache();
         return Map.of("status", "cache_invalidated");
+    }
+
+    /** List all persisted trained maps on disk */
+    @GetMapping("/convert/trained/maps")
+    public ResponseEntity<?> listTrainedMaps() {
+        return ResponseEntity.ok(trainedMapConsumer.listPersistedMaps());
+    }
+
+    /** Get cache statistics (in-memory + persisted counts, hit/miss/fetch counters) */
+    @GetMapping("/convert/trained/cache-stats")
+    public ResponseEntity<?> getCacheStats() {
+        return ResponseEntity.ok(trainedMapConsumer.getCacheStats());
+    }
+
+    /** Invalidate both in-memory cache AND persisted disk files */
+    @PostMapping("/convert/trained/invalidate-all")
+    public ResponseEntity<?> invalidateAll() {
+        trainedMapConsumer.invalidateAll();
+        return ResponseEntity.ok(Map.of("status", "fully_invalidated", "message", "In-memory cache and persisted disk files cleared"));
     }
 
     // ===================================================================

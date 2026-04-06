@@ -10,6 +10,17 @@ spring:
 edi:
   internal-format-version: "1.0"
   internal-format-name: "TIF"
+  trained-maps:
+    storage-dir: ${EDI_TRAINED_MAPS_DIR:./data/trained-maps}
+    persist-to-disk: ${EDI_TRAINED_MAPS_PERSIST:true}
+
+ai:
+  llm:
+    enabled: ${AI_LLM_ENABLED:false}
+  claude:
+    api-key: ${ANTHROPIC_API_KEY:}
+    model: ${CLAUDE_MODEL:claude-sonnet-4-20250514}
+    base-url: ${CLAUDE_BASE_URL:https://api.anthropic.com}
 
 platform:
   services:

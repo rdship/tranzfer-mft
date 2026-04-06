@@ -21,6 +21,9 @@ import java.util.Map;
 @Slf4j
 public class NlpService {
 
+    @Value("${ai.llm.enabled:false}")
+    private boolean llmEnabled;
+
     @Value("${ai.claude.api-key:}")
     private String apiKey;
 
@@ -37,7 +40,7 @@ public class NlpService {
      * Returns the structured command string.
      */
     public NlpResult translateToCommand(String naturalLanguage, String context) {
-        if (apiKey == null || apiKey.isBlank()) {
+        if (!llmEnabled || apiKey == null || apiKey.isBlank()) {
             return fallbackTranslate(naturalLanguage);
         }
 
@@ -90,7 +93,7 @@ public class NlpService {
      * Generate a flow definition from natural language description.
      */
     public FlowSuggestion suggestFlow(String description) {
-        if (apiKey == null || apiKey.isBlank()) {
+        if (!llmEnabled || apiKey == null || apiKey.isBlank()) {
             return fallbackFlowSuggestion(description);
         }
 
@@ -143,8 +146,8 @@ public class NlpService {
      * Explain a transfer failure or system event.
      */
     public String explainEvent(String eventDescription, Map<String, Object> context) {
-        if (apiKey == null || apiKey.isBlank()) {
-            return "AI explanation requires CLAUDE_API_KEY. Event: " + eventDescription;
+        if (!llmEnabled || apiKey == null || apiKey.isBlank()) {
+            return "AI explanation requires LLM to be enabled in Settings. Event: " + eventDescription;
         }
 
         String systemPrompt = """

@@ -23,6 +23,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.URI;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -73,6 +78,168 @@ public class ForwarderController {
 
     /** Port counter for dynamic DMZ proxy mappings (range 40000-49999) */
     private final AtomicInteger dmzPortCounter = new AtomicInteger(40000);
+
+    // --- Connection Test ---
+
+    /**
+     * Test connectivity to an external endpoint before saving configuration.
+     * Performs a lightweight socket connect (or HTTP HEAD for HTTP/HTTPS) with optional
+     * DMZ proxy routing. No file transfer is attempted — just connect + disconnect.
+     */
+    @PostMapping("/test-connection")
+    public ResponseEntity<Map<String, Object>> testConnection(@RequestBody Map<String, Object> body) {
+        String host = (String) body.getOrDefault("host", "");
+        int port = body.get("port") instanceof Number n ? n.intValue() : 22;
+        String protocol = (String) body.getOrDefault("protocol", "SFTP");
+        boolean proxyEnabled = Boolean.TRUE.equals(body.get("proxyEnabled"));
+        String proxyType = (String) body.getOrDefault("proxyType", "DMZ");
+        String proxyHost = (String) body.getOrDefault("proxyHost", "dmz-proxy");
+        int proxyPort = body.get("proxyPort") instanceof Number n ? n.intValue() : 8088;
+
+        if (host == null || host.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false, "message", "Host is required"));
+        }
+
+        boolean useDmzProxy = proxyEnabled && "DMZ".equalsIgnoreCase(proxyType);
+        String dmzMappingName = null;
+        int dmzListenPort = 0;
+
+        // If DMZ proxy, register a temporary mapping first
+        if (useDmzProxy) {
+            dmzListenPort = dmzPortCounter.getAndUpdate(p -> p >= 49999 ? 40000 : p + 1);
+            try {
+                dmzMappingName = registerTestDmzMapping(proxyHost, proxyPort, host, port, dmzListenPort);
+            } catch (Exception e) {
+                log.warn("Failed to register DMZ proxy mapping for connection test: {}", e.getMessage());
+                return ResponseEntity.ok(Map.of(
+                        "success", false,
+                        "message", "DMZ Proxy unreachable: " + e.getMessage(),
+                        "details", "Ensure the DMZ Proxy service is running at " + proxyHost + ":" + proxyPort));
+            }
+        }
+
+        // Determine the actual host/port to connect to
+        String connectHost = useDmzProxy ? proxyHost : host;
+        int connectPort = useDmzProxy ? dmzListenPort : port;
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        long startMs = System.currentTimeMillis();
+
+        try {
+            if ("HTTP".equalsIgnoreCase(protocol) || "HTTPS".equalsIgnoreCase(protocol) || "API".equalsIgnoreCase(protocol)) {
+                // HTTP/HTTPS: attempt a HEAD request
+                testHttpConnection(connectHost, connectPort, protocol, result, startMs);
+            } else {
+                // SFTP/FTP/FTPS and others: TCP socket connect
+                testSocketConnection(connectHost, connectPort, result, startMs);
+            }
+        } finally {
+            // Always clean up temporary DMZ mapping
+            if (dmzMappingName != null) {
+                unregisterTestDmzMapping(proxyHost, proxyPort, dmzMappingName);
+            }
+        }
+
+        // Add proxy context to the response
+        if (proxyEnabled) {
+            result.put("proxyUsed", true);
+            result.put("proxyType", proxyType);
+            if (useDmzProxy) {
+                result.put("details", result.getOrDefault("details", "") +
+                        " (routed through DMZ Proxy at " + proxyHost + ":" + proxyPort + ")");
+            }
+        }
+
+        return ResponseEntity.ok(result);
+    }
+
+    private void testSocketConnection(String host, int port, Map<String, Object> result, long startMs) {
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(host, port), 10000);
+            long latency = System.currentTimeMillis() - startMs;
+            result.put("success", true);
+            result.put("message", "Connection successful to " + host + ":" + port);
+            result.put("latencyMs", latency);
+            result.put("details", "TCP handshake completed");
+        } catch (IOException e) {
+            long latency = System.currentTimeMillis() - startMs;
+            result.put("success", false);
+            result.put("message", "Connection failed: " + e.getMessage());
+            result.put("latencyMs", latency);
+            result.put("details", "Could not reach " + host + ":" + port);
+        }
+    }
+
+    private void testHttpConnection(String host, int port, String protocol, Map<String, Object> result, long startMs) {
+        String scheme = "HTTPS".equalsIgnoreCase(protocol) ? "https" : "http";
+        try {
+            URI uri = URI.create(scheme + "://" + host + ":" + port + "/");
+            HttpURLConnection conn = (HttpURLConnection) uri.toURL().openConnection();
+            conn.setRequestMethod("HEAD");
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(10000);
+            conn.setInstanceFollowRedirects(false);
+            int responseCode = conn.getResponseCode();
+            long latency = System.currentTimeMillis() - startMs;
+            conn.disconnect();
+
+            result.put("success", true);
+            result.put("message", "HTTP connection successful (status " + responseCode + ")");
+            result.put("latencyMs", latency);
+            result.put("details", scheme.toUpperCase() + " HEAD returned " + responseCode);
+        } catch (IOException e) {
+            long latency = System.currentTimeMillis() - startMs;
+            result.put("success", false);
+            result.put("message", "HTTP connection failed: " + e.getMessage());
+            result.put("latencyMs", latency);
+            result.put("details", "Could not reach " + scheme + "://" + host + ":" + port);
+        }
+    }
+
+    /**
+     * Register a temporary DMZ proxy mapping for connection testing.
+     * Similar to {@link #registerDmzMapping} but takes raw parameters instead of a DeliveryEndpoint.
+     */
+    private String registerTestDmzMapping(String proxyHost, int proxyPort,
+                                           String targetHost, int targetPort, int listenPort) {
+        String dmzApiUrl = "http://" + proxyHost + ":" + proxyPort;
+        String mappingName = "conntest-" + System.currentTimeMillis();
+
+        Map<String, Object> mapping = new LinkedHashMap<>();
+        mapping.put("name", mappingName);
+        mapping.put("listenPort", listenPort);
+        mapping.put("targetHost", targetHost);
+        mapping.put("targetPort", targetPort);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-Internal-Key", controlApiKey);
+
+        RestTemplate rest = new RestTemplate();
+        rest.postForEntity(dmzApiUrl + "/api/proxy/mappings",
+                new HttpEntity<>(mapping, headers), Map.class);
+
+        log.info("DMZ test mapping created: {} -> {}:{} via :{}", mappingName, targetHost, targetPort, listenPort);
+        return mappingName;
+    }
+
+    /** Remove a temporary DMZ proxy mapping after connection test */
+    private void unregisterTestDmzMapping(String proxyHost, int proxyPort, String mappingName) {
+        try {
+            String dmzApiUrl = "http://" + proxyHost + ":" + proxyPort;
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("X-Internal-Key", controlApiKey);
+
+            RestTemplate rest = new RestTemplate();
+            rest.exchange(dmzApiUrl + "/api/proxy/mappings/" + mappingName,
+                    HttpMethod.DELETE, new HttpEntity<>(headers), Void.class);
+
+            log.info("DMZ test mapping removed: {}", mappingName);
+        } catch (Exception e) {
+            log.warn("Failed to cleanup DMZ test mapping '{}': {}", mappingName, e.getMessage());
+        }
+    }
 
     // --- Active Transfer Monitoring ---
 

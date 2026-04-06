@@ -4,16 +4,21 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.filetransfer.edi.model.EdiDocument;
 import com.filetransfer.edi.parser.UniversalEdiParser;
+import jakarta.annotation.PostConstruct;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.IOException;
+import java.nio.file.*;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 /**
  * Fetches trained conversion maps from the AI Engine and applies them.
@@ -38,12 +43,35 @@ public class TrainedMapConsumer {
     @Value("${platform.services.ai-engine.url:http://ai-engine:8091}")
     private String aiEngineUrl;
 
+    @Value("${edi.trained-maps.storage-dir:${java.io.tmpdir}/edi-trained-maps}")
+    private String storageDir;
+
+    @Value("${edi.trained-maps.persist-to-disk:true}")
+    private boolean persistToDisk;
+
     /** Local cache: cacheKey → CachedMap */
     private final ConcurrentHashMap<String, CachedMap> mapCache = new ConcurrentHashMap<>();
     private static final Duration CACHE_TTL = Duration.ofMinutes(5);
     private static final Duration CACHE_TTL_MISS = Duration.ofMinutes(1); // shorter TTL for misses
 
     private final RestTemplate restTemplate = new RestTemplate();
+
+    /** Cache statistics counters */
+    private final AtomicInteger hitCount = new AtomicInteger();
+    private final AtomicInteger missCount = new AtomicInteger();
+    private final AtomicInteger fetchCount = new AtomicInteger();
+
+    @PostConstruct
+    void initStorageDir() {
+        if (persistToDisk) {
+            try {
+                Files.createDirectories(Path.of(storageDir));
+                log.info("Trained map storage directory: {}", storageDir);
+            } catch (IOException e) {
+                log.warn("Could not create trained map storage directory {}: {}", storageDir, e.getMessage());
+            }
+        }
+    }
 
     /**
      * Try to convert using a trained map. Returns empty if no trained map is available.
@@ -75,7 +103,7 @@ public class TrainedMapConsumer {
     }
 
     /**
-     * Get a trained map, with local caching.
+     * Get a trained map, with local caching and disk-based persistence fallback.
      */
     public Optional<TrainedMap> getTrainedMap(String sourceFormat, String sourceType,
                                                String targetFormat, String partnerId) {
@@ -83,10 +111,16 @@ public class TrainedMapConsumer {
         CachedMap cached = mapCache.get(cacheKey);
 
         if (cached != null && !cached.isExpired()) {
-            return cached.map != null ? Optional.of(cached.map) : Optional.empty();
+            if (cached.map != null) {
+                hitCount.incrementAndGet();
+                return Optional.of(cached.map);
+            }
+            hitCount.incrementAndGet();
+            return Optional.empty();
         }
 
         // Fetch from AI engine
+        fetchCount.incrementAndGet();
         try {
             String url = aiEngineUrl + "/api/v1/edi/training/maps/lookup"
                     + "?sourceFormat=" + sourceFormat
@@ -111,15 +145,25 @@ public class TrainedMapConsumer {
                         .build();
 
                 mapCache.put(cacheKey, new CachedMap(trainedMap, CACHE_TTL));
+                persistMap(cacheKey, trainedMap);
                 log.debug("Fetched trained map '{}' v{} ({}% confidence) from AI engine",
                         trainedMap.mapKey, trainedMap.version, trainedMap.confidence);
                 return Optional.of(trainedMap);
             }
         } catch (Exception e) {
-            log.debug("No trained map available for {}: {}", cacheKey, e.getMessage());
+            log.debug("AI engine unavailable for {}: {}", cacheKey, e.getMessage());
+
+            // Fallback to disk-persisted map
+            Optional<TrainedMap> persisted = loadPersistedMap(cacheKey);
+            if (persisted.isPresent()) {
+                mapCache.put(cacheKey, new CachedMap(persisted.get(), CACHE_TTL));
+                log.info("Loaded trained map from disk for {} (AI engine unavailable)", cacheKey);
+                return persisted;
+            }
         }
 
         // Cache the miss to avoid hammering AI engine
+        missCount.incrementAndGet();
         mapCache.put(cacheKey, new CachedMap(null, CACHE_TTL_MISS));
         return Optional.empty();
     }
@@ -250,10 +294,173 @@ public class TrainedMapConsumer {
         return applyMap(doc, sourceContent, tempMap);
     }
 
-    /** Invalidate the local cache (called when maps are retrained) */
+    /** Invalidate the in-memory cache only (disk files are preserved for restart resilience) */
     public void invalidateCache() {
         mapCache.clear();
-        log.info("Trained map cache invalidated");
+        log.info("Trained map in-memory cache invalidated (disk files preserved)");
+    }
+
+    /** Invalidate both in-memory cache AND persisted disk files */
+    public void invalidateAll() {
+        mapCache.clear();
+        if (persistToDisk) {
+            try {
+                Path dir = Path.of(storageDir);
+                if (Files.exists(dir)) {
+                    try (Stream<Path> files = Files.list(dir)) {
+                        files.filter(p -> p.toString().endsWith(".json"))
+                                .forEach(p -> {
+                                    try { Files.deleteIfExists(p); }
+                                    catch (IOException e) { log.warn("Failed to delete persisted map {}: {}", p, e.getMessage()); }
+                                });
+                    }
+                }
+            } catch (IOException e) {
+                log.warn("Failed to clear persisted maps: {}", e.getMessage());
+            }
+        }
+        log.info("Trained map cache fully invalidated (memory + disk)");
+    }
+
+    /** Invalidate a specific map from both in-memory cache and disk */
+    public void invalidateMap(String sourceFormat, String sourceType, String targetFormat, String partnerId) {
+        String cacheKey = sourceFormat + ":" + sourceType + "→" + targetFormat + "@" + (partnerId != null ? partnerId : "_");
+        mapCache.remove(cacheKey);
+        if (persistToDisk) {
+            Path file = Path.of(storageDir, cacheKeyToFileName(cacheKey));
+            try {
+                Files.deleteIfExists(file);
+                log.info("Invalidated trained map: {} (memory + disk)", cacheKey);
+            } catch (IOException e) {
+                log.warn("Failed to delete persisted map file {}: {}", file, e.getMessage());
+            }
+        }
+    }
+
+    // === Persistence methods ===
+
+    /** Persist a trained map to disk as JSON */
+    private void persistMap(String cacheKey, TrainedMap map) {
+        if (!persistToDisk) return;
+        try {
+            Path dir = Path.of(storageDir);
+            Files.createDirectories(dir);
+            Path file = dir.resolve(cacheKeyToFileName(cacheKey));
+            PersistedMapWrapper wrapper = PersistedMapWrapper.builder()
+                    .cacheKey(cacheKey)
+                    .map(map)
+                    .persistedAtEpochMillis(Instant.now().toEpochMilli())
+                    .build();
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(file.toFile(), wrapper);
+            log.debug("Persisted trained map to {}", file);
+        } catch (IOException e) {
+            log.warn("Failed to persist trained map for {}: {}", cacheKey, e.getMessage());
+        }
+    }
+
+    /** Load a persisted map from disk */
+    private Optional<TrainedMap> loadPersistedMap(String cacheKey) {
+        if (!persistToDisk) return Optional.empty();
+        Path file = Path.of(storageDir, cacheKeyToFileName(cacheKey));
+        if (!Files.exists(file)) return Optional.empty();
+        try {
+            PersistedMapWrapper wrapper = objectMapper.readValue(file.toFile(), PersistedMapWrapper.class);
+            return Optional.ofNullable(wrapper.getMap());
+        } catch (IOException e) {
+            log.warn("Failed to load persisted map from {}: {}", file, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /** List all persisted maps on disk (for diagnostics) */
+    public List<TrainedMapInfo> listPersistedMaps() {
+        List<TrainedMapInfo> result = new ArrayList<>();
+        if (!persistToDisk) return result;
+        Path dir = Path.of(storageDir);
+        if (!Files.exists(dir)) return result;
+        try (Stream<Path> files = Files.list(dir)) {
+            files.filter(p -> p.toString().endsWith(".json"))
+                    .forEach(p -> {
+                        try {
+                            PersistedMapWrapper wrapper = objectMapper.readValue(p.toFile(), PersistedMapWrapper.class);
+                            TrainedMap map = wrapper.getMap();
+                            if (map != null) {
+                                result.add(TrainedMapInfo.builder()
+                                        .mapKey(map.getMapKey())
+                                        .version(map.getVersion())
+                                        .confidence(map.getConfidence())
+                                        .fieldCount(map.getFieldMappings() != null ? map.getFieldMappings().size() : 0)
+                                        .sourceFormat(extractFromCacheKey(wrapper.getCacheKey(), "sourceFormat"))
+                                        .targetFormat(extractFromCacheKey(wrapper.getCacheKey(), "targetFormat"))
+                                        .partnerId(extractFromCacheKey(wrapper.getCacheKey(), "partnerId"))
+                                        .persistedAt(Instant.ofEpochMilli(wrapper.getPersistedAtEpochMillis()))
+                                        .build());
+                            }
+                        } catch (IOException e) {
+                            log.warn("Failed to read persisted map {}: {}", p, e.getMessage());
+                        }
+                    });
+        } catch (IOException e) {
+            log.warn("Failed to list persisted maps: {}", e.getMessage());
+        }
+        return result;
+    }
+
+    /** Get cache statistics */
+    public CacheStats getCacheStats() {
+        int persistedCount = 0;
+        if (persistToDisk) {
+            Path dir = Path.of(storageDir);
+            if (Files.exists(dir)) {
+                try (Stream<Path> files = Files.list(dir)) {
+                    persistedCount = (int) files.filter(p -> p.toString().endsWith(".json")).count();
+                } catch (IOException e) {
+                    log.warn("Failed to count persisted maps: {}", e.getMessage());
+                }
+            }
+        }
+        return CacheStats.builder()
+                .inMemoryCount(mapCache.size())
+                .persistedCount(persistedCount)
+                .hitCount(hitCount.get())
+                .missCount(missCount.get())
+                .fetchCount(fetchCount.get())
+                .build();
+    }
+
+    // === Utility methods for persistence ===
+
+    /** Convert a cache key like "X12:850→JSON@ACME" to a safe filename */
+    static String cacheKeyToFileName(String cacheKey) {
+        // Replace unsafe filename chars: : → _, → → _, @ → _
+        return cacheKey.replace(":", "_")
+                .replace("→", "_to_")
+                .replace("@", "_at_")
+                .replace(" ", "_")
+                + ".json";
+    }
+
+    /** Extract parts from a cache key like "X12:850→JSON@ACME" */
+    private String extractFromCacheKey(String cacheKey, String part) {
+        if (cacheKey == null) return null;
+        try {
+            // Format: sourceFormat:sourceType→targetFormat@partnerId
+            String[] atParts = cacheKey.split("@");
+            String partnerId = atParts.length > 1 ? atParts[1] : "_";
+            String[] arrowParts = atParts[0].split("→");
+            String targetFormat = arrowParts.length > 1 ? arrowParts[1] : null;
+            String[] colonParts = arrowParts[0].split(":");
+            String sourceFormat = colonParts[0];
+
+            return switch (part) {
+                case "sourceFormat" -> sourceFormat;
+                case "targetFormat" -> targetFormat;
+                case "partnerId" -> "_".equals(partnerId) ? null : partnerId;
+                default -> null;
+            };
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     // === Inner types ===
@@ -287,6 +494,35 @@ public class TrainedMapConsumer {
         private int fieldsApplied;
         private int fieldsSkipped;
         private int totalMappings;
+    }
+
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class TrainedMapInfo {
+        private String mapKey;
+        private int version;
+        private int confidence;
+        private int fieldCount;
+        private String sourceFormat;
+        private String targetFormat;
+        private String partnerId;
+        private Instant persistedAt;
+    }
+
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class CacheStats {
+        private int inMemoryCount;
+        private int persistedCount;
+        private int hitCount;
+        private int missCount;
+        private int fetchCount;
+    }
+
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    static class PersistedMapWrapper {
+        private String cacheKey;
+        private TrainedMap map;
+        /** Epoch millis — avoids requiring jackson-datatype-jsr310 for Instant */
+        private long persistedAtEpochMillis;
     }
 
     private static class CachedMap {

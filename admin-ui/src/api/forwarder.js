@@ -11,3 +11,4 @@ const forwarderApi = axios.create({ baseURL: FORWARDER_URL })
 
 export const getActiveTransfers = () => forwarderApi.get('/api/forward/transfers/active').then(r => r.data)
 export const getForwarderHealth = () => forwarderApi.get('/api/forward/health').then(r => r.data)
+export const testEndpointConnection = (data) => forwarderApi.post('/api/forward/test-connection', data).then(r => r.data)

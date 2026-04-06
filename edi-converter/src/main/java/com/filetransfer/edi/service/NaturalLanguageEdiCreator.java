@@ -1,5 +1,6 @@
 package com.filetransfer.edi.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.filetransfer.edi.format.TemplateLibrary;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +31,33 @@ import java.util.regex.Pattern;
 public class NaturalLanguageEdiCreator {
 
     private final TemplateLibrary templateLibrary;
+    private final ClaudeApiClient claudeApiClient;
+
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+
+    private static final String NL_SYSTEM_PROMPT = """
+            You are an EDI generation expert. Given a natural language description, determine:
+            1. The EDI document type (one of: X12_850, X12_810, X12_837, X12_856, X12_820, SWIFT_MT103, HL7_ADT, EDIFACT_ORDERS)
+            2. All relevant fields/entities from the description
+
+            Return ONLY valid JSON in this exact format:
+            {
+              "type": "X12_850",
+              "label": "Purchase Order (X12 850)",
+              "fields": { "key": "value" }
+            }
+
+            Supported field keys per type:
+            - X12_850: buyerName, buyerId, sellerName, sellerId, poNumber, poDate, quantity, unitPrice, itemNumber, unitOfMeasure
+            - X12_810: sellerName, sellerId, buyerName, buyerId, invoiceNumber, invoiceDate, totalAmount
+            - X12_837: senderName, senderId, receiverName, receiverId, patientFirstName, patientLastName, claimId, claimAmount, serviceDate, diagnosisCode
+            - X12_856: shipperName, shipperId, receiverName, receiverId, shipmentId, carrierName, trackingNumber
+            - X12_820: payerName, payerId, payeeName, payeeId, paymentAmount, paymentDate
+            - SWIFT_MT103: senderBic, receiverBic, reference, amount, currency, orderingName, orderingAccount, beneficiaryName, beneficiaryAccount
+            - HL7_ADT: sendingApp, sendingFacility, patientId, patientFirstName, patientLastName, dateOfBirth, gender, ward
+            - EDIFACT_ORDERS: buyerName, sellerName, orderNumber, quantity, itemDescription
+
+            If you cannot determine the type, set type to null.""";
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class NlEdiResult {
@@ -100,31 +128,55 @@ public class NaturalLanguageEdiCreator {
                     .explanation("No input provided").build();
         }
 
-        // Step 1: Detect intent
-        String detectedType = null;
-        String detectedLabel = null;
-        for (IntentPattern ip : PATTERNS) {
-            if (ip.pattern.matcher(naturalLanguage).find()) {
-                detectedType = ip.type;
-                detectedLabel = ip.label;
-                break;
+        // Try Claude AI first if available
+        if (claudeApiClient.isAvailable()) {
+            try {
+                return createWithClaude(naturalLanguage);
+            } catch (Exception e) {
+                log.warn("Claude NL EDI creation failed, falling back to pattern matching: {}", e.getMessage());
             }
         }
 
-        if (detectedType == null) {
-            return NlEdiResult.builder().confidence(0)
-                    .warnings(List.of("Could not determine document type",
-                            "Try: 'create a purchase order for...' or 'generate an invoice for...'"))
-                    .explanation("I couldn't figure out what type of document you need. " +
-                            "Try starting with 'create a purchase order', 'generate an invoice', " +
-                            "'send a healthcare claim', or 'make a wire transfer'.").build();
+        return createFallback(naturalLanguage);
+    }
+
+    /**
+     * AI-powered EDI creation using Claude to understand intent and extract entities.
+     */
+    @SuppressWarnings("unchecked")
+    private NlEdiResult createWithClaude(String naturalLanguage) throws Exception {
+        String response = claudeApiClient.call(NL_SYSTEM_PROMPT, naturalLanguage);
+        String json = ClaudeApiClient.extractJson(response);
+        Map<String, Object> parsed = objectMapper.readValue(json, Map.class);
+
+        String type = (String) parsed.get("type");
+        String label = (String) parsed.get("label");
+        Map<String, String> fields = new LinkedHashMap<>();
+
+        Object rawFields = parsed.get("fields");
+        if (rawFields instanceof Map<?, ?> fieldMap) {
+            fieldMap.forEach((k, v) -> {
+                if (v != null) fields.put(String.valueOf(k), String.valueOf(v));
+            });
         }
 
-        // Step 2: Extract entities
-        Map<String, String> fields = extractEntities(naturalLanguage, detectedType);
-        List<String> warnings = new ArrayList<>();
+        if (type == null || type.isBlank() || "null".equals(type)) {
+            // Claude couldn't determine intent — fall back to regex
+            log.debug("Claude couldn't determine EDI type, falling back to regex");
+            return createFallback(naturalLanguage);
+        }
 
-        // Step 3: Generate EDI based on type
+        // Use Claude's extracted type and fields, but drive through existing generators
+        return generateFromTypeAndFields(type, label, fields, naturalLanguage);
+    }
+
+    /**
+     * Core generation logic shared between AI and fallback paths.
+     * Takes a resolved type and fields map, generates EDI through existing generators.
+     */
+    private NlEdiResult generateFromTypeAndFields(String detectedType, String detectedLabel,
+                                                   Map<String, String> fields, String naturalLanguage) {
+        List<String> warnings = new ArrayList<>();
         String edi;
         String explanation;
         int confidence;
@@ -190,6 +242,38 @@ public class NaturalLanguageEdiCreator {
                 .warnings(warnings)
                 .explanation(explanation)
                 .build();
+    }
+
+    /**
+     * Fallback: create EDI using regex pattern matching and entity extraction.
+     * Used when no API key is configured or when Claude call fails.
+     */
+    NlEdiResult createFallback(String naturalLanguage) {
+        // Step 1: Detect intent via regex
+        String detectedType = null;
+        String detectedLabel = null;
+        for (IntentPattern ip : PATTERNS) {
+            if (ip.pattern.matcher(naturalLanguage).find()) {
+                detectedType = ip.type;
+                detectedLabel = ip.label;
+                break;
+            }
+        }
+
+        if (detectedType == null) {
+            return NlEdiResult.builder().confidence(0)
+                    .warnings(List.of("Could not determine document type",
+                            "Try: 'create a purchase order for...' or 'generate an invoice for...'"))
+                    .explanation("I couldn't figure out what type of document you need. " +
+                            "Try starting with 'create a purchase order', 'generate an invoice', " +
+                            "'send a healthcare claim', or 'make a wire transfer'.").build();
+        }
+
+        // Step 2: Extract entities via regex
+        Map<String, String> fields = extractEntities(naturalLanguage, detectedType);
+
+        // Step 3: Generate EDI through shared generator logic
+        return generateFromTypeAndFields(detectedType, detectedLabel, fields, naturalLanguage);
     }
 
     // === Entity Extraction ===

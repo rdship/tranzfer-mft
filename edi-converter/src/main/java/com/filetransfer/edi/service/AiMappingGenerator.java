@@ -1,5 +1,7 @@
 package com.filetransfer.edi.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.filetransfer.edi.model.EdiDocument;
 import com.filetransfer.edi.model.EdiDocument.Segment;
 import com.filetransfer.edi.parser.UniversalEdiParser;
@@ -28,6 +30,31 @@ public class AiMappingGenerator {
 
     private final UniversalEdiParser parser;
     private final TrainedMapConsumer trainedMapConsumer;
+    private final ClaudeApiClient claudeApiClient;
+
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+
+    private static final String MAPPING_SYSTEM_PROMPT = """
+            You are an EDI mapping expert. Given a source EDI document and desired JSON output, \
+            generate field mapping rules. Return a JSON array of objects with these fields:
+            - sourceField: EDI path like 'BEG*03' or 'ISA*06' or 'NM1*03'
+            - targetField: JSON path like 'poNumber' or 'header.sender'
+            - transform: one of DIRECT, TRIM, UPPERCASE, LOWERCASE, ZERO_PAD, DATE_REFORMAT
+            - transformParam: optional parameter for the transform (e.g. date format, pad length)
+            - confidence: integer 0-100 indicating mapping confidence
+            - reasoning: brief explanation of why this mapping is correct
+            Return ONLY the JSON array, no surrounding text.""";
+
+    private static final String SCHEMA_SYSTEM_PROMPT = """
+            You are an EDI mapping expert. Given a source EDI document and a target schema description, \
+            generate field mapping rules that map EDI fields to schema fields. Return a JSON array of objects with:
+            - sourceField: EDI path like 'BEG*03' or 'ISA*06'
+            - targetField: the schema field name
+            - transform: one of DIRECT, TRIM, UPPERCASE, LOWERCASE, ZERO_PAD, DATE_REFORMAT
+            - transformParam: optional parameter
+            - confidence: integer 0-100
+            - reasoning: brief explanation
+            Return ONLY the JSON array, no surrounding text.""";
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class MappingResult {
@@ -125,8 +152,70 @@ public class AiMappingGenerator {
 
     /**
      * Generate mapping from source EDI sample + target JSON sample.
+     * When a Claude API key is configured, uses AI for higher-quality mappings.
+     * Falls back to structural pattern matching when no key is available or on error.
      */
     public MappingResult generateFromSamples(String sourceEdi, String targetJson) {
+        // Try Claude AI first if available
+        if (claudeApiClient.isAvailable()) {
+            try {
+                return generateFromSamplesWithClaude(sourceEdi, targetJson);
+            } catch (Exception e) {
+                log.warn("Claude mapping generation failed, falling back to pattern matching: {}", e.getMessage());
+            }
+        }
+
+        return generateFromSamplesFallback(sourceEdi, targetJson);
+    }
+
+    /**
+     * AI-powered mapping generation using Claude API.
+     */
+    private MappingResult generateFromSamplesWithClaude(String sourceEdi, String targetJson) throws Exception {
+        String userMessage = "Source EDI:\n" + sourceEdi + "\n\nTarget JSON:\n" + targetJson;
+        String response = claudeApiClient.call(MAPPING_SYSTEM_PROMPT, userMessage);
+        String json = ClaudeApiClient.extractJson(response);
+
+        List<Map<String, Object>> rawRules = objectMapper.readValue(
+                json, new TypeReference<List<Map<String, Object>>>() {});
+
+        List<MappingRule> rules = new ArrayList<>();
+        for (Map<String, Object> raw : rawRules) {
+            rules.add(MappingRule.builder()
+                    .sourceField(String.valueOf(raw.getOrDefault("sourceField", "")))
+                    .targetField(String.valueOf(raw.getOrDefault("targetField", "")))
+                    .transform(String.valueOf(raw.getOrDefault("transform", "DIRECT")))
+                    .transformParam(raw.get("transformParam") != null ? String.valueOf(raw.get("transformParam")) : null)
+                    .confidence(raw.get("confidence") instanceof Number n ? n.intValue() : 70)
+                    .reasoning("[AI] " + raw.getOrDefault("reasoning", "Claude-generated mapping"))
+                    .build());
+        }
+
+        EdiDocument doc = parser.parse(sourceEdi);
+        Map<String, Object> target = parseTargetJson(targetJson);
+        int totalFields = flattenValues(target).size();
+        int avgConf = rules.isEmpty() ? 0 :
+                (int) rules.stream().mapToInt(MappingRule::getConfidence).average().orElse(0);
+
+        return MappingResult.builder()
+                .mappingId("ai-" + UUID.randomUUID().toString().substring(0, 8))
+                .rules(rules)
+                .confidence(avgConf)
+                .fieldsMatched(rules.size())
+                .fieldsTotal(totalFields)
+                .sourceFormat(doc != null ? doc.getSourceFormat() : "UNKNOWN")
+                .targetFormat("JSON")
+                .unmappedSourceFields(List.of())
+                .unmappedTargetFields(List.of())
+                .suggestions(List.of("AI-generated mappings — review confidence scores"))
+                .generatedCode(generateMappingCode(rules))
+                .build();
+    }
+
+    /**
+     * Fallback: generate mapping from samples using structural pattern matching.
+     */
+    MappingResult generateFromSamplesFallback(String sourceEdi, String targetJson) {
         EdiDocument doc = parser.parse(sourceEdi);
         Map<String, Object> target = parseTargetJson(targetJson);
 
@@ -273,8 +362,66 @@ public class AiMappingGenerator {
 
     /**
      * Generate mapping from format description (no sample output needed).
+     * Uses Claude AI when available, falls back to known-mapping lookup.
      */
     public MappingResult generateFromSchema(String sourceEdi, String targetSchema) {
+        // Try Claude AI first if available
+        if (claudeApiClient.isAvailable()) {
+            try {
+                return generateFromSchemaWithClaude(sourceEdi, targetSchema);
+            } catch (Exception e) {
+                log.warn("Claude schema mapping failed, falling back to known mappings: {}", e.getMessage());
+            }
+        }
+
+        return generateFromSchemaFallback(sourceEdi, targetSchema);
+    }
+
+    /**
+     * AI-powered schema mapping using Claude API.
+     */
+    private MappingResult generateFromSchemaWithClaude(String sourceEdi, String targetSchema) throws Exception {
+        String userMessage = "Source EDI:\n" + sourceEdi + "\n\nTarget Schema:\n" + targetSchema;
+        String response = claudeApiClient.call(SCHEMA_SYSTEM_PROMPT, userMessage);
+        String json = ClaudeApiClient.extractJson(response);
+
+        List<Map<String, Object>> rawRules = objectMapper.readValue(
+                json, new TypeReference<List<Map<String, Object>>>() {});
+
+        List<MappingRule> rules = new ArrayList<>();
+        for (Map<String, Object> raw : rawRules) {
+            rules.add(MappingRule.builder()
+                    .sourceField(String.valueOf(raw.getOrDefault("sourceField", "")))
+                    .targetField(String.valueOf(raw.getOrDefault("targetField", "")))
+                    .transform(String.valueOf(raw.getOrDefault("transform", "DIRECT")))
+                    .transformParam(raw.get("transformParam") != null ? String.valueOf(raw.get("transformParam")) : null)
+                    .confidence(raw.get("confidence") instanceof Number n ? n.intValue() : 70)
+                    .reasoning("[AI] " + raw.getOrDefault("reasoning", "Claude-generated schema mapping"))
+                    .build());
+        }
+
+        EdiDocument doc = parser.parse(sourceEdi);
+        List<String> schemaFields = parseSchemaFields(targetSchema);
+        int avgConf = rules.isEmpty() ? 0 :
+                (int) rules.stream().mapToInt(MappingRule::getConfidence).average().orElse(0);
+
+        return MappingResult.builder()
+                .mappingId("ai-schema-" + UUID.randomUUID().toString().substring(0, 8))
+                .rules(rules)
+                .confidence(avgConf)
+                .fieldsMatched(rules.size())
+                .fieldsTotal(schemaFields.size())
+                .sourceFormat(doc != null ? doc.getSourceFormat() : "UNKNOWN")
+                .targetFormat("SCHEMA")
+                .suggestions(List.of("AI-generated schema mappings — review confidence scores"))
+                .generatedCode(generateMappingCode(rules))
+                .build();
+    }
+
+    /**
+     * Fallback: generate mapping from schema using known-mapping lookup.
+     */
+    MappingResult generateFromSchemaFallback(String sourceEdi, String targetSchema) {
         // Parse source
         EdiDocument doc = parser.parse(sourceEdi);
         Map<String, String> sourceValues = extractSourceValues(doc);
