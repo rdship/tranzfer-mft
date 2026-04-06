@@ -51,6 +51,10 @@ spring:
     baseline-version: "0"
     locations: classpath:db/migration
 
+edi:
+  training:
+    seed-on-startup: false
+
 ai:
   # Anthropic Claude API for NLP features
   claude:

@@ -6,6 +6,7 @@ import com.filetransfer.ai.entity.edi.TrainingSession;
 import com.filetransfer.ai.service.edi.EdiMapTrainingEngine;
 import com.filetransfer.ai.service.edi.EdiTrainingDataService;
 import com.filetransfer.ai.service.edi.TrainedMapStore;
+import com.filetransfer.ai.service.edi.EdiTrainingDataSeeder;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -37,6 +38,7 @@ public class EdiMapTrainingController {
     private final EdiTrainingDataService trainingDataService;
     private final EdiMapTrainingEngine trainingEngine;
     private final TrainedMapStore mapStore;
+    private final EdiTrainingDataSeeder trainingDataSeeder;
 
     private static final int MAX_BATCH_SIZE = 500;
 
@@ -249,6 +251,17 @@ public class EdiMapTrainingController {
     @GetMapping("/sessions/map")
     public List<TrainingSession> getSessionsForMap(@RequestParam String mapKey) {
         return mapStore.getSessionsForMap(mapKey);
+    }
+
+    // ===================================================================
+    // SEED BUILT-IN TRAINING DATA
+    // ===================================================================
+
+    /** Seed built-in training samples (X12, EDIFACT, HL7, SWIFT) */
+    @PostMapping("/seed")
+    @ResponseStatus(HttpStatus.CREATED)
+    public Map<String, Object> seedTrainingData() {
+        return trainingDataSeeder.seedAll();
     }
 
     // ===================================================================
