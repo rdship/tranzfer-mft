@@ -657,6 +657,62 @@ console.log(result.generatedEdi);
 
 ---
 
+## Demo 5: Test Custom Field Mappings
+
+The EDI Converter can apply custom field mappings to EDI content -- used by the AI Engine's mapping correction workflow to test partner corrections before persisting them.
+
+### Step 1: Test a mapping
+
+```bash
+curl -s -X POST http://localhost:8095/api/v1/convert/test-mappings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceContent": "ISA*00*          *00*          *ZZ*ACME-SUPPLY    *ZZ*GLOBALRETAIL   *240315*1200*^*00501*000000001*0*P*:~GS*PO*ACME-SUPPLY*GLOBALRETAIL*20240315*1200*1*X*005010~ST*850*0001~BEG*00*NE*PO-2024-03-1587**20240315~NM1*BY*2*Global Retail Inc~NM1*SE*2*Acme Supply Co~PO1*1*500*EA*12.50*PE*VP*WIDGET-A100~CTT*2~SE*9*0001~GE*1*1~IEA*1*000000001~",
+    "targetFormat": "JSON",
+    "fieldMappings": [
+      {"sourceField": "BEG*03", "targetField": "poNumber", "transform": "DIRECT", "confidence": 100},
+      {"sourceField": "NM1*03", "targetField": "buyerName", "transform": "UPPERCASE", "confidence": 95},
+      {"sourceField": "BEG*05", "targetField": "orderDate", "transform": "DATE_REFORMAT", "transformParam": "yyyyMMdd\u2192yyyy-MM-dd", "confidence": 90}
+    ]
+  }' | python3 -m json.tool
+```
+
+Expected response:
+
+```json
+{
+    "output": "{\"poNumber\":\"PO-2024-03-1587\",\"buyerName\":\"GLOBAL RETAIL INC\",\"orderDate\":\"2024-03-15\"}",
+    "mapKey": "custom-test",
+    "mapVersion": 0,
+    "mapConfidence": 0,
+    "fieldsApplied": 3,
+    "fieldsSkipped": 0,
+    "totalMappings": 3
+}
+```
+
+### Step 2: Try with nested target fields
+
+```bash
+curl -s -X POST http://localhost:8095/api/v1/convert/test-mappings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceContent": "ISA*00*          *00*          *ZZ*ACME-SUPPLY    *ZZ*GLOBALRETAIL   *240315*1200*^*00501*000000001*0*P*:~GS*PO*ACME-SUPPLY*GLOBALRETAIL*20240315*1200*1*X*005010~ST*850*0001~BEG*00*NE*PO-2024-03-1587**20240315~NM1*BY*2*Global Retail Inc~PO1*1*500*EA*12.50*PE*VP*WIDGET-A100~SE*6*0001~GE*1*1~IEA*1*000000001~",
+    "targetFormat": "JSON",
+    "fieldMappings": [
+      {"sourceField": "BEG*03", "targetField": "header.poNumber", "transform": "DIRECT", "confidence": 100},
+      {"sourceField": "NM1*03", "targetField": "buyer.name", "transform": "TRIM", "confidence": 95},
+      {"sourceField": "PO1*04", "targetField": "lineItems.unitPrice", "transform": "DIRECT", "confidence": 90}
+    ]
+  }' | python3 -m json.tool
+```
+
+The output JSON will have nested objects (`header.poNumber`, `buyer.name`).
+
+**Supported transforms:** `DIRECT`, `TRIM`, `UPPERCASE`, `LOWERCASE`, `ZERO_PAD`, `DATE_REFORMAT`
+
+---
+
 ## Use Cases
 
 - **ERP integration** -- Receive X12 850 purchase orders from trading partners, convert to JSON for your order management system

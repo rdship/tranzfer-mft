@@ -887,7 +887,112 @@ Expected response:
 
 ---
 
-## Demo 10: Integration Pattern -- Python, Java, Node.js
+## Demo 10: Natural Language Mapping Correction
+
+Partners can fix EDI field mappings by describing corrections in plain English. The AI engine interprets the instruction, modifies the field mappings, runs a test against sample EDI, and shows before/after comparison. On approval, a new partner-specific ConversionMap is persisted.
+
+### 10a. Start a correction session
+
+```bash
+curl -s -X POST http://localhost:8091/api/v1/edi/correction/sessions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "partnerId": "acme",
+    "sourceFormat": "X12",
+    "targetFormat": "JSON",
+    "sampleInputContent": "ISA*00*          *00*          *ZZ*ACME           *ZZ*GLOBALSUP      *240101*1200*U*00501*000000001*0*P*>~GS*PO*ACME*GLOBALSUP*20240101*1200*1*X*005010~ST*850*0001~BEG*00*NE*PO-123**20240101~NM1*BY*1*Acme Corp*John~PO1*001*500*EA*12.50*PE*VP*WIDGET-100~SE*6*0001~GE*1*1~IEA*1*000000001~"
+  }' | python3 -m json.tool
+```
+
+Expected response:
+
+```json
+{
+    "sessionId": "a1b2c3d4-...",
+    "status": "ACTIVE",
+    "mapKey": "X12:*\u2192JSON:*@acme",
+    "correctionCount": 0,
+    "currentMappings": [],
+    "currentTestOutput": "{}",
+    "message": "Session started with empty mappings. Describe the field mappings you need."
+}
+```
+
+### 10b. Submit a correction
+
+```bash
+# Save the session ID from the previous response
+SESSION_ID="a1b2c3d4-..."
+
+curl -s -X POST "http://localhost:8091/api/v1/edi/correction/sessions/$SESSION_ID/correct" \
+  -H "Content-Type: application/json" \
+  -d '{"partnerId": "acme", "instruction": "Map BEG*03 to poNumber"}' | python3 -m json.tool
+```
+
+Expected response:
+
+```json
+{
+    "sessionId": "a1b2c3d4-...",
+    "applied": true,
+    "summary": "Added mapping: BEG*03 \u2192 poNumber (keyword fallback)",
+    "changes": [
+        {"action": "ADD", "targetField": "poNumber", "newSourceField": "BEG*03"}
+    ],
+    "newTestOutput": "{\"poNumber\":\"PO-123\"}",
+    "nextStepHint": "Does this look right? You can make more corrections or approve the mapping."
+}
+```
+
+### 10c. Add more corrections
+
+```bash
+# Add buyer name
+curl -s -X POST "http://localhost:8091/api/v1/edi/correction/sessions/$SESSION_ID/correct" \
+  -H "Content-Type: application/json" \
+  -d '{"partnerId": "acme", "instruction": "Map NM1*03 to buyerName"}' | python3 -m json.tool
+
+# Change date format
+curl -s -X POST "http://localhost:8091/api/v1/edi/correction/sessions/$SESSION_ID/correct" \
+  -H "Content-Type: application/json" \
+  -d '{"partnerId": "acme", "instruction": "Format the date as yyyy-MM-dd"}' | python3 -m json.tool
+
+# Make buyer name uppercase
+curl -s -X POST "http://localhost:8091/api/v1/edi/correction/sessions/$SESSION_ID/correct" \
+  -H "Content-Type: application/json" \
+  -d '{"partnerId": "acme", "instruction": "Make buyerName uppercase"}' | python3 -m json.tool
+```
+
+### 10d. Review correction history
+
+```bash
+curl -s "http://localhost:8091/api/v1/edi/correction/sessions/$SESSION_ID/history?partnerId=acme" | python3 -m json.tool
+```
+
+### 10e. Approve the corrected mapping
+
+```bash
+curl -s -X POST "http://localhost:8091/api/v1/edi/correction/sessions/$SESSION_ID/approve?partnerId=acme" | python3 -m json.tool
+```
+
+Expected response:
+
+```json
+{
+    "newMapId": "e5f6g7h8-...",
+    "mapKey": "X12:*\u2192JSON:*@acme",
+    "newMapVersion": 1,
+    "confidence": 95,
+    "flowUpdated": false,
+    "message": "Mapping approved and saved as v1."
+}
+```
+
+The corrected mapping is now a permanent ConversionMap. All future files through this partner's flow will use the corrected mappings automatically.
+
+---
+
+## Demo 11: Integration Pattern -- Python, Java, Node.js
 
 ### Python
 

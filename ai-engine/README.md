@@ -32,6 +32,7 @@ The AI engine provides intelligence across three capability tiers:
 - Self-driving infrastructure scaling
 - Privacy-preserving threat intelligence sharing
 - EDI format detection and translation
+- Natural language mapping correction for partners
 
 ---
 
@@ -394,6 +395,25 @@ curl -X POST http://localhost:8091/api/v1/proxy/blocklist \
 
 ---
 
+### Natural Language Mapping Correction
+
+Partners iteratively fix EDI field mappings through plain English. The AI interprets corrections, applies changes, tests against sample EDI, and shows before/after diffs. On approval, a partner-specific ConversionMap is persisted and the file flow is updated.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/edi/correction/sessions` | Start correction session |
+| GET | `/api/v1/edi/correction/sessions/{id}` | Get session details |
+| GET | `/api/v1/edi/correction/sessions` | List partner's sessions |
+| POST | `/api/v1/edi/correction/sessions/{id}/correct` | Submit NL correction |
+| POST | `/api/v1/edi/correction/sessions/{id}/test` | Re-run test |
+| POST | `/api/v1/edi/correction/sessions/{id}/approve` | Approve & persist map |
+| POST | `/api/v1/edi/correction/sessions/{id}/reject` | Reject corrections |
+| GET | `/api/v1/edi/correction/sessions/{id}/history` | Correction history |
+
+**Correction patterns:** swap source (`NM1*03 not NM1*02`), change source (`buyerName should come from NM1*03`), add mapping (`Map PO1*02 to quantity`), date format (`Format date as MM/dd/yyyy`), remove (`Remove companyName`), transform (`Make buyerName uppercase`, `Trim senderId`)
+
+---
+
 ### Health
 
 | Method | Endpoint | Description |
@@ -432,6 +452,7 @@ curl -X POST http://localhost:8091/api/v1/proxy/blocklist \
 | Self-driving infra | 5 min | Pre-scale based on predicted traffic |
 | IP reputation decay | 5 min | Decay scores toward neutral (50) |
 | Stale profile cleanup | 1 hour | Evict inactive IP profiles |
+| Correction session expiry | 1 hour | Expire stale ACTIVE correction sessions |
 
 All scheduled tasks use ShedLock for distributed coordination.
 

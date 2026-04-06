@@ -380,6 +380,46 @@ curl -X POST http://localhost:8091/api/v1/proxy/blocklist \
   -d '{"ip":"203.0.113.5","reason":"Brute force detected"}'
 ```
 
+### Natural Language Mapping Correction
+
+Partners can iteratively correct EDI field mappings through plain English instructions.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/edi/correction/sessions` | Start a correction session with sample EDI input |
+| GET | `/api/v1/edi/correction/sessions/{id}` | Get session details |
+| GET | `/api/v1/edi/correction/sessions?partnerId=X` | List partner's sessions |
+| POST | `/api/v1/edi/correction/sessions/{id}/correct` | Submit NL correction instruction |
+| POST | `/api/v1/edi/correction/sessions/{id}/test` | Re-run test with current mappings |
+| POST | `/api/v1/edi/correction/sessions/{id}/approve` | Approve & persist corrected map |
+| POST | `/api/v1/edi/correction/sessions/{id}/reject` | Reject corrections |
+| GET | `/api/v1/edi/correction/sessions/{id}/history` | Correction history |
+| GET | `/api/v1/edi/correction/health` | Correction service health |
+
+**Example — Start session:**
+```bash
+curl -X POST http://localhost:8091/api/v1/edi/correction/sessions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "partnerId": "acme",
+    "sourceFormat": "X12",
+    "targetFormat": "JSON",
+    "sampleInputContent": "ISA*00*          *00*          *ZZ*ACME*ZZ*PARTNER*..."
+  }'
+```
+
+**Example — Submit correction:**
+```bash
+curl -X POST http://localhost:8091/api/v1/edi/correction/sessions/{id}/correct \
+  -H "Content-Type: application/json" \
+  -d '{"partnerId": "acme", "instruction": "Company name should come from NM1*03, not NM1*02"}'
+```
+
+**Example — Approve:**
+```bash
+curl -X POST "http://localhost:8091/api/v1/edi/correction/sessions/{id}/approve?partnerId=acme"
+```
+
 ### Health
 
 | Method | Endpoint | Description |
@@ -414,12 +454,29 @@ curl -X POST http://localhost:8092/api/v1/screening/check \
 | POST | `/api/v1/edi/translate/json` | Convert EDI → JSON |
 | POST | `/api/v1/edi/translate/csv` | Convert EDI → CSV |
 | GET | `/api/v1/edi/types` | List supported transaction types |
+| POST | `/api/v1/convert/trained` | Convert using trained/partner-specific map |
+| POST | `/api/v1/convert/test-mappings` | Test custom field mappings against sample EDI |
+| POST | `/api/v1/convert/trained/invalidate-cache` | Invalidate trained map cache |
 
-**Example:**
+**Example — Convert EDI:**
 ```bash
 curl -X POST http://localhost:8095/api/v1/edi/translate/json \
   -H "Content-Type: text/plain" \
   -d 'ISA*00*          *00*          *ZZ*SENDER    ...'
+```
+
+**Example — Test custom mappings:**
+```bash
+curl -X POST http://localhost:8095/api/v1/convert/test-mappings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceContent": "ISA*00*...",
+    "targetFormat": "JSON",
+    "fieldMappings": [
+      {"sourceField": "BEG*03", "targetField": "poNumber", "transform": "DIRECT"},
+      {"sourceField": "NM1*03", "targetField": "buyerName", "transform": "TRIM"}
+    ]
+  }'
 ```
 
 ---

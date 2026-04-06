@@ -1,5 +1,29 @@
 # Changelog
 
+## v2.1.0 (2026-04-06)
+
+### New Features
+- **Natural Language Mapping Correction** — Partners can fix EDI field mappings through plain English instructions. The AI interprets corrections ("Company name should come from NM1*03"), applies changes, runs sample tests, and iterates until the partner approves. On approval, a new partner-specific ConversionMap is persisted and the file flow is updated automatically.
+- **CONVERT_EDI Flow Step** — New file flow step type that applies trained/partner-specific EDI conversion maps during file processing
+- **Test Custom Mappings Endpoint** — EDI Converter can now test arbitrary field mappings against sample EDI content without persisting anything (`POST /api/v1/convert/test-mappings`)
+
+### New Endpoints (AI Engine)
+- `POST /api/v1/edi/correction/sessions` — Start correction session
+- `POST /api/v1/edi/correction/sessions/{id}/correct` — Submit NL correction
+- `POST /api/v1/edi/correction/sessions/{id}/approve` — Approve & persist map
+- `POST /api/v1/edi/correction/sessions/{id}/reject` — Reject corrections
+- `GET /api/v1/edi/correction/sessions/{id}/history` — Correction history
+
+### New Endpoints (EDI Converter)
+- `POST /api/v1/convert/test-mappings` — Test custom field mappings
+- `POST /api/v1/convert/trained` — Convert using trained partner-specific map
+
+### Database
+- V16 migration: `edi_mapping_correction_sessions` table for correction session state
+
+### Tests
+- 60 new tests (759 total across 19 services, 0 failures)
+
 ## v2.0.0 (2026-04-04)
 
 ### New Services

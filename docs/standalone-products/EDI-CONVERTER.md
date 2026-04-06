@@ -538,7 +538,56 @@ curl -X POST http://localhost:8095/api/v1/convert/partners/ACME_001/apply \
   -d '{"content": "ISA*00*...*~"}'
 ```
 
-### 16. List Supported Formats
+### 16. Trained Map Conversion
+
+**POST** `/api/v1/convert/trained`
+
+Convert EDI using a trained partner-specific map (fetched from AI Engine).
+
+```bash
+curl -X POST http://localhost:8095/api/v1/convert/trained \
+  -H "Content-Type: application/json" \
+  -H "X-Internal-Key: internal_control_secret" \
+  -d '{
+    "content": "ISA*00*...",
+    "targetFormat": "JSON",
+    "partnerId": "acme"
+  }'
+```
+
+### 17. Test Custom Mappings
+
+**POST** `/api/v1/convert/test-mappings`
+
+Test field mappings against sample EDI without persisting anything.
+
+```bash
+curl -X POST http://localhost:8095/api/v1/convert/test-mappings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceContent": "ISA*00*          *00*          *ZZ*ACME*ZZ*PARTNER*...",
+    "targetFormat": "JSON",
+    "fieldMappings": [
+      {"sourceField": "BEG*03", "targetField": "poNumber", "transform": "DIRECT", "confidence": 100},
+      {"sourceField": "NM1*03", "targetField": "buyerName", "transform": "TRIM", "confidence": 95}
+    ]
+  }'
+```
+
+**Response:**
+```json
+{
+  "output": "{\"poNumber\":\"PO-123\",\"buyerName\":\"Acme Corp\"}",
+  "mapKey": "custom-test",
+  "mapVersion": 0,
+  "mapConfidence": 0,
+  "fieldsApplied": 2,
+  "fieldsSkipped": 0,
+  "totalMappings": 2
+}
+```
+
+### 18. List Supported Formats
 
 **GET** `/api/v1/convert/formats`
 
@@ -679,5 +728,8 @@ No database, no message queue, no external services required.
 | DELETE | `/api/v1/convert/partners/{id}` | Delete partner profile |
 | POST | `/api/v1/convert/partners/{id}/analyze` | Auto-generate from sample |
 | POST | `/api/v1/convert/partners/{id}/apply` | Apply partner rules |
+| POST | `/api/v1/convert/trained` | Convert using trained/partner-specific map |
+| POST | `/api/v1/convert/test-mappings` | Test custom field mappings |
+| POST | `/api/v1/convert/trained/invalidate-cache` | Invalidate trained map cache |
 | GET | `/api/v1/convert/formats` | List supported formats |
 | GET | `/api/v1/convert/health` | Health check |

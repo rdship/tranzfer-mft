@@ -167,6 +167,30 @@ curl -X POST http://localhost:8095/create \
 | PUT | `/partners/{id}` | Update partner profile |
 | DELETE | `/partners/{id}` | Delete partner profile |
 
+### Trained Map Conversion
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/convert/trained` | Convert using trained/partner-specific map |
+| POST | `/api/v1/convert/test-mappings` | Test custom field mappings against sample EDI |
+| POST | `/api/v1/convert/trained/invalidate-cache` | Invalidate trained map cache |
+
+**Test custom mappings:**
+```bash
+curl -X POST http://localhost:8095/api/v1/convert/test-mappings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceContent": "ISA*00*...",
+    "targetFormat": "JSON",
+    "fieldMappings": [
+      {"sourceField": "BEG*03", "targetField": "poNumber", "transform": "DIRECT"},
+      {"sourceField": "NM1*03", "targetField": "buyerName", "transform": "TRIM"}
+    ]
+  }'
+```
+
+**Supported transforms:** `DIRECT`, `TRIM`, `UPPERCASE`, `LOWERCASE`, `ZERO_PAD`, `DATE_REFORMAT`
+
 ---
 
 ## Supported Formats

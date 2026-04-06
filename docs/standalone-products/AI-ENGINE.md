@@ -15,6 +15,7 @@
 - **Partner profiling** — Learn partner behavior and detect deviations
 - **Proxy intelligence** — Real-time connection verdicts (ALLOW/BLOCK/THROTTLE)
 - **Predictive SLA** — Forecast SLA breaches before they happen
+- **NL Mapping Correction** — Partners fix EDI mappings via plain English, AI interprets and applies
 
 ---
 
@@ -440,6 +441,80 @@ curl http://localhost:8091/api/v1/ai/sla/forecasts
 
 ---
 
+## API Reference — Natural Language Mapping Correction
+
+Partners can iteratively fix EDI field mappings through plain English. The AI interprets corrections ("Company name should come from NM1*03"), applies changes, runs a test against sample EDI, and shows before/after comparison. On approval, a new partner-specific ConversionMap is persisted and the file flow is updated automatically.
+
+### Start Correction Session
+
+**POST** `/api/v1/edi/correction/sessions`
+
+```bash
+curl -X POST http://localhost:8091/api/v1/edi/correction/sessions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "partnerId": "acme",
+    "sourceFormat": "X12",
+    "targetFormat": "JSON",
+    "sampleInputContent": "ISA*00*          *00*          *ZZ*ACME           *ZZ*PARTNER        *240101*1200*U*00501*000000001*0*P*>~GS*PO*ACME*PARTNER*20240101*1200*1*X*005010~ST*850*0001~BEG*00*NE*PO-123**20240101~NM1*BY*1*Acme Corp*John~PO1*001*500*EA*12.50*PE*VP*WIDGET-100~SE*6*0001~GE*1*1~IEA*1*000000001~"
+  }'
+```
+
+**Response:**
+```json
+{
+  "sessionId": "a1b2c3d4-...",
+  "status": "ACTIVE",
+  "mapKey": "X12:*→JSON:*@acme",
+  "correctionCount": 0,
+  "currentMappings": [],
+  "currentTestOutput": "{}",
+  "message": "Session started with empty mappings. Describe the field mappings you need.",
+  "createdAt": "2026-04-06T...",
+  "expiresAt": "2026-04-07T..."
+}
+```
+
+### Submit Correction
+
+**POST** `/api/v1/edi/correction/sessions/{id}/correct`
+
+```bash
+curl -X POST http://localhost:8091/api/v1/edi/correction/sessions/{id}/correct \
+  -H "Content-Type: application/json" \
+  -d '{"partnerId": "acme", "instruction": "Map NM1*03 to buyerName"}'
+```
+
+**Response:**
+```json
+{
+  "sessionId": "a1b2c3d4-...",
+  "applied": true,
+  "summary": "Added mapping: NM1*03 → buyerName (keyword fallback)",
+  "changes": [{"action": "ADD", "targetField": "buyerName", "newSourceField": "NM1*03"}],
+  "newTestOutput": "{\"buyerName\":\"Acme Corp\"}",
+  "comparison": "{\"changed\":true, ...}",
+  "nextStepHint": "Does this look right? You can make more corrections or approve the mapping."
+}
+```
+
+**Supported correction patterns:**
+- `"NM1*03 not NM1*02"` — swap source field
+- `"buyerName should come from NM1*03"` — change source for target
+- `"Map PO1*02 to quantity"` — add/modify mapping
+- `"Format date as MM/dd/yyyy"` — change date format
+- `"Remove companyName"` — delete a mapping
+- `"Make buyerName uppercase"` — change transform
+- `"Trim senderId"` — apply trim transform
+
+### Approve Corrections
+
+**POST** `/api/v1/edi/correction/sessions/{id}/approve?partnerId=acme`
+
+Creates a new versioned ConversionMap and optionally updates the partner's file flow with a CONVERT_EDI step.
+
+---
+
 ## API Reference — EDI Intelligence
 
 ### Detect EDI Format
@@ -569,6 +644,15 @@ if (riskScore > 70) {
 | POST | `/api/v1/edi/translate/json` | EDI → JSON |
 | POST | `/api/v1/edi/translate/csv` | EDI → CSV |
 | GET | `/api/v1/edi/types` | List EDI types |
+| POST | `/api/v1/edi/correction/sessions` | Start mapping correction session |
+| GET | `/api/v1/edi/correction/sessions/{id}` | Get session details |
+| GET | `/api/v1/edi/correction/sessions` | List partner's sessions |
+| POST | `/api/v1/edi/correction/sessions/{id}/correct` | Submit NL correction |
+| POST | `/api/v1/edi/correction/sessions/{id}/test` | Re-run test |
+| POST | `/api/v1/edi/correction/sessions/{id}/approve` | Approve & persist map |
+| POST | `/api/v1/edi/correction/sessions/{id}/reject` | Reject corrections |
+| GET | `/api/v1/edi/correction/sessions/{id}/history` | Correction history |
+| GET | `/api/v1/edi/correction/health` | Correction health |
 | POST | `/api/v1/proxy/verdict` | Connection verdict |
 | POST | `/api/v1/proxy/event` | Report threat event |
 | POST | `/api/v1/proxy/events` | Report batch events |
