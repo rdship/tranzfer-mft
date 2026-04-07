@@ -28,4 +28,7 @@ public interface FlowExecutionRepository extends JpaRepository<FlowExecution, UU
 
     List<FlowExecution> findByStatusOrderByStartedAtDesc(FlowExecution.FlowStatus status);
     long countByStartedAtAfter(Instant since);
+
+    /** For stuck execution recovery — finds PROCESSING executions older than threshold */
+    List<FlowExecution> findByStatusAndStartedAtBefore(FlowExecution.FlowStatus status, Instant threshold);
 }

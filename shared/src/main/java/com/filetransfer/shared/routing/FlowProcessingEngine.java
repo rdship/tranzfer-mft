@@ -46,33 +46,26 @@ public class FlowProcessingEngine {
     private final ServiceClientProperties serviceProps;
 
     /**
-     * Called when a file arrives. Finds matching flows and executes them.
-     * Returns the track IDs of all triggered flows.
-     */
-    @Async
-    public void onFileArrived(TransferAccount account, String filename, String absolutePath) {
-        List<FileFlow> flows = flowRepository.findMatchingFlows(account);
-
-        for (FileFlow flow : flows) {
-            if (matchesFlow(flow, filename, absolutePath)) {
-                String trackId = trackIdGenerator.generate();
-                log.info("[{}] Flow '{}' matched file '{}'", trackId, flow.getName(), filename);
-                executeFlow(flow, trackId, filename, absolutePath);
-            }
-        }
-    }
-
-    /**
      * Execute a specific flow for a file. Creates execution record and processes each step.
      */
     @Transactional
     public FlowExecution executeFlow(FileFlow flow, String trackId, String filename, String inputPath) {
+        return executeFlow(flow, trackId, filename, inputPath, null);
+    }
+
+    /**
+     * Execute a specific flow with matched criteria snapshot for audit trail.
+     */
+    @Transactional
+    public FlowExecution executeFlow(FileFlow flow, String trackId, String filename,
+                                      String inputPath, com.filetransfer.shared.matching.MatchCriteria matchedCriteria) {
         FlowExecution exec = FlowExecution.builder()
                 .trackId(trackId)
                 .flow(flow)
                 .originalFilename(filename)
                 .currentFilePath(inputPath)
                 .status(FlowExecution.FlowStatus.PROCESSING)
+                .matchedCriteria(matchedCriteria)
                 .stepResults(new ArrayList<>())
                 .build();
         exec = executionRepository.save(exec);
@@ -635,15 +628,4 @@ public class FlowProcessingEngine {
         return outputFile.toString();
     }
 
-    private boolean matchesFlow(FileFlow flow, String filename, String path) {
-        // Check filename pattern
-        if (flow.getFilenamePattern() != null && !flow.getFilenamePattern().isBlank()) {
-            if (!Pattern.matches(flow.getFilenamePattern(), filename)) return false;
-        }
-        // Check source path
-        if (flow.getSourcePath() != null && !flow.getSourcePath().isBlank()) {
-            if (!path.contains(flow.getSourcePath())) return false;
-        }
-        return true;
-    }
 }

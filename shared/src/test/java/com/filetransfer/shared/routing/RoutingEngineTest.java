@@ -6,8 +6,11 @@ import com.filetransfer.shared.config.PlatformConfig;
 import com.filetransfer.shared.connector.ConnectorDispatcher;
 import com.filetransfer.shared.entity.*;
 import com.filetransfer.shared.enums.FileTransferStatus;
+import com.filetransfer.shared.matching.FlowMatchEngine;
+import com.filetransfer.shared.matching.MatchContext;
 import com.filetransfer.shared.repository.FileFlowRepository;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;
+import com.filetransfer.shared.repository.FlowExecutionRepository;
 import com.filetransfer.shared.util.TrackIdGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,6 +41,8 @@ class RoutingEngineTest {
     private AiClassificationClient aiClassifier;
     private ConnectorDispatcher connectorDispatcher;
     private PlatformConfig platformConfig;
+    private FlowMatchEngine flowMatchEngine;
+    private FlowExecutionRepository executionRepository;
     private RoutingEngine routingEngine;
 
     @TempDir
@@ -56,11 +61,14 @@ class RoutingEngineTest {
         aiClassifier = mock(AiClassificationClient.class);
         connectorDispatcher = mock(ConnectorDispatcher.class);
         platformConfig = new PlatformConfig();
+        flowMatchEngine = mock(FlowMatchEngine.class);
+        executionRepository = mock(FlowExecutionRepository.class);
 
         routingEngine = new RoutingEngine(
                 evaluator, recordRepository, clusterService, restTemplate,
                 trackIdGenerator, flowEngine, flowRepository, auditService,
-                aiClassifier, connectorDispatcher, platformConfig
+                aiClassifier, connectorDispatcher, platformConfig,
+                flowMatchEngine, executionRepository
         );
     }
 
@@ -82,45 +90,7 @@ class RoutingEngineTest {
     }
 
     @Test
-    void matchesFlow_noPatterns_matchesEverything() throws Exception {
-        Method m = RoutingEngine.class.getDeclaredMethod("matchesFlow", FileFlow.class, String.class, String.class);
-        m.setAccessible(true);
-
-        FileFlow flow = new FileFlow();
-        flow.setFilenamePattern(null);
-        flow.setSourcePath(null);
-
-        assertTrue((boolean) m.invoke(routingEngine, flow, "test.csv", "/inbox/test.csv"));
-    }
-
-    @Test
-    void matchesFlow_filenamePatternMatches() throws Exception {
-        Method m = RoutingEngine.class.getDeclaredMethod("matchesFlow", FileFlow.class, String.class, String.class);
-        m.setAccessible(true);
-
-        FileFlow flow = new FileFlow();
-        flow.setFilenamePattern(".*\\.csv");
-        flow.setSourcePath(null);
-
-        assertTrue((boolean) m.invoke(routingEngine, flow, "report.csv", "/inbox/report.csv"));
-        assertFalse((boolean) m.invoke(routingEngine, flow, "report.pdf", "/inbox/report.pdf"));
-    }
-
-    @Test
-    void matchesFlow_sourcePathMatches() throws Exception {
-        Method m = RoutingEngine.class.getDeclaredMethod("matchesFlow", FileFlow.class, String.class, String.class);
-        m.setAccessible(true);
-
-        FileFlow flow = new FileFlow();
-        flow.setFilenamePattern(null);
-        flow.setSourcePath("/inbox");
-
-        assertTrue((boolean) m.invoke(routingEngine, flow, "test.csv", "/home/user/inbox/test.csv"));
-        assertFalse((boolean) m.invoke(routingEngine, flow, "test.csv", "/home/user/outbox/test.csv"));
-    }
-
-    @Test
-    void onFileUploaded_noRoutingRulesOrFlows_doesNothing() throws IOException {
+    void onFileUploaded_noRoutingRulesOrFlows_tracksUnmatched() throws IOException {
         TransferAccount account = mock(TransferAccount.class);
         when(account.getUsername()).thenReturn("testuser");
 
@@ -128,14 +98,17 @@ class RoutingEngineTest {
         Files.writeString(testFile, "hello");
 
         when(trackIdGenerator.generate()).thenReturn("TRZ000001");
-        when(flowRepository.findMatchingFlows(account)).thenReturn(Collections.emptyList());
+        when(flowRepository.findByActiveTrueOrderByPriorityAsc()).thenReturn(Collections.emptyList());
         when(aiClassifier.classify(any(), anyString(), anyBoolean()))
                 .thenReturn(new AiClassificationClient.ClassificationDecision(true, "NONE", 0, null));
         when(evaluator.evaluate(any(), anyString(), anyString())).thenReturn(Collections.emptyList());
 
         routingEngine.onFileUploaded(account, "inbox/test.txt", testFile.toString());
 
-        verify(recordRepository, never()).save(any());
+        // UNMATCHED execution should be saved
+        verify(executionRepository).save(argThat(exec ->
+                exec.getStatus() == FlowExecution.FlowStatus.UNMATCHED
+                        && "TRZ000001".equals(exec.getTrackId())));
     }
 
     @Test
@@ -147,7 +120,7 @@ class RoutingEngineTest {
         Files.writeString(testFile, "4111-1111-1111-1111");
 
         when(trackIdGenerator.generate()).thenReturn("TRZ000002");
-        when(flowRepository.findMatchingFlows(account)).thenReturn(Collections.emptyList());
+        when(flowRepository.findByActiveTrueOrderByPriorityAsc()).thenReturn(Collections.emptyList());
         when(aiClassifier.classify(any(), anyString(), anyBoolean()))
                 .thenReturn(new AiClassificationClient.ClassificationDecision(
                         false, "CRITICAL", 95, "PCI data detected"));
@@ -171,9 +144,8 @@ class RoutingEngineTest {
 
         FileFlow flow = new FileFlow();
         flow.setName("compress-flow");
-        flow.setFilenamePattern(".*\\.csv");
-        flow.setSourcePath(null);
         flow.setSteps(List.of());
+        flow.setMatchCriteria(null); // null = matches everything
 
         FlowExecution exec = FlowExecution.builder()
                 .status(FlowExecution.FlowStatus.COMPLETED)
@@ -181,8 +153,9 @@ class RoutingEngineTest {
                 .build();
 
         when(trackIdGenerator.generate()).thenReturn("TRZ000003");
-        when(flowRepository.findMatchingFlows(account)).thenReturn(List.of(flow));
-        when(flowEngine.executeFlow(eq(flow), eq("TRZ000003"), eq("report.csv"), eq(testFile.toString())))
+        when(flowRepository.findByActiveTrueOrderByPriorityAsc()).thenReturn(List.of(flow));
+        when(flowMatchEngine.matches(isNull(), any(MatchContext.class))).thenReturn(true);
+        when(flowEngine.executeFlow(eq(flow), eq("TRZ000003"), eq("report.csv"), eq(testFile.toString()), isNull()))
                 .thenReturn(exec);
         when(aiClassifier.classify(any(), anyString(), anyBoolean()))
                 .thenReturn(new AiClassificationClient.ClassificationDecision(true, "NONE", 0, null));
@@ -190,7 +163,7 @@ class RoutingEngineTest {
 
         routingEngine.onFileUploaded(account, "inbox/report.csv", testFile.toString());
 
-        verify(flowEngine).executeFlow(eq(flow), eq("TRZ000003"), eq("report.csv"), eq(testFile.toString()));
+        verify(flowEngine).executeFlow(eq(flow), eq("TRZ000003"), eq("report.csv"), eq(testFile.toString()), isNull());
     }
 
     @Test

@@ -36,6 +36,8 @@ public interface FileFlowRepository extends JpaRepository<FileFlow, UUID> {
 
     long countByPartnerId(UUID partnerId);
 
+    /** @deprecated Use findByActiveTrueOrderByPriorityAsc() + FlowMatchEngine instead */
+    @Deprecated
     @Query("SELECT f FROM FileFlow f " +
            "LEFT JOIN FETCH f.sourceAccount " +
            "LEFT JOIN FETCH f.destinationAccount " +

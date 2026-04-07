@@ -7,8 +7,11 @@ import com.filetransfer.shared.connector.ConnectorDispatcher;
 import com.filetransfer.shared.dto.FileForwardRequest;
 import com.filetransfer.shared.entity.*;
 import com.filetransfer.shared.enums.FileTransferStatus;
+import com.filetransfer.shared.matching.FlowMatchEngine;
+import com.filetransfer.shared.matching.MatchContext;
 import com.filetransfer.shared.repository.FileFlowRepository;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;
+import com.filetransfer.shared.repository.FlowExecutionRepository;
 import com.filetransfer.shared.util.TrackIdGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,6 +49,8 @@ public class RoutingEngine {
     private final AiClassificationClient aiClassifier;
     private final ConnectorDispatcher connectorDispatcher;
     private final PlatformConfig platformConfig;
+    private final FlowMatchEngine flowMatchEngine;
+    private final FlowExecutionRepository executionRepository;
 
     /**
      * Called by each service when a file upload completes.
@@ -57,30 +62,61 @@ public class RoutingEngine {
      */
     @Async
     public void onFileUploaded(TransferAccount sourceAccount, String relativeFilePath, String absoluteSourcePath) {
+        onFileUploaded(sourceAccount, relativeFilePath, absoluteSourcePath, null);
+    }
+
+    @Async
+    public void onFileUploaded(TransferAccount sourceAccount, String relativeFilePath,
+                                String absoluteSourcePath, String sourceIp) {
         String filename = relativeFilePath.contains("/") ?
                 relativeFilePath.substring(relativeFilePath.lastIndexOf('/') + 1) : relativeFilePath;
         String trackId = trackIdGenerator.generate();
 
         log.info("[{}] File received: account={} file={}", trackId, sourceAccount.getUsername(), filename);
 
-        // Step 1: Check for matching file flows and execute them
+        // Step 1: Build match context and find matching flow
+        long fileSizeBytes = -1;
+        try { fileSizeBytes = Files.size(Paths.get(absoluteSourcePath)); } catch (Exception ignored) {}
+
+        MatchContext matchContext = MatchContext.builder()
+                .fromUploadEvent(sourceAccount, relativeFilePath, absoluteSourcePath)
+                .withDirection(MatchContext.Direction.INBOUND)
+                .withFileSize(fileSizeBytes)
+                .withEdiDetection(Paths.get(absoluteSourcePath))
+                .withSourceIp(sourceIp)
+                .withTimeNow()
+                .build();
+
         String processedFilePath = absoluteSourcePath;
-        List<FileFlow> matchingFlows = flowRepository.findMatchingFlows(sourceAccount);
-        for (FileFlow flow : matchingFlows) {
-            if (matchesFlow(flow, filename, relativeFilePath)) {
-                log.info("[{}] Executing flow '{}' ({} steps)", trackId, flow.getName(), flow.getSteps().size());
-                try {
-                    FlowExecution exec = flowEngine.executeFlow(flow, trackId, filename, processedFilePath);
-                    if (exec.getStatus() == FlowExecution.FlowStatus.COMPLETED) {
-                        processedFilePath = exec.getCurrentFilePath();
-                        log.info("[{}] Flow '{}' completed. Output: {}", trackId, flow.getName(), processedFilePath);
-                    } else {
-                        log.error("[{}] Flow '{}' failed: {}", trackId, flow.getName(), exec.getErrorMessage());
-                    }
-                } catch (Exception e) {
-                    log.error("[{}] Flow execution error: {}", trackId, e.getMessage());
+        List<FileFlow> allFlows = flowRepository.findByActiveTrueOrderByPriorityAsc();
+        FileFlow matchedFlow = null;
+        for (FileFlow flow : allFlows) {
+            if (flow.getDirection() != null
+                    && !flow.getDirection().equalsIgnoreCase(matchContext.direction().name())) {
+                continue;
+            }
+            if (flowMatchEngine.matches(flow.getMatchCriteria(), matchContext)) {
+                matchedFlow = flow;
+                break;
+            }
+        }
+
+        if (matchedFlow != null) {
+            log.info("[{}] Executing flow '{}' ({} steps)", trackId, matchedFlow.getName(),
+                    matchedFlow.getSteps().size());
+            try {
+                FlowExecution exec = flowEngine.executeFlow(matchedFlow, trackId, filename,
+                        processedFilePath, matchedFlow.getMatchCriteria());
+                if (exec.getStatus() == FlowExecution.FlowStatus.COMPLETED) {
+                    processedFilePath = exec.getCurrentFilePath();
+                    log.info("[{}] Flow '{}' completed. Output: {}", trackId, matchedFlow.getName(),
+                            processedFilePath);
+                } else {
+                    log.error("[{}] Flow '{}' failed: {}", trackId, matchedFlow.getName(),
+                            exec.getErrorMessage());
                 }
-                break; // Only execute first matching flow
+            } catch (Exception e) {
+                log.error("[{}] Flow execution error: {}", trackId, e.getMessage());
             }
         }
 
@@ -104,8 +140,17 @@ public class RoutingEngine {
         List<RoutingEvaluator.RoutingDecision> decisions =
                 evaluator.evaluate(sourceAccount, relativeFilePath, absoluteSourcePath);
 
-        if (decisions.isEmpty() && matchingFlows.isEmpty()) {
-            log.debug("[{}] No routing rules or flows matched for {}", trackId, absoluteSourcePath);
+        if (decisions.isEmpty() && matchedFlow == null) {
+            log.warn("[{}] UNMATCHED file: account={} file={}", trackId,
+                    sourceAccount.getUsername(), filename);
+            FlowExecution unmatchedExec = FlowExecution.builder()
+                    .trackId(trackId)
+                    .originalFilename(filename)
+                    .currentFilePath(absoluteSourcePath)
+                    .status(FlowExecution.FlowStatus.UNMATCHED)
+                    .stepResults(List.of())
+                    .build();
+            executionRepository.save(unmatchedExec);
             return;
         }
 
@@ -290,13 +335,4 @@ public class RoutingEngine {
         return filename + "#" + trackId;
     }
 
-    private boolean matchesFlow(FileFlow flow, String filename, String path) {
-        if (flow.getFilenamePattern() != null && !flow.getFilenamePattern().isBlank()) {
-            if (!Pattern.matches(flow.getFilenamePattern(), filename)) return false;
-        }
-        if (flow.getSourcePath() != null && !flow.getSourcePath().isBlank()) {
-            if (!path.contains(flow.getSourcePath())) return false;
-        }
-        return true;
-    }
 }
