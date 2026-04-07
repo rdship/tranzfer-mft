@@ -9,13 +9,13 @@ import com.filetransfer.shared.security.Roles;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * VFS Storage Dashboard API — enterprise observability for the Write-Ahead Intent Protocol
@@ -40,6 +40,12 @@ public class VfsStorageController {
     private final VirtualEntryRepository entryRepository;
     private final VfsIntentRepository intentRepository;
     private final VfsChunkRepository chunkRepository;
+
+    @Value("${vfs.inline-max-bytes:65536}")
+    private long inlineMaxBytes;
+
+    @Value("${vfs.chunk-threshold-bytes:67108864}")
+    private long chunkThresholdBytes;
 
     // ── Dashboard Overview ─────────────────────────────────────────────
 
@@ -129,7 +135,7 @@ public class VfsStorageController {
                     m.put("status", i.getStatus());
                     m.put("podId", i.getPodId());
                     m.put("sizeBytes", i.getSizeBytes());
-                    m.put("storageBucket", i.getStorageKey() == null ? "INLINE" : "STANDARD");
+                    m.put("storageBucket", deriveBucket(i.getSizeBytes(), i.getStorageKey()));
                     m.put("createdAt", i.getCreatedAt());
                     m.put("resolvedAt", i.getResolvedAt());
                     return m;
@@ -166,5 +172,13 @@ public class VfsStorageController {
         totals.put("totalIntents", intentRepository.count());
         totals.put("totalChunks", chunkRepository.count());
         return totals;
+    }
+
+    /** Derive storage bucket from intent metadata (same thresholds as VirtualFileSystem). */
+    private String deriveBucket(long sizeBytes, String storageKey) {
+        if (sizeBytes <= 0) return "N/A"; // DELETE/MOVE intents
+        if (sizeBytes <= inlineMaxBytes) return "INLINE";
+        if (sizeBytes > chunkThresholdBytes) return "CHUNKED";
+        return "STANDARD";
     }
 }

@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getVfsDashboard, getVfsRecentIntents } from '../api/config'
+import { getVfsDashboard, getVfsRecentIntents, getVfsAccountUsage } from '../api/config'
+import { getAccounts } from '../api/accounts'
 import LoadingSpinner from '../components/LoadingSpinner'
 import StatCard from '../components/StatCard'
 import { CircleStackIcon, ShieldCheckIcon, ExclamationTriangleIcon, ClockIcon,
-         ServerStackIcon, CubeIcon, ArrowsRightLeftIcon } from '@heroicons/react/24/outline'
+         ServerStackIcon, CubeIcon, ArrowsRightLeftIcon, UsersIcon } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
 
 const bucketMeta = {
@@ -22,6 +24,8 @@ const statusColors = {
 const opIcons = { WRITE: '✏️', DELETE: '🗑️', MOVE: '📁' }
 
 export default function VfsStorage() {
+  const [selectedAccountId, setSelectedAccountId] = useState(null)
+
   const { data: dashboard, isLoading } = useQuery({
     queryKey: ['vfs-dashboard'],
     queryFn: getVfsDashboard,
@@ -31,6 +35,20 @@ export default function VfsStorage() {
   const { data: recentIntents = [] } = useQuery({
     queryKey: ['vfs-recent-intents'],
     queryFn: () => getVfsRecentIntents(50),
+    refetchInterval: 15000
+  })
+
+  const { data: accounts = [] } = useQuery({
+    queryKey: ['accounts'],
+    queryFn: getAccounts
+  })
+
+  const virtualAccounts = accounts.filter(a => a.storageMode === 'VIRTUAL')
+
+  const { data: accountUsage } = useQuery({
+    queryKey: ['vfs-account-usage', selectedAccountId],
+    queryFn: () => getVfsAccountUsage(selectedAccountId),
+    enabled: !!selectedAccountId,
     refetchInterval: 15000
   })
 
@@ -132,6 +150,57 @@ export default function VfsStorage() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Per-Account VFS Usage */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+            <UsersIcon className="w-5 h-5 text-gray-500" />
+            Per-Account VFS Usage
+          </h3>
+          <select
+            className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            value={selectedAccountId || ''}
+            onChange={e => setSelectedAccountId(e.target.value || null)}
+          >
+            <option value="">Select account...</option>
+            {virtualAccounts.map(a => (
+              <option key={a.id} value={a.id}>{a.username} ({a.protocol})</option>
+            ))}
+          </select>
+        </div>
+        {!selectedAccountId && (
+          <p className="text-gray-400 text-sm text-center py-6">
+            Select a virtual-mode account to view its VFS usage breakdown
+          </p>
+        )}
+        {selectedAccountId && accountUsage && (
+          <div className="grid grid-cols-4 gap-4">
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-4 text-center">
+              <p className="text-2xl font-bold text-gray-900">{(accountUsage.fileCount || 0).toLocaleString()}</p>
+              <p className="text-sm text-gray-600">Files</p>
+            </div>
+            <div className="rounded-lg bg-gray-50 border border-gray-200 p-4 text-center">
+              <p className="text-2xl font-bold text-gray-900">{(accountUsage.dirCount || 0).toLocaleString()}</p>
+              <p className="text-sm text-gray-600">Directories</p>
+            </div>
+            <div className="rounded-lg bg-purple-50 border border-purple-200 p-4 text-center">
+              <p className="text-2xl font-bold text-gray-900">{formatSize(accountUsage.totalSizeBytes || 0)}</p>
+              <p className="text-sm text-gray-600">Total Size</p>
+            </div>
+            <div className="rounded-lg bg-amber-50 border border-amber-200 p-4">
+              <p className="text-sm font-semibold text-gray-700 mb-1">Bucket Breakdown</p>
+              {accountUsage.bucketBreakdown && (
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between"><span className="text-emerald-700">INLINE</span><span className="font-mono">{accountUsage.bucketBreakdown.inline || 0}</span></div>
+                  <div className="flex justify-between"><span className="text-blue-700">STANDARD</span><span className="font-mono">{accountUsage.bucketBreakdown.standard || 0}</span></div>
+                  <div className="flex justify-between"><span className="text-purple-700">CHUNKED</span><span className="font-mono">{accountUsage.bucketBreakdown.chunked || 0}</span></div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Recent intents table */}

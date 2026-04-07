@@ -4,9 +4,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
+import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.*;
 
 class BackendHealthCheckerTest {
@@ -199,10 +201,21 @@ class BackendHealthCheckerTest {
 
     @Test
     void startAndShutdown_lifecycle() {
-        checker.registerBackend("gateway-service", "gateway-service", 2220);
+        // Use localhost:1 — fast TCP reject, no DNS resolution hang
+        checker.registerBackend("gateway-service", "localhost", 1);
 
         assertDoesNotThrow(() -> checker.start(),
             "start() should not throw");
+
+        // Wait for at least one probe to complete before shutting down,
+        // eliminating the race between the immediate probe and shutdown()
+        await().atMost(Duration.ofSeconds(5))
+               .untilAsserted(() -> {
+                   BackendHealthChecker.BackendHealth health = checker.getHealth("gateway-service");
+                   assertNotNull(health);
+                   assertTrue(health.totalChecks() > 0, "At least one probe should have completed");
+               });
+
         assertDoesNotThrow(() -> checker.shutdown(),
             "shutdown() should not throw");
     }

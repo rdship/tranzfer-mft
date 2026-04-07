@@ -9,7 +9,8 @@ import org.apache.ftpserver.ftplet.FtpFile;
 import com.filetransfer.shared.entity.VirtualEntry;
 
 import java.io.*;
-import java.util.Arrays;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -173,76 +174,98 @@ public class VirtualFtpFile implements FtpFile {
     }
 
     /**
-     * Output stream that buffers writes and flushes on close.
+     * Output stream that spools to a temp file, flushes to storage on close.
      *
      * <p>Bucket-aware: routes to INLINE (DB), STANDARD (CAS), or CHUNKED (CAS chunks)
-     * based on file size. Never creates storage — always onboards to Storage Manager
-     * for STANDARD/CHUNKED, or stores inline in VFS for small files.
+     * based on file size. Uses a temp file instead of heap buffering so STANDARD and
+     * CHUNKED files never occupy heap memory. Never creates storage — always onboards
+     * to Storage Manager for STANDARD/CHUNKED, or stores inline in VFS for small files.
      */
-    private class VirtualOutputStream extends ByteArrayOutputStream {
-        private final long offset;
+    private class VirtualOutputStream extends OutputStream {
+        private final Path tempFile;
+        private final OutputStream tempOut;
+        private long bytesWritten = 0;
 
-        VirtualOutputStream(long offset) { this.offset = offset; }
+        VirtualOutputStream(long offset) throws IOException {
+            this.tempFile = Files.createTempFile("vfs-ftp-", ".tmp");
+            this.tempOut = Files.newOutputStream(tempFile);
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+            tempOut.write(b);
+            bytesWritten++;
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            tempOut.write(b, off, len);
+            bytesWritten += len;
+        }
 
         @Override
         public void close() throws IOException {
-            super.close();
-            byte[] data = toByteArray();
-            if (data.length == 0) return;
+            tempOut.close();
+            if (bytesWritten == 0) {
+                Files.deleteIfExists(tempFile);
+                return;
+            }
 
             try {
                 String filename = VirtualFileSystem.nameOf(virtualPath);
-                String bucket = vfs.determineBucket(data.length);
+                String bucket = vfs.determineBucket(bytesWritten);
 
                 switch (bucket) {
                     case "INLINE" -> {
-                        // Store directly in DB row — zero CAS hop
-                        vfs.writeFile(accountId, virtualPath, null, data.length, null, null, data);
-                        log.info("[VFS-FTP] Inline stored {}: {} bytes", virtualPath, data.length);
+                        // Small file — read back to byte[] (< 64KB, safe in heap)
+                        byte[] data = Files.readAllBytes(tempFile);
+                        vfs.writeFile(accountId, virtualPath, null, bytesWritten, null, null, data);
+                        log.info("[VFS-FTP] Inline stored {}: {} bytes", virtualPath, bytesWritten);
                     }
                     case "CHUNKED" -> {
-                        // Onboard chunks to Storage Manager, register in VFS manifest
-                        storeChunked(filename, data);
+                        storeChunked(filename, bytesWritten);
                     }
                     default -> {
-                        // STANDARD: onboard to Storage Manager, register reference in VFS
-                        Map<String, Object> result = storageClient.store(filename, data, null, accountId.toString());
+                        // STANDARD: stream temp file to Storage Manager — zero heap copy
+                        Map<String, Object> result = storageClient.store(tempFile, null, accountId.toString());
                         String sha256 = (String) result.get("sha256");
                         String trackId = result.get("trackId") != null ? result.get("trackId").toString() : null;
                         log.info("[VFS-FTP] CAS stored {}: {} ({} bytes)", virtualPath,
-                                sha256 != null ? sha256.substring(0, 8) + "..." : "n/a", data.length);
-                        vfs.writeFile(accountId, virtualPath, sha256, data.length, trackId, null, null);
+                                sha256 != null ? sha256.substring(0, 8) + "..." : "n/a", bytesWritten);
+                        vfs.writeFile(accountId, virtualPath, sha256, bytesWritten, trackId, null, null);
                     }
                 }
             } catch (Exception e) {
                 throw new IOException("Failed to store file: " + virtualPath, e);
+            } finally {
+                Files.deleteIfExists(tempFile);
             }
         }
 
-        private void storeChunked(String filename, byte[] data) {
+        private void storeChunked(String filename, long fileSize) throws IOException {
             int chunkSize = 4 * 1024 * 1024; // 4MB chunks
 
             // 1. Create VFS entry as CHUNKED manifest (WAIP-protected)
-            VirtualEntry entry = vfs.writeFile(accountId, virtualPath, null, data.length, null, null, null);
+            VirtualEntry entry = vfs.writeFile(accountId, virtualPath, null, fileSize, null, null, null);
 
-            // 2. Onboard each chunk to Storage Manager, register in VFS
-            int totalChunks = (int) Math.ceil((double) data.length / chunkSize);
-            for (int i = 0; i < totalChunks; i++) {
-                int chunkOffset = i * chunkSize;
-                int length = Math.min(chunkSize, data.length - chunkOffset);
-                byte[] chunk = Arrays.copyOfRange(data, chunkOffset, chunkOffset + length);
+            // 2. Stream each chunk from temp file → Storage Manager → register in VFS
+            int totalChunks = (int) Math.ceil((double) fileSize / chunkSize);
+            try (InputStream in = Files.newInputStream(tempFile)) {
+                for (int i = 0; i < totalChunks; i++) {
+                    int length = (int) Math.min(chunkSize, fileSize - (long) i * chunkSize);
+                    byte[] chunk = in.readNBytes(length);
 
-                String chunkName = filename + ".chunk." + i;
-                Map<String, Object> result = storageClient.store(chunkName, chunk, null, accountId.toString());
+                    String chunkName = filename + ".chunk." + i;
+                    Map<String, Object> result = storageClient.store(chunkName, chunk, null, accountId.toString());
 
-                String sha256 = (String) result.get("sha256");
-                String storageKey = sha256;
-                vfs.registerChunk(entry.getId(), i, storageKey != null ? storageKey : "",
-                        length, sha256 != null ? sha256 : "");
+                    String sha256 = (String) result.get("sha256");
+                    vfs.registerChunk(entry.getId(), i, sha256 != null ? sha256 : "",
+                            length, sha256 != null ? sha256 : "");
 
-                log.debug("[VFS-FTP] Chunk {}/{} onboarded for {}", i + 1, totalChunks, virtualPath);
+                    log.debug("[VFS-FTP] Chunk {}/{} onboarded for {}", i + 1, totalChunks, virtualPath);
+                }
             }
-            log.info("[VFS-FTP] Chunked onboarded {}: {} bytes in {} chunks", virtualPath, data.length, totalChunks);
+            log.info("[VFS-FTP] Chunked onboarded {}: {} bytes in {} chunks", virtualPath, fileSize, totalChunks);
         }
     }
 }

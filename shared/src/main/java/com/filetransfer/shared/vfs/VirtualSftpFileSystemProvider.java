@@ -3,10 +3,10 @@ package com.filetransfer.shared.vfs;
 import com.filetransfer.shared.entity.VirtualEntry;
 import lombok.extern.slf4j.Slf4j;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.channels.NonReadableChannelException;
 import java.nio.channels.NonWritableChannelException;
 import java.nio.channels.SeekableByteChannel;
@@ -278,32 +278,42 @@ public class VirtualSftpFileSystemProvider extends FileSystemProvider {
     }
 
     /**
-     * Write channel: buffers data in memory, flushes to CAS on close.
+     * Write channel: spools to temp file, flushes to storage on close.
+     *
+     * <p>Uses a temp {@link FileChannel} instead of in-memory buffering so that
+     * STANDARD (64KB–64MB) and CHUNKED (>64MB) files never occupy heap.
+     * INLINE files (&lt;64KB) are read back into a small byte[] for the DB row.
      */
     private class VirtualWriteChannel implements SeekableByteChannel {
         private final String vpath;
-        private final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        private final Path tempFile;
+        private final FileChannel tempChannel;
         private boolean open = true;
 
-        VirtualWriteChannel(String vpath) {
+        VirtualWriteChannel(String vpath) throws IOException {
             this.vpath = vpath;
+            this.tempFile = Files.createTempFile("vfs-sftp-", ".tmp");
+            this.tempChannel = FileChannel.open(tempFile,
+                    StandardOpenOption.WRITE, StandardOpenOption.READ);
         }
 
         @Override public int read(ByteBuffer dst) { throw new NonReadableChannelException(); }
 
         @Override
-        public int write(ByteBuffer src) {
-            int count = src.remaining();
-            byte[] bytes = new byte[count];
-            src.get(bytes);
-            buffer.write(bytes, 0, count);
-            return count;
+        public int write(ByteBuffer src) throws IOException {
+            return tempChannel.write(src);
         }
 
-        @Override public long position() { return buffer.size(); }
-        @Override public SeekableByteChannel position(long newPosition) { return this; }
-        @Override public long size() { return buffer.size(); }
-        @Override public SeekableByteChannel truncate(long size) { return this; }
+        @Override public long position() throws IOException { return tempChannel.position(); }
+        @Override public SeekableByteChannel position(long newPosition) throws IOException {
+            tempChannel.position(newPosition);
+            return this;
+        }
+        @Override public long size() throws IOException { return tempChannel.size(); }
+        @Override public SeekableByteChannel truncate(long size) throws IOException {
+            tempChannel.truncate(size);
+            return this;
+        }
         @Override public boolean isOpen() { return open; }
 
         @Override
@@ -311,69 +321,80 @@ public class VirtualSftpFileSystemProvider extends FileSystemProvider {
             if (!open) return;
             open = false;
 
-            byte[] data = buffer.toByteArray();
-            if (data.length == 0) return;
-
             try {
+                long fileSize = tempChannel.size();
+                if (fileSize == 0) return;
+
                 String filename = VirtualFileSystem.nameOf(vpath);
-                String bucket = vfs().determineBucket(data.length);
+                String bucket = vfs().determineBucket(fileSize);
 
                 switch (bucket) {
                     case "INLINE" -> {
-                        // Store directly in DB — zero CAS hop
-                        vfs().writeFile(accountId(), vpath, null, data.length, null, null, data);
-                        log.info("[VFS] Inline stored {}: {} bytes", vpath, data.length);
+                        // Small file — read to byte[] (< 64KB, safe in heap)
+                        byte[] data = readTempBytes(fileSize);
+                        vfs().writeFile(accountId(), vpath, null, fileSize, null, null, data);
+                        log.info("[VFS] Inline stored {}: {} bytes", vpath, fileSize);
                     }
                     case "CHUNKED" -> {
-                        // Stream 4MB chunks to CAS independently
-                        storeChunked(filename, data);
+                        // Stream 4MB chunks from temp file to CAS
+                        storeChunked(filename, fileSize);
                     }
                     default -> {
-                        // STANDARD: current CAS path
+                        // STANDARD: stream temp file to Storage Manager — zero heap copy
+                        tempChannel.close();
                         Map<String, Object> result = fileSystem.getStorageClient()
-                                .store(filename, data, null, accountId().toString());
+                                .store(tempFile, null, accountId().toString());
                         String sha256 = (String) result.get("sha256");
                         String trackId = result.get("trackId") != null ? result.get("trackId").toString() : null;
                         log.info("[VFS] CAS stored {}: {} ({} bytes)",
-                                vpath, sha256 != null ? sha256.substring(0, 8) + "..." : "n/a", data.length);
-                        vfs().writeFile(accountId(), vpath, sha256, data.length, trackId, null, null);
+                                vpath, sha256 != null ? sha256.substring(0, 8) + "..." : "n/a", fileSize);
+                        vfs().writeFile(accountId(), vpath, sha256, fileSize, trackId, null, null);
                     }
                 }
             } catch (Exception e) {
                 throw new IOException("Failed to store file to CAS: " + vpath, e);
+            } finally {
+                try { tempChannel.close(); } catch (Exception ignored) {}
+                Files.deleteIfExists(tempFile);
             }
         }
 
-        private void storeChunked(String filename, byte[] data) {
+        private byte[] readTempBytes(long fileSize) throws IOException {
+            tempChannel.position(0);
+            byte[] data = new byte[(int) fileSize];
+            ByteBuffer buf = ByteBuffer.wrap(data);
+            while (buf.hasRemaining()) tempChannel.read(buf);
+            return data;
+        }
+
+        private void storeChunked(String filename, long fileSize) throws IOException {
             int chunkSize = 4 * 1024 * 1024; // 4MB chunks
 
             // 1. Create the VFS entry as a CHUNKED manifest (WAIP-protected)
-            VirtualEntry entry = vfs().writeFile(accountId(), vpath, null, data.length, null, null, null);
+            VirtualEntry entry = vfs().writeFile(accountId(), vpath, null, fileSize, null, null, null);
 
-            // 2. Onboard each chunk to Storage Manager, then register in VFS
-            int totalChunks = (int) Math.ceil((double) data.length / chunkSize);
+            // 2. Stream each chunk from temp file → Storage Manager → register in VFS
+            int totalChunks = (int) Math.ceil((double) fileSize / chunkSize);
+            tempChannel.position(0);
+
             for (int i = 0; i < totalChunks; i++) {
-                int offset = i * chunkSize;
-                int length = Math.min(chunkSize, data.length - offset);
-                byte[] chunk = Arrays.copyOfRange(data, offset, offset + length);
+                int length = (int) Math.min(chunkSize, fileSize - (long) i * chunkSize);
+                byte[] chunk = new byte[length];
+                ByteBuffer buf = ByteBuffer.wrap(chunk);
+                while (buf.hasRemaining()) tempChannel.read(buf);
 
-                // Onboard chunk to Storage Manager (never create — always onboard)
                 String chunkName = filename + ".chunk." + i;
                 Map<String, Object> result = fileSystem.getStorageClient()
                         .store(chunkName, chunk, null, accountId().toString());
 
                 String sha256 = (String) result.get("sha256");
-                String storageKey = sha256; // CAS key is the sha256
-                String trackId = result.get("trackId") != null ? result.get("trackId").toString() : null;
-
-                // Register chunk reference in VFS manifest (DB only — content lives in Storage Manager)
-                vfs().registerChunk(entry.getId(), i, storageKey != null ? storageKey : trackId,
+                vfs().registerChunk(entry.getId(), i, sha256 != null ? sha256 : "",
                         length, sha256 != null ? sha256 : "");
 
                 log.debug("[VFS] Chunk {}/{} onboarded for {}: {}", i + 1, totalChunks, vpath,
                         sha256 != null ? sha256.substring(0, 8) + "..." : "n/a");
             }
-            log.info("[VFS] Chunked onboarded {}: {} bytes in {} chunks", vpath, data.length, totalChunks);
+            log.info("[VFS] Chunked onboarded {}: {} bytes in {} chunks", vpath, fileSize, totalChunks);
         }
     }
 }
