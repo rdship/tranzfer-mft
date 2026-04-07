@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getPlatformSettings, createPlatformSetting, updatePlatformSetting,
@@ -158,6 +158,171 @@ function InlineValueEditor({ setting, onSave }) {
   )
 }
 
+function AiLlmSection({ activeEnv }) {
+  const qc = useQueryClient()
+  const [llmEnabled, setLlmEnabled] = useState(false)
+  const [llmApiKey, setLlmApiKey] = useState('')
+  const [llmModel, setLlmModel] = useState('claude-sonnet-4-20250514')
+  const [customModel, setCustomModel] = useState('')
+  const [llmBaseUrl, setLlmBaseUrl] = useState('https://api.anthropic.com')
+  const [saving, setSaving] = useState(false)
+
+  const { data: aiSettings = [] } = useQuery({
+    queryKey: ['platform-settings', 'AI', activeEnv],
+    queryFn: () => getPlatformSettings({ category: 'AI', env: activeEnv })
+  })
+
+  useEffect(() => {
+    if (!aiSettings.length) return
+    const findVal = (key) => {
+      const s = aiSettings.find(s => s.settingKey === key)
+      return s ? s.settingValue : null
+    }
+    const enabled = findVal('ai.llm.enabled')
+    if (enabled !== null) setLlmEnabled(enabled === 'true')
+    const key = findVal('ai.llm.api-key')
+    if (key !== null) setLlmApiKey(key)
+    const model = findVal('ai.llm.model')
+    if (model !== null) {
+      const knownModels = ['claude-opus-4-6','claude-sonnet-4-6','claude-sonnet-4-20250514','claude-haiku-4-5-20251001','gpt-4.1','gpt-4.1-mini','gpt-4.1-nano','o4-mini','o3','gemini-2.5-pro','gemini-2.5-flash','gemini-2.0-flash','llama-4-maverick','llama-4-scout','mistral-large-latest','mistral-medium-latest','codestral-latest','deepseek-r1','deepseek-v3','command-r-plus','command-r']
+      if (knownModels.includes(model)) { setLlmModel(model) }
+      else { setLlmModel('__custom__'); setCustomModel(model) }
+    }
+    const baseUrl = findVal('ai.llm.base-url')
+    if (baseUrl !== null) setLlmBaseUrl(baseUrl)
+  }, [aiSettings])
+
+  const findSetting = (key) => aiSettings.find(s => s.settingKey === key)
+
+  const saveSetting = async (key, value) => {
+    const setting = findSetting(key)
+    if (setting) {
+      await updatePlatformSettingValue(setting.id, String(value))
+    }
+  }
+
+  const toggleLlm = async () => {
+    const next = !llmEnabled
+    setLlmEnabled(next)
+    try {
+      await saveSetting('ai.llm.enabled', next)
+      qc.invalidateQueries({ queryKey: ['platform-settings'] })
+      toast.success(next ? 'LLM enabled' : 'LLM disabled')
+    } catch (e) {
+      setLlmEnabled(!next)
+      toast.error('Failed to update setting')
+    }
+  }
+
+  const saveAiSettings = async () => {
+    if (llmBaseUrl && !llmBaseUrl.startsWith('https://')) {
+      toast.error('API endpoint must use HTTPS — API keys must not be sent over unencrypted connections')
+      return
+    }
+    setSaving(true)
+    try {
+      await saveSetting('ai.llm.api-key', llmApiKey)
+      await saveSetting('ai.llm.model', llmModel === '__custom__' ? customModel : llmModel)
+      await saveSetting('ai.llm.base-url', llmBaseUrl)
+      qc.invalidateQueries({ queryKey: ['platform-settings'] })
+      toast.success('AI settings saved')
+    } catch (e) {
+      toast.error('Failed to save settings')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="card">
+      <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+        <span className="badge text-xs bg-purple-100 text-purple-800">AI</span>
+        AI / LLM Configuration
+      </h3>
+
+      {/* LLM Toggle */}
+      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg mb-3">
+        <div>
+          <h4 className="font-medium text-gray-900 text-sm">Enable External LLM</h4>
+          <p className="text-xs text-gray-500">Connect an LLM for enhanced AI security verdicts and recommendations</p>
+        </div>
+        <button onClick={toggleLlm} className={`relative w-12 h-6 rounded-full transition-colors ${llmEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}>
+          <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${llmEnabled ? 'translate-x-6' : ''}`} />
+        </button>
+      </div>
+
+      {llmEnabled && (
+        <div className="space-y-3 p-4 border border-blue-100 rounded-lg bg-white">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+            <input type="password" value={llmApiKey} onChange={e => setLlmApiKey(e.target.value)}
+              placeholder="sk-ant-..." className="w-full" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
+            <select value={llmModel} onChange={e => { setLlmModel(e.target.value); if (e.target.value !== '__custom__') setCustomModel('') }} className="w-full">
+              <optgroup label="Anthropic">
+                <option value="claude-opus-4-6">Claude Opus 4.6 (Most capable)</option>
+                <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+                <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+                <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (Fastest)</option>
+              </optgroup>
+              <optgroup label="OpenAI">
+                <option value="gpt-4.1">GPT-4.1</option>
+                <option value="gpt-4.1-mini">GPT-4.1 Mini</option>
+                <option value="gpt-4.1-nano">GPT-4.1 Nano</option>
+                <option value="o4-mini">o4-mini (Reasoning)</option>
+                <option value="o3">o3 (Reasoning)</option>
+              </optgroup>
+              <optgroup label="Google">
+                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+              </optgroup>
+              <optgroup label="Meta">
+                <option value="llama-4-maverick">Llama 4 Maverick</option>
+                <option value="llama-4-scout">Llama 4 Scout</option>
+              </optgroup>
+              <optgroup label="Mistral">
+                <option value="mistral-large-latest">Mistral Large</option>
+                <option value="mistral-medium-latest">Mistral Medium</option>
+                <option value="codestral-latest">Codestral</option>
+              </optgroup>
+              <optgroup label="DeepSeek">
+                <option value="deepseek-r1">DeepSeek R1 (Reasoning)</option>
+                <option value="deepseek-v3">DeepSeek V3</option>
+              </optgroup>
+              <optgroup label="Cohere">
+                <option value="command-r-plus">Command R+</option>
+                <option value="command-r">Command R</option>
+              </optgroup>
+              <optgroup label="Custom">
+                <option value="__custom__">Enter custom model ID...</option>
+              </optgroup>
+            </select>
+            {llmModel === '__custom__' && (
+              <input value={customModel} onChange={e => setCustomModel(e.target.value)}
+                placeholder="e.g., my-org/fine-tuned-model-v2" className="w-full mt-2" />
+            )}
+            <p className="text-xs text-gray-500 mt-1">Select a model or enter a custom model ID for self-hosted / fine-tuned models.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">API Endpoint</label>
+            <input value={llmBaseUrl} onChange={e => setLlmBaseUrl(e.target.value)}
+              placeholder="https://api.anthropic.com" className="w-full" />
+            <p className="text-xs text-gray-500 mt-1">HTTPS only — API keys must not be sent over unencrypted connections.</p>
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button className="btn-primary" onClick={saveAiSettings} disabled={saving}>
+              {saving ? 'Saving...' : 'Save AI Settings'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function PlatformConfig() {
   const qc = useQueryClient()
   const [activeEnv, setActiveEnv] = useState('PROD')
@@ -258,6 +423,9 @@ export default function PlatformConfig() {
           <p className="text-xs text-gray-500">Environments</p>
         </div>
       </div>
+
+      {/* AI / LLM Configuration */}
+      <AiLlmSection activeEnv={activeEnv} />
 
       {/* Environment tabs */}
       <div className="card">

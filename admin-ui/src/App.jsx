@@ -10,16 +10,13 @@ import Dashboard from './pages/Dashboard'
 import Accounts from './pages/Accounts'
 import Users from './pages/Users'
 import FolderMappings from './pages/FolderMappings'
-import Servers from './pages/Servers'
 import SecurityProfiles from './pages/SecurityProfiles'
 import ExternalDestinations from './pages/ExternalDestinations'
 import Analytics from './pages/Analytics'
 import Predictions from './pages/Predictions'
-import Monitoring from './pages/Monitoring'
 import Logs from './pages/Logs'
 import License from './pages/License'
 import GatewayStatus from './pages/GatewayStatus'
-import Settings from './pages/Settings'
 import Flows from './pages/Flows'
 import Terminal from './pages/Terminal'
 import Journey from './pages/Journey'
@@ -32,7 +29,6 @@ import PeerTransfers from './pages/PeerTransfers'
 import Recommendations from './pages/Recommendations'
 import Storage from './pages/Storage'
 import Activity from './pages/Activity'
-import Encryption from './pages/Encryption'
 import TwoFactor from './pages/TwoFactor'
 import ApiConsole from './pages/ApiConsole'
 import Edi from './pages/Edi'
@@ -64,14 +60,12 @@ export default function App() {
             <Route path="accounts" element={<Accounts />} />
             <Route path="users" element={<Users />} />
             <Route path="folder-mappings" element={<FolderMappings />} />
-            <Route path="servers" element={<Servers />} />
             <Route path="server-instances" element={<ServerInstances />} />
             <Route path="security-profiles" element={<SecurityProfiles />} />
             <Route path="external-destinations" element={<ExternalDestinations />} />
             <Route path="as2-partnerships" element={<Partnerships />} />
             <Route path="analytics" element={<Analytics />} />
             <Route path="predictions" element={<Predictions />} />
-            <Route path="monitoring" element={<Monitoring />} />
             <Route path="logs" element={<Logs />} />
             <Route path="flows" element={<Flows />} />
             <Route path="gateway" element={<GatewayStatus />} />
@@ -83,7 +77,6 @@ export default function App() {
             <Route path="recommendations" element={<Recommendations />} />
             <Route path="storage" element={<Storage />} />
             <Route path="activity" element={<Activity />} />
-            <Route path="encryption" element={<Encryption />} />
             <Route path="2fa" element={<TwoFactor />} />
             <Route path="api-console" element={<ApiConsole />} />
             <Route path="edi" element={<Edi />} />
@@ -94,7 +87,6 @@ export default function App() {
             <Route path="p2p" element={<PeerTransfers />} />
             <Route path="terminal" element={<Terminal />} />
             <Route path="license" element={<License />} />
-            <Route path="settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

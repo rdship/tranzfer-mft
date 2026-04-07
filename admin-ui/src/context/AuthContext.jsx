@@ -14,10 +14,13 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     const res = await onboardingApi.post('/api/auth/login', { email, password })
-    const { token: jwt, user: u } = res.data
-    localStorage.setItem('token', jwt)
+    const { accessToken } = res.data
+    // Decode JWT payload to extract user info (sub=email, role)
+    const payload = JSON.parse(atob(accessToken.split('.')[1]))
+    const u = { email: payload.sub, role: payload.role }
+    localStorage.setItem('token', accessToken)
     localStorage.setItem('user', JSON.stringify(u))
-    setToken(jwt)
+    setToken(accessToken)
     setUser(u)
     navigate('/dashboard')
   }, [navigate])

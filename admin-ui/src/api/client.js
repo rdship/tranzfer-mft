@@ -34,7 +34,9 @@ const GATEWAY_URL = import.meta.env.VITE_API_GATEWAY_URL
 // In gateway mode, ALL requests go through one URL (the gateway routes internally)
 // In direct mode, each service gets its own port
 export const onboardingApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8080' }))
+export const onboardingClient = onboardingApi
 export const configApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8084' }))
+export const configClient = configApi
 export const analyticsApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8090' }))
 export const licenseApi = axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8089' })
 export const gatewayApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8085' }))

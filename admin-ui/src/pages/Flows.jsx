@@ -1,50 +1,318 @@
-import { useState } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { configApi } from '../api/client'
+import { configApi, onboardingApi } from '../api/client'
 import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import toast from 'react-hot-toast'
-import { PlusIcon, TrashIcon, PlayIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
+import {
+  PlusIcon, TrashIcon, PencilSquareIcon, ChevronUpIcon, ChevronDownIcon,
+  FunnelIcon, ArrowPathIcon, ClockIcon, CheckCircleIcon, XCircleIcon,
+  ArrowsUpDownIcon, SparklesIcon, StopIcon,
+  ChevronRightIcon, InboxIcon, PaperAirplaneIcon
+} from '@heroicons/react/24/outline'
 
-const STEP_TYPES = [
-  { value: 'DECOMPRESS_GZIP', label: 'Decompress (GZIP)', category: 'Compression' },
-  { value: 'DECOMPRESS_ZIP', label: 'Decompress (ZIP)', category: 'Compression' },
-  { value: 'COMPRESS_GZIP', label: 'Compress (GZIP)', category: 'Compression' },
-  { value: 'COMPRESS_ZIP', label: 'Compress (ZIP)', category: 'Compression' },
-  { value: 'DECRYPT_PGP', label: 'Decrypt (PGP)', category: 'Encryption' },
-  { value: 'DECRYPT_AES', label: 'Decrypt (AES)', category: 'Encryption' },
-  { value: 'ENCRYPT_PGP', label: 'Encrypt (PGP)', category: 'Encryption' },
-  { value: 'ENCRYPT_AES', label: 'Encrypt (AES)', category: 'Encryption' },
-  { value: 'RENAME', label: 'Rename File', category: 'Transform' },
-  { value: 'ROUTE', label: 'Route to Destination', category: 'Routing' },
+// ─── Step type definitions with icons, labels, categories, and config fields ───
+const STEP_TYPE_CATALOG = {
+  // Encryption
+  ENCRYPT_PGP:     { label: 'Encrypt (PGP)',     icon: '🔒', category: 'Encryption',   color: 'text-amber-600 bg-amber-50',     configFields: [{ key: 'keyAlias', label: 'PGP Key Alias', placeholder: 'recipient-public-key' }] },
+  DECRYPT_PGP:     { label: 'Decrypt (PGP)',     icon: '🔓', category: 'Encryption',   color: 'text-amber-600 bg-amber-50',     configFields: [{ key: 'keyAlias', label: 'PGP Key Alias', placeholder: 'our-private-key' }] },
+  ENCRYPT_AES:     { label: 'Encrypt (AES)',     icon: '🔒', category: 'Encryption',   color: 'text-amber-600 bg-amber-50',     configFields: [{ key: 'keyAlias', label: 'AES Key Alias', placeholder: 'shared-aes-key' }] },
+  DECRYPT_AES:     { label: 'Decrypt (AES)',     icon: '🔓', category: 'Encryption',   color: 'text-amber-600 bg-amber-50',     configFields: [{ key: 'keyAlias', label: 'AES Key Alias', placeholder: 'shared-aes-key' }] },
+  // Compression
+  COMPRESS_GZIP:   { label: 'Compress (GZIP)',   icon: '📦', category: 'Compression',  color: 'text-teal-600 bg-teal-50',       configFields: [] },
+  DECOMPRESS_GZIP: { label: 'Decompress (GZIP)', icon: '📂', category: 'Compression',  color: 'text-teal-600 bg-teal-50',       configFields: [] },
+  COMPRESS_ZIP:    { label: 'Compress (ZIP)',    icon: '📦', category: 'Compression',  color: 'text-teal-600 bg-teal-50',       configFields: [] },
+  DECOMPRESS_ZIP:  { label: 'Decompress (ZIP)',  icon: '📂', category: 'Compression',  color: 'text-teal-600 bg-teal-50',       configFields: [] },
+  // Transform
+  RENAME:          { label: 'Rename File',       icon: '✏️', category: 'Transform',    color: 'text-indigo-600 bg-indigo-50',   configFields: [{ key: 'pattern', label: 'Rename Pattern', placeholder: '${basename}_${timestamp}${ext}', helper: 'Variables: ${basename}, ${timestamp}, ${trackid}, ${ext}, ${date}' }] },
+  // Validation
+  SCREEN:          { label: 'Sanctions Screen',  icon: '🛡️', category: 'Validation',   color: 'text-red-600 bg-red-50',         configFields: [{ key: 'mode', label: 'Screen Mode', placeholder: 'OFAC', type: 'select', options: ['OFAC', 'AML', 'BOTH'] }] },
+  // Delivery
+  MAILBOX:         { label: 'Mailbox Delivery',  icon: '📬', category: 'Delivery',     color: 'text-blue-600 bg-blue-50',       configFields: [{ key: 'path', label: 'Mailbox Path', placeholder: '/outbox' }] },
+  FILE_DELIVERY:   { label: 'File Delivery',     icon: '📤', category: 'Delivery',     color: 'text-blue-600 bg-blue-50',       configFields: [{ key: 'destinationId', label: 'Destination ID', placeholder: 'UUID of external destination' }] },
+  // Routing
+  ROUTE:           { label: 'Route',             icon: '🔀', category: 'Delivery',     color: 'text-purple-600 bg-purple-50',   configFields: [{ key: 'target', label: 'Route Target', placeholder: 'destination-name' }] },
+  // Data
+  CONVERT_EDI:     { label: 'Convert EDI',       icon: '🔄', category: 'Data',         color: 'text-orange-600 bg-orange-50',   configFields: [{ key: 'format', label: 'Target Format', placeholder: 'X12', type: 'select', options: ['X12', 'EDIFACT', 'JSON', 'XML'] }] },
+  // Scripting
+  EXECUTE_SCRIPT:  { label: 'Execute Script',    icon: '⚡', category: 'Scripting',    color: 'text-violet-600 bg-violet-50',   configFields: [{ key: 'command', label: 'Command', placeholder: '/opt/scripts/process.sh ${filepath}' }, { key: 'timeout', label: 'Timeout (seconds)', placeholder: '30' }] },
+}
+
+const STEP_CATEGORIES = [
+  { name: 'Encryption',   types: ['ENCRYPT_PGP', 'DECRYPT_PGP', 'ENCRYPT_AES', 'DECRYPT_AES'] },
+  { name: 'Compression',  types: ['COMPRESS_GZIP', 'DECOMPRESS_GZIP', 'COMPRESS_ZIP', 'DECOMPRESS_ZIP'] },
+  { name: 'Transform',    types: ['RENAME'] },
+  { name: 'Validation',   types: ['SCREEN'] },
+  { name: 'Delivery',     types: ['MAILBOX', 'FILE_DELIVERY', 'ROUTE'] },
+  { name: 'Data',         types: ['CONVERT_EDI'] },
+  { name: 'Scripting',    types: ['EXECUTE_SCRIPT'] },
 ]
+
+const PROTOCOLS = ['ANY', 'SFTP', 'FTP', 'AS2', 'API']
+
+const FLOW_TEMPLATES = [
+  { name: 'Standard Inbound',  desc: 'Decrypt, decompress, screen, deliver to mailbox', steps: [
+    { type: 'DECRYPT_PGP', config: {} }, { type: 'DECOMPRESS_GZIP', config: {} }, { type: 'SCREEN', config: { mode: 'OFAC' } }, { type: 'MAILBOX', config: { path: '/outbox' } }
+  ]},
+  { name: 'Secure Outbound',   desc: 'Compress, encrypt, deliver externally', steps: [
+    { type: 'COMPRESS_GZIP', config: {} }, { type: 'ENCRYPT_PGP', config: {} }, { type: 'FILE_DELIVERY', config: {} }
+  ]},
+  { name: 'EDI Processing',    desc: 'Decrypt, convert EDI, screen, deliver to mailbox', steps: [
+    { type: 'DECRYPT_PGP', config: {} }, { type: 'CONVERT_EDI', config: { format: 'X12' } }, { type: 'SCREEN', config: { mode: 'OFAC' } }, { type: 'MAILBOX', config: { path: '/outbox' } }
+  ]},
+  { name: 'Pass-Through',      desc: 'Screen only, deliver to mailbox', steps: [
+    { type: 'SCREEN', config: { mode: 'OFAC' } }, { type: 'MAILBOX', config: { path: '/outbox' } }
+  ]},
+]
+
+const STATUS_STYLES = {
+  COMPLETED:  { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500' },
+  FAILED:     { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200',     dot: 'bg-red-500' },
+  PROCESSING: { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',   dot: 'bg-amber-500' },
+  PENDING:    { bg: 'bg-gray-50',    text: 'text-gray-600',    border: 'border-gray-200',    dot: 'bg-gray-400' },
+  PAUSED:     { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200',    dot: 'bg-blue-500' },
+}
 
 const defaultForm = {
   name: '', description: '', filenamePattern: '', sourcePath: '/inbox',
-  destinationPath: '/outbox', priority: 100, steps: []
+  destinationPath: '/outbox', priority: 100, active: true, steps: [],
+  sourceAccountId: '', protocol: 'ANY',
+  deliveryMode: 'none', externalDestinationId: '', destinationAccountId: '',
 }
 
+// ─── Mini pipeline visualization ───
+function MiniPipeline({ steps }) {
+  if (!steps || steps.length === 0) return <span className="text-xs text-gray-400 italic">No steps</span>
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      {steps.map((step, i) => {
+        const meta = STEP_TYPE_CATALOG[step.type]
+        return (
+          <div key={i} className="flex items-center gap-1">
+            {i > 0 && <ChevronRightIcon className="w-3 h-3 text-gray-300 flex-shrink-0" />}
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${meta?.color || 'text-gray-600 bg-gray-100'}`}>
+              <span>{meta?.icon || '?'}</span>
+              <span>{meta?.label || step.type}</span>
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── Step card in the builder ───
+function StepCard({ step, index, total, onRemove, onMoveUp, onMoveDown, onConfigChange }) {
+  const [expanded, setExpanded] = useState(false)
+  const meta = STEP_TYPE_CATALOG[step.type] || { label: step.type, icon: '?', color: 'text-gray-600 bg-gray-100', configFields: [] }
+
+  return (
+    <div className={`border rounded-lg transition-all ${expanded ? 'border-blue-300 shadow-sm' : 'border-gray-200'}`}>
+      <div className="flex items-center gap-2 p-3">
+        <span className="text-xs font-bold text-gray-400 w-6 text-center flex-shrink-0">{index + 1}</span>
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold flex-shrink-0 ${meta.color}`}>
+          <span>{meta.icon}</span> {meta.label}
+        </span>
+        <div className="flex-1" />
+        {meta.configFields.length > 0 && (
+          <button type="button" onClick={() => setExpanded(!expanded)}
+            className="text-xs text-gray-400 hover:text-blue-600 transition-colors px-1">
+            {expanded ? 'Collapse' : 'Configure'}
+          </button>
+        )}
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          <button type="button" onClick={onMoveUp} disabled={index === 0}
+            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+            <ChevronUpIcon className="w-4 h-4" />
+          </button>
+          <button type="button" onClick={onMoveDown} disabled={index === total - 1}
+            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+            <ChevronDownIcon className="w-4 h-4" />
+          </button>
+          <button type="button" onClick={onRemove}
+            className="p-1 text-gray-400 hover:text-red-600 transition-colors">
+            <TrashIcon className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+      {expanded && meta.configFields.length > 0 && (
+        <div className="px-3 pb-3 pt-1 border-t border-gray-100 space-y-2">
+          {meta.configFields.map(field => (
+            <div key={field.key}>
+              <label className="text-xs font-medium text-gray-600">{field.label}</label>
+              {field.type === 'select' ? (
+                <select
+                  value={step.config?.[field.key] || ''}
+                  onChange={e => onConfigChange(field.key, e.target.value)}
+                  className="mt-0.5 text-sm"
+                >
+                  <option value="">-- Select --</option>
+                  {field.options.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              ) : (
+                <input
+                  value={step.config?.[field.key] || ''}
+                  onChange={e => onConfigChange(field.key, e.target.value)}
+                  placeholder={field.placeholder}
+                  className="mt-0.5 text-sm font-mono"
+                />
+              )}
+              {field.helper && <p className="text-xs text-gray-400 mt-0.5">{field.helper}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Add Step Dropdown ───
+function AddStepDropdown({ onAdd, onClose }) {
+  return (
+    <div className="absolute z-30 mt-1 w-80 bg-white rounded-xl shadow-xl border border-gray-200 p-3 space-y-3 max-h-96 overflow-y-auto">
+      {STEP_CATEGORIES.map(cat => (
+        <div key={cat.name}>
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{cat.name}</h4>
+          <div className="grid grid-cols-1 gap-1">
+            {cat.types.map(type => {
+              const meta = STEP_TYPE_CATALOG[type]
+              return (
+                <button key={type} type="button" onClick={() => { onAdd(type); onClose() }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-left hover:bg-gray-50 transition-colors">
+                  <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg text-sm ${meta.color}`}>{meta.icon}</span>
+                  <span className="text-sm font-medium text-gray-700">{meta.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── Execution detail row ───
+function ExecutionRow({ ex }) {
+  const [expanded, setExpanded] = useState(false)
+  const style = STATUS_STYLES[ex.status] || STATUS_STYLES.PENDING
+  const totalSteps = ex.flow?.steps?.length || '?'
+  const duration = ex.startedAt && ex.completedAt
+    ? `${((new Date(ex.completedAt) - new Date(ex.startedAt)) / 1000).toFixed(1)}s`
+    : ex.startedAt ? 'Running...' : '—'
+
+  return (
+    <>
+      <tr className="table-row cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => setExpanded(!expanded)}>
+        <td className="table-cell">
+          <div className="flex items-center gap-1">
+            <ChevronRightIcon className={`w-3.5 h-3.5 text-gray-400 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+            <span className="font-mono text-xs font-bold text-blue-600">{ex.trackId}</span>
+          </div>
+        </td>
+        <td className="table-cell text-sm text-gray-700">{ex.flow?.name || '—'}</td>
+        <td className="table-cell text-xs text-gray-500 truncate max-w-40 font-mono">{ex.originalFilename}</td>
+        <td className="table-cell">
+          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${style.bg} ${style.text} ${style.border}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
+            {ex.status}
+          </span>
+        </td>
+        <td className="table-cell">
+          <div className="flex items-center gap-1.5">
+            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden max-w-16">
+              <div className="h-full bg-blue-500 rounded-full transition-all"
+                style={{ width: `${totalSteps !== '?' ? (ex.currentStep / totalSteps) * 100 : 0}%` }} />
+            </div>
+            <span className="text-xs text-gray-500">{ex.currentStep}/{totalSteps}</span>
+          </div>
+        </td>
+        <td className="table-cell text-xs text-gray-500">{duration}</td>
+        <td className="table-cell text-xs text-gray-500">
+          {ex.startedAt ? new Date(ex.startedAt).toLocaleString() : '—'}
+        </td>
+      </tr>
+      {expanded && ex.stepResults?.length > 0 && (
+        <tr>
+          <td colSpan={7} className="px-4 pb-4 pt-0">
+            <div className="ml-6 bg-gray-50 rounded-lg p-3">
+              <h4 className="text-xs font-semibold text-gray-500 mb-2">Step Results</h4>
+              <div className="space-y-1.5">
+                {ex.stepResults.map((sr, i) => {
+                  const stepMeta = STEP_TYPE_CATALOG[sr.stepType]
+                  const isOk = sr.status === 'OK'
+                  const isFailed = sr.status === 'FAILED'
+                  return (
+                    <div key={i} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs ${isFailed ? 'bg-red-50' : isOk ? 'bg-white' : 'bg-gray-100'}`}>
+                      {isOk && <CheckCircleIcon className="w-4 h-4 text-emerald-500 flex-shrink-0" />}
+                      {isFailed && <XCircleIcon className="w-4 h-4 text-red-500 flex-shrink-0" />}
+                      {!isOk && !isFailed && <ClockIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />}
+                      <span className="font-medium text-gray-700">{stepMeta?.icon} {stepMeta?.label || sr.stepType}</span>
+                      <span className="text-gray-400">({sr.durationMs}ms)</span>
+                      {sr.error && <span className="text-red-600 truncate max-w-60">{sr.error}</span>}
+                      <div className="flex-1" />
+                      <span className={`font-semibold ${isOk ? 'text-emerald-600' : isFailed ? 'text-red-600' : 'text-gray-500'}`}>{sr.status}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════════════════
 export default function Flows() {
   const qc = useQueryClient()
-  const [showCreate, setShowCreate] = useState(false)
+  const [showEditor, setShowEditor] = useState(false)
+  const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState({ ...defaultForm })
+  const [showAddStep, setShowAddStep] = useState(false)
+  const [filter, setFilter] = useState('all') // 'all' | 'active' | 'inactive'
 
+  // ─── Queries ───
   const { data: flows = [], isLoading } = useQuery({
     queryKey: ['flows'],
     queryFn: () => configApi.get('/api/flows').then(r => r.data).catch(() => [])
   })
 
-  const { data: executions } = useQuery({
+  const { data: executions = [] } = useQuery({
     queryKey: ['flow-executions'],
-    queryFn: () => configApi.get('/api/flows/executions?size=10').then(r => r.data?.content || []).catch(() => []),
+    queryFn: () => configApi.get('/api/flows/executions?size=20').then(r => r.data?.content || r.data || []).catch(() => []),
     refetchInterval: 10000
   })
 
-  const createMut = useMutation({
-    mutationFn: (data) => configApi.post('/api/flows', data).then(r => r.data),
-    onSuccess: () => { qc.invalidateQueries(['flows']); setShowCreate(false); setForm({...defaultForm}); toast.success('Flow created') },
-    onError: err => toast.error(err.response?.data?.error || 'Failed')
+  const { data: accounts = [] } = useQuery({
+    queryKey: ['accounts-for-flows'],
+    queryFn: () => onboardingApi.get('/api/accounts').then(r => r.data).catch(() => []),
+    staleTime: 60000
+  })
+
+  const { data: externalDests = [] } = useQuery({
+    queryKey: ['ext-dests-for-flows'],
+    queryFn: () => configApi.get('/api/external-destinations').then(r => r.data).catch(() => []),
+    staleTime: 60000
+  })
+
+  // ─── Mutations ───
+  const saveMut = useMutation({
+    mutationFn: (data) => {
+      const payload = buildPayload(data)
+      return editingId
+        ? configApi.put(`/api/flows/${editingId}`, payload).then(r => r.data)
+        : configApi.post('/api/flows', payload).then(r => r.data)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries(['flows'])
+      closeEditor()
+      toast.success(editingId ? 'Flow updated' : 'Flow created')
+    },
+    onError: err => toast.error(err.response?.data?.error || err.response?.data?.message || 'Failed to save flow')
   })
 
   const toggleMut = useMutation({
@@ -52,155 +320,509 @@ export default function Flows() {
     onSuccess: () => { qc.invalidateQueries(['flows']); toast.success('Flow toggled') }
   })
 
-  const addStep = (type) => {
+  const deleteMut = useMutation({
+    mutationFn: (id) => configApi.delete(`/api/flows/${id}`),
+    onSuccess: () => { qc.invalidateQueries(['flows']); toast.success('Flow deactivated') }
+  })
+
+  // ─── Helpers ───
+  const buildPayload = useCallback((data) => {
+    const payload = {
+      name: data.name,
+      description: data.description,
+      filenamePattern: data.filenamePattern || null,
+      sourcePath: data.sourcePath || '/inbox',
+      destinationPath: data.destinationPath || '/outbox',
+      priority: data.priority,
+      active: data.active,
+      steps: data.steps.map((s, i) => ({ type: s.type, config: s.config || {}, order: i })),
+    }
+    if (data.sourceAccountId) {
+      payload.sourceAccount = { id: data.sourceAccountId }
+    }
+    if (data.deliveryMode === 'mailbox' && data.destinationAccountId) {
+      payload.destinationAccount = { id: data.destinationAccountId }
+    }
+    if ((data.deliveryMode === 'external' || data.deliveryMode === 'both') && data.externalDestinationId) {
+      payload.externalDestination = { id: data.externalDestinationId }
+    }
+    if (data.deliveryMode === 'both' && data.destinationAccountId) {
+      payload.destinationAccount = { id: data.destinationAccountId }
+    }
+    return payload
+  }, [])
+
+  const openCreate = useCallback(() => {
+    setEditingId(null)
+    setForm({ ...defaultForm })
+    setShowEditor(true)
+  }, [])
+
+  const openEdit = useCallback((flow) => {
+    setEditingId(flow.id)
+    const deliveryMode = flow.externalDestination && flow.destinationAccount ? 'both'
+      : flow.externalDestination ? 'external'
+      : flow.destinationAccount ? 'mailbox' : 'none'
+    setForm({
+      name: flow.name || '',
+      description: flow.description || '',
+      filenamePattern: flow.filenamePattern || '',
+      sourcePath: flow.sourcePath || '/inbox',
+      destinationPath: flow.destinationPath || '/outbox',
+      priority: flow.priority || 100,
+      active: flow.active ?? true,
+      steps: (flow.steps || []).map(s => ({ type: s.type, config: s.config || {}, order: s.order })),
+      sourceAccountId: flow.sourceAccount?.id || '',
+      protocol: 'ANY',
+      deliveryMode,
+      externalDestinationId: flow.externalDestination?.id || '',
+      destinationAccountId: flow.destinationAccount?.id || '',
+    })
+    setShowEditor(true)
+  }, [])
+
+  const closeEditor = useCallback(() => {
+    setShowEditor(false)
+    setEditingId(null)
+    setForm({ ...defaultForm })
+    setShowAddStep(false)
+  }, [])
+
+  const addStep = useCallback((type) => {
+    const meta = STEP_TYPE_CATALOG[type]
+    const defaultConfig = {}
+    if (meta?.configFields) {
+      meta.configFields.forEach(f => {
+        if (f.type === 'select' && f.options?.length > 0) defaultConfig[f.key] = f.options[0]
+      })
+    }
     setForm(f => ({
-      ...f, steps: [...f.steps, { type, config: {}, order: f.steps.length }]
+      ...f, steps: [...f.steps, { type, config: defaultConfig, order: f.steps.length }]
     }))
-  }
+  }, [])
 
-  const removeStep = (idx) => {
-    setForm(f => ({ ...f, steps: f.steps.filter((_, i) => i !== idx).map((s, i) => ({...s, order: i})) }))
-  }
+  const removeStep = useCallback((idx) => {
+    setForm(f => ({
+      ...f,
+      steps: f.steps.filter((_, i) => i !== idx).map((s, i) => ({ ...s, order: i }))
+    }))
+  }, [])
 
-  const statusColor = { COMPLETED: 'badge-green', FAILED: 'badge-red', PROCESSING: 'badge-yellow', PENDING: 'badge-gray' }
+  const moveStep = useCallback((idx, dir) => {
+    setForm(f => {
+      const steps = [...f.steps]
+      const targetIdx = idx + dir
+      if (targetIdx < 0 || targetIdx >= steps.length) return f
+      ;[steps[idx], steps[targetIdx]] = [steps[targetIdx], steps[idx]]
+      return { ...f, steps: steps.map((s, i) => ({ ...s, order: i })) }
+    })
+  }, [])
+
+  const updateStepConfig = useCallback((stepIdx, key, value) => {
+    setForm(f => {
+      const steps = [...f.steps]
+      steps[stepIdx] = { ...steps[stepIdx], config: { ...steps[stepIdx].config, [key]: value } }
+      return { ...f, steps }
+    })
+  }, [])
+
+  const applyTemplate = useCallback((template) => {
+    setForm(f => ({
+      ...f,
+      steps: template.steps.map((s, i) => ({ type: s.type, config: { ...s.config }, order: i }))
+    }))
+    toast.success(`Applied "${template.name}" template`)
+  }, [])
+
+  // ─── Filtered flows ───
+  const filteredFlows = useMemo(() => {
+    if (filter === 'active') return flows.filter(f => f.active)
+    if (filter === 'inactive') return flows.filter(f => !f.active)
+    return flows
+  }, [flows, filter])
+
+  const activeCount = flows.filter(f => f.active).length
+  const inactiveCount = flows.filter(f => !f.active).length
 
   if (isLoading) return <LoadingSpinner />
 
   return (
     <div className="space-y-6">
+      {/* ─── Header ─── */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">File Processing Flows</h1>
-          <p className="text-gray-500 text-sm">Define pipelines: decrypt → decompress → rename → route</p>
+          <p className="text-gray-500 text-sm">
+            {flows.length} flow{flows.length !== 1 ? 's' : ''} configured
+            {activeCount > 0 && <span className="text-emerald-600 ml-1">({activeCount} active)</span>}
+          </p>
         </div>
-        <button className="btn-primary" onClick={() => setShowCreate(true)}>
+        <button className="btn-primary" onClick={openCreate}>
           <PlusIcon className="w-4 h-4" /> New Flow
         </button>
       </div>
 
-      {/* Active Flows */}
-      {flows.length === 0 ? (
-        <div className="card"><EmptyState title="No flows configured" description="Create a flow to define how files are processed when they arrive." /></div>
+      {/* ─── Filter bar ─── */}
+      <div className="flex items-center gap-2">
+        <FunnelIcon className="w-4 h-4 text-gray-400" />
+        {[
+          { key: 'all', label: `All (${flows.length})` },
+          { key: 'active', label: `Active (${activeCount})` },
+          { key: 'inactive', label: `Inactive (${inactiveCount})` },
+        ].map(f => (
+          <button key={f.key} onClick={() => setFilter(f.key)}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              filter === f.key ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            }`}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ─── Flow List ─── */}
+      {filteredFlows.length === 0 ? (
+        <div className="card">
+          <EmptyState
+            title={filter !== 'all' ? `No ${filter} flows` : 'No flows configured'}
+            description={filter !== 'all' ? 'Try changing the filter.' : 'Create a flow to define how files are processed when they arrive.'}
+            action={filter === 'all' && (
+              <button className="btn-primary" onClick={openCreate}>
+                <PlusIcon className="w-4 h-4" /> New Flow
+              </button>
+            )}
+          />
+        </div>
       ) : (
-        <div className="grid gap-4">
-          {flows.map(flow => (
-            <div key={flow.id} className="card">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
+        <div className="grid gap-3">
+          {filteredFlows.map(flow => (
+            <div key={flow.id} className="card hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="font-semibold text-gray-900">{flow.name}</h3>
-                    <span className={`badge ${flow.active ? 'badge-green' : 'badge-red'}`}>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                      flow.active
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-red-50 text-red-700 border border-red-200'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${flow.active ? 'bg-emerald-500' : 'bg-red-500'}`} />
                       {flow.active ? 'Active' : 'Disabled'}
                     </span>
-                    <span className="badge badge-gray">P{flow.priority}</span>
-                  </div>
-                  <p className="text-sm text-gray-500 mt-0.5">{flow.description}</p>
-                  {flow.filenamePattern && (
-                    <p className="text-xs text-gray-400 mt-1 font-mono">Pattern: {flow.filenamePattern}</p>
-                  )}
-                </div>
-                <button onClick={() => toggleMut.mutate(flow.id)}
-                  className="btn-secondary text-xs px-2 py-1">
-                  {flow.active ? 'Disable' : 'Enable'}
-                </button>
-              </div>
-              {/* Steps visualization */}
-              <div className="mt-3 flex items-center gap-1 flex-wrap">
-                {(flow.steps || []).map((step, i) => (
-                  <div key={i} className="flex items-center gap-1">
-                    {i > 0 && <span className="text-gray-300">→</span>}
-                    <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs font-mono rounded">
-                      {step.type}
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                      P{flow.priority}
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600 border border-blue-200">
+                      {flow.steps?.length || 0} step{(flow.steps?.length || 0) !== 1 ? 's' : ''}
                     </span>
                   </div>
-                ))}
+                  {flow.description && (
+                    <p className="text-sm text-gray-500 mt-1">{flow.description}</p>
+                  )}
+                  <div className="flex items-center gap-4 mt-1 text-xs text-gray-400">
+                    {flow.sourceAccount && (
+                      <span>Source: <span className="font-medium text-gray-500">{flow.sourceAccount.username}</span></span>
+                    )}
+                    {flow.filenamePattern && (
+                      <span className="font-mono">Pattern: {flow.filenamePattern}</span>
+                    )}
+                    {flow.sourcePath && (
+                      <span className="font-mono">Path: {flow.sourcePath}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button onClick={() => openEdit(flow)}
+                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    title="Edit flow">
+                    <PencilSquareIcon className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => toggleMut.mutate(flow.id)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                      flow.active
+                        ? 'text-red-600 hover:bg-red-50'
+                        : 'text-emerald-600 hover:bg-emerald-50'
+                    }`}>
+                    {flow.active ? 'Disable' : 'Enable'}
+                  </button>
+                  <button onClick={() => {
+                    if (window.confirm(`Delete flow "${flow.name}"? This will deactivate it.`))
+                      deleteMut.mutate(flow.id)
+                  }}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Delete flow">
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              {/* Pipeline visualization */}
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <MiniPipeline steps={flow.steps || []} />
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Recent Executions */}
-      {executions?.length > 0 && (
-        <div className="card">
-          <h3 className="font-semibold text-gray-900 mb-3">Recent Executions</h3>
-          <table className="w-full">
-            <thead><tr className="border-b border-gray-100">
-              <th className="table-header">Track ID</th>
-              <th className="table-header">Flow</th>
-              <th className="table-header">File</th>
-              <th className="table-header">Status</th>
-              <th className="table-header">Step</th>
-            </tr></thead>
-            <tbody>
-              {executions.map(ex => (
-                <tr key={ex.trackId} className="table-row">
-                  <td className="table-cell font-mono text-xs font-bold text-blue-600">{ex.trackId}</td>
-                  <td className="table-cell text-sm">{ex.flow?.name || '—'}</td>
-                  <td className="table-cell text-xs text-gray-500 truncate max-w-40">{ex.originalFilename}</td>
-                  <td className="table-cell"><span className={`badge ${statusColor[ex.status] || 'badge-gray'}`}>{ex.status}</span></td>
-                  <td className="table-cell text-xs">{ex.currentStep}/{ex.flow?.steps?.length || '?'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* ─── Execution History ─── */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <ClockIcon className="w-5 h-5 text-gray-400" />
+            <h3 className="font-semibold text-gray-900">Execution History</h3>
+            <span className="text-xs text-gray-400">(auto-refresh 10s)</span>
+          </div>
+          <button onClick={() => qc.invalidateQueries(['flow-executions'])}
+            className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+            title="Refresh now">
+            <ArrowPathIcon className="w-4 h-4" />
+          </button>
         </div>
-      )}
+        {executions.length === 0 ? (
+          <div className="text-center py-8 text-gray-400 text-sm">
+            No flow executions yet. Executions will appear here when files are processed.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="table-header">Track ID</th>
+                  <th className="table-header">Flow</th>
+                  <th className="table-header">Filename</th>
+                  <th className="table-header">Status</th>
+                  <th className="table-header">Progress</th>
+                  <th className="table-header">Duration</th>
+                  <th className="table-header">Started</th>
+                </tr>
+              </thead>
+              <tbody>
+                {executions.map(ex => (
+                  <ExecutionRow key={ex.trackId || ex.id} ex={ex} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
-      {/* Create Flow Modal */}
-      {showCreate && (
-        <Modal title="Create Processing Flow" size="xl" onClose={() => setShowCreate(false)}>
-          <form onSubmit={e => { e.preventDefault(); createMut.mutate(form) }} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div><label>Flow Name</label>
-                <input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} required placeholder="e.g. partner-inbound-pgp" /></div>
-              <div><label>Priority (lower = first)</label>
-                <input type="number" value={form.priority} onChange={e => setForm(f => ({...f, priority: parseInt(e.target.value)}))} /></div>
-            </div>
-            <div><label>Description</label>
-              <input value={form.description} onChange={e => setForm(f => ({...f, description: e.target.value}))} placeholder="What this flow does..." /></div>
-            <div className="grid grid-cols-2 gap-4">
-              <div><label>Filename Pattern (regex, empty=all)</label>
-                <input value={form.filenamePattern} onChange={e => setForm(f => ({...f, filenamePattern: e.target.value}))} placeholder=".*\.pgp$" className="font-mono text-xs" /></div>
-              <div><label>Source Path</label>
-                <input value={form.sourcePath} onChange={e => setForm(f => ({...f, sourcePath: e.target.value}))} placeholder="/inbox" /></div>
-            </div>
+      {/* ═══ Flow Builder Modal ═══ */}
+      {showEditor && (
+        <Modal title={editingId ? 'Edit Processing Flow' : 'Create Processing Flow'} size="xl" onClose={closeEditor}>
+          <form onSubmit={e => { e.preventDefault(); saveMut.mutate(form) }} className="space-y-6">
 
-            {/* Steps Builder */}
-            <div>
-              <label>Processing Steps (executed in order)</label>
-              <div className="mt-2 space-y-2">
-                {form.steps.map((step, i) => (
-                  <div key={i} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
-                    <span className="text-xs font-bold text-gray-400 w-6">{i + 1}.</span>
-                    <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-mono rounded flex-1">{step.type}</span>
-                    {step.type === 'RENAME' && (
-                      <input value={step.config?.pattern || ''} onChange={e => {
-                        const steps = [...form.steps]; steps[i] = {...step, config: {pattern: e.target.value}}; setForm(f => ({...f, steps}))
-                      }} placeholder="${basename}_${trackid}${ext}" className="text-xs font-mono flex-1" />
-                    )}
-                    <button type="button" onClick={() => removeStep(i)} className="p-1 text-red-400 hover:text-red-600">
-                      <TrashIcon className="w-4 h-4" />
+            {/* ─── Templates (create only) ─── */}
+            {!editingId && (
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Quick Start Templates</label>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {FLOW_TEMPLATES.map(tpl => (
+                    <button key={tpl.name} type="button" onClick={() => applyTemplate(tpl)}
+                      className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 text-left transition-all group">
+                      <SparklesIcon className="w-5 h-5 text-blue-400 group-hover:text-blue-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <div className="text-sm font-medium text-gray-700 group-hover:text-blue-700">{tpl.name}</div>
+                        <div className="text-xs text-gray-400 mt-0.5">{tpl.desc}</div>
+                      </div>
                     </button>
-                  </div>
-                ))}
-                {form.steps.length === 0 && <p className="text-xs text-gray-400 py-2">No steps added. Click below to add processing steps.</p>}
+                  ))}
+                </div>
               </div>
-              <div className="mt-3 flex flex-wrap gap-1">
-                {STEP_TYPES.map(st => (
-                  <button key={st.value} type="button" onClick={() => addStep(st.value)}
-                    className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-blue-100 hover:text-blue-700 transition-colors">
-                    + {st.label}
-                  </button>
-                ))}
+            )}
+
+            {/* ─── Basic Info ─── */}
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Flow Details</label>
+              <div className="mt-2 grid grid-cols-2 gap-4">
+                <div>
+                  <label>Flow Name</label>
+                  <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                    required placeholder="e.g. partner-inbound-pgp" />
+                </div>
+                <div>
+                  <label>Priority (lower = matched first)</label>
+                  <div className="flex items-center gap-3">
+                    <input type="range" min="1" max="1000" value={form.priority}
+                      onChange={e => setForm(f => ({ ...f, priority: parseInt(e.target.value) }))}
+                      className="flex-1 h-2 bg-gray-200 rounded-lg appearance-auto cursor-pointer accent-blue-600" />
+                    <input type="number" min="1" max="1000" value={form.priority}
+                      onChange={e => setForm(f => ({ ...f, priority: parseInt(e.target.value) || 100 }))}
+                      className="w-20 text-center text-sm" />
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3">
+                <label>Description</label>
+                <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                  placeholder="What this flow does..." />
               </div>
             </div>
 
-            <div className="flex gap-3 justify-end pt-2 border-t">
-              <button type="button" className="btn-secondary" onClick={() => setShowCreate(false)}>Cancel</button>
-              <button type="submit" className="btn-primary" disabled={createMut.isPending || form.steps.length === 0}>
-                {createMut.isPending ? 'Creating...' : 'Create Flow'}
-              </button>
+            {/* ─── Source Configuration ─── */}
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Source Configuration</label>
+              <div className="mt-2 grid grid-cols-2 gap-4">
+                <div>
+                  <label>Protocol Filter</label>
+                  <select value={form.protocol} onChange={e => setForm(f => ({ ...f, protocol: e.target.value }))}>
+                    {PROTOCOLS.map(p => <option key={p} value={p}>{p === 'ANY' ? 'Any Protocol' : p}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label>Source Account</label>
+                  <select value={form.sourceAccountId} onChange={e => setForm(f => ({ ...f, sourceAccountId: e.target.value }))}>
+                    <option value="">Any Account</option>
+                    {accounts
+                      .filter(a => form.protocol === 'ANY' || a.protocol === form.protocol)
+                      .map(a => (
+                        <option key={a.id} value={a.id}>{a.username} ({a.protocol})</option>
+                      ))
+                    }
+                  </select>
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-4">
+                <div>
+                  <label>Filename Pattern (regex, empty = match all)</label>
+                  <input value={form.filenamePattern}
+                    onChange={e => setForm(f => ({ ...f, filenamePattern: e.target.value }))}
+                    placeholder=".*\.pgp$" className="font-mono text-sm" />
+                  <p className="text-xs text-gray-400 mt-1">Java regex. Examples: .*\.pgp$ | ^ACH_.* | .*\.(csv|txt)$</p>
+                </div>
+                <div>
+                  <label>Source Path Filter</label>
+                  <input value={form.sourcePath}
+                    onChange={e => setForm(f => ({ ...f, sourcePath: e.target.value }))}
+                    placeholder="/inbox" className="font-mono text-sm" />
+                </div>
+              </div>
+            </div>
+
+            {/* ─── Processing Pipeline ─── */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Processing Pipeline ({form.steps.length} step{form.steps.length !== 1 ? 's' : ''})
+                </label>
+                {form.steps.length > 0 && (
+                  <MiniPipeline steps={form.steps} />
+                )}
+              </div>
+              <div className="space-y-2 mt-2">
+                {form.steps.map((step, i) => (
+                  <StepCard
+                    key={`${step.type}-${i}`}
+                    step={step}
+                    index={i}
+                    total={form.steps.length}
+                    onRemove={() => removeStep(i)}
+                    onMoveUp={() => moveStep(i, -1)}
+                    onMoveDown={() => moveStep(i, 1)}
+                    onConfigChange={(key, val) => updateStepConfig(i, key, val)}
+                  />
+                ))}
+                {form.steps.length === 0 && (
+                  <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-lg">
+                    <ArrowsUpDownIcon className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                    <p className="text-sm text-gray-400">No steps added yet</p>
+                    <p className="text-xs text-gray-300 mt-1">Use a template above or add steps manually below</p>
+                  </div>
+                )}
+              </div>
+              <div className="mt-3 relative">
+                <button type="button" onClick={() => setShowAddStep(!showAddStep)}
+                  className="btn-secondary text-sm">
+                  <PlusIcon className="w-4 h-4" /> Add Step
+                </button>
+                {showAddStep && (
+                  <>
+                    <div className="fixed inset-0 z-20" onClick={() => setShowAddStep(false)} />
+                    <AddStepDropdown onAdd={addStep} onClose={() => setShowAddStep(false)} />
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* ─── Delivery Configuration ─── */}
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Delivery Configuration</label>
+              <div className="mt-2">
+                <label>Delivery Mode</label>
+                <div className="grid grid-cols-4 gap-2 mt-1">
+                  {[
+                    { key: 'none', label: 'None', desc: 'No auto-delivery', icon: StopIcon },
+                    { key: 'mailbox', label: 'Mailbox', desc: 'Internal account', icon: InboxIcon },
+                    { key: 'external', label: 'External', desc: 'External destination', icon: PaperAirplaneIcon },
+                    { key: 'both', label: 'Both', desc: 'Mailbox + External', icon: ArrowsUpDownIcon },
+                  ].map(mode => (
+                    <button key={mode.key} type="button" onClick={() => setForm(f => ({ ...f, deliveryMode: mode.key }))}
+                      className={`flex flex-col items-center gap-1 p-3 rounded-lg border text-center transition-all ${
+                        form.deliveryMode === mode.key
+                          ? 'border-blue-300 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50'
+                      }`}>
+                      <mode.icon className="w-5 h-5" />
+                      <span className="text-xs font-medium">{mode.label}</span>
+                      <span className="text-[10px] text-gray-400">{mode.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {(form.deliveryMode === 'mailbox' || form.deliveryMode === 'both') && (
+                <div className="mt-3 grid grid-cols-2 gap-4">
+                  <div>
+                    <label>Destination Account</label>
+                    <select value={form.destinationAccountId}
+                      onChange={e => setForm(f => ({ ...f, destinationAccountId: e.target.value }))}>
+                      <option value="">-- Select Account --</option>
+                      {accounts.map(a => (
+                        <option key={a.id} value={a.id}>{a.username} ({a.protocol})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label>Destination Path</label>
+                    <input value={form.destinationPath}
+                      onChange={e => setForm(f => ({ ...f, destinationPath: e.target.value }))}
+                      placeholder="/outbox" className="font-mono text-sm" />
+                  </div>
+                </div>
+              )}
+              {(form.deliveryMode === 'external' || form.deliveryMode === 'both') && (
+                <div className="mt-3">
+                  <label>External Destination</label>
+                  <select value={form.externalDestinationId}
+                    onChange={e => setForm(f => ({ ...f, externalDestinationId: e.target.value }))}>
+                    <option value="">-- Select Destination --</option>
+                    {externalDests.map(d => (
+                      <option key={d.id} value={d.id}>{d.name} ({d.type} - {d.host})</option>
+                    ))}
+                  </select>
+                  {externalDests.length === 0 && (
+                    <p className="text-xs text-amber-500 mt-1">No external destinations configured. Add one in External Destinations first.</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ─── Actions ─── */}
+            <div className="flex items-center gap-3 justify-between pt-4 border-t border-gray-200">
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-2 cursor-pointer mb-0">
+                  <input type="checkbox" checked={form.active} className="w-auto"
+                    onChange={e => setForm(f => ({ ...f, active: e.target.checked }))} />
+                  <span className="text-sm text-gray-600">Active on save</span>
+                </label>
+              </div>
+              <div className="flex gap-3">
+                <button type="button" className="btn-secondary" onClick={closeEditor}>Cancel</button>
+                <button type="submit" className="btn-primary"
+                  disabled={saveMut.isPending || !form.name || form.steps.length === 0}>
+                  {saveMut.isPending
+                    ? (editingId ? 'Updating...' : 'Creating...')
+                    : (editingId ? 'Update Flow' : 'Create Flow')
+                  }
+                </button>
+              </div>
             </div>
           </form>
         </Modal>

@@ -8,6 +8,14 @@ import com.filetransfer.ai.service.detection.AnomalyEnsemble;
 import com.filetransfer.ai.service.intelligence.MitreAttackMapper;
 import com.filetransfer.ai.service.proxy.IpReputationService;
 import com.filetransfer.ai.service.proxy.ProxyIntelligenceService;
+import com.filetransfer.ai.service.intelligence.ThreatIntelligenceStore;
+import com.filetransfer.ai.service.intelligence.ThreatKnowledgeGraph;
+import com.filetransfer.ai.service.intelligence.GeoIpResolver;
+import com.filetransfer.ai.service.detection.NetworkBehaviorAnalyzer;
+import com.filetransfer.ai.service.detection.AttackChainDetector;
+import com.filetransfer.ai.service.detection.ExplainabilityEngine;
+import com.filetransfer.ai.service.response.PlaybookEngine;
+import com.filetransfer.ai.service.response.IncidentManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -48,28 +56,28 @@ public class ThreatIntelligenceController {
     // ── Services being built by other agents (may not exist yet) ─────────
 
     @Autowired(required = false)
-    private Object threatIntelligenceStore;  // com.filetransfer.ai.service.intelligence.ThreatIntelligenceStore
+    private ThreatIntelligenceStore threatIntelligenceStore;
 
     @Autowired(required = false)
-    private Object threatKnowledgeGraph;     // com.filetransfer.ai.service.intelligence.ThreatKnowledgeGraph
+    private ThreatKnowledgeGraph threatKnowledgeGraph;
 
     @Autowired(required = false)
-    private Object geoIpResolver;            // com.filetransfer.ai.service.intelligence.GeoIpResolver
+    private GeoIpResolver geoIpResolver;
 
     @Autowired(required = false)
-    private Object networkBehaviorAnalyzer;  // com.filetransfer.ai.service.detection.NetworkBehaviorAnalyzer
+    private NetworkBehaviorAnalyzer networkBehaviorAnalyzer;
 
     @Autowired(required = false)
-    private Object attackChainDetector;      // com.filetransfer.ai.service.detection.AttackChainDetector
+    private AttackChainDetector attackChainDetector;
 
     @Autowired(required = false)
-    private Object explainabilityEngine;     // com.filetransfer.ai.service.detection.ExplainabilityEngine
+    private ExplainabilityEngine explainabilityEngine;
 
     @Autowired(required = false)
-    private Object playbookEngine;           // com.filetransfer.ai.service.response.PlaybookEngine
+    private PlaybookEngine playbookEngine;
 
     @Autowired(required = false)
-    private Object incidentManager;          // com.filetransfer.ai.service.response.IncidentManager
+    private IncidentManager incidentManager;
 
     // ── In-memory stores (until backing services arrive) ─────────────────
 

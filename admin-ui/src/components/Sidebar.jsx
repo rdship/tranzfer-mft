@@ -6,7 +6,7 @@ import {
   HomeIcon, UsersIcon, ServerStackIcon, ArrowsRightLeftIcon,
   ShieldCheckIcon, GlobeAltIcon, ChartBarIcon,
   CpuChipIcon, DocumentTextIcon, KeyIcon,
-  Cog6ToothIcon, WifiIcon, BoltIcon, CommandLineIcon,
+  WifiIcon, BoltIcon, CommandLineIcon,
   ArrowPathIcon, AdjustmentsHorizontalIcon,
   BuildingOfficeIcon, RocketLaunchIcon, CircleStackIcon
 } from '@heroicons/react/24/outline'
@@ -29,7 +29,6 @@ const navGroups = [
       { to: '/services', icon: CircleStackIcon, label: 'Services', role: 'ADMIN' },
       { to: '/journey', icon: DocumentTextIcon, label: 'Transfer Journey' },
       { to: '/activity', icon: WifiIcon, label: 'Live Activity' },
-      { to: '/monitoring', icon: WifiIcon, label: 'Service Health' },
     ]
   },
   {
@@ -47,10 +46,8 @@ const navGroups = [
   {
     label: 'Infrastructure',
     items: [
-      { to: '/servers', icon: ServerStackIcon, label: 'Server Config', role: 'ADMIN' },
-      { to: '/server-instances', icon: ServerStackIcon, label: 'Server Instances', role: 'ADMIN' },
+      { to: '/server-instances', icon: ServerStackIcon, label: 'Servers', role: 'ADMIN' },
       { to: '/security-profiles', icon: ShieldCheckIcon, label: 'Security Profiles', role: 'ADMIN' },
-      { to: '/encryption', icon: KeyIcon, label: 'Encryption Keys' },
       { to: '/keystore', icon: KeyIcon, label: 'Keystore Manager', role: 'ADMIN' },
       { to: '/2fa', icon: ShieldCheckIcon, label: 'Two-Factor Auth' },
       { to: '/storage', icon: ServerStackIcon, label: 'Storage Manager', role: 'ADMIN' },
@@ -90,7 +87,6 @@ const navGroups = [
       { to: '/platform-config', icon: AdjustmentsHorizontalIcon, label: 'Platform Config', role: 'ADMIN' },
       { to: '/terminal', icon: CommandLineIcon, label: 'Terminal', role: 'ADMIN' },
       { to: '/license', icon: KeyIcon, label: 'License', role: 'ADMIN' },
-      { to: '/settings', icon: Cog6ToothIcon, label: 'Settings', role: 'ADMIN' },
     ]
   }
 ]

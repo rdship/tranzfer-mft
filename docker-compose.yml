@@ -5,7 +5,7 @@ version: '3.9'
 # =============================================================================
 
 x-common-env: &common-env
-  DATABASE_URL: jdbc:postgresql://postgres:5432/filetransfer
+  DATABASE_URL: jdbc:postgresql://postgres:5432/filetransfer?stringtype=unspecified
   DB_USERNAME: postgres
   DB_PASSWORD: postgres
   RABBITMQ_HOST: rabbitmq
@@ -377,8 +377,8 @@ services:
       AI_ENGINE_URL: http://ai-engine:8091
       KEYSTORE_MANAGER_URL: http://keystore-manager:8093
       DMZ_AUDIT_ENABLED: "true"
-      DMZ_ZONES_ENABLED: "true"
-      DMZ_EGRESS_ENABLED: "true"
+      DMZ_ZONES_ENABLED: "false"     # Disabled in Docker dev — all containers share bridge network
+      DMZ_EGRESS_ENABLED: "false"    # Disabled in Docker dev — backend DNS resolves within bridge
       DMZ_INSPECTION_ENABLED: "true"
       DMZ_HEALTH_CHECK_ENABLED: "true"
     depends_on:
@@ -395,7 +395,7 @@ services:
     ports:
       - "8089:8089"
     environment:
-      DATABASE_URL: jdbc:postgresql://postgres:5432/filetransfer
+      DATABASE_URL: jdbc:postgresql://postgres:5432/filetransfer?stringtype=unspecified
       DB_USERNAME: postgres
       DB_PASSWORD: postgres
       LICENSE_ADMIN_KEY: ${LICENSE_ADMIN_KEY:-license_admin_secret_key}
