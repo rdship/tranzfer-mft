@@ -58,6 +58,9 @@ management:
     web:
       exposure:
         include: health,metrics,prometheus,info
+  health:
+    mail:
+      enabled: false
   metrics:
     export:
       prometheus:

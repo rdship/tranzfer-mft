@@ -41,7 +41,7 @@ public class SlaBreachDetector {
             // Check if we're past the delivery window + grace period
             int deadlineHour = sla.getExpectedDeliveryEndHour();
             int graceMinutes = sla.getGracePeriodMinutes();
-            ZonedDateTime deadline = now.withHour(deadlineHour).withMinute(graceMinutes).withSecond(0);
+            ZonedDateTime deadline = now.withHour(deadlineHour).withMinute(0).withSecond(0).plusMinutes(graceMinutes);
 
             if (now.isBefore(deadline)) continue; // Not past deadline yet
 

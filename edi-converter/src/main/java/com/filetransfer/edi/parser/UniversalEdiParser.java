@@ -20,15 +20,17 @@ import java.util.stream.Collectors;
  * composite/repeating element support, release character handling, error recovery,
  * and loop structure detection.
  */
-@Service @RequiredArgsConstructor @Slf4j
+@Service @Slf4j
 public class UniversalEdiParser {
 
     private final FormatDetector detector;
     private final X12LoopDefinitions loopDefinitions;
 
-    /**
-     * Constructor for backward compatibility — creates parser without loop definitions.
-     */
+    public UniversalEdiParser(FormatDetector detector, X12LoopDefinitions loopDefinitions) {
+        this.detector = detector;
+        this.loopDefinitions = loopDefinitions;
+    }
+
     public UniversalEdiParser(FormatDetector detector) {
         this.detector = detector;
         this.loopDefinitions = new X12LoopDefinitions();

@@ -266,6 +266,7 @@ public class AutonomousOnboardController {
     /** Auto-complete sessions that have been learning for >24h */
     @Scheduled(fixedDelay = 3600000)
     @SchedulerLock(name = "onboarding_autoComplete", lockAtLeastFor = "PT50M", lockAtMostFor = "PT2H")
+    @PreAuthorize("permitAll()")
     public void autoComplete() {
         Instant cutoff = Instant.now().minus(24, ChronoUnit.HOURS);
         sessionRepo.findByPhaseOrderByCreatedAtDesc("LEARNING").stream()

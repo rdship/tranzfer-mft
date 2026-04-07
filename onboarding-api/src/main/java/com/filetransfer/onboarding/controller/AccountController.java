@@ -14,6 +14,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -24,6 +25,12 @@ import java.util.UUID;
 public class AccountController {
 
     private final AccountService accountService;
+
+    @GetMapping
+    @Operation(summary = "List all transfer accounts")
+    public List<AccountResponse> list() {
+        return accountService.listAccounts();
+    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)

@@ -2,6 +2,9 @@ package com.filetransfer.shared.config;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -65,6 +68,16 @@ public class SharedConfig {
         executor.setAwaitTerminationSeconds(30);
         executor.initialize();
         return executor;
+    }
+
+    /**
+     * Shared JSON message converter for RabbitMQ — ensures all services
+     * serialize/deserialize events as JSON instead of Java serialization.
+     */
+    @Bean
+    @ConditionalOnClass(name = "org.springframework.amqp.rabbit.core.RabbitTemplate")
+    public MessageConverter jacksonMessageConverter() {
+        return new Jackson2JsonMessageConverter();
     }
 
     @Bean

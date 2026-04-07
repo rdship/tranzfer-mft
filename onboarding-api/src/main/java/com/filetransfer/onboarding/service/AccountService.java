@@ -101,6 +101,10 @@ public class AccountService {
         return toResponse(account);
     }
 
+    public List<AccountResponse> listAccounts() {
+        return accountRepository.findAll().stream().map(this::toResponse).toList();
+    }
+
     public AccountResponse getAccount(UUID accountId) {
         return toResponse(findById(accountId));
     }

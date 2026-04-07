@@ -53,6 +53,7 @@ public class BlockchainController {
     /** Anchor recent transfers (runs every hour) */
     @Scheduled(cron = "0 0 * * * *")
     @SchedulerLock(name = "blockchain_anchorBatch", lockAtLeastFor = "PT50M", lockAtMostFor = "PT2H")
+    @PreAuthorize("permitAll()")
     public void anchorBatch() {
         Instant cutoff = Instant.now().minus(1, ChronoUnit.HOURS);
         List<FileTransferRecord> recent = recordRepo.findAll().stream()

@@ -105,6 +105,46 @@ post_admin_key() {
   fi
 }
 
+get() {
+  local url="$1"
+  curl -s -X GET "$url" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "X-Internal-Key: $INTERNAL_KEY" \
+    -H "Content-Type: application/json" 2>/dev/null
+}
+
+# Arrays to store created IDs for cross-referencing
+ACCOUNT_IDS=()
+SERVER_IDS=()
+
+# Fetch created account IDs (call after create_accounts)
+fetch_account_ids() {
+  log "Fetching account IDs for cross-references..."
+  local resp
+  resp=$(get "$API/api/accounts")
+  ACCOUNT_IDS=($(echo "$resp" | python3 -c "
+import sys,json
+accounts = json.load(sys.stdin)
+for a in accounts:
+    print(a['id'])
+" 2>/dev/null || true))
+  ok "Fetched ${#ACCOUNT_IDS[@]} account IDs"
+}
+
+# Fetch created server instance IDs (call after create_server_instances)
+fetch_server_ids() {
+  log "Fetching server instance IDs for cross-references..."
+  local resp
+  resp=$(get "$API/api/servers")
+  SERVER_IDS=($(echo "$resp" | python3 -c "
+import sys,json
+servers = json.load(sys.stdin)
+for s in servers:
+    print(s['id'])
+" 2>/dev/null || true))
+  ok "Fetched ${#SERVER_IDS[@]} server IDs"
+}
+
 wait_for_service() {
   local url="$1" name="$2" max="${3:-60}"
   log "Waiting for $name ($url)..."
@@ -327,8 +367,10 @@ create_partners() {
     [[ $((i % 3)) -eq 0 ]] && protocols='["SFTP","AS2"]'
     [[ $((i % 5)) -eq 0 ]] && protocols='["SFTP","FTP","AS2","AS4"]'
 
+    local contact_first=$(echo "$name" | awk '{print $1}')
+    local contact_domain=$(echo "$slug" | head -c 20)
     post "$API/api/partners" \
-      "{\"companyName\":\"$name\",\"slug\":\"$slug\",\"partnerType\":\"$type\",\"status\":\"$status\",\"onboardingPhase\":\"$phase\",\"protocolsEnabled\":$protocols,\"slaTier\":\"$tier\",\"industry\":\"$(echo $slug | cut -d- -f1)\",\"maxFileSizeBytes\":$((512*1024*1024)),\"maxTransfersPerDay\":$((1000 + i*100)),\"retentionDays\":$((30 + i*3))}" \
+      "{\"companyName\":\"$name\",\"slug\":\"$slug\",\"partnerType\":\"$type\",\"status\":\"$status\",\"onboardingPhase\":\"$phase\",\"protocolsEnabled\":$protocols,\"slaTier\":\"$tier\",\"industry\":\"$(echo $slug | cut -d- -f1)\",\"maxFileSizeBytes\":$((512*1024*1024)),\"maxTransfersPerDay\":$((1000 + i*100)),\"retentionDays\":$((30 + i*3)),\"contacts\":[{\"name\":\"${contact_first} Admin\",\"email\":\"admin@${contact_domain}.com\",\"phone\":\"+1-555-$(printf '%04d' $i)\",\"role\":\"IT Manager\",\"isPrimary\":true},{\"name\":\"${contact_first} Support\",\"email\":\"support@${contact_domain}.com\",\"role\":\"Technical Support\",\"isPrimary\":false}]}" \
       "Partner: $name" > /dev/null
   done
 }
@@ -421,10 +463,16 @@ create_encryption_keys() {
   log "=== STEP 8: Encryption Keys (26) ==="
   local algos=("PGP" "AES_256_GCM")
 
+  if [ ${#ACCOUNT_IDS[@]} -lt 26 ]; then
+    fail "Not enough account IDs (${#ACCOUNT_IDS[@]}) for encryption keys"
+    return
+  fi
+
   for i in $(seq 1 26); do
     local algo="${algos[$((i % 2))]}"
     local name="enc-key-$(printf '%03d' $i)"
-    local json="{\"keyName\":\"$name\",\"algorithm\":\"$algo\""
+    local acct_id="${ACCOUNT_IDS[$((i-1))]}"
+    local json="{\"keyName\":\"$name\",\"algorithm\":\"$algo\",\"account\":{\"id\":\"$acct_id\"}"
     if [ "$algo" = "PGP" ]; then
       json+=",\"publicKey\":\"-----BEGIN PGP PUBLIC KEY BLOCK-----\nFAKE_PGP_KEY_FOR_DEMO_$i\n-----END PGP PUBLIC KEY BLOCK-----\""
     fi
@@ -594,10 +642,17 @@ create_file_flows() {
 # =============================================================================
 create_folder_mappings() {
   log "=== STEP 13: Folder Mappings (30) ==="
-  for i in $(seq 1 30); do
+  if [ ${#ACCOUNT_IDS[@]} -lt 200 ]; then
+    fail "Not enough account IDs (${#ACCOUNT_IDS[@]}) for folder mappings — need at least 200 (100 SFTP + 100 FTP)"
+    return
+  fi
+  # SFTP accounts are indices 0-99, FTP accounts are indices 100-199
+  for i in $(seq 0 29); do
+    local src_id="${ACCOUNT_IDS[$i]}"
+    local dst_id="${ACCOUNT_IDS[$((i + 100))]}"
     post "$API/api/folder-mappings" \
-      "{\"sourceAccount\":\"sftp_user_$(printf '%03d' $i)\",\"destinationAccount\":\"ftp_user_$(printf '%03d' $i)\",\"sourcePath\":\"/outbound\",\"destinationPath\":\"/inbound\"}" \
-      "FolderMapping: sftp_user_$(printf '%03d' $i) → ftp_user_$(printf '%03d' $i)" > /dev/null
+      "{\"sourceAccountId\":\"$src_id\",\"destinationAccountId\":\"$dst_id\",\"sourcePath\":\"/outbound\",\"destinationPath\":\"/inbound\"}" \
+      "FolderMapping: account[$i] → account[$((i+100))]" > /dev/null
   done
 }
 
@@ -862,11 +917,18 @@ create_security_policies() {
   log "=== STEP 21: Listener Security Policies (26) ==="
   local tiers=("RULES" "AI" "AI_LLM")
 
+  if [ ${#SERVER_IDS[@]} -lt 1 ]; then
+    fail "No server IDs available for listener security policies"
+    return
+  fi
+
   for i in $(seq 1 26); do
     local tier="${tiers[$((i%3))]}"
     local name="LSP-$(printf '%03d' $i)-${tier}"
+    local srv_idx=$(( (i-1) % ${#SERVER_IDS[@]} ))
+    local srv_id="${SERVER_IDS[$srv_idx]}"
     post "$CFG/api/listener-security-policies" \
-      "{\"name\":\"$name\",\"securityTier\":\"$tier\",\"ipWhitelist\":[\"10.0.0.0/8\",\"172.16.0.0/12\",\"192.168.0.0/16\"],\"ipBlacklist\":[\"203.0.113.0/24\"],\"geoAllowedCountries\":[\"US\",\"GB\",\"DE\",\"JP\",\"AU\",\"CA\"],\"rateLimitPerMinute\":$((60+i*10)),\"maxConcurrent\":$((20+i*5)),\"maxBytesPerMinute\":$((500*1024*1024)),\"allowedFileExtensions\":[\".csv\",\".xml\",\".json\",\".edi\",\".txt\",\".pdf\",\".zip\",\".pgp\"],\"blockedFileExtensions\":[\".exe\",\".bat\",\".sh\",\".ps1\",\".cmd\"],\"maxFileSizeBytes\":$((256*1024*1024))}" \
+      "{\"name\":\"$name\",\"securityTier\":\"$tier\",\"serverInstance\":{\"id\":\"$srv_id\"},\"ipWhitelist\":[\"10.0.0.0/8\",\"172.16.0.0/12\",\"192.168.0.0/16\"],\"ipBlacklist\":[\"203.0.113.0/24\"],\"geoAllowedCountries\":[\"US\",\"GB\",\"DE\",\"JP\",\"AU\",\"CA\"],\"rateLimitPerMinute\":$((60+i*10)),\"maxConcurrent\":$((20+i*5)),\"maxBytesPerMinute\":$((500*1024*1024)),\"allowedFileExtensions\":[\".csv\",\".xml\",\".json\",\".edi\",\".txt\",\".pdf\",\".zip\",\".pgp\"],\"blockedFileExtensions\":[\".exe\",\".bat\",\".sh\",\".ps1\",\".cmd\"],\"maxFileSizeBytes\":$((256*1024*1024))}" \
       "SecurityPolicy: $name" > /dev/null
   done
 }
@@ -941,6 +1003,81 @@ create_dmz_mappings() {
 }
 
 # =============================================================================
+# 26. SERVER CONFIGS in config-service (26)
+# =============================================================================
+create_server_configs() {
+  log "=== STEP 26: Server Configs (26) ==="
+  local types=("SFTP" "FTP" "FTP_WEB" "GATEWAY" "ENCRYPTION" "FORWARDER" "DMZ" "ANALYTICS" "SCREENING" "KEYSTORE" "STORAGE" "NOTIFICATION" "AI_ENGINE")
+
+  for i in $(seq 1 26); do
+    local idx=$(( (i-1) % ${#types[@]} ))
+    local stype="${types[$idx]}"
+    local name="config-${stype,,}-$(printf '%02d' $i)"
+    local port=$((8080 + i))
+    post "$CFG/api/servers" \
+      "{\"name\":\"$name\",\"serviceType\":\"$stype\",\"host\":\"${stype,,}-service\",\"port\":$port,\"properties\":{\"maxConnections\":\"500\",\"idleTimeout\":\"300\",\"bufferSize\":\"32768\"},\"active\":true}" \
+      "ServerConfig: $name ($stype)" > /dev/null
+  done
+}
+
+# =============================================================================
+# 27. PERMISSIONS & ROLE MAPPINGS (seed RBAC data)
+# =============================================================================
+create_permissions() {
+  log "=== STEP 27: Permissions & Role Mappings (via SQL) ==="
+
+  docker exec mft-postgres psql -U postgres -d filetransfer -c "
+    -- Seed permissions
+    INSERT INTO permissions (id, name, description, resource_type, action, created_at)
+    SELECT gen_random_uuid(), name, desc_text, rtype, act, now()
+    FROM (VALUES
+      ('accounts.read',    'Read transfer accounts',       'ACCOUNT',    'READ'),
+      ('accounts.write',   'Create/update accounts',       'ACCOUNT',    'WRITE'),
+      ('accounts.delete',  'Delete transfer accounts',     'ACCOUNT',    'DELETE'),
+      ('flows.read',       'Read file flows',              'FLOW',       'READ'),
+      ('flows.write',      'Create/update file flows',     'FLOW',       'WRITE'),
+      ('flows.delete',     'Delete file flows',            'FLOW',       'DELETE'),
+      ('partners.read',    'Read partners',                'PARTNER',    'READ'),
+      ('partners.write',   'Create/update partners',       'PARTNER',    'WRITE'),
+      ('partners.delete',  'Delete partners',              'PARTNER',    'DELETE'),
+      ('servers.read',     'Read server instances',        'SERVER',     'READ'),
+      ('servers.write',    'Create/update servers',        'SERVER',     'WRITE'),
+      ('keys.read',        'Read encryption keys',         'KEY',        'READ'),
+      ('keys.write',       'Manage encryption keys',       'KEY',        'WRITE'),
+      ('audit.read',       'Read audit logs',              'AUDIT',      'READ'),
+      ('settings.read',    'Read platform settings',       'SETTING',    'READ'),
+      ('settings.write',   'Modify platform settings',     'SETTING',    'WRITE'),
+      ('dlp.read',         'Read DLP policies',            'DLP',        'READ'),
+      ('dlp.write',        'Manage DLP policies',          'DLP',        'WRITE'),
+      ('analytics.read',   'Read analytics',               'ANALYTICS',  'READ'),
+      ('scheduler.read',   'Read scheduled tasks',         'SCHEDULER',  'READ'),
+      ('scheduler.write',  'Manage scheduled tasks',       'SCHEDULER',  'WRITE')
+    ) AS t(name, desc_text, rtype, act)
+    WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE permissions.name = t.name);
+
+    -- Map permissions to roles
+    INSERT INTO role_permissions (id, role, permission_id, created_at)
+    SELECT gen_random_uuid(), r.role_name, p.id, now()
+    FROM permissions p
+    CROSS JOIN (VALUES ('ADMIN'), ('OPERATOR'), ('VIEWER')) AS r(role_name)
+    WHERE NOT EXISTS (
+      SELECT 1 FROM role_permissions rp WHERE rp.role = r.role_name AND rp.permission_id = p.id
+    )
+    AND (
+      r.role_name = 'ADMIN'
+      OR (r.role_name = 'OPERATOR' AND p.action IN ('READ', 'WRITE'))
+      OR (r.role_name = 'VIEWER' AND p.action = 'READ')
+    );
+  " > /dev/null 2>&1
+
+  if [ $? -eq 0 ]; then
+    ok "Permissions & role mappings seeded (21 permissions, 3 roles)"
+  else
+    fail "Permission seeding failed"
+  fi
+}
+
+# =============================================================================
 # MAIN
 # =============================================================================
 main() {
@@ -960,10 +1097,12 @@ main() {
   # Run all onboarding steps
   create_tenants
   create_server_instances
+  fetch_server_ids
   create_folder_templates
   create_security_profiles
   create_partners
   create_accounts
+  fetch_account_ids
 
   # These depend on external services being up
   if wait_for_service "$KEY/actuator/health" "keystore-manager" 30; then
@@ -1008,6 +1147,9 @@ main() {
   if wait_for_service "$DMZ/actuator/health" "dmz-proxy" 30; then
     create_dmz_mappings
   fi
+
+  create_server_configs
+  create_permissions
 
   echo ""
   echo "╔═══════════════════════════════════════════════════════════╗"
