@@ -62,6 +62,19 @@ public class StorageServiceClient extends ResilientServiceClient {
         });
     }
 
+    /** Check if a CAS object exists by SHA-256 key. Used by WAIP recovery. */
+    @SuppressWarnings("unchecked")
+    public boolean existsBySha256(String sha256) {
+        try {
+            Map<String, Object> result = withResilience("existsBySha256",
+                    () -> get("/api/v1/storage/ref-count/" + sha256, Map.class));
+            return Boolean.TRUE.equals(result.get("exists"));
+        } catch (Exception e) {
+            log.warn("CAS existence check failed for {}: {}", sha256, e.getMessage());
+            return false;
+        }
+    }
+
     /** List storage objects, optionally filtered by account and tier. */
     public List<Map<String, Object>> listObjects(String account, String tier) {
         try {

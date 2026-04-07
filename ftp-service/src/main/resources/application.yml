@@ -1,7 +1,10 @@
 server:
   port: 8082
+  shutdown: graceful
 
 spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 45s
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/filetransfer}
     username: ${DB_USERNAME:postgres}

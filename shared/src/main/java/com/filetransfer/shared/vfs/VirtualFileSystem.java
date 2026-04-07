@@ -1,24 +1,43 @@
 package com.filetransfer.shared.vfs;
 
 import com.filetransfer.shared.client.StorageServiceClient;
+import com.filetransfer.shared.entity.VfsChunk;
+import com.filetransfer.shared.entity.VfsIntent;
 import com.filetransfer.shared.entity.VirtualEntry;
+import com.filetransfer.shared.repository.VfsChunkRepository;
+import com.filetransfer.shared.repository.VfsIntentRepository;
 import com.filetransfer.shared.repository.VirtualEntryRepository;
+import jakarta.annotation.PostConstruct;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayOutputStream;
 import java.time.Instant;
 import java.util.*;
 
 /**
- * Core Virtual Filesystem service.
+ * Core Virtual Filesystem service with Write-Ahead Intent Protocol (WAIP).
  *
  * <p>All folder/file operations go through this service. Directories are zero-cost DB rows.
- * File content is stored in content-addressed storage (CAS) via the Storage Manager.
- * Protocol layers (SFTP, FTP, FTP-web) delegate to this service.
+ * File content is routed to one of three storage buckets based on size:
+ * <ul>
+ *   <li><b>INLINE</b> ({@literal <} 64 KB): content stored directly in the DB row — zero CAS hop</li>
+ *   <li><b>STANDARD</b> (64 KB – 64 MB): content-addressed storage via Storage Manager</li>
+ *   <li><b>CHUNKED</b> ({@literal >} 64 MB): 4 MB chunks streamed to CAS independently</li>
+ * </ul>
  *
- * <p>Thread-safe: all mutable operations are transactional.
+ * <p>Mutable operations (write, delete, move) are protected by:
+ * <ul>
+ *   <li>PostgreSQL advisory locks — path-level serialization, zero disk I/O</li>
+ *   <li>Write-ahead intents — crash recovery via {@code VfsIntentRecoveryJob}</li>
+ *   <li>Optimistic locking (@Version) — concurrent update detection</li>
+ * </ul>
+ *
+ * <p>Read operations (list, stat, exists, readFile) have ZERO WAIP overhead.
  */
 @Slf4j
 @Service
@@ -27,14 +46,38 @@ public class VirtualFileSystem {
 
     private final VirtualEntryRepository entryRepository;
     private final StorageServiceClient storageClient;
+    private final VfsIntentRepository intentRepository;
+    private final VfsChunkRepository chunkRepository;
+    private final EntityManager entityManager;
 
-    // ── Directory Operations ────────────────────────────────────────────
+    @Value("${vfs.inline-max-bytes:65536}")
+    private long inlineMaxBytes;
+
+    @Value("${vfs.chunk-threshold-bytes:67108864}")
+    private long chunkThresholdBytes;
+
+    private String podId;
+
+    @PostConstruct
+    void initPodId() {
+        this.podId = System.getenv().getOrDefault("HOSTNAME",
+                "unknown-" + ProcessHandle.current().pid());
+        log.info("VFS initialized on pod {}, inline≤{}B, chunk>{}B",
+                podId, inlineMaxBytes, chunkThresholdBytes);
+    }
+
+    // ── Storage Bucket Routing ─────────────────────────────────────────
+
+    public String determineBucket(long sizeBytes) {
+        if (sizeBytes <= inlineMaxBytes) return "INLINE";
+        if (sizeBytes > chunkThresholdBytes) return "CHUNKED";
+        return "STANDARD";
+    }
+
+    // ── Directory Operations ───────────────────────────────────────────
 
     /**
      * Create a single directory. Parent must exist.
-     *
-     * @throws IllegalArgumentException if parent doesn't exist
-     * @throws IllegalStateException if path already exists
      */
     @Transactional
     public VirtualEntry mkdir(UUID accountId, String path) {
@@ -69,14 +112,12 @@ public class VirtualFileSystem {
         String normalized = normalizePath(path);
         if ("/".equals(normalized)) return null;
 
-        // Check if already exists
         Optional<VirtualEntry> existing = entryRepository.findByAccountIdAndPathAndDeletedFalse(accountId, normalized);
         if (existing.isPresent()) {
             if (existing.get().isDirectory()) return existing.get();
             throw new IllegalStateException("Path exists as file: " + normalized);
         }
 
-        // Ensure all ancestors exist
         String[] parts = normalized.substring(1).split("/");
         StringBuilder current = new StringBuilder();
         VirtualEntry last = null;
@@ -96,74 +137,100 @@ public class VirtualFileSystem {
         return last;
     }
 
-    // ── Listing ─────────────────────────────────────────────────────────
+    // ── Listing ────────────────────────────────────────────────────────
 
-    /**
-     * List immediate children of a directory.
-     */
     public List<VirtualEntry> list(UUID accountId, String directoryPath) {
         String normalized = normalizePath(directoryPath);
         return entryRepository.findByAccountIdAndParentPathAndDeletedFalse(accountId, normalized);
     }
 
-    // ── File Write ──────────────────────────────────────────────────────
+    // ── File Write (WAIP-protected, bucket-aware) ──────────────────────
 
     /**
-     * Create or overwrite a file entry. Content is stored via Storage Manager.
+     * Create or overwrite a file entry with WAIP protection.
      *
-     * @param accountId  account that owns the file
-     * @param path       full virtual path, e.g. "/inbox/invoice.edi"
-     * @param storageKey SHA-256 key returned by Storage Manager after CAS write
-     * @param sizeBytes  file size
-     * @param trackId    routing track ID (optional)
-     * @param contentType MIME type (optional)
-     * @return the created or updated virtual entry
+     * <p>For INLINE bucket: pass content in {@code inlineContent}, storageKey may be null.
+     * <p>For STANDARD bucket: pass storageKey from CAS, inlineContent may be null.
+     * <p>For CHUNKED bucket: entry is created as a manifest; chunks tracked via vfs_chunks.
      */
     @Transactional
     public VirtualEntry writeFile(UUID accountId, String path, String storageKey,
-                                   long sizeBytes, String trackId, String contentType) {
+                                   long sizeBytes, String trackId, String contentType,
+                                   byte[] inlineContent) {
         String normalized = normalizePath(path);
         String parentPath = parentOf(normalized);
+        String bucket = determineBucket(sizeBytes);
 
-        // Auto-create parent directories
+        // 1. Advisory lock: serialize concurrent writes to same (account, path)
+        lockPath(accountId, normalized);
+
+        // 2. Record intent BEFORE mutation
+        VfsIntent intent = createIntent(accountId, VfsIntent.OpType.WRITE, normalized,
+                null, storageKey, trackId, sizeBytes, contentType);
+
+        // 3. Auto-create parent directories
         if (!"/".equals(parentPath)) {
             mkdirs(accountId, parentPath);
         }
 
-        // Check for existing entry
+        // 4. Create or update entry (now under advisory lock — no race)
         Optional<VirtualEntry> existing = entryRepository.findByAccountIdAndPathAndDeletedFalse(accountId, normalized);
+        VirtualEntry result;
         if (existing.isPresent()) {
             VirtualEntry entry = existing.get();
             if (entry.isDirectory()) {
                 throw new IllegalStateException("Cannot write file: path is a directory: " + normalized);
             }
-            // Overwrite: update storage key
             entry.setStorageKey(storageKey);
             entry.setSizeBytes(sizeBytes);
             entry.setTrackId(trackId);
             entry.setContentType(contentType);
-            return entryRepository.save(entry);
+            entry.setStorageBucket(bucket);
+            if ("INLINE".equals(bucket)) {
+                entry.setInlineContent(inlineContent);
+            } else {
+                entry.setInlineContent(null);
+            }
+            result = entryRepository.save(entry);
+        } else {
+            result = entryRepository.save(VirtualEntry.builder()
+                    .accountId(accountId)
+                    .path(normalized)
+                    .parentPath(parentPath)
+                    .name(nameOf(normalized))
+                    .type(VirtualEntry.EntryType.FILE)
+                    .storageKey(storageKey)
+                    .sizeBytes(sizeBytes)
+                    .trackId(trackId)
+                    .contentType(contentType)
+                    .storageBucket(bucket)
+                    .inlineContent("INLINE".equals(bucket) ? inlineContent : null)
+                    .build());
         }
 
-        return entryRepository.save(VirtualEntry.builder()
-                .accountId(accountId)
-                .path(normalized)
-                .parentPath(parentPath)
-                .name(nameOf(normalized))
-                .type(VirtualEntry.EntryType.FILE)
-                .storageKey(storageKey)
-                .sizeBytes(sizeBytes)
-                .trackId(trackId)
-                .contentType(contentType)
-                .build());
+        // 5. Mark intent COMMITTED (same transaction — single DB commit)
+        commitIntent(intent);
+        return result;
     }
 
-    // ── File Read ───────────────────────────────────────────────────────
+    /**
+     * Backward-compatible overload — delegates to bucket-aware writeFile.
+     */
+    @Transactional
+    public VirtualEntry writeFile(UUID accountId, String path, String storageKey,
+                                   long sizeBytes, String trackId, String contentType) {
+        return writeFile(accountId, path, storageKey, sizeBytes, trackId, contentType, null);
+    }
+
+    // ── File Read (bucket-aware, ZERO WAIP overhead) ───────────────────
 
     /**
-     * Get file content bytes from CAS. Updates access counters.
-     *
-     * @return raw bytes, or empty if entry not found or is a directory
+     * Get file content bytes. Routes to the correct storage bucket:
+     * <ul>
+     *   <li>INLINE: returns content directly from DB row (zero network)</li>
+     *   <li>STANDARD: retrieves from CAS via Storage Manager</li>
+     *   <li>CHUNKED: reassembles from chunk manifests</li>
+     * </ul>
      */
     @Transactional
     public byte[] readFile(UUID accountId, String path) {
@@ -180,36 +247,53 @@ public class VirtualFileSystem {
         entry.setLastAccessedAt(Instant.now());
         entryRepository.save(entry);
 
-        // Retrieve from CAS via Storage Manager
-        if (entry.getTrackId() != null) {
-            return storageClient.retrieve(entry.getTrackId());
-        }
-        throw new NoSuchElementException("File has no storage reference: " + normalized);
+        String bucket = entry.getStorageBucket() != null ? entry.getStorageBucket() : "STANDARD";
+
+        return switch (bucket) {
+            case "INLINE" -> {
+                if (entry.getInlineContent() != null) {
+                    yield entry.getInlineContent();
+                }
+                throw new NoSuchElementException("Inline content missing for: " + normalized);
+            }
+            case "CHUNKED" -> readChunked(entry);
+            default -> {
+                // STANDARD path — retrieve from CAS
+                if (entry.getTrackId() != null) {
+                    yield storageClient.retrieve(entry.getTrackId());
+                }
+                throw new NoSuchElementException("File has no storage reference: " + normalized);
+            }
+        };
     }
 
-    // ── Stat ────────────────────────────────────────────────────────────
+    private byte[] readChunked(VirtualEntry entry) {
+        List<VfsChunk> chunks = chunkRepository.findByEntryIdOrderByChunkIndex(entry.getId());
+        if (chunks.isEmpty()) {
+            throw new NoSuchElementException("No chunks found for: " + entry.getPath());
+        }
 
-    /**
-     * Get metadata for a single entry (like stat()).
-     */
+        ByteArrayOutputStream assembled = new ByteArrayOutputStream((int) entry.getSizeBytes());
+        for (VfsChunk chunk : chunks) {
+            // Retrieve each chunk from CAS by its storage key
+            byte[] chunkData = storageClient.retrieve(chunk.getStorageKey());
+            assembled.writeBytes(chunkData);
+        }
+        return assembled.toByteArray();
+    }
+
+    // ── Stat ───────────────────────────────────────────────────────────
+
     public Optional<VirtualEntry> stat(UUID accountId, String path) {
         return entryRepository.findByAccountIdAndPathAndDeletedFalse(accountId, normalizePath(path));
     }
 
-    /**
-     * Check if a path exists.
-     */
     public boolean exists(UUID accountId, String path) {
         return entryRepository.existsByAccountIdAndPathAndDeletedFalse(accountId, normalizePath(path));
     }
 
-    // ── Delete ──────────────────────────────────────────────────────────
+    // ── Delete (WAIP-protected) ────────────────────────────────────────
 
-    /**
-     * Soft-delete an entry. If directory, recursively soft-deletes all children.
-     *
-     * @return number of entries soft-deleted
-     */
     @Transactional
     public int delete(UUID accountId, String path) {
         String normalized = normalizePath(path);
@@ -217,30 +301,47 @@ public class VirtualFileSystem {
             throw new IllegalArgumentException("Cannot delete root directory");
         }
 
-        Optional<VirtualEntry> entry = entryRepository.findByAccountIdAndPathAndDeletedFalse(accountId, normalized);
-        if (entry.isEmpty()) return 0;
+        lockPath(accountId, normalized);
 
-        if (entry.get().isDirectory()) {
-            // Recursive soft-delete: path and everything under it
-            return entryRepository.softDeleteByPrefix(accountId, normalized + "%");
+        VfsIntent intent = createIntent(accountId, VfsIntent.OpType.DELETE, normalized,
+                null, null, null, 0, null);
+
+        Optional<VirtualEntry> entry = entryRepository.findByAccountIdAndPathAndDeletedFalse(accountId, normalized);
+        if (entry.isEmpty()) {
+            abortIntent(intent);
+            return 0;
         }
 
-        entry.get().setDeleted(true);
-        entryRepository.save(entry.get());
-        return 1;
+        int deleted;
+        if (entry.get().isDirectory()) {
+            deleted = entryRepository.softDeleteByPrefix(accountId, normalized + "%");
+        } else {
+            entry.get().setDeleted(true);
+            entryRepository.save(entry.get());
+            deleted = 1;
+        }
+
+        commitIntent(intent);
+        return deleted;
     }
 
-    // ── Move / Rename ───────────────────────────────────────────────────
+    // ── Move / Rename (WAIP-protected) ─────────────────────────────────
 
-    /**
-     * Move or rename an entry (and all descendants if directory).
-     */
     @Transactional
     public void move(UUID accountId, String fromPath, String toPath) {
         String normalizedFrom = normalizePath(fromPath);
         String normalizedTo = normalizePath(toPath);
 
         if (normalizedFrom.equals(normalizedTo)) return;
+
+        // Lock BOTH paths in lexicographic order to prevent deadlocks
+        String first = normalizedFrom.compareTo(normalizedTo) < 0 ? normalizedFrom : normalizedTo;
+        String second = normalizedFrom.compareTo(normalizedTo) < 0 ? normalizedTo : normalizedFrom;
+        lockPath(accountId, first);
+        lockPath(accountId, second);
+
+        VfsIntent intent = createIntent(accountId, VfsIntent.OpType.MOVE, normalizedFrom,
+                normalizedTo, null, null, 0, null);
 
         if (!entryRepository.existsByAccountIdAndPathAndDeletedFalse(accountId, normalizedFrom)) {
             throw new NoSuchElementException("Source not found: " + normalizedFrom);
@@ -249,7 +350,6 @@ public class VirtualFileSystem {
             throw new IllegalStateException("Destination already exists: " + normalizedTo);
         }
 
-        // Ensure destination parent exists
         String destParent = parentOf(normalizedTo);
         if (!"/".equals(destParent)) {
             mkdirs(accountId, destParent);
@@ -259,31 +359,23 @@ public class VirtualFileSystem {
                 .orElseThrow();
 
         if (entry.isFile()) {
-            // Simple file rename
             entry.setPath(normalizedTo);
             entry.setParentPath(destParent);
             entry.setName(nameOf(normalizedTo));
             entryRepository.save(entry);
         } else {
-            // Directory: bulk rename all entries under the old prefix
             entryRepository.renamePrefixBulk(accountId, normalizedFrom, normalizedTo, destParent);
-            // Update the directory entry itself
             entry.setPath(normalizedTo);
             entry.setParentPath(destParent);
             entry.setName(nameOf(normalizedTo));
             entryRepository.save(entry);
         }
+
+        commitIntent(intent);
     }
 
-    // ── Bulk Operations (Onboarding) ────────────────────────────────────
+    // ── Bulk Operations (Onboarding) ───────────────────────────────────
 
-    /**
-     * Create folder template entries for a new account.
-     * Zero disk I/O — just DB inserts.
-     *
-     * @param accountId   the account UUID
-     * @param folderPaths list of relative paths, e.g. ["inbox", "outbox", "archive"]
-     */
     @Transactional
     public void provisionFolders(UUID accountId, List<String> folderPaths) {
         if (folderPaths == null || folderPaths.isEmpty()) return;
@@ -296,11 +388,8 @@ public class VirtualFileSystem {
         log.info("Provisioned {} virtual folders for account {}", folderPaths.size(), accountId);
     }
 
-    // ── Metrics ─────────────────────────────────────────────────────────
+    // ── Metrics ────────────────────────────────────────────────────────
 
-    /**
-     * Get storage usage for an account.
-     */
     public Map<String, Object> getUsage(UUID accountId) {
         return Map.of(
                 "fileCount", entryRepository.countFilesByAccount(accountId),
@@ -309,42 +398,76 @@ public class VirtualFileSystem {
         );
     }
 
-    /**
-     * Count references to a storage key (for CAS garbage collection).
-     */
     public long getRefCount(String storageKey) {
         return entryRepository.countByStorageKey(storageKey);
     }
 
-    // ── Path Utilities ──────────────────────────────────────────────────
+    // ── WAIP Internal ──────────────────────────────────────────────────
 
-    /** Normalize a path: ensure leading /, no trailing /, no double slashes. */
+    /**
+     * Acquire path-level advisory lock within the current transaction.
+     * Uses pg_advisory_xact_lock which auto-releases on COMMIT/ROLLBACK.
+     * Zero disk I/O — purely in-memory PostgreSQL lock manager.
+     */
+    private void lockPath(UUID accountId, String path) {
+        long hash = (long) accountId.hashCode() * 31 + path.hashCode();
+        entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(:hash)")
+                .setParameter("hash", hash)
+                .getSingleResult();
+    }
+
+    private VfsIntent createIntent(UUID accountId, VfsIntent.OpType op, String path,
+                                    String destPath, String storageKey, String trackId,
+                                    long sizeBytes, String contentType) {
+        return intentRepository.save(VfsIntent.builder()
+                .accountId(accountId)
+                .op(op)
+                .path(path)
+                .destPath(destPath)
+                .storageKey(storageKey)
+                .trackId(trackId)
+                .sizeBytes(sizeBytes)
+                .contentType(contentType)
+                .status(VfsIntent.IntentStatus.PENDING)
+                .podId(podId)
+                .build());
+    }
+
+    private void commitIntent(VfsIntent intent) {
+        intent.setStatus(VfsIntent.IntentStatus.COMMITTED);
+        intent.setResolvedAt(Instant.now());
+        intentRepository.save(intent);
+    }
+
+    private void abortIntent(VfsIntent intent) {
+        intent.setStatus(VfsIntent.IntentStatus.ABORTED);
+        intent.setResolvedAt(Instant.now());
+        intentRepository.save(intent);
+    }
+
+    // ── Path Utilities ─────────────────────────────────────────────────
+
     public static String normalizePath(String path) {
         if (path == null || path.isBlank()) return "/";
         String normalized = path.replace('\\', '/');
-        // Remove double slashes
         while (normalized.contains("//")) {
             normalized = normalized.replace("//", "/");
         }
-        // Ensure leading /
         if (!normalized.startsWith("/")) {
             normalized = "/" + normalized;
         }
-        // Remove trailing / (except root)
         if (normalized.length() > 1 && normalized.endsWith("/")) {
             normalized = normalized.substring(0, normalized.length() - 1);
         }
         return normalized;
     }
 
-    /** Get parent path: "/inbox/file.edi" → "/inbox", "/inbox" → "/". */
     public static String parentOf(String normalizedPath) {
         if ("/".equals(normalizedPath)) return "/";
         int lastSlash = normalizedPath.lastIndexOf('/');
         return lastSlash <= 0 ? "/" : normalizedPath.substring(0, lastSlash);
     }
 
-    /** Get entry name: "/inbox/file.edi" → "file.edi", "/inbox" → "inbox". */
     public static String nameOf(String normalizedPath) {
         if ("/".equals(normalizedPath)) return "";
         int lastSlash = normalizedPath.lastIndexOf('/');

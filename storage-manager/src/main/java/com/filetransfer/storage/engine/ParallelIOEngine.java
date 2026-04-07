@@ -40,6 +40,10 @@ public class ParallelIOEngine {
     @Value("${storage.max-file-size-bytes:10737418240}")
     private long maxFileSizeBytes;
 
+    /** Whether to fsync after writes for durability. Disable in dev/test for speed. */
+    @Value("${storage.fsync-enabled:true}")
+    private boolean fsyncEnabled;
+
     private ExecutorService ioPool;
 
     @jakarta.annotation.PostConstruct
@@ -86,6 +90,13 @@ public class ParallelIOEngine {
                 out.write(buf, 0, n);
                 digest.update(buf, 0, n);
                 bytesWritten += n;
+            }
+        }
+
+        // fsync: ensure data is flushed to physical media before reporting success
+        if (fsyncEnabled) {
+            try (FileChannel fc = FileChannel.open(destination, StandardOpenOption.WRITE)) {
+                fc.force(true);
             }
         }
 
@@ -151,6 +162,11 @@ public class ParallelIOEngine {
             }
 
             for (Future<?> f : futures) f.get(60, TimeUnit.SECONDS);
+
+            // fsync: ensure all stripes are flushed to physical media
+            if (fsyncEnabled) {
+                dst.force(true);
+            }
 
             double elapsed = (System.nanoTime() - start) / 1_000_000.0;
             double throughput = totalSize / (1024.0 * 1024.0) / (elapsed / 1000.0);

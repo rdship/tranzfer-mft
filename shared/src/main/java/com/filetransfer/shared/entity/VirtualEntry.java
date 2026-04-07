@@ -2,6 +2,8 @@ package com.filetransfer.shared.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -80,6 +82,20 @@ public class VirtualEntry extends Auditable {
     /** Soft delete — entries are never hard-deleted. */
     @Builder.Default
     private boolean deleted = false;
+
+    /** Optimistic lock version — prevents concurrent update conflicts. */
+    @Version
+    @Builder.Default
+    private int version = 0;
+
+    /** Inline content for INLINE bucket (files < 64 KB stored directly in DB). */
+    @Column(columnDefinition = "bytea")
+    private byte[] inlineContent;
+
+    /** Storage routing bucket: INLINE, STANDARD, or CHUNKED. */
+    @Column(length = 10)
+    @Builder.Default
+    private String storageBucket = "STANDARD";
 
     /** POSIX-style permissions string, e.g. "rwxr-xr-x". */
     @Column(length = 10)

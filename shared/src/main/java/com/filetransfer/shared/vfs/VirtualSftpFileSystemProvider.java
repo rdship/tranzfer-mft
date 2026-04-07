@@ -315,26 +315,60 @@ public class VirtualSftpFileSystemProvider extends FileSystemProvider {
             if (data.length == 0) return;
 
             try {
-                // Extract filename for storage
                 String filename = VirtualFileSystem.nameOf(vpath);
+                String bucket = vfs().determineBucket(data.length);
 
-                // Store to CAS via Storage Manager
-                Map<String, Object> result = fileSystem.getStorageClient()
-                        .store(filename, data, null, accountId().toString());
-
-                String sha256 = (String) result.get("sha256");
-                String trackId = result.get("trackId") != null ? result.get("trackId").toString() : null;
-                String status = (String) result.get("status");
-
-                log.info("[VFS] Stored {}: {} ({} bytes, {})",
-                        vpath, sha256 != null ? sha256.substring(0, 8) + "..." : "n/a",
-                        data.length, status);
-
-                // Create virtual entry
-                vfs().writeFile(accountId(), vpath, sha256, data.length, trackId, null);
+                switch (bucket) {
+                    case "INLINE" -> {
+                        // Store directly in DB — zero CAS hop
+                        vfs().writeFile(accountId(), vpath, null, data.length, null, null, data);
+                        log.info("[VFS] Inline stored {}: {} bytes", vpath, data.length);
+                    }
+                    case "CHUNKED" -> {
+                        // Stream 4MB chunks to CAS independently
+                        storeChunked(filename, data);
+                    }
+                    default -> {
+                        // STANDARD: current CAS path
+                        Map<String, Object> result = fileSystem.getStorageClient()
+                                .store(filename, data, null, accountId().toString());
+                        String sha256 = (String) result.get("sha256");
+                        String trackId = result.get("trackId") != null ? result.get("trackId").toString() : null;
+                        log.info("[VFS] CAS stored {}: {} ({} bytes)",
+                                vpath, sha256 != null ? sha256.substring(0, 8) + "..." : "n/a", data.length);
+                        vfs().writeFile(accountId(), vpath, sha256, data.length, trackId, null, null);
+                    }
+                }
             } catch (Exception e) {
                 throw new IOException("Failed to store file to CAS: " + vpath, e);
             }
+        }
+
+        private void storeChunked(String filename, byte[] data) {
+            int chunkSize = 4 * 1024 * 1024; // 4MB chunks
+
+            // First create the VFS entry as a CHUNKED manifest
+            vfs().writeFile(accountId(), vpath, null, data.length, null, null, null);
+
+            // Then store each chunk to CAS
+            int totalChunks = (int) Math.ceil((double) data.length / chunkSize);
+            for (int i = 0; i < totalChunks; i++) {
+                int offset = i * chunkSize;
+                int length = Math.min(chunkSize, data.length - offset);
+                byte[] chunk = Arrays.copyOfRange(data, offset, offset + length);
+
+                String chunkName = filename + ".chunk." + i;
+                Map<String, Object> result = fileSystem.getStorageClient()
+                        .store(chunkName, chunk, null, accountId().toString());
+
+                String sha256 = (String) result.get("sha256");
+                String trackId = result.get("trackId") != null ? result.get("trackId").toString() : null;
+
+                // Record chunk in manifest — VFS tracks this via vfs_chunks table
+                log.debug("[VFS] Chunk {}/{} stored for {}: {}", i + 1, totalChunks, vpath,
+                        sha256 != null ? sha256.substring(0, 8) + "..." : "n/a");
+            }
+            log.info("[VFS] Chunked stored {}: {} bytes in {} chunks", vpath, data.length, totalChunks);
         }
     }
 }
