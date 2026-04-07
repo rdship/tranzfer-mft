@@ -333,7 +333,7 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
       <div>
         <label>Folder Template</label>
         <select value={form.folderTemplateId} onChange={e => f('folderTemplateId', e.target.value || null)}>
-          <option value="">Default (Standard: inbox, outbox, archive, sent)</option>
+          <option value="">None (no folder template assigned)</option>
           {folderTemplates.map(t => (
             <option key={t.id} value={t.id}>{t.name}{t.builtIn ? ' (built-in)' : ''} — {t.folders.length} folders</option>
           ))}

@@ -155,15 +155,12 @@ public class AccountService {
     }
 
     private List<String> resolveFolderPaths(String serverInstanceId) {
-        List<String> defaultPaths = List.of("inbox", "outbox", "archive", "sent");
-        if (serverInstanceId == null) return defaultPaths;
+        if (serverInstanceId == null) return List.of();
         return serverInstanceRepository.findByInstanceId(serverInstanceId)
                 .filter(si -> si.getFolderTemplate() != null)
                 .map(si -> si.getFolderTemplate().getFolders().stream()
                         .map(FolderDefinition::getPath).toList())
-                .orElseGet(() -> folderTemplateRepository.findByName("Standard")
-                        .map(ft -> ft.getFolders().stream().map(FolderDefinition::getPath).toList())
-                        .orElse(defaultPaths));
+                .orElse(List.of());
     }
 
     private void provisionHomeDir(String homeDir) {

@@ -2,6 +2,8 @@ package com.filetransfer.ftpweb.service;
 
 import com.filetransfer.shared.entity.TransferAccount;
 import com.filetransfer.shared.enums.Protocol;
+import com.filetransfer.shared.repository.FolderTemplateRepository;
+import com.filetransfer.shared.repository.ServerInstanceRepository;
 import com.filetransfer.shared.repository.TransferAccountRepository;
 import com.filetransfer.shared.routing.RoutingEngine;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +39,8 @@ class FileOperationServiceTest {
 
     @Mock private TransferAccountRepository accountRepository;
     @Mock private RoutingEngine routingEngine;
+    @Mock private ServerInstanceRepository serverInstanceRepository;
+    @Mock private FolderTemplateRepository folderTemplateRepository;
 
     private FileOperationService service;
 
@@ -47,7 +51,7 @@ class FileOperationServiceTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        service = new FileOperationService(accountRepository, routingEngine);
+        service = new FileOperationService(accountRepository, routingEngine, serverInstanceRepository, folderTemplateRepository);
 
         // Set @Value field via reflection
         Field instanceIdField = FileOperationService.class.getDeclaredField("instanceId");

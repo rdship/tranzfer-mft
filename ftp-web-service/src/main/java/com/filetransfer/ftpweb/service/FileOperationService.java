@@ -1,7 +1,10 @@
 package com.filetransfer.ftpweb.service;
 
+import com.filetransfer.shared.dto.FolderDefinition;
 import com.filetransfer.shared.entity.TransferAccount;
 import com.filetransfer.shared.enums.Protocol;
+import com.filetransfer.shared.repository.FolderTemplateRepository;
+import com.filetransfer.shared.repository.ServerInstanceRepository;
 import com.filetransfer.shared.repository.TransferAccountRepository;
 import com.filetransfer.shared.routing.RoutingEngine;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +29,8 @@ public class FileOperationService {
 
     private final TransferAccountRepository accountRepository;
     private final RoutingEngine routingEngine;
+    private final ServerInstanceRepository serverInstanceRepository;
+    private final FolderTemplateRepository folderTemplateRepository;
 
     @Value("${ftpweb.instance-id:#{null}}")
     private String instanceId;
@@ -131,13 +136,41 @@ public class FileOperationService {
     private TransferAccount findAccount(String username) {
         Optional<TransferAccount> account;
         if (instanceId != null) {
-            // Instance-aware: only accept users assigned to this instance or unassigned
             account = accountRepository.findByUsernameAndProtocolAndInstance(
                     username, Protocol.FTP_WEB, instanceId);
         } else {
             account = accountRepository.findByUsernameAndProtocolAndActiveTrue(username, Protocol.FTP_WEB);
         }
-        return account.orElseThrow(() -> new NoSuchElementException("FTP_WEB account not found: " + username));
+        TransferAccount acct = account.orElseThrow(() -> new NoSuchElementException("FTP_WEB account not found: " + username));
+        // Ensure template folders exist on first access (idempotent safety net)
+        ensureTemplateFolders(acct.getHomeDir());
+        return acct;
+    }
+
+    private void ensureTemplateFolders(String homeDir) {
+        if (homeDir == null) return;
+        try {
+            for (String folder : resolveFolderPaths()) {
+                Files.createDirectories(Paths.get(homeDir, folder));
+            }
+        } catch (Exception e) {
+            log.warn("Could not create template folders in {}: {}", homeDir, e.getMessage());
+        }
+    }
+
+    private List<String> resolveFolderPaths() {
+        try {
+            if (instanceId != null) {
+                return serverInstanceRepository.findByInstanceId(instanceId)
+                        .filter(si -> si.getFolderTemplate() != null)
+                        .map(si -> si.getFolderTemplate().getFolders().stream()
+                                .map(FolderDefinition::getPath).toList())
+                        .orElse(List.of());
+            }
+        } catch (Exception e) {
+            log.warn("Could not resolve folder template: {}", e.getMessage());
+        }
+        return List.of();
     }
 
     private void deleteRecursively(Path dir) throws IOException {

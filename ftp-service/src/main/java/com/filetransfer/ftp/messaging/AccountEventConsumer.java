@@ -13,6 +13,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -50,6 +53,7 @@ public class AccountEventConsumer {
     public void handleAccountEvent(Map<String, Object> event) {
         String eventType = (String) event.get("eventType");
         String username = (String) event.get("username");
+        String homeDir = (String) event.get("homeDir");
 
         if (username == null) return;
 
@@ -57,6 +61,21 @@ public class AccountEventConsumer {
 
         if ("account.updated".equals(eventType) || "account.created".equals(eventType)) {
             credentialService.evictFromCache(username);
+        }
+
+        // Create home directories from template (carried in event) or defaults
+        if ("account.created".equals(eventType) && homeDir != null) {
+            try {
+                @SuppressWarnings("unchecked")
+                List<String> folderPaths = (List<String>) event.get("folderPaths");
+                if (folderPaths == null || folderPaths.isEmpty()) return;
+                for (String folder : folderPaths) {
+                    Files.createDirectories(Paths.get(homeDir, folder));
+                }
+                log.info("Created {} directories for {}: {}", folderPaths.size(), username, homeDir);
+            } catch (Exception e) {
+                log.warn("Could not create directories for {}: {}", username, e.getMessage());
+            }
         }
     }
 }

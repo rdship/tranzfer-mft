@@ -1,6 +1,5 @@
 package com.filetransfer.ftpweb.messaging;
 
-import com.filetransfer.shared.repository.TransferAccountRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Binding;
@@ -13,6 +12,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -46,8 +48,25 @@ public class AccountEventConsumer {
 
     @RabbitListener(queues = "${rabbitmq.queue.ftpweb-events}")
     public void handleAccountEvent(Map<String, Object> event) {
-        // FTP-Web uses DB-backed credential lookup, so no local cache to bust.
-        // If a credential cache is added later, invalidate it here.
-        log.debug("FTP-Web received account event: type={}", event.get("eventType"));
+        String eventType = (String) event.get("eventType");
+        String username = (String) event.get("username");
+        String homeDir = (String) event.get("homeDir");
+
+        log.debug("FTP-Web received account event: type={} username={}", eventType, username);
+
+        // Create home directories from template (carried in event) or defaults
+        if ("account.created".equals(eventType) && homeDir != null) {
+            try {
+                @SuppressWarnings("unchecked")
+                List<String> folderPaths = (List<String>) event.get("folderPaths");
+                if (folderPaths == null || folderPaths.isEmpty()) return;
+                for (String folder : folderPaths) {
+                    Files.createDirectories(Paths.get(homeDir, folder));
+                }
+                log.info("Created {} directories for {}: {}", folderPaths.size(), username, homeDir);
+            } catch (Exception e) {
+                log.warn("Could not create directories for {}: {}", username, e.getMessage());
+            }
+        }
     }
 }

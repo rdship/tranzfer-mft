@@ -61,21 +61,17 @@ public class SftpFileSystemFactory implements FileSystemFactory {
     }
 
     private List<String> resolveFolderPaths() {
-        List<String> defaultPaths = List.of("inbox", "outbox", "archive", "sent");
         try {
             if (instanceId != null) {
-                var paths = serverInstanceRepository.findByInstanceId(instanceId)
+                return serverInstanceRepository.findByInstanceId(instanceId)
                         .filter(si -> si.getFolderTemplate() != null)
                         .map(si -> si.getFolderTemplate().getFolders().stream()
-                                .map(FolderDefinition::getPath).toList());
-                if (paths.isPresent()) return paths.get();
+                                .map(FolderDefinition::getPath).toList())
+                        .orElse(List.of());
             }
-            return folderTemplateRepository.findByName("Standard")
-                    .map(ft -> ft.getFolders().stream().map(FolderDefinition::getPath).toList())
-                    .orElse(defaultPaths);
         } catch (Exception e) {
-            log.warn("Could not resolve folder template, using defaults: {}", e.getMessage());
-            return defaultPaths;
+            log.warn("Could not resolve folder template: {}", e.getMessage());
         }
+        return List.of();
     }
 }

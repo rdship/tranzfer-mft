@@ -5,7 +5,10 @@ import com.filetransfer.ftp.security.IpFilterService;
 import com.filetransfer.ftp.security.LoginLockoutService;
 import com.filetransfer.ftp.service.CredentialService;
 import com.filetransfer.ftp.throttle.BandwidthThrottleService;
+import com.filetransfer.shared.dto.FolderDefinition;
 import com.filetransfer.shared.entity.TransferAccount;
+import com.filetransfer.shared.repository.FolderTemplateRepository;
+import com.filetransfer.shared.repository.ServerInstanceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ftpserver.ftplet.*;
@@ -18,6 +21,8 @@ import org.apache.ftpserver.usermanager.impl.WritePermission;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +48,8 @@ public class FtpUserManager extends AbstractUserManager {
     private final IpFilterService ipFilterService;
     private final AuditEventLogger auditEventLogger;
     private final BandwidthThrottleService bandwidthThrottleService;
+    private final ServerInstanceRepository serverInstanceRepository;
+    private final FolderTemplateRepository folderTemplateRepository;
 
     @Value("${ftp.connection.max-per-user:10}")
     private int maxConnectionsPerUser;
@@ -58,6 +65,9 @@ public class FtpUserManager extends AbstractUserManager {
 
     @Value("${ftp.anonymous.home-dir:${ftp.home-base:/data/ftp}/anonymous}")
     private String anonymousHomeDir;
+
+    @Value("${ftp.instance-id:#{null}}")
+    private String instanceId;
 
     @Override
     public User getUserByName(String username) throws FtpException {
@@ -163,6 +173,9 @@ public class FtpUserManager extends AbstractUserManager {
     }
 
     private BaseUser toFtpUser(TransferAccount account) {
+        // Ensure template folders exist on login (idempotent safety net)
+        ensureTemplateFolders(account.getHomeDir());
+
         BaseUser user = new BaseUser();
         user.setName(account.getUsername());
         user.setHomeDirectory(account.getHomeDir());
@@ -203,6 +216,32 @@ public class FtpUserManager extends AbstractUserManager {
         // No write permission for anonymous by default
         user.setAuthorities(authorities);
         return user;
+    }
+
+    private void ensureTemplateFolders(String homeDir) {
+        if (homeDir == null) return;
+        try {
+            for (String folder : resolveFolderPaths()) {
+                Files.createDirectories(Paths.get(homeDir, folder));
+            }
+        } catch (Exception e) {
+            log.warn("Could not create template folders in {}: {}", homeDir, e.getMessage());
+        }
+    }
+
+    private List<String> resolveFolderPaths() {
+        try {
+            if (instanceId != null) {
+                return serverInstanceRepository.findByInstanceId(instanceId)
+                        .filter(si -> si.getFolderTemplate() != null)
+                        .map(si -> si.getFolderTemplate().getFolders().stream()
+                                .map(FolderDefinition::getPath).toList())
+                        .orElse(List.of());
+            }
+        } catch (Exception e) {
+            log.warn("Could not resolve folder template: {}", e.getMessage());
+        }
+        return List.of();
     }
 
     private String extractIp(AnonymousAuthentication anonAuth) {

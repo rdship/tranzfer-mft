@@ -72,9 +72,7 @@ public class AccountEventConsumer {
                 try {
                     @SuppressWarnings("unchecked")
                     java.util.List<String> folderPaths = (java.util.List<String>) event.get("folderPaths");
-                    if (folderPaths == null || folderPaths.isEmpty()) {
-                        folderPaths = java.util.List.of("inbox", "outbox", "archive", "sent");
-                    }
+                    if (folderPaths == null || folderPaths.isEmpty()) return;
                     for (String folder : folderPaths) {
                         Files.createDirectories(Paths.get(homeDir, folder));
                     }
