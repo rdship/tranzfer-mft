@@ -18,6 +18,7 @@ spec:
       labels:
         app: ai-engine
     spec:
+      terminationGracePeriodSeconds: 60
       containers:
         - name: ai-engine
           image: "{{ .Values.global.imageRegistry }}{{ .Values.aiEngine.image.repository }}:{{ .Values.global.imageTag }}"
@@ -34,8 +35,17 @@ spec:
             - name: CLAUDE_MODEL
               value: {{ .Values.aiEngine.claudeModel | quote }}
           livenessProbe:
-            httpGet: { path: /actuator/health, port: 8091 }
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8091
             initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8091
+            initialDelaySeconds: 30
+            periodSeconds: 10
           resources: {{- toYaml .Values.aiEngine.resources | nindent 12 }}
 ---
 apiVersion: v1
@@ -72,6 +82,7 @@ spec:
       labels:
         app: screening-service
     spec:
+      terminationGracePeriodSeconds: 60
       containers:
         - name: screening-service
           image: "{{ .Values.global.imageRegistry }}{{ .Values.screeningService.image.repository }}:{{ .Values.global.imageTag }}"
@@ -88,8 +99,17 @@ spec:
             - name: SCREENING_DEFAULT_ACTION
               value: {{ .Values.screeningService.defaultAction | quote }}
           livenessProbe:
-            httpGet: { path: /actuator/health, port: 8092 }
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8092
             initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8092
+            initialDelaySeconds: 30
+            periodSeconds: 10
           resources: {{- toYaml .Values.screeningService.resources | nindent 12 }}
 ---
 apiVersion: v1
@@ -126,6 +146,7 @@ spec:
       labels:
         app: keystore-manager
     spec:
+      terminationGracePeriodSeconds: 60
       containers:
         - name: keystore-manager
           image: "{{ .Values.global.imageRegistry }}{{ .Values.keystoreManager.image.repository }}:{{ .Values.global.imageTag }}"
@@ -143,8 +164,17 @@ spec:
                   name: mft-secrets
                   key: keystore-master-password
           livenessProbe:
-            httpGet: { path: /actuator/health, port: 8093 }
-            initialDelaySeconds: 20
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8093
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8093
+            initialDelaySeconds: 30
+            periodSeconds: 10
           resources: {{- toYaml .Values.keystoreManager.resources | nindent 12 }}
 ---
 apiVersion: v1
@@ -181,6 +211,7 @@ spec:
       labels:
         app: storage-manager
     spec:
+      terminationGracePeriodSeconds: 60
       containers:
         - name: storage-manager
           image: "{{ .Values.global.imageRegistry }}{{ .Values.storageManager.image.repository }}:{{ .Values.global.imageTag }}"
@@ -204,8 +235,17 @@ spec:
               mountPath: /data/storage
           {{- end }}
           livenessProbe:
-            httpGet: { path: /actuator/health, port: 8094 }
-            initialDelaySeconds: 20
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8094
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8094
+            initialDelaySeconds: 30
+            periodSeconds: 10
           resources: {{- toYaml .Values.storageManager.resources | nindent 12 }}
       {{- if .Values.storageManager.persistence.enabled }}
       volumes:
@@ -264,6 +304,7 @@ spec:
       labels:
         app: edi-converter
     spec:
+      terminationGracePeriodSeconds: 60
       containers:
         - name: edi-converter
           image: "{{ .Values.global.imageRegistry }}{{ .Values.ediConverter.image.repository }}:{{ .Values.global.imageTag }}"
@@ -273,8 +314,17 @@ spec:
             - name: SERVER_PORT
               value: "8095"
           livenessProbe:
-            httpGet: { path: /actuator/health, port: 8095 }
-            initialDelaySeconds: 20
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8095
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8095
+            initialDelaySeconds: 30
+            periodSeconds: 10
           resources: {{- toYaml .Values.ediConverter.resources | nindent 12 }}
 ---
 apiVersion: v1
@@ -311,14 +361,24 @@ spec:
       labels:
         app: partner-portal
     spec:
+      terminationGracePeriodSeconds: 30
       containers:
         - name: partner-portal
           image: "{{ .Values.global.imageRegistry }}{{ .Values.partnerPortal.image.repository }}:{{ .Values.global.imageTag }}"
           ports:
             - containerPort: 80
           livenessProbe:
-            httpGet: { path: /, port: 80 }
+            httpGet:
+              path: /
+              port: 80
             initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
@@ -354,6 +414,7 @@ spec:
       labels:
         app: api-gateway
     spec:
+      terminationGracePeriodSeconds: 30
       containers:
         - name: api-gateway
           image: "{{ .Values.global.imageRegistry }}{{ .Values.apiGateway.image.repository }}:{{ .Values.global.imageTag }}"
@@ -361,8 +422,17 @@ spec:
             - containerPort: 80
             - containerPort: 443
           livenessProbe:
-            httpGet: { path: /health, port: 80 }
+            httpGet:
+              path: /health
+              port: 80
             initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
           resources: {{- toYaml .Values.apiGateway.resources | nindent 12 }}
 ---
 apiVersion: v1

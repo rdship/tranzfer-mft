@@ -57,6 +57,7 @@
         <module>storage-manager</module>
         <module>edi-converter</module>
         <module>as2-service</module>
+        <module>notification-service</module>
     </modules>
 
     <properties>

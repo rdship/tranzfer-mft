@@ -32,6 +32,7 @@ spec:
       labels:
         app: sftp-service
     spec:
+      terminationGracePeriodSeconds: 60
       containers:
         - name: sftp-service
           image: "{{ .Values.global.imageRegistry }}{{ .Values.sftpService.image.repository }}:{{ .Values.global.imageTag }}"
@@ -55,9 +56,17 @@ spec:
             - name: sftp-data
               mountPath: /data/sftp
           livenessProbe:
-            httpGet: { path: /actuator/health, port: 8081 }
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8081
             initialDelaySeconds: 30
-            periodSeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 10
           resources: {{- toYaml .Values.sftpService.resources | nindent 12 }}
       volumes:
         - name: sftp-data

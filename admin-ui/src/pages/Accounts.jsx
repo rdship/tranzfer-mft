@@ -14,7 +14,7 @@ export default function Accounts() {
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
   const [search, setSearch] = useState('')
-  const [form, setForm] = useState({ protocol: 'SFTP', username: '', password: '', homeDir: '', serverInstance: '' })
+  const [form, setForm] = useState({ protocol: 'SFTP', username: '', password: '', confirmPassword: '', homeDir: '', serverInstance: '' })
 
   const { data: accounts = [], isLoading } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts })
   const { data: serverInstances = [] } = useQuery({ queryKey: ['server-instances-active'], queryFn: getServerInstancesActive })
@@ -96,7 +96,7 @@ export default function Accounts() {
 
       {showCreate && (
         <Modal title="Create Transfer Account" onClose={() => setShowCreate(false)}>
-          <form onSubmit={e => { e.preventDefault(); createMut.mutate(form) }} className="space-y-4">
+          <form onSubmit={e => { e.preventDefault(); if (form.password !== form.confirmPassword) { toast.error('Passwords do not match'); return }; const { confirmPassword, ...payload } = form; createMut.mutate(payload) }} className="space-y-4">
             <div>
               <label>Protocol</label>
               <select value={form.protocol} onChange={e => setForm(f => ({ ...f, protocol: e.target.value, serverInstance: '' }))}>
@@ -110,6 +110,13 @@ export default function Accounts() {
             <div>
               <label>Password</label>
               <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required />
+            </div>
+            <div>
+              <label>Confirm Password</label>
+              <input type="password" value={form.confirmPassword} onChange={e => setForm(f => ({ ...f, confirmPassword: e.target.value }))} required />
+              {form.confirmPassword && form.password !== form.confirmPassword && (
+                <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
+              )}
             </div>
             <div>
               <label>Home Directory</label>
@@ -129,7 +136,7 @@ export default function Accounts() {
             )}
             <div className="flex gap-3 justify-end pt-2">
               <button type="button" className="btn-secondary" onClick={() => setShowCreate(false)}>Cancel</button>
-              <button type="submit" className="btn-primary" disabled={createMut.isPending}>
+              <button type="submit" className="btn-primary" disabled={createMut.isPending || (form.confirmPassword && form.password !== form.confirmPassword)}>
                 {createMut.isPending ? 'Creating...' : 'Create Account'}
               </button>
             </div>

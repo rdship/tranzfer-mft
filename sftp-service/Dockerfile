@@ -1,6 +1,14 @@
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-RUN mkdir -p /data/sftp
-COPY target/*.jar app.jar
+
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser && \
+    mkdir -p /data/sftp && \
+    chown -R appuser:appgroup /app /data/sftp && \
+    mkdir -p /tmp && chmod 1777 /tmp
+
+COPY --chown=appuser:appgroup target/*.jar app.jar
+
+# SFTP binds to port 2222 — non-privileged, OK
+USER appuser
 EXPOSE 2222 8081
 ENTRYPOINT ["java", "-jar", "app.jar"]

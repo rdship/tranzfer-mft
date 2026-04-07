@@ -4,6 +4,8 @@ import com.filetransfer.config.service.ServerConfigService;
 import com.filetransfer.shared.entity.ServerConfig;
 import com.filetransfer.shared.enums.ServiceType;
 import com.filetransfer.shared.security.Roles;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -28,11 +30,13 @@ import java.util.UUID;
 @RequestMapping("/api/servers")
 @RequiredArgsConstructor
 @PreAuthorize(Roles.OPERATOR)
+@Tag(name = "Server Configuration", description = "Dynamic configuration of SFTP/FTP/AS2 service instances")
 public class ServerConfigController {
 
     private final ServerConfigService serverConfigService;
 
     @GetMapping
+    @Operation(summary = "List all server configs, optionally filtered by service type")
     public List<ServerConfig> list(@RequestParam(required = false) ServiceType type) {
         return serverConfigService.list(type);
     }
@@ -44,6 +48,7 @@ public class ServerConfigController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Create a new server configuration")
     public ServerConfig create(@Valid @RequestBody ServerConfig config) {
         return serverConfigService.create(config);
     }

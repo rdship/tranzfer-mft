@@ -36,7 +36,10 @@ public class AccountEventConsumer {
 
     @Bean
     public Queue sftpEventsQueue() {
-        return new Queue(queueName, true);
+        return QueueBuilder.durable(queueName)
+                .withArgument("x-dead-letter-exchange", "file-transfer.events.dlx")
+                .withArgument("x-dead-letter-routing-key", "sftp.account.events")
+                .build();
     }
 
     @Bean

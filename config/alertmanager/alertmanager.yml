@@ -1,0 +1,112 @@
+# =============================================================================
+# AlertManager Configuration — TranzFer MFT Platform
+# Routes: critical -> immediate, warning -> grouped (5 min)
+# =============================================================================
+
+global:
+  resolve_timeout: 5m
+  # SMTP — override in production
+  smtp_smarthost: '${SMTP_HOST:-smtp.example.com}:${SMTP_PORT:-587}'
+  smtp_from: '${ALERT_FROM_EMAIL:-alerts@tranzfer.io}'
+  smtp_auth_username: '${SMTP_USERNAME:-}'
+  smtp_auth_password: '${SMTP_PASSWORD:-}'
+  smtp_require_tls: true
+
+# -----------------------------------------------------------------------
+# Templates
+# -----------------------------------------------------------------------
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# -----------------------------------------------------------------------
+# Route tree
+# -----------------------------------------------------------------------
+route:
+  receiver: default-webhook
+  group_by: ['alertname', 'service', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+  routes:
+    # Critical alerts — immediate delivery, no grouping delay
+    - match:
+        severity: critical
+      receiver: critical-alerts
+      group_wait: 10s
+      group_interval: 1m
+      repeat_interval: 1h
+      continue: false
+
+    # Security alerts — always immediate
+    - match:
+        category: security
+      receiver: security-alerts
+      group_wait: 10s
+      group_interval: 1m
+      repeat_interval: 30m
+      continue: false
+
+    # Warning alerts — grouped with 5 min interval
+    - match:
+        severity: warning
+      receiver: default-webhook
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+
+# -----------------------------------------------------------------------
+# Inhibition rules
+# -----------------------------------------------------------------------
+inhibit_rules:
+  # If the whole platform is down (multiple services), suppress individual service alerts
+  - source_match:
+        alertname: PlatformMajorOutage
+    target_match_re:
+        alertname: 'ServiceDown|HighErrorRate|SlowResponses'
+    equal: []
+
+  # If a critical alert fires, suppress warning for the same service/alertname
+  - source_match:
+        severity: critical
+    target_match:
+        severity: warning
+    equal: ['alertname', 'service']
+
+  # If disk is critically full, suppress the warning-level disk alert
+  - source_match:
+        severity: critical
+        alertname: DiskAlmostFull
+    target_match:
+        severity: warning
+        alertname: DiskAlmostFull
+    equal: ['instance']
+
+# -----------------------------------------------------------------------
+# Receivers
+# -----------------------------------------------------------------------
+receivers:
+  - name: default-webhook
+    webhook_configs:
+      - url: '${ALERT_WEBHOOK_URL:-http://localhost:9095/api/v1/alerts}'
+        send_resolved: true
+
+  - name: critical-alerts
+    email_configs:
+      - to: '${ALERT_CRITICAL_EMAIL:-ops@tranzfer.io}'
+        send_resolved: true
+        headers:
+          Subject: '[CRITICAL] TranzFer MFT — {{ .GroupLabels.alertname }}'
+    webhook_configs:
+      - url: '${ALERT_WEBHOOK_URL:-http://localhost:9095/api/v1/alerts}'
+        send_resolved: true
+
+  - name: security-alerts
+    email_configs:
+      - to: '${ALERT_SECURITY_EMAIL:-security@tranzfer.io}'
+        send_resolved: true
+        headers:
+          Subject: '[SECURITY] TranzFer MFT — {{ .GroupLabels.alertname }}'
+    webhook_configs:
+      - url: '${ALERT_WEBHOOK_URL:-http://localhost:9095/api/v1/alerts}'
+        send_resolved: true

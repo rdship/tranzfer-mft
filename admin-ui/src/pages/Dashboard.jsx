@@ -14,6 +14,16 @@ import { NavLink } from 'react-router-dom'
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
 
+// Static Tailwind class map — prevents dynamic class purging at build time
+const quickActionColors = {
+  indigo: { bg: 'bg-indigo-50', text: 'text-indigo-600', hover: 'group-hover:bg-indigo-100' },
+  blue:   { bg: 'bg-blue-50',   text: 'text-blue-600',   hover: 'group-hover:bg-blue-100' },
+  purple: { bg: 'bg-purple-50', text: 'text-purple-600', hover: 'group-hover:bg-purple-100' },
+  green:  { bg: 'bg-green-50',  text: 'text-green-600',  hover: 'group-hover:bg-green-100' },
+  amber:  { bg: 'bg-amber-50',  text: 'text-amber-600',  hover: 'group-hover:bg-amber-100' },
+  gray:   { bg: 'bg-gray-50',   text: 'text-gray-600',   hover: 'group-hover:bg-gray-100' },
+}
+
 function getGreeting() {
   const hour = new Date().getHours()
   if (hour < 12) return 'Good morning'
@@ -99,7 +109,7 @@ export default function Dashboard() {
           {quickActions.map(action => (
             <NavLink key={action.to} to={action.to}
               className="card !p-4 flex flex-col items-center gap-2 text-center hover:shadow-md transition-shadow cursor-pointer group">
-              <div className={`p-2.5 rounded-xl bg-${action.color}-50 text-${action.color}-600 group-hover:bg-${action.color}-100 transition-colors`}>
+              <div className={`p-2.5 rounded-xl ${quickActionColors[action.color]?.bg} ${quickActionColors[action.color]?.text} ${quickActionColors[action.color]?.hover} transition-colors`}>
                 <action.icon className="w-5 h-5" />
               </div>
               <span className="text-xs font-medium text-gray-700">{action.label}</span>

@@ -42,6 +42,9 @@ export const licenseApi = axios.create({ baseURL: GATEWAY_URL || 'http://localho
 export const gatewayApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8085' }))
 export const dmzApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8088' }))
 export const keystoreApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8093' }))
+export const screeningApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8092' }))
+export const storageApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8096' }))
+export const aiApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8091' }))
 
 // Log correlation IDs from API errors for debugging
 const logCorrelationId = (error) => {
@@ -59,3 +62,6 @@ licenseApi.interceptors.response.use(r => r, logCorrelationId)
 analyticsApi.interceptors.response.use(r => r, logCorrelationId)
 dmzApi.interceptors.response.use(r => r, logCorrelationId)
 keystoreApi.interceptors.response.use(r => r, logCorrelationId)
+screeningApi.interceptors.response.use(r => r, logCorrelationId)
+storageApi.interceptors.response.use(r => r, logCorrelationId)
+aiApi.interceptors.response.use(r => r, logCorrelationId)

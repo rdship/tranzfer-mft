@@ -1,0 +1,537 @@
+{{/*
+  TranzFer MFT — Observability Stack (Loki, Promtail, Grafana, AlertManager)
+  For production, consider using the official Grafana Helm charts as dependencies:
+    - grafana/loki-stack (includes Loki + Promtail)
+    - grafana/grafana
+    - prometheus-community/kube-prometheus-stack (Prometheus + AlertManager + Grafana)
+
+  Add to Chart.yaml dependencies:
+    dependencies:
+      - name: loki-stack
+        version: "2.10.x"
+        repository: "https://grafana.github.io/helm-charts"
+        condition: observability.loki.enabled
+      - name: kube-prometheus-stack
+        version: "56.x.x"
+        repository: "https://prometheus-community.github.io/helm-charts"
+        condition: monitoring.enabled
+
+  The templates below provide a lightweight standalone deployment for dev/staging.
+*/}}
+
+{{- if .Values.observability.enabled }}
+
+# =============================================================================
+# Loki — Log Aggregation
+# =============================================================================
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mft.labels" . | nindent 4 }}
+data:
+  local-config.yaml: |
+    auth_enabled: false
+    server:
+      http_listen_port: 3100
+    common:
+      instance_addr: 127.0.0.1
+      path_prefix: /loki
+      storage:
+        filesystem:
+          chunks_directory: /loki/chunks
+          rules_directory: /loki/rules
+      replication_factor: 1
+      ring:
+        kvstore:
+          store: inmemory
+    schema_config:
+      configs:
+        - from: 2024-01-01
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: index_
+            period: 24h
+    limits_config:
+      retention_period: {{ .Values.observability.loki.retentionPeriod | default "720h" }}
+    compactor:
+      working_directory: /loki/compactor
+      retention_enabled: true
+    analytics:
+      reporting_enabled: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loki
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: loki
+    {{- include "mft.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loki
+  template:
+    metadata:
+      labels:
+        app: loki
+    spec:
+      containers:
+        - name: loki
+          image: "grafana/loki:{{ .Values.observability.loki.tag | default "2.9.0" }}"
+          args:
+            - -config.file=/etc/loki/local-config.yaml
+          ports:
+            - containerPort: 3100
+              name: http
+          volumeMounts:
+            - name: config
+              mountPath: /etc/loki
+            - name: data
+              mountPath: /loki
+          resources:
+            {{- toYaml (.Values.observability.loki.resources | default (dict "requests" (dict "cpu" "100m" "memory" "256Mi") "limits" (dict "cpu" "500m" "memory" "512Mi"))) | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: loki-config
+        - name: data
+          {{- if .Values.observability.loki.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: loki-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: loki
+    {{- include "mft.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3100
+      targetPort: 3100
+      name: http
+  selector:
+    app: loki
+{{- if .Values.observability.loki.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: loki-data
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.observability.loki.persistence.size | default "10Gi" }}
+  {{- if .Values.observability.loki.persistence.storageClass }}
+  storageClassName: {{ .Values.observability.loki.persistence.storageClass }}
+  {{- end }}
+{{- end }}
+
+# =============================================================================
+# Promtail — Log Collector (DaemonSet)
+# =============================================================================
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: promtail-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mft.labels" . | nindent 4 }}
+data:
+  promtail.yaml: |
+    server:
+      http_listen_port: 9080
+    positions:
+      filename: /tmp/positions.yaml
+    clients:
+      - url: http://loki:3100/loki/api/v1/push
+    scrape_configs:
+      - job_name: kubernetes-pods
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            target_label: app
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+        pipeline_stages:
+          - json:
+              expressions:
+                level: level
+                service: service
+                correlationId: correlationId
+                message: message
+          - labels:
+              level:
+              service:
+              correlationId:
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: promtail
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: promtail
+    {{- include "mft.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: promtail
+  template:
+    metadata:
+      labels:
+        app: promtail
+    spec:
+      serviceAccountName: promtail
+      containers:
+        - name: promtail
+          image: "grafana/promtail:{{ .Values.observability.promtail.tag | default "2.9.0" }}"
+          args:
+            - -config.file=/etc/promtail/promtail.yaml
+          volumeMounts:
+            - name: config
+              mountPath: /etc/promtail
+            - name: varlog
+              mountPath: /var/log
+              readOnly: true
+            - name: varlibdockercontainers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+          resources:
+            {{- toYaml (.Values.observability.promtail.resources | default (dict "requests" (dict "cpu" "50m" "memory" "64Mi") "limits" (dict "cpu" "200m" "memory" "128Mi"))) | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: promtail-config
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: varlibdockercontainers
+          hostPath:
+            path: /var/lib/docker/containers
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: promtail
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: promtail-{{ .Release.Namespace }}
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "nodes/proxy", "services", "endpoints", "pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: promtail-{{ .Release.Namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: promtail
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: promtail-{{ .Release.Namespace }}
+  apiGroup: rbac.authorization.k8s.io
+
+# =============================================================================
+# Grafana
+# =============================================================================
+{{- if .Values.observability.grafana.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mft.labels" . | nindent 4 }}
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+      - name: Loki
+        type: loki
+        access: proxy
+        url: http://loki:3100
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mft.labels" . | nindent 4 }}
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: TranzFer MFT
+        orgId: 1
+        folder: TranzFer MFT
+        type: file
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: grafana
+    {{- include "mft.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: "grafana/grafana:{{ .Values.observability.grafana.tag | default "10.4.0" }}"
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: admin
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mft-secrets
+                  key: grafana-admin-password
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+          ports:
+            - containerPort: 3000
+              name: http
+          volumeMounts:
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboard-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: data
+              mountPath: /var/lib/grafana
+          resources:
+            {{- toYaml (.Values.observability.grafana.resources | default (dict "requests" (dict "cpu" "100m" "memory" "128Mi") "limits" (dict "cpu" "500m" "memory" "512Mi"))) | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        - name: dashboard-provider
+          configMap:
+            name: grafana-dashboard-provider
+        - name: data
+          {{- if .Values.observability.grafana.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: grafana-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: grafana
+    {{- include "mft.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+      name: http
+  selector:
+    app: grafana
+{{- if .Values.observability.grafana.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.observability.grafana.persistence.size | default "5Gi" }}
+{{- end }}
+{{- end }}
+
+# =============================================================================
+# AlertManager
+# =============================================================================
+{{- if .Values.observability.alertmanager.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mft.labels" . | nindent 4 }}
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+    route:
+      receiver: default-webhook
+      group_by: ['alertname', 'service', 'severity']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      routes:
+        - match:
+            severity: critical
+          receiver: critical-alerts
+          group_wait: 10s
+          repeat_interval: 1h
+        - match:
+            category: security
+          receiver: security-alerts
+          group_wait: 10s
+          repeat_interval: 30m
+    inhibit_rules:
+      - source_match:
+            alertname: PlatformMajorOutage
+        target_match_re:
+            alertname: 'ServiceDown|HighErrorRate|SlowResponses'
+      - source_match:
+            severity: critical
+        target_match:
+            severity: warning
+        equal: ['alertname', 'service']
+    receivers:
+      - name: default-webhook
+        webhook_configs:
+          - url: '{{ .Values.observability.alertmanager.webhookUrl | default "http://localhost:9095/api/v1/alerts" }}'
+            send_resolved: true
+      - name: critical-alerts
+        webhook_configs:
+          - url: '{{ .Values.observability.alertmanager.webhookUrl | default "http://localhost:9095/api/v1/alerts" }}'
+            send_resolved: true
+      - name: security-alerts
+        webhook_configs:
+          - url: '{{ .Values.observability.alertmanager.webhookUrl | default "http://localhost:9095/api/v1/alerts" }}'
+            send_resolved: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: alertmanager
+    {{- include "mft.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alertmanager
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+    spec:
+      containers:
+        - name: alertmanager
+          image: "prom/alertmanager:{{ .Values.observability.alertmanager.tag | default "v0.27.0" }}"
+          args:
+            - --config.file=/etc/alertmanager/alertmanager.yml
+            - --storage.path=/alertmanager
+          ports:
+            - containerPort: 9093
+              name: http
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alertmanager
+            - name: data
+              mountPath: /alertmanager
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+      volumes:
+        - name: config
+          configMap:
+            name: alertmanager-config
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: alertmanager
+    {{- include "mft.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9093
+      targetPort: 9093
+      name: http
+  selector:
+    app: alertmanager
+{{- end }}
+
+{{- end }}

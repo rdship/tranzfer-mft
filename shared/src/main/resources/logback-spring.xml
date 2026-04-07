@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TranzFer MFT — Spring Boot Logback Configuration
+  Profiles:
+    default/dev  -> human-readable console output
+    docker/prod  -> structured JSON for Loki/ELK ingestion
+  Include this from any service via Spring Boot auto-detection (logback-spring.xml on classpath).
+-->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- Service name from Spring application name -->
+    <springProperty scope="context" name="SERVICE_NAME" source="spring.application.name" defaultValue="unknown"/>
+
+    <!-- ===================================================================
+         Human-readable console appender (dev/default)
+         =================================================================== -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{traceId:-none}] [${SERVICE_NAME}] %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ===================================================================
+         Structured JSON appender (docker/prod) — for Loki/Promtail
+         Uses logstash-logback-encoder for proper JSON with stack traces
+         =================================================================== -->
+    <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeMdcKeyName>traceId</includeMdcKeyName>
+            <includeMdcKeyName>spanId</includeMdcKeyName>
+            <includeMdcKeyName>correlationId</includeMdcKeyName>
+            <includeMdcKeyName>userId</includeMdcKeyName>
+            <includeMdcKeyName>partnerId</includeMdcKeyName>
+            <customFields>{"service":"${SERVICE_NAME}"}</customFields>
+            <fieldNames>
+                <timestamp>timestamp</timestamp>
+                <version>[ignore]</version>
+                <levelValue>[ignore]</levelValue>
+            </fieldNames>
+            <timeZone>UTC</timeZone>
+            <timestampPattern>yyyy-MM-dd'T'HH:mm:ss.SSSZ</timestampPattern>
+            <!-- Include full stack traces as a single JSON field -->
+            <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+                <maxDepthPerThrowable>30</maxDepthPerThrowable>
+                <maxLength>4096</maxLength>
+                <shortenedClassNameLength>36</shortenedClassNameLength>
+                <rootCauseFirst>true</rootCauseFirst>
+            </throwableConverter>
+        </encoder>
+    </appender>
+
+    <!-- ===================================================================
+         Profile-based root logger configuration
+         =================================================================== -->
+
+    <!-- Default / dev profile: human-readable -->
+    <springProfile name="default | dev | test">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+        <!-- Reduce noise from framework loggers -->
+        <logger name="org.springframework" level="WARN"/>
+        <logger name="org.hibernate" level="WARN"/>
+        <logger name="org.apache.sshd" level="WARN"/>
+        <logger name="org.apache.ftpserver" level="WARN"/>
+        <logger name="io.micrometer" level="WARN"/>
+        <!-- Keep platform loggers at INFO -->
+        <logger name="com.filetransfer" level="INFO"/>
+    </springProfile>
+
+    <!-- Docker / production profile: structured JSON -->
+    <springProfile name="docker | prod | production">
+        <root level="INFO">
+            <appender-ref ref="JSON"/>
+        </root>
+        <logger name="org.springframework" level="WARN"/>
+        <logger name="org.hibernate" level="WARN"/>
+        <logger name="org.apache.sshd" level="WARN"/>
+        <logger name="org.apache.ftpserver" level="WARN"/>
+        <logger name="io.micrometer" level="WARN"/>
+        <logger name="com.filetransfer" level="INFO"/>
+    </springProfile>
+</configuration>

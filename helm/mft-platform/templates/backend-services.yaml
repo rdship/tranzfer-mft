@@ -1,0 +1,579 @@
+{{/* FTP Service */}}
+{{- if .Values.ftpService.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ftp-service
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "mft.labels" . | nindent 4 }}
+    app: ftp-service
+spec:
+  replicas: {{ .Values.ftpService.replicaCount }}
+  selector:
+    matchLabels:
+      app: ftp-service
+  template:
+    metadata:
+      labels:
+        app: ftp-service
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: ftp-service
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.ftpService.image.repository }}:{{ .Values.global.imageTag }}"
+          ports:
+            - containerPort: 2121
+              name: ftp
+            - containerPort: 8082
+              name: control
+          env:
+            {{- include "mft.commonEnv" . | nindent 12 }}
+            - name: CLUSTER_HOST
+              value: "ftp-service"
+            - name: SERVER_PORT
+              value: "8082"
+            - name: FTP_PORT
+              value: "2121"
+            - name: FTP_PUBLIC_HOST
+              value: {{ .Values.ftpService.ftpPublicHost | quote }}
+          {{- if .Values.ftpService.persistence.enabled }}
+          volumeMounts:
+            - name: ftp-data
+              mountPath: /data/ftp
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8082
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8082
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources: {{- toYaml .Values.ftpService.resources | nindent 12 }}
+      {{- if .Values.ftpService.persistence.enabled }}
+      volumes:
+        - name: ftp-data
+          persistentVolumeClaim:
+            claimName: ftp-data-pvc
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ftp-service
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: {{ .Values.ftpService.service.type }}
+  ports:
+    - port: {{ .Values.ftpService.service.ftpPort }}
+      targetPort: 2121
+      name: ftp
+    - port: {{ .Values.ftpService.service.controlPort }}
+      targetPort: 8082
+      name: control
+  selector:
+    app: ftp-service
+{{- if .Values.ftpService.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ftp-data-pvc
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.ftpService.persistence.size }}
+{{- end }}
+{{- end }}
+
+{{/* FTP Web Service */}}
+{{- if .Values.ftpWebService.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ftp-web-service
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "mft.labels" . | nindent 4 }}
+    app: ftp-web-service
+spec:
+  replicas: {{ .Values.ftpWebService.replicaCount }}
+  selector:
+    matchLabels:
+      app: ftp-web-service
+  template:
+    metadata:
+      labels:
+        app: ftp-web-service
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: ftp-web-service
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.ftpWebService.image.repository }}:{{ .Values.global.imageTag }}"
+          ports:
+            - containerPort: 8083
+          env:
+            {{- include "mft.commonEnv" . | nindent 12 }}
+            - name: CLUSTER_HOST
+              value: "ftp-web-service"
+            - name: SERVER_PORT
+              value: "8083"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8083
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8083
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources: {{- toYaml .Values.ftpWebService.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ftp-web-service
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: {{ .Values.ftpWebService.service.type }}
+  ports:
+    - port: {{ .Values.ftpWebService.service.port }}
+      targetPort: 8083
+  selector:
+    app: ftp-web-service
+{{- end }}
+
+{{/* Config Service */}}
+{{- if .Values.configService.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: config-service
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "mft.labels" . | nindent 4 }}
+    app: config-service
+spec:
+  replicas: {{ .Values.configService.replicaCount }}
+  selector:
+    matchLabels:
+      app: config-service
+  template:
+    metadata:
+      labels:
+        app: config-service
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: config-service
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.configService.image.repository }}:{{ .Values.global.imageTag }}"
+          ports:
+            - containerPort: 8084
+          env:
+            {{- include "mft.commonEnv" . | nindent 12 }}
+            - name: CLUSTER_HOST
+              value: "config-service"
+            - name: SERVER_PORT
+              value: "8084"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8084
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8084
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources: {{- toYaml .Values.configService.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: config-service
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: {{ .Values.configService.service.type }}
+  ports:
+    - port: {{ .Values.configService.service.port }}
+      targetPort: 8084
+  selector:
+    app: config-service
+{{- if .Values.configService.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: config-service-hpa
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: config-service
+  minReplicas: {{ .Values.configService.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.configService.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.configService.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- end }}
+
+{{/* Gateway Service */}}
+{{- if .Values.gatewayService.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-service
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "mft.labels" . | nindent 4 }}
+    app: gateway-service
+spec:
+  replicas: {{ .Values.gatewayService.replicaCount }}
+  selector:
+    matchLabels:
+      app: gateway-service
+  template:
+    metadata:
+      labels:
+        app: gateway-service
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: gateway-service
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.gatewayService.image.repository }}:{{ .Values.global.imageTag }}"
+          ports:
+            - containerPort: 2220
+              name: sftp-gw
+            - containerPort: 2121
+              name: ftp-gw
+            - containerPort: 8085
+              name: control
+          env:
+            {{- include "mft.commonEnv" . | nindent 12 }}
+            - name: CLUSTER_HOST
+              value: "gateway-service"
+            - name: SERVER_PORT
+              value: "8085"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8085
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8085
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources: {{- toYaml .Values.gatewayService.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-service
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+spec:
+  type: {{ .Values.gatewayService.service.type }}
+  ports:
+    - port: {{ .Values.gatewayService.service.sftpGatewayPort }}
+      targetPort: 2220
+      name: sftp-gw
+    - port: {{ .Values.gatewayService.service.ftpGatewayPort }}
+      targetPort: 2121
+      name: ftp-gw
+    - port: {{ .Values.gatewayService.service.controlPort }}
+      targetPort: 8085
+      name: control
+  selector:
+    app: gateway-service
+{{- if .Values.gatewayService.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gateway-service-hpa
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gateway-service
+  minReplicas: {{ .Values.gatewayService.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.gatewayService.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.gatewayService.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- end }}
+
+{{/* External Forwarder Service */}}
+{{- if .Values.externalForwarderService.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: external-forwarder-service
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "mft.labels" . | nindent 4 }}
+    app: external-forwarder-service
+spec:
+  replicas: {{ .Values.externalForwarderService.replicaCount }}
+  selector:
+    matchLabels:
+      app: external-forwarder-service
+  template:
+    metadata:
+      labels:
+        app: external-forwarder-service
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: external-forwarder-service
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.externalForwarderService.image.repository }}:{{ .Values.global.imageTag }}"
+          ports:
+            - containerPort: 8087
+          env:
+            {{- include "mft.commonEnv" . | nindent 12 }}
+            - name: CLUSTER_HOST
+              value: "external-forwarder-service"
+            - name: SERVER_PORT
+              value: "8087"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8087
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8087
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources: {{- toYaml .Values.externalForwarderService.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-forwarder-service
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: {{ .Values.externalForwarderService.service.type }}
+  ports:
+    - port: {{ .Values.externalForwarderService.service.port }}
+      targetPort: 8087
+  selector:
+    app: external-forwarder-service
+{{- if .Values.externalForwarderService.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: external-forwarder-service-hpa
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: external-forwarder-service
+  minReplicas: {{ .Values.externalForwarderService.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.externalForwarderService.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.externalForwarderService.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- end }}
+
+{{/* DMZ Proxy */}}
+{{- if .Values.dmzProxy.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dmz-proxy
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "mft.labels" . | nindent 4 }}
+    app: dmz-proxy
+spec:
+  replicas: {{ .Values.dmzProxy.replicaCount }}
+  selector:
+    matchLabels:
+      app: dmz-proxy
+  template:
+    metadata:
+      labels:
+        app: dmz-proxy
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: dmz-proxy
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.dmzProxy.image.repository }}:{{ .Values.global.imageTag }}"
+          ports:
+            - containerPort: 8088
+              name: management
+            - containerPort: 32222
+              name: sftp
+            - containerPort: 32121
+              name: ftp
+            - containerPort: 4443
+              name: https
+          env:
+            - name: SERVER_PORT
+              value: "8088"
+            - name: CONTROL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mft-secrets
+                  key: control-api-key
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8088
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8088
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources: {{- toYaml .Values.dmzProxy.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dmz-proxy
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+spec:
+  type: {{ .Values.dmzProxy.service.type }}
+  ports:
+    - port: {{ .Values.dmzProxy.service.managementPort }}
+      targetPort: 8088
+      name: management
+    - port: {{ .Values.dmzProxy.service.sftpPort }}
+      targetPort: 32222
+      name: sftp
+    - port: {{ .Values.dmzProxy.service.ftpPort }}
+      targetPort: 32121
+      name: ftp
+    - port: {{ .Values.dmzProxy.service.httpsPort }}
+      targetPort: 4443
+      name: https
+  selector:
+    app: dmz-proxy
+{{- end }}
+
+{{/* AS2 Service */}}
+{{- if .Values.as2Service.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: as2-service
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "mft.labels" . | nindent 4 }}
+    app: as2-service
+spec:
+  replicas: {{ .Values.as2Service.replicaCount }}
+  selector:
+    matchLabels:
+      app: as2-service
+  template:
+    metadata:
+      labels:
+        app: as2-service
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: as2-service
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.as2Service.image.repository }}:{{ .Values.global.imageTag }}"
+          ports:
+            - containerPort: 8094
+          env:
+            {{- include "mft.commonEnv" . | nindent 12 }}
+            - name: CLUSTER_HOST
+              value: "as2-service"
+            - name: SERVER_PORT
+              value: "8094"
+          {{- if .Values.as2Service.persistence.enabled }}
+          volumeMounts:
+            - name: as2-data
+              mountPath: /data/as2
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8094
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8094
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources: {{- toYaml .Values.as2Service.resources | nindent 12 }}
+      {{- if .Values.as2Service.persistence.enabled }}
+      volumes:
+        - name: as2-data
+          persistentVolumeClaim:
+            claimName: as2-data-pvc
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: as2-service
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: {{ .Values.as2Service.service.type }}
+  ports:
+    - port: {{ .Values.as2Service.service.port }}
+      targetPort: 8094
+  selector:
+    app: as2-service
+{{- if .Values.as2Service.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: as2-data-pvc
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.as2Service.persistence.size }}
+{{- end }}
+{{- end }}

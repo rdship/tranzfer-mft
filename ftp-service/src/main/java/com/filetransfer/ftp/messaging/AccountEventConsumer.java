@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,7 +30,10 @@ public class AccountEventConsumer {
 
     @Bean
     public Queue ftpEventsQueue() {
-        return new Queue(queueName, true);
+        return QueueBuilder.durable(queueName)
+                .withArgument("x-dead-letter-exchange", "file-transfer.events.dlx")
+                .withArgument("x-dead-letter-routing-key", "ftp.account.events")
+                .build();
     }
 
     @Bean

@@ -128,3 +128,17 @@ platform:
     host: ${PROXY_HOST:dmz-proxy}
     port: ${PROXY_PORT:8088}
     no-proxy-hosts: ${PROXY_NO_PROXY_HOSTS:localhost,127.0.0.1,postgres,rabbitmq}
+  rate-limit:
+    enabled: true
+    default-limit: 100
+    user-limit: 200
+    default-window-seconds: 60
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+  description: Onboarding API — user registration, authentication, account management, and DLQ admin

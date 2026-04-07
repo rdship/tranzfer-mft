@@ -4,6 +4,8 @@ import com.filetransfer.onboarding.dto.request.LoginRequest;
 import com.filetransfer.onboarding.dto.request.RegisterRequest;
 import com.filetransfer.onboarding.dto.response.AuthResponse;
 import com.filetransfer.onboarding.service.AuthService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 @Slf4j
+@Tag(name = "Authentication", description = "User registration and login with IP-based rate limiting")
 public class AuthController {
 
     private final AuthService authService;
@@ -61,6 +64,7 @@ public class AuthController {
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Register a new user account")
     public AuthResponse register(@Valid @RequestBody RegisterRequest request,
                                   HttpServletRequest httpRequest) {
         checkIpRateLimit(httpRequest);
@@ -68,6 +72,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
+    @Operation(summary = "Authenticate and obtain a JWT token")
     public AuthResponse login(@Valid @RequestBody LoginRequest request,
                                HttpServletRequest httpRequest) {
         checkIpRateLimit(httpRequest);

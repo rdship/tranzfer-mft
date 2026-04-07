@@ -1,0 +1,369 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "TranzFer MFT — Security: auth failures, rate limiting, screening, AI verdicts, geo",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Security Overview",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false
+    },
+    {
+      "title": "Failed Login Attempts",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "lineWidth": 1,
+            "stacking": { "mode": "normal" }
+          },
+          "unit": "short",
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (job) (increase(mft_auth_failures_total[5m]))",
+          "legendFormat": "{{ job }}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Failed Logins by Source IP (Top 10)",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 20 }
+            ]
+          },
+          "custom": { "displayMode": "color-background-solid" }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Value" },
+            "properties": [{ "id": "displayName", "value": "Failed Attempts" }]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "Failed Attempts" }]
+      },
+      "transformations": [
+        { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Value", "desc": true }] } },
+        { "id": "limit", "options": { "limitField": 10 } }
+      ],
+      "targets": [
+        {
+          "expr": "topk(10, sum by (remote_ip) (increase(mft_auth_failures_total[1h])))",
+          "legendFormat": "{{ remote_ip }}",
+          "refId": "A",
+          "format": "table",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "title": "Rate-Limited Requests",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 20,
+            "lineWidth": 2
+          },
+          "unit": "short",
+          "color": { "fixedColor": "orange", "mode": "fixed" }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(mft_rate_limited_requests_total[5m]))",
+          "legendFormat": "Rate Limited/sec",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (job) (rate(mft_rate_limited_requests_total[5m]))",
+          "legendFormat": "{{ job }}",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "title": "Connection Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "thresholdsStyle": { "mode": "line+area" }
+          },
+          "unit": "connps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "transparent", "value": null },
+              { "color": "red", "value": 500 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(mft_connections_total[1m]))",
+          "legendFormat": "Connections/sec",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Screening & AI",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "collapsed": false
+    },
+    {
+      "title": "Screening Results",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "pieType": "donut",
+        "tooltip": { "mode": "single" },
+        "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }
+      },
+      "targets": [
+        {
+          "expr": "sum by (result) (increase(mft_screening_results_total[$__range]))",
+          "legendFormat": "{{ result }}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Screening Results Over Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "stacking": { "mode": "normal" }
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "CLEAR" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "FLAGGED" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "BLOCKED" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "sum by (result) (increase(mft_screening_results_total[15m]))",
+          "legendFormat": "{{ result }}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "AI Threat Verdicts",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "pieType": "donut",
+        "tooltip": { "mode": "single" },
+        "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }
+      },
+      "fieldConfig": {
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "ALLOWED" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "SUSPICIOUS" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "BLOCKED" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "sum by (verdict) (increase(mft_ai_threat_verdicts_total[$__range]))",
+          "legendFormat": "{{ verdict }}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "HTTP Status Codes",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 },
+      "collapsed": false
+    },
+    {
+      "title": "403 Forbidden Responses",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 27 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 20,
+            "lineWidth": 2
+          },
+          "unit": "short",
+          "color": { "fixedColor": "red", "mode": "fixed" }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (job) (rate(http_server_requests_seconds_count{status=\"403\"}[5m]))",
+          "legendFormat": "{{ job }}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "401 Unauthorized Responses",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 27 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 20,
+            "lineWidth": 2
+          },
+          "unit": "short",
+          "color": { "fixedColor": "orange", "mode": "fixed" }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (job) (rate(http_server_requests_seconds_count{status=\"401\"}[5m]))",
+          "legendFormat": "{{ job }}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Connections by Country (GeoIP)",
+      "type": "geomap",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 35 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "view": {
+          "id": "zero",
+          "lat": 20,
+          "lon": 0,
+          "zoom": 2
+        },
+        "basemap": { "type": "default" },
+        "layers": [
+          {
+            "type": "markers",
+            "config": {
+              "showLegend": true,
+              "style": {
+                "size": { "field": "Value", "min": 3, "max": 15 },
+                "color": { "field": "Value" },
+                "symbol": { "mode": "fixed", "fixed": "circle" }
+              }
+            }
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "sum by (country, latitude, longitude) (increase(mft_connections_total[24h]))",
+          "legendFormat": "{{ country }}",
+          "refId": "A",
+          "format": "table",
+          "instant": true
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["tranzfer", "mft", "security"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 2,
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus"
+      }
+    ]
+  },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "TranzFer MFT — Security",
+  "uid": "mft-security",
+  "version": 1
+}

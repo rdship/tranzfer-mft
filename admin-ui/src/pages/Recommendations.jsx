@@ -1,11 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import axios from 'axios'
+import { aiApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import StatCard from '../components/StatCard'
 import { LightBulbIcon, ExclamationTriangleIcon, ShieldCheckIcon, CpuChipIcon, BanknotesIcon, ChartBarIcon } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
-
-const aiApi = axios.create({ baseURL: 'http://localhost:8091' })
 
 const categoryConfig = {
   PERFORMANCE: { icon: ChartBarIcon, color: 'purple', bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-800' },

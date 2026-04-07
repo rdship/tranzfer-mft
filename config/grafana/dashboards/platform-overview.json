@@ -1,0 +1,298 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "TranzFer MFT — Platform Overview: service health, transfers, connections, queues",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Service Health",
+      "description": "Up/Down status of every MFT service",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "red", "value": 0 },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "mappings": [
+            { "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } }, "type": "value" }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "targets": [
+        {
+          "expr": "up{job=~\"onboarding-api|sftp-service|ftp-service|ftp-web-service|config-service|gateway-service|encryption-service|external-forwarder-service|license-service|analytics-service|ai-engine|screening-service|keystore-manager|storage-manager|edi-converter\"}",
+          "legendFormat": "{{ job }} ({{ instance }})",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Services Up",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 20,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 10 },
+              { "color": "yellow", "value": 15 },
+              { "color": "green", "value": 18 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "count(up == 1)",
+          "legendFormat": "Services Up",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Total Transfers (Success vs Failure)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 6, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 20,
+            "pointSize": 5,
+            "lineWidth": 2,
+            "stacking": { "mode": "none" }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Failed" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Success" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(mft_transfers_total{status=\"COMPLETED\"}[5m]))",
+          "legendFormat": "Success",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(mft_transfers_total{status=\"FAILED\"}[5m]))",
+          "legendFormat": "Failed",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "title": "Transfer Success Rate",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 0.90 },
+              { "color": "yellow", "value": 0.95 },
+              { "color": "green", "value": 0.99 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(mft_transfers_total{status=\"COMPLETED\"}[1h])) / sum(rate(mft_transfers_total[1h]))",
+          "legendFormat": "Success Rate",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Active Connections by Protocol",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 30,
+            "lineWidth": 2,
+            "stacking": { "mode": "normal" }
+          },
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(mft_active_connections{protocol=\"SFTP\"})",
+          "legendFormat": "SFTP",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(mft_active_connections{protocol=\"FTP\"})",
+          "legendFormat": "FTP",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(mft_active_connections{protocol=\"FTPS\"})",
+          "legendFormat": "FTPS",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(mft_active_connections{protocol=\"HTTP\"})",
+          "legendFormat": "HTTP",
+          "refId": "D"
+        }
+      ]
+    },
+    {
+      "title": "RabbitMQ Queue Depths",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "stacking": { "mode": "none" }
+          },
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1000 },
+              { "color": "red", "value": 5000 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "rabbitmq_queue_messages",
+          "legendFormat": "{{ queue }}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "JVM Heap Usage by Service",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10,
+            "lineWidth": 1
+          },
+          "unit": "bytes"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (job) (jvm_memory_used_bytes{area=\"heap\"})",
+          "legendFormat": "{{ job }}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "HTTP Request Rate by Service",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10,
+            "lineWidth": 1
+          },
+          "unit": "reqps"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (job) (rate(http_server_requests_seconds_count[5m]))",
+          "legendFormat": "{{ job }}",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["tranzfer", "mft", "overview"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 2,
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus"
+      }
+    ]
+  },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "TranzFer MFT — Platform Overview",
+  "uid": "mft-platform-overview",
+  "version": 1
+}

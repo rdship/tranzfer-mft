@@ -1,6 +1,9 @@
 package com.filetransfer.shared.security;
 
 import com.filetransfer.shared.config.PlatformConfig;
+import com.filetransfer.shared.repository.RolePermissionRepository;
+import com.filetransfer.shared.repository.UserPermissionRepository;
+import com.filetransfer.shared.repository.UserRepository;
 import com.filetransfer.shared.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -15,7 +18,9 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Combined authentication filter that supports both:
@@ -24,6 +29,9 @@ import java.util.List;
  *
  * If neither is present, the filter chain continues unauthenticated
  * and Spring Security will reject with 401.
+ *
+ * When a PermissionService is available, the filter also loads fine-grained
+ * permissions as Spring Security authorities (prefixed with "PERM_").
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -31,6 +39,12 @@ public class PlatformJwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final PlatformConfig platformConfig;
+    private final PermissionService permissionService;
+
+    /** Backwards-compatible constructor for services without RBAC */
+    public PlatformJwtAuthFilter(JwtUtil jwtUtil, PlatformConfig platformConfig) {
+        this(jwtUtil, platformConfig, null);
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -42,10 +56,22 @@ public class PlatformJwtAuthFilter extends OncePerRequestFilter {
         if (token != null && jwtUtil.isValid(token)) {
             String email = jwtUtil.getSubject(token);
             String role = jwtUtil.getRole(token);
+
+            List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+            authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
+
+            // Load fine-grained permissions if PermissionService is available
+            if (permissionService != null) {
+                try {
+                    Set<String> perms = permissionService.getEffectivePermissions(email);
+                    perms.forEach(p -> authorities.add(new SimpleGrantedAuthority("PERM_" + p)));
+                } catch (Exception e) {
+                    log.debug("Could not load permissions for {}: {}", email, e.getMessage());
+                }
+            }
+
             SecurityContextHolder.getContext().setAuthentication(
-                    new UsernamePasswordAuthenticationToken(
-                            email, null,
-                            List.of(new SimpleGrantedAuthority("ROLE_" + role))));
+                    new UsernamePasswordAuthenticationToken(email, null, authorities));
             filterChain.doFilter(request, response);
             return;
         }

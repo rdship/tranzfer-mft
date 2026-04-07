@@ -52,6 +52,11 @@ jwt:
 ftpweb:
   home-base: ${FTPWEB_HOME_BASE:/data/ftpweb}
   instance-id: ${FTPWEB_INSTANCE_ID:#{null}}
+  chunked:
+    temp-dir: ${FTPWEB_CHUNKED_TEMP_DIR:/tmp/mft-chunks}
+    default-chunk-size: ${FTPWEB_CHUNK_SIZE:5242880}
+    max-file-size: ${FTPWEB_MAX_FILE_SIZE:10737418240}
+    expiry-hours: ${FTPWEB_CHUNKED_EXPIRY_HOURS:24}
 
 rabbitmq:
   exchange: file-transfer.events
@@ -127,3 +132,17 @@ platform:
     host: ${PROXY_HOST:dmz-proxy}
     port: ${PROXY_PORT:8088}
     no-proxy-hosts: ${PROXY_NO_PROXY_HOSTS:localhost,127.0.0.1,postgres,rabbitmq}
+  rate-limit:
+    enabled: true
+    default-limit: 100
+    user-limit: 200
+    default-window-seconds: 60
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+  description: FTP-Web Service — browser-based file transfer with upload/download

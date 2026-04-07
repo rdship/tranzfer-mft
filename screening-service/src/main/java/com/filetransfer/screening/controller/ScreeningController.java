@@ -4,6 +4,8 @@ import com.filetransfer.screening.entity.ScreeningResult;
 import com.filetransfer.screening.loader.SanctionsListLoader;
 import com.filetransfer.screening.repository.ScreeningResultRepository;
 import com.filetransfer.screening.service.ScreeningEngine;
+import com.filetransfer.screening.service.ScreeningPipeline;
+import com.filetransfer.shared.client.ClamAvClient;
 import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -22,12 +24,33 @@ import java.util.*;
 public class ScreeningController {
 
     private final ScreeningEngine screeningEngine;
+    private final ScreeningPipeline screeningPipeline;
     private final ScreeningResultRepository resultRepository;
     private final SanctionsListLoader listLoader;
+    private final ClamAvClient clamAvClient;
 
-    /** Screen a file upload */
+    /**
+     * Full screening pipeline: AV scan -> DLP scan -> Sanctions screening.
+     * This is the primary endpoint for file screening.
+     */
     @PostMapping("/scan")
-    public ResponseEntity<ScreeningResult> scanFile(
+    public ResponseEntity<ScreeningPipeline.PipelineResult> scanFile(
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(required = false) String trackId,
+            @RequestParam(required = false) String account,
+            @RequestParam(required = false) List<String> columns) throws Exception {
+        Path tempFile = Files.createTempFile("screen_", "_" + file.getOriginalFilename());
+        file.transferTo(tempFile.toFile());
+        try {
+            return ResponseEntity.ok(screeningPipeline.screenFile(tempFile,
+                    trackId != null ? trackId : "MANUAL",
+                    account, columns));
+        } finally { Files.deleteIfExists(tempFile); }
+    }
+
+    /** Sanctions-only scan (legacy endpoint for backwards compatibility) */
+    @PostMapping("/scan/sanctions")
+    public ResponseEntity<ScreeningResult> scanSanctionsOnly(
             @RequestPart("file") MultipartFile file,
             @RequestParam(required = false) String trackId,
             @RequestParam(required = false) String account,
@@ -41,7 +64,7 @@ public class ScreeningController {
         } finally { Files.deleteIfExists(tempFile); }
     }
 
-    /** Screen inline text/CSV content */
+    /** Screen inline text/CSV content (sanctions only) */
     @PostMapping("/scan/text")
     public ResponseEntity<ScreeningResult> scanText(@RequestBody Map<String, Object> body) throws Exception {
         String content = (String) body.get("content");
@@ -104,11 +127,13 @@ public class ScreeningController {
 
     @GetMapping("/health")
     public Map<String, Object> health() {
-        return Map.of(
-                "status", "UP",
-                "service", "screening-service",
-                "sanctionsLists", listLoader.getListCounts(),
-                "lastRefresh", listLoader.getLastRefresh() != null ? listLoader.getLastRefresh().toString() : "loading..."
-        );
+        Map<String, Object> h = new LinkedHashMap<>();
+        h.put("status", "UP");
+        h.put("service", "screening-service");
+        h.put("pipeline", List.of("ANTIVIRUS", "DLP", "SANCTIONS"));
+        h.put("clamav", clamAvClient.ping() ? "CONNECTED" : "UNREACHABLE (fail-closed)");
+        h.put("sanctionsLists", listLoader.getListCounts());
+        h.put("lastRefresh", listLoader.getLastRefresh() != null ? listLoader.getLastRefresh().toString() : "loading...");
+        return h;
     }
 }

@@ -21,6 +21,7 @@ x-common-env: &common-env
   PROXY_HOST: ${PROXY_HOST:-dmz-proxy}
   PROXY_PORT: ${PROXY_PORT:-8088}
   PROXY_NO_PROXY_HOSTS: ${PROXY_NO_PROXY_HOSTS:-localhost,127.0.0.1,postgres,rabbitmq}
+  SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
 
 x-service-healthcheck: &healthcheck
   healthcheck:
@@ -509,9 +510,150 @@ services:
       SERVER_PORT: 8092
       SCREENING_THRESHOLD: ${SCREENING_THRESHOLD:-0.82}
       SCREENING_DEFAULT_ACTION: ${SCREENING_DEFAULT_ACTION:-BLOCK}
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: 3310
+    volumes:
+      - quarantine_data:/data/quarantine
     depends_on:
       postgres:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      clamav:
+        condition: service_healthy
+
+  notification-service:
+    build: ./notification-service
+    container_name: mft-notification-service
+    <<: *healthcheck
+    ports:
+      - "8097:8097"
+    environment:
+      <<: *common-env
+      CLUSTER_HOST: notification-service
+      SERVER_PORT: 8097
+      MAIL_HOST: ${MAIL_HOST:-localhost}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      NOTIFICATION_FROM: ${NOTIFICATION_FROM:-noreply@tranzfer.io}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # Security Services
+  # ---------------------------------------------------------------------------
+  clamav:
+    image: clamav/clamav:1.2
+    container_name: mft-clamav
+    ports:
+      - "3310:3310"
+    volumes:
+      - clamav_data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "clamdscan", "--ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Observability Stack (Prometheus, Loki, Grafana, AlertManager)
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: mft-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/prometheus/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: mft-alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./config/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9093/-/healthy || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: mft-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./config/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: mft-promtail
+    volumes:
+      - ./config/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      loki:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: mft-grafana
+    ports:
+      - "3030:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # ---------------------------------------------------------------------------
   # Frontend UIs
@@ -567,3 +709,9 @@ volumes:
   ftp_data:        # Shared across all FTP replicas
   storage_data:
   ftpweb_data:     # Shared across all FTP-Web replicas
+  clamav_data:     # ClamAV virus definition database
+  quarantine_data: # Quarantined files (AV/DLP detections)
+  prometheus_data: # Prometheus time-series data
+  alertmanager_data: # AlertManager state
+  loki_data:       # Loki log storage
+  grafana_data:    # Grafana dashboards and state

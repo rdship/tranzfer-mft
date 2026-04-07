@@ -1,6 +1,8 @@
 package com.filetransfer.onboarding.security;
 
+import com.filetransfer.shared.ratelimit.ApiRateLimitFilter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -29,12 +31,15 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
 
+    @Autowired(required = false)
+    private ApiRateLimitFilter apiRateLimitFilter;
+
     @org.springframework.beans.factory.annotation.Value("${cors.allowed-origins:http://localhost:3000,http://localhost:3001,http://localhost:3002}")
     private String allowedOrigins;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        return http
+        http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -43,11 +48,17 @@ public class SecurityConfig {
                         .requestMatchers("/api/partner/login").permitAll()
                         .requestMatchers("/api/2fa/verify").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/api/cli/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-                .build();
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+
+        if (apiRateLimitFilter != null) {
+            http.addFilterBefore(apiRateLimitFilter, JwtAuthFilter.class);
+        }
+
+        return http.build();
     }
 
     @Bean

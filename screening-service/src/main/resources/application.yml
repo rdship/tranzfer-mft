@@ -34,7 +34,24 @@ spring:
     baseline-version: "0"
     locations: classpath:db/migration
 
+spring.rabbitmq:
+  host: ${RABBITMQ_HOST:localhost}
+  port: ${RABBITMQ_PORT:5672}
+  username: ${RABBITMQ_USERNAME:guest}
+  password: ${RABBITMQ_PASSWORD:guest}
+
+rabbitmq:
+  exchange: file-transfer.events
+
+clamav:
+  host: ${CLAMAV_HOST:localhost}
+  port: ${CLAMAV_PORT:3310}
+  timeout-ms: ${CLAMAV_TIMEOUT_MS:60000}
+  chunk-size: ${CLAMAV_CHUNK_SIZE:8192}
+
 screening:
+  quarantine:
+    path: ${SCREENING_QUARANTINE_PATH:/data/quarantine}
   ofac:
     sdn-url: https://www.treasury.gov/ofac/downloads/sdn.csv
     refresh-hours: ${SCREENING_REFRESH_HOURS:24}

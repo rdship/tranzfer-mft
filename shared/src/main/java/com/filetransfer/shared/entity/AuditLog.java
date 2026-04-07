@@ -99,4 +99,14 @@ public class AuditLog {
      */
     @Column(length = 64)
     private String integrityHash;
+
+    /** Whether sensitive fields (metadata, ipAddress, sessionId) are AES-256-GCM encrypted */
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean encrypted = false;
+
+    /** HMAC key version used to sign this entry (supports key rotation) */
+    @Column(name = "hmac_key_version", nullable = false)
+    @Builder.Default
+    private int hmacKeyVersion = 1;
 }

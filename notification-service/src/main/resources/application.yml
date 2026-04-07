@@ -1,0 +1,133 @@
+server:
+  port: 8097
+
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/filetransfer}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      auto-commit: false
+      maximum-pool-size: 5
+      minimum-idle: 2
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      connection-timeout: 10000
+      pool-name: Notification-Pool
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 25
+          batch_versioned_data: true
+        order_inserts: true
+        order_updates: true
+        connection:
+          provider_disables_autocommit: true
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS:true}
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: "0"
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus,info
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+notification:
+  from-address: ${NOTIFICATION_FROM:noreply@tranzfer.io}
+  retry:
+    max-attempts: ${NOTIFICATION_RETRY_MAX:3}
+    delay-seconds: ${NOTIFICATION_RETRY_DELAY:60}
+  webhook:
+    connect-timeout-ms: ${WEBHOOK_CONNECT_TIMEOUT:5000}
+    read-timeout-ms: ${WEBHOOK_READ_TIMEOUT:10000}
+
+rabbitmq:
+  exchange: ${RABBITMQ_EXCHANGE:file-transfer.events}
+  queue:
+    notification-events: ${RABBITMQ_NOTIFICATION_QUEUE:notification.events}
+
+cluster:
+  id: ${CLUSTER_ID:default-cluster}
+  host: ${CLUSTER_HOST:notification-service}
+  service-type: NOTIFICATION
+  communication-mode: ${CLUSTER_COMM_MODE:WITHIN_CLUSTER}
+
+platform:
+  services:
+    onboarding-api:
+      url: ${ONBOARDING_API_URL:http://onboarding-api:8080}
+    sftp-service:
+      url: ${SFTP_SERVICE_URL:http://sftp-service:8081}
+    ftp-service:
+      url: ${FTP_SERVICE_URL:http://ftp-service:8082}
+    ftp-web-service:
+      url: ${FTP_WEB_SERVICE_URL:http://ftp-web-service:8083}
+    config-service:
+      url: ${CONFIG_SERVICE_URL:http://config-service:8084}
+    gateway-service:
+      url: ${GATEWAY_SERVICE_URL:http://gateway-service:8085}
+    encryption-service:
+      url: ${ENCRYPTION_SERVICE_URL:http://encryption-service:8086}
+    forwarder-service:
+      url: ${FORWARDER_SERVICE_URL:http://external-forwarder-service:8087}
+    dmz-proxy:
+      url: ${DMZ_PROXY_URL:http://dmz-proxy:8088}
+    license-service:
+      url: ${LICENSE_SERVICE_URL:http://license-service:8089}
+    analytics-service:
+      url: ${ANALYTICS_SERVICE_URL:http://analytics-service:8090}
+    ai-engine:
+      url: ${AI_ENGINE_URL:http://ai-engine:8091}
+    screening-service:
+      url: ${SCREENING_SERVICE_URL:http://screening-service:8092}
+    keystore-manager:
+      url: ${KEYSTORE_MANAGER_URL:http://keystore-manager:8093}
+    as2-service:
+      url: ${AS2_SERVICE_URL:http://as2-service:8094}
+    edi-converter:
+      url: ${EDI_CONVERTER_URL:http://edi-converter:8095}
+    storage-manager:
+      url: ${STORAGE_MANAGER_URL:http://storage-manager:8096}
+    notification-service:
+      url: ${NOTIFICATION_SERVICE_URL:http://notification-service:8097}
+  environment: ${PLATFORM_ENVIRONMENT:PROD}
+  track-id:
+    prefix: ${TRACK_ID_PREFIX:TRZ}
+  security:
+    control-api-key: ${CONTROL_API_KEY:internal_control_secret}
+  proxy:
+    enabled: ${PROXY_ENABLED:false}
+    type: ${PROXY_TYPE:HTTP}
+    host: ${PROXY_HOST:dmz-proxy}
+    port: ${PROXY_PORT:8088}
+    no-proxy-hosts: ${PROXY_NO_PROXY_HOSTS:localhost,127.0.0.1,postgres,rabbitmq}

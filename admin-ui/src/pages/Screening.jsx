@@ -1,15 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
-import axios from 'axios'
+import { screeningApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { ShieldExclamationIcon, CheckBadgeIcon } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
 
-const screenApi = axios.create({ baseURL: 'http://localhost:8092' })
-
 export default function Screening() {
-  const { data: lists } = useQuery({ queryKey: ['screen-lists'], queryFn: () => screenApi.get('/api/v1/screening/lists').then(r => r.data) })
-  const { data: results = [] } = useQuery({ queryKey: ['screen-results'], queryFn: () => screenApi.get('/api/v1/screening/results').then(r => r.data).catch(() => []), refetchInterval: 15000 })
-  const { data: hits = [] } = useQuery({ queryKey: ['screen-hits'], queryFn: () => screenApi.get('/api/v1/screening/hits').then(r => r.data).catch(() => []) })
+  const { data: lists } = useQuery({ queryKey: ['screen-lists'], queryFn: () => screeningApi.get('/api/v1/screening/lists').then(r => r.data) })
+  const { data: results = [] } = useQuery({ queryKey: ['screen-results'], queryFn: () => screeningApi.get('/api/v1/screening/results').then(r => r.data).catch(() => []), refetchInterval: 15000 })
+  const { data: hits = [] } = useQuery({ queryKey: ['screen-hits'], queryFn: () => screeningApi.get('/api/v1/screening/hits').then(r => r.data).catch(() => []) })
 
   return (
     <div className="space-y-6">

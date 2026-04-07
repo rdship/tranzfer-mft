@@ -1,0 +1,277 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "TranzFer MFT — Transfer Metrics: volume, success rate, duration, protocol breakdown, top partners",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Transfer Volume (Count)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "stacking": { "mode": "normal" }
+          },
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (status) (increase(mft_transfers_total[1h]))",
+          "legendFormat": "{{ status }}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
+      "title": "Transfer Volume (Bytes)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 20,
+            "lineWidth": 2,
+            "stacking": { "mode": "none" }
+          },
+          "unit": "bytes"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(mft_transfer_bytes_total[5m]))",
+          "legendFormat": "Total Throughput",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (direction) (rate(mft_transfer_bytes_total[5m]))",
+          "legendFormat": "{{ direction }}",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "title": "Transfer Success Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "thresholdsStyle": { "mode": "area" }
+          },
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 0.90 },
+              { "color": "yellow", "value": 0.95 },
+              { "color": "green", "value": 0.99 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(mft_transfers_total{status=\"COMPLETED\"}[5m])) / sum(rate(mft_transfers_total[5m]))",
+          "legendFormat": "Success Rate",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Avg Transfer Duration",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10,
+            "lineWidth": 2
+          },
+          "unit": "s"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(mft_transfer_duration_seconds_bucket[5m])))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(mft_transfer_duration_seconds_bucket[5m])))",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(mft_transfer_duration_seconds_bucket[5m])))",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "title": "Transfers by Protocol",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "pieType": "donut",
+        "tooltip": { "mode": "single" },
+        "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }
+      },
+      "targets": [
+        {
+          "expr": "sum by (protocol) (increase(mft_transfers_total[$__range]))",
+          "legendFormat": "{{ protocol }}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Top 10 Partners by Transfer Volume",
+      "type": "bargauge",
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (partner) (increase(mft_transfers_total[$__range])))",
+          "legendFormat": "{{ partner }}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Transfer Errors by Type",
+      "type": "timeseries",
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "stacking": { "mode": "normal" }
+          },
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (error_type) (increase(mft_transfer_errors_total[1h]))",
+          "legendFormat": "{{ error_type }}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Transfer Latency Heatmap",
+      "type": "heatmap",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 26 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "calculate": false,
+        "yAxis": { "unit": "s" },
+        "color": { "scheme": "Oranges" },
+        "tooltip": { "show": true }
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(mft_transfer_duration_seconds_bucket[5m])) by (le)",
+          "legendFormat": "{{ le }}",
+          "refId": "A",
+          "format": "heatmap"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["tranzfer", "mft", "transfers"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 2,
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus"
+      },
+      {
+        "current": {},
+        "definition": "label_values(mft_transfers_total, protocol)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "protocol",
+        "query": { "query": "label_values(mft_transfers_total, protocol)", "refId": "StandardVariableQuery" },
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "TranzFer MFT — Transfer Metrics",
+  "uid": "mft-transfer-metrics",
+  "version": 1
+}

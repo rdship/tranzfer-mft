@@ -1,0 +1,243 @@
+# =============================================================================
+# Prometheus Alert Rules — TranzFer MFT Platform
+# =============================================================================
+
+groups:
+  # =========================================================================
+  # Service Health
+  # =========================================================================
+  - name: service_health
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} on {{ $labels.instance }} has been unreachable for more than 1 minute."
+          runbook_url: "https://wiki.tranzfer.io/runbooks/service-down"
+
+      - alert: PlatformMajorOutage
+        expr: count(up == 0) > 5
+        for: 2m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Major platform outage — {{ $value }} services down"
+          description: "More than 5 services are simultaneously unreachable. Possible infrastructure failure."
+
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum by (job) (rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+            /
+            sum by (job) (rate(http_server_requests_seconds_count[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          category: availability
+        annotations:
+          summary: "High error rate on {{ $labels.job }} ({{ $value | humanizePercentage }})"
+          description: "{{ $labels.job }} is returning >5% server errors over the last 5 minutes."
+
+      - alert: HighErrorRateCritical
+        expr: |
+          (
+            sum by (job) (rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+            /
+            sum by (job) (rate(http_server_requests_seconds_count[5m]))
+          ) > 0.10
+        for: 5m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Critical error rate on {{ $labels.job }} ({{ $value | humanizePercentage }})"
+          description: "{{ $labels.job }} is returning >10% server errors over the last 5 minutes."
+
+      - alert: SlowResponses
+        expr: |
+          histogram_quantile(0.95, sum by (job, le) (rate(http_server_requests_seconds_bucket[5m]))) > 2
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Slow responses on {{ $labels.job }} (p95={{ $value | humanizeDuration }})"
+          description: "95th percentile latency on {{ $labels.job }} has exceeded 2 seconds for 5 minutes."
+
+  # =========================================================================
+  # Infrastructure
+  # =========================================================================
+  - name: infrastructure
+    rules:
+      - alert: DiskAlmostFull
+        expr: |
+          (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.15
+        for: 5m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "Disk almost full on {{ $labels.instance }} ({{ $value | humanizePercentage }} free)"
+          description: "Root filesystem on {{ $labels.instance }} has less than 15% free space."
+
+      - alert: DiskAlmostFullCritical
+        expr: |
+          (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.05
+        for: 2m
+        labels:
+          severity: critical
+          category: infrastructure
+        annotations:
+          summary: "Disk critically full on {{ $labels.instance }} ({{ $value | humanizePercentage }} free)"
+          description: "Root filesystem on {{ $labels.instance }} has less than 5% free space. Immediate action required."
+
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            sum by (instance, job) (jvm_memory_used_bytes{area="heap"})
+            /
+            sum by (instance, job) (jvm_memory_max_bytes{area="heap"})
+          ) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "High JVM heap usage on {{ $labels.job }} ({{ $value | humanizePercentage }})"
+          description: "{{ $labels.job }} on {{ $labels.instance }} heap usage has been above 85% for 5 minutes."
+
+      - alert: HighCPU
+        expr: |
+          system_cpu_usage > 0.80
+        for: 10m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "High CPU on {{ $labels.job }} ({{ $value | humanizePercentage }})"
+          description: "{{ $labels.job }} on {{ $labels.instance }} CPU has been above 80% for 10 minutes."
+
+  # =========================================================================
+  # Transfer-Specific
+  # =========================================================================
+  - name: transfer_operations
+    rules:
+      - alert: TransferFailureSpike
+        expr: |
+          (
+            sum(rate(mft_transfers_total{status="FAILED"}[15m]))
+            /
+            sum(rate(mft_transfers_total[15m]))
+          ) > 0.10
+        for: 5m
+        labels:
+          severity: warning
+          category: transfers
+        annotations:
+          summary: "Transfer failure rate spike ({{ $value | humanizePercentage }})"
+          description: "More than 10% of transfers have failed over the last 15 minutes."
+
+      - alert: NoTransfersReceived
+        expr: |
+          sum(increase(mft_transfers_total[30m])) == 0
+            and ON() (hour() >= 8 and hour() <= 18 and day_of_week() >= 1 and day_of_week() <= 5)
+        for: 5m
+        labels:
+          severity: warning
+          category: transfers
+        annotations:
+          summary: "No transfers received for 30 minutes during business hours"
+          description: "Zero transfers have been processed in the last 30 minutes during business hours (Mon-Fri 08:00-18:00). This may indicate a connectivity issue."
+
+      - alert: SLABreachImminent
+        expr: |
+          (
+            mft_transfer_sla_deadline_seconds - time()
+          ) < 600
+          and mft_transfer_sla_deadline_seconds > 0
+        for: 1m
+        labels:
+          severity: warning
+          category: transfers
+        annotations:
+          summary: "SLA breach imminent for transfer {{ $labels.transfer_id }}"
+          description: "Transfer {{ $labels.transfer_id }} for partner {{ $labels.partner }} is within 10 minutes of its SLA deadline."
+
+      - alert: QueueBacklog
+        expr: rabbitmq_queue_messages > 1000
+        for: 5m
+        labels:
+          severity: warning
+          category: transfers
+        annotations:
+          summary: "RabbitMQ queue backlog on {{ $labels.queue }} ({{ $value }} messages)"
+          description: "Queue {{ $labels.queue }} has more than 1,000 pending messages for 5 minutes."
+
+      - alert: QueueBacklogCritical
+        expr: rabbitmq_queue_messages > 5000
+        for: 5m
+        labels:
+          severity: critical
+          category: transfers
+        annotations:
+          summary: "Critical RabbitMQ queue backlog on {{ $labels.queue }} ({{ $value }} messages)"
+          description: "Queue {{ $labels.queue }} has more than 5,000 pending messages. Processing is likely stalled."
+
+  # =========================================================================
+  # Security
+  # =========================================================================
+  - name: security
+    rules:
+      - alert: BruteForceDetected
+        expr: |
+          sum by (remote_ip) (rate(mft_auth_failures_total[5m])) * 300 > 20
+        for: 1m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: "Brute force attack detected from {{ $labels.remote_ip }}"
+          description: "More than 20 failed login attempts from {{ $labels.remote_ip }} in the last 5 minutes."
+
+      - alert: DDoSDetected
+        expr: |
+          sum(rate(mft_connections_total[1m])) > 500
+        for: 2m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: "Possible DDoS — connection rate {{ $value | humanize }}/sec"
+          description: "Inbound connection rate has exceeded 500/sec for 2 minutes. Possible DDoS attack."
+
+      - alert: UnauthorizedAccess
+        expr: |
+          sum by (job) (rate(http_server_requests_seconds_count{status="403"}[1m])) * 60 > 10
+        for: 1m
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "Elevated 403 responses on {{ $labels.job }} ({{ $value | humanize }}/min)"
+          description: "{{ $labels.job }} is returning more than 10 forbidden (403) responses per minute. Possible unauthorized access attempts."
+
+      - alert: ScreeningBlockRate
+        expr: |
+          (
+            sum(rate(mft_screening_results_total{result="BLOCKED"}[15m]))
+            /
+            sum(rate(mft_screening_results_total[15m]))
+          ) > 0.20
+        for: 10m
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "High screening block rate ({{ $value | humanizePercentage }})"
+          description: "More than 20% of screened items are being BLOCKED over the last 15 minutes."

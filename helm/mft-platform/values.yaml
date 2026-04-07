@@ -12,10 +12,11 @@ global:
   # Branding
   platformName: "TranzFer MFT"
 
-  # Security
-  jwtSecret: "change_me_in_production_256bit_secret_key!!"
-  controlApiKey: "internal_control_secret"
-  licenseAdminKey: "license_admin_secret_key"
+  # Security — MUST be overridden in production (e.g., via values-production.yaml or --set)
+  # WARNING: Deployment will use insecure defaults if these are not changed!
+  jwtSecret: "CHANGE_ME_REQUIRED"
+  controlApiKey: "CHANGE_ME_REQUIRED"
+  licenseAdminKey: "CHANGE_ME_REQUIRED"
 
   # Cluster
   clusterId: "cluster-1"
@@ -27,14 +28,16 @@ global:
     port: 5432
     database: "filetransfer"
     username: "postgres"
-    password: "postgres"
+    # WARNING: Override this password in production — never use the default!
+    password: "CHANGE_ME_REQUIRED"
 
   rabbitmq:
     enabled: true
     host: "rabbitmq"
     port: 5672
     username: "guest"
-    password: "guest"
+    # WARNING: Override this password in production — never use the default!
+    password: "CHANGE_ME_REQUIRED"
 
   kafka:
     enabled: false
@@ -48,7 +51,8 @@ postgresql:
   auth:
     database: filetransfer
     username: postgres
-    password: postgres
+    # WARNING: Override this password in production!
+    password: "CHANGE_ME_REQUIRED"
   primary:
     persistence:
       enabled: true
@@ -58,7 +62,8 @@ rabbitmq:
   enabled: true
   auth:
     username: guest
-    password: guest
+    # WARNING: Override this password in production!
+    password: "CHANGE_ME_REQUIRED"
   persistence:
     enabled: true
     size: 5Gi
@@ -180,7 +185,8 @@ encryptionService:
   service:
     type: ClusterIP
     port: 8086
-  encryptionMasterKey: "0000000000000000000000000000000000000000000000000000000000000000"
+  # WARNING: Override this 64-hex-char key in production!
+  encryptionMasterKey: "CHANGE_ME_REQUIRED"
   resources:
     requests: { cpu: 500m, memory: 512Mi }
     limits: { cpu: 2, memory: 2Gi }
@@ -297,7 +303,8 @@ keystoreManager:
   service:
     type: ClusterIP
     port: 8093
-  masterPassword: "change-this-master-password"
+  # WARNING: Override this password in production!
+  masterPassword: "CHANGE_ME_REQUIRED"
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits: { cpu: 500m, memory: 512Mi }
@@ -400,7 +407,44 @@ monitoring:
     scrapeInterval: 30s
   grafana:
     enabled: false
-    adminPassword: admin
+    # WARNING: Override this password in production!
+    adminPassword: "CHANGE_ME_REQUIRED"
+
+# =============================================================================
+# Observability (Loki + Promtail + Grafana + AlertManager)
+# =============================================================================
+observability:
+  enabled: false
+  loki:
+    tag: "2.9.0"
+    retentionPeriod: "720h"   # 30 days
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ""
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits: { cpu: 500m, memory: 512Mi }
+  promtail:
+    tag: "2.9.0"
+    resources:
+      requests: { cpu: 50m, memory: 64Mi }
+      limits: { cpu: 200m, memory: 128Mi }
+  grafana:
+    enabled: true
+    tag: "10.4.0"
+    # WARNING: Override this password in production!
+    adminPassword: "CHANGE_ME_REQUIRED"
+    persistence:
+      enabled: true
+      size: 5Gi
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits: { cpu: 500m, memory: 512Mi }
+  alertmanager:
+    enabled: true
+    tag: "v0.27.0"
+    webhookUrl: ""
 
 # =============================================================================
 # OpenTelemetry

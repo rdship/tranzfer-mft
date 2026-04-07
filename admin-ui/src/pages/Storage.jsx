@@ -1,12 +1,10 @@
 import { useQuery, useMutation } from '@tanstack/react-query'
-import axios from 'axios'
+import { storageApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import StatCard from '../components/StatCard'
 import toast from 'react-hot-toast'
 import { CircleStackIcon, ArrowPathIcon, ArrowUpTrayIcon, CloudIcon } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
-
-const storageApi = axios.create({ baseURL: 'http://localhost:8094' })
 
 const tierColors = { HOT: 'bg-red-100 text-red-800', WARM: 'bg-amber-100 text-amber-800', COLD: 'bg-blue-100 text-blue-800' }
 

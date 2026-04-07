@@ -4,6 +4,8 @@ import com.filetransfer.config.service.PlatformSettingsService;
 import com.filetransfer.shared.entity.PlatformSetting;
 import com.filetransfer.shared.enums.Environment;
 import com.filetransfer.shared.security.Roles;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -35,11 +37,13 @@ import java.util.UUID;
 @RequestMapping("/api/platform-settings")
 @RequiredArgsConstructor
 @PreAuthorize(Roles.ADMIN)
+@Tag(name = "Platform Settings", description = "Database-backed configuration for all microservices")
 public class PlatformSettingsController {
 
     private final PlatformSettingsService service;
 
     @GetMapping
+    @Operation(summary = "List platform settings with optional filters (env, service, category)")
     public List<PlatformSetting> list(
             @RequestParam(required = false) Environment env,
             @RequestParam(required = false) String service,
@@ -96,6 +100,7 @@ public class PlatformSettingsController {
     }
 
     @PostMapping("/clone")
+    @Operation(summary = "Clone all settings from one environment to another")
     public List<PlatformSetting> cloneEnvironment(
             @RequestParam Environment source, @RequestParam Environment target) {
         return service.cloneEnvironment(source, target);

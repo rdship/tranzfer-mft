@@ -5,6 +5,8 @@ import com.filetransfer.onboarding.dto.request.UpdateAccountRequest;
 import com.filetransfer.onboarding.dto.response.AccountResponse;
 import com.filetransfer.onboarding.service.AccountService;
 import com.filetransfer.shared.security.Roles;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -18,23 +20,27 @@ import java.util.UUID;
 @RequestMapping("/api/accounts")
 @RequiredArgsConstructor
 @PreAuthorize(Roles.OPERATOR)
+@Tag(name = "Transfer Accounts", description = "CRUD for SFTP/FTP/FTP-Web transfer accounts")
 public class AccountController {
 
     private final AccountService accountService;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Create a new transfer account")
     public AccountResponse create(@AuthenticationPrincipal String email,
                                    @Valid @RequestBody CreateAccountRequest request) {
         return accountService.createAccount(email, request);
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Get transfer account by ID")
     public AccountResponse get(@PathVariable UUID id) {
         return accountService.getAccount(id);
     }
 
     @PatchMapping("/{id}")
+    @Operation(summary = "Partially update a transfer account")
     public AccountResponse update(@PathVariable UUID id,
                                    @RequestBody UpdateAccountRequest request) {
         return accountService.updateAccount(id, request);
@@ -42,6 +48,7 @@ public class AccountController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Delete a transfer account")
     public void delete(@PathVariable UUID id) {
         accountService.deleteAccount(id);
     }

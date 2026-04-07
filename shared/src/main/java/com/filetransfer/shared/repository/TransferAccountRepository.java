@@ -30,4 +30,7 @@ public interface TransferAccountRepository extends JpaRepository<TransferAccount
     List<TransferAccount> findByPartnerId(UUID partnerId);
 
     long countByPartnerId(UUID partnerId);
+
+    // User-scoped queries (for GDPR deletion)
+    List<TransferAccount> findByUserId(UUID userId);
 }

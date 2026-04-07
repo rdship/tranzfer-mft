@@ -17,14 +17,24 @@ spec:
       labels:
         app: admin-ui
     spec:
+      terminationGracePeriodSeconds: 30
       containers:
         - name: admin-ui
           image: "{{ .Values.global.imageRegistry }}{{ .Values.adminUi.image.repository }}:{{ .Values.global.imageTag }}"
           ports:
             - containerPort: 80
           livenessProbe:
-            httpGet: { path: /, port: 80 }
+            httpGet:
+              path: /
+              port: 80
             initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
@@ -59,14 +69,24 @@ spec:
       labels:
         app: ftp-web-ui
     spec:
+      terminationGracePeriodSeconds: 30
       containers:
         - name: ftp-web-ui
           image: "{{ .Values.global.imageRegistry }}{{ .Values.ftpWebUi.image.repository }}:{{ .Values.global.imageTag }}"
           ports:
             - containerPort: 80
           livenessProbe:
-            httpGet: { path: /, port: 80 }
+            httpGet:
+              path: /
+              port: 80
             initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
