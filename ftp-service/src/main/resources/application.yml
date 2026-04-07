@@ -34,6 +34,7 @@ spring:
     enabled: true
     baseline-on-migrate: true
     baseline-version: "0"
+    placeholder-replacement: false
     locations: classpath:db/migration
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}

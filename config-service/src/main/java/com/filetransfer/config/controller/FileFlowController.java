@@ -49,6 +49,7 @@ public class FileFlowController {
 
     @PostMapping
     public ResponseEntity<FileFlow> createFlow(@Valid @RequestBody FileFlow flow) {
+        flow.setName(sanitizeName(flow.getName()));
         if (flowRepository.existsByName(flow.getName())) {
             throw new IllegalArgumentException("Flow name already exists: " + flow.getName());
         }
@@ -62,6 +63,7 @@ public class FileFlowController {
     public FileFlow updateFlow(@PathVariable UUID id, @RequestBody FileFlow flow) {
         if (!flowRepository.existsById(id))
             throw new EntityNotFoundException("Flow not found: " + id);
+        flow.setName(sanitizeName(flow.getName()));
         flow.setId(id);
         FileFlow saved = flowRepository.save(flow);
         flowRuleEventPublisher.publishUpdated(saved.getId());
@@ -139,4 +141,9 @@ public class FileFlowController {
     }
 
     public record TestMatchRequest(MatchCriteria criteria, Map<String, Object> fileContext) {}
+
+    private static String sanitizeName(String name) {
+        if (name == null) return null;
+        return name.replace("<", "").replace(">", "").trim();
+    }
 }

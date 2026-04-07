@@ -511,6 +511,63 @@ class FlowMatchEngineTest {
         assertTrue(engine.validate(null).isEmpty());
     }
 
+    @Test
+    void validate_emptyAndGroup_hasError() {
+        var criteria = new MatchGroup(MatchGroup.GroupOperator.AND, List.of());
+        var errors = engine.validate(criteria);
+        assertFalse(errors.isEmpty());
+        assertTrue(errors.stream().anyMatch(e -> e.contains("no conditions")));
+    }
+
+    @Test
+    void validate_emptyOrGroup_hasError() {
+        var criteria = new MatchGroup(MatchGroup.GroupOperator.OR, List.of());
+        var errors = engine.validate(criteria);
+        assertFalse(errors.isEmpty());
+        assertTrue(errors.stream().anyMatch(e -> e.contains("no conditions")));
+    }
+
+    @Test
+    void validate_unknownField_hasError() {
+        var criteria = new MatchCondition("bogusField", MatchCondition.ConditionOp.EQ, "val", null, null);
+        var errors = engine.validate(criteria);
+        assertFalse(errors.isEmpty());
+        assertTrue(errors.stream().anyMatch(e -> e.contains("Unknown field")));
+    }
+
+    @Test
+    void validate_metadotField_noError() {
+        var criteria = new MatchCondition("metadata.region", MatchCondition.ConditionOp.EQ, "US", null, null);
+        assertTrue(engine.validate(criteria).isEmpty());
+    }
+
+    @Test
+    void validate_invalidOperatorForField_hasError() {
+        // GT is not valid for filename (string field)
+        var criteria = new MatchCondition("filename", MatchCondition.ConditionOp.GT, 100, null, null);
+        var errors = engine.validate(criteria);
+        assertFalse(errors.isEmpty());
+        assertTrue(errors.stream().anyMatch(e -> e.contains("not valid for field")));
+    }
+
+    @Test
+    void validate_validOperatorForField_noError() {
+        var criteria = new MatchCondition("fileSize", MatchCondition.ConditionOp.GT, 1000, null, null);
+        assertTrue(engine.validate(criteria).isEmpty());
+    }
+
+    @Test
+    void validate_depthExceedsMax_hasError() {
+        // Build nested tree deeper than MAX_CRITERIA_DEPTH
+        MatchCriteria leaf = new MatchCondition("filename", MatchCondition.ConditionOp.EQ, "test", null, null);
+        for (int i = 0; i < FlowMatchEngine.MAX_CRITERIA_DEPTH + 2; i++) {
+            leaf = new MatchGroup(MatchGroup.GroupOperator.AND, List.of(leaf));
+        }
+        var errors = engine.validate(leaf);
+        assertFalse(errors.isEmpty());
+        assertTrue(errors.stream().anyMatch(e -> e.contains("too deep")));
+    }
+
     // ---- glob conversion ----
 
     @ParameterizedTest

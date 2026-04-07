@@ -9,6 +9,7 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -23,6 +24,35 @@ import java.util.regex.PatternSyntaxException;
 public class FlowMatchEngine {
 
     private final ConcurrentHashMap<String, Pattern> patternCache = new ConcurrentHashMap<>();
+
+    static final int MAX_CRITERIA_DEPTH = 5;
+
+    private static final Set<String> KNOWN_FIELDS = Set.of(
+            "filename", "extension", "fileSize", "protocol", "direction",
+            "partnerId", "partnerSlug", "accountUsername", "sourceAccountId",
+            "sourcePath", "sourceIp", "ediStandard", "ediType",
+            "timeOfDay", "dayOfWeek", "hour", "metadata"
+    );
+
+    private static final Map<String, Set<String>> FIELD_OPERATORS = Map.ofEntries(
+            Map.entry("filename", Set.of("EQ", "GLOB", "REGEX", "CONTAINS", "STARTS_WITH", "ENDS_WITH")),
+            Map.entry("extension", Set.of("EQ", "IN")),
+            Map.entry("fileSize", Set.of("GT", "LT", "GTE", "LTE", "BETWEEN")),
+            Map.entry("protocol", Set.of("EQ", "IN")),
+            Map.entry("direction", Set.of("EQ")),
+            Map.entry("partnerId", Set.of("EQ", "IN")),
+            Map.entry("partnerSlug", Set.of("EQ", "IN")),
+            Map.entry("accountUsername", Set.of("EQ", "IN", "REGEX")),
+            Map.entry("sourceAccountId", Set.of("EQ")),
+            Map.entry("sourcePath", Set.of("EQ", "CONTAINS", "STARTS_WITH", "REGEX")),
+            Map.entry("sourceIp", Set.of("EQ", "IN", "CIDR")),
+            Map.entry("ediStandard", Set.of("EQ", "IN")),
+            Map.entry("ediType", Set.of("EQ", "IN")),
+            Map.entry("dayOfWeek", Set.of("EQ", "IN")),
+            Map.entry("hour", Set.of("EQ", "GTE", "LTE")),
+            Map.entry("timeOfDay", Set.of("EQ", "GTE", "LTE", "BETWEEN")),
+            Map.entry("metadata", Set.of("KEY_EQ", "CONTAINS", "EQ"))
+    );
 
     /**
      * Evaluate whether the given criteria matches the context.
@@ -251,8 +281,8 @@ public class FlowMatchEngine {
     // --- Validation ---
 
     private void validateNode(MatchCriteria node, List<String> errors, int depth) {
-        if (depth > 10) {
-            errors.add("Criteria nesting too deep (max 10)");
+        if (depth > MAX_CRITERIA_DEPTH) {
+            errors.add("Criteria nesting too deep (max " + MAX_CRITERIA_DEPTH + ")");
             return;
         }
         switch (node) {
@@ -263,8 +293,9 @@ public class FlowMatchEngine {
                 if (group.conditions() == null || group.conditions().isEmpty()) {
                     if (group.operator() == MatchGroup.GroupOperator.NOT) {
                         errors.add("NOT group must have exactly one condition");
+                    } else {
+                        errors.add("Group has no conditions");
                     }
-                    // Empty AND/OR are valid (AND=true, OR=false)
                 } else {
                     if (group.operator() == MatchGroup.GroupOperator.NOT && group.conditions().size() != 1) {
                         errors.add("NOT group must have exactly one condition, found " + group.conditions().size());
@@ -277,9 +308,18 @@ public class FlowMatchEngine {
             case MatchCondition cond -> {
                 if (cond.field() == null || cond.field().isBlank()) {
                     errors.add("Condition missing field");
+                } else if (!cond.field().startsWith("metadata.") && !KNOWN_FIELDS.contains(cond.field())) {
+                    errors.add("Unknown field: " + cond.field());
                 }
                 if (cond.op() == null) {
                     errors.add("Condition missing operator");
+                } else if (cond.field() != null && !cond.field().isBlank()) {
+                    String lookupField = cond.field().startsWith("metadata.") ? "metadata" : cond.field();
+                    Set<String> allowed = FIELD_OPERATORS.get(lookupField);
+                    if (allowed != null && !allowed.contains(cond.op().name())) {
+                        errors.add("Operator " + cond.op() + " not valid for field " + cond.field()
+                                + "; allowed: " + allowed);
+                    }
                 }
                 if (cond.op() == MatchCondition.ConditionOp.IN
                         || cond.op() == MatchCondition.ConditionOp.BETWEEN) {
