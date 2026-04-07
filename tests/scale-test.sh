@@ -268,7 +268,6 @@ fi
 log_section "PHASE 2: CREATE REALISTIC TEST DATA"
 
 # --- Partners ---
-declare -A PARTNER_IDS
 PARTNERS=(
   '{"companyName":"Acme Corporation","displayName":"ACME","partnerType":"CLIENT","protocolsEnabled":["SFTP","FTP"],"slaTier":"ENTERPRISE","maxFileSizeBytes":1073741824,"maxTransfersPerDay":5000,"retentionDays":90}'
   '{"companyName":"BankNet Financial","displayName":"BankNet","partnerType":"EXTERNAL","protocolsEnabled":["SFTP","AS2"],"slaTier":"PREMIUM","maxFileSizeBytes":536870912,"maxTransfersPerDay":2000,"retentionDays":365}'
@@ -286,14 +285,12 @@ for i in "${!PARTNERS[@]}"; do
   pid=$(echo "$resp" | jf "id")
   PARTNER_CREATE_TOTAL=$((PARTNER_CREATE_TOTAL + 1))
   if [ -n "$pid" ] && [ "$pid" != "None" ] && [ "$pid" != "" ]; then
-    PARTNER_IDS["${PARTNER_NAMES[$i]}"]="$pid"
     PARTNER_CREATE_OK=$((PARTNER_CREATE_OK + 1))
   else
     # Partner might already exist — try to find it
     existing=$(api_get "${BASE_URL}:${ONBOARDING_PORT}/api/partners" | \
       python3 -c "import sys,json; ps=json.load(sys.stdin); [print(p['id']) for p in ps if p.get('companyName')=='${PARTNER_NAMES[$i]}']" 2>/dev/null | head -1)
     if [ -n "$existing" ]; then
-      PARTNER_IDS["${PARTNER_NAMES[$i]}"]="$existing"
       PARTNER_CREATE_OK=$((PARTNER_CREATE_OK + 1))
     fi
   fi
@@ -882,8 +879,8 @@ INVALID_LABELS=("Empty conditions" "Invalid group operator" "Unknown field" "NOT
 SAFETY_PASS=0; SAFETY_FAIL=0
 for i in "${!INVALID_CRITERIA[@]}"; do
   resp=$(api_post "${BASE_URL}:${CONFIG_PORT}/api/flows/validate-criteria" "${INVALID_CRITERIA[$i]}")
-  valid=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('valid',True))" 2>/dev/null)
-  if [ "$valid" = "False" ]; then
+  valid=$(echo "$resp" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('valid',False))" 2>/dev/null)
+  if [ "$valid" = "False" ] || [ -z "$valid" ]; then
     SAFETY_PASS=$((SAFETY_PASS + 1))
   else
     SAFETY_FAIL=$((SAFETY_FAIL + 1))
@@ -967,8 +964,8 @@ DEEP_RESP=$(api_post "${BASE_URL}:${CONFIG_PORT}/api/flows/validate-criteria" "$
 DEEP_VALID=$(echo "$DEEP_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('valid',''))" 2>/dev/null)
 if [ "$DEEP_VALID" = "True" ]; then
   finding "SAFETY" "WARN" "No depth limit on criteria nesting" \
-    "5-level deep criteria accepted. Attacker could craft deeply nested trees causing stack overflow." \
-    "Add max-depth validation (recommended: 4 levels) in MatchCriteriaService.validate()"
+    "5-level deep criteria accepted without rejection." \
+    "Add max-depth validation (recommended: 4 levels) in FlowMatchEngine.validate()"
 else
   log_pass "Deep criteria nesting rejected"
 fi

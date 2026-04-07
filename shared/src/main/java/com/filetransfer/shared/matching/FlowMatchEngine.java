@@ -25,7 +25,7 @@ public class FlowMatchEngine {
 
     private final ConcurrentHashMap<String, Pattern> patternCache = new ConcurrentHashMap<>();
 
-    static final int MAX_CRITERIA_DEPTH = 5;
+    static final int MAX_CRITERIA_DEPTH = 4;
 
     private static final Set<String> KNOWN_FIELDS = Set.of(
             "filename", "extension", "fileSize", "protocol", "direction",
