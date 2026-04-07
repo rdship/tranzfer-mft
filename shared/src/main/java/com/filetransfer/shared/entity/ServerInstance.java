@@ -62,6 +62,10 @@ public class ServerInstance {
     @Builder.Default
     private int maxConnections = 500;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "folder_template_id")
+    private FolderTemplate folderTemplate;
+
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;

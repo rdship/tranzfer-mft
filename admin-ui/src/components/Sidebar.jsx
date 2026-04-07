@@ -8,7 +8,7 @@ import {
   CpuChipIcon, DocumentTextIcon, KeyIcon,
   WifiIcon, BoltIcon, CommandLineIcon,
   ArrowPathIcon, AdjustmentsHorizontalIcon,
-  BuildingOfficeIcon, RocketLaunchIcon, CircleStackIcon
+  BuildingOfficeIcon, RocketLaunchIcon, CircleStackIcon, FolderIcon
 } from '@heroicons/react/24/outline'
 
 /**
@@ -47,6 +47,7 @@ const navGroups = [
     label: 'Infrastructure',
     items: [
       { to: '/server-instances', icon: ServerStackIcon, label: 'Servers', role: 'ADMIN' },
+      { to: '/folder-templates', icon: FolderIcon, label: 'Folder Templates', role: 'ADMIN' },
       { to: '/security-profiles', icon: ShieldCheckIcon, label: 'Security Profiles', role: 'ADMIN' },
       { to: '/keystore', icon: KeyIcon, label: 'Keystore Manager', role: 'ADMIN' },
       { to: '/2fa', icon: ShieldCheckIcon, label: 'Two-Factor Auth' },

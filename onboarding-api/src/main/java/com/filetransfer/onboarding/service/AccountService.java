@@ -9,7 +9,10 @@ import com.filetransfer.shared.dto.AccountUpdatedEvent;
 import com.filetransfer.shared.entity.TransferAccount;
 import com.filetransfer.shared.entity.User;
 import com.filetransfer.shared.enums.Protocol;
+import com.filetransfer.shared.dto.FolderDefinition;
+import com.filetransfer.shared.entity.FolderTemplate;
 import com.filetransfer.shared.entity.ServerInstance;
+import com.filetransfer.shared.repository.FolderTemplateRepository;
 import com.filetransfer.shared.repository.ServerInstanceRepository;
 import com.filetransfer.shared.repository.TransferAccountRepository;
 import com.filetransfer.shared.repository.UserRepository;
@@ -22,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.UUID;
@@ -35,6 +39,7 @@ public class AccountService {
     private final PasswordEncoder passwordEncoder;
     private final AccountEventPublisher eventPublisher;
     private final ServerInstanceRepository serverInstanceRepository;
+    private final FolderTemplateRepository folderTemplateRepository;
 
     @Value("${file-transfer.sftp-home-base:/data/sftp}")
     private String sftpHomeBase;
@@ -80,6 +85,7 @@ public class AccountService {
                 .username(account.getUsername())
                 .homeDir(account.getHomeDir())
                 .serverInstance(account.getServerInstance())
+                .folderPaths(resolveFolderPaths(account.getServerInstance()))
                 .build());
 
         return toResponse(account);
@@ -146,6 +152,18 @@ public class AccountService {
             case AS2, AS4 -> sftpHomeBase; // AS2/AS4 accounts use SFTP home base
         };
         return base + "/" + username;
+    }
+
+    private List<String> resolveFolderPaths(String serverInstanceId) {
+        List<String> defaultPaths = List.of("inbox", "outbox", "archive", "sent");
+        if (serverInstanceId == null) return defaultPaths;
+        return serverInstanceRepository.findByInstanceId(serverInstanceId)
+                .filter(si -> si.getFolderTemplate() != null)
+                .map(si -> si.getFolderTemplate().getFolders().stream()
+                        .map(FolderDefinition::getPath).toList())
+                .orElseGet(() -> folderTemplateRepository.findByName("Standard")
+                        .map(ft -> ft.getFolders().stream().map(FolderDefinition::getPath).toList())
+                        .orElse(defaultPaths));
     }
 
     private void provisionHomeDir(String homeDir) {

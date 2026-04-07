@@ -67,14 +67,18 @@ public class AccountEventConsumer {
             // Evict cache so next auth picks up fresh DB data
             credentialService.evictFromCache(username);
 
-            // Create home directories for the new account
+            // Create home directories from template (carried in event) or default
             if (homeDir != null) {
                 try {
-                    Files.createDirectories(Paths.get(homeDir, "inbox"));
-                    Files.createDirectories(Paths.get(homeDir, "outbox"));
-                    Files.createDirectories(Paths.get(homeDir, "archive"));
-                    Files.createDirectories(Paths.get(homeDir, "sent"));
-                    log.info("Created directories for {}: {}", username, homeDir);
+                    @SuppressWarnings("unchecked")
+                    java.util.List<String> folderPaths = (java.util.List<String>) event.get("folderPaths");
+                    if (folderPaths == null || folderPaths.isEmpty()) {
+                        folderPaths = java.util.List.of("inbox", "outbox", "archive", "sent");
+                    }
+                    for (String folder : folderPaths) {
+                        Files.createDirectories(Paths.get(homeDir, folder));
+                    }
+                    log.info("Created {} directories for {}: {}", folderPaths.size(), username, homeDir);
                 } catch (Exception e) {
                     log.warn("Could not create directories for {}: {}", username, e.getMessage());
                 }

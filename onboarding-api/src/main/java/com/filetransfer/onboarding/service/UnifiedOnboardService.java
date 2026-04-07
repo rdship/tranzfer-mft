@@ -56,6 +56,8 @@ public class UnifiedOnboardService {
     private final AuditService auditService;
     private final AccountEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
+    private final ServerInstanceRepository serverInstanceRepository;
+    private final FolderTemplateRepository folderTemplateRepository;
 
     @Value("${file-transfer.sftp-home-base:/data/sftp}")
     private String sftpHomeBase;
@@ -133,6 +135,7 @@ public class UnifiedOnboardService {
                         .username(account.getUsername())
                         .homeDir(account.getHomeDir())
                         .serverInstance(account.getServerInstance())
+                        .folderPaths(resolveFolderPaths(account.getServerInstance()))
                         .build());
             } catch (Exception e) {
                 log.warn("Failed to publish account.created event for {}: {}", account.getUsername(), e.getMessage());
@@ -405,6 +408,16 @@ public class UnifiedOnboardService {
             case AS2, AS4 -> sftpHomeBase;
         };
         return base + "/" + username;
+    }
+
+    private List<String> resolveFolderPaths(String serverInstanceId) {
+        List<String> defaultPaths = List.of("inbox", "outbox", "archive", "sent");
+        if (serverInstanceId == null) return defaultPaths;
+        return serverInstanceRepository.findByInstanceId(serverInstanceId)
+                .filter(si -> si.getFolderTemplate() != null)
+                .map(si -> si.getFolderTemplate().getFolders().stream()
+                        .map(com.filetransfer.shared.dto.FolderDefinition::getPath).toList())
+                .orElse(defaultPaths);
     }
 
     private void provisionHomeDir(String homeDir) {

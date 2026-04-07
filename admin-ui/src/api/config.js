@@ -15,6 +15,15 @@ export const updatePartnership = (id, data) => configApi.put(`/api/as2-partnersh
 export const togglePartnership = (id) => configApi.patch(`/api/as2-partnerships/${id}/toggle`).then(r => r.data)
 export const deletePartnership = (id) => configApi.delete(`/api/as2-partnerships/${id}`)
 
+// Folder Templates
+export const getFolderTemplates = () => configApi.get('/api/folder-templates').then(r => r.data)
+export const getFolderTemplate = (id) => configApi.get(`/api/folder-templates/${id}`).then(r => r.data)
+export const createFolderTemplate = (data) => configApi.post('/api/folder-templates', data).then(r => r.data)
+export const updateFolderTemplate = (id, data) => configApi.put(`/api/folder-templates/${id}`, data).then(r => r.data)
+export const deleteFolderTemplate = (id) => configApi.delete(`/api/folder-templates/${id}`)
+export const exportAllFolderTemplates = () => configApi.get('/api/folder-templates/export').then(r => r.data)
+export const importFolderTemplates = (data) => configApi.post('/api/folder-templates/import', data).then(r => r.data)
+
 // Match Criteria
 export const getMatchFields = () => configApi.get('/api/flows/match-fields').then(r => r.data)
 export const validateCriteria = (criteria) => configApi.post('/api/flows/validate-criteria', criteria).then(r => r.data)

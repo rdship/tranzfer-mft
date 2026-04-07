@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getServerInstances, createServerInstance, updateServerInstance, deleteServerInstance } from '../api/accounts'
+import { getFolderTemplates } from '../api/config'
 import { getPlatformSettings } from '../api/platformSettings'
 import { useServices } from '../context/ServiceContext'
 import SecurityTierSelector from '../components/SecurityTierSelector'
@@ -39,6 +40,7 @@ const emptyForm = {
   externalHost: '', externalPort: '',
   useProxy: false, proxyHost: '', proxyPort: '',
   maxConnections: 500,
+  folderTemplateId: '',
   securityTier: 'AI', securityPolicy: {},
   protocolCredentials: {}
 }
@@ -82,6 +84,7 @@ export default function ServerInstances() {
       externalHost: s.externalHost || '', externalPort: s.externalPort || '',
       useProxy: s.useProxy, proxyHost: s.proxyHost || '', proxyPort: s.proxyPort || '',
       maxConnections: s.maxConnections,
+      folderTemplateId: s.folderTemplateId || '',
       securityTier: s.securityTier || 'AI',
       securityPolicy: s.securityPolicy || {},
       protocolCredentials: s.protocolCredentials || {}
@@ -276,6 +279,14 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
   })
   const llmEnabled = aiSettings.some(s => s.settingKey === 'ai.llm.enabled' && s.settingValue === 'true')
 
+  const { data: folderTemplates = [] } = useQuery({
+    queryKey: ['folder-templates-picker'],
+    queryFn: getFolderTemplates,
+    staleTime: 300_000
+  })
+
+  const selectedTemplate = folderTemplates.find(t => t.id === form.folderTemplateId)
+
   const f = (key, val) => setForm(prev => ({ ...prev, [key]: val }))
 
   const handleProtocolChange = (protocol) => {
@@ -317,6 +328,24 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
         <div><label>Max Connections</label><input type="number" value={form.maxConnections} onChange={e => f('maxConnections', parseInt(e.target.value))} /></div>
       </div>
       <div><label>Description</label><input value={form.description} onChange={e => f('description', e.target.value)} placeholder="Production server for EU region" /></div>
+
+      {/* Folder Template */}
+      <div>
+        <label>Folder Template</label>
+        <select value={form.folderTemplateId} onChange={e => f('folderTemplateId', e.target.value || null)}>
+          <option value="">Default (Standard: inbox, outbox, archive, sent)</option>
+          {folderTemplates.map(t => (
+            <option key={t.id} value={t.id}>{t.name}{t.builtIn ? ' (built-in)' : ''} — {t.folders.length} folders</option>
+          ))}
+        </select>
+        {selectedTemplate && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {selectedTemplate.folders.map((fd, i) => (
+              <span key={i} className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-xs font-mono text-gray-600">{fd.path}</span>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Internal connection */}
       <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold pt-2">Internal Connection (Docker/Host)</p>

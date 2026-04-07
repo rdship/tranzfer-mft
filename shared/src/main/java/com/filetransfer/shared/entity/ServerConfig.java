@@ -47,6 +47,10 @@ public class ServerConfig extends Auditable {
     @Column(columnDefinition = "jsonb")
     private Map<String, String> properties;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "folder_template_id")
+    private FolderTemplate folderTemplate;
+
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;
