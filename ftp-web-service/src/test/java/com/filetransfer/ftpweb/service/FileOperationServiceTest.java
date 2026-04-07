@@ -41,6 +41,8 @@ class FileOperationServiceTest {
     @Mock private RoutingEngine routingEngine;
     @Mock private ServerInstanceRepository serverInstanceRepository;
     @Mock private FolderTemplateRepository folderTemplateRepository;
+    @Mock private com.filetransfer.shared.vfs.VirtualFileSystem virtualFileSystem;
+    @Mock private com.filetransfer.shared.client.StorageServiceClient storageServiceClient;
 
     private FileOperationService service;
 
@@ -51,7 +53,7 @@ class FileOperationServiceTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        service = new FileOperationService(accountRepository, routingEngine, serverInstanceRepository, folderTemplateRepository);
+        service = new FileOperationService(accountRepository, routingEngine, serverInstanceRepository, folderTemplateRepository, virtualFileSystem, storageServiceClient);
 
         // Set @Value field via reflection
         Field instanceIdField = FileOperationService.class.getDeclaredField("instanceId");

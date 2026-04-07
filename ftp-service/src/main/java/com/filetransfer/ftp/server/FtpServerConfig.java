@@ -36,6 +36,7 @@ public class FtpServerConfig {
     private final FtpsConfig ftpsConfig;
     private final FtpBounceFilter ftpBounceFilter;
     private final FileOperationFilter fileOperationFilter;
+    private final VirtualFtpFileSystemFactory virtualFtpFileSystemFactory;
 
     @Value("${ftp.port:21}")
     private int ftpPort;
@@ -94,6 +95,7 @@ public class FtpServerConfig {
     public FtpServer ftpServer() {
         FtpServerFactory serverFactory = new FtpServerFactory();
         serverFactory.setUserManager(ftpUserManager);
+        serverFactory.setFileSystem(virtualFtpFileSystemFactory);
 
         // Connection configuration
         ConnectionConfigFactory connConfig = new ConnectionConfigFactory();

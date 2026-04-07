@@ -10,6 +10,7 @@ import java.util.UUID;
 
 public interface TransferAccountRepository extends JpaRepository<TransferAccount, UUID> {
     Optional<TransferAccount> findByUsernameAndProtocolAndActiveTrue(String username, Protocol protocol);
+    Optional<TransferAccount> findByUsername(String username);
     boolean existsByUsername(String username);
     boolean existsByUsernameAndProtocol(String username, Protocol protocol);
 

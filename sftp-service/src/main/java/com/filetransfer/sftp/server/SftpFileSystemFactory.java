@@ -1,10 +1,14 @@
 package com.filetransfer.sftp.server;
 
 import com.filetransfer.sftp.service.CredentialService;
+import com.filetransfer.shared.client.StorageServiceClient;
 import com.filetransfer.shared.dto.FolderDefinition;
-import com.filetransfer.shared.entity.ServerInstance;
+import com.filetransfer.shared.entity.TransferAccount;
 import com.filetransfer.shared.repository.FolderTemplateRepository;
 import com.filetransfer.shared.repository.ServerInstanceRepository;
+import com.filetransfer.shared.vfs.VirtualFileSystem;
+import com.filetransfer.shared.vfs.VirtualSftpFileSystem;
+import com.filetransfer.shared.vfs.VirtualSftpPath;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.sshd.common.file.FileSystemFactory;
@@ -20,7 +24,15 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
+/**
+ * Dual-mode SFTP FileSystem factory.
+ *
+ * <p>Accounts with {@code storageMode=VIRTUAL} get the Phantom Folder virtual filesystem
+ * (DB-backed catalog + content-addressed storage). All others use the legacy physical
+ * {@link RootedFileSystemProvider}.
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -29,6 +41,8 @@ public class SftpFileSystemFactory implements FileSystemFactory {
     private final CredentialService credentialService;
     private final ServerInstanceRepository serverInstanceRepository;
     private final FolderTemplateRepository folderTemplateRepository;
+    private final VirtualFileSystem virtualFileSystem;
+    private final StorageServiceClient storageServiceClient;
 
     @Value("${sftp.home-base:/data/sftp}")
     private String homeBase;
@@ -39,25 +53,47 @@ public class SftpFileSystemFactory implements FileSystemFactory {
     @Override
     public Path getUserHomeDir(SessionContext session) throws IOException {
         String username = session.getUsername();
-        return resolveHomeDir(username);
+        Optional<TransferAccount> account = credentialService.findAccount(username);
+
+        // Virtual mode: return a virtual root path
+        if (account.isPresent() && isVirtualMode(account.get())) {
+            VirtualSftpFileSystem vfs = new VirtualSftpFileSystem(
+                    account.get().getId(), virtualFileSystem, storageServiceClient);
+            return new VirtualSftpPath(vfs, "/");
+        }
+
+        return resolvePhysicalHomeDir(username, account.orElse(null));
     }
 
     @Override
     public FileSystem createFileSystem(SessionContext session) throws IOException {
         String username = session.getUsername();
-        Path homeDir = resolveHomeDir(username);
-        // Create home + template subdirectories on login (idempotent)
+        Optional<TransferAccount> account = credentialService.findAccount(username);
+
+        // ── Virtual mode: Phantom Folder VFS ────────────────────────────
+        if (account.isPresent() && isVirtualMode(account.get())) {
+            VirtualSftpFileSystem vfs = new VirtualSftpFileSystem(
+                    account.get().getId(), virtualFileSystem, storageServiceClient);
+            log.info("SFTP virtual filesystem ready for user={} (account={})", username, account.get().getId());
+            return vfs;
+        }
+
+        // ── Physical mode: legacy rooted filesystem ─────────────────────
+        Path homeDir = resolvePhysicalHomeDir(username, account.orElse(null));
         for (String folder : resolveFolderPaths()) {
             Files.createDirectories(homeDir.resolve(folder));
         }
-        log.info("SFTP filesystem ready for user={} at {}", username, homeDir);
+        log.info("SFTP physical filesystem ready for user={} at {}", username, homeDir);
         return new RootedFileSystemProvider().newFileSystem(homeDir, Collections.emptyMap());
     }
 
-    private Path resolveHomeDir(String username) {
-        return credentialService.findAccount(username)
-                .map(a -> Paths.get(a.getHomeDir()))
-                .orElse(Paths.get(homeBase, username));
+    private boolean isVirtualMode(TransferAccount account) {
+        return "VIRTUAL".equalsIgnoreCase(account.getStorageMode());
+    }
+
+    private Path resolvePhysicalHomeDir(String username, TransferAccount account) {
+        if (account != null) return Paths.get(account.getHomeDir());
+        return Paths.get(homeBase, username);
     }
 
     private List<String> resolveFolderPaths() {

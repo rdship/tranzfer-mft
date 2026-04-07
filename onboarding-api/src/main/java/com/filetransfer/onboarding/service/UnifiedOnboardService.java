@@ -16,6 +16,7 @@ import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.enums.UserRole;
 import com.filetransfer.shared.repository.*;
 import com.filetransfer.shared.util.JwtUtil;
+import com.filetransfer.shared.vfs.VirtualFileSystem;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -58,6 +59,7 @@ public class UnifiedOnboardService {
     private final ObjectMapper objectMapper;
     private final ServerInstanceRepository serverInstanceRepository;
     private final FolderTemplateRepository folderTemplateRepository;
+    private final VirtualFileSystem virtualFileSystem;
 
     @Value("${file-transfer.sftp-home-base:/data/sftp}")
     private String sftpHomeBase;
@@ -127,6 +129,18 @@ public class UnifiedOnboardService {
 
             accountsByUsername.put(acctSetup.getUsername(), account);
 
+            List<String> folderPaths = resolveFolderPaths(account.getServerInstance());
+
+            // Virtual mode: provision phantom folders (zero disk I/O)
+            if ("VIRTUAL".equalsIgnoreCase(account.getStorageMode())) {
+                try {
+                    virtualFileSystem.provisionFolders(account.getId(), folderPaths);
+                } catch (Exception e) {
+                    log.warn("Failed to provision virtual folders for {}: {}", account.getUsername(), e.getMessage());
+                    warnings.add("Virtual folder provisioning failed for " + account.getUsername());
+                }
+            }
+
             // Publish account created event
             try {
                 eventPublisher.publishAccountCreated(AccountCreatedEvent.builder()
@@ -135,7 +149,7 @@ public class UnifiedOnboardService {
                         .username(account.getUsername())
                         .homeDir(account.getHomeDir())
                         .serverInstance(account.getServerInstance())
-                        .folderPaths(resolveFolderPaths(account.getServerInstance()))
+                        .folderPaths(folderPaths)
                         .build());
             } catch (Exception e) {
                 log.warn("Failed to publish account.created event for {}: {}", account.getUsername(), e.getMessage());

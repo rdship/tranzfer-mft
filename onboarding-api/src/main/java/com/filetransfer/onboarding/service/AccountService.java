@@ -16,6 +16,7 @@ import com.filetransfer.shared.repository.FolderTemplateRepository;
 import com.filetransfer.shared.repository.ServerInstanceRepository;
 import com.filetransfer.shared.repository.TransferAccountRepository;
 import com.filetransfer.shared.repository.UserRepository;
+import com.filetransfer.shared.vfs.VirtualFileSystem;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -40,6 +41,7 @@ public class AccountService {
     private final AccountEventPublisher eventPublisher;
     private final ServerInstanceRepository serverInstanceRepository;
     private final FolderTemplateRepository folderTemplateRepository;
+    private final VirtualFileSystem virtualFileSystem;
 
     @Value("${file-transfer.sftp-home-base:/data/sftp}")
     private String sftpHomeBase;
@@ -79,13 +81,21 @@ public class AccountService {
 
         accountRepository.save(account);
 
+        List<String> folderPaths = resolveFolderPaths(account.getServerInstance());
+
+        // Virtual mode: provision phantom folders (zero disk I/O)
+        if ("VIRTUAL".equalsIgnoreCase(account.getStorageMode())) {
+            virtualFileSystem.provisionFolders(account.getId(), folderPaths);
+        }
+
+        // Publish event (physical mode services create dirs from this; virtual mode ignores)
         eventPublisher.publishAccountCreated(AccountCreatedEvent.builder()
                 .accountId(account.getId())
                 .protocol(account.getProtocol())
                 .username(account.getUsername())
                 .homeDir(account.getHomeDir())
                 .serverInstance(account.getServerInstance())
-                .folderPaths(resolveFolderPaths(account.getServerInstance()))
+                .folderPaths(folderPaths)
                 .build());
 
         return toResponse(account);

@@ -58,6 +58,11 @@ public class TransferAccount extends Auditable {
     @Column(name = "partner_id")
     private UUID partnerId;
 
+    /** PHYSICAL = legacy filesystem, VIRTUAL = phantom folder VFS. */
+    @Column(name = "storage_mode", length = 10)
+    @Builder.Default
+    private String storageMode = "PHYSICAL";
+
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;

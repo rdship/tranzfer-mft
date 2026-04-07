@@ -1,15 +1,19 @@
 package com.filetransfer.ftpweb.service;
 
+import com.filetransfer.shared.client.StorageServiceClient;
 import com.filetransfer.shared.dto.FolderDefinition;
 import com.filetransfer.shared.entity.TransferAccount;
+import com.filetransfer.shared.entity.VirtualEntry;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.repository.FolderTemplateRepository;
 import com.filetransfer.shared.repository.ServerInstanceRepository;
 import com.filetransfer.shared.repository.TransferAccountRepository;
 import com.filetransfer.shared.routing.RoutingEngine;
+import com.filetransfer.shared.vfs.VirtualFileSystem;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
@@ -31,6 +35,8 @@ public class FileOperationService {
     private final RoutingEngine routingEngine;
     private final ServerInstanceRepository serverInstanceRepository;
     private final FolderTemplateRepository folderTemplateRepository;
+    private final VirtualFileSystem virtualFileSystem;
+    private final StorageServiceClient storageServiceClient;
 
     @Value("${ftpweb.instance-id:#{null}}")
     private String instanceId;
@@ -45,7 +51,16 @@ public class FileOperationService {
     public record FileEntry(String name, String path, boolean directory, long size, Instant lastModified) {}
 
     public List<FileEntry> list(String username, String relativePath) throws IOException {
-        Path dir = resolveAndValidate(username, relativePath);
+        TransferAccount account = findAccount(username);
+        if (isVirtualMode(account)) {
+            String vpath = VirtualFileSystem.normalizePath("/" + relativePath);
+            return virtualFileSystem.list(account.getId(), vpath).stream()
+                    .map(e -> new FileEntry(e.getName(), e.getPath(), e.isDirectory(),
+                            e.getSizeBytes(), e.getUpdatedAt() != null ? e.getUpdatedAt() : Instant.now()))
+                    .toList();
+        }
+
+        Path dir = resolvePathForAccount(account, relativePath);
         List<FileEntry> entries = new ArrayList<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
             for (Path entry : stream) {
@@ -78,36 +93,69 @@ public class FileOperationService {
             throw new SecurityException("Invalid filename: " + originalFilename);
         }
 
-        Path dir = resolveAndValidate(username, relativeDirPath);
+        TransferAccount account = findAccount(username);
+
+        // ── Virtual mode: store via CAS ─────────────────────────────────
+        if (isVirtualMode(account)) {
+            String vpath = VirtualFileSystem.normalizePath("/" + relativeDirPath + "/" + originalFilename);
+            Map<String, Object> result = storageServiceClient.store(
+                    originalFilename, file.getBytes(), null, account.getId().toString());
+            String sha256 = (String) result.get("sha256");
+            String trackId = result.get("trackId") != null ? result.get("trackId").toString() : null;
+            virtualFileSystem.writeFile(account.getId(), vpath, sha256, file.getSize(), trackId, file.getContentType());
+            log.info("FTP-Web virtual upload: user={} path={} sha256={}", username, vpath,
+                    sha256 != null ? sha256.substring(0, 8) + "..." : "n/a");
+            return;
+        }
+
+        // ── Physical mode: legacy filesystem ────────────────────────────
+        Path dir = resolvePathForAccount(account, relativeDirPath);
         Files.createDirectories(dir);
         Path dest = dir.resolve(originalFilename);
         file.transferTo(dest);
 
-        TransferAccount account = findAccount(username);
         String relativeFilePath = relativeDirPath + "/" + file.getOriginalFilename();
         routingEngine.onFileUploaded(account, relativeFilePath, dest.toAbsolutePath().toString());
         log.info("FTP-Web upload: user={} path={}", username, dest);
     }
 
     public Resource download(String username, String relativeFilePath) throws MalformedURLException {
-        Path file = resolveAndValidate(username, relativeFilePath);
+        TransferAccount account = findAccount(username);
+
+        if (isVirtualMode(account)) {
+            String vpath = VirtualFileSystem.normalizePath("/" + relativeFilePath);
+            byte[] data = virtualFileSystem.readFile(account.getId(), vpath);
+            String filename = VirtualFileSystem.nameOf(vpath);
+            return new ByteArrayResource(data) {
+                @Override public String getFilename() { return filename; }
+            };
+        }
+
+        Path file = resolvePathForAccount(account, relativeFilePath);
         if (!Files.exists(file) || Files.isDirectory(file)) {
             throw new NoSuchElementException("File not found: " + relativeFilePath);
         }
-
-        TransferAccount account = findAccount(username);
         routingEngine.onFileDownloaded(account, file.toAbsolutePath().toString());
-
         return new UrlResource(file.toUri());
     }
 
     public void mkdir(String username, String relativeDirPath) throws IOException {
-        Path dir = resolveAndValidate(username, relativeDirPath);
+        TransferAccount account = findAccount(username);
+        if (isVirtualMode(account)) {
+            virtualFileSystem.mkdirs(account.getId(), VirtualFileSystem.normalizePath("/" + relativeDirPath));
+            return;
+        }
+        Path dir = resolvePathForAccount(account, relativeDirPath);
         Files.createDirectories(dir);
     }
 
     public void delete(String username, String relativeFilePath) throws IOException {
-        Path file = resolveAndValidate(username, relativeFilePath);
+        TransferAccount account = findAccount(username);
+        if (isVirtualMode(account)) {
+            virtualFileSystem.delete(account.getId(), VirtualFileSystem.normalizePath("/" + relativeFilePath));
+            return;
+        }
+        Path file = resolvePathForAccount(account, relativeFilePath);
         if (Files.isDirectory(file)) {
             deleteRecursively(file);
         } else {
@@ -116,15 +164,24 @@ public class FileOperationService {
     }
 
     public void rename(String username, String fromPath, String toPath) throws IOException {
-        Path from = resolveAndValidate(username, fromPath);
-        Path to = resolveAndValidate(username, toPath);
+        TransferAccount account = findAccount(username);
+        if (isVirtualMode(account)) {
+            virtualFileSystem.move(account.getId(),
+                    VirtualFileSystem.normalizePath("/" + fromPath),
+                    VirtualFileSystem.normalizePath("/" + toPath));
+            return;
+        }
+        Path from = resolvePathForAccount(account, fromPath);
+        Path to = resolvePathForAccount(account, toPath);
         Files.move(from, to, StandardCopyOption.REPLACE_EXISTING);
     }
 
     private Path resolveAndValidate(String username, String relativePath) {
-        TransferAccount account = findAccount(username);
+        return resolvePathForAccount(findAccount(username), relativePath);
+    }
+
+    private Path resolvePathForAccount(TransferAccount account, String relativePath) {
         Path homeDir = Paths.get(account.getHomeDir());
-        // Prevent path traversal: normalize and ensure path stays within homeDir
         Path resolved = homeDir.resolve(relativePath.startsWith("/")
                 ? relativePath.substring(1) : relativePath).normalize();
         if (!resolved.startsWith(homeDir)) {
@@ -171,6 +228,10 @@ public class FileOperationService {
             log.warn("Could not resolve folder template: {}", e.getMessage());
         }
         return List.of();
+    }
+
+    private boolean isVirtualMode(TransferAccount account) {
+        return "VIRTUAL".equalsIgnoreCase(account.getStorageMode());
     }
 
     private void deleteRecursively(Path dir) throws IOException {
