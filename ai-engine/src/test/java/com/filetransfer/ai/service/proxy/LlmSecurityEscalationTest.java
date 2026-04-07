@@ -82,6 +82,7 @@ class LlmSecurityEscalationTest {
     }
 
     @Test
+    @org.junit.jupiter.api.Timeout(10)
     void evaluateHandlesConnectionTimeoutGracefully() throws Exception {
         setField("llmEnabled", true);
         setField("apiKey", "sk-test-key");
