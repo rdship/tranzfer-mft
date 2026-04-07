@@ -1,0 +1,322 @@
+{
+  "_description": "TranzFer MFT — Service Installation Manifest. Declares what each microservice requires from the database. Used by install-db.sh and ServiceReadinessValidator.",
+  "_version": "1.0",
+
+  "services": {
+    "onboarding-api": {
+      "port": 8080,
+      "database": true,
+      "flyway": true,
+      "rabbitmq": true,
+      "tables": [
+        "users", "transfer_accounts", "partners", "partner_contacts", "file_flows",
+        "folder_mappings", "external_destinations", "server_instances", "folder_templates",
+        "totp_configs", "login_attempts", "user_permissions", "permissions", "role_permissions",
+        "audit_logs", "dead_letter_messages", "blockchain_anchors", "file_transfer_records",
+        "tenants", "cluster_nodes", "service_registrations", "client_presence",
+        "transfer_tickets", "flow_executions", "auto_onboard_sessions",
+        "partner_agreements", "scheduled_tasks", "shedlock",
+        "virtual_entries", "vfs_intents", "vfs_chunks"
+      ],
+      "critical_columns": {
+        "users": ["id", "email", "password_hash", "role"],
+        "transfer_accounts": ["id", "username", "protocol", "password_hash", "home_dir", "active", "server_instance", "partner_id", "permissions", "storage_mode"],
+        "partners": ["id", "company_name", "slug", "partner_type", "status"],
+        "file_flows": ["id", "name", "source_account_id", "match_criteria", "direction"],
+        "folder_mappings": ["id", "source_account_id", "destination_account_id", "source_path", "destination_path"],
+        "server_instances": ["id", "instance_id", "protocol", "name", "internal_host", "internal_port", "folder_template_id"],
+        "tenants": ["id", "slug", "company_name", "plan", "branding"]
+      },
+      "depends_on": ["postgres", "rabbitmq"],
+      "fail_fast": false
+    },
+
+    "sftp-service": {
+      "port": 8081,
+      "database": true,
+      "flyway": true,
+      "rabbitmq": true,
+      "tables": [
+        "transfer_accounts", "audit_logs", "login_attempts", "server_instances",
+        "folder_templates", "virtual_entries", "vfs_intents", "vfs_chunks",
+        "folder_mappings", "file_transfer_records", "file_flows", "flow_executions",
+        "shedlock", "service_registrations"
+      ],
+      "critical_columns": {
+        "transfer_accounts": ["id", "username", "protocol", "password_hash", "home_dir", "active", "server_instance", "public_key", "storage_mode", "inline_max_bytes", "chunk_threshold_bytes"],
+        "server_instances": ["id", "instance_id", "protocol", "folder_template_id"],
+        "virtual_entries": ["id", "account_id", "path", "storage_key", "version", "inline_content", "storage_bucket"]
+      },
+      "depends_on": ["postgres", "rabbitmq"],
+      "fail_fast": false
+    },
+
+    "ftp-service": {
+      "port": 8082,
+      "database": true,
+      "flyway": true,
+      "rabbitmq": true,
+      "tables": [
+        "transfer_accounts", "audit_logs", "server_instances", "folder_templates",
+        "folder_mappings", "file_transfer_records", "file_flows", "flow_executions",
+        "shedlock", "service_registrations"
+      ],
+      "critical_columns": {
+        "transfer_accounts": ["id", "username", "protocol", "password_hash", "home_dir", "active", "server_instance"],
+        "server_instances": ["id", "instance_id", "protocol", "folder_template_id"]
+      },
+      "depends_on": ["postgres", "rabbitmq"],
+      "fail_fast": false
+    },
+
+    "ftp-web-service": {
+      "port": 8083,
+      "database": true,
+      "flyway": true,
+      "rabbitmq": true,
+      "tables": [
+        "transfer_accounts", "server_instances", "folder_templates",
+        "chunked_uploads", "chunked_upload_chunks",
+        "audit_logs", "shedlock", "service_registrations"
+      ],
+      "critical_columns": {
+        "transfer_accounts": ["id", "username", "protocol", "password_hash", "home_dir", "active"],
+        "chunked_uploads": ["id", "filename", "total_size", "total_chunks", "status"]
+      },
+      "depends_on": ["postgres", "rabbitmq"],
+      "fail_fast": false
+    },
+
+    "config-service": {
+      "port": 8084,
+      "database": true,
+      "flyway": true,
+      "rabbitmq": true,
+      "tables": [
+        "folder_templates", "server_configs", "platform_settings", "file_flows",
+        "flow_executions", "scheduled_tasks", "encryption_keys", "transfer_accounts",
+        "partner_agreements", "webhook_connectors", "security_profiles",
+        "listener_security_policies", "as2_partnerships", "legacy_server_configs",
+        "delivery_endpoints", "external_destinations", "server_instances",
+        "folder_mappings", "shedlock", "service_registrations",
+        "virtual_entries", "vfs_intents", "vfs_chunks"
+      ],
+      "critical_columns": {
+        "platform_settings": ["id", "setting_key", "setting_value", "environment", "category"],
+        "server_configs": ["id", "name", "service_type", "host", "port", "properties"],
+        "webhook_connectors": ["id", "name", "type", "url", "trigger_events", "custom_headers"],
+        "listener_security_policies": ["id", "name", "security_tier", "server_instance_id"]
+      },
+      "depends_on": ["postgres", "rabbitmq"],
+      "fail_fast": true
+    },
+
+    "gateway-service": {
+      "port": 8085,
+      "database": true,
+      "flyway": true,
+      "rabbitmq": true,
+      "tables": [
+        "legacy_server_configs", "server_instances", "transfer_accounts",
+        "shedlock", "service_registrations"
+      ],
+      "critical_columns": {
+        "legacy_server_configs": ["id", "name", "protocol", "host", "port"],
+        "server_instances": ["id", "instance_id", "protocol"]
+      },
+      "depends_on": ["postgres", "rabbitmq"],
+      "fail_fast": false
+    },
+
+    "encryption-service": {
+      "port": 8086,
+      "database": true,
+      "flyway": true,
+      "rabbitmq": false,
+      "tables": [
+        "encryption_keys", "shedlock", "service_registrations"
+      ],
+      "critical_columns": {
+        "encryption_keys": ["id", "account_id", "key_name", "algorithm", "active"]
+      },
+      "depends_on": ["postgres"],
+      "fail_fast": true
+    },
+
+    "external-forwarder-service": {
+      "port": 8087,
+      "database": true,
+      "flyway": true,
+      "rabbitmq": true,
+      "tables": [
+        "as2_partnerships", "as2_messages", "external_destinations",
+        "delivery_endpoints", "shedlock", "service_registrations"
+      ],
+      "critical_columns": {
+        "delivery_endpoints": ["id", "name", "protocol", "host", "port", "as2_partnership_id"],
+        "external_destinations": ["id", "name", "type", "host"]
+      },
+      "depends_on": ["postgres", "rabbitmq"],
+      "fail_fast": false
+    },
+
+    "dmz-proxy": {
+      "port": 8088,
+      "database": false,
+      "flyway": false,
+      "rabbitmq": false,
+      "tables": [],
+      "critical_columns": {},
+      "depends_on": ["ai-engine", "gateway-service"],
+      "fail_fast": false
+    },
+
+    "license-service": {
+      "port": 8089,
+      "database": true,
+      "flyway": true,
+      "rabbitmq": true,
+      "tables": [
+        "license_records", "license_activations", "installation_fingerprints",
+        "shedlock", "service_registrations"
+      ],
+      "critical_columns": {
+        "license_records": ["id"],
+        "license_activations": ["id"],
+        "installation_fingerprints": ["id"]
+      },
+      "depends_on": ["postgres"],
+      "fail_fast": false
+    },
+
+    "analytics-service": {
+      "port": 8090,
+      "database": true,
+      "flyway": true,
+      "rabbitmq": true,
+      "tables": [
+        "metric_snapshots", "alert_rules", "file_transfer_records",
+        "shedlock", "service_registrations"
+      ],
+      "critical_columns": {
+        "alert_rules": ["id"],
+        "file_transfer_records": ["id", "track_id", "status", "uploaded_at", "updated_at"]
+      },
+      "depends_on": ["postgres", "rabbitmq"],
+      "fail_fast": false
+    },
+
+    "ai-engine": {
+      "port": 8091,
+      "database": true,
+      "flyway": true,
+      "rabbitmq": true,
+      "tables": [
+        "audit_logs", "file_transfer_records", "file_flows", "transfer_accounts",
+        "service_registrations", "threat_indicators", "security_alerts",
+        "security_events", "threat_actors", "attack_campaigns", "verdict_records",
+        "security_incidents", "shedlock"
+      ],
+      "critical_columns": {
+        "threat_indicators": ["id"],
+        "security_alerts": ["id"],
+        "verdict_records": ["id"]
+      },
+      "depends_on": ["postgres", "rabbitmq"],
+      "fail_fast": false
+    },
+
+    "screening-service": {
+      "port": 8092,
+      "database": true,
+      "flyway": true,
+      "rabbitmq": true,
+      "tables": [
+        "sanctions_entries", "screening_results", "dlp_policies",
+        "quarantine_records", "shedlock", "service_registrations"
+      ],
+      "critical_columns": {
+        "dlp_policies": ["id", "name", "action", "active"],
+        "quarantine_records": ["id", "track_id", "filename", "status"]
+      },
+      "depends_on": ["postgres"],
+      "fail_fast": true
+    },
+
+    "keystore-manager": {
+      "port": 8093,
+      "database": true,
+      "flyway": true,
+      "rabbitmq": false,
+      "tables": [
+        "managed_keys", "shedlock", "service_registrations"
+      ],
+      "critical_columns": {
+        "managed_keys": ["id"]
+      },
+      "depends_on": ["postgres"],
+      "fail_fast": false
+    },
+
+    "as2-service": {
+      "port": 8094,
+      "database": true,
+      "flyway": true,
+      "rabbitmq": true,
+      "tables": [
+        "as2_partnerships", "as2_messages", "transfer_accounts", "users",
+        "shedlock", "service_registrations"
+      ],
+      "critical_columns": {
+        "as2_partnerships": ["id", "partner_name", "partner_as2_id", "our_as2_id", "endpoint_url"],
+        "as2_messages": ["id", "message_id", "partnership_id", "direction", "status"]
+      },
+      "depends_on": ["postgres", "rabbitmq"],
+      "fail_fast": false
+    },
+
+    "edi-converter": {
+      "port": 8095,
+      "database": false,
+      "flyway": false,
+      "rabbitmq": false,
+      "tables": [],
+      "critical_columns": {},
+      "depends_on": [],
+      "fail_fast": false
+    },
+
+    "storage-manager": {
+      "port": 8096,
+      "database": true,
+      "flyway": true,
+      "rabbitmq": false,
+      "tables": [
+        "storage_objects", "shedlock", "service_registrations"
+      ],
+      "critical_columns": {
+        "storage_objects": ["id"]
+      },
+      "depends_on": ["postgres"],
+      "fail_fast": true
+    },
+
+    "notification-service": {
+      "port": 8097,
+      "database": true,
+      "flyway": true,
+      "rabbitmq": true,
+      "tables": [
+        "notification_templates", "notification_rules", "notification_logs",
+        "shedlock", "service_registrations"
+      ],
+      "critical_columns": {
+        "notification_templates": ["id", "name", "channel", "event_type"],
+        "notification_rules": ["id", "name", "channel", "enabled"],
+        "notification_logs": ["id", "event_type", "channel", "status"]
+      },
+      "depends_on": ["postgres", "rabbitmq"],
+      "fail_fast": false
+    }
+  }
+}

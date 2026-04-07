@@ -118,3 +118,7 @@ platform:
     host: ${PROXY_HOST:dmz-proxy}
     port: ${PROXY_PORT:8088}
     no-proxy-hosts: ${PROXY_NO_PROXY_HOSTS:localhost,127.0.0.1,postgres,rabbitmq}
+  readiness:
+    schema-file: db/schema/screening-service.sql
+    required-tables: sanctions_entries,screening_results,dlp_policies,quarantine_records
+    fail-on-missing: true

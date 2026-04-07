@@ -232,6 +232,10 @@ platform:
     port: ${PROXY_PORT:8088}
     no-proxy-hosts: ${PROXY_NO_PROXY_HOSTS:localhost,127.0.0.1,postgres,rabbitmq}
 
+  readiness:
+    schema-file: db/schema/ai-engine.sql
+    required-tables: audit_logs,file_transfer_records,file_flows,transfer_accounts,threat_indicators,security_alerts,security_events,threat_actors,attack_campaigns,verdict_records,security_incidents
+
 cluster:
   id: ${CLUSTER_ID:default-cluster}
   host: ${CLUSTER_HOST:ai-engine}

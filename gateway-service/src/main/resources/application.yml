@@ -123,3 +123,6 @@ platform:
     host: ${PROXY_HOST:dmz-proxy}
     port: ${PROXY_PORT:8088}
     no-proxy-hosts: ${PROXY_NO_PROXY_HOSTS:localhost,127.0.0.1,postgres,rabbitmq}
+  readiness:
+    schema-file: db/schema/gateway-service.sql
+    required-tables: legacy_server_configs,server_instances,transfer_accounts

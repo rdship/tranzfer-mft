@@ -135,6 +135,10 @@ platform:
     user-limit: 200
     default-window-seconds: 60
 
+  readiness:
+    schema-file: db/schema/onboarding-api.sql
+    required-tables: users,tenants,partners,partner_contacts,server_instances,folder_templates,transfer_accounts,external_destinations,file_flows,folder_mappings,file_transfer_records,flow_executions,audit_logs,login_attempts,totp_configs,permissions,role_permissions,user_permissions,dead_letter_messages,blockchain_anchors,cluster_nodes,client_presence,transfer_tickets,auto_onboard_sessions,partner_agreements,scheduled_tasks,virtual_entries
+
 springdoc:
   api-docs:
     enabled: true

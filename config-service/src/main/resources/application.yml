@@ -116,6 +116,10 @@ platform:
     user-limit: 200
     default-window-seconds: 60
 
+  readiness:
+    schema-file: db/schema/config-service.sql
+    required-tables: folder_templates,server_configs,platform_settings,file_flows,flow_executions,scheduled_tasks,encryption_keys,transfer_accounts,partner_agreements,webhook_connectors,security_profiles,listener_security_policies,as2_partnerships,legacy_server_configs,delivery_endpoints,external_destinations,server_instances,folder_mappings,virtual_entries
+
 springdoc:
   api-docs:
     enabled: true
