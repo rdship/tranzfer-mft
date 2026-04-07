@@ -64,6 +64,15 @@ public class FileFlow extends Auditable {
     @Column(name = "partner_id")
     private UUID partnerId;
 
+    /** Composable match criteria tree (JSONB). Source of truth for matching when present. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private com.filetransfer.shared.matching.MatchCriteria matchCriteria;
+
+    /** Flow direction filter: INBOUND, OUTBOUND, or null (both) */
+    @Column(length = 20)
+    private String direction;
+
     /** Priority — lower number = evaluated first */
     @Builder.Default
     private int priority = 100;

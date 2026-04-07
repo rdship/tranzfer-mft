@@ -29,7 +29,7 @@ public class FlowExecution {
     private String trackId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "flow_id", nullable = false)
+    @JoinColumn(name = "flow_id")
     private FileFlow flow;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -56,6 +56,11 @@ public class FlowExecution {
     @Column(columnDefinition = "jsonb")
     private List<StepResult> stepResults;
 
+    /** Snapshot of the criteria that matched this execution (audit trail) */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private com.filetransfer.shared.matching.MatchCriteria matchedCriteria;
+
     private String errorMessage;
 
     @Column(nullable = false, updatable = false)
@@ -64,7 +69,7 @@ public class FlowExecution {
 
     private Instant completedAt;
 
-    public enum FlowStatus { PENDING, PROCESSING, COMPLETED, FAILED, PAUSED }
+    public enum FlowStatus { PENDING, PROCESSING, COMPLETED, FAILED, PAUSED, UNMATCHED }
 
     @Data @NoArgsConstructor @AllArgsConstructor @Builder
     public static class StepResult {
