@@ -1,6 +1,6 @@
 package com.filetransfer.screening.service;
 
-import com.filetransfer.shared.client.ClamAvClient;
+import com.filetransfer.screening.client.ClamAvClient;
 import com.filetransfer.shared.entity.QuarantineRecord;
 import com.filetransfer.shared.repository.QuarantineRecordRepository;
 import lombok.*;

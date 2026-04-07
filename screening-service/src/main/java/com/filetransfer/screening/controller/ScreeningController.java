@@ -5,7 +5,7 @@ import com.filetransfer.screening.loader.SanctionsListLoader;
 import com.filetransfer.screening.repository.ScreeningResultRepository;
 import com.filetransfer.screening.service.ScreeningEngine;
 import com.filetransfer.screening.service.ScreeningPipeline;
-import com.filetransfer.shared.client.ClamAvClient;
+import com.filetransfer.screening.client.ClamAvClient;
 import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

@@ -1,4 +1,4 @@
-package com.filetransfer.shared.client;
+package com.filetransfer.screening.client;
 
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;

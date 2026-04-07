@@ -1,4 +1,4 @@
-package com.filetransfer.shared.messaging;
+package com.filetransfer.onboarding.messaging;
 
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
