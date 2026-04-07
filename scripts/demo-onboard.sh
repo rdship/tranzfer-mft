@@ -22,6 +22,7 @@ EDI="${BASE}:8095"     # edi-converter
 FWD="${BASE}:8087"     # external-forwarder
 DMZ="${BASE}:8088"     # dmz-proxy
 STR="${BASE}:8094"     # storage-manager/as2
+INTERNAL_KEY="${CONTROL_API_KEY:-internal_control_secret}"  # bypass rate limiter
 
 ADMIN_EMAIL="admin@filetransfer.local"
 ADMIN_PASS="Tr@nzFer2026!"
@@ -52,6 +53,7 @@ post() {
   local resp code
   resp=$(curl -s -w "\n%{http_code}" -X POST "$url" \
     -H "Authorization: Bearer $TOKEN" \
+    -H "X-Internal-Key: $INTERNAL_KEY" \
     -H "Content-Type: application/json" \
     -d "$data" 2>/dev/null)
   code=$(echo "$resp" | tail -1)

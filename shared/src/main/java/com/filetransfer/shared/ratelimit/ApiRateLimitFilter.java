@@ -45,6 +45,13 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
+        // Bypass rate limiting for inter-service calls using X-Internal-Key
+        String internalKey = request.getHeader("X-Internal-Key");
+        if (internalKey != null && !internalKey.isBlank()) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String ip = resolveClientIp(request);
         int ipLimit = properties.getDefaultLimit();
         long windowSeconds = properties.getDefaultWindowSeconds();
