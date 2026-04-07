@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getFolderMappings, createFolderMapping, updateFolderMapping, deleteFolderMapping, getAccounts } from '../api/accounts'
 import Modal from '../components/Modal'
+import StoragePerformanceEstimator from '../components/StoragePerformanceEstimator'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import toast from 'react-hot-toast'
@@ -134,6 +135,8 @@ export default function FolderMappings() {
           ))}
         </div>
       )}
+
+      <StoragePerformanceEstimator />
 
       {showCreate && (
         <Modal title="Create Folder Mapping" size="lg" onClose={() => setShowCreate(false)}>
