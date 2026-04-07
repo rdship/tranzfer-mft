@@ -6,7 +6,8 @@ import com.filetransfer.shared.config.PlatformConfig;
 import com.filetransfer.shared.connector.ConnectorDispatcher;
 import com.filetransfer.shared.entity.*;
 import com.filetransfer.shared.enums.FileTransferStatus;
-import com.filetransfer.shared.matching.FlowMatchEngine;
+import com.filetransfer.shared.matching.CompiledFlowRule;
+import com.filetransfer.shared.matching.FlowRuleRegistry;
 import com.filetransfer.shared.matching.MatchContext;
 import com.filetransfer.shared.repository.FileFlowRepository;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;
@@ -22,8 +23,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -42,7 +42,7 @@ class RoutingEngineTest {
     private AiClassificationClient aiClassifier;
     private ConnectorDispatcher connectorDispatcher;
     private PlatformConfig platformConfig;
-    private FlowMatchEngine flowMatchEngine;
+    private FlowRuleRegistry flowRuleRegistry;
     private FlowExecutionRepository executionRepository;
     private PartnerRepository partnerRepository;
     private RoutingEngine routingEngine;
@@ -63,7 +63,7 @@ class RoutingEngineTest {
         aiClassifier = mock(AiClassificationClient.class);
         connectorDispatcher = mock(ConnectorDispatcher.class);
         platformConfig = new PlatformConfig();
-        flowMatchEngine = mock(FlowMatchEngine.class);
+        flowRuleRegistry = mock(FlowRuleRegistry.class);
         executionRepository = mock(FlowExecutionRepository.class);
         partnerRepository = mock(PartnerRepository.class);
 
@@ -71,7 +71,7 @@ class RoutingEngineTest {
                 evaluator, recordRepository, clusterService, restTemplate,
                 trackIdGenerator, flowEngine, flowRepository, auditService,
                 aiClassifier, connectorDispatcher, platformConfig,
-                flowMatchEngine, executionRepository, partnerRepository
+                flowRuleRegistry, executionRepository, partnerRepository
         );
     }
 
@@ -145,10 +145,15 @@ class RoutingEngineTest {
         Path testFile = tempDir.resolve("report.csv");
         Files.writeString(testFile, "data");
 
+        UUID flowId = UUID.randomUUID();
         FileFlow flow = new FileFlow();
+        flow.setId(flowId);
         flow.setName("compress-flow");
         flow.setSteps(List.of());
         flow.setMatchCriteria(null); // null = matches everything
+
+        CompiledFlowRule compiledRule = new CompiledFlowRule(
+                flowId, "compress-flow", 100, null, Set.of(), ctx -> true);
 
         FlowExecution exec = FlowExecution.builder()
                 .status(FlowExecution.FlowStatus.COMPLETED)
@@ -156,8 +161,8 @@ class RoutingEngineTest {
                 .build();
 
         when(trackIdGenerator.generate()).thenReturn("TRZ000003");
-        when(flowRepository.findByActiveTrueOrderByPriorityAsc()).thenReturn(List.of(flow));
-        when(flowMatchEngine.matches(isNull(), any(MatchContext.class))).thenReturn(true);
+        when(flowRuleRegistry.findMatch(any(MatchContext.class))).thenReturn(compiledRule);
+        when(flowRepository.findById(flowId)).thenReturn(Optional.of(flow));
         when(flowEngine.executeFlow(eq(flow), eq("TRZ000003"), eq("report.csv"), eq(testFile.toString()), isNull()))
                 .thenReturn(exec);
         when(aiClassifier.classify(any(), anyString(), anyBoolean()))

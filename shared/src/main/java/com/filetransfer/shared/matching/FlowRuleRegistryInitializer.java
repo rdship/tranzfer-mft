@@ -1,0 +1,35 @@
+package com.filetransfer.shared.matching;
+
+import com.filetransfer.shared.entity.FileFlow;
+import com.filetransfer.shared.repository.FileFlowRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+
+/**
+ * Loads all active flow rules into the in-memory registry at application startup.
+ * Only activates in services that have {@link FileFlowRepository} available.
+ */
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class FlowRuleRegistryInitializer {
+
+    private final FileFlowRepository flowRepository;
+    private final FlowRuleRegistry registry;
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void onStartup() {
+        try {
+            List<FileFlow> activeFlows = flowRepository.findByActiveTrueOrderByPriorityAsc();
+            registry.loadAll(activeFlows);
+            log.info("Flow rule registry initialized with {} active flows", registry.size());
+        } catch (Exception e) {
+            log.warn("Flow rule registry initialization skipped: {}", e.getMessage());
+        }
+    }
+}

@@ -7,7 +7,8 @@ import com.filetransfer.shared.connector.ConnectorDispatcher;
 import com.filetransfer.shared.dto.FileForwardRequest;
 import com.filetransfer.shared.entity.*;
 import com.filetransfer.shared.enums.FileTransferStatus;
-import com.filetransfer.shared.matching.FlowMatchEngine;
+import com.filetransfer.shared.matching.CompiledFlowRule;
+import com.filetransfer.shared.matching.FlowRuleRegistry;
 import com.filetransfer.shared.matching.MatchContext;
 import com.filetransfer.shared.repository.FileFlowRepository;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;
@@ -50,7 +51,7 @@ public class RoutingEngine {
     private final AiClassificationClient aiClassifier;
     private final ConnectorDispatcher connectorDispatcher;
     private final PlatformConfig platformConfig;
-    private final FlowMatchEngine flowMatchEngine;
+    private final FlowRuleRegistry flowRuleRegistry;
     private final FlowExecutionRepository executionRepository;
     private final PartnerRepository partnerRepository;
 
@@ -98,18 +99,10 @@ public class RoutingEngine {
                 .build();
 
         String processedFilePath = absoluteSourcePath;
-        List<FileFlow> allFlows = flowRepository.findByActiveTrueOrderByPriorityAsc();
-        FileFlow matchedFlow = null;
-        for (FileFlow flow : allFlows) {
-            if (flow.getDirection() != null
-                    && !flow.getDirection().equalsIgnoreCase(matchContext.direction().name())) {
-                continue;
-            }
-            if (flowMatchEngine.matches(flow.getMatchCriteria(), matchContext)) {
-                matchedFlow = flow;
-                break;
-            }
-        }
+        // Zero-I/O matching — pre-compiled rules evaluated in-memory
+        CompiledFlowRule matchedRule = flowRuleRegistry.findMatch(matchContext);
+        FileFlow matchedFlow = matchedRule != null
+                ? flowRepository.findById(matchedRule.flowId()).orElse(null) : null;
 
         if (matchedFlow != null) {
             log.info("[{}] Executing flow '{}' ({} steps)", trackId, matchedFlow.getName(),

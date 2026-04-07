@@ -1,5 +1,6 @@
 package com.filetransfer.config.controller;
 
+import com.filetransfer.config.messaging.FlowRuleEventPublisher;
 import com.filetransfer.config.service.MatchCriteriaService;
 import com.filetransfer.shared.entity.FileFlow;
 import com.filetransfer.shared.entity.FlowExecution;
@@ -31,6 +32,7 @@ public class FileFlowController {
     private final FileFlowRepository flowRepository;
     private final FlowExecutionRepository executionRepository;
     private final MatchCriteriaService matchCriteriaService;
+    private final FlowRuleEventPublisher flowRuleEventPublisher;
 
     // --- Flow CRUD ---
 
@@ -51,7 +53,9 @@ public class FileFlowController {
             throw new IllegalArgumentException("Flow name already exists: " + flow.getName());
         }
         flow.setId(null);
-        return ResponseEntity.status(HttpStatus.CREATED).body(flowRepository.save(flow));
+        FileFlow saved = flowRepository.save(flow);
+        flowRuleEventPublisher.publishCreated(saved.getId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
     @PutMapping("/{id}")
@@ -59,7 +63,9 @@ public class FileFlowController {
         if (!flowRepository.existsById(id))
             throw new EntityNotFoundException("Flow not found: " + id);
         flow.setId(id);
-        return flowRepository.save(flow);
+        FileFlow saved = flowRepository.save(flow);
+        flowRuleEventPublisher.publishUpdated(saved.getId());
+        return saved;
     }
 
     @PatchMapping("/{id}/toggle")
@@ -67,7 +73,9 @@ public class FileFlowController {
         FileFlow flow = flowRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Flow not found: " + id));
         flow.setActive(!flow.isActive());
-        return flowRepository.save(flow);
+        FileFlow saved = flowRepository.save(flow);
+        flowRuleEventPublisher.publishUpdated(saved.getId());
+        return saved;
     }
 
     @DeleteMapping("/{id}")
@@ -76,6 +84,7 @@ public class FileFlowController {
                 .orElseThrow(() -> new EntityNotFoundException("Flow not found: " + id));
         flow.setActive(false);
         flowRepository.save(flow);
+        flowRuleEventPublisher.publishDeleted(id);
         return ResponseEntity.noContent().build();
     }
 
