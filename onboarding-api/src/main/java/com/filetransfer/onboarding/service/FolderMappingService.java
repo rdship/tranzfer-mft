@@ -43,12 +43,29 @@ public class FolderMappingService {
         return toResponse(findById(id));
     }
 
+    public List<FolderMappingResponse> listAll() {
+        return mappingRepository.findAll().stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
     public List<FolderMappingResponse> listForAccount(UUID accountId) {
         return mappingRepository
                 .findBySourceAccountIdOrDestinationAccountId(accountId, accountId)
                 .stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public FolderMappingResponse update(UUID id, CreateFolderMappingRequest request) {
+        FolderMapping mapping = findById(id);
+        mapping.setSourceAccount(findAccount(request.getSourceAccountId()));
+        mapping.setSourcePath(normalizePath(request.getSourcePath()));
+        mapping.setDestinationAccount(findAccount(request.getDestinationAccountId()));
+        mapping.setDestinationPath(normalizePath(request.getDestinationPath()));
+        mapping.setFilenamePattern(request.getFilenamePattern());
+        return toResponse(mappingRepository.save(mapping));
     }
 
     @Transactional

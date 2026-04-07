@@ -17,8 +17,9 @@ import java.util.UUID;
  * Folder Mapping API
  *
  * POST   /api/folder-mappings                        — create a new mapping
+ * GET    /api/folder-mappings                        — list all (or by accountId)
  * GET    /api/folder-mappings/{id}                   — get one mapping
- * GET    /api/folder-mappings?accountId={id}          — list mappings for an account
+ * PUT    /api/folder-mappings/{id}                   — update a mapping
  * PATCH  /api/folder-mappings/{id}/active?value=true  — enable / disable
  * DELETE /api/folder-mappings/{id}                   — delete
  */
@@ -42,8 +43,17 @@ public class FolderMappingController {
     }
 
     @GetMapping
-    public List<FolderMappingResponse> listForAccount(@RequestParam UUID accountId) {
-        return folderMappingService.listForAccount(accountId);
+    public List<FolderMappingResponse> list(@RequestParam(required = false) UUID accountId) {
+        if (accountId != null) {
+            return folderMappingService.listForAccount(accountId);
+        }
+        return folderMappingService.listAll();
+    }
+
+    @PutMapping("/{id}")
+    public FolderMappingResponse update(@PathVariable UUID id,
+                                         @Valid @RequestBody CreateFolderMappingRequest request) {
+        return folderMappingService.update(id, request);
     }
 
     @PatchMapping("/{id}/active")

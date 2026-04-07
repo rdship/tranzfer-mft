@@ -46,6 +46,13 @@ public class AccountController {
         return accountService.getAccount(id);
     }
 
+    @PutMapping("/{id}")
+    @Operation(summary = "Update a transfer account")
+    public AccountResponse fullUpdate(@PathVariable UUID id,
+                                       @RequestBody UpdateAccountRequest request) {
+        return accountService.updateAccount(id, request);
+    }
+
     @PatchMapping("/{id}")
     @Operation(summary = "Partially update a transfer account")
     public AccountResponse update(@PathVariable UUID id,

@@ -51,6 +51,25 @@ public class TenantController {
                 .map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<?> update(@PathVariable UUID id, @RequestBody Map<String, String> body) {
+        Tenant t = tenantRepo.findById(id).orElse(null);
+        if (t == null) return ResponseEntity.notFound().build();
+        if (body.containsKey("companyName")) t.setCompanyName(body.get("companyName"));
+        if (body.containsKey("email")) t.setContactEmail(body.get("email"));
+        if (body.containsKey("plan")) t.setPlan(body.get("plan"));
+        if (body.containsKey("slug")) t.setSlug(body.get("slug").toLowerCase().replaceAll("[^a-z0-9-]", ""));
+        tenantRepo.save(t);
+        return ResponseEntity.ok(t);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable UUID id) {
+        if (!tenantRepo.existsById(id)) return ResponseEntity.notFound().build();
+        tenantRepo.deleteById(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/{slug}/usage")
     public ResponseEntity<Map<String, Object>> usage(@PathVariable String slug) {
         Tenant t = tenantRepo.findBySlugAndActiveTrue(slug).orElse(null);
