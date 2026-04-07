@@ -171,9 +171,9 @@ export default function ServerInstances() {
             </thead>
             <tbody>
               {filtered.map(s => {
-                const tierInfo = s.useProxy && s.securityTier
+                const tierInfo = s.securityTier
                   ? SECURITY_BADGES[s.securityTier] || SECURITY_BADGES.RULES
-                  : null
+                  : SECURITY_BADGES.RULES
                 return (
                   <tr key={s.id} className="table-row">
                     <td className="table-cell">
@@ -205,11 +205,7 @@ export default function ServerInstances() {
                       )}
                     </td>
                     <td className="table-cell">
-                      {tierInfo ? (
-                        <span className={`badge ${tierInfo.badge}`}>{tierInfo.label}</span>
-                      ) : (
-                        <span className="text-gray-400 text-xs">Direct</span>
-                      )}
+                      <span className={`badge ${tierInfo.badge}`}>{tierInfo.label}</span>
                     </td>
                     <td className="table-cell">
                       <button onClick={() => toggleMut.mutate({ id: s.id, active: !s.active })}
@@ -370,19 +366,20 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
             </div>
           )}
 
-          {/* Security Tier (inbound = full 3-tier) */}
-          <div className="pl-7 pt-2">
-            <SecurityTierSelector
-              tier={form.securityTier}
-              onTierChange={tier => f('securityTier', tier)}
-              showAiTiers={true}
-              policy={form.securityPolicy}
-              onPolicyChange={policy => f('securityPolicy', policy)}
-              llmEnabled={llmEnabled}
-            />
-          </div>
         </>
       )}
+
+      {/* Security Tier — always visible, applies to all server instances */}
+      <div className="pt-2">
+        <SecurityTierSelector
+          tier={form.securityTier}
+          onTierChange={tier => f('securityTier', tier)}
+          showAiTiers={true}
+          policy={form.securityPolicy}
+          onPolicyChange={policy => f('securityPolicy', policy)}
+          llmEnabled={llmEnabled}
+        />
+      </div>
 
       <div className="flex gap-3 justify-end pt-4 border-t">
         <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>

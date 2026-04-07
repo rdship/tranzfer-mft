@@ -157,17 +157,6 @@ export default function ExternalDestinations() {
                     </p>
                   )}
 
-                  {/* Outbound security — MANUAL only, no AI tiers */}
-                  <div className="pt-2">
-                    <SecurityTierSelector
-                      tier="RULES"
-                      onTierChange={() => {}} // locked to RULES for outbound
-                      showAiTiers={false}
-                      policy={form.securityPolicy}
-                      onPolicyChange={policy => setForm(f => ({...f, securityPolicy: policy}))}
-                      llmEnabled={false}
-                    />
-                  </div>
                 </div>
               )}
               {!form.proxyEnabled && dmzDetected && (
@@ -175,6 +164,18 @@ export default function ExternalDestinations() {
                   DMZ Proxy is running — consider enabling proxy routing for network isolation
                 </p>
               )}
+
+              {/* Security Profile — always visible for all external destinations */}
+              <div className="pt-3">
+                <SecurityTierSelector
+                  tier={form.securityTier}
+                  onTierChange={tier => setForm(f => ({...f, securityTier: tier}))}
+                  showAiTiers={form.proxyEnabled && form.proxyType === 'DMZ'}
+                  policy={form.securityPolicy}
+                  onPolicyChange={policy => setForm(f => ({...f, securityPolicy: policy}))}
+                  llmEnabled={form.proxyEnabled && form.proxyType === 'DMZ'}
+                />
+              </div>
             </div>
 
             {/* Connection Test & Actions */}
