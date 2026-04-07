@@ -4,6 +4,7 @@ import { configApi, onboardingApi } from '../api/client'
 import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
+import MatchCriteriaBuilder, { MatchSummaryBadges, buildCriteriaFromLegacy } from '../components/MatchCriteriaBuilder'
 import toast from 'react-hot-toast'
 import {
   PlusIcon, TrashIcon, PencilSquareIcon, ChevronUpIcon, ChevronDownIcon,
@@ -72,6 +73,7 @@ const STATUS_STYLES = {
   PROCESSING: { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',   dot: 'bg-amber-500' },
   PENDING:    { bg: 'bg-gray-50',    text: 'text-gray-600',    border: 'border-gray-200',    dot: 'bg-gray-400' },
   PAUSED:     { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200',    dot: 'bg-blue-500' },
+  UNMATCHED:  { bg: 'bg-slate-50',  text: 'text-slate-600',   border: 'border-slate-200',   dot: 'bg-slate-400' },
 }
 
 const defaultForm = {
@@ -79,6 +81,7 @@ const defaultForm = {
   destinationPath: '/outbox', priority: 100, active: true, steps: [],
   sourceAccountId: '', protocol: 'ANY',
   deliveryMode: 'none', externalDestinationId: '', destinationAccountId: '',
+  matchCriteria: null, direction: null,
 }
 
 // ─── Mini pipeline visualization ───
@@ -299,6 +302,12 @@ export default function Flows() {
     staleTime: 60000
   })
 
+  const { data: partners = [] } = useQuery({
+    queryKey: ['partners-for-flows'],
+    queryFn: () => onboardingApi.get('/api/partners').then(r => r.data?.content || r.data || []).catch(() => []),
+    staleTime: 300000
+  })
+
   // ─── Mutations ───
   const saveMut = useMutation({
     mutationFn: (data) => {
@@ -336,6 +345,8 @@ export default function Flows() {
       priority: data.priority,
       active: data.active,
       steps: data.steps.map((s, i) => ({ type: s.type, config: s.config || {}, order: i })),
+      matchCriteria: data.matchCriteria || null,
+      direction: data.direction || null,
     }
     if (data.sourceAccountId) {
       payload.sourceAccount = { id: data.sourceAccountId }
@@ -363,6 +374,8 @@ export default function Flows() {
     const deliveryMode = flow.externalDestination && flow.destinationAccount ? 'both'
       : flow.externalDestination ? 'external'
       : flow.destinationAccount ? 'mailbox' : 'none'
+    // Use matchCriteria if present, otherwise auto-generate from legacy fields
+    const criteria = flow.matchCriteria || buildCriteriaFromLegacy(flow)
     setForm({
       name: flow.name || '',
       description: flow.description || '',
@@ -377,6 +390,8 @@ export default function Flows() {
       deliveryMode,
       externalDestinationId: flow.externalDestination?.id || '',
       destinationAccountId: flow.destinationAccount?.id || '',
+      matchCriteria: criteria,
+      direction: flow.direction || null,
     })
     setShowEditor(true)
   }, [])
@@ -518,15 +533,21 @@ export default function Flows() {
                   {flow.description && (
                     <p className="text-sm text-gray-500 mt-1">{flow.description}</p>
                   )}
-                  <div className="flex items-center gap-4 mt-1 text-xs text-gray-400">
-                    {flow.sourceAccount && (
-                      <span>Source: <span className="font-medium text-gray-500">{flow.sourceAccount.username}</span></span>
-                    )}
-                    {flow.filenamePattern && (
-                      <span className="font-mono">Pattern: {flow.filenamePattern}</span>
-                    )}
-                    {flow.sourcePath && (
-                      <span className="font-mono">Path: {flow.sourcePath}</span>
+                  <div className="mt-1">
+                    {flow.matchCriteria ? (
+                      <MatchSummaryBadges criteria={flow.matchCriteria} />
+                    ) : (
+                      <div className="flex items-center gap-4 text-xs text-gray-400">
+                        {flow.sourceAccount && (
+                          <span>Source: <span className="font-medium text-gray-500">{flow.sourceAccount.username}</span></span>
+                        )}
+                        {flow.filenamePattern && (
+                          <span className="font-mono">Pattern: {flow.filenamePattern}</span>
+                        )}
+                        {flow.sourcePath && (
+                          <span className="font-mono">Path: {flow.sourcePath}</span>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -657,43 +678,29 @@ export default function Flows() {
               </div>
             </div>
 
-            {/* ─── Source Configuration ─── */}
-            <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Source Configuration</label>
-              <div className="mt-2 grid grid-cols-2 gap-4">
-                <div>
-                  <label>Protocol Filter</label>
-                  <select value={form.protocol} onChange={e => setForm(f => ({ ...f, protocol: e.target.value }))}>
-                    {PROTOCOLS.map(p => <option key={p} value={p}>{p === 'ANY' ? 'Any Protocol' : p}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label>Source Account</label>
-                  <select value={form.sourceAccountId} onChange={e => setForm(f => ({ ...f, sourceAccountId: e.target.value }))}>
-                    <option value="">Any Account</option>
-                    {accounts
-                      .filter(a => form.protocol === 'ANY' || a.protocol === form.protocol)
-                      .map(a => (
-                        <option key={a.id} value={a.id}>{a.username} ({a.protocol})</option>
-                      ))
-                    }
-                  </select>
-                </div>
+            {/* ─── Match Criteria (replaces Source Configuration) ─── */}
+            <MatchCriteriaBuilder
+              value={form.matchCriteria}
+              onChange={(criteria) => setForm(f => ({ ...f, matchCriteria: criteria }))}
+              accounts={accounts}
+              partners={partners}
+            />
+
+            {/* Direction filter */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-gray-500">Direction</label>
+                <select value={form.direction || ''} onChange={e => setForm(f => ({ ...f, direction: e.target.value || null }))}>
+                  <option value="">Any Direction</option>
+                  <option value="INBOUND">Inbound</option>
+                  <option value="OUTBOUND">Outbound</option>
+                </select>
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-4">
-                <div>
-                  <label>Filename Pattern (regex, empty = match all)</label>
-                  <input value={form.filenamePattern}
-                    onChange={e => setForm(f => ({ ...f, filenamePattern: e.target.value }))}
-                    placeholder=".*\.pgp$" className="font-mono text-sm" />
-                  <p className="text-xs text-gray-400 mt-1">Java regex. Examples: .*\.pgp$ | ^ACH_.* | .*\.(csv|txt)$</p>
-                </div>
-                <div>
-                  <label>Source Path Filter</label>
-                  <input value={form.sourcePath}
-                    onChange={e => setForm(f => ({ ...f, sourcePath: e.target.value }))}
-                    placeholder="/inbox" className="font-mono text-sm" />
-                </div>
+              <div>
+                <label className="text-xs text-gray-500">Legacy: Source Path</label>
+                <input value={form.sourcePath}
+                  onChange={e => setForm(f => ({ ...f, sourcePath: e.target.value }))}
+                  placeholder="/inbox" className="font-mono text-sm" />
               </div>
             </div>
 

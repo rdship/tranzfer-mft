@@ -14,3 +14,8 @@ export const createPartnership = (data) => configApi.post('/api/as2-partnerships
 export const updatePartnership = (id, data) => configApi.put(`/api/as2-partnerships/${id}`, data).then(r => r.data)
 export const togglePartnership = (id) => configApi.patch(`/api/as2-partnerships/${id}/toggle`).then(r => r.data)
 export const deletePartnership = (id) => configApi.delete(`/api/as2-partnerships/${id}`)
+
+// Match Criteria
+export const getMatchFields = () => configApi.get('/api/flows/match-fields').then(r => r.data)
+export const validateCriteria = (criteria) => configApi.post('/api/flows/validate-criteria', criteria).then(r => r.data)
+export const testMatch = (criteria, fileContext) => configApi.post('/api/flows/test-match', { criteria, fileContext }).then(r => r.data)

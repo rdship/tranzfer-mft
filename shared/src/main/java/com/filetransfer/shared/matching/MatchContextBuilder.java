@@ -108,6 +108,61 @@ public class MatchContextBuilder {
         return this;
     }
 
+    public MatchContextBuilder withFilename(String filename) {
+        this.filename = filename;
+        return this;
+    }
+
+    public MatchContextBuilder withExtension(String extension) {
+        this.extension = extension;
+        return this;
+    }
+
+    public MatchContextBuilder withProtocol(String protocolName) {
+        this.protocol = protocolName != null ? Protocol.valueOf(protocolName) : null;
+        return this;
+    }
+
+    public MatchContextBuilder withPartnerId(UUID partnerId) {
+        this.partnerId = partnerId;
+        return this;
+    }
+
+    public MatchContextBuilder withAccountUsername(String accountUsername) {
+        this.accountUsername = accountUsername;
+        return this;
+    }
+
+    public MatchContextBuilder withSourceAccountId(UUID sourceAccountId) {
+        this.sourceAccountId = sourceAccountId;
+        return this;
+    }
+
+    public MatchContextBuilder withSourcePath(String sourcePath) {
+        this.sourcePath = sourcePath;
+        return this;
+    }
+
+    public MatchContextBuilder withEdiStandard(String ediStandard) {
+        this.ediStandard = ediStandard;
+        return this;
+    }
+
+    public MatchContextBuilder withEdiType(String ediType) {
+        this.ediType = ediType;
+        return this;
+    }
+
+    public MatchContextBuilder withDayOfWeek(DayOfWeek dayOfWeek) {
+        this.dayOfWeek = dayOfWeek;
+        return this;
+    }
+
+    public MatchContextBuilder withHour(int hour) {
+        this.timeOfDay = LocalTime.of(hour, 0);
+        return this;
+    }
+
     public MatchContextBuilder withMetadata(String key, String value) {
         this.metadata.put(key, value);
         return this;

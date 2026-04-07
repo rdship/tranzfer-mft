@@ -1,7 +1,9 @@
 package com.filetransfer.config.controller;
 
+import com.filetransfer.config.service.MatchCriteriaService;
 import com.filetransfer.shared.entity.FileFlow;
 import com.filetransfer.shared.entity.FlowExecution;
+import com.filetransfer.shared.matching.MatchCriteria;
 import com.filetransfer.shared.repository.FileFlowRepository;
 import com.filetransfer.shared.repository.FlowExecutionRepository;
 import com.filetransfer.shared.security.Roles;
@@ -28,6 +30,7 @@ public class FileFlowController {
 
     private final FileFlowRepository flowRepository;
     private final FlowExecutionRepository executionRepository;
+    private final MatchCriteriaService matchCriteriaService;
 
     // --- Flow CRUD ---
 
@@ -108,4 +111,23 @@ public class FileFlowController {
         types.put("conversion", List.of("CONVERT_EDI"));
         return types;
     }
+
+    // --- Match Criteria ---
+
+    @GetMapping("/match-fields")
+    public List<MatchCriteriaService.FieldInfo> getMatchFields() {
+        return matchCriteriaService.getMatchFields();
+    }
+
+    @PostMapping("/validate-criteria")
+    public MatchCriteriaService.ValidationResult validateCriteria(@RequestBody MatchCriteria criteria) {
+        return matchCriteriaService.validate(criteria);
+    }
+
+    @PostMapping("/test-match")
+    public MatchCriteriaService.TestMatchResult testMatch(@RequestBody TestMatchRequest request) {
+        return matchCriteriaService.testMatch(request.criteria(), request.fileContext());
+    }
+
+    public record TestMatchRequest(MatchCriteria criteria, Map<String, Object> fileContext) {}
 }
