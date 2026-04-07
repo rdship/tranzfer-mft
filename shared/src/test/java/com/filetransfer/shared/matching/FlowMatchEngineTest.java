@@ -268,13 +268,13 @@ class FlowMatchEngineTest {
 
     @Test
     void eq_dayOfWeekMatch() {
-        var cond = new MatchCondition("dayOfWeek", MatchCondition.ConditionOp.EQ, "MON", null, null);
+        var cond = new MatchCondition("dayOfWeek", MatchCondition.ConditionOp.EQ, "MONDAY", null, null);
         assertTrue(engine.matches(cond, baseContext));
     }
 
     @Test
     void in_dayOfWeekMatch() {
-        var cond = new MatchCondition("dayOfWeek", MatchCondition.ConditionOp.IN, null, List.of("MON", "TUE", "WED"), null);
+        var cond = new MatchCondition("dayOfWeek", MatchCondition.ConditionOp.IN, null, List.of("MONDAY", "TUESDAY", "WEDNESDAY"), null);
         assertTrue(engine.matches(cond, baseContext));
     }
 

@@ -158,6 +158,11 @@ public class MatchContextBuilder {
         return this;
     }
 
+    public MatchContextBuilder withTimeOfDay(LocalTime timeOfDay) {
+        this.timeOfDay = timeOfDay;
+        return this;
+    }
+
     public MatchContextBuilder withHour(int hour) {
         this.timeOfDay = LocalTime.of(hour, 0);
         return this;

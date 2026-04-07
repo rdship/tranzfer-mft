@@ -12,6 +12,7 @@ import com.filetransfer.shared.matching.MatchContext;
 import com.filetransfer.shared.repository.FileFlowRepository;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;
 import com.filetransfer.shared.repository.FlowExecutionRepository;
+import com.filetransfer.shared.repository.PartnerRepository;
 import com.filetransfer.shared.util.TrackIdGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +52,7 @@ public class RoutingEngine {
     private final PlatformConfig platformConfig;
     private final FlowMatchEngine flowMatchEngine;
     private final FlowExecutionRepository executionRepository;
+    private final PartnerRepository partnerRepository;
 
     /**
      * Called by each service when a file upload completes.
@@ -78,12 +80,20 @@ public class RoutingEngine {
         long fileSizeBytes = -1;
         try { fileSizeBytes = Files.size(Paths.get(absoluteSourcePath)); } catch (Exception ignored) {}
 
+        // Resolve partner slug for matching
+        String partnerSlug = null;
+        if (sourceAccount.getPartnerId() != null) {
+            partnerSlug = partnerRepository.findById(sourceAccount.getPartnerId())
+                    .map(p -> p.getSlug()).orElse(null);
+        }
+
         MatchContext matchContext = MatchContext.builder()
                 .fromUploadEvent(sourceAccount, relativeFilePath, absoluteSourcePath)
                 .withDirection(MatchContext.Direction.INBOUND)
                 .withFileSize(fileSizeBytes)
                 .withEdiDetection(Paths.get(absoluteSourcePath))
                 .withSourceIp(sourceIp)
+                .withPartnerSlug(partnerSlug)
                 .withTimeNow()
                 .build();
 

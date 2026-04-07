@@ -11,6 +11,7 @@ import com.filetransfer.shared.matching.MatchContext;
 import com.filetransfer.shared.repository.FileFlowRepository;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;
 import com.filetransfer.shared.repository.FlowExecutionRepository;
+import com.filetransfer.shared.repository.PartnerRepository;
 import com.filetransfer.shared.util.TrackIdGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,6 +44,7 @@ class RoutingEngineTest {
     private PlatformConfig platformConfig;
     private FlowMatchEngine flowMatchEngine;
     private FlowExecutionRepository executionRepository;
+    private PartnerRepository partnerRepository;
     private RoutingEngine routingEngine;
 
     @TempDir
@@ -63,12 +65,13 @@ class RoutingEngineTest {
         platformConfig = new PlatformConfig();
         flowMatchEngine = mock(FlowMatchEngine.class);
         executionRepository = mock(FlowExecutionRepository.class);
+        partnerRepository = mock(PartnerRepository.class);
 
         routingEngine = new RoutingEngine(
                 evaluator, recordRepository, clusterService, restTemplate,
                 trackIdGenerator, flowEngine, flowRepository, auditService,
                 aiClassifier, connectorDispatcher, platformConfig,
-                flowMatchEngine, executionRepository
+                flowMatchEngine, executionRepository, partnerRepository
         );
     }
 

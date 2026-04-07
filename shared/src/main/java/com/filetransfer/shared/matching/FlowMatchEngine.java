@@ -125,7 +125,7 @@ public class FlowMatchEngine {
             case "ediStandard" -> ctx.ediStandard();
             case "ediType" -> ctx.ediType();
             case "timeOfDay" -> ctx.timeOfDay();
-            case "dayOfWeek" -> ctx.dayOfWeek() != null ? abbreviateDay(ctx.dayOfWeek()) : null;
+            case "dayOfWeek" -> ctx.dayOfWeek() != null ? ctx.dayOfWeek().name() : null;
             case "hour" -> ctx.timeOfDay() != null ? (long) ctx.timeOfDay().getHour() : null;
             case "metadata" -> ctx.metadata();
             default -> null;
@@ -246,9 +246,7 @@ public class FlowMatchEngine {
         return obj != null ? obj.toString() : "";
     }
 
-    private static String abbreviateDay(DayOfWeek day) {
-        return day.name().substring(0, 3); // MON, TUE, WED, etc.
-    }
+    // dayOfWeek now uses full names (MONDAY, TUESDAY, etc.) to match UI field catalog
 
     // --- Validation ---
 

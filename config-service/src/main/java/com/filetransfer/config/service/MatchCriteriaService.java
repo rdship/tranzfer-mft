@@ -111,6 +111,7 @@ public class MatchCriteriaService {
         if (map.containsKey("ediType")) b.withEdiType(str(map, "ediType"));
         if (map.containsKey("dayOfWeek")) b.withDayOfWeek(java.time.DayOfWeek.valueOf(str(map, "dayOfWeek")));
         if (map.containsKey("hour")) b.withHour(intVal(map, "hour"));
+        if (map.containsKey("timeOfDay")) b.withTimeOfDay(java.time.LocalTime.parse(str(map, "timeOfDay")));
         if (map.containsKey("metadata")) {
             @SuppressWarnings("unchecked")
             Map<String, String> meta = (Map<String, String>) map.get("metadata");
