@@ -275,7 +275,7 @@ services:
     container_name: mft-ftp-web-service-2
     <<: *healthcheck
     ports:
-      - "127.0.0.2:8083:8083"
+      - "8183:8083"
     environment:
       <<: *common-env
       CLUSTER_HOST: ftp-web-service-2
@@ -510,16 +510,15 @@ services:
       SERVER_PORT: 8092
       SCREENING_THRESHOLD: ${SCREENING_THRESHOLD:-0.82}
       SCREENING_DEFAULT_ACTION: ${SCREENING_DEFAULT_ACTION:-BLOCK}
-      CLAMAV_HOST: clamav
+      CLAMAV_HOST: ${CLAMAV_HOST:-localhost}
       CLAMAV_PORT: 3310
+      CLAMAV_ENABLED: ${CLAMAV_ENABLED:-false}
     volumes:
       - quarantine_data:/data/quarantine
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
-        condition: service_healthy
-      clamav:
         condition: service_healthy
 
   notification-service:
@@ -546,18 +545,20 @@ services:
   # ---------------------------------------------------------------------------
   # Security Services
   # ---------------------------------------------------------------------------
-  clamav:
-    image: clamav/clamav:1.2
-    container_name: mft-clamav
-    ports:
-      - "3310:3310"
-    volumes:
-      - clamav_data:/var/lib/clamav
-    healthcheck:
-      test: ["CMD", "clamdscan", "--ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+  # ClamAV disabled on Apple Silicon (no ARM64 image available)
+  # Re-enable on AMD64 with: CLAMAV_ENABLED=true and uncomment below
+  # clamav:
+  #   image: clamav/clamav:1.4
+  #   container_name: mft-clamav
+  #   ports:
+  #     - "3310:3310"
+  #   volumes:
+  #     - clamav_data:/var/lib/clamav
+  #   healthcheck:
+  #     test: ["CMD", "clamdscan", "--ping"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
 
   # ---------------------------------------------------------------------------
   # Observability Stack (Prometheus, Loki, Grafana, AlertManager)

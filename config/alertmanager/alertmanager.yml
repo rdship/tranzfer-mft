@@ -6,11 +6,11 @@
 global:
   resolve_timeout: 5m
   # SMTP — override in production
-  smtp_smarthost: '${SMTP_HOST:-smtp.example.com}:${SMTP_PORT:-587}'
-  smtp_from: '${ALERT_FROM_EMAIL:-alerts@tranzfer.io}'
-  smtp_auth_username: '${SMTP_USERNAME:-}'
-  smtp_auth_password: '${SMTP_PASSWORD:-}'
-  smtp_require_tls: true
+  smtp_smarthost: 'smtp.example.com:587'
+  smtp_from: 'alerts@tranzfer.io'
+  smtp_auth_username: ''
+  smtp_auth_password: ''
+  smtp_require_tls: false
 
 # -----------------------------------------------------------------------
 # Templates
@@ -88,25 +88,25 @@ inhibit_rules:
 receivers:
   - name: default-webhook
     webhook_configs:
-      - url: '${ALERT_WEBHOOK_URL:-http://localhost:9095/api/v1/alerts}'
+      - url: 'http://localhost:9095/api/v1/alerts'
         send_resolved: true
 
   - name: critical-alerts
     email_configs:
-      - to: '${ALERT_CRITICAL_EMAIL:-ops@tranzfer.io}'
+      - to: 'ops@tranzfer.io'
         send_resolved: true
         headers:
           Subject: '[CRITICAL] TranzFer MFT — {{ .GroupLabels.alertname }}'
     webhook_configs:
-      - url: '${ALERT_WEBHOOK_URL:-http://localhost:9095/api/v1/alerts}'
+      - url: 'http://localhost:9095/api/v1/alerts'
         send_resolved: true
 
   - name: security-alerts
     email_configs:
-      - to: '${ALERT_SECURITY_EMAIL:-security@tranzfer.io}'
+      - to: 'security@tranzfer.io'
         send_resolved: true
         headers:
           Subject: '[SECURITY] TranzFer MFT — {{ .GroupLabels.alertname }}'
     webhook_configs:
-      - url: '${ALERT_WEBHOOK_URL:-http://localhost:9095/api/v1/alerts}'
+      - url: 'http://localhost:9095/api/v1/alerts'
         send_resolved: true
