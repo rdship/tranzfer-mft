@@ -41,6 +41,7 @@ const emptyForm = {
   useProxy: false, proxyHost: '', proxyPort: '',
   maxConnections: 500,
   folderTemplateId: '',
+  clearFolderTemplate: false,
   securityTier: 'AI', securityPolicy: {},
   protocolCredentials: {}
 }
@@ -332,7 +333,11 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
       {/* Folder Template */}
       <div>
         <label>Folder Template</label>
-        <select value={form.folderTemplateId} onChange={e => f('folderTemplateId', e.target.value || null)}>
+        <select value={form.folderTemplateId || ''} onChange={e => {
+          const val = e.target.value
+          f('folderTemplateId', val || null)
+          f('clearFolderTemplate', !val)
+        }}>
           <option value="">None (no folder template assigned)</option>
           {folderTemplates.map(t => (
             <option key={t.id} value={t.id}>{t.name}{t.builtIn ? ' (built-in)' : ''} — {t.folders.length} folders</option>

@@ -6,6 +6,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.util.UUID;
+
 @Data
 public class CreateServerInstanceRequest {
     @NotBlank
@@ -35,4 +37,6 @@ public class CreateServerInstanceRequest {
     private Integer proxyPort;
 
     private Integer maxConnections = 500;
+
+    private UUID folderTemplateId;
 }

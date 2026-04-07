@@ -3,6 +3,8 @@ package com.filetransfer.onboarding.dto.request;
 import com.filetransfer.shared.enums.Protocol;
 import lombok.Data;
 
+import java.util.UUID;
+
 @Data
 public class UpdateServerInstanceRequest {
     private Protocol protocol;
@@ -17,4 +19,6 @@ public class UpdateServerInstanceRequest {
     private Integer proxyPort;
     private Integer maxConnections;
     private Boolean active;
+    private UUID folderTemplateId;
+    private boolean clearFolderTemplate;
 }

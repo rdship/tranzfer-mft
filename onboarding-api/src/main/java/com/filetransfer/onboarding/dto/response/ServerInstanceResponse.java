@@ -23,6 +23,8 @@ public class ServerInstanceResponse {
     private String proxyHost;
     private Integer proxyPort;
     private int maxConnections;
+    private UUID folderTemplateId;
+    private String folderTemplateName;
     private boolean active;
     private Instant createdAt;
     private Instant updatedAt;

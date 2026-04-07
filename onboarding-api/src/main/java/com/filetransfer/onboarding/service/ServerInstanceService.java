@@ -3,8 +3,10 @@ package com.filetransfer.onboarding.service;
 import com.filetransfer.onboarding.dto.request.CreateServerInstanceRequest;
 import com.filetransfer.onboarding.dto.request.UpdateServerInstanceRequest;
 import com.filetransfer.onboarding.dto.response.ServerInstanceResponse;
+import com.filetransfer.shared.entity.FolderTemplate;
 import com.filetransfer.shared.entity.ServerInstance;
 import com.filetransfer.shared.enums.Protocol;
+import com.filetransfer.shared.repository.FolderTemplateRepository;
 import com.filetransfer.shared.repository.ServerInstanceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,6 +21,7 @@ import java.util.UUID;
 public class ServerInstanceService {
 
     private final ServerInstanceRepository repository;
+    private final FolderTemplateRepository folderTemplateRepository;
 
     public List<ServerInstanceResponse> listAll() {
         return repository.findAll().stream().map(this::toResponse).toList();
@@ -63,6 +66,7 @@ public class ServerInstanceService {
                 .proxyHost(request.getProxyHost())
                 .proxyPort(request.getProxyPort())
                 .maxConnections(request.getMaxConnections() != null ? request.getMaxConnections() : 500)
+                .folderTemplate(resolveTemplate(request.getFolderTemplateId()))
                 .build();
 
         repository.save(instance);
@@ -85,6 +89,11 @@ public class ServerInstanceService {
         if (request.getProxyPort() != null) instance.setProxyPort(request.getProxyPort());
         if (request.getMaxConnections() != null) instance.setMaxConnections(request.getMaxConnections());
         if (request.getActive() != null) instance.setActive(request.getActive());
+        if (request.isClearFolderTemplate()) {
+            instance.setFolderTemplate(null);
+        } else if (request.getFolderTemplateId() != null) {
+            instance.setFolderTemplate(resolveTemplate(request.getFolderTemplateId()));
+        }
 
         repository.save(instance);
         return toResponse(instance);
@@ -103,6 +112,7 @@ public class ServerInstanceService {
     }
 
     private ServerInstanceResponse toResponse(ServerInstance i) {
+        FolderTemplate ft = i.getFolderTemplate();
         return ServerInstanceResponse.builder()
                 .id(i.getId())
                 .instanceId(i.getInstanceId())
@@ -117,11 +127,19 @@ public class ServerInstanceService {
                 .proxyHost(i.getProxyHost())
                 .proxyPort(i.getProxyPort())
                 .maxConnections(i.getMaxConnections())
+                .folderTemplateId(ft != null ? ft.getId() : null)
+                .folderTemplateName(ft != null ? ft.getName() : null)
                 .active(i.isActive())
                 .createdAt(i.getCreatedAt())
                 .updatedAt(i.getUpdatedAt())
                 .clientHost(i.getClientConnectionHost())
                 .clientPort(i.getClientConnectionPort())
                 .build();
+    }
+
+    private FolderTemplate resolveTemplate(UUID templateId) {
+        if (templateId == null) return null;
+        return folderTemplateRepository.findById(templateId)
+                .orElseThrow(() -> new NoSuchElementException("Folder template not found: " + templateId));
     }
 }
