@@ -100,7 +100,7 @@ public class FileOperationService {
         if (isVirtualMode(account)) {
             String vpath = VirtualFileSystem.normalizePath("/" + relativeDirPath + "/" + originalFilename);
             byte[] data = file.getBytes();
-            String bucket = virtualFileSystem.determineBucket(data.length);
+            String bucket = virtualFileSystem.determineBucket(data.length, account.getId());
 
             switch (bucket) {
                 case "INLINE" -> {

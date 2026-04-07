@@ -198,6 +198,21 @@ public class StorageController {
                 "physicalSize", obj.map(StorageObject::getSizeBytes).orElse(0L));
     }
 
+    /** Soft-delete a CAS object by SHA-256 key (used by CasOrphanReaper GC). */
+    @DeleteMapping("/objects/{sha256}")
+    public ResponseEntity<Map<String, Object>> deleteBySha256(@PathVariable String sha256) {
+        Optional<StorageObject> opt = objectRepo.findBySha256AndDeletedFalse(sha256);
+        if (opt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        StorageObject obj = opt.get();
+        obj.setDeleted(true);
+        objectRepo.save(obj);
+        return ResponseEntity.ok(Map.of(
+                "status", "DELETED", "sha256", sha256,
+                "sizeBytes", obj.getSizeBytes()));
+    }
+
     @GetMapping("/health")
     public Map<String, Object> health() {
         Map<String, Object> h = new LinkedHashMap<>(lifecycle.getStorageMetrics());

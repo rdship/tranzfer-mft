@@ -97,6 +97,10 @@ public class VirtualEntry extends Auditable {
     @Builder.Default
     private String storageBucket = "STANDARD";
 
+    /** Whether inlineContent is gzip-compressed (for INLINE files > 4 KB). */
+    @Builder.Default
+    private boolean compressed = false;
+
     /** POSIX-style permissions string, e.g. "rwxr-xr-x". */
     @Column(length = 10)
     @Builder.Default

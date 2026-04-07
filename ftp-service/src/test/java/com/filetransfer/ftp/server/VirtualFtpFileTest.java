@@ -45,7 +45,7 @@ class VirtualFtpFileTest {
     @Test
     void write_inlineBucket_noCasCall() throws Exception {
         byte[] smallData = "tiny EDI content".getBytes();
-        when(vfs.determineBucket(smallData.length)).thenReturn("INLINE");
+        when(vfs.determineBucket(smallData.length, accountId)).thenReturn("INLINE");
         when(vfs.writeFile(eq(accountId), eq("/inbox/small.edi"), isNull(),
                 eq((long) smallData.length), isNull(), isNull(), eq(smallData)))
                 .thenReturn(VirtualEntry.builder().id(UUID.randomUUID()).build());
@@ -67,7 +67,7 @@ class VirtualFtpFileTest {
     @Test
     void write_standardBucket_onboardsToCas() throws Exception {
         byte[] mediumData = new byte[100_000]; // 100KB
-        when(vfs.determineBucket(mediumData.length)).thenReturn("STANDARD");
+        when(vfs.determineBucket(mediumData.length, accountId)).thenReturn("STANDARD");
         when(storageClient.store(any(Path.class), isNull(), anyString()))
                 .thenReturn(Map.of("sha256", "abc123sha256", "trackId", "TRK001"));
 
@@ -91,7 +91,7 @@ class VirtualFtpFileTest {
         UUID entryId = UUID.randomUUID();
         VirtualEntry chunkedEntry = VirtualEntry.builder().id(entryId).build();
 
-        when(vfs.determineBucket(largeData.length)).thenReturn("CHUNKED");
+        when(vfs.determineBucket(largeData.length, accountId)).thenReturn("CHUNKED");
         when(vfs.writeFile(eq(accountId), eq("/inbox/archive.bin"), isNull(),
                 eq((long) largeData.length), isNull(), isNull(), isNull()))
                 .thenReturn(chunkedEntry);

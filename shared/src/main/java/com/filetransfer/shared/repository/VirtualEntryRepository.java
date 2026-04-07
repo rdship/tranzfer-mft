@@ -55,6 +55,14 @@ public interface VirtualEntryRepository extends JpaRepository<VirtualEntry, UUID
     @Query("SELECT COUNT(v) FROM VirtualEntry v WHERE v.accountId = :accountId AND v.storageBucket = :bucket AND v.type = 'FILE' AND v.deleted = false")
     long countByAccountIdAndStorageBucketAndDeletedFalse(UUID accountId, String bucket);
 
+    /**
+     * Aggregate COUNT and SUM(sizeBytes) per storageBucket in a single query (dashboard).
+     * Returns rows of [storageBucket (String|null), count (Long), totalSize (Long)].
+     */
+    @Query("SELECT v.storageBucket, COUNT(v), COALESCE(SUM(v.sizeBytes), 0) " +
+           "FROM VirtualEntry v WHERE v.type = 'FILE' AND v.deleted = false GROUP BY v.storageBucket")
+    List<Object[]> aggregateBucketStats();
+
     /** Soft-delete all entries under a path prefix (recursive delete). */
     @Modifying
     @Query("UPDATE VirtualEntry v SET v.deleted = true WHERE v.accountId = :accountId AND v.path LIKE :pathPrefix AND v.deleted = false")

@@ -40,6 +40,12 @@ public class As4ForwarderService {
     private final As2MessageRepository messageRepository;
     private final CredentialCryptoClient credentialCrypto;
 
+    @org.springframework.beans.factory.annotation.Value("${forwarder.as4.connect-timeout-ms:30000}")
+    private int connectTimeoutMs = 30_000;
+
+    @org.springframework.beans.factory.annotation.Value("${forwarder.as4.read-timeout-ms:60000}")
+    private int readTimeoutMs = 60_000;
+
     /**
      * Send a file to a trading partner via AS4 (ebMS3).
      */
@@ -68,11 +74,10 @@ public class As4ForwarderService {
 
             HttpEntity<String> entity = new HttpEntity<>(soapEnvelope, headers);
 
-            RestTemplate rest = new RestTemplate();
             SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-            factory.setConnectTimeout(30_000);
-            factory.setReadTimeout(60_000);
-            rest = new RestTemplate(factory);
+            factory.setConnectTimeout(connectTimeoutMs);
+            factory.setReadTimeout(readTimeoutMs);
+            RestTemplate rest = new RestTemplate(factory);
 
             log.info("[{}] AS4 sending: {} -> {} ({} bytes)",
                     trackId, partnership.getOurAs2Id(), partnership.getPartnerAs2Id(), fileBytes.length);

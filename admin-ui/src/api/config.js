@@ -31,7 +31,5 @@ export const testMatch = (criteria, fileContext) => configApi.post('/api/flows/t
 
 // VFS Storage Dashboard
 export const getVfsDashboard = () => configApi.get('/api/vfs/dashboard').then(r => r.data)
-export const getVfsBuckets = () => configApi.get('/api/vfs/buckets').then(r => r.data)
-export const getVfsIntentHealth = () => configApi.get('/api/vfs/intents/health').then(r => r.data)
 export const getVfsRecentIntents = (limit = 100) => configApi.get(`/api/vfs/intents/recent?limit=${limit}`).then(r => r.data)
 export const getVfsAccountUsage = (accountId) => configApi.get(`/api/vfs/accounts/${accountId}/usage`).then(r => r.data)

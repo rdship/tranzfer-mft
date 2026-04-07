@@ -1,9 +1,11 @@
 package com.filetransfer.shared.vfs;
 
 import com.filetransfer.shared.client.StorageServiceClient;
+import com.filetransfer.shared.entity.TransferAccount;
 import com.filetransfer.shared.entity.VfsChunk;
 import com.filetransfer.shared.entity.VfsIntent;
 import com.filetransfer.shared.entity.VirtualEntry;
+import com.filetransfer.shared.repository.TransferAccountRepository;
 import com.filetransfer.shared.repository.VfsChunkRepository;
 import com.filetransfer.shared.repository.VfsIntentRepository;
 import com.filetransfer.shared.repository.VirtualEntryRepository;
@@ -15,9 +17,16 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 /**
  * Core Virtual Filesystem service with Write-Ahead Intent Protocol (WAIP).
@@ -49,6 +58,7 @@ public class VirtualFileSystem {
     private final VfsIntentRepository intentRepository;
     private final VfsChunkRepository chunkRepository;
     private final EntityManager entityManager;
+    private final TransferAccountRepository accountRepository;
 
     @Value("${vfs.inline-max-bytes:65536}")
     private long inlineMaxBytes;
@@ -66,11 +76,72 @@ public class VirtualFileSystem {
                 podId, inlineMaxBytes, chunkThresholdBytes);
     }
 
+    /** Inline content above this threshold is gzip-compressed before DB storage. */
+    private static final int INLINE_COMPRESS_THRESHOLD = 4096; // 4 KB
+
+    // ── Inline Compression Helpers ────────────────────────────────────
+
+    /**
+     * Gzip-compress raw bytes. Returns compressed byte array.
+     */
+    static byte[] gzipCompress(byte[] data) {
+        try {
+            ByteArrayOutputStream bos = new ByteArrayOutputStream(data.length / 2);
+            try (GZIPOutputStream gzip = new GZIPOutputStream(bos)) {
+                gzip.write(data);
+            }
+            return bos.toByteArray();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to gzip-compress inline content", e);
+        }
+    }
+
+    /**
+     * Gzip-decompress bytes. Returns original uncompressed byte array.
+     */
+    static byte[] gzipDecompress(byte[] compressed) {
+        try (GZIPInputStream gis = new GZIPInputStream(new ByteArrayInputStream(compressed))) {
+            return gis.readAllBytes();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to gzip-decompress inline content", e);
+        }
+    }
+
     // ── Storage Bucket Routing ─────────────────────────────────────────
 
     public String determineBucket(long sizeBytes) {
         if (sizeBytes <= inlineMaxBytes) return "INLINE";
         if (sizeBytes > chunkThresholdBytes) return "CHUNKED";
+        return "STANDARD";
+    }
+
+    /**
+     * Account-aware bucket routing. Uses per-account threshold overrides if configured,
+     * otherwise falls back to system defaults ({@code vfs.inline-max-bytes} / {@code vfs.chunk-threshold-bytes}).
+     *
+     * @param sizeBytes file size in bytes
+     * @param accountId account to check for threshold overrides (null = use system defaults)
+     */
+    public String determineBucket(long sizeBytes, UUID accountId) {
+        if (accountId == null) {
+            return determineBucket(sizeBytes);
+        }
+
+        long effectiveInline = inlineMaxBytes;
+        long effectiveChunk = chunkThresholdBytes;
+
+        TransferAccount account = accountRepository.findById(accountId).orElse(null);
+        if (account != null) {
+            if (account.getInlineMaxBytes() != null) {
+                effectiveInline = account.getInlineMaxBytes();
+            }
+            if (account.getChunkThresholdBytes() != null) {
+                effectiveChunk = account.getChunkThresholdBytes();
+            }
+        }
+
+        if (sizeBytes <= effectiveInline) return "INLINE";
+        if (sizeBytes > effectiveChunk) return "CHUNKED";
         return "STANDARD";
     }
 
@@ -159,7 +230,7 @@ public class VirtualFileSystem {
                                    byte[] inlineContent) {
         String normalized = normalizePath(path);
         String parentPath = parentOf(normalized);
-        String bucket = determineBucket(sizeBytes);
+        String bucket = determineBucket(sizeBytes, accountId);
 
         // 1. Advisory lock: serialize concurrent writes to same (account, path)
         lockPath(accountId, normalized);
@@ -173,7 +244,19 @@ public class VirtualFileSystem {
             mkdirs(accountId, parentPath);
         }
 
-        // 4. Create or update entry (now under advisory lock — no race)
+        // 4. Compress inline content if above threshold
+        byte[] storedContent = inlineContent;
+        boolean compressed = false;
+        if ("INLINE".equals(bucket) && inlineContent != null
+                && inlineContent.length > INLINE_COMPRESS_THRESHOLD) {
+            storedContent = gzipCompress(inlineContent);
+            compressed = true;
+            log.debug("Inline content compressed: {} → {} bytes ({}% reduction)",
+                    inlineContent.length, storedContent.length,
+                    100 - (storedContent.length * 100 / inlineContent.length));
+        }
+
+        // 5. Create or update entry (now under advisory lock — no race)
         Optional<VirtualEntry> existing = entryRepository.findByAccountIdAndPathAndDeletedFalse(accountId, normalized);
         VirtualEntry result;
         if (existing.isPresent()) {
@@ -187,9 +270,11 @@ public class VirtualFileSystem {
             entry.setContentType(contentType);
             entry.setStorageBucket(bucket);
             if ("INLINE".equals(bucket)) {
-                entry.setInlineContent(inlineContent);
+                entry.setInlineContent(storedContent);
+                entry.setCompressed(compressed);
             } else {
                 entry.setInlineContent(null);
+                entry.setCompressed(false);
             }
             result = entryRepository.save(entry);
         } else {
@@ -204,11 +289,12 @@ public class VirtualFileSystem {
                     .trackId(trackId)
                     .contentType(contentType)
                     .storageBucket(bucket)
-                    .inlineContent("INLINE".equals(bucket) ? inlineContent : null)
+                    .inlineContent("INLINE".equals(bucket) ? storedContent : null)
+                    .compressed(compressed)
                     .build());
         }
 
-        // 5. Mark intent COMMITTED (same transaction — single DB commit)
+        // 6. Mark intent COMMITTED (same transaction — single DB commit)
         commitIntent(intent);
         return result;
     }
@@ -252,7 +338,9 @@ public class VirtualFileSystem {
         return switch (bucket) {
             case "INLINE" -> {
                 if (entry.getInlineContent() != null) {
-                    yield entry.getInlineContent();
+                    yield entry.isCompressed()
+                            ? gzipDecompress(entry.getInlineContent())
+                            : entry.getInlineContent();
                 }
                 throw new NoSuchElementException("Inline content missing for: " + normalized);
             }
@@ -273,13 +361,40 @@ public class VirtualFileSystem {
             throw new NoSuchElementException("No chunks found for: " + entry.getPath());
         }
 
-        ByteArrayOutputStream assembled = new ByteArrayOutputStream((int) entry.getSizeBytes());
-        for (VfsChunk chunk : chunks) {
-            // Retrieve each chunk from CAS by its storage key
-            byte[] chunkData = storageClient.retrieve(chunk.getStorageKey());
-            assembled.writeBytes(chunkData);
+        // Single chunk — skip executor overhead
+        if (chunks.size() == 1) {
+            return storageClient.retrieve(chunks.getFirst().getStorageKey());
         }
-        return assembled.toByteArray();
+
+        // Parallel retrieval using virtual threads — each chunk fetch is I/O-bound,
+        // so virtual threads are ideal (no platform thread pinning on HTTP calls)
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            // Launch all chunk fetches concurrently, preserving index order in the futures list
+            List<CompletableFuture<byte[]>> futures = chunks.stream()
+                    .map(chunk -> CompletableFuture.supplyAsync(
+                            () -> storageClient.retrieve(chunk.getStorageKey()), executor))
+                    .toList();
+
+            // Wait for all to complete — if any chunk fails, propagate immediately
+            CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).join();
+
+            // Reassemble in chunk-index order (futures list matches chunks list order)
+            ByteArrayOutputStream assembled = new ByteArrayOutputStream((int) entry.getSizeBytes());
+            for (int i = 0; i < futures.size(); i++) {
+                byte[] chunkData = futures.get(i).join();
+                if (chunkData == null) {
+                    throw new NoSuchElementException(
+                            "Chunk " + i + " returned null for: " + entry.getPath());
+                }
+                assembled.writeBytes(chunkData);
+            }
+            return assembled.toByteArray();
+        } catch (java.util.concurrent.CompletionException e) {
+            // Unwrap the real cause for clear error reporting
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            throw new RuntimeException("Failed to read chunked file " + entry.getPath()
+                    + " (" + chunks.size() + " chunks): " + cause.getMessage(), cause);
+        }
     }
 
     // ── Chunk Registration (for CHUNKED bucket) ──────────────────────────

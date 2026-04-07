@@ -1,6 +1,7 @@
 package com.filetransfer.ftp.server;
 
 import com.filetransfer.shared.client.StorageServiceClient;
+import com.filetransfer.shared.entity.VirtualEntry;
 import com.filetransfer.shared.vfs.VirtualFileSystem;
 import org.apache.ftpserver.ftplet.FileSystemView;
 import org.apache.ftpserver.ftplet.FtpException;
@@ -19,6 +20,7 @@ public class VirtualFtpFileSystemView implements FileSystemView {
     private final VirtualFileSystem vfs;
     private final StorageServiceClient storageClient;
     private String workingDir = "/";
+    private VirtualEntry workingDirEntry; // cached from changeWorkingDirectory to avoid re-stat
 
     public VirtualFtpFileSystemView(UUID accountId, VirtualFileSystem vfs, StorageServiceClient storageClient) {
         this.accountId = accountId;
@@ -28,12 +30,17 @@ public class VirtualFtpFileSystemView implements FileSystemView {
 
     @Override
     public FtpFile getHomeDirectory() {
-        return new VirtualFtpFile("/", accountId, vfs, storageClient);
+        // Root is special-cased in VirtualFtpFile (always exists, always directory) — no stat needed
+        return new VirtualFtpFile("/", accountId, vfs, storageClient, null);
     }
 
     @Override
     public FtpFile getWorkingDirectory() {
-        return new VirtualFtpFile(workingDir, accountId, vfs, storageClient);
+        // Root is special-cased — skip stat; otherwise use cached entry from changeWorkingDirectory
+        if ("/".equals(workingDir)) {
+            return new VirtualFtpFile("/", accountId, vfs, storageClient, null);
+        }
+        return new VirtualFtpFile(workingDir, accountId, vfs, storageClient, workingDirEntry);
     }
 
     @Override
@@ -42,10 +49,14 @@ public class VirtualFtpFileSystemView implements FileSystemView {
         // Root always exists
         if ("/".equals(resolved)) {
             workingDir = "/";
+            workingDirEntry = null;
             return true;
         }
-        if (vfs.exists(accountId, resolved)) {
+        // Use stat() instead of exists() so we can cache the entry for getWorkingDirectory()
+        VirtualEntry entry = vfs.stat(accountId, resolved).orElse(null);
+        if (entry != null) {
             workingDir = resolved;
+            workingDirEntry = entry;
             return true;
         }
         return false;
@@ -53,7 +64,14 @@ public class VirtualFtpFileSystemView implements FileSystemView {
 
     @Override
     public FtpFile getFile(String file) throws FtpException {
-        return new VirtualFtpFile(resolvePath(file), accountId, vfs, storageClient);
+        String resolved = resolvePath(file);
+        // Root is special-cased in VirtualFtpFile — skip the stat call
+        if ("/".equals(resolved)) {
+            return new VirtualFtpFile("/", accountId, vfs, storageClient, null);
+        }
+        // Single stat call here; entry passed directly to constructor (no second stat)
+        VirtualEntry entry = vfs.stat(accountId, resolved).orElse(null);
+        return new VirtualFtpFile(resolved, accountId, vfs, storageClient, entry);
     }
 
     @Override

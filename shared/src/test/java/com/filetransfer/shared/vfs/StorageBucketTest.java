@@ -5,6 +5,7 @@ import com.filetransfer.shared.entity.VfsChunk;
 import com.filetransfer.shared.entity.VirtualEntry;
 import com.filetransfer.shared.repository.VfsChunkRepository;
 import com.filetransfer.shared.repository.VfsIntentRepository;
+import com.filetransfer.shared.repository.TransferAccountRepository;
 import com.filetransfer.shared.repository.VirtualEntryRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
@@ -27,6 +28,7 @@ class StorageBucketTest {
     private VfsIntentRepository intentRepository;
     private VfsChunkRepository chunkRepository;
     private EntityManager entityManager;
+    private TransferAccountRepository accountRepository;
     private VirtualFileSystem vfs;
 
     private final UUID accountId = UUID.fromString("00000000-0000-0000-0000-000000000001");
@@ -38,9 +40,10 @@ class StorageBucketTest {
         intentRepository = mock(VfsIntentRepository.class);
         chunkRepository = mock(VfsChunkRepository.class);
         entityManager = mock(EntityManager.class);
+        accountRepository = mock(TransferAccountRepository.class);
 
         vfs = new VirtualFileSystem(entryRepository, storageClient, intentRepository,
-                chunkRepository, entityManager);
+                chunkRepository, entityManager, accountRepository);
 
         Field podIdField = VirtualFileSystem.class.getDeclaredField("podId");
         podIdField.setAccessible(true);

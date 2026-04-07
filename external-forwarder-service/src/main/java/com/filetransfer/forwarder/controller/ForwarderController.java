@@ -76,6 +76,10 @@ public class ForwarderController {
     @Value("${forwarder.transfer.stall-extra-retries:2}")
     private int stallExtraRetries;
 
+    /** Timeout (ms) for the test-connection endpoint's socket/HTTP probes. */
+    @Value("${forwarder.connection-test.timeout-ms:10000}")
+    private int connectionTestTimeoutMs = 10_000;
+
     /** Port counter for dynamic DMZ proxy mappings (range 40000-49999) */
     private final AtomicInteger dmzPortCounter = new AtomicInteger(40000);
 
@@ -156,7 +160,7 @@ public class ForwarderController {
 
     private void testSocketConnection(String host, int port, Map<String, Object> result, long startMs) {
         try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(host, port), 10000);
+            socket.connect(new InetSocketAddress(host, port), connectionTestTimeoutMs);
             long latency = System.currentTimeMillis() - startMs;
             result.put("success", true);
             result.put("message", "Connection successful to " + host + ":" + port);
@@ -177,8 +181,8 @@ public class ForwarderController {
             URI uri = URI.create(scheme + "://" + host + ":" + port + "/");
             HttpURLConnection conn = (HttpURLConnection) uri.toURL().openConnection();
             conn.setRequestMethod("HEAD");
-            conn.setConnectTimeout(10000);
-            conn.setReadTimeout(10000);
+            conn.setConnectTimeout(connectionTestTimeoutMs);
+            conn.setReadTimeout(connectionTestTimeoutMs);
             conn.setInstanceFollowRedirects(false);
             int responseCode = conn.getResponseCode();
             long latency = System.currentTimeMillis() - startMs;
@@ -217,6 +221,10 @@ public class ForwarderController {
         headers.set("X-Internal-Key", controlApiKey);
 
         RestTemplate rest = new RestTemplate();
+        var factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(connectionTestTimeoutMs);
+        factory.setReadTimeout(connectionTestTimeoutMs);
+        rest.setRequestFactory(factory);
         rest.postForEntity(dmzApiUrl + "/api/proxy/mappings",
                 new HttpEntity<>(mapping, headers), Map.class);
 
@@ -232,6 +240,10 @@ public class ForwarderController {
             headers.set("X-Internal-Key", controlApiKey);
 
             RestTemplate rest = new RestTemplate();
+            var cleanupFactory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+            cleanupFactory.setConnectTimeout(connectionTestTimeoutMs);
+            cleanupFactory.setReadTimeout(connectionTestTimeoutMs);
+            rest.setRequestFactory(cleanupFactory);
             rest.exchange(dmzApiUrl + "/api/proxy/mappings/" + mappingName,
                     HttpMethod.DELETE, new HttpEntity<>(headers), Void.class);
 

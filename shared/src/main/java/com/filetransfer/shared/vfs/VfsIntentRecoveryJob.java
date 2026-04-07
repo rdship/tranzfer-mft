@@ -61,11 +61,7 @@ public class VfsIntentRecoveryJob {
             log.info("VFS intent recovery: processed {} stale, recovered {}", stale.size(), recovered);
         }
 
-        // Purge resolved intents older than 7 days (always runs)
-        int purged = intentRepository.purgeResolved(Instant.now().minus(Duration.ofDays(7)));
-        if (purged > 0) {
-            log.info("VFS intent recovery: purged {} old resolved intents", purged);
-        }
+        // Note: resolved intent archival is handled by VfsIntentArchiveJob (30-day retention)
     }
 
     private boolean recoverIntent(VfsIntent intent) {

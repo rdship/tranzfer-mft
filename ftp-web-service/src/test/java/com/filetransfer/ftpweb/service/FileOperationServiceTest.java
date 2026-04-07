@@ -329,7 +329,7 @@ class FileOperationServiceTest {
         when(file.getOriginalFilename()).thenReturn("small.edi");
         when(file.getBytes()).thenReturn(smallData);
         when(file.getContentType()).thenReturn("application/edi-x12");
-        when(virtualFileSystem.determineBucket(smallData.length)).thenReturn("INLINE");
+        when(virtualFileSystem.determineBucket(smallData.length, virtualAccount.getId())).thenReturn("INLINE");
 
         service.upload("vuser", "inbox", file);
 
@@ -348,7 +348,7 @@ class FileOperationServiceTest {
         when(file.getOriginalFilename()).thenReturn("report.csv");
         when(file.getBytes()).thenReturn(mediumData);
         when(file.getContentType()).thenReturn("text/csv");
-        when(virtualFileSystem.determineBucket(mediumData.length)).thenReturn("STANDARD");
+        when(virtualFileSystem.determineBucket(mediumData.length, virtualAccount.getId())).thenReturn("STANDARD");
         when(storageServiceClient.store(eq("report.csv"), eq(mediumData), isNull(), anyString()))
                 .thenReturn(Map.of("sha256", "abc123sha", "trackId", "TRK001"));
 
@@ -372,7 +372,7 @@ class FileOperationServiceTest {
         when(file.getOriginalFilename()).thenReturn("archive.bin");
         when(file.getBytes()).thenReturn(largeData);
         when(file.getContentType()).thenReturn("application/octet-stream");
-        when(virtualFileSystem.determineBucket(largeData.length)).thenReturn("CHUNKED");
+        when(virtualFileSystem.determineBucket(largeData.length, virtualAccount.getId())).thenReturn("CHUNKED");
         when(virtualFileSystem.writeFile(virtualAccount.getId(), "/inbox/archive.bin",
                 null, largeData.length, null, "application/octet-stream", null))
                 .thenReturn(chunkedEntry);

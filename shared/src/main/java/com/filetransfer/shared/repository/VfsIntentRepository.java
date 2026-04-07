@@ -2,6 +2,7 @@ package com.filetransfer.shared.repository;
 
 import com.filetransfer.shared.entity.VfsIntent;
 import com.filetransfer.shared.entity.VfsIntent.IntentStatus;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -30,9 +31,19 @@ public interface VfsIntentRepository extends JpaRepository<VfsIntent, UUID> {
     /** Count intents by status (dashboard metrics). */
     long countByStatus(IntentStatus status);
 
+    /**
+     * Aggregate COUNT per status in a single query (dashboard).
+     * Returns rows of [status (IntentStatus), count (Long)].
+     */
+    @Query("SELECT i.status, COUNT(i) FROM VfsIntent i GROUP BY i.status")
+    List<Object[]> countGroupByStatus();
+
     /** Recent intents for audit trail (dashboard). */
-    @Query("SELECT i FROM VfsIntent i ORDER BY i.createdAt DESC LIMIT :limit")
-    List<VfsIntent> findTopNOrderByCreatedAtDesc(int limit);
+    @Query("SELECT i FROM VfsIntent i ORDER BY i.createdAt DESC")
+    List<VfsIntent> findTopNOrderByCreatedAtDesc(Pageable pageable);
+
+    /** Count PENDING intents referencing a given CAS storage key (orphan reaper guard). */
+    long countByStatusAndStorageKey(IntentStatus status, String storageKey);
 
     /** Purge old resolved intents to prevent table bloat. */
     @Modifying

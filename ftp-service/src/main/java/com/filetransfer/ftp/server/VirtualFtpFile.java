@@ -40,8 +40,8 @@ public class VirtualFtpFile implements FtpFile {
         this.entry = vfs.stat(accountId, this.virtualPath).orElse(null);
     }
 
-    private VirtualFtpFile(String virtualPath, UUID accountId, VirtualFileSystem vfs,
-                            StorageServiceClient storageClient, VirtualEntry entry) {
+    VirtualFtpFile(String virtualPath, UUID accountId, VirtualFileSystem vfs,
+                    StorageServiceClient storageClient, VirtualEntry entry) {
         this.virtualPath = VirtualFileSystem.normalizePath(virtualPath);
         this.accountId = accountId;
         this.vfs = vfs;
@@ -213,7 +213,7 @@ public class VirtualFtpFile implements FtpFile {
 
             try {
                 String filename = VirtualFileSystem.nameOf(virtualPath);
-                String bucket = vfs.determineBucket(bytesWritten);
+                String bucket = vfs.determineBucket(bytesWritten, accountId);
 
                 switch (bucket) {
                     case "INLINE" -> {

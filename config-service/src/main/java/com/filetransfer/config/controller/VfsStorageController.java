@@ -2,6 +2,8 @@ package com.filetransfer.config.controller;
 
 import com.filetransfer.shared.entity.VfsIntent;
 import com.filetransfer.shared.entity.VfsIntent.IntentStatus;
+import java.util.EnumMap;
+import java.util.HashMap;
 import com.filetransfer.shared.repository.VfsChunkRepository;
 import com.filetransfer.shared.repository.VfsIntentRepository;
 import com.filetransfer.shared.repository.VirtualEntryRepository;
@@ -10,6 +12,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -66,14 +70,22 @@ public class VfsStorageController {
     public Map<String, Object> getBucketDistribution() {
         Map<String, Object> buckets = new LinkedHashMap<>();
 
-        long inlineCount = entryRepository.countByStorageBucketAndDeletedFalse("INLINE");
-        long standardCount = entryRepository.countByStorageBucketAndDeletedFalse("STANDARD");
-        long chunkedCount = entryRepository.countByStorageBucketAndDeletedFalse("CHUNKED");
-        long nullCount = entryRepository.countByStorageBucketIsNullAndDeletedFalse();
+        // Single aggregate query replaces 7 separate COUNT/SUM queries
+        Map<String, long[]> stats = new HashMap<>(); // bucket -> [count, sizeBytes]
+        for (Object[] row : entryRepository.aggregateBucketStats()) {
+            String bucket = (String) row[0]; // null for legacy entries
+            long count = ((Number) row[1]).longValue();
+            long size = ((Number) row[2]).longValue();
+            stats.put(bucket, new long[]{count, size});
+        }
 
-        long inlineSize = Optional.ofNullable(entryRepository.sumSizeByBucketAndDeletedFalse("INLINE")).orElse(0L);
-        long standardSize = Optional.ofNullable(entryRepository.sumSizeByBucketAndDeletedFalse("STANDARD")).orElse(0L);
-        long chunkedSize = Optional.ofNullable(entryRepository.sumSizeByBucketAndDeletedFalse("CHUNKED")).orElse(0L);
+        long inlineCount = statsCount(stats, "INLINE");
+        long standardCount = statsCount(stats, "STANDARD");
+        long chunkedCount = statsCount(stats, "CHUNKED");
+        long nullCount = statsCount(stats, null); // legacy entries with null bucket
+        long inlineSize = statsSize(stats, "INLINE");
+        long standardSize = statsSize(stats, "STANDARD");
+        long chunkedSize = statsSize(stats, "CHUNKED");
 
         buckets.put("inline", Map.of("count", inlineCount, "sizeBytes", inlineSize,
                 "label", "INLINE", "description", "< 64KB, stored in DB row"));
@@ -96,10 +108,18 @@ public class VfsStorageController {
     public Map<String, Object> getIntentHealth() {
         Map<String, Object> health = new LinkedHashMap<>();
 
-        long pending = intentRepository.countByStatus(IntentStatus.PENDING);
-        long committed = intentRepository.countByStatus(IntentStatus.COMMITTED);
-        long aborted = intentRepository.countByStatus(IntentStatus.ABORTED);
-        long recovering = intentRepository.countByStatus(IntentStatus.RECOVERING);
+        // Single aggregate query replaces 4 separate countByStatus queries
+        Map<IntentStatus, Long> statusCounts = new EnumMap<>(IntentStatus.class);
+        for (Object[] row : intentRepository.countGroupByStatus()) {
+            IntentStatus status = (IntentStatus) row[0];
+            long count = ((Number) row[1]).longValue();
+            statusCounts.put(status, count);
+        }
+
+        long pending = statusCounts.getOrDefault(IntentStatus.PENDING, 0L);
+        long committed = statusCounts.getOrDefault(IntentStatus.COMMITTED, 0L);
+        long aborted = statusCounts.getOrDefault(IntentStatus.ABORTED, 0L);
+        long recovering = statusCounts.getOrDefault(IntentStatus.RECOVERING, 0L);
 
         health.put("pending", pending);
         health.put("committed", committed);
@@ -124,7 +144,8 @@ public class VfsStorageController {
     public List<Map<String, Object>> getRecentIntents(
             @RequestParam(defaultValue = "100") int limit) {
         int safeLimit = Math.min(limit, 500);
-        return intentRepository.findTopNOrderByCreatedAtDesc(safeLimit).stream()
+        return intentRepository.findTopNOrderByCreatedAtDesc(
+                PageRequest.of(0, safeLimit, Sort.by("createdAt").descending())).stream()
                 .map(i -> {
                     Map<String, Object> m = new LinkedHashMap<>();
                     m.put("id", i.getId());
@@ -180,5 +201,17 @@ public class VfsStorageController {
         if (sizeBytes <= inlineMaxBytes) return "INLINE";
         if (sizeBytes > chunkThresholdBytes) return "CHUNKED";
         return "STANDARD";
+    }
+
+    /** Extract count from aggregated bucket stats map (null-safe). */
+    private static long statsCount(Map<String, long[]> stats, String bucket) {
+        long[] v = stats.get(bucket);
+        return v != null ? v[0] : 0L;
+    }
+
+    /** Extract total size from aggregated bucket stats map (null-safe). */
+    private static long statsSize(Map<String, long[]> stats, String bucket) {
+        long[] v = stats.get(bucket);
+        return v != null ? v[1] : 0L;
     }
 }

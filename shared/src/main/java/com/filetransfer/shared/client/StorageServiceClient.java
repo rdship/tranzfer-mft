@@ -116,6 +116,12 @@ public class StorageServiceClient extends ResilientServiceClient {
                 () -> post("/api/v1/storage/lifecycle/backup", null, Map.class));
     }
 
+    /** Soft-delete a CAS object by SHA-256 key (used by CasOrphanReaper GC). */
+    public void deleteBySha256(String sha256) {
+        withResilience("deleteBySha256",
+                (Runnable) () -> delete("/api/v1/storage/objects/" + sha256));
+    }
+
     @Override
     protected String healthPath() {
         return "/api/v1/storage/health";

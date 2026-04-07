@@ -20,12 +20,16 @@ class ConnectionTestControllerTest {
     private ForwarderController controller;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         // test-connection doesn't use any injected services — safe to pass nulls
         controller = new ForwarderController(
                 null, null, null,
                 null, null, null, null, null, null, null, null
         );
+        // Use a short timeout so unreachable-host tests don't wait 10s each
+        java.lang.reflect.Field f = ForwarderController.class.getDeclaredField("connectionTestTimeoutMs");
+        f.setAccessible(true);
+        f.setInt(controller, 200);
     }
 
     // --- Validation ---

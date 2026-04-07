@@ -164,16 +164,16 @@ class VfsIntentRecoveryJobTest {
         verify(vfs, never()).writeFile(any(), any(), any(), anyLong(), any(), any());
     }
 
-    // ── Purge ──────────────────────────────────────────────────────────
+    // ── Archival delegation ──────────────────────────────────────────────
 
     @Test
-    void purgesOldResolvedIntents() {
+    void doesNotPurgeDirectly_archivalHandledBySeparateJob() {
         when(intentRepository.findByStatusAndCreatedAtBefore(eq(IntentStatus.PENDING), any()))
                 .thenReturn(List.of());
-        when(intentRepository.purgeResolved(any())).thenReturn(5);
 
         job.recoverStaleIntents();
 
-        verify(intentRepository).purgeResolved(any());
+        // purgeResolved is no longer called — archival is handled by VfsIntentArchiveJob
+        verify(intentRepository, never()).purgeResolved(any());
     }
 }

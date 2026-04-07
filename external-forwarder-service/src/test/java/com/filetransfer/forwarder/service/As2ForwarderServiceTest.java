@@ -29,8 +29,16 @@ class As2ForwarderServiceTest {
     private As2Partnership partnership;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         service = new As2ForwarderService(partnershipRepository, messageRepository, null);
+
+        // Use short timeouts so tests fail fast instead of waiting 30s for DNS/connect
+        java.lang.reflect.Field ctf = As2ForwarderService.class.getDeclaredField("connectTimeoutMs");
+        ctf.setAccessible(true);
+        ctf.setInt(service, 200);
+        java.lang.reflect.Field rtf = As2ForwarderService.class.getDeclaredField("readTimeoutMs");
+        rtf.setAccessible(true);
+        rtf.setInt(service, 200);
 
         partnership = As2Partnership.builder()
                 .id(UUID.randomUUID())

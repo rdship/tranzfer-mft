@@ -326,7 +326,7 @@ public class VirtualSftpFileSystemProvider extends FileSystemProvider {
                 if (fileSize == 0) return;
 
                 String filename = VirtualFileSystem.nameOf(vpath);
-                String bucket = vfs().determineBucket(fileSize);
+                String bucket = vfs().determineBucket(fileSize, accountId());
 
                 switch (bucket) {
                     case "INLINE" -> {

@@ -63,6 +63,14 @@ public class TransferAccount extends Auditable {
     @Builder.Default
     private String storageMode = "PHYSICAL";
 
+    /** Per-account inline threshold override (null = use system default vfs.inline-max-bytes). */
+    @Column(name = "inline_max_bytes")
+    private Long inlineMaxBytes;
+
+    /** Per-account chunk threshold override (null = use system default vfs.chunk-threshold-bytes). */
+    @Column(name = "chunk_threshold_bytes")
+    private Long chunkThresholdBytes;
+
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;

@@ -4,6 +4,7 @@ import com.filetransfer.shared.client.StorageServiceClient;
 import com.filetransfer.shared.entity.VfsChunk;
 import com.filetransfer.shared.entity.VirtualEntry;
 import com.filetransfer.shared.repository.VfsChunkRepository;
+import com.filetransfer.shared.repository.TransferAccountRepository;
 import com.filetransfer.shared.repository.VfsIntentRepository;
 import com.filetransfer.shared.repository.VirtualEntryRepository;
 import com.filetransfer.shared.vfs.VirtualFileSystem;
@@ -47,6 +48,7 @@ class VirtualWriteChannelTest {
     @Mock private VfsIntentRepository intentRepository;
     @Mock private VfsChunkRepository chunkRepository;
     @Mock private EntityManager entityManager;
+    @Mock private TransferAccountRepository accountRepository;
 
     private VirtualFileSystem vfs;
     private VirtualSftpFileSystem fileSystem;
@@ -57,7 +59,7 @@ class VirtualWriteChannelTest {
     @BeforeEach
     void setUp() throws Exception {
         vfs = new VirtualFileSystem(entryRepository, storageClient, intentRepository,
-                chunkRepository, entityManager);
+                chunkRepository, entityManager, accountRepository);
 
         // Set VFS config via reflection (same pattern as StorageBucketTest)
         Field podIdField = VirtualFileSystem.class.getDeclaredField("podId");
