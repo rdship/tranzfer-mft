@@ -23,11 +23,11 @@ public class As2Partnership extends Auditable {
     private String partnerName;
 
     /** Remote partner's AS2-ID (used in AS2-To header) */
-    @Column(nullable = false, unique = true)
+    @Column(name = "partner_as2_id", nullable = false, unique = true)
     private String partnerAs2Id;
 
     /** Our AS2-ID (used in AS2-From header) */
-    @Column(nullable = false)
+    @Column(name = "our_as2_id", nullable = false)
     private String ourAs2Id;
 
     /** Partner's receiving endpoint URL */

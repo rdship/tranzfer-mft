@@ -43,13 +43,13 @@ import java.util.stream.Collectors;
 @Entity
 @Table(name = "security_events", indexes = {
     @Index(name = "idx_threat_event_timestamp", columnList = "timestamp"),
-    @Index(name = "idx_threat_event_src_ip", columnList = "srcIp"),
-    @Index(name = "idx_threat_event_dst_ip", columnList = "dstIp"),
+    @Index(name = "idx_threat_event_src_ip", columnList = "src_ip"),
+    @Index(name = "idx_threat_event_dst_ip", columnList = "dst_ip"),
     @Index(name = "idx_threat_event_severity", columnList = "severity"),
-    @Index(name = "idx_threat_event_source_type", columnList = "sourceType"),
-    @Index(name = "idx_threat_event_flow_id", columnList = "flowId"),
-    @Index(name = "idx_threat_event_host_name", columnList = "hostName"),
-    @Index(name = "idx_threat_event_auth_user", columnList = "authUser")
+    @Index(name = "idx_threat_event_source_type", columnList = "source_type"),
+    @Index(name = "idx_threat_event_flow_id", columnList = "flow_id"),
+    @Index(name = "idx_threat_event_host_name", columnList = "host_name"),
+    @Index(name = "idx_threat_event_auth_user", columnList = "auth_user")
 })
 @Data
 @Builder

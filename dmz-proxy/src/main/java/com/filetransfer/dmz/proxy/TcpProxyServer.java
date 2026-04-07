@@ -196,6 +196,7 @@ public class TcpProxyServer {
                             if (f.isSuccess()) {
                                 auditConnection("OPEN", clientCh, "connected");
                                 clientCh.read();
+                                backendCh.read();
                             } else {
                                 log.warn("Backend connection failed: {}:{} -> {}",
                                     mapping.getName(), mapping.getTargetHost(), mapping.getTargetPort());

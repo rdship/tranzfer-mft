@@ -38,9 +38,9 @@ import java.util.stream.Collectors;
 @Table(name = "attack_campaigns", indexes = {
     @Index(name = "idx_attack_campaign_name", columnList = "name"),
     @Index(name = "idx_attack_campaign_status", columnList = "status"),
-    @Index(name = "idx_attack_campaign_actor_id", columnList = "actorId"),
-    @Index(name = "idx_attack_campaign_first_seen", columnList = "firstSeen"),
-    @Index(name = "idx_attack_campaign_last_seen", columnList = "lastSeen")
+    @Index(name = "idx_attack_campaign_actor_id", columnList = "actor_id"),
+    @Index(name = "idx_attack_campaign_first_seen", columnList = "first_seen"),
+    @Index(name = "idx_attack_campaign_last_seen", columnList = "last_seen")
 })
 @Data
 @Builder
@@ -61,9 +61,11 @@ public class AttackCampaign {
     private String description;
 
     /** Earliest event attributed to this campaign. */
+    @Column(name = "first_seen")
     private Instant firstSeen;
 
     /** Most recent event attributed to this campaign. */
+    @Column(name = "last_seen")
     private Instant lastSeen;
 
     /**
@@ -73,7 +75,7 @@ public class AttackCampaign {
     private String status;
 
     /** UUID of the attributed {@link ThreatActor}, or {@code null} if unattributed. */
-    @Column(length = 36)
+    @Column(name = "actor_id", columnDefinition = "uuid")
     private String actorId;
 
     /** Comma-separated MITRE ATT&CK technique IDs observed in this campaign. */
@@ -81,18 +83,19 @@ public class AttackCampaign {
     private String ttps;
 
     /** Comma-separated industry sectors targeted by this campaign. */
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "target_sectors", columnDefinition = "TEXT")
     private String targetSectors;
 
     /** Comma-separated UUIDs of {@link ThreatIndicator}s linked to this campaign. */
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "ioc_ids", columnDefinition = "TEXT")
     private String iocIds;
 
     /** Comma-separated UUIDs of {@link SecurityAlert}s linked to this campaign. */
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "alert_ids", columnDefinition = "TEXT")
     private String alertIds;
 
     /** Total number of {@link SecurityEvent}s correlated to this campaign. */
+    @Column(name = "event_count")
     private int eventCount;
 
     /** Attribution / correlation confidence, 0.0–1.0. */

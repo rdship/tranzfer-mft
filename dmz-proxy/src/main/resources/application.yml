@@ -15,7 +15,7 @@ dmz:
     - name: ftp-gateway
       listen-port: 21
       target-host: ${GATEWAY_HOST:gateway-service}
-      target-port: 2121
+      target-port: ${GATEWAY_FTP_PORT:2122}
     - name: ftp-web
       listen-port: 443
       target-host: ${FTPWEB_HOST:ftp-web-service}

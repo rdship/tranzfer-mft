@@ -96,7 +96,12 @@ public class ProxyManager {
         if (properties.getMappings() != null) {
             properties.getMappings().forEach(m -> {
                 m.setActive(true);
-                add(m);
+                try {
+                    add(m);
+                } catch (Exception e) {
+                    log.warn("Skipping mapping [{}]: {} (backend may not be available yet — add via REST later)",
+                        m.getName(), e.getMessage());
+                }
             });
         }
 

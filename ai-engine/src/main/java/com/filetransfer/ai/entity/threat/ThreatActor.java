@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
     @Index(name = "idx_threat_actor_name", columnList = "name"),
     @Index(name = "idx_threat_actor_country", columnList = "country"),
     @Index(name = "idx_threat_actor_motivation", columnList = "motivation"),
-    @Index(name = "idx_threat_actor_last_activity", columnList = "lastActivity")
+    @Index(name = "idx_threat_actor_last_activity", columnList = "last_activity")
 })
 @Data
 @Builder
@@ -76,9 +76,11 @@ public class ThreatActor {
     private String sophistication;
 
     /** Earliest known activity attributed to this actor. */
+    @Column(name = "active_since")
     private Instant activeSince;
 
     /** Most recent observed activity. */
+    @Column(name = "last_activity")
     private Instant lastActivity;
 
     /** Comma-separated MITRE ATT&CK technique IDs used by this actor. */
@@ -86,15 +88,15 @@ public class ThreatActor {
     private String ttps;
 
     /** Comma-separated names of tools, malware families, and exploit frameworks. */
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "known_tools", columnDefinition = "TEXT")
     private String knownTools;
 
     /** Comma-separated industry sectors targeted (e.g. "finance,energy,government"). */
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "target_sectors", columnDefinition = "TEXT")
     private String targetSectors;
 
     /** Comma-separated ISO country codes of targeted nations. */
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "target_countries", columnDefinition = "TEXT")
     private String targetCountries;
 
     /** Attribution confidence, 0.0–1.0. */

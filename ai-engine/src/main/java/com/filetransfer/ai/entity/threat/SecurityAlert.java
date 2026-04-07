@@ -41,8 +41,8 @@ import java.util.stream.Collectors;
     @Index(name = "idx_security_alert_timestamp", columnList = "timestamp"),
     @Index(name = "idx_security_alert_severity", columnList = "severity"),
     @Index(name = "idx_security_alert_status", columnList = "status"),
-    @Index(name = "idx_security_alert_risk_score", columnList = "riskScore"),
-    @Index(name = "idx_security_alert_assigned_to", columnList = "assignedTo")
+    @Index(name = "idx_security_alert_risk_score", columnList = "risk_score"),
+    @Index(name = "idx_security_alert_assigned_to", columnList = "assigned_to")
 })
 @Data
 @Builder

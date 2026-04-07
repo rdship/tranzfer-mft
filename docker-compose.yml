@@ -15,7 +15,7 @@ x-common-env: &common-env
   CLUSTER_ID: ${CLUSTER_ID:-cluster-1}
   CLUSTER_COMM_MODE: ${CLUSTER_COMM_MODE:-WITHIN_CLUSTER}
   TRACK_ID_PREFIX: ${TRACK_ID_PREFIX:-TRZ}
-  PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-PROD}
+  PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-DEV}
   PROXY_ENABLED: ${PROXY_ENABLED:-false}
   PROXY_TYPE: ${PROXY_TYPE:-HTTP}
   PROXY_HOST: ${PROXY_HOST:-dmz-proxy}
@@ -128,8 +128,8 @@ services:
     container_name: mft-sftp-service-2
     <<: *healthcheck
     ports:
-      - "127.0.0.2:2222:2222"
-      - "127.0.0.2:8081:8081"
+      - "2223:2222"
+      - "8181:8081"
     environment:
       <<: *common-env
       CLUSTER_HOST: sftp-service-2
@@ -176,19 +176,71 @@ services:
     container_name: mft-ftp-service-2
     <<: *healthcheck
     ports:
-      - "127.0.0.2:21:21"
-      - "127.0.0.2:21000-21010:21000-21010"
-      - "127.0.0.2:8082:8082"
+      - "1020:21"
+      - "21011-21019:21000-21008"
+      - "8182:8082"
     environment:
       <<: *common-env
       CLUSTER_HOST: ftp-service-2
       SERVER_PORT: 8082
       FTP_PORT: 21
-      FTP_PASSIVE_PORTS: 21000-21010
-      FTP_PUBLIC_HOST: ${FTP_PUBLIC_HOST:-127.0.0.2}
+      FTP_PASSIVE_PORTS: 21000-21008
+      FTP_PUBLIC_HOST: ${FTP_PUBLIC_HOST:-localhost}
       FTP_HOME_BASE: /data/ftp
       FTP_INSTANCE_ID: ftp-2
       PLATFORM_REPLICA_COUNT: 2
+    volumes:
+      - ftp_data:/data/ftp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  sftp-service-3:
+    build: ./sftp-service
+    container_name: mft-sftp-service-3
+    <<: *healthcheck
+    ports:
+      - "12222:2222"
+      - "18081:8081"
+    environment:
+      <<: *common-env
+      CLUSTER_HOST: sftp-service-3
+      SERVER_PORT: 8081
+      SFTP_PORT: 2222
+      SFTP_HOME_BASE: /data/sftp
+      SFTP_INSTANCE_ID: sftp-3
+      SFTP_KEYSTORE_MANAGER_ENABLED: "true"
+      SFTP_KEYSTORE_MANAGER_URL: http://keystore-manager:8093
+    volumes:
+      - sftp_data:/data/sftp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      keystore-manager:
+        condition: service_healthy
+
+  ftp-service-3:
+    build: ./ftp-service
+    container_name: mft-ftp-service-3
+    <<: *healthcheck
+    ports:
+      - "1021:21"
+      - "21020-21030:21000-21010"
+      - "18082:8082"
+    environment:
+      <<: *common-env
+      CLUSTER_HOST: ftp-service-3
+      SERVER_PORT: 8082
+      FTP_PORT: 21
+      FTP_PASSIVE_PORTS: 21000-21010
+      FTP_PUBLIC_HOST: ${FTP_PUBLIC_HOST:-127.0.0.3}
+      FTP_HOME_BASE: /data/ftp
+      FTP_INSTANCE_ID: ftp-3
+      PLATFORM_REPLICA_COUNT: 3
     volumes:
       - ftp_data:/data/ftp
     depends_on:
@@ -316,11 +368,22 @@ services:
     ports:
       - "8088:8088"
       - "32222:2222"
-      - "32121:2121"
+      - "32121:21"
       - "4443:443"
     environment:
       CONTROL_API_KEY: ${CONTROL_API_KEY:-internal_control_secret}
       SERVER_PORT: 8088
+      DMZ_SECURITY_ENABLED: "true"
+      AI_ENGINE_URL: http://ai-engine:8091
+      KEYSTORE_MANAGER_URL: http://keystore-manager:8093
+      DMZ_AUDIT_ENABLED: "true"
+      DMZ_ZONES_ENABLED: "true"
+      DMZ_EGRESS_ENABLED: "true"
+      DMZ_INSPECTION_ENABLED: "true"
+      DMZ_HEALTH_CHECK_ENABLED: "true"
+    depends_on:
+      - ai-engine
+      - gateway-service
 
   # ---------------------------------------------------------------------------
   # Platform Services (New in v2.0)
@@ -373,6 +436,23 @@ services:
       postgres:
         condition: service_healthy
 
+  ai-engine-2:
+    build: ./ai-engine
+    container_name: mft-ai-engine-2
+    <<: *healthcheck
+    ports:
+      - "18091:8091"
+    environment:
+      <<: *common-env
+      CLUSTER_HOST: ai-engine-2
+      SERVER_PORT: 8091
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-sonnet-4-20250514}
+      AI_ENGINE_INSTANCE_ID: ai-engine-2
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   keystore-manager:
     build: ./keystore-manager
     container_name: mft-keystore-manager
@@ -384,6 +464,7 @@ services:
       CLUSTER_HOST: keystore-manager
       SERVER_PORT: 8093
       KEYSTORE_MASTER_PASSWORD: ${KEYSTORE_MASTER_PASSWORD:-change-this-master-password}
+      PLATFORM_ENVIRONMENT: DEV
     depends_on:
       postgres:
         condition: service_healthy
