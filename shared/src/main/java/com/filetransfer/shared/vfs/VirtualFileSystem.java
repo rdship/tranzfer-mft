@@ -282,6 +282,28 @@ public class VirtualFileSystem {
         return assembled.toByteArray();
     }
 
+    // ── Chunk Registration (for CHUNKED bucket) ──────────────────────────
+
+    /**
+     * Register a chunk that was onboarded to Storage Manager.
+     * Called by protocol handlers (SFTP/FTP/FTP-Web) after each chunk is stored in CAS.
+     *
+     * <p>Follows "never create, always onboard": content lives in Storage Manager,
+     * VFS only tracks the reference in the chunk manifest.
+     */
+    @Transactional
+    public VfsChunk registerChunk(UUID entryId, int chunkIndex, String storageKey,
+                                   long sizeBytes, String sha256) {
+        return chunkRepository.save(VfsChunk.builder()
+                .entryId(entryId)
+                .chunkIndex(chunkIndex)
+                .storageKey(storageKey)
+                .sizeBytes(sizeBytes)
+                .sha256(sha256)
+                .status(VfsChunk.ChunkStatus.STORED)
+                .build());
+    }
+
     // ── Stat ───────────────────────────────────────────────────────────
 
     public Optional<VirtualEntry> stat(UUID accountId, String path) {

@@ -142,6 +142,10 @@ platform:
     user-limit: 200
     default-window-seconds: 60
 
+vfs:
+  inline-max-bytes: ${VFS_INLINE_MAX_BYTES:65536}
+  chunk-threshold-bytes: ${VFS_CHUNK_THRESHOLD_BYTES:67108864}
+
 springdoc:
   api-docs:
     enabled: true

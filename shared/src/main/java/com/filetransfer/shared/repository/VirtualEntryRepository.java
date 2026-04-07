@@ -39,6 +39,22 @@ public interface VirtualEntryRepository extends JpaRepository<VirtualEntry, UUID
     @Query("SELECT COALESCE(SUM(v.sizeBytes), 0) FROM VirtualEntry v WHERE v.accountId = :accountId AND v.type = 'FILE' AND v.deleted = false")
     long sumSizeByAccount(UUID accountId);
 
+    /** Count files by storage bucket (dashboard metrics). */
+    @Query("SELECT COUNT(v) FROM VirtualEntry v WHERE v.storageBucket = :bucket AND v.type = 'FILE' AND v.deleted = false")
+    long countByStorageBucketAndDeletedFalse(String bucket);
+
+    /** Count files with null bucket — legacy entries (dashboard metrics). */
+    @Query("SELECT COUNT(v) FROM VirtualEntry v WHERE v.storageBucket IS NULL AND v.type = 'FILE' AND v.deleted = false")
+    long countByStorageBucketIsNullAndDeletedFalse();
+
+    /** Sum file sizes by bucket (dashboard metrics). */
+    @Query("SELECT SUM(v.sizeBytes) FROM VirtualEntry v WHERE v.storageBucket = :bucket AND v.type = 'FILE' AND v.deleted = false")
+    Long sumSizeByBucketAndDeletedFalse(String bucket);
+
+    /** Count files by account and bucket (per-account dashboard). */
+    @Query("SELECT COUNT(v) FROM VirtualEntry v WHERE v.accountId = :accountId AND v.storageBucket = :bucket AND v.type = 'FILE' AND v.deleted = false")
+    long countByAccountIdAndStorageBucketAndDeletedFalse(UUID accountId, String bucket);
+
     /** Soft-delete all entries under a path prefix (recursive delete). */
     @Modifying
     @Query("UPDATE VirtualEntry v SET v.deleted = true WHERE v.accountId = :accountId AND v.path LIKE :pathPrefix AND v.deleted = false")

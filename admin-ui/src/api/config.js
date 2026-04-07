@@ -28,3 +28,10 @@ export const importFolderTemplates = (data) => configApi.post('/api/folder-templ
 export const getMatchFields = () => configApi.get('/api/flows/match-fields').then(r => r.data)
 export const validateCriteria = (criteria) => configApi.post('/api/flows/validate-criteria', criteria).then(r => r.data)
 export const testMatch = (criteria, fileContext) => configApi.post('/api/flows/test-match', { criteria, fileContext }).then(r => r.data)
+
+// VFS Storage Dashboard
+export const getVfsDashboard = () => configApi.get('/api/vfs/dashboard').then(r => r.data)
+export const getVfsBuckets = () => configApi.get('/api/vfs/buckets').then(r => r.data)
+export const getVfsIntentHealth = () => configApi.get('/api/vfs/intents/health').then(r => r.data)
+export const getVfsRecentIntents = (limit = 100) => configApi.get(`/api/vfs/intents/recent?limit=${limit}`).then(r => r.data)
+export const getVfsAccountUsage = (accountId) => configApi.get(`/api/vfs/accounts/${accountId}/usage`).then(r => r.data)

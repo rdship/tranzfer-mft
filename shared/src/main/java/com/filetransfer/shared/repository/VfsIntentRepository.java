@@ -27,6 +27,13 @@ public interface VfsIntentRepository extends JpaRepository<VfsIntent, UUID> {
            "WHERE i.podId = :podId AND i.status = 'PENDING'")
     int abortByPod(String podId);
 
+    /** Count intents by status (dashboard metrics). */
+    long countByStatus(IntentStatus status);
+
+    /** Recent intents for audit trail (dashboard). */
+    @Query("SELECT i FROM VfsIntent i ORDER BY i.createdAt DESC LIMIT :limit")
+    List<VfsIntent> findTopNOrderByCreatedAtDesc(int limit);
+
     /** Purge old resolved intents to prevent table bloat. */
     @Modifying
     @Query("DELETE FROM VfsIntent i WHERE i.status IN ('COMMITTED','ABORTED') AND i.resolvedAt < :before")

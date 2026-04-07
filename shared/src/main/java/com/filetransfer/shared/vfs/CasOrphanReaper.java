@@ -1,6 +1,7 @@
 package com.filetransfer.shared.vfs;
 
 import com.filetransfer.shared.client.StorageServiceClient;
+import com.filetransfer.shared.repository.VfsChunkRepository;
 import com.filetransfer.shared.repository.VirtualEntryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +32,7 @@ import java.util.Map;
 public class CasOrphanReaper {
 
     private final VirtualEntryRepository entryRepository;
+    private final VfsChunkRepository chunkRepository;
     private final StorageServiceClient storageClient;
 
     @Scheduled(fixedDelay = 86_400_000) // every 24 hours
@@ -51,8 +53,9 @@ public class CasOrphanReaper {
             String sha256 = (String) obj.get("sha256");
             if (sha256 == null) continue;
 
-            long refCount = entryRepository.countByStorageKey(sha256);
-            if (refCount == 0) {
+            long entryRefs = entryRepository.countByStorageKey(sha256);
+            long chunkRefs = chunkRepository.countByStorageKey(sha256);
+            if (entryRefs == 0 && chunkRefs == 0) {
                 Object sizeObj = obj.get("sizeBytes");
                 long size = sizeObj instanceof Number n ? n.longValue() : 0;
                 log.info("CAS orphan detected: sha256={}, size={}B", sha256.substring(0, 12), size);

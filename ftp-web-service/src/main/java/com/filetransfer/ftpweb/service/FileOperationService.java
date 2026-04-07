@@ -25,6 +25,7 @@ import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.util.*;
+import java.util.Arrays;
 
 @Slf4j
 @Service
@@ -95,16 +96,51 @@ public class FileOperationService {
 
         TransferAccount account = findAccount(username);
 
-        // ── Virtual mode: store via CAS ─────────────────────────────────
+        // ── Virtual mode: bucket-aware upload ────────────────────────────
         if (isVirtualMode(account)) {
             String vpath = VirtualFileSystem.normalizePath("/" + relativeDirPath + "/" + originalFilename);
-            Map<String, Object> result = storageServiceClient.store(
-                    originalFilename, file.getBytes(), null, account.getId().toString());
-            String sha256 = (String) result.get("sha256");
-            String trackId = result.get("trackId") != null ? result.get("trackId").toString() : null;
-            virtualFileSystem.writeFile(account.getId(), vpath, sha256, file.getSize(), trackId, file.getContentType());
-            log.info("FTP-Web virtual upload: user={} path={} sha256={}", username, vpath,
-                    sha256 != null ? sha256.substring(0, 8) + "..." : "n/a");
+            byte[] data = file.getBytes();
+            String bucket = virtualFileSystem.determineBucket(data.length);
+
+            switch (bucket) {
+                case "INLINE" -> {
+                    // Small file — store directly in DB row, zero CAS hop
+                    virtualFileSystem.writeFile(account.getId(), vpath, null,
+                            data.length, null, file.getContentType(), data);
+                    log.info("FTP-Web virtual upload (INLINE): user={} path={} size={}", username, vpath, data.length);
+                }
+                case "CHUNKED" -> {
+                    // Large file — onboard chunks to Storage Manager, register manifest in VFS
+                    VirtualEntry entry = virtualFileSystem.writeFile(account.getId(), vpath, null,
+                            data.length, null, file.getContentType(), null);
+                    int chunkSize = 4 * 1024 * 1024; // 4MB
+                    int totalChunks = (int) Math.ceil((double) data.length / chunkSize);
+                    for (int i = 0; i < totalChunks; i++) {
+                        int offset = i * chunkSize;
+                        int length = Math.min(chunkSize, data.length - offset);
+                        byte[] chunk = Arrays.copyOfRange(data, offset, offset + length);
+                        String chunkName = originalFilename + ".chunk." + i;
+                        Map<String, Object> result = storageServiceClient.store(
+                                chunkName, chunk, null, account.getId().toString());
+                        String sha256 = (String) result.get("sha256");
+                        virtualFileSystem.registerChunk(entry.getId(), i,
+                                sha256 != null ? sha256 : "", length, sha256 != null ? sha256 : "");
+                    }
+                    log.info("FTP-Web virtual upload (CHUNKED): user={} path={} size={} chunks={}",
+                            username, vpath, data.length, totalChunks);
+                }
+                default -> {
+                    // STANDARD — onboard to Storage Manager, register reference in VFS
+                    Map<String, Object> result = storageServiceClient.store(
+                            originalFilename, data, null, account.getId().toString());
+                    String sha256 = (String) result.get("sha256");
+                    String trackId = result.get("trackId") != null ? result.get("trackId").toString() : null;
+                    virtualFileSystem.writeFile(account.getId(), vpath, sha256,
+                            data.length, trackId, file.getContentType(), null);
+                    log.info("FTP-Web virtual upload (STANDARD): user={} path={} sha256={}",
+                            username, vpath, sha256 != null ? sha256.substring(0, 8) + "..." : "n/a");
+                }
+            }
             return;
         }
 

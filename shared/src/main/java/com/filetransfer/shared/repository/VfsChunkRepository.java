@@ -17,6 +17,9 @@ public interface VfsChunkRepository extends JpaRepository<VfsChunk, UUID> {
     /** Count chunks in a given status (completion check). */
     long countByEntryIdAndStatus(UUID entryId, ChunkStatus status);
 
+    /** Count chunks referencing a CAS key (orphan detection). */
+    long countByStorageKey(String storageKey);
+
     /** Delete all chunks for an entry (cleanup on delete). */
     @Modifying
     @Query("DELETE FROM VfsChunk c WHERE c.entryId = :entryId")

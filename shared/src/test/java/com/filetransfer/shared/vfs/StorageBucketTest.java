@@ -155,6 +155,25 @@ class StorageBucketTest {
         verify(storageClient).retrieve("key1");
     }
 
+    // ── Chunk Registration ──────────────────────────────────────────────
+
+    @Test
+    void registerChunk_createsChunkRecord() {
+        UUID entryId = UUID.randomUUID();
+
+        when(chunkRepository.save(any(VfsChunk.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        VfsChunk chunk = vfs.registerChunk(entryId, 0, "sha256key", 4_000_000, "sha256key");
+
+        assertNotNull(chunk);
+        assertEquals(entryId, chunk.getEntryId());
+        assertEquals(0, chunk.getChunkIndex());
+        assertEquals("sha256key", chunk.getStorageKey());
+        assertEquals(4_000_000, chunk.getSizeBytes());
+        assertEquals(VfsChunk.ChunkStatus.STORED, chunk.getStatus());
+        verify(chunkRepository).save(any(VfsChunk.class));
+    }
+
     // ── Legacy (null bucket defaults to STANDARD) ──────────────────────
 
     @Test

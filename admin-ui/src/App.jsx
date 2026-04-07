@@ -42,6 +42,7 @@ import Partners from './pages/Partners'
 import PartnerDetail from './pages/PartnerDetail'
 import PartnerSetup from './pages/PartnerSetup'
 import ServiceManagement from './pages/ServiceManagement'
+import VfsStorage from './pages/VfsStorage'
 
 export default function App() {
   return (
@@ -78,6 +79,7 @@ export default function App() {
             <Route path="screening" element={<Screening />} />
             <Route path="recommendations" element={<Recommendations />} />
             <Route path="storage" element={<Storage />} />
+            <Route path="vfs-storage" element={<VfsStorage />} />
             <Route path="activity" element={<Activity />} />
             <Route path="2fa" element={<TwoFactor />} />
             <Route path="api-console" element={<ApiConsole />} />

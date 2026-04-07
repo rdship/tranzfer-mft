@@ -1,6 +1,7 @@
 package com.filetransfer.ftpweb.service;
 
 import com.filetransfer.shared.entity.TransferAccount;
+import com.filetransfer.shared.entity.VirtualEntry;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.repository.FolderTemplateRepository;
 import com.filetransfer.shared.repository.ServerInstanceRepository;
@@ -21,10 +22,7 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -303,5 +301,90 @@ class FileOperationServiceTest {
         NoSuchElementException ex = assertThrows(NoSuchElementException.class,
                 () -> service.list("unknown", "/"));
         assertTrue(ex.getMessage().contains("FTP_WEB account not found"));
+    }
+
+    // ── Virtual mode: bucket-aware upload ─────────────────────────────────
+
+    private TransferAccount virtualAccount;
+
+    private void setupVirtualAccount() {
+        virtualAccount = TransferAccount.builder()
+                .id(UUID.randomUUID())
+                .username("vuser")
+                .protocol(Protocol.FTP_WEB)
+                .homeDir(tempDir.toString())
+                .storageMode("VIRTUAL")
+                .active(true)
+                .build();
+        lenient().when(accountRepository.findByUsernameAndProtocolAndActiveTrue("vuser", Protocol.FTP_WEB))
+                .thenReturn(Optional.of(virtualAccount));
+    }
+
+    @Test
+    void virtualUpload_inlineBucket_noCasCall() throws IOException {
+        setupVirtualAccount();
+        byte[] smallData = "tiny EDI file".getBytes();
+
+        MultipartFile file = mock(MultipartFile.class);
+        when(file.getOriginalFilename()).thenReturn("small.edi");
+        when(file.getBytes()).thenReturn(smallData);
+        when(file.getContentType()).thenReturn("application/edi-x12");
+        when(virtualFileSystem.determineBucket(smallData.length)).thenReturn("INLINE");
+
+        service.upload("vuser", "inbox", file);
+
+        // INLINE: content goes directly to VFS, no Storage Manager call
+        verify(virtualFileSystem).writeFile(virtualAccount.getId(), "/inbox/small.edi",
+                null, smallData.length, null, "application/edi-x12", smallData);
+        verifyNoInteractions(storageServiceClient);
+    }
+
+    @Test
+    void virtualUpload_standardBucket_onboardsToCas() throws IOException {
+        setupVirtualAccount();
+        byte[] mediumData = new byte[100_000]; // 100KB
+
+        MultipartFile file = mock(MultipartFile.class);
+        when(file.getOriginalFilename()).thenReturn("report.csv");
+        when(file.getBytes()).thenReturn(mediumData);
+        when(file.getContentType()).thenReturn("text/csv");
+        when(virtualFileSystem.determineBucket(mediumData.length)).thenReturn("STANDARD");
+        when(storageServiceClient.store(eq("report.csv"), eq(mediumData), isNull(), anyString()))
+                .thenReturn(Map.of("sha256", "abc123sha", "trackId", "TRK001"));
+
+        service.upload("vuser", "inbox", file);
+
+        // STANDARD: onboard to Storage Manager, then register in VFS
+        verify(storageServiceClient).store(eq("report.csv"), eq(mediumData), isNull(), anyString());
+        verify(virtualFileSystem).writeFile(virtualAccount.getId(), "/inbox/report.csv",
+                "abc123sha", mediumData.length, "TRK001", "text/csv", null);
+    }
+
+    @Test
+    void virtualUpload_chunkedBucket_onboardsChunks() throws IOException {
+        setupVirtualAccount();
+        byte[] largeData = new byte[5 * 1024 * 1024]; // 5MB (will produce 2 chunks at 4MB each)
+
+        UUID entryId = UUID.randomUUID();
+        VirtualEntry chunkedEntry = VirtualEntry.builder().id(entryId).build();
+
+        MultipartFile file = mock(MultipartFile.class);
+        when(file.getOriginalFilename()).thenReturn("archive.bin");
+        when(file.getBytes()).thenReturn(largeData);
+        when(file.getContentType()).thenReturn("application/octet-stream");
+        when(virtualFileSystem.determineBucket(largeData.length)).thenReturn("CHUNKED");
+        when(virtualFileSystem.writeFile(virtualAccount.getId(), "/inbox/archive.bin",
+                null, largeData.length, null, "application/octet-stream", null))
+                .thenReturn(chunkedEntry);
+        when(storageServiceClient.store(anyString(), any(byte[].class), isNull(), anyString()))
+                .thenReturn(Map.of("sha256", "chunksha"));
+
+        service.upload("vuser", "inbox", file);
+
+        // CHUNKED: manifest created in VFS, chunks onboarded to Storage Manager
+        verify(virtualFileSystem).writeFile(virtualAccount.getId(), "/inbox/archive.bin",
+                null, largeData.length, null, "application/octet-stream", null);
+        verify(storageServiceClient, times(2)).store(anyString(), any(byte[].class), isNull(), anyString());
+        verify(virtualFileSystem, times(2)).registerChunk(eq(entryId), anyInt(), eq("chunksha"), anyLong(), eq("chunksha"));
     }
 }

@@ -347,28 +347,33 @@ public class VirtualSftpFileSystemProvider extends FileSystemProvider {
         private void storeChunked(String filename, byte[] data) {
             int chunkSize = 4 * 1024 * 1024; // 4MB chunks
 
-            // First create the VFS entry as a CHUNKED manifest
-            vfs().writeFile(accountId(), vpath, null, data.length, null, null, null);
+            // 1. Create the VFS entry as a CHUNKED manifest (WAIP-protected)
+            VirtualEntry entry = vfs().writeFile(accountId(), vpath, null, data.length, null, null, null);
 
-            // Then store each chunk to CAS
+            // 2. Onboard each chunk to Storage Manager, then register in VFS
             int totalChunks = (int) Math.ceil((double) data.length / chunkSize);
             for (int i = 0; i < totalChunks; i++) {
                 int offset = i * chunkSize;
                 int length = Math.min(chunkSize, data.length - offset);
                 byte[] chunk = Arrays.copyOfRange(data, offset, offset + length);
 
+                // Onboard chunk to Storage Manager (never create — always onboard)
                 String chunkName = filename + ".chunk." + i;
                 Map<String, Object> result = fileSystem.getStorageClient()
                         .store(chunkName, chunk, null, accountId().toString());
 
                 String sha256 = (String) result.get("sha256");
+                String storageKey = sha256; // CAS key is the sha256
                 String trackId = result.get("trackId") != null ? result.get("trackId").toString() : null;
 
-                // Record chunk in manifest — VFS tracks this via vfs_chunks table
-                log.debug("[VFS] Chunk {}/{} stored for {}: {}", i + 1, totalChunks, vpath,
+                // Register chunk reference in VFS manifest (DB only — content lives in Storage Manager)
+                vfs().registerChunk(entry.getId(), i, storageKey != null ? storageKey : trackId,
+                        length, sha256 != null ? sha256 : "");
+
+                log.debug("[VFS] Chunk {}/{} onboarded for {}: {}", i + 1, totalChunks, vpath,
                         sha256 != null ? sha256.substring(0, 8) + "..." : "n/a");
             }
-            log.info("[VFS] Chunked stored {}: {} bytes in {} chunks", vpath, data.length, totalChunks);
+            log.info("[VFS] Chunked onboarded {}: {} bytes in {} chunks", vpath, data.length, totalChunks);
         }
     }
 }

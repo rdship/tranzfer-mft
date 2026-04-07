@@ -6,7 +6,10 @@ import com.filetransfer.shared.vfs.VirtualFileSystem;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ftpserver.ftplet.FtpFile;
 
+import com.filetransfer.shared.entity.VirtualEntry;
+
 import java.io.*;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -170,7 +173,11 @@ public class VirtualFtpFile implements FtpFile {
     }
 
     /**
-     * Output stream that buffers writes and flushes to CAS on close.
+     * Output stream that buffers writes and flushes on close.
+     *
+     * <p>Bucket-aware: routes to INLINE (DB), STANDARD (CAS), or CHUNKED (CAS chunks)
+     * based on file size. Never creates storage — always onboards to Storage Manager
+     * for STANDARD/CHUNKED, or stores inline in VFS for small files.
      */
     private class VirtualOutputStream extends ByteArrayOutputStream {
         private final long offset;
@@ -185,18 +192,57 @@ public class VirtualFtpFile implements FtpFile {
 
             try {
                 String filename = VirtualFileSystem.nameOf(virtualPath);
-                Map<String, Object> result = storageClient.store(filename, data, null, accountId.toString());
+                String bucket = vfs.determineBucket(data.length);
+
+                switch (bucket) {
+                    case "INLINE" -> {
+                        // Store directly in DB row — zero CAS hop
+                        vfs.writeFile(accountId, virtualPath, null, data.length, null, null, data);
+                        log.info("[VFS-FTP] Inline stored {}: {} bytes", virtualPath, data.length);
+                    }
+                    case "CHUNKED" -> {
+                        // Onboard chunks to Storage Manager, register in VFS manifest
+                        storeChunked(filename, data);
+                    }
+                    default -> {
+                        // STANDARD: onboard to Storage Manager, register reference in VFS
+                        Map<String, Object> result = storageClient.store(filename, data, null, accountId.toString());
+                        String sha256 = (String) result.get("sha256");
+                        String trackId = result.get("trackId") != null ? result.get("trackId").toString() : null;
+                        log.info("[VFS-FTP] CAS stored {}: {} ({} bytes)", virtualPath,
+                                sha256 != null ? sha256.substring(0, 8) + "..." : "n/a", data.length);
+                        vfs.writeFile(accountId, virtualPath, sha256, data.length, trackId, null, null);
+                    }
+                }
+            } catch (Exception e) {
+                throw new IOException("Failed to store file: " + virtualPath, e);
+            }
+        }
+
+        private void storeChunked(String filename, byte[] data) {
+            int chunkSize = 4 * 1024 * 1024; // 4MB chunks
+
+            // 1. Create VFS entry as CHUNKED manifest (WAIP-protected)
+            VirtualEntry entry = vfs.writeFile(accountId, virtualPath, null, data.length, null, null, null);
+
+            // 2. Onboard each chunk to Storage Manager, register in VFS
+            int totalChunks = (int) Math.ceil((double) data.length / chunkSize);
+            for (int i = 0; i < totalChunks; i++) {
+                int chunkOffset = i * chunkSize;
+                int length = Math.min(chunkSize, data.length - chunkOffset);
+                byte[] chunk = Arrays.copyOfRange(data, chunkOffset, chunkOffset + length);
+
+                String chunkName = filename + ".chunk." + i;
+                Map<String, Object> result = storageClient.store(chunkName, chunk, null, accountId.toString());
 
                 String sha256 = (String) result.get("sha256");
-                String trackId = result.get("trackId") != null ? result.get("trackId").toString() : null;
+                String storageKey = sha256;
+                vfs.registerChunk(entry.getId(), i, storageKey != null ? storageKey : "",
+                        length, sha256 != null ? sha256 : "");
 
-                log.info("[VFS-FTP] Stored {}: {} ({} bytes)", virtualPath,
-                        sha256 != null ? sha256.substring(0, 8) + "..." : "n/a", data.length);
-
-                vfs.writeFile(accountId, virtualPath, sha256, data.length, trackId, null);
-            } catch (Exception e) {
-                throw new IOException("Failed to store file to CAS: " + virtualPath, e);
+                log.debug("[VFS-FTP] Chunk {}/{} onboarded for {}", i + 1, totalChunks, virtualPath);
             }
+            log.info("[VFS-FTP] Chunked onboarded {}: {} bytes in {} chunks", virtualPath, data.length, totalChunks);
         }
     }
 }
