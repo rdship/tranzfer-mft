@@ -3,6 +3,7 @@ import { getServerInstances, createServerInstance, updateServerInstance, deleteS
 import { getPlatformSettings } from '../api/platformSettings'
 import { useServices } from '../context/ServiceContext'
 import SecurityTierSelector from '../components/SecurityTierSelector'
+import ProtocolSecurityConfig from '../components/ProtocolSecurityConfig'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
@@ -38,7 +39,8 @@ const emptyForm = {
   externalHost: '', externalPort: '',
   useProxy: false, proxyHost: '', proxyPort: '',
   maxConnections: 500,
-  securityTier: 'AI', securityPolicy: {}
+  securityTier: 'AI', securityPolicy: {},
+  protocolCredentials: {}
 }
 
 export default function ServerInstances() {
@@ -81,7 +83,8 @@ export default function ServerInstances() {
       useProxy: s.useProxy, proxyHost: s.proxyHost || '', proxyPort: s.proxyPort || '',
       maxConnections: s.maxConnections,
       securityTier: s.securityTier || 'AI',
-      securityPolicy: s.securityPolicy || {}
+      securityPolicy: s.securityPolicy || {},
+      protocolCredentials: s.protocolCredentials || {}
     })
   }
 
@@ -328,6 +331,14 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
         <div><label>External Host</label><input value={form.externalHost} onChange={e => f('externalHost', e.target.value)} placeholder="files.example.com" /></div>
         <div><label>External Port</label><input type="number" value={form.externalPort} onChange={e => f('externalPort', e.target.value ? parseInt(e.target.value) : '')} placeholder={String(DEFAULT_PORTS[form.protocol])} /></div>
       </div>
+
+      {/* Protocol Security — TLS/SSH certificates & keys */}
+      <ProtocolSecurityConfig
+        protocol={form.protocol}
+        credentials={form.protocolCredentials}
+        onCredentialsChange={creds => f('protocolCredentials', creds)}
+        context="server"
+      />
 
       {/* Reverse proxy */}
       <div className="flex items-center gap-3 pt-2">

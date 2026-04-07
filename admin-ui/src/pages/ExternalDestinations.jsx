@@ -3,6 +3,7 @@ import { getExternalDestinations, createExternalDestination, deleteExternalDesti
 import { testEndpointConnection } from '../api/forwarder'
 import { useServices } from '../context/ServiceContext'
 import SecurityTierSelector from '../components/SecurityTierSelector'
+import ProtocolSecurityConfig from '../components/ProtocolSecurityConfig'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
@@ -16,7 +17,8 @@ export default function ExternalDestinations() {
   const [form, setForm] = useState({
     name: '', type: 'SFTP', host: '', port: 22, username: '', encryptedPassword: '', remotePath: '/incoming',
     proxyEnabled: false, proxyType: 'DMZ', proxyHost: 'dmz-proxy', proxyPort: 8088,
-    securityTier: 'RULES', securityPolicy: {}
+    securityTier: 'RULES', securityPolicy: {},
+    protocolCredentials: {}
   })
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState(null)
@@ -69,11 +71,11 @@ export default function ExternalDestinations() {
               <span className={`badge ${d.active ? 'badge-green' : 'badge-red'}`}>{d.active ? 'Active' : 'Disabled'}</span>
               <span className="badge badge-blue">{d.type}</span>
               {d.proxyEnabled && <span className="badge badge-purple">Via {d.proxyType || 'Proxy'}</span>}
-              {d.proxyEnabled && (
-                <span className="badge badge-yellow">Rules</span>
+              {['SFTP', 'FTPS', 'HTTPS'].includes(d.type) && (
+                <span className="badge badge-green">{d.type === 'SFTP' ? 'SSH' : 'TLS'}</span>
               )}
-              {!d.proxyEnabled && (
-                <span className="text-gray-400 text-xs">Direct</span>
+              {['FTP', 'HTTP'].includes(d.type) && (
+                <span className="badge badge-red">No TLS</span>
               )}
               <button onClick={() => { if(confirm('Delete?')) deleteMut.mutate(d.id) }} className="p-1.5 rounded hover:bg-red-50 text-red-500"><TrashIcon className="w-4 h-4" /></button>
             </div>
@@ -95,6 +97,16 @@ export default function ExternalDestinations() {
             <div className="grid grid-cols-2 gap-3">
               <div><label>Username</label><input value={form.username} onChange={e => setForm(f => ({...f, username: e.target.value}))} required /></div>
               <div><label>Password</label><input type="password" value={form.encryptedPassword} onChange={e => setForm(f => ({...f, encryptedPassword: e.target.value}))} required /></div>
+            </div>
+
+            {/* Protocol Security — TLS/SSH certificates & keys */}
+            <div className="border-t pt-4 mt-4">
+              <ProtocolSecurityConfig
+                protocol={form.type}
+                credentials={form.protocolCredentials}
+                onCredentialsChange={creds => setForm(f => ({...f, protocolCredentials: creds}))}
+                context="destination"
+              />
             </div>
 
             {/* Proxy Configuration */}
