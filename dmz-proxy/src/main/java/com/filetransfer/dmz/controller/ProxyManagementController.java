@@ -534,11 +534,8 @@ public class ProxyManagementController {
                     platformJwtSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
             byte[] expectedSig = mac.doFinal((parts[0] + "." + parts[1])
                     .getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            byte[] actualSig = java.util.Base64.getUrlDecoder().decode(
-                    parts[2].replace("=", "").replace("-", "+").replace("_", "/")
-                            .concat(switch (parts[2].length() % 4) {
-                                case 2 -> "=="; case 3 -> "="; default -> "";
-                            }));
+            String padded = parts[2] + "=".repeat((4 - parts[2].length() % 4) % 4);
+            byte[] actualSig = java.util.Base64.getUrlDecoder().decode(padded);
             if (!java.security.MessageDigest.isEqual(expectedSig, actualSig)) return false;
 
             // Verify expiry

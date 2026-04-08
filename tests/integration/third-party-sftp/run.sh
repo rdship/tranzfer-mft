@@ -28,7 +28,7 @@ COMPOSE_FILE="${REPO_ROOT}/docker-compose-external-demo.yml"
 MGMT="http://localhost:8189"     # DMZ Proxy management API
 SFTP_PORT=12222                  # SFTP through proxy (12222 avoids conflict with mft-sftp-service on 2222)
 HTTP_PORT=8180                   # HTTP through proxy
-API_KEY="demo-key-2024"
+PLATFORM_JWT_SECRET="${PLATFORM_JWT_SECRET:-changeme_32char_secret_here_!!!!}"
 
 SKIP_START=false
 DO_CLEANUP=false
@@ -74,15 +74,26 @@ print(v)
 " 2>/dev/null || echo ""
 }
 
+# Generate a platform JWT (HS256) for DMZ Proxy management API.
+# DMZ proxy is intentionally isolated — it validates inbound admin requests
+# using its own HMAC-SHA256 platform JWT check (not Spring Security).
+proxy_jwt() {
+  local exp; exp=$(( $(date +%s) + 3600 ))
+  local header; header=$(printf '{"alg":"HS256","typ":"JWT"}' | base64 | tr -d '=\n' | tr '+/' '-_')
+  local payload; payload=$(printf '{"sub":"integration-test","exp":%d}' "$exp" | base64 | tr -d '=\n' | tr '+/' '-_')
+  local sig; sig=$(printf '%s.%s' "$header" "$payload" | openssl dgst -sha256 -hmac "$PLATFORM_JWT_SECRET" -binary | base64 | tr -d '=\n' | tr '+/' '-_')
+  printf '%s.%s.%s' "$header" "$payload" "$sig"
+}
+
 proxy_get() {
-  curl -sf -H "X-Internal-Key: ${API_KEY}" "${MGMT}$1" 2>/dev/null
+  curl -sf -H "Authorization: Bearer $(proxy_jwt)" "${MGMT}$1" 2>/dev/null
 }
 proxy_post() {
-  curl -sf -X POST -H "X-Internal-Key: ${API_KEY}" -H "Content-Type: application/json" \
+  curl -sf -X POST -H "Authorization: Bearer $(proxy_jwt)" -H "Content-Type: application/json" \
        -d "$2" "${MGMT}$1" 2>/dev/null
 }
 proxy_delete() {
-  curl -sf -X DELETE -H "X-Internal-Key: ${API_KEY}" "${MGMT}$1" 2>/dev/null
+  curl -sf -X DELETE -H "Authorization: Bearer $(proxy_jwt)" "${MGMT}$1" 2>/dev/null
 }
 
 wait_for() {
@@ -426,7 +437,7 @@ if [[ "$DO_CLEANUP" == true ]]; then
   echo -e "${GREEN}Done.${NC}"
 else
   echo -e "\n${CYAN}Stack is still running. Explore:${NC}"
-  echo -e "  Management API:     ${MGMT}/api/proxy/mappings  (X-Internal-Key: ${API_KEY})"
+  echo -e "  Management API:     ${MGMT}/api/proxy/mappings  (Bearer: platform JWT — see proxy_jwt() in this script)"
   echo -e "  Security stats:     ${MGMT}/api/proxy/security/stats"
   echo -e "  SFTP:               sftp -P 2222 demo_user@localhost  (pass: demo_pass)"
   echo -e "  HTTP:               curl http://localhost:8180/"

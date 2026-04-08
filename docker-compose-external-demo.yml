@@ -123,7 +123,7 @@ services:
       - "12222:2222"    # SFTP → my-sftp-server (reconfigured in run.sh; 12222 avoids conflict with mft-sftp-service on 2222)
       - "8180:443"      # HTTP → my-web-app    (reconfigured in run.sh)
     environment:
-      CONTROL_API_KEY: demo-key-2024
+      PLATFORM_SECURITY_JWT_SECRET: changeme_32char_secret_here_!!!!   # must match PLATFORM_JWT_SECRET in run.sh
       SERVER_PORT: 8088
       DMZ_SECURITY_ENABLED: "true"
       # Reuse the main stack's ai-engine if running; falls back to ALLOW on timeout

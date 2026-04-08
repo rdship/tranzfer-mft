@@ -343,9 +343,12 @@ check_jwt_secret() {
 }
 check_jwt_secret
 
-# --- 2. CONTROL_API_KEY ---
+# --- 2. CONTROL_API_KEY (used as HMAC secret for PCI audit log signing) ---
+# NOTE: This key is NO LONGER used for inter-service HTTP authentication.
+# Inter-service auth is now done via SPIFFE JWT-SVIDs (zero-trust workload identity).
+# This key is retained solely as the HMAC signing secret in AuditService.
 check_control_api_key() {
-    local val label="CONTROL_API_KEY"
+    local val label="CONTROL_API_KEY (audit HMAC signing)"
     val="$(get_var CONTROL_API_KEY)"
 
     if ! var_is_set CONTROL_API_KEY; then
@@ -353,12 +356,29 @@ check_control_api_key() {
         return
     fi
     if [[ "$val" == "internal_control_secret" ]]; then
-        report_issue "$label" "Using known default value"
+        report_issue "$label" "Using known default value — change for production"
         return
     fi
     report_pass "$label"
 }
 check_control_api_key
+
+# --- 2b. SPIFFE / SPIRE workload identity ---
+check_spiffe() {
+    local label="SPIFFE_ENABLED (zero-trust inter-service identity)"
+    local enabled; enabled="$(get_var SPIFFE_ENABLED)"
+
+    if [[ "$enabled" == "true" ]]; then
+        report_pass "$label" "Enabled — SPIRE agent socket must be available at /run/spire/sockets/agent.sock"
+        local socket_path; socket_path="$(get_var SPIFFE_SOCKET)"
+        if [[ -z "$socket_path" ]]; then
+            report_issue "SPIFFE_SOCKET" "Not set — defaulting to unix:/run/spire/sockets/agent.sock"
+        fi
+    else
+        report_issue "$label" "Disabled (SPIFFE_ENABLED != true) — outbound service calls proceed without workload identity"
+    fi
+}
+check_spiffe
 
 # --- 3. DB_PASSWORD ---
 check_db_password() {

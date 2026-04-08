@@ -26,7 +26,7 @@ x-common-env: &common-env
   RABBITMQ_HOST: rabbitmq
   RABBITMQ_PORT: 5672
   JWT_SECRET: ${JWT_SECRET:-change_me_in_production_256bit_secret_key!!}
-  CONTROL_API_KEY: ${CONTROL_API_KEY:-internal_control_secret}
+  CONTROL_API_KEY: ${CONTROL_API_KEY:-internal_control_secret}  # HMAC secret for PCI audit log signing — NOT inter-service auth
   CLUSTER_ID: ${CLUSTER_ID:-cluster-1}
   CLUSTER_COMM_MODE: ${CLUSTER_COMM_MODE:-WITHIN_CLUSTER}
   TRACK_ID_PREFIX: ${TRACK_ID_PREFIX:-TRZ}
@@ -456,7 +456,7 @@ services:
       - "4443:443"
       - "9443:9443"    # Tunnel port (gateway-service connects inbound)
     environment:
-      CONTROL_API_KEY: ${CONTROL_API_KEY:-internal_control_secret}
+      PLATFORM_SECURITY_JWT_SECRET: ${PLATFORM_JWT_SECRET:-changeme_32char_secret_here_!!!!}  # signs platform JWTs for DMZ mgmt API
       SERVER_PORT: 8088
       DMZ_SECURITY_ENABLED: "true"
       AI_ENGINE_URL: http://ai-engine:8091

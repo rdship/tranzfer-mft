@@ -13,8 +13,8 @@ import org.springframework.util.StringUtils;
  * Spring Boot auto-configuration for SPIFFE/SPIRE workload identity.
  *
  * <p>Activated only when {@code spiffe.enabled=true} in application properties.
- * When disabled, nothing is created and all existing X-Internal-Key paths
- * continue to work unchanged — safe for incremental rollout.
+ * When disabled, nothing is created — outbound calls proceed without a workload
+ * identity token and inbound SPIFFE validation is skipped.
  *
  * <p>The {@link SpiffeWorkloadClient} bean is registered in the application
  * context and auto-wired (as optional) into:

@@ -22,7 +22,7 @@ EDI="${BASE}:8095"     # edi-converter
 FWD="${BASE}:8087"     # external-forwarder
 DMZ="${BASE}:8088"     # dmz-proxy
 STR="${BASE}:8094"     # storage-manager/as2
-INTERNAL_KEY="${CONTROL_API_KEY:-internal_control_secret}"  # bypass rate limiter
+PLATFORM_JWT_SECRET="${PLATFORM_JWT_SECRET:-changeme_32char_secret_here_!!!!}"  # for DMZ management API calls
 
 ADMIN_EMAIL="admin@filetransfer.local"
 ADMIN_PASS="Tr@nzFer2026!"
@@ -53,7 +53,6 @@ post() {
   local resp code
   resp=$(curl -s -w "\n%{http_code}" -X POST "$url" \
     -H "Authorization: Bearer $TOKEN" \
-    -H "X-Internal-Key: $INTERNAL_KEY" \
     -H "Content-Type: application/json" \
     -d "$data" 2>/dev/null)
   code=$(echo "$resp" | tail -1)
@@ -88,10 +87,10 @@ post_noauth() {
 }
 
 post_admin_key() {
-  local url="$1" data="$2" label="${3:-}" key="${4:-internal_control_secret}"
+  local url="$1" data="$2" label="${3:-}"
   local resp code
   resp=$(curl -s -w "\n%{http_code}" -X POST "$url" \
-    -H "X-Internal-Key: $key" \
+    -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" \
     -d "$data" 2>/dev/null)
   code=$(echo "$resp" | tail -1)
@@ -109,8 +108,37 @@ get() {
   local url="$1"
   curl -s -X GET "$url" \
     -H "Authorization: Bearer $TOKEN" \
-    -H "X-Internal-Key: $INTERNAL_KEY" \
     -H "Content-Type: application/json" 2>/dev/null
+}
+
+# Generate a platform JWT (HS256) for DMZ Proxy management API calls.
+# DMZ proxy is isolated (no shared Spring Security), so it validates
+# requests with its own HMAC-SHA256 platform JWT check.
+platform_jwt() {
+  local secret="$PLATFORM_JWT_SECRET"
+  local exp; exp=$(( $(date +%s) + 3600 ))
+  local header; header=$(printf '{"alg":"HS256","typ":"JWT"}' | base64 | tr -d '=\n' | tr '+/' '-_')
+  local payload; payload=$(printf '{"sub":"demo-onboard","exp":%d}' "$exp" | base64 | tr -d '=\n' | tr '+/' '-_')
+  local sig; sig=$(printf '%s.%s' "$header" "$payload" | openssl dgst -sha256 -hmac "$secret" -binary | base64 | tr -d '=\n' | tr '+/' '-_')
+  printf '%s.%s.%s' "$header" "$payload" "$sig"
+}
+
+dmz_post() {
+  local url="$1" data="$2" label="${3:-}"
+  local resp code
+  resp=$(curl -s -w "\n%{http_code}" -X POST "$url" \
+    -H "Authorization: Bearer $(platform_jwt)" \
+    -H "Content-Type: application/json" \
+    -d "$data" 2>/dev/null)
+  code=$(echo "$resp" | tail -1)
+  local body=$(echo "$resp" | sed '$d')
+  if [[ "$code" =~ ^2[0-9][0-9]$ ]]; then
+    ok "$label"
+    echo "$body"
+  else
+    skip "$label (HTTP $code)"
+    echo "$body"
+  fi
 }
 
 # Arrays to store created IDs for cross-referencing
@@ -990,13 +1018,13 @@ create_dmz_mappings() {
   log "=== STEP 25: DMZ Proxy Mappings (26) ==="
 
   for i in $(seq 1 13); do
-    post_admin_key "$DMZ/api/proxy/mappings" \
+    dmz_post "$DMZ/api/proxy/mappings" \
       "{\"name\":\"sftp-partner-$i\",\"listenPort\":$((32222+i)),\"backendHost\":\"sftp-service\",\"backendPort\":2222,\"protocol\":\"SFTP\"}" \
       "DMZ Mapping: sftp-partner-$i :$((32222+i))" > /dev/null
   done
 
   for i in $(seq 1 13); do
-    post_admin_key "$DMZ/api/proxy/mappings" \
+    dmz_post "$DMZ/api/proxy/mappings" \
       "{\"name\":\"ftp-partner-$i\",\"listenPort\":$((32300+i)),\"backendHost\":\"ftp-service\",\"backendPort\":21,\"protocol\":\"FTP\"}" \
       "DMZ Mapping: ftp-partner-$i :$((32300+i))" > /dev/null
   done

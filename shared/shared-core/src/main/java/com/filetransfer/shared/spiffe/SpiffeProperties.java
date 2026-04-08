@@ -15,8 +15,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *   service-name: gateway-service   # this service's SPIFFE path segment
  * </pre>
  *
- * <p>When {@code enabled=false} (default) the platform falls back to
- * X-Internal-Key header authentication — no disruption during rollout.
+ * <p>When {@code enabled=false} (default) outbound calls proceed without a
+ * workload identity token — enable SPIFFE for zero-trust inter-service auth.
  */
 @Data
 @ConfigurationProperties(prefix = "spiffe")
