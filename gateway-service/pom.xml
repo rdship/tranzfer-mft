@@ -13,7 +13,7 @@
     <dependencies>
         <dependency>
             <groupId>com.filetransfer</groupId>
-            <artifactId>shared</artifactId>
+            <artifactId>shared-platform</artifactId>
         </dependency>
         <!-- SFTP proxy: both server and client mode -->
         <dependency>

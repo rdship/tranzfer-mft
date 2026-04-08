@@ -12,7 +12,7 @@
     <artifactId>license-service</artifactId>
     <name>License Service</name>
     <dependencies>
-        <dependency><groupId>com.filetransfer</groupId><artifactId>shared</artifactId></dependency>
+        <dependency><groupId>com.filetransfer</groupId><artifactId>shared-platform</artifactId></dependency>
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-amqp</artifactId></dependency>
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-jpa</artifactId></dependency>

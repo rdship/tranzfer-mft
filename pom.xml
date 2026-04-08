@@ -87,7 +87,12 @@
             </dependency>
             <dependency>
                 <groupId>com.filetransfer</groupId>
-                <artifactId>shared</artifactId>
+                <artifactId>shared-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.filetransfer</groupId>
+                <artifactId>shared-platform</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
