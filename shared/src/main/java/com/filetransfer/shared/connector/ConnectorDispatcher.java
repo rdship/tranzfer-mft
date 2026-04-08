@@ -6,6 +6,7 @@ import com.filetransfer.shared.repository.WebhookConnectorRepository;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.net.HttpURLConnection;
@@ -30,6 +31,7 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@ConditionalOnProperty(name = "spring.datasource.url")
 public class ConnectorDispatcher {
 
     private final WebhookConnectorRepository connectorRepository;

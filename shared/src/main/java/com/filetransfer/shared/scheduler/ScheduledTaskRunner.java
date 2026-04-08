@@ -7,6 +7,7 @@ import com.filetransfer.shared.routing.FlowProcessingEngine;
 import com.filetransfer.shared.util.TrackIdGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.io.BufferedReader;
@@ -17,6 +18,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Component @RequiredArgsConstructor @Slf4j
+@ConditionalOnProperty(name = "spring.datasource.url")
 public class ScheduledTaskRunner {
 
     private final FileFlowRepository flowRepository;

@@ -490,11 +490,11 @@ services:
     container_name: mft-storage-manager
     <<: *healthcheck
     ports:
-      - "8094:8094"
+      - "8096:8096"
     environment:
       <<: *common-env
       CLUSTER_HOST: storage-manager
-      SERVER_PORT: 8094
+      SERVER_PORT: 8096
       STORAGE_HOT_PATH: /data/storage/hot
       STORAGE_WARM_PATH: /data/storage/warm
       STORAGE_COLD_PATH: /data/storage/cold

@@ -21,6 +21,7 @@ import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.IOException;
@@ -38,6 +39,7 @@ import java.util.regex.Pattern;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "spring.datasource.url")
 public class RoutingEngine {
 
     private final RoutingEvaluator evaluator;

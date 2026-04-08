@@ -2,7 +2,7 @@
 # Activate: SPRING_PROFILES_ACTIVE=dev
 
 server:
-  port: 8094
+  port: 8096
 
 spring:
   datasource:

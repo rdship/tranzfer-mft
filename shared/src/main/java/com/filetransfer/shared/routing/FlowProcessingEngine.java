@@ -17,6 +17,7 @@ import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.*;
@@ -33,6 +34,7 @@ import java.util.zip.*;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@ConditionalOnProperty(name = "spring.datasource.url")
 public class FlowProcessingEngine {
 
     private final FileFlowRepository flowRepository;

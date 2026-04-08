@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.support.CronExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.time.*;
@@ -17,6 +18,7 @@ import java.util.List;
  * Supports: RUN_FLOW, PULL_FILES, PUSH_FILES, EXECUTE_SCRIPT, CLEANUP
  */
 @Service @RequiredArgsConstructor @Slf4j
+@ConditionalOnProperty(name = "spring.datasource.url")
 public class SchedulerEngine {
 
     private final ScheduledTaskRepository taskRepository;
