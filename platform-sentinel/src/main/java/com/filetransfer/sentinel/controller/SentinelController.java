@@ -116,6 +116,24 @@ public class SentinelController {
         return ResponseEntity.ok(ruleRepository.findAll());
     }
 
+    @PostMapping("/rules")
+    public ResponseEntity<Object> createRule(@RequestBody SentinelRule rule) {
+        if (rule.getName() == null || rule.getName().isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "name is required"));
+        }
+        if (rule.getAnalyzer() == null || rule.getAnalyzer().isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "analyzer is required"));
+        }
+        if (ruleRepository.existsByName(rule.getName())) {
+            return ResponseEntity.status(409).body(Map.of("error", "Rule name already exists: " + rule.getName()));
+        }
+        rule.setId(null);
+        rule.setBuiltin(false);
+        rule.setCreatedAt(Instant.now());
+        rule.setLastTriggered(null);
+        return ResponseEntity.status(201).body(ruleRepository.save(rule));
+    }
+
     @PutMapping("/rules/{id}")
     public ResponseEntity<SentinelRule> updateRule(@PathVariable UUID id, @RequestBody SentinelRule update) {
         return ruleRepository.findById(id).map(rule -> {
@@ -124,8 +142,21 @@ public class SentinelController {
             if (update.getWindowMinutes() != null) rule.setWindowMinutes(update.getWindowMinutes());
             if (update.getCooldownMinutes() != null) rule.setCooldownMinutes(update.getCooldownMinutes());
             if (update.getSeverity() != null) rule.setSeverity(update.getSeverity());
+            if (update.getDescription() != null) rule.setDescription(update.getDescription());
             return ResponseEntity.ok(ruleRepository.save(rule));
         }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/rules/{id}")
+    public ResponseEntity<Object> deleteRule(@PathVariable UUID id) {
+        return ruleRepository.findById(id).map(rule -> {
+            if (Boolean.TRUE.equals(rule.getBuiltin())) {
+                return ResponseEntity.status(409).<Object>body(
+                        Map.of("error", "Cannot delete built-in rule '" + rule.getName() + "'. Disable it instead."));
+            }
+            ruleRepository.delete(rule);
+            return ResponseEntity.noContent().<Object>build();
+        }).orElse(ResponseEntity.notFound().<Object>build());
     }
 
     // --- Dashboard ---

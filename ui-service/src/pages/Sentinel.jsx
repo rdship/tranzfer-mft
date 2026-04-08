@@ -4,7 +4,7 @@ import * as sentinelApi from '../api/sentinel'
 import {
   ShieldCheckIcon, ExclamationTriangleIcon, ChartBarIcon,
   AdjustmentsHorizontalIcon, ArrowPathIcon, CheckCircleIcon,
-  LinkIcon, BoltIcon, CpuChipIcon
+  LinkIcon, BoltIcon, CpuChipIcon, PlusIcon, TrashIcon, XMarkIcon
 } from '@heroicons/react/24/outline'
 
 const TABS = [
@@ -281,9 +281,16 @@ function CorrelationsTab() {
   )
 }
 
+const BLANK_RULE = { analyzer: 'SECURITY', name: '', description: '', severity: 'MEDIUM', thresholdValue: '', windowMinutes: 60, cooldownMinutes: 30 }
+
 // --- Rules Tab ---
 function RulesTab() {
   const queryClient = useQueryClient()
+  const [showAdd, setShowAdd] = useState(false)
+  const [form, setForm] = useState(BLANK_RULE)
+  const [confirmDelete, setConfirmDelete] = useState(null) // rule id pending delete
+  const [formError, setFormError] = useState('')
+
   const { data: rules, isLoading } = useQuery({
     queryKey: ['sentinel-rules'], queryFn: sentinelApi.getRules
   })
@@ -291,6 +298,29 @@ function RulesTab() {
   const update = useMutation({
     mutationFn: ({ id, data }) => sentinelApi.updateRule(id, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sentinel-rules'] })
+  })
+
+  const create = useMutation({
+    mutationFn: (data) => sentinelApi.createRule(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sentinel-rules'] })
+      setShowAdd(false)
+      setForm(BLANK_RULE)
+      setFormError('')
+    },
+    onError: (err) => setFormError(err?.response?.data?.error || 'Failed to create rule')
+  })
+
+  const remove = useMutation({
+    mutationFn: (id) => sentinelApi.deleteRule(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sentinel-rules'] })
+      setConfirmDelete(null)
+    },
+    onError: (err) => {
+      alert(err?.response?.data?.error || 'Failed to delete rule')
+      setConfirmDelete(null)
+    }
   })
 
   if (isLoading) return <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
@@ -303,6 +333,93 @@ function RulesTab() {
 
   return (
     <div className="space-y-6">
+      {/* Header row with Add Rule button */}
+      <div className="flex items-center justify-between">
+        <p className="text-gray-400 text-sm">{rules?.length ?? 0} rules · {rules?.filter(r => r.enabled).length ?? 0} enabled</p>
+        <button onClick={() => { setShowAdd(true); setFormError('') }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition-colors">
+          <PlusIcon className="w-4 h-4" /> Add Rule
+        </button>
+      </div>
+
+      {/* Add Rule modal */}
+      {showAdd && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowAdd(false)}>
+          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-white font-semibold">Add Custom Rule</h2>
+              <button onClick={() => setShowAdd(false)} className="text-gray-400 hover:text-white"><XMarkIcon className="w-5 h-5" /></button>
+            </div>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-gray-400 text-xs mb-1 block">Analyzer *</label>
+                  <select value={form.analyzer} onChange={e => setForm(f => ({ ...f, analyzer: e.target.value }))}
+                          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white">
+                    <option>SECURITY</option>
+                    <option>PERFORMANCE</option>
+                    <option>RESILIENCE</option>
+                    <option>SLA</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-gray-400 text-xs mb-1 block">Severity *</label>
+                  <select value={form.severity} onChange={e => setForm(f => ({ ...f, severity: e.target.value }))}
+                          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white">
+                    <option>CRITICAL</option>
+                    <option>HIGH</option>
+                    <option>MEDIUM</option>
+                    <option>LOW</option>
+                    <option>INFO</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs mb-1 block">Rule Name * (unique, e.g. partner_abc_failure)</label>
+                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                       placeholder="rule_name_snake_case"
+                       className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white placeholder-gray-500" />
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs mb-1 block">Description</label>
+                <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                       placeholder="What this rule detects"
+                       className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white placeholder-gray-500" />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-gray-400 text-xs mb-1 block">Threshold</label>
+                  <input type="number" value={form.thresholdValue} onChange={e => setForm(f => ({ ...f, thresholdValue: e.target.value }))}
+                         className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white" />
+                </div>
+                <div>
+                  <label className="text-gray-400 text-xs mb-1 block">Window (min)</label>
+                  <input type="number" value={form.windowMinutes} onChange={e => setForm(f => ({ ...f, windowMinutes: +e.target.value }))}
+                         className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white" />
+                </div>
+                <div>
+                  <label className="text-gray-400 text-xs mb-1 block">Cooldown (min)</label>
+                  <input type="number" value={form.cooldownMinutes} onChange={e => setForm(f => ({ ...f, cooldownMinutes: +e.target.value }))}
+                         className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white" />
+                </div>
+              </div>
+              {formError && <p className="text-red-400 text-xs">{formError}</p>}
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => create.mutate({ ...form, thresholdValue: form.thresholdValue === '' ? null : +form.thresholdValue })}
+                        disabled={create.isPending || !form.name.trim()}
+                        className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-sm py-2 rounded-lg transition-colors">
+                  {create.isPending ? 'Creating…' : 'Create Rule'}
+                </button>
+                <button onClick={() => setShowAdd(false)} className="px-4 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rules table grouped by analyzer */}
       {Object.entries(grouped).map(([analyzer, analyzerRules]) => (
         <div key={analyzer}>
           <h3 className="text-gray-300 text-sm font-semibold uppercase tracking-wider mb-2">{analyzer}</h3>
@@ -310,7 +427,7 @@ function RulesTab() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-700 text-gray-400 text-xs">
-                  <th className="px-4 py-2 text-left">Enabled</th>
+                  <th className="px-4 py-2 text-left">On</th>
                   <th className="px-4 py-2 text-left">Rule</th>
                   <th className="px-4 py-2 text-left">Description</th>
                   <th className="px-4 py-2 text-left">Severity</th>
@@ -318,6 +435,7 @@ function RulesTab() {
                   <th className="px-4 py-2 text-left">Window</th>
                   <th className="px-4 py-2 text-left">Cooldown</th>
                   <th className="px-4 py-2 text-left">Last Triggered</th>
+                  <th className="px-4 py-2 text-left w-8"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-700">
@@ -329,14 +447,35 @@ function RulesTab() {
                         <span className="w-3 h-3 bg-white rounded-full mx-0.5" />
                       </button>
                     </td>
-                    <td className="px-4 py-2 text-gray-200 font-mono text-xs">{rule.name}</td>
+                    <td className="px-4 py-2 text-gray-200 font-mono text-xs">
+                      {rule.name}
+                      {rule.builtin && <span className="ml-1.5 text-gray-600 text-xs">[builtin]</span>}
+                    </td>
                     <td className="px-4 py-2 text-gray-400 max-w-xs truncate">{rule.description}</td>
                     <td className="px-4 py-2"><span className={`text-xs ${SEV_TEXT[rule.severity]}`}>{rule.severity}</span></td>
-                    <td className="px-4 py-2 text-gray-300">{rule.thresholdValue}</td>
+                    <td className="px-4 py-2 text-gray-300">{rule.thresholdValue ?? '—'}</td>
                     <td className="px-4 py-2 text-gray-400">{rule.windowMinutes}m</td>
                     <td className="px-4 py-2 text-gray-400">{rule.cooldownMinutes}m</td>
                     <td className="px-4 py-2 text-gray-500 text-xs">
                       {rule.lastTriggered ? new Date(rule.lastTriggered).toLocaleString() : '—'}
+                    </td>
+                    <td className="px-4 py-2">
+                      {!rule.builtin && (
+                        confirmDelete === rule.id ? (
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => remove.mutate(rule.id)}
+                                    className="text-xs text-red-400 hover:text-red-300">Yes</button>
+                            <span className="text-gray-600">/</span>
+                            <button onClick={() => setConfirmDelete(null)}
+                                    className="text-xs text-gray-400 hover:text-gray-300">No</button>
+                          </div>
+                        ) : (
+                          <button onClick={() => setConfirmDelete(rule.id)}
+                                  className="text-gray-600 hover:text-red-400 transition-colors">
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        )
+                      )}
                     </td>
                   </tr>
                 ))}

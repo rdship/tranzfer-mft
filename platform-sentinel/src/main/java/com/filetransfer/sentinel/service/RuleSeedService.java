@@ -80,6 +80,7 @@ public class RuleSeedService {
                 .thresholdValue(threshold)
                 .windowMinutes(window)
                 .cooldownMinutes(cooldown)
+                .builtin(true)
                 .build();
     }
 }

@@ -48,6 +48,10 @@ public class SentinelRule {
     @Column(name = "last_triggered")
     private Instant lastTriggered;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean builtin = false;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private Instant createdAt = Instant.now();
