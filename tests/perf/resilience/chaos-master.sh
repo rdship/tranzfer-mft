@@ -181,8 +181,13 @@ run_scenario() {
   t_start=$(date +%s)
 
   # Run script, tee to log; CHAOS_MASTER_RUN=1 suppresses standalone report writing
+  # Use bash 4+ if available (required for associative arrays and %3N date format)
+  local _BASH=bash
+  for _b in /opt/homebrew/bin/bash /usr/local/bin/bash; do
+    [[ -x "$_b" ]] && { _BASH="$_b"; break; }
+  done
   set +e
-  CHAOS_MASTER_RUN=1 bash "$script" "${args[@]}" 2>&1 | tee "$log_file"
+  CHAOS_MASTER_RUN=1 "$_BASH" "$script" "${args[@]}" 2>&1 | tee "$log_file"
   local exit_code=${PIPESTATUS[0]}
   set -e
 
