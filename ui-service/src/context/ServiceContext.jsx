@@ -31,6 +31,7 @@ const SERVICE_HEALTH_ENDPOINTS = {
   aiEngine: { url: 'http://localhost:8091/api/v1/ai/health', port: 8091 },
   screening: { url: 'http://localhost:8092/api/v1/screening/health', port: 8092 },
   keystore: { url: 'http://localhost:8093/api/v1/keys/health', port: 8093 },
+  sentinel: { url: 'http://localhost:8098/api/v1/sentinel/health', port: 8098 },
 }
 
 /**
@@ -87,6 +88,7 @@ const PAGE_SERVICE_MAP = {
 
   // AI
   '/ai': ['aiEngine'],
+  '/sentinel': ['sentinel'],
   '/recommendations': ['aiEngine'],
 }
 

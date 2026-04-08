@@ -572,6 +572,26 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  platform-sentinel:
+    build: ./platform-sentinel
+    container_name: mft-platform-sentinel
+    <<: *healthcheck
+    ports:
+      - "8098:8098"
+    environment:
+      <<: *common-env
+      CLUSTER_HOST: platform-sentinel
+      SERVER_PORT: 8098
+      SENTINEL_GITHUB_ENABLED: ${SENTINEL_GITHUB_ENABLED:-false}
+      SENTINEL_GITHUB_TOKEN: ${SENTINEL_GITHUB_TOKEN:-}
+      SENTINEL_GITHUB_OWNER: ${SENTINEL_GITHUB_OWNER:-}
+      SENTINEL_GITHUB_REPO: ${SENTINEL_GITHUB_REPO:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
   # ---------------------------------------------------------------------------
   # Security Services
   # ---------------------------------------------------------------------------

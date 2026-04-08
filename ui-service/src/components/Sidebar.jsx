@@ -82,6 +82,7 @@ const navGroups = [
       { to: '/recommendations', icon: ChartBarIcon, label: 'AI Recommendations' },
       { to: '/analytics', icon: ChartBarIcon, label: 'Analytics' },
       { to: '/predictions', icon: CpuChipIcon, label: 'Predictions' },
+      { to: '/sentinel', icon: CpuChipIcon, label: 'Platform Sentinel', role: 'ADMIN' },
       { to: '/logs', icon: DocumentTextIcon, label: 'Logs' },
     ]
   },

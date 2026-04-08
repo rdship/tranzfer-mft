@@ -58,6 +58,7 @@
         <module>edi-converter</module>
         <module>as2-service</module>
         <module>notification-service</module>
+        <module>platform-sentinel</module>
     </modules>
 
     <properties>

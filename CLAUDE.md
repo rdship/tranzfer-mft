@@ -23,7 +23,7 @@ Speed | Security | Stability+Consistency — never sacrifice one for another.
 8080=onboarding  8081=sftp(+2222)  8082=ftp(+21)  8083=ftp-web  8084=config
 8085=gateway(+2220/2121)  8086=encryption  8087=forwarder  8088=dmz(NO DB)
 8089=license  8090=analytics  8091=ai-engine  8092=screening  8093=keystore
-8094=as2  8095=edi-converter(NO DB)  8096=storage-manager
+8094=as2  8095=edi-converter(NO DB)  8096=storage-manager  8097=notification  8098=sentinel
 
 ## JDK 25 — Cannot Mock (use real instances/stubs):
 AuthService(stub) | JwtUtil(real) | TrackIdGenerator(reflection) | ClusterService(real)

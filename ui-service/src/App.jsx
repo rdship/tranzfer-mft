@@ -45,6 +45,7 @@ import ServiceManagement from './pages/ServiceManagement'
 import VfsStorage from './pages/VfsStorage'
 import DmzProxy from './pages/DmzProxy'
 import ActivityMonitor from './pages/ActivityMonitor'
+import Sentinel from './pages/Sentinel'
 
 export default function App() {
   return (
@@ -85,6 +86,7 @@ export default function App() {
             <Route path="vfs-storage" element={<VfsStorage />} />
             <Route path="activity" element={<Activity />} />
             <Route path="activity-monitor" element={<ActivityMonitor />} />
+            <Route path="sentinel" element={<Sentinel />} />
             <Route path="2fa" element={<TwoFactor />} />
             <Route path="api-console" element={<ApiConsole />} />
             <Route path="edi" element={<Edi />} />

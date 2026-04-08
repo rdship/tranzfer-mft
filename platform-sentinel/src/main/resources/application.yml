@@ -1,0 +1,107 @@
+server:
+  port: 8098
+  shutdown: graceful
+
+spring:
+  application:
+    name: platform-sentinel
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/filetransfer}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      auto-commit: false
+      maximum-pool-size: 5
+      minimum-idle: 2
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      connection-timeout: 30000
+      pool-name: Sentinel-Pool
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 25
+          batch_versioned_data: true
+        order_inserts: true
+        order_updates: true
+        connection:
+          provider_disables_autocommit: true
+        temp:
+          use_jdbc_metadata_defaults: false
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    connection-timeout: 30000
+    requested-heartbeat: 60
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: "0"
+    placeholder-replacement: false
+    locations: classpath:db/migration
+    validate-on-migrate: false
+
+management:
+  health:
+    probes:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus,info
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+cluster:
+  id: ${CLUSTER_ID:default-cluster}
+  host: ${CLUSTER_HOST:platform-sentinel}
+  service-type: SENTINEL
+  communication-mode: ${CLUSTER_COMM_MODE:WITHIN_CLUSTER}
+
+platform:
+  environment: ${PLATFORM_ENVIRONMENT:PROD}
+  track-id:
+    prefix: ${TRACK_ID_PREFIX:TRZ}
+  security:
+    jwt-secret: ${JWT_SECRET:change_me_in_production_256bit_secret_key!!}
+    jwt-expiration-ms: ${JWT_EXPIRATION:900000}
+    control-api-key: ${CONTROL_API_KEY:internal_control_secret}
+  readiness:
+    schema-file: db/schema/sentinel-service.sql
+    required-tables: sentinel_findings,sentinel_rules,sentinel_health_scores,sentinel_correlation_groups
+
+sentinel:
+  github:
+    enabled: ${SENTINEL_GITHUB_ENABLED:false}
+    token: ${SENTINEL_GITHUB_TOKEN:}
+    owner: ${SENTINEL_GITHUB_OWNER:}
+    repo: ${SENTINEL_GITHUB_REPO:}
+  services:
+    onboarding-api: ${ONBOARDING_URL:http://localhost:8080}
+    config-service: ${CONFIG_URL:http://localhost:8084}
+    sftp-service: ${SFTP_URL:http://localhost:8081}
+    ftp-service: ${FTP_URL:http://localhost:8082}
+    ftp-web-service: ${FTP_WEB_URL:http://localhost:8083}
+    gateway-service: ${GATEWAY_URL:http://localhost:8085}
+    encryption-service: ${ENCRYPTION_URL:http://localhost:8086}
+    forwarder-service: ${FORWARDER_URL:http://localhost:8087}
+    dmz-proxy: ${DMZ_URL:http://localhost:8088}
+    license-service: ${LICENSE_URL:http://localhost:8089}
+    analytics-service: ${ANALYTICS_URL:http://localhost:8090}
+    ai-engine: ${AI_URL:http://localhost:8091}
+    screening-service: ${SCREENING_URL:http://localhost:8092}
+    keystore-manager: ${KEYSTORE_URL:http://localhost:8093}
+    as2-service: ${AS2_URL:http://localhost:8094}
+    edi-converter: ${EDI_URL:http://localhost:8095}
+    storage-manager: ${STORAGE_URL:http://localhost:8096}
+    notification-service: ${NOTIFICATION_URL:http://localhost:8097}
