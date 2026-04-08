@@ -17,5 +17,7 @@ public enum ServiceType {
     SCREENING,
     SCHEDULER,
     KEYSTORE,
-    STORAGE
+    STORAGE,
+    AS2,
+    SENTINEL
 }
