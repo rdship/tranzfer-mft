@@ -10,6 +10,8 @@
 #   Scenario 3 : Kill keystore-manager→ encryption uses cached keys for 60s
 #   Scenario 4 : Kill sentinel        → platform continues, 0 impact
 #   Scenario 5 : Kill 2 services      → circuit breakers isolate, no cascading 500s
+#   Scenario 6 : Kill ai-engine       → dmz-proxy falls back to heuristics, still UP+routing
+#   Scenario 7 : Kill screening       → as2-service health stays UP, circuit breaks fast
 #
 # Pass criteria per scenario:
 #   PASS : correct failure mode (503 vs fallback) + response time <500ms
@@ -36,7 +38,7 @@ RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
 
 # ── Scenario filter ───────────────────────────────────────────────────────────
-RUN_SCENARIOS="1,2,3,4,5"
+RUN_SCENARIOS="1,2,3,4,5,6,7"
 for arg in "$@"; do
   case "$arg" in
     --scenario=*) RUN_SCENARIOS="${arg#--scenario=}" ;;
@@ -55,7 +57,8 @@ cleanup() {
   # Restart any containers that may have been left stopped
   for container in \
     mft-ai-engine mft-encryption-service mft-keystore-manager \
-    mft-platform-sentinel mft-screening-service; do
+    mft-platform-sentinel mft-screening-service \
+    mft-analytics-service mft-as2-service; do
     docker start "$container" > /dev/null 2>&1 || true
   done
   jobs -p 2>/dev/null | xargs kill 2>/dev/null || true
@@ -486,6 +489,168 @@ if should_run 5; then
   wait_for_healthy "8090" 90 && echo "  analytics-service healthy" || true
 fi
 
+# SCENARIO 6: Kill ai-engine → dmz-proxy falls back to heuristics, stays UP
+# ─────────────────────────────────────────────────────────────────────────────
+# dmz-proxy is a Netty TCP proxy with an AI verdict engine (200ms timeout).
+# When ai-engine dies, DMZ must NOT go DOWN — it switches to conservative
+# heuristic rate limits. New connections should still be accepted.
+# Proves: dmz-proxy resilience principle — entry point never becomes SPOF.
+if should_run 6; then
+  echo ""
+  echo -e "${CYAN}${BOLD}── Scenario 6: ai-engine loss → dmz-proxy heuristic fallback ──${NC}"
+  echo "Expected: dmz-proxy stays UP with aiEngineAvailable=false; traffic still routes"
+
+  DMZ_HEALTH_URL="${BASE_URL}:8088/api/proxy/health"
+
+  # Baseline: verify dmz-proxy is up and aiEngineAvailable=true
+  dmz_before=$(curl -sf --max-time 5 "$DMZ_HEALTH_URL" 2>/dev/null || echo '{}')
+  dmz_status_before=$(echo "$dmz_before" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status','?'))" 2>/dev/null || echo "?")
+  ai_avail_before=$(echo "$dmz_before" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('aiEngineAvailable','?'))" 2>/dev/null || echo "?")
+  echo "  Baseline: dmz status=${dmz_status_before} aiEngineAvailable=${ai_avail_before}"
+
+  if [[ "$dmz_status_before" != "UP" ]]; then
+    record_verdict "6" "FAIL" "dmz-proxy not running before test (status=${dmz_status_before})"
+    echo -e "  ${RED}✗ FAIL — dmz-proxy not available, cannot run scenario${NC}"
+  else
+    docker stop mft-ai-engine > /dev/null 2>&1
+    echo "  ai-engine stopped"
+    sleep 8   # give DMZ time to detect ai-engine is gone (200ms timeout × retries + cache expiry)
+
+    [[ $(( $(date +%s) - TOKEN_AT )) -gt 270 ]] && TOKEN=$(get_token) && TOKEN_AT=$(date +%s)
+
+    # Probe dmz-proxy health — must still be UP
+    dmz_stats=$(probe_n_times "" "$DMZ_HEALTH_URL" "GET" "" 5)
+    read -r dmz_avg dmz_p95 dmz_max dmz_ok dmz_fail dmz_to dmz_503 dmz_500 dmz_502 <<< "$dmz_stats"
+
+    dmz_after=$(curl -sf --max-time 5 "$DMZ_HEALTH_URL" 2>/dev/null || echo '{}')
+    dmz_status_after=$(echo "$dmz_after" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status','?'))" 2>/dev/null || echo "?")
+    ai_avail_after=$(echo "$dmz_after" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('aiEngineAvailable','?'))" 2>/dev/null || echo "?")
+
+    echo "  After kill: dmz status=${dmz_status_after} aiEngineAvailable=${ai_avail_after}"
+    echo "  Health probes: ok=${dmz_ok}/5 fail=${dmz_fail} p95=${dmz_p95}ms timeouts=${dmz_to}"
+
+    # Restart ai-engine before evaluating (so platform is clean)
+    docker start mft-ai-engine > /dev/null 2>&1
+    echo "  ai-engine restarted"
+
+    # Evaluate
+    if [[ "$dmz_status_after" == "UP" && $dmz_ok -ge 4 && $dmz_to -eq 0 ]]; then
+      if [[ "$ai_avail_after" == "False" || "$ai_avail_after" == "false" ]]; then
+        if [[ $dmz_p95 -le $FAST_THRESHOLD_MS ]]; then
+          record_verdict "6" "PASS" "dmz UP + heuristic fallback active + p95=${dmz_p95}ms"
+          echo -e "  ${GREEN}✓ PASS — dmz-proxy gracefully degraded: UP with heuristics, ai not blocking traffic${NC}"
+        else
+          record_verdict "6" "WARN" "dmz UP + heuristic active but slow: p95=${dmz_p95}ms"
+          echo -e "  ${YELLOW}! WARN — dmz-proxy UP but health check slow (${dmz_p95}ms, threshold ${FAST_THRESHOLD_MS}ms)${NC}"
+        fi
+      else
+        # aiEngineAvailable didn't flip to false — either it updated too fast or DMZ has stale cache
+        record_verdict "6" "WARN" "dmz UP but aiEngineAvailable=${ai_avail_after} (expected false — cache may still be warm)"
+        echo -e "  ${YELLOW}! WARN — dmz UP but aiEngineAvailable=${ai_avail_after}; heuristic fallback may not have triggered${NC}"
+      fi
+    elif [[ "$dmz_status_after" != "UP" ]]; then
+      record_verdict "6" "FAIL" "dmz-proxy went DOWN when ai-engine killed (status=${dmz_status_after})"
+      echo -e "  ${RED}✗ FAIL — dmz-proxy reports DOWN after ai-engine kill — violates entry-point resilience principle${NC}"
+    else
+      record_verdict "6" "FAIL" "dmz health probes: ok=${dmz_ok}/5 timeouts=${dmz_to}"
+      echo -e "  ${RED}✗ FAIL — dmz-proxy health unreliable after ai-engine kill (ok=${dmz_ok}/5)${NC}"
+    fi
+
+    wait_for_healthy "8091" 90 && echo "  ai-engine healthy again" || true
+  fi
+fi
+
+# SCENARIO 7: Kill screening-service → as2-service stays healthy, circuit breaks fast
+# ─────────────────────────────────────────────────────────────────────────────
+# as2-service receives B2B messages then routes them via RoutingEngine, which calls
+# screening-service. If screening is down, as2-service must:
+#   a) Stay UP itself (health endpoint returns 200) — AS2 is not coupled to screening
+#   b) Return a clean 400 for invalid AS2 headers (not hang for 30s waiting for screening)
+#   c) Circuit breaker on ScreeningServiceClient opens fast (<500ms)
+# Proves: as2-service follows the fail-fast principle for its downstream dependencies.
+if should_run 7; then
+  echo ""
+  echo -e "${CYAN}${BOLD}── Scenario 7: screening loss → as2-service isolation ──${NC}"
+  echo "Expected: as2-service health stays UP; invalid AS2 POST fails fast (400/503 <500ms)"
+
+  AS2_HEALTH_URL="${BASE_URL}:8094/internal/health"
+
+  # Check if as2-service is running
+  as2_check=$(curl -sf --max-time 5 "$AS2_HEALTH_URL" 2>/dev/null || echo 'OFFLINE')
+  if [[ "$as2_check" == "OFFLINE" || "$as2_check" == "{}" ]]; then
+    record_verdict "7" "FAIL" "as2-service not running (port 8094 not responding)"
+    echo -e "  ${RED}✗ FAIL — as2-service not running. Start with: docker start mft-as2-service${NC}"
+  else
+    as2_status_before=$(echo "$as2_check" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status','?'))" 2>/dev/null || echo "?")
+    echo "  Baseline: as2-service status=${as2_status_before}"
+
+    docker stop mft-screening-service > /dev/null 2>&1
+    echo "  screening-service stopped"
+    sleep 6   # give circuit breaker time to detect (5-call sliding window × 200ms each)
+
+    [[ $(( $(date +%s) - TOKEN_AT )) -gt 270 ]] && TOKEN=$(get_token) && TOKEN_AT=$(date +%s)
+
+    # 1. Probe as2 health — must stay UP (as2 itself is not coupled to screening)
+    as2_stats=$(probe_n_times "" "$AS2_HEALTH_URL" "GET" "" 5)
+    read -r as2_avg as2_p95 as2_max as2_ok as2_fail as2_to as2_503 as2_500 as2_502 <<< "$as2_stats"
+
+    as2_after=$(curl -sf --max-time 5 "$AS2_HEALTH_URL" 2>/dev/null || echo '{}')
+    as2_status_after=$(echo "$as2_after" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status','?'))" 2>/dev/null || echo "?")
+
+    echo "  as2 health after screening kill: status=${as2_status_after} ok=${as2_ok}/5 p95=${as2_p95}ms timeouts=${as2_to}"
+
+    # 2. Send a deliberately invalid AS2 POST — should get fast 400 (bad headers), not timeout
+    #    We don't have a real partnership, so we expect 400. What matters is SPEED.
+    invalid_as2_start=$(date +%s%3N)
+    invalid_as2_code=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 5 \
+      -X POST "${BASE_URL}:8094/as2/receive" \
+      -H "Content-Type: application/octet-stream" \
+      -H "AS2-Version: 1.2" \
+      -H "AS2-From: chaos-test-sender" \
+      -H "AS2-To: unknown-recipient" \
+      -H "Message-ID: <chaos-$(date +%s)@test>" \
+      -d "test payload" 2>/dev/null || echo "000")
+    invalid_as2_dur=$(( $(date +%s%3N) - invalid_as2_start ))
+
+    echo "  Invalid AS2 POST: HTTP ${invalid_as2_code} in ${invalid_as2_dur}ms (expected 4xx fast)"
+
+    # 3. Restart screening before verdict
+    docker start mft-screening-service > /dev/null 2>&1
+    echo "  screening-service restarted"
+
+    # Evaluate
+    as2_stayed_up=false
+    [[ "$as2_status_after" == "UP" && $as2_ok -ge 4 && $as2_to -eq 0 ]] && as2_stayed_up=true
+
+    as2_failed_fast=false
+    # 400=invalid headers (correct — no valid partnership), 503=circuit open (also acceptable)
+    # Anything returning in <FAST_THRESHOLD_MS and with a real HTTP code (not 000=timeout) is good
+    if [[ "$invalid_as2_code" =~ ^[34] && $invalid_as2_dur -le $FAST_THRESHOLD_MS ]]; then
+      as2_failed_fast=true
+    elif [[ "$invalid_as2_code" == "000" ]]; then
+      : # timeout — bad
+    fi
+
+    if [[ "$as2_stayed_up" == "true" && "$as2_failed_fast" == "true" ]]; then
+      record_verdict "7" "PASS" "as2 UP (${as2_ok}/5 health ok) + invalid POST ${invalid_as2_code} in ${invalid_as2_dur}ms"
+      echo -e "  ${GREEN}✓ PASS — as2-service isolated: health UP, circuit breaks fast${NC}"
+    elif [[ "$as2_stayed_up" == "true" && "$as2_failed_fast" == "false" ]]; then
+      if [[ "$invalid_as2_code" == "000" ]]; then
+        record_verdict "7" "FAIL" "as2 UP but POST timed out (screening dependency blocking request thread)"
+        echo -e "  ${RED}✗ FAIL — as2-service POST hung (screening down caused ${invalid_as2_dur}ms timeout — circuit not open fast enough)${NC}"
+      else
+        record_verdict "7" "WARN" "as2 UP but POST slow: HTTP ${invalid_as2_code} in ${invalid_as2_dur}ms (>${FAST_THRESHOLD_MS}ms)"
+        echo -e "  ${YELLOW}! WARN — as2-service UP but request slow: ${invalid_as2_dur}ms (circuit may be slow to open)${NC}"
+      fi
+    else
+      record_verdict "7" "FAIL" "as2-service DOWN after screening kill (status=${as2_status_after} ok=${as2_ok}/5)"
+      echo -e "  ${RED}✗ FAIL — as2-service went DOWN when screening killed — violates service isolation principle${NC}"
+    fi
+
+    wait_for_healthy "8092" 90 && echo "  screening-service healthy again" || true
+  fi
+fi
+
 # ── Post-test Sentinel check ──────────────────────────────────────────────────
 sleep 15
 echo ""
@@ -526,9 +691,11 @@ declare -A SCENARIO_NAMES=(
   ["3"]="keystore → cached keys 60s"
   ["4"]="sentinel → zero impact"
   ["5"]="2 services → no cascade"
+  ["6"]="ai-engine loss → dmz heuristics"
+  ["7"]="screening loss → as2 isolated"
 )
 
-for n in 1 2 3 4 5; do
+for n in 1 2 3 4 5 6 7; do
   should_run "$n" || continue
   verdict="${SCENARIO_VERDICT[$n]:-SKIP}"
   note="${SCENARIO_NOTE[$n]:-}"

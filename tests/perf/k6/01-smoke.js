@@ -9,6 +9,9 @@ import { login } from './lib/auth.js';
 
 const BASE = __ENV.BASE_URL || 'http://localhost';
 
+// healthPath: override /actuator/health for services with non-standard endpoints
+// dmz-proxy  → Netty TCP proxy, no Spring Boot actuator, uses /api/proxy/health
+// as2-service → optional B2B service, uses /internal/health (no public actuator)
 const SERVICES = [
   { name: 'onboarding-api',     port: 8080 },
   { name: 'sftp-service',       port: 8081 },
@@ -18,13 +21,13 @@ const SERVICES = [
   { name: 'gateway-service',    port: 8085 },
   { name: 'encryption-service', port: 8086 },
   { name: 'forwarder-service',  port: 8087 },
-  { name: 'dmz-proxy',          port: 8088 },
+  { name: 'dmz-proxy',          port: 8088, healthPath: '/api/proxy/health' },
   { name: 'license-service',    port: 8089 },
   { name: 'analytics-service',  port: 8090 },
   { name: 'ai-engine',          port: 8091 },
   { name: 'screening-service',  port: 8092 },
   { name: 'keystore-manager',   port: 8093 },
-  { name: 'as2-service',        port: 8094 },
+  { name: 'as2-service',        port: 8094, healthPath: '/internal/health' },
   { name: 'edi-converter',      port: 8095 },
   { name: 'storage-manager',    port: 8096 },
   { name: 'notification-svc',   port: 8097 },
@@ -51,7 +54,7 @@ export default function (data) {
   let allOk = true;
 
   for (const svc of SERVICES) {
-    const url = `${BASE}:${svc.port}/actuator/health`;
+    const url = `${BASE}:${svc.port}${svc.healthPath || '/actuator/health'}`;
     const res = http.get(url, {
       timeout: '5s',
       tags: { service: svc.name },
