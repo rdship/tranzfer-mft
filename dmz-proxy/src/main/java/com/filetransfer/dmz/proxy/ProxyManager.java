@@ -543,6 +543,109 @@ public class ProxyManager {
         return Collections.unmodifiableCollection(mappings.values());
     }
 
+    /**
+     * Returns listener status for all active port mappings — which ports are bound,
+     * connections per port, and detected protocol.
+     */
+    public List<Map<String, Object>> getListenerStatus() {
+        List<Map<String, Object>> result = new ArrayList<>();
+        mappings.forEach((name, mapping) -> {
+            TcpProxyServer server = servers.get(name);
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("name", name);
+            entry.put("listenPort", mapping.getListenPort());
+            entry.put("bound", server != null && server.getServerChannel() != null
+                    && server.getServerChannel().isActive());
+            entry.put("activeConnections", server != null ? server.getActiveConnections().get() : 0);
+            entry.put("bytesForwarded", server != null ? server.getBytesForwarded().get() : 0);
+            entry.put("targetHost", mapping.getTargetHost());
+            entry.put("targetPort", mapping.getTargetPort());
+            entry.put("securityTier", mapping.getSecurityPolicy() != null
+                    ? mapping.getSecurityPolicy().getSecurityTier() : (securityEnabled ? "AI" : "NONE"));
+            if (healthChecker != null) {
+                entry.put("backendHealthy", healthChecker.isHealthy(name));
+            }
+            result.add(entry);
+        });
+        return result;
+    }
+
+    /**
+     * Add an IP/CIDR to a mapping's blacklist and hot-reload the security filter.
+     */
+    public void addBlacklistIp(String name, String ip) {
+        modifyIpList(name, ip, true, true);
+    }
+
+    /**
+     * Remove an IP/CIDR from a mapping's blacklist and hot-reload the security filter.
+     */
+    public void removeBlacklistIp(String name, String ip) {
+        modifyIpList(name, ip, true, false);
+    }
+
+    /**
+     * Add an IP/CIDR to a mapping's whitelist and hot-reload the security filter.
+     */
+    public void addWhitelistIp(String name, String ip) {
+        modifyIpList(name, ip, false, true);
+    }
+
+    /**
+     * Remove an IP/CIDR from a mapping's whitelist and hot-reload the security filter.
+     */
+    public void removeWhitelistIp(String name, String ip) {
+        modifyIpList(name, ip, false, false);
+    }
+
+    /**
+     * Modifies a mapping's IP blacklist or whitelist and hot-reloads the ManualSecurityFilter.
+     *
+     * @param name      mapping name
+     * @param ip        IP or CIDR to add/remove
+     * @param blacklist true=blacklist, false=whitelist
+     * @param add       true=add, false=remove
+     */
+    private void modifyIpList(String name, String ip, boolean blacklist, boolean add) {
+        PortMapping mapping = mappings.get(name);
+        if (mapping == null) {
+            throw new IllegalArgumentException("Mapping not found: " + name);
+        }
+        TcpProxyServer server = servers.get(name);
+        if (server == null) {
+            throw new IllegalStateException("Server not running for mapping: " + name);
+        }
+
+        PortMapping.SecurityPolicy policy = mapping.getSecurityPolicy();
+        if (policy == null) {
+            policy = PortMapping.SecurityPolicy.builder().build();
+            mapping.setSecurityPolicy(policy);
+        }
+
+        // Get current list (immutable from @Builder.Default) — copy to mutable
+        List<String> list = new ArrayList<>(blacklist
+                ? policy.getIpBlacklist() : policy.getIpWhitelist());
+
+        if (add) {
+            if (!list.contains(ip)) list.add(ip);
+        } else {
+            list.remove(ip);
+        }
+
+        // Write back
+        if (blacklist) {
+            policy.setIpBlacklist(List.copyOf(list));
+        } else {
+            policy.setIpWhitelist(List.copyOf(list));
+        }
+
+        // Hot-reload the filter
+        ManualSecurityFilter newFilter = new ManualSecurityFilter(policy);
+        server.updateSecurityFilter(newFilter);
+        log.info("Updated {} for mapping [{}]: {} IP {}", blacklist ? "blacklist" : "whitelist",
+                name, add ? "added" : "removed", ip);
+    }
+
     @PreDestroy
     public void shutdown() {
         log.info("Shutting down DMZ proxy — draining all connections");

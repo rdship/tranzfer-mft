@@ -41,6 +41,13 @@ export const analyticsApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'htt
 export const licenseApi = axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8089' })
 export const gatewayApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8085' }))
 export const dmzApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8088' }))
+
+// DMZ proxy requires X-Internal-Key for all management endpoints
+dmzApi.interceptors.request.use((config) => {
+  const controlKey = localStorage.getItem('controlKey')
+  if (controlKey) config.headers['X-Internal-Key'] = controlKey
+  return config
+})
 export const keystoreApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8093' }))
 export const screeningApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8092' }))
 export const storageApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8096' }))

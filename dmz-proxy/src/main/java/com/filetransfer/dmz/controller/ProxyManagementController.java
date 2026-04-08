@@ -300,6 +300,106 @@ public class ProxyManagementController {
             "reason", result.reason()));
     }
 
+    // ── Listener Status ──────────────────────────────────────────────────
+
+    @GetMapping("/listeners")
+    public ResponseEntity<?> listeners(@RequestHeader("X-Internal-Key") String key) {
+        validateKey(key);
+        return ResponseEntity.ok(proxyManager.getListenerStatus());
+    }
+
+    // ── IP Blacklist/Whitelist Management ──────────────────────────────
+
+    @PutMapping("/mappings/{name}/security/blacklist")
+    public ResponseEntity<?> addBlacklistIp(
+            @RequestHeader("X-Internal-Key") String key,
+            @PathVariable String name,
+            @RequestBody Map<String, String> body) {
+        validateKey(key);
+        String ip = body.get("ip");
+        if (ip == null || ip.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ip is required");
+        }
+        proxyManager.addBlacklistIp(name, ip.trim());
+        return ResponseEntity.ok(Map.of("mapping", name, "action", "blacklist_add", "ip", ip.trim()));
+    }
+
+    @DeleteMapping("/mappings/{name}/security/blacklist/{ip}")
+    public ResponseEntity<?> removeBlacklistIp(
+            @RequestHeader("X-Internal-Key") String key,
+            @PathVariable String name,
+            @PathVariable String ip) {
+        validateKey(key);
+        proxyManager.removeBlacklistIp(name, ip.trim());
+        return ResponseEntity.ok(Map.of("mapping", name, "action", "blacklist_remove", "ip", ip.trim()));
+    }
+
+    @PutMapping("/mappings/{name}/security/whitelist")
+    public ResponseEntity<?> addWhitelistIp(
+            @RequestHeader("X-Internal-Key") String key,
+            @PathVariable String name,
+            @RequestBody Map<String, String> body) {
+        validateKey(key);
+        String ip = body.get("ip");
+        if (ip == null || ip.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ip is required");
+        }
+        proxyManager.addWhitelistIp(name, ip.trim());
+        return ResponseEntity.ok(Map.of("mapping", name, "action", "whitelist_add", "ip", ip.trim()));
+    }
+
+    @DeleteMapping("/mappings/{name}/security/whitelist/{ip}")
+    public ResponseEntity<?> removeWhitelistIp(
+            @RequestHeader("X-Internal-Key") String key,
+            @PathVariable String name,
+            @PathVariable String ip) {
+        validateKey(key);
+        proxyManager.removeWhitelistIp(name, ip.trim());
+        return ResponseEntity.ok(Map.of("mapping", name, "action", "whitelist_remove", "ip", ip.trim()));
+    }
+
+    // ── Reachability Test ─────────────────────────────────────────────
+
+    @PostMapping("/reachability")
+    public ResponseEntity<?> testReachability(
+            @RequestHeader("X-Internal-Key") String key,
+            @RequestBody Map<String, Object> body) {
+        validateKey(key);
+        String host = (String) body.get("host");
+        Integer port = body.get("port") instanceof Number n ? n.intValue() : null;
+        if (host == null || host.isBlank() || port == null || port < 1 || port > 65535) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "host and port (1-65535) are required");
+        }
+        // SSRF protection: block loopback/metadata/link-local
+        String lower = host.toLowerCase().trim();
+        if (lower.equals("localhost") || lower.equals("0.0.0.0")
+                || lower.startsWith("127.") || lower.equals("::1")
+                || lower.startsWith("169.254.") || lower.startsWith("metadata.")
+                || lower.equals("[::1]")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                "Blocked: loopback and metadata addresses are not allowed for reachability tests");
+        }
+
+        long start = System.currentTimeMillis();
+        boolean reachable = false;
+        String error = null;
+        try (var socket = new java.net.Socket()) {
+            socket.connect(new java.net.InetSocketAddress(host, port), 5000);
+            reachable = true;
+        } catch (Exception e) {
+            error = e.getMessage();
+        }
+        long latencyMs = System.currentTimeMillis() - start;
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("host", host);
+        result.put("port", port);
+        result.put("reachable", reachable);
+        result.put("latencyMs", latencyMs);
+        if (error != null) result.put("error", error);
+        return ResponseEntity.ok(result);
+    }
+
     // ── QoS Bandwidth ──────────────────────────────────────────────────
 
     @GetMapping("/qos/stats")

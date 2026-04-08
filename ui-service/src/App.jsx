@@ -43,6 +43,7 @@ import PartnerDetail from './pages/PartnerDetail'
 import PartnerSetup from './pages/PartnerSetup'
 import ServiceManagement from './pages/ServiceManagement'
 import VfsStorage from './pages/VfsStorage'
+import DmzProxy from './pages/DmzProxy'
 import ActivityMonitor from './pages/ActivityMonitor'
 
 export default function App() {
@@ -73,6 +74,7 @@ export default function App() {
             <Route path="logs" element={<Logs />} />
             <Route path="flows" element={<Flows />} />
             <Route path="gateway" element={<GatewayStatus />} />
+            <Route path="dmz-proxy" element={<DmzProxy />} />
             <Route path="journey" element={<Journey />} />
             <Route path="keystore" element={<Keystore />} />
             <Route path="scheduler" element={<Scheduler />} />
