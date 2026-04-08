@@ -52,8 +52,10 @@ spring.rabbitmq:
   port: ${RABBITMQ_PORT:5672}
   username: ${RABBITMQ_USERNAME:guest}
   password: ${RABBITMQ_PASSWORD:guest}
-  connection-timeout: 30000
+  connection-timeout: 3000
   requested-heartbeat: 60
+  template:
+    reply-timeout: 3000
 
 rabbitmq:
   exchange: file-transfer.events

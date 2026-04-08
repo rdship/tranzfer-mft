@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Unified screening pipeline that orchestrates all security scans in order:
@@ -30,6 +32,8 @@ public class ScreeningPipeline {
     private final DlpEngine dlpEngine;
     private final ScreeningEngine sanctionsEngine;
     private final RabbitTemplate rabbitTemplate;
+
+    private final ExecutorService eventPublisher = Executors.newVirtualThreadPerTaskExecutor();
 
     @Value("${rabbitmq.exchange:file-transfer.events}")
     private String exchangeName;
@@ -140,19 +144,21 @@ public class ScreeningPipeline {
 
     private void publishEvent(String routingKey, String trackId, String filename,
                                String account, String detail) {
-        try {
-            var event = java.util.Map.of(
-                    "trackId", trackId != null ? trackId : "",
-                    "filename", filename != null ? filename : "",
-                    "account", account != null ? account : "",
-                    "detail", detail != null ? detail : "",
-                    "timestamp", java.time.Instant.now().toString()
-            );
-            rabbitTemplate.convertAndSend(exchangeName, routingKey, event);
-            log.debug("[{}] Published event: {}", trackId, routingKey);
-        } catch (Exception e) {
-            log.warn("[{}] Failed to publish event {}: {}", trackId, routingKey, e.getMessage());
-        }
+        var event = java.util.Map.of(
+                "trackId", trackId != null ? trackId : "",
+                "filename", filename != null ? filename : "",
+                "account", account != null ? account : "",
+                "detail", detail != null ? detail : "",
+                "timestamp", java.time.Instant.now().toString()
+        );
+        eventPublisher.execute(() -> {
+            try {
+                rabbitTemplate.convertAndSend(exchangeName, routingKey, event);
+                log.debug("[{}] Published event: {}", trackId, routingKey);
+            } catch (Exception e) {
+                log.warn("[{}] Failed to publish event {}: {}", trackId, routingKey, e.getMessage());
+            }
+        });
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
