@@ -37,15 +37,17 @@ if [[ "$VERIFY_ONLY" == "true" ]]; then
   check_cmd python3     && ok "python3 $(python3 --version)" || { err "python3 not found"; FAIL=1; }
   check_cmd pip3        && ok "pip3"        || { err "pip3 not found"; FAIL=1; }
   check_cmd jq          && ok "jq"          || { err "jq not found"; FAIL=1; }
-  check_cmd bc          && ok "bc"          || warn "bc not found (optional, needed for math in scripts)"
   check_cmd curl        && ok "curl"        || { err "curl not found"; FAIL=1; }
   check_cmd nc          && ok "nc (netcat)" || warn "nc not found (optional)"
   check_cmd openssl     && ok "openssl"     || warn "openssl not found (needed for TLS tests)"
 
   echo ""
-  python3 -c "import paramiko" 2>/dev/null && ok "paramiko (Python SFTP)" || { err "paramiko not installed — run: pip3 install paramiko"; FAIL=1; }
-  python3 -c "import requests" 2>/dev/null && ok "requests (Python HTTP)" || { err "requests not installed — run: pip3 install requests"; FAIL=1; }
-  python3 -c "import aiohttp"  2>/dev/null && ok "aiohttp (Python async)" || { err "aiohttp not installed"; FAIL=1; }
+  python3 -c "import paramiko"          2>/dev/null && ok "paramiko"          || { err "paramiko not installed";          FAIL=1; }
+  python3 -c "import requests"          2>/dev/null && ok "requests"          || { err "requests not installed";          FAIL=1; }
+  python3 -c "import aiohttp"           2>/dev/null && ok "aiohttp"           || { err "aiohttp not installed";           FAIL=1; }
+  python3 -c "import tqdm"              2>/dev/null && ok "tqdm"              || { err "tqdm not installed";              FAIL=1; }
+  python3 -c "import tabulate"          2>/dev/null && ok "tabulate"          || { err "tabulate not installed";          FAIL=1; }
+  python3 -c "import asyncio_throttle"  2>/dev/null && ok "asyncio-throttle"  || { err "asyncio-throttle not installed"; FAIL=1; }
 
   echo ""
   if [[ $FAIL -eq 0 ]]; then
@@ -81,10 +83,13 @@ if [[ "$OS" == "macos" ]]; then
     ok "jq already installed"
   fi
 
-  # Python deps
-  pip3 install --quiet paramiko requests aiohttp ftplib 2>/dev/null || \
-  pip3 install --quiet paramiko requests aiohttp
-  ok "Python packages installed"
+  # Python deps — install from requirements.txt
+  REQS_FILE="$(dirname "$0")/../python/requirements.txt"
+  if [[ -f "$REQS_FILE" ]]; then
+    pip3 install --quiet -r "$REQS_FILE" && ok "Python packages installed (from requirements.txt)"
+  else
+    pip3 install --quiet paramiko requests aiohttp tqdm tabulate asyncio-throttle && ok "Python packages installed"
+  fi
 
   # sshpass (for SFTP scripting)
   if ! check_cmd sshpass; then
@@ -105,8 +110,12 @@ elif [[ "$OS" == "linux" ]]; then
     sudo apt-get update -q && sudo apt-get install -y k6 jq bc
   fi
 
-  pip3 install --quiet paramiko requests aiohttp
-  ok "Python packages installed"
+  REQS_FILE="$(dirname "$0")/../python/requirements.txt"
+  if [[ -f "$REQS_FILE" ]]; then
+    pip3 install --quiet -r "$REQS_FILE" && ok "Python packages installed (from requirements.txt)"
+  else
+    pip3 install --quiet paramiko requests aiohttp tqdm tabulate asyncio-throttle && ok "Python packages installed"
+  fi
 fi
 
 echo ""
