@@ -8,30 +8,80 @@ import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * SPIFFE Workload API client for issuing and validating JWT-SVIDs.
  *
  * <p><strong>Outbound calls (service → service):</strong>
- * {@code getJwtSvidFor("target-service")} returns a short-lived (1h) JWT.
- * Put it in the {@code Authorization: Bearer <token>} header.
- * The JWT auto-rotates — always call this per-request, never cache the token string.
+ * {@link #getJwtSvidFor(String)} returns a cached JWT-SVID for the given audience.
+ * Tokens are cached in memory and proactively refreshed at 50% of their TTL
+ * (± 5-minute per-instance jitter) to eliminate per-request SPIRE agent round-trips.
+ * The hot path is always a ConcurrentHashMap lookup — O(1), zero I/O. The cold path
+ * (first call per audience, or post-expiry miss) fetches synchronously and schedules
+ * background renewal. With 20 known services, the cache holds at most 20 entries.
+ *
+ * <p><strong>Why cache?</strong> The SPIRE agent signs a new JWT on every
+ * {@code FetchJWTSVID} call (SPIRE issue #4829, closed "not planned"). Without
+ * application-level caching, N concurrent file transfers × M flow steps =
+ * N×M serial gRPC round-trips to the agent socket, making SPIRE the throughput
+ * bottleneck at scale.
  *
  * <p><strong>Inbound validation:</strong>
- * {@code validate(token, selfSpiffeId)} verifies signature via the SPIRE trust
- * bundle and checks audience. Returns true iff the token is valid and unexpired.
+ * {@link #validate(String, String)} verifies signature via the SPIRE trust bundle
+ * (streamed via Workload API) and checks audience. Returns true iff valid and unexpired.
  *
  * <p><strong>Caller identity:</strong>
- * {@code getCallerId(token)} extracts the {@code sub} claim from a validated token,
+ * {@link #getCallerId(String)} extracts the {@code sub} claim from a validated token,
  * e.g. {@code "spiffe://filetransfer.io/gateway-service"}.
  *
  * <p>Graceful degradation: if the SPIRE agent socket is unavailable, methods
- * return {@code null} / {@code false} and the caller proceeds without a workload identity token.
+ * return {@code null} / {@code false} and the caller proceeds without a workload
+ * identity token.
  */
 @Slf4j
 public class SpiffeWorkloadClient {
+
+    /**
+     * Proactive refresh at 50% of token lifetime — the same fraction SPIRE uses
+     * internally for X.509-SVID rotation (hardcoded in SPIRE issue #1754).
+     */
+    private static final double REFRESH_FRACTION = 0.50;
+
+    /**
+     * Per-instance jitter window (±5 min). Distributes renewal across instances
+     * to prevent thundering-herd bursts toward the SPIRE server at TTL boundaries
+     * (SPIRE issue #4268).
+     */
+    private static final long JITTER_RANGE_SECONDS = 300;
+
+    /**
+     * Treat the cached token as expired this many seconds before its actual {@code exp}
+     * claim to absorb clock skew between caller and receiver.
+     */
+    private static final long GRACE_SECONDS = 60;
+
+    /**
+     * In-memory token cache keyed by SPIFFE audience string.
+     * At most 20 entries (one per service in the platform).
+     */
+    private final ConcurrentHashMap<String, CachedSvid> tokenCache = new ConcurrentHashMap<>();
+
+    /**
+     * Virtual-thread-backed scheduler for proactive background renewal.
+     * Virtual threads are ideal here: each renewal task blocks briefly on the
+     * SPIRE agent gRPC socket without consuming a platform thread.
+     */
+    private final ScheduledExecutorService refresher =
+            Executors.newScheduledThreadPool(2,
+                    Thread.ofVirtual().name("spiffe-refresh-", 0).factory());
 
     private final SpiffeProperties props;
     private final JwtSource jwtSource;
@@ -51,7 +101,8 @@ public class SpiffeWorkloadClient {
         } catch (Exception ex) {
             available.set(false);
             log.warn("[SPIFFE] Workload API unavailable ({}). " +
-                    "Outbound calls will proceed without a workload identity token. Error: {}", props.getSocket(), ex.getMessage());
+                    "Outbound calls will proceed without a workload identity token. Error: {}",
+                    props.getSocket(), ex.getMessage());
         }
         this.jwtSource = source;
     }
@@ -67,15 +118,33 @@ public class SpiffeWorkloadClient {
     }
 
     /**
-     * Fetch a JWT-SVID token to authenticate a call to {@code targetServiceName}.
+     * Return a JWT-SVID token for authenticating a call to {@code targetServiceName}.
      * The audience is {@code spiffe://<trustDomain>/<targetServiceName>}.
-     * Returns {@code null} if SPIRE is unavailable.
+     *
+     * <p><strong>Hot path (cache hit):</strong> O(1) hashmap lookup — zero I/O, sub-microsecond.
+     * <p><strong>Cold path (first call or post-expiry):</strong> synchronous fetch from SPIRE agent
+     * (~1–10 ms), stores result, schedules background proactive refresh.
+     *
+     * @return the raw JWT string, or {@code null} if SPIRE is unavailable
      */
     public String getJwtSvidFor(String targetServiceName) {
         if (!isAvailable()) return null;
+        String audience = props.audienceFor(targetServiceName);
+        CachedSvid cached = tokenCache.get(audience);
+        if (cached != null && cached.isUsable()) {
+            return cached.token;
+        }
+        return fetchAndCache(audience, targetServiceName);
+    }
+
+    private String fetchAndCache(String audience, String targetServiceName) {
         try {
-            String audience = props.audienceFor(targetServiceName);
-            JwtSvid svid = jwtSource.fetchJwtSvid(audience); // String + varargs
+            JwtSvid svid = jwtSource.fetchJwtSvid(audience);
+            Instant expiresAt = svid.getExpiry().toInstant();
+            CachedSvid entry = new CachedSvid(svid.getToken(), expiresAt);
+            tokenCache.put(audience, entry);
+            scheduleRefresh(audience, targetServiceName, expiresAt);
+            log.debug("[SPIFFE] Cached JWT-SVID for audience={} expires={}", audience, expiresAt);
             return svid.getToken();
         } catch (Exception ex) {
             log.warn("[SPIFFE] Failed to fetch JWT-SVID for {}: {}", targetServiceName, ex.getMessage());
@@ -83,17 +152,27 @@ public class SpiffeWorkloadClient {
         }
     }
 
+    private void scheduleRefresh(String audience, String targetServiceName, Instant expiresAt) {
+        long ttlMillis = Duration.between(Instant.now(), expiresAt).toMillis();
+        long jitterMillis = ThreadLocalRandom.current()
+                .nextLong(-JITTER_RANGE_SECONDS * 1000L, JITTER_RANGE_SECONDS * 1000L);
+        long delayMillis = Math.max(1_000L, (long)(ttlMillis * REFRESH_FRACTION) + jitterMillis);
+        refresher.schedule(() -> {
+            log.debug("[SPIFFE] Proactive refresh — audience={}", audience);
+            fetchAndCache(audience, targetServiceName);
+        }, delayMillis, TimeUnit.MILLISECONDS);
+    }
+
     /**
      * Validate an inbound JWT-SVID Bearer token.
      *
-     * @param token       raw JWT string from Authorization header
+     * @param token        raw JWT string from Authorization header
      * @param selfSpiffeId this service's SPIFFE ID (used as expected audience)
      * @return true iff signature, expiry, and audience are all valid
      */
     public boolean validate(String token, String selfSpiffeId) {
         if (!isAvailable() || token == null) return false;
         try {
-            // JwtSource extends BundleSource<JwtBundle> — pass directly
             JwtSvid.parseAndValidate(token, jwtSource, Set.of(selfSpiffeId));
             return true;
         } catch (Exception ex) {
@@ -120,8 +199,17 @@ public class SpiffeWorkloadClient {
 
     @PreDestroy
     public void close() {
+        refresher.shutdownNow();
         if (jwtSource != null) {
             try { jwtSource.close(); } catch (Exception ignored) {}
+        }
+    }
+
+    /** Immutable cache entry — token string + expiry instant. */
+    private record CachedSvid(String token, Instant expiresAt) {
+        /** True if the token is still valid with {@code GRACE_SECONDS} buffer. */
+        boolean isUsable() {
+            return Instant.now().isBefore(expiresAt.minusSeconds(GRACE_SECONDS));
         }
     }
 }
