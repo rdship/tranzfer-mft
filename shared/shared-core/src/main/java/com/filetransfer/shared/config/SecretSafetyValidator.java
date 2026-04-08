@@ -22,7 +22,6 @@ import java.util.List;
  * <p>Checked secrets:
  * <ul>
  *   <li>JWT secret from {@link PlatformConfig}</li>
- *   <li>Control API key from {@link PlatformConfig}</li>
  *   <li>Datasource password (spring.datasource.password)</li>
  * </ul>
  *
@@ -35,11 +34,9 @@ import java.util.List;
 public class SecretSafetyValidator {
 
     private static final String DEFAULT_JWT_SECRET = "change_me_in_production_256bit_secret_key!!";
-    private static final String DEFAULT_CONTROL_API_KEY = "internal_control_secret";
     private static final String DEFAULT_DB_PASSWORD = "postgres";
 
     private static final int MIN_JWT_SECRET_LENGTH = 32;
-    private static final int MIN_CONTROL_API_KEY_LENGTH = 16;
 
     private final PlatformConfig platformConfig;
 
@@ -72,11 +69,6 @@ public class SecretSafetyValidator {
             violations.add("platform.security.jwt-secret is still the default value");
         }
 
-        String controlApiKey = platformConfig.getSecurity().getControlApiKey();
-        if (DEFAULT_CONTROL_API_KEY.equals(controlApiKey)) {
-            violations.add("platform.security.control-api-key is still the default value");
-        }
-
         if (datasourcePassword != null && DEFAULT_DB_PASSWORD.equals(datasourcePassword)) {
             violations.add("spring.datasource.password is still the default value ('postgres')");
         }
@@ -87,12 +79,6 @@ public class SecretSafetyValidator {
             violations.add(String.format(
                     "platform.security.jwt-secret is too short (%d chars); minimum is %d",
                     jwtSecret.length(), MIN_JWT_SECRET_LENGTH));
-        }
-
-        if (controlApiKey != null && controlApiKey.length() < MIN_CONTROL_API_KEY_LENGTH) {
-            violations.add(String.format(
-                    "platform.security.control-api-key is too short (%d chars); minimum is %d",
-                    controlApiKey.length(), MIN_CONTROL_API_KEY_LENGTH));
         }
 
         // --- Report secret violations ---

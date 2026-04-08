@@ -2,6 +2,7 @@ package com.filetransfer.shared.security;
 
 import com.filetransfer.shared.config.PlatformConfig;
 import com.filetransfer.shared.ratelimit.ApiRateLimitFilter;
+import com.filetransfer.shared.spiffe.SpiffeWorkloadClient;
 import com.filetransfer.shared.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -23,8 +24,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * should set platform.security.shared-config=false.
  *
  * Authentication modes:
- *   - JWT Bearer token (for admin/partner/CLI access)
- *   - X-Internal-Key header (for inter-service calls)
+ *   - SPIFFE JWT-SVID (for service-to-service; zero-trust, auto-rotating)
+ *   - Platform JWT Bearer token (for admin/partner/CLI access)
  *
  * Open endpoints:
  *   - /actuator/** — health checks and management
@@ -41,25 +42,30 @@ public class PlatformSecurityConfig {
     @Autowired(required = false)
     private ApiRateLimitFilter apiRateLimitFilter;
 
+    @Autowired(required = false)
+    private SpiffeWorkloadClient spiffeWorkloadClient;
+
     @Bean
     public SecurityFilterChain platformSecurityFilterChain(HttpSecurity http,
                                                            JwtUtil jwtUtil,
                                                            PlatformConfig platformConfig) throws Exception {
-        PlatformJwtAuthFilter filter = new PlatformJwtAuthFilter(jwtUtil, platformConfig, permissionService);
+        PlatformJwtAuthFilter filter = new PlatformJwtAuthFilter(
+                jwtUtil, platformConfig, permissionService, spiffeWorkloadClient);
 
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/**").permitAll()
-                        .requestMatchers("/internal/**").permitAll()
+                        .requestMatchers("/internal/**").hasRole("INTERNAL")
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class);
 
         if (apiRateLimitFilter != null) {
-            http.addFilterBefore(apiRateLimitFilter, PlatformJwtAuthFilter.class);
+            // Rate limiter runs AFTER JWT filter so ROLE_INTERNAL is already in SecurityContext
+            http.addFilterAfter(apiRateLimitFilter, PlatformJwtAuthFilter.class);
         }
 
         return http.build();

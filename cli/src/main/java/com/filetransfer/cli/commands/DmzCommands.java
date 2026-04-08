@@ -2,7 +2,6 @@ package com.filetransfer.cli.commands;
 
 import com.filetransfer.cli.client.ApiClient;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.shell.standard.ShellComponent;
 import org.springframework.shell.standard.ShellMethod;
 import org.springframework.shell.standard.ShellOption;
@@ -17,14 +16,9 @@ public class DmzCommands {
     private final ApiClient apiClient;
     private final WebClient dmzClient;
 
-    @Value("${control-api.key:internal_control_secret}")
-    private String controlKey;
-
     @ShellMethod(value = "List DMZ proxy port mappings and live stats", key = "dmz-list")
     public String listMappings() {
-        return dmzClient.get().uri("/api/proxy/mappings")
-                .header("X-Internal-Key", controlKey)
-                .retrieve().bodyToMono(String.class).block();
+        return apiClient.get(dmzClient, "/api/proxy/mappings");
     }
 
     @ShellMethod(value = "Add a DMZ port mapping (hot-add, no restart)", key = "dmz-add")
@@ -33,18 +27,14 @@ public class DmzCommands {
             @ShellOption(help = "External listen port") int listenPort,
             @ShellOption(help = "Internal target host") String targetHost,
             @ShellOption(help = "Internal target port") int targetPort) {
-        return dmzClient.post().uri("/api/proxy/mappings")
-                .header("X-Internal-Key", controlKey)
-                .bodyValue(Map.of("name", name, "listenPort", listenPort,
-                        "targetHost", targetHost, "targetPort", targetPort))
-                .retrieve().bodyToMono(String.class).block();
+        return apiClient.post(dmzClient, "/api/proxy/mappings",
+                Map.of("name", name, "listenPort", listenPort,
+                        "targetHost", targetHost, "targetPort", targetPort));
     }
 
     @ShellMethod(value = "Remove a DMZ port mapping (hot-remove)", key = "dmz-remove")
     public String removeMapping(@ShellOption(help = "Mapping name") String name) {
-        dmzClient.delete().uri("/api/proxy/mappings/" + name)
-                .header("X-Internal-Key", controlKey)
-                .retrieve().bodyToMono(Void.class).block();
+        apiClient.delete(dmzClient, "/api/proxy/mappings/" + name);
         return "Removed DMZ mapping: " + name;
     }
 

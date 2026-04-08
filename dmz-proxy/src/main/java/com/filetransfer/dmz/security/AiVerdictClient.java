@@ -51,7 +51,7 @@ public class AiVerdictClient {
     // ── State ──────────────────────────────────────────────────────────
 
     private final String aiEngineUrl;
-    private final String internalApiKey;
+    private final SpiffeProxyAuth spiffeAuth;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ConcurrentHashMap<String, CachedVerdict> verdictCache = new ConcurrentHashMap<>();
@@ -69,19 +69,14 @@ public class AiVerdictClient {
     private static final long MAX_ALLOW_CACHE_TTL_SECONDS = 15;       // stricter for ALLOWs
     private static final long MAX_BLOCK_CACHE_TTL_SECONDS = 300;      // blocks can be cached longer
 
-    public AiVerdictClient(String aiEngineUrl, long verdictTimeoutMs, String internalApiKey) {
+    public AiVerdictClient(String aiEngineUrl, long verdictTimeoutMs, SpiffeProxyAuth spiffeAuth) {
         this.aiEngineUrl = aiEngineUrl;
         this.verdictTimeoutMs = verdictTimeoutMs;
-        this.internalApiKey = internalApiKey;
+        this.spiffeAuth = spiffeAuth;
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofMillis(verdictTimeoutMs))
             .followRedirects(HttpClient.Redirect.NEVER)
             .build();
-    }
-
-    /** Backwards-compatible constructor (uses default key) */
-    public AiVerdictClient(String aiEngineUrl, long verdictTimeoutMs) {
-        this(aiEngineUrl, verdictTimeoutMs, "internal_control_secret");
     }
 
     // ── Core Verdict Query ─────────────────────────────────────────────
@@ -124,13 +119,13 @@ public class AiVerdictClient {
             }
             String body = objectMapper.writeValueAsString(requestMap);
 
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest.Builder verdictBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(aiEngineUrl + "/api/v1/proxy/verdict"))
                 .header("Content-Type", "application/json")
-                .header("X-Internal-Key", internalApiKey)
                 .timeout(Duration.ofMillis(verdictTimeoutMs))
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
+                .POST(HttpRequest.BodyPublishers.ofString(body));
+            addSpiffeAuth(verdictBuilder, "ai-engine");
+            HttpRequest request = verdictBuilder.build();
 
             HttpResponse<String> response = httpClient.send(request,
                 HttpResponse.BodyHandlers.ofString());
@@ -169,13 +164,13 @@ public class AiVerdictClient {
         asyncExecutor.submit(() -> {
             try {
                 String body = objectMapper.writeValueAsString(event);
-                HttpRequest request = HttpRequest.newBuilder()
+                HttpRequest.Builder eventBuilder = HttpRequest.newBuilder()
                     .uri(URI.create(aiEngineUrl + "/api/v1/proxy/event"))
                     .header("Content-Type", "application/json")
-                    .header("X-Internal-Key", internalApiKey)
                     .timeout(Duration.ofSeconds(5))
-                    .POST(HttpRequest.BodyPublishers.ofString(body))
-                    .build();
+                    .POST(HttpRequest.BodyPublishers.ofString(body));
+                addSpiffeAuth(eventBuilder, "ai-engine");
+                HttpRequest request = eventBuilder.build();
                 httpClient.send(request, HttpResponse.BodyHandlers.discarding());
             } catch (Exception e) {
                 // Fire-and-forget: swallow errors
@@ -192,13 +187,13 @@ public class AiVerdictClient {
         asyncExecutor.submit(() -> {
             try {
                 String body = objectMapper.writeValueAsString(events);
-                HttpRequest request = HttpRequest.newBuilder()
+                HttpRequest.Builder batchBuilder = HttpRequest.newBuilder()
                     .uri(URI.create(aiEngineUrl + "/api/v1/proxy/events"))
                     .header("Content-Type", "application/json")
-                    .header("X-Internal-Key", internalApiKey)
                     .timeout(Duration.ofSeconds(10))
-                    .POST(HttpRequest.BodyPublishers.ofString(body))
-                    .build();
+                    .POST(HttpRequest.BodyPublishers.ofString(body));
+                addSpiffeAuth(batchBuilder, "ai-engine");
+                HttpRequest request = batchBuilder.build();
                 httpClient.send(request, HttpResponse.BodyHandlers.discarding());
             } catch (Exception e) {
                 log.trace("Batch event report failed: {}", e.getMessage());
@@ -225,6 +220,13 @@ public class AiVerdictClient {
     }
 
     // ── Private ────────────────────────────────────────────────────────
+
+    private void addSpiffeAuth(HttpRequest.Builder builder, String targetService) {
+        if (spiffeAuth != null && spiffeAuth.isAvailable()) {
+            String token = spiffeAuth.getJwtSvidFor(targetService);
+            if (token != null) builder.header("Authorization", "Bearer " + token);
+        }
+    }
 
     private CachedVerdict parseVerdict(String responseBody) throws Exception {
         JsonNode json = objectMapper.readTree(responseBody);
@@ -315,11 +317,12 @@ public class AiVerdictClient {
 
         asyncExecutor.submit(() -> {
             try {
-                HttpRequest request = HttpRequest.newBuilder()
+                HttpRequest.Builder healthBuilder = HttpRequest.newBuilder()
                     .uri(URI.create(aiEngineUrl + "/api/v1/proxy/health"))
-                    .header("X-Internal-Key", internalApiKey)
                     .timeout(Duration.ofSeconds(3))
-                    .GET().build();
+                    .GET();
+                addSpiffeAuth(healthBuilder, "ai-engine");
+                HttpRequest request = healthBuilder.build();
                 HttpResponse<String> resp = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
                 aiEngineAvailable = resp.statusCode() == 200;
                 if (aiEngineAvailable) {

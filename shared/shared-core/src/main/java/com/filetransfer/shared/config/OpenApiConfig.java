@@ -39,17 +39,11 @@ public class OpenApiConfig {
                                 .name("Business Source License 1.1")
                                 .url("https://github.com/rdship/tranzfer-mft/blob/main/LICENSE")))
                 .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))
-                .addSecurityItem(new SecurityRequirement().addList("internalKey"))
                 .components(new Components()
                         .addSecuritySchemes("bearerAuth", new SecurityScheme()
                                 .type(SecurityScheme.Type.HTTP)
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
-                                .description("JWT token from /api/auth/login"))
-                        .addSecuritySchemes("internalKey", new SecurityScheme()
-                                .type(SecurityScheme.Type.APIKEY)
-                                .in(SecurityScheme.In.HEADER)
-                                .name("X-Internal-Key")
-                                .description("Internal service-to-service API key")));
+                                .description("Platform JWT (from /api/auth/login) or SPIFFE JWT-SVID (service-to-service)")));
     }
 }

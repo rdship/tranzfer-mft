@@ -33,9 +33,9 @@ class ContentScreeningBridgeTest {
     @BeforeEach
     void setUp() {
         bridge = new ContentScreeningBridge(
-            "http://localhost:8092", "test-api-key", ENABLED_CONFIG);
+            "http://localhost:8092", null, ENABLED_CONFIG);
         disabledBridge = new ContentScreeningBridge(
-            "http://localhost:8092", "test-api-key", DISABLED_CONFIG);
+            "http://localhost:8092", null, DISABLED_CONFIG);
     }
 
     @AfterEach
@@ -87,7 +87,7 @@ class ContentScreeningBridgeTest {
                 List.of("FTP", "SFTP", "HTTP")
             );
         ContentScreeningBridge smallBridge = new ContentScreeningBridge(
-            "http://localhost:8092", "test-api-key", smallConfig);
+            "http://localhost:8092", null, smallConfig);
 
         try {
             // Feed 200 bytes in two chunks of 100+ bytes

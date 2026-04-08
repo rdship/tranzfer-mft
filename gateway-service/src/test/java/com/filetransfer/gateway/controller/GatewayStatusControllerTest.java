@@ -12,11 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -26,8 +23,8 @@ import static org.mockito.Mockito.*;
 
 /**
  * Unit tests for GatewayStatusController.
- * Validates API-key authentication (constant-time), status, and route endpoints.
- * No Spring context required.
+ * Auth is now delegated to Spring Security (@PreAuthorize("hasRole('INTERNAL')"))
+ * and is not exercised at this unit-test level.
  */
 @ExtendWith(MockitoExtension.class)
 class GatewayStatusControllerTest {
@@ -40,12 +37,9 @@ class GatewayStatusControllerTest {
 
     private GatewayStatusController controller;
 
-    private static final String VALID_KEY = "test_secret_key_12345";
-
     @BeforeEach
     void setUp() throws Exception {
         controller = new GatewayStatusController(sftpGatewayServer, legacyRepo, serverInstanceRepo, accountRepo);
-        setField("controlApiKey", VALID_KEY);
         setField("sftpPort", 2220);
         setField("ftpPort", 2121);
         setField("internalSftpHost", "sftp-service");
@@ -62,84 +56,11 @@ class GatewayStatusControllerTest {
         f.set(controller, value);
     }
 
-    // ── Authentication tests ────────────────────────────────────────────
-
-    @Test
-    void authenticate_validKey_noException() {
-        // A valid key should not throw; we exercise it via the status endpoint
-        // Real SshServer (not started) — isStarted() returns false
-        assertDoesNotThrow(() -> controller.status(VALID_KEY));
-    }
-
-    @Test
-    void authenticate_invalidKey_throwsUnauthorized() {
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> controller.status("wrong_key"));
-        assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatusCode());
-    }
-
-    @Test
-    void authenticate_nullKey_throwsUnauthorized() {
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> controller.status(null));
-        assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatusCode());
-    }
-
-    @Test
-    void authenticate_emptyKey_throwsUnauthorized() {
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> controller.status(""));
-        assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatusCode());
-    }
-
-    /**
-     * Constant-time comparison: verify that MessageDigest.isEqual is used in the source code
-     * by confirming both wrong-key-same-length and wrong-key-different-length produce the
-     * same result type (UNAUTHORIZED). A naive equals() would short-circuit on length mismatch,
-     * but MessageDigest.isEqual always compares full byte arrays.
-     */
-    @Test
-    void authenticate_constantTime_sameAndDifferentLengthKeysRejected() {
-        // Same length as VALID_KEY but different content
-        String sameLengthWrongKey = "x".repeat(VALID_KEY.length());
-        // Different length
-        String differentLengthWrongKey = "short";
-
-        ResponseStatusException ex1 = assertThrows(ResponseStatusException.class,
-                () -> controller.status(sameLengthWrongKey));
-        ResponseStatusException ex2 = assertThrows(ResponseStatusException.class,
-                () -> controller.status(differentLengthWrongKey));
-
-        assertEquals(HttpStatus.UNAUTHORIZED, ex1.getStatusCode());
-        assertEquals(HttpStatus.UNAUTHORIZED, ex2.getStatusCode());
-    }
-
-    @Test
-    void authenticate_usesMessageDigestIsEqual() throws Exception {
-        // Verify the authenticate method source uses MessageDigest.isEqual
-        // by confirming the method exists and is private with expected behavior
-        Method authMethod = GatewayStatusController.class.getDeclaredMethod("authenticate", String.class);
-        authMethod.setAccessible(true);
-
-        // Valid key should succeed (no exception from private method)
-        assertDoesNotThrow(() -> authMethod.invoke(controller, VALID_KEY));
-
-        // Invalid key should throw
-        try {
-            authMethod.invoke(controller, "invalid");
-            fail("Expected InvocationTargetException wrapping ResponseStatusException");
-        } catch (java.lang.reflect.InvocationTargetException e) {
-            assertInstanceOf(ResponseStatusException.class, e.getCause());
-        }
-    }
-
     // ── Status endpoint tests ───────────────────────────────────────────
 
     @Test
     void status_returnsExpectedFields_whenGatewayRunning() {
-        // Real SshServer (not started) — isStarted() returns false
-
-        Map<String, Object> result = controller.status(VALID_KEY);
+        Map<String, Object> result = controller.status();
 
         assertEquals(2220, result.get("sftpGatewayPort"));
         assertEquals(2121, result.get("ftpGatewayPort"));
@@ -148,9 +69,7 @@ class GatewayStatusControllerTest {
 
     @Test
     void status_returnsExpectedFields_whenGatewayStopped() {
-        // Real SshServer (not started) — isStarted() returns false
-
-        Map<String, Object> result = controller.status(VALID_KEY);
+        Map<String, Object> result = controller.status();
 
         assertEquals(false, result.get("sftpGatewayRunning"));
         assertEquals(2220, result.get("sftpGatewayPort"));
@@ -164,14 +83,13 @@ class GatewayStatusControllerTest {
         when(serverInstanceRepo.findByActiveTrue()).thenReturn(Collections.emptyList());
         when(legacyRepo.findAll()).thenReturn(Collections.emptyList());
 
-        Map<String, Object> result = controller.routes(VALID_KEY);
+        Map<String, Object> result = controller.routes();
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> defaultRoutes = (List<Map<String, Object>>) result.get("defaultRoutes");
         assertNotNull(defaultRoutes);
         assertEquals(3, defaultRoutes.size());
 
-        // Verify the three default routes exist with correct protocols
         assertEquals("SFTP Default", defaultRoutes.get(0).get("name"));
         assertEquals("sftp-service", defaultRoutes.get(0).get("targetHost"));
         assertEquals(2222, defaultRoutes.get(0).get("targetPort"));
@@ -203,7 +121,7 @@ class GatewayStatusControllerTest {
         when(serverInstanceRepo.findByActiveTrue()).thenReturn(List.of(si));
         when(legacyRepo.findAll()).thenReturn(Collections.emptyList());
 
-        Map<String, Object> result = controller.routes(VALID_KEY);
+        Map<String, Object> result = controller.routes();
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> instanceRoutes = (List<Map<String, Object>>) result.get("instanceRoutes");
@@ -228,7 +146,7 @@ class GatewayStatusControllerTest {
         when(serverInstanceRepo.findByActiveTrue()).thenReturn(Collections.emptyList());
         when(legacyRepo.findAll()).thenReturn(List.of(legacy));
 
-        Map<String, Object> result = controller.routes(VALID_KEY);
+        Map<String, Object> result = controller.routes();
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> legacyRoutes = (List<Map<String, Object>>) result.get("legacyRoutes");
@@ -250,7 +168,7 @@ class GatewayStatusControllerTest {
         when(serverInstanceRepo.findByActiveTrue()).thenReturn(List.of(si));
         when(legacyRepo.findAll()).thenReturn(List.of(ls));
 
-        Map<String, Object> result = controller.routes(VALID_KEY);
+        Map<String, Object> result = controller.routes();
 
         // 3 default + 1 instance + 1 legacy = 5
         assertEquals(5, result.get("totalRoutes"));
@@ -260,8 +178,6 @@ class GatewayStatusControllerTest {
 
     @Test
     void stats_returnsCorrectCounts() {
-        // Real SshServer (not started) — isStarted() returns false
-
         ServerInstance si1 = ServerInstance.builder()
                 .name("SI-1").instanceId("si-1").protocol(Protocol.SFTP)
                 .internalHost("h1").internalPort(22).active(true).build();
@@ -279,7 +195,7 @@ class GatewayStatusControllerTest {
 
         when(accountRepo.count()).thenReturn(42L);
 
-        Map<String, Object> result = controller.stats(VALID_KEY);
+        Map<String, Object> result = controller.stats();
 
         assertEquals(2220, result.get("sftpGatewayPort"));
         assertEquals(2121, result.get("ftpGatewayPort"));
@@ -302,7 +218,7 @@ class GatewayStatusControllerTest {
                 .name("L1").protocol(Protocol.FTP).host("h").port(21).active(true).build();
         when(legacyRepo.findAll()).thenReturn(List.of(ls));
 
-        List<LegacyServerConfig> result = controller.legacyServers(VALID_KEY, null);
+        List<LegacyServerConfig> result = controller.legacyServers(null);
 
         assertEquals(1, result.size());
         verify(legacyRepo).findAll();
@@ -313,7 +229,7 @@ class GatewayStatusControllerTest {
     void legacyServers_withProtocolFilter_delegatesToFilteredQuery() {
         when(legacyRepo.findByProtocolAndActiveTrue(Protocol.SFTP)).thenReturn(Collections.emptyList());
 
-        List<LegacyServerConfig> result = controller.legacyServers(VALID_KEY, Protocol.SFTP);
+        List<LegacyServerConfig> result = controller.legacyServers(Protocol.SFTP);
 
         assertEquals(0, result.size());
         verify(legacyRepo).findByProtocolAndActiveTrue(Protocol.SFTP);

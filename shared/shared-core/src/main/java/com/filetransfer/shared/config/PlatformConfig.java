@@ -56,7 +56,6 @@ public class PlatformConfig {
     public static class SecurityConfig {
         private String jwtSecret = "change_me_in_production_256bit_secret_key!!";
         private long jwtExpirationMs = 900000;
-        private String controlApiKey = "internal_control_secret";
         /** Set to false in services that provide their own SecurityFilterChain (e.g. onboarding-api) */
         private boolean sharedConfig = true;
     }

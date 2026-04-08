@@ -4,13 +4,14 @@ import com.filetransfer.shared.config.PlatformConfig;
 import com.filetransfer.shared.repository.RolePermissionRepository;
 import com.filetransfer.shared.repository.UserPermissionRepository;
 import com.filetransfer.shared.repository.UserRepository;
+import com.filetransfer.shared.spiffe.SpiffeWorkloadClient;
 import com.filetransfer.shared.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.lang.Nullable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -23,27 +24,47 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Combined authentication filter that supports both:
- *   1. JWT Bearer token — for admin UI / partner portal / CLI access
- *   2. X-Internal-Key header — for inter-service communication
+ * Combined authentication filter supporting two identity paths:
  *
- * If neither is present, the filter chain continues unauthenticated
- * and Spring Security will reject with 401.
+ * <ol>
+ *   <li><b>SPIFFE JWT-SVID</b> — Bearer token whose {@code sub} claim starts with
+ *       {@code spiffe://}. Validated via the SPIRE Workload API trust bundle.
+ *       Grants {@code ROLE_INTERNAL}. Used for zero-trust service-to-service auth.
+ *   <li><b>Platform JWT</b> — Bearer token issued by the platform's auth service.
+ *       Grants {@code ROLE_<role>} + fine-grained {@code PERM_*} authorities.
+ *       Used by admin UI, partner portal, and CLI.
+ * </ol>
  *
- * When a PermissionService is available, the filter also loads fine-grained
- * permissions as Spring Security authorities (prefixed with "PERM_").
+ * <p>If none match, the filter chain continues unauthenticated and Spring
+ * Security enforces 401.
  */
 @Slf4j
-@RequiredArgsConstructor
 public class PlatformJwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final PlatformConfig platformConfig;
-    private final PermissionService permissionService;
+    @Nullable private final PermissionService permissionService;
+    @Nullable private final SpiffeWorkloadClient spiffeWorkloadClient;
+
+    /** Full constructor — SPIFFE + RBAC enabled. */
+    public PlatformJwtAuthFilter(JwtUtil jwtUtil, PlatformConfig platformConfig,
+                                  @Nullable PermissionService permissionService,
+                                  @Nullable SpiffeWorkloadClient spiffeWorkloadClient) {
+        this.jwtUtil = jwtUtil;
+        this.platformConfig = platformConfig;
+        this.permissionService = permissionService;
+        this.spiffeWorkloadClient = spiffeWorkloadClient;
+    }
 
     /** Backwards-compatible constructor for services without RBAC */
     public PlatformJwtAuthFilter(JwtUtil jwtUtil, PlatformConfig platformConfig) {
-        this(jwtUtil, platformConfig, null);
+        this(jwtUtil, platformConfig, null, null);
+    }
+
+    /** Constructor for services with RBAC but without SPIFFE (legacy). */
+    public PlatformJwtAuthFilter(JwtUtil jwtUtil, PlatformConfig platformConfig,
+                                  @Nullable PermissionService permissionService) {
+        this(jwtUtil, platformConfig, permissionService, null);
     }
 
     @Override
@@ -51,16 +72,37 @@ public class PlatformJwtAuthFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
-        // 1. Try JWT Bearer token
-        String token = extractBearerToken(request);
-        if (token != null && jwtUtil.isValid(token)) {
-            String email = jwtUtil.getSubject(token);
-            String role = jwtUtil.getRole(token);
+        String bearerToken = extractBearerToken(request);
+
+        // ── Path 1: SPIFFE JWT-SVID ──────────────────────────────────────────
+        // Bearer token whose sub claim is a spiffe:// URI — issued by SPIRE agent,
+        // short-lived (1h), automatically rotated. Zero static secrets.
+        if (bearerToken != null && bearerToken.startsWith("eyJ") && isSpiffeToken(bearerToken)) {
+            if (spiffeWorkloadClient != null && spiffeWorkloadClient.isAvailable()) {
+                String selfId = spiffeWorkloadClient.getSelfSpiffeId();
+                if (StringUtils.hasText(selfId) && spiffeWorkloadClient.validate(bearerToken, selfId)) {
+                    String callerId = spiffeWorkloadClient.getCallerId(bearerToken);
+                    SecurityContextHolder.getContext().setAuthentication(
+                            new UsernamePasswordAuthenticationToken(
+                                    callerId != null ? callerId : "spiffe-service", null,
+                                    List.of(new SimpleGrantedAuthority("ROLE_INTERNAL"))));
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+            }
+            // SPIFFE validation failed — do not fall through to platform JWT
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        // ── Path 2: Platform JWT (user / CLI / partner) ──────────────────────
+        if (bearerToken != null && jwtUtil.isValid(bearerToken)) {
+            String email = jwtUtil.getSubject(bearerToken);
+            String role = jwtUtil.getRole(bearerToken);
 
             List<SimpleGrantedAuthority> authorities = new ArrayList<>();
             authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
 
-            // Load fine-grained permissions if PermissionService is available
             if (permissionService != null) {
                 try {
                     Set<String> perms = permissionService.getEffectivePermissions(email);
@@ -76,20 +118,25 @@ public class PlatformJwtAuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        // 2. Try X-Internal-Key (inter-service)
-        String apiKey = request.getHeader("X-Internal-Key");
-        if (StringUtils.hasText(apiKey)
-                && apiKey.equals(platformConfig.getSecurity().getControlApiKey())) {
-            SecurityContextHolder.getContext().setAuthentication(
-                    new UsernamePasswordAuthenticationToken(
-                            "internal-service", null,
-                            List.of(new SimpleGrantedAuthority("ROLE_INTERNAL"))));
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        // Neither — continue unauthenticated (Spring Security will handle 401)
+        // None matched — continue unauthenticated; Spring Security enforces 401
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * A quick pre-check: does the JWT payload's sub claim look like a SPIFFE ID?
+     * Avoids calling JwtUtil.isValid() on SPIFFE tokens (wrong key / wrong claims).
+     * We decode the payload without verification — validation happens in SpiffeWorkloadClient.
+     */
+    private boolean isSpiffeToken(String token) {
+        try {
+            String[] parts = token.split("\\.");
+            if (parts.length < 2) return false;
+            String payload = new String(java.util.Base64.getUrlDecoder().decode(
+                    parts[1].length() % 4 == 0 ? parts[1] : parts[1] + "==".substring(parts[1].length() % 4)));
+            return payload.contains("\"spiffe://");
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private String extractBearerToken(HttpServletRequest request) {

@@ -1,10 +1,12 @@
 package com.filetransfer.dmz.tunnel;
 
 import com.filetransfer.dmz.inspection.ContentScreeningBridge;
+import com.filetransfer.dmz.security.SpiffeProxyAuth;
 import com.filetransfer.tunnel.control.ControlMessage;
 import lombok.extern.slf4j.Slf4j;
 
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -25,21 +27,21 @@ import java.util.concurrent.TimeUnit;
 public class TunnelContentScreeningBridge extends ContentScreeningBridge {
 
     private final TunnelAcceptor tunnelAcceptor;
-    private final String internalApiKey;
+    private final SpiffeProxyAuth spiffeAuth;
     private final int screeningTimeoutSeconds;
 
     /**
      * @param screeningServiceUrl base URL (used by parent for non-tunnel fallback paths)
-     * @param internalApiKey      API key for X-Internal-Key header
+     * @param spiffeAuth          SPIFFE auth helper for outbound JWT-SVID headers
      * @param config              screening configuration
      * @param tunnelAcceptor      the tunnel acceptor (handler resolved lazily)
      */
-    public TunnelContentScreeningBridge(String screeningServiceUrl, String internalApiKey,
+    public TunnelContentScreeningBridge(String screeningServiceUrl, SpiffeProxyAuth spiffeAuth,
                                          ContentScreeningConfig config,
                                          TunnelAcceptor tunnelAcceptor) {
-        super(screeningServiceUrl, internalApiKey, config);
+        super(screeningServiceUrl, spiffeAuth, config);
         this.tunnelAcceptor = tunnelAcceptor;
-        this.internalApiKey = internalApiKey;
+        this.spiffeAuth = spiffeAuth;
         this.screeningTimeoutSeconds = config.screeningTimeoutSeconds();
     }
 
@@ -73,14 +75,7 @@ public class TunnelContentScreeningBridge extends ContentScreeningBridge {
                 UUID.randomUUID().toString(),
                 "POST",
                 "/api/v1/screening/scan/text",
-                Map.of(
-                        "Content-Type", "text/plain",
-                        "X-Internal-Key", internalApiKey,
-                        "X-Source-Ip", sourceIp != null ? sourceIp : "unknown",
-                        "X-Source-Port", String.valueOf(port),
-                        "X-Protocol", protocol != null ? protocol : "UNKNOWN",
-                        "X-Filename", filename != null ? filename : "unknown"
-                ),
+                buildScreeningHeaders(sourceIp, port, protocol, filename),
                 content
         );
 
@@ -114,6 +109,21 @@ public class TunnelContentScreeningBridge extends ContentScreeningBridge {
     }
 
     // ── Private helpers ──────────────────────────────────────────────────
+
+    private Map<String, String> buildScreeningHeaders(String sourceIp, int port,
+                                                       String protocol, String filename) {
+        LinkedHashMap<String, String> h = new LinkedHashMap<>();
+        h.put("Content-Type", "text/plain");
+        if (spiffeAuth != null && spiffeAuth.isAvailable()) {
+            String token = spiffeAuth.getJwtSvidFor("screening-service");
+            if (token != null) h.put("Authorization", "Bearer " + token);
+        }
+        h.put("X-Source-Ip", sourceIp != null ? sourceIp : "unknown");
+        h.put("X-Source-Port", String.valueOf(port));
+        h.put("X-Protocol", protocol != null ? protocol : "UNKNOWN");
+        h.put("X-Filename", filename != null ? filename : "unknown");
+        return h;
+    }
 
     /**
      * Parses the screening-service JSON response.

@@ -6,6 +6,11 @@ import com.filetransfer.dmz.proxy.PortMapping;
 import com.filetransfer.dmz.proxy.ProxyManager;
 import com.filetransfer.dmz.qos.BandwidthQoS;
 import com.filetransfer.dmz.security.*;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.Nullable;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import io.micrometer.prometheus.PrometheusMeterRegistry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -53,22 +58,26 @@ public class ProxyManagementController {
 
     private final ProxyManager proxyManager;
 
-    @Value("${control-api.key}")
-    private String controlApiKey;
+    @Value("${platform.security.jwt-secret:changeme_32char_secret_here_!!!!}")
+    private String platformJwtSecret;
+
+    /** Optional SPIFFE validator — present when {@code spiffe.enabled=true}. */
+    @Autowired(required = false)
+    @Nullable
+    private SpiffeProxyAuth spiffeProxyAuth;
 
     // ── Port Mapping Management ────────────────────────────────────────
 
     @GetMapping("/mappings")
-    public List<Map<String, Object>> list(@RequestHeader("X-Internal-Key") String key) {
-        validateKey(key);
+    public List<Map<String, Object>> list() {
+        validateAccess();
         return proxyManager.status();
     }
 
     @PostMapping("/mappings")
     @ResponseStatus(HttpStatus.CREATED)
-    public PortMapping add(@RequestHeader("X-Internal-Key") String key,
-                            @RequestBody PortMapping mapping) {
-        validateKey(key);
+    public PortMapping add(@RequestBody PortMapping mapping) {
+        validateAccess();
         validateMapping(mapping);
         mapping.setActive(true);
         proxyManager.add(mapping);
@@ -77,18 +86,15 @@ public class ProxyManagementController {
 
     @DeleteMapping("/mappings/{name}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void remove(@RequestHeader("X-Internal-Key") String key,
-                       @PathVariable String name) {
-        validateKey(key);
+    public void remove(@PathVariable String name) {
+        validateAccess();
         proxyManager.remove(name);
     }
 
     @PutMapping("/mappings/{name}/security-policy")
-    public ResponseEntity<?> updateSecurityPolicy(
-            @RequestHeader("X-Internal-Key") String key,
-            @PathVariable String name,
+    public ResponseEntity<?> updateSecurityPolicy(            @PathVariable String name,
             @RequestBody PortMapping.SecurityPolicy policy) {
-        validateKey(key);
+        validateAccess();
         proxyManager.updateSecurityPolicy(name, policy);
         return ResponseEntity.ok(Map.of(
             "mapping", name,
@@ -99,9 +105,8 @@ public class ProxyManagementController {
     // ── Security Intelligence ──────────────────────────────────────────
 
     @GetMapping("/security/stats")
-    public ResponseEntity<Map<String, Object>> securityStats(
-            @RequestHeader("X-Internal-Key") String key) {
-        validateKey(key);
+    public ResponseEntity<Map<String, Object>> securityStats() {
+        validateAccess();
         if (!proxyManager.isSecurityEnabled()) {
             return ResponseEntity.ok(Map.of("securityEnabled", false));
         }
@@ -132,9 +137,8 @@ public class ProxyManagementController {
     }
 
     @GetMapping("/security/connections")
-    public ResponseEntity<Map<String, Object>> connectionStats(
-            @RequestHeader("X-Internal-Key") String key) {
-        validateKey(key);
+    public ResponseEntity<Map<String, Object>> connectionStats() {
+        validateAccess();
         if (!proxyManager.isSecurityEnabled()) {
             return ResponseEntity.ok(Map.of("securityEnabled", false));
         }
@@ -142,10 +146,8 @@ public class ProxyManagementController {
     }
 
     @GetMapping("/security/ip/{ip}")
-    public ResponseEntity<Map<String, Object>> ipDetails(
-            @RequestHeader("X-Internal-Key") String key,
-            @PathVariable String ip) {
-        validateKey(key);
+    public ResponseEntity<Map<String, Object>> ipDetails(            @PathVariable String ip) {
+        validateAccess();
         if (!proxyManager.isSecurityEnabled()) {
             return ResponseEntity.ok(Map.of("securityEnabled", false));
         }
@@ -164,9 +166,8 @@ public class ProxyManagementController {
     }
 
     @GetMapping("/security/rate-limits")
-    public ResponseEntity<Map<String, Object>> rateLimitStats(
-            @RequestHeader("X-Internal-Key") String key) {
-        validateKey(key);
+    public ResponseEntity<Map<String, Object>> rateLimitStats() {
+        validateAccess();
         if (!proxyManager.isSecurityEnabled()) {
             return ResponseEntity.ok(Map.of("securityEnabled", false));
         }
@@ -174,9 +175,8 @@ public class ProxyManagementController {
     }
 
     @GetMapping("/security/summary")
-    public ResponseEntity<Map<String, Object>> securitySummary(
-            @RequestHeader("X-Internal-Key") String key) {
-        validateKey(key);
+    public ResponseEntity<Map<String, Object>> securitySummary() {
+        validateAccess();
         if (!proxyManager.isSecurityEnabled()) {
             return ResponseEntity.ok(Map.of("securityEnabled", false));
         }
@@ -194,8 +194,8 @@ public class ProxyManagementController {
     // ── Backend Health ─────────────────────────────────────────────────
 
     @GetMapping("/backends/health")
-    public ResponseEntity<?> backendHealth(@RequestHeader("X-Internal-Key") String key) {
-        validateKey(key);
+    public ResponseEntity<?> backendHealth() {
+        validateAccess();
         BackendHealthChecker hc = proxyManager.getHealthChecker();
         if (hc == null) {
             return ResponseEntity.ok(Map.of("healthCheckEnabled", false));
@@ -211,8 +211,8 @@ public class ProxyManagementController {
     // ── Audit ──────────────────────────────────────────────────────────
 
     @GetMapping("/audit/stats")
-    public ResponseEntity<?> auditStats(@RequestHeader("X-Internal-Key") String key) {
-        validateKey(key);
+    public ResponseEntity<?> auditStats() {
+        validateAccess();
         AuditLogger audit = proxyManager.getAuditLogger();
         if (audit == null) {
             return ResponseEntity.ok(Map.of("auditEnabled", false));
@@ -221,8 +221,8 @@ public class ProxyManagementController {
     }
 
     @PostMapping("/audit/flush")
-    public ResponseEntity<?> auditFlush(@RequestHeader("X-Internal-Key") String key) {
-        validateKey(key);
+    public ResponseEntity<?> auditFlush() {
+        validateAccess();
         AuditLogger audit = proxyManager.getAuditLogger();
         if (audit == null) {
             return ResponseEntity.ok(Map.of("auditEnabled", false));
@@ -234,8 +234,8 @@ public class ProxyManagementController {
     // ── Zone Enforcement ───────────────────────────────────────────────
 
     @GetMapping("/zones/rules")
-    public ResponseEntity<?> zoneRules(@RequestHeader("X-Internal-Key") String key) {
-        validateKey(key);
+    public ResponseEntity<?> zoneRules() {
+        validateAccess();
         ZoneEnforcer ze = proxyManager.getZoneEnforcer();
         if (ze == null) {
             return ResponseEntity.ok(Map.of("zoneEnforcementEnabled", false));
@@ -248,12 +248,10 @@ public class ProxyManagementController {
     }
 
     @GetMapping("/zones/check")
-    public ResponseEntity<?> zoneCheck(
-            @RequestHeader("X-Internal-Key") String key,
-            @RequestParam String sourceIp,
+    public ResponseEntity<?> zoneCheck(            @RequestParam String sourceIp,
             @RequestParam String targetHost,
             @RequestParam int targetPort) {
-        validateKey(key);
+        validateAccess();
         ZoneEnforcer ze = proxyManager.getZoneEnforcer();
         if (ze == null) {
             return ResponseEntity.ok(Map.of("zoneEnforcementEnabled", false));
@@ -272,8 +270,8 @@ public class ProxyManagementController {
     // ── Egress Filter ──────────────────────────────────────────────────
 
     @GetMapping("/egress/stats")
-    public ResponseEntity<?> egressStats(@RequestHeader("X-Internal-Key") String key) {
-        validateKey(key);
+    public ResponseEntity<?> egressStats() {
+        validateAccess();
         EgressFilter ef = proxyManager.getEgressFilter();
         if (ef == null) {
             return ResponseEntity.ok(Map.of("egressFilterEnabled", false));
@@ -282,11 +280,9 @@ public class ProxyManagementController {
     }
 
     @GetMapping("/egress/check")
-    public ResponseEntity<?> egressCheck(
-            @RequestHeader("X-Internal-Key") String key,
-            @RequestParam String host,
+    public ResponseEntity<?> egressCheck(            @RequestParam String host,
             @RequestParam int port) {
-        validateKey(key);
+        validateAccess();
         EgressFilter ef = proxyManager.getEgressFilter();
         if (ef == null) {
             return ResponseEntity.ok(Map.of("egressFilterEnabled", false));
@@ -303,19 +299,17 @@ public class ProxyManagementController {
     // ── Listener Status ──────────────────────────────────────────────────
 
     @GetMapping("/listeners")
-    public ResponseEntity<?> listeners(@RequestHeader("X-Internal-Key") String key) {
-        validateKey(key);
+    public ResponseEntity<?> listeners() {
+        validateAccess();
         return ResponseEntity.ok(proxyManager.getListenerStatus());
     }
 
     // ── IP Blacklist/Whitelist Management ──────────────────────────────
 
     @PutMapping("/mappings/{name}/security/blacklist")
-    public ResponseEntity<?> addBlacklistIp(
-            @RequestHeader("X-Internal-Key") String key,
-            @PathVariable String name,
+    public ResponseEntity<?> addBlacklistIp(            @PathVariable String name,
             @RequestBody Map<String, String> body) {
-        validateKey(key);
+        validateAccess();
         String ip = body.get("ip");
         if (ip == null || ip.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ip is required");
@@ -325,21 +319,17 @@ public class ProxyManagementController {
     }
 
     @DeleteMapping("/mappings/{name}/security/blacklist/{ip}")
-    public ResponseEntity<?> removeBlacklistIp(
-            @RequestHeader("X-Internal-Key") String key,
-            @PathVariable String name,
+    public ResponseEntity<?> removeBlacklistIp(            @PathVariable String name,
             @PathVariable String ip) {
-        validateKey(key);
+        validateAccess();
         proxyManager.removeBlacklistIp(name, ip.trim());
         return ResponseEntity.ok(Map.of("mapping", name, "action", "blacklist_remove", "ip", ip.trim()));
     }
 
     @PutMapping("/mappings/{name}/security/whitelist")
-    public ResponseEntity<?> addWhitelistIp(
-            @RequestHeader("X-Internal-Key") String key,
-            @PathVariable String name,
+    public ResponseEntity<?> addWhitelistIp(            @PathVariable String name,
             @RequestBody Map<String, String> body) {
-        validateKey(key);
+        validateAccess();
         String ip = body.get("ip");
         if (ip == null || ip.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ip is required");
@@ -349,11 +339,9 @@ public class ProxyManagementController {
     }
 
     @DeleteMapping("/mappings/{name}/security/whitelist/{ip}")
-    public ResponseEntity<?> removeWhitelistIp(
-            @RequestHeader("X-Internal-Key") String key,
-            @PathVariable String name,
+    public ResponseEntity<?> removeWhitelistIp(            @PathVariable String name,
             @PathVariable String ip) {
-        validateKey(key);
+        validateAccess();
         proxyManager.removeWhitelistIp(name, ip.trim());
         return ResponseEntity.ok(Map.of("mapping", name, "action", "whitelist_remove", "ip", ip.trim()));
     }
@@ -361,10 +349,8 @@ public class ProxyManagementController {
     // ── Reachability Test ─────────────────────────────────────────────
 
     @PostMapping("/reachability")
-    public ResponseEntity<?> testReachability(
-            @RequestHeader("X-Internal-Key") String key,
-            @RequestBody Map<String, Object> body) {
-        validateKey(key);
+    public ResponseEntity<?> testReachability(            @RequestBody Map<String, Object> body) {
+        validateAccess();
         String host = (String) body.get("host");
         Integer port = body.get("port") instanceof Number n ? n.intValue() : null;
         if (host == null || host.isBlank() || port == null || port < 1 || port > 65535) {
@@ -403,8 +389,8 @@ public class ProxyManagementController {
     // ── QoS Bandwidth ──────────────────────────────────────────────────
 
     @GetMapping("/qos/stats")
-    public ResponseEntity<?> qosStats(@RequestHeader("X-Internal-Key") String key) {
-        validateKey(key);
+    public ResponseEntity<?> qosStats() {
+        validateAccess();
         var qos = proxyManager.getBandwidthQoS();
         if (qos == null) {
             return ResponseEntity.ok(Map.of("qosEnabled", false));
@@ -413,10 +399,8 @@ public class ProxyManagementController {
     }
 
     @GetMapping("/qos/stats/{mappingName}")
-    public ResponseEntity<?> qosMappingStats(
-            @RequestHeader("X-Internal-Key") String key,
-            @PathVariable String mappingName) {
-        validateKey(key);
+    public ResponseEntity<?> qosMappingStats(            @PathVariable String mappingName) {
+        validateAccess();
         var qos = proxyManager.getBandwidthQoS();
         if (qos == null) {
             return ResponseEntity.ok(Map.of("qosEnabled", false));
@@ -497,11 +481,82 @@ public class ProxyManagementController {
 
     // ── Internal ───────────────────────────────────────────────────────
 
-    private void validateKey(String key) {
-        if (key == null || !java.security.MessageDigest.isEqual(
-                controlApiKey.getBytes(java.nio.charset.StandardCharsets.UTF_8),
-                key.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid internal API key");
+    /**
+     * Validates management API access. Accepts two credential types:
+     *
+     * <ol>
+     *   <li><b>SPIFFE JWT-SVID</b> (preferred) — {@code Authorization: Bearer <jwt>} header.
+     *       Validated via SPIRE trust bundle. Zero static secrets. Short-lived (1h).
+     *   <li><b>Platform JWT</b> — standard HS256 JWT issued by the auth service.
+     *       Used by CLI operators and management tools that authenticate via platform login.
+     * </ol>
+     *
+     * @throws ResponseStatusException 401 if neither credential is valid
+     */
+    private void validateAccess() {
+        ServletRequestAttributes attrs =
+                (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attrs == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No request context");
+        }
+        HttpServletRequest request = attrs.getRequest();
+        String auth = request.getHeader("Authorization");
+        if (auth == null || !auth.startsWith("Bearer ")) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                    "Unauthorized: Bearer token required (SPIFFE JWT-SVID or Platform JWT)");
+        }
+        String token = auth.substring(7);
+
+        // ── Path 1: SPIFFE JWT-SVID (preferred) ────────────────────────────
+        if (spiffeProxyAuth != null && spiffeProxyAuth.isAvailable()) {
+            if (spiffeProxyAuth.validate(token)) return;
+        }
+
+        // ── Path 2: Platform JWT (HS256 — for CLI operators) ───────────────
+        if (isValidPlatformJwt(token)) return;
+
+        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                "Unauthorized: invalid SPIFFE JWT-SVID or Platform JWT");
+    }
+
+    /**
+     * Validates a Platform JWT (HS256) issued by the platform auth service.
+     * Checks signature and expiry only — role/scope checks are left to the caller's context.
+     */
+    private boolean isValidPlatformJwt(String token) {
+        try {
+            String[] parts = token.split("\\.");
+            if (parts.length != 3) return false;
+
+            // Verify HMAC-SHA256 signature
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            mac.init(new javax.crypto.spec.SecretKeySpec(
+                    platformJwtSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] expectedSig = mac.doFinal((parts[0] + "." + parts[1])
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            byte[] actualSig = java.util.Base64.getUrlDecoder().decode(
+                    parts[2].replace("=", "").replace("-", "+").replace("_", "/")
+                            .concat(switch (parts[2].length() % 4) {
+                                case 2 -> "=="; case 3 -> "="; default -> "";
+                            }));
+            if (!java.security.MessageDigest.isEqual(expectedSig, actualSig)) return false;
+
+            // Verify expiry
+            String payloadJson = new String(java.util.Base64.getUrlDecoder().decode(
+                    parts[1].concat(switch (parts[1].length() % 4) {
+                        case 2 -> "=="; case 3 -> "="; default -> "";
+                    })), java.nio.charset.StandardCharsets.UTF_8);
+            int expIdx = payloadJson.indexOf("\"exp\":");
+            if (expIdx >= 0) {
+                int colon = payloadJson.indexOf(':', expIdx);
+                int end = payloadJson.indexOf(',', colon);
+                if (end < 0) end = payloadJson.indexOf('}', colon);
+                long exp = Long.parseLong(payloadJson.substring(colon + 1, end).trim());
+                if (java.time.Instant.now().getEpochSecond() > exp) return false;
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
         }
     }
 

@@ -11,15 +11,18 @@ import com.filetransfer.shared.enums.ExternalDestinationType;
 import com.filetransfer.shared.repository.As2PartnershipRepository;
 import com.filetransfer.shared.repository.DeliveryEndpointRepository;
 import com.filetransfer.shared.repository.ExternalDestinationRepository;
+import com.filetransfer.shared.spiffe.SpiffeWorkloadClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.lang.Nullable;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.web.client.RestTemplate;
 
@@ -69,8 +72,9 @@ public class ForwarderController {
     private final As4ForwarderService as4Forwarder;
     private final TransferWatchdog transferWatchdog;
 
-    @Value("${control-api.key:internal_control_secret}")
-    private String controlApiKey;
+    @Autowired(required = false)
+    @Nullable
+    private SpiffeWorkloadClient spiffeWorkloadClient;
 
     /** Extra retry attempts granted when a transfer stalls (on top of the configured max). */
     @Value("${forwarder.transfer.stall-extra-retries:2}")
@@ -218,7 +222,7 @@ public class ForwarderController {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("X-Internal-Key", controlApiKey);
+        addDmzAuth(headers);
 
         RestTemplate rest = new RestTemplate();
         var factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
@@ -237,7 +241,7 @@ public class ForwarderController {
         try {
             String dmzApiUrl = "http://" + proxyHost + ":" + proxyPort;
             HttpHeaders headers = new HttpHeaders();
-            headers.set("X-Internal-Key", controlApiKey);
+            addDmzAuth(headers);
 
             RestTemplate rest = new RestTemplate();
             var cleanupFactory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
@@ -438,6 +442,13 @@ public class ForwarderController {
 
     // --- DMZ Proxy integration ---
 
+    private void addDmzAuth(HttpHeaders headers) {
+        if (spiffeWorkloadClient != null && spiffeWorkloadClient.isAvailable()) {
+            String token = spiffeWorkloadClient.getJwtSvidFor("dmz-proxy");
+            if (token != null) headers.setBearerAuth(token);
+        }
+    }
+
     /**
      * Hot-add a temporary port mapping on the DMZ proxy so that traffic for this
      * delivery is routed through the DMZ zone.
@@ -456,7 +467,7 @@ public class ForwarderController {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("X-Internal-Key", controlApiKey);
+        addDmzAuth(headers);
 
         RestTemplate rest = new RestTemplate();
         rest.postForEntity(dmzApiUrl + "/api/proxy/mappings",
@@ -472,7 +483,7 @@ public class ForwarderController {
         try {
             String dmzApiUrl = "http://" + ep.getProxyHost() + ":" + ep.getProxyPort();
             HttpHeaders headers = new HttpHeaders();
-            headers.set("X-Internal-Key", controlApiKey);
+            addDmzAuth(headers);
 
             RestTemplate rest = new RestTemplate();
             rest.exchange(dmzApiUrl + "/api/proxy/mappings/" + mappingName,

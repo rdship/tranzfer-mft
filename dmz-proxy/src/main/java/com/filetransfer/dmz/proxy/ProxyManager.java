@@ -48,6 +48,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ProxyManager {
 
     @Getter private final DmzProperties properties;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.lang.Nullable
+    private SpiffeProxyAuth spiffeProxyAuth;
+
     private final ConcurrentHashMap<String, TcpProxyServer> servers = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, PortMapping> mappings = new ConcurrentHashMap<>();
 
@@ -164,7 +169,7 @@ public class ProxyManager {
 
         this.aiVerdictClient = new AiVerdictClient(
             secConfig.getAiEngineUrl(), secConfig.getVerdictTimeoutMs(),
-            secConfig.getInternalApiKey());
+            spiffeProxyAuth);
 
         this.eventReporter = new ThreatEventReporter(
             aiVerdictClient,
@@ -206,7 +211,7 @@ public class ProxyManager {
 
             this.keystoreIntegration = new KeystoreIntegration(
                 tlsConfig.getKeystoreManagerUrl(),
-                properties.getSecurity().getInternalApiKey(),
+                spiffeProxyAuth,
                 tlsConfig.getCertCacheDir(),
                 tlsConfig.getCertRefreshIntervalSeconds());
             keystoreIntegration.start();
@@ -271,7 +276,7 @@ public class ProxyManager {
 
             this.contentScreeningBridge = new ContentScreeningBridge(
                 inspConfig.getScreeningServiceUrl(),
-                properties.getSecurity().getInternalApiKey(),
+                spiffeProxyAuth,
                 new ContentScreeningBridge.ContentScreeningConfig(
                     false, 50_000_000L, 30, true, false, true,
                     List.of("FTP", "SFTP", "HTTP")));
@@ -339,7 +344,7 @@ public class ProxyManager {
                 DmzProperties.Security sec = properties.getSecurity();
                 this.aiVerdictClient = new TunnelAiVerdictClient(
                     sec.getAiEngineUrl(), sec.getVerdictTimeoutMs(),
-                    sec.getInternalApiKey(), tunnelAcceptor);
+                    spiffeProxyAuth, tunnelAcceptor);
                 // Re-create event reporter with tunnel-aware client
                 if (eventReporter != null) {
                     eventReporter.shutdown();
@@ -354,7 +359,7 @@ public class ProxyManager {
                 DmzProperties.Inspection insp = properties.getInspection();
                 this.contentScreeningBridge = new TunnelContentScreeningBridge(
                     insp.getScreeningServiceUrl(),
-                    properties.getSecurity().getInternalApiKey(),
+                    spiffeProxyAuth,
                     new ContentScreeningBridge.ContentScreeningConfig(
                         false, 50_000_000L, 30, true, false, true,
                         List.of("FTP", "SFTP", "HTTP")),
@@ -365,7 +370,7 @@ public class ProxyManager {
                 keystoreIntegration.shutdown();
                 this.keystoreIntegration = new TunnelKeystoreIntegration(
                     tlsConfig.getKeystoreManagerUrl(),
-                    properties.getSecurity().getInternalApiKey(),
+                    spiffeProxyAuth,
                     tlsConfig.getCertCacheDir(),
                     tlsConfig.getCertRefreshIntervalSeconds(),
                     tunnelAcceptor);

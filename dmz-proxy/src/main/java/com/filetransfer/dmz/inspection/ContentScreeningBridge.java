@@ -1,5 +1,6 @@
 package com.filetransfer.dmz.inspection;
 
+import com.filetransfer.dmz.security.SpiffeProxyAuth;
 import io.netty.buffer.ByteBuf;
 import lombok.extern.slf4j.Slf4j;
 
@@ -88,7 +89,7 @@ public class ContentScreeningBridge {
     // ── State ─────────────────────────────────────────────────────────
 
     private final String screeningServiceUrl;
-    private final String internalApiKey;
+    private final SpiffeProxyAuth spiffeAuth;
     private final ContentScreeningConfig config;
     private final HttpClient httpClient;
     private final ExecutorService screeningExecutor;
@@ -116,13 +117,14 @@ public class ContentScreeningBridge {
      * Create a new content screening bridge.
      *
      * @param screeningServiceUrl base URL of the screening service (e.g., "http://screening-service:8092")
-     * @param internalApiKey      API key for inter-service authentication
+     * @param spiffeAuth          SPIFFE auth component for outbound SVID tokens
      * @param config              screening configuration
      */
-    public ContentScreeningBridge(String screeningServiceUrl, String internalApiKey,
+    public ContentScreeningBridge(String screeningServiceUrl,
+                                   com.filetransfer.dmz.security.SpiffeProxyAuth spiffeAuth,
                                    ContentScreeningConfig config) {
         this.screeningServiceUrl = screeningServiceUrl;
-        this.internalApiKey = internalApiKey;
+        this.spiffeAuth = spiffeAuth;
         this.config = config;
 
         this.httpClient = HttpClient.newBuilder()
@@ -354,17 +356,20 @@ public class ContentScreeningBridge {
         totalScreened.incrementAndGet();
 
         try {
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest.Builder screenBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(screeningServiceUrl + "/api/v1/screening/scan/text"))
                 .header("Content-Type", "text/plain")
-                .header("X-Internal-Key", internalApiKey)
                 .header("X-Source-Ip", sourceIp != null ? sourceIp : "unknown")
                 .header("X-Source-Port", String.valueOf(port))
                 .header("X-Protocol", protocol != null ? protocol : "UNKNOWN")
                 .header("X-Filename", filename != null ? filename : "unknown")
                 .timeout(Duration.ofSeconds(config.screeningTimeoutSeconds()))
-                .POST(HttpRequest.BodyPublishers.ofByteArray(content))
-                .build();
+                .POST(HttpRequest.BodyPublishers.ofByteArray(content));
+            if (spiffeAuth != null && spiffeAuth.isAvailable()) {
+                String token = spiffeAuth.getJwtSvidFor("screening-service");
+                if (token != null) screenBuilder.header("Authorization", "Bearer " + token);
+            }
+            HttpRequest request = screenBuilder.build();
 
             HttpResponse<String> response = httpClient.send(request,
                 HttpResponse.BodyHandlers.ofString());

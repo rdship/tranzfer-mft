@@ -45,7 +45,7 @@ public class As2ServiceClient extends ResilientServiceClient {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.parseMediaType(
                     contentType != null ? contentType : "application/octet-stream"));
-            headers.set("X-Internal-Key", platformConfig.getSecurity().getControlApiKey());
+            addInternalAuth(headers);
             headers.set("AS2-From", as2From);
             headers.set("AS2-To", as2To);
             headers.set("Message-ID", messageId);

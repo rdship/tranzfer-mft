@@ -5,14 +5,12 @@ import com.filetransfer.ai.service.proxy.IpReputationService;
 import com.filetransfer.ai.service.proxy.ProxyIntelligenceService;
 import com.filetransfer.ai.service.proxy.ProxyIntelligenceService.*;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.*;
 
 /**
@@ -34,14 +32,12 @@ import java.util.*;
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/proxy")
+@PreAuthorize("hasRole('INTERNAL')")
 public class ProxyIntelligenceController {
 
     private final ProxyIntelligenceService intelligenceService;
     private final IpReputationService reputationService;
     private final GeoAnomalyDetector geoDetector;
-
-    @Value("${platform.security.control-api-key:internal_control_secret}")
-    private String controlApiKey;
 
     public ProxyIntelligenceController(
             ProxyIntelligenceService intelligenceService,
@@ -50,15 +46,6 @@ public class ProxyIntelligenceController {
         this.intelligenceService = intelligenceService;
         this.reputationService = reputationService;
         this.geoDetector = geoDetector;
-    }
-
-    /** Validate internal API key — all endpoints require this */
-    private void authenticate(String key) {
-        if (key == null || !MessageDigest.isEqual(
-                controlApiKey.getBytes(StandardCharsets.UTF_8),
-                key.getBytes(StandardCharsets.UTF_8))) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or missing X-Internal-Key");
-        }
     }
 
     /** Validate IPv4/IPv6 format — rejects log injection payloads, empty strings, and malformed IPs */
@@ -114,10 +101,7 @@ public class ProxyIntelligenceController {
      * Called by the DMZ proxy before allowing a connection through.
      */
     @PostMapping("/verdict")
-    public ResponseEntity<Map<String, Object>> getVerdict(
-            @RequestHeader("X-Internal-Key") String key,
-            @RequestBody Map<String, Object> request) {
-        authenticate(key);
+    public ResponseEntity<Map<String, Object>> getVerdict(            @RequestBody Map<String, Object> request) {
         String sourceIp = validateIp((String) request.get("sourceIp"));
         int targetPort = validatePort(request.get("targetPort"));
         String protocol = (String) request.getOrDefault("detectedProtocol", "TCP");
@@ -161,10 +145,7 @@ public class ProxyIntelligenceController {
     private static final int MAX_BATCH_SIZE = 1000;
 
     @PostMapping("/verdicts/batch")
-    public ResponseEntity<List<Map<String, Object>>> getBatchVerdicts(
-            @RequestHeader("X-Internal-Key") String key,
-            @RequestBody List<Map<String, Object>> requests) {
-        authenticate(key);
+    public ResponseEntity<List<Map<String, Object>>> getBatchVerdicts(            @RequestBody List<Map<String, Object>> requests) {
         if (requests.size() > MAX_BATCH_SIZE) {
             return ResponseEntity.badRequest().body(List.of(
                     Map.of("error", "Batch size " + requests.size() + " exceeds maximum " + MAX_BATCH_SIZE)));
@@ -200,10 +181,7 @@ public class ProxyIntelligenceController {
      * Fire-and-forget from the proxy's perspective.
      */
     @PostMapping("/event")
-    public ResponseEntity<Map<String, String>> reportEvent(
-            @RequestHeader("X-Internal-Key") String key,
-            @RequestBody Map<String, Object> event) {
-        authenticate(key);
+    public ResponseEntity<Map<String, String>> reportEvent(            @RequestBody Map<String, Object> event) {
         try {
             ThreatEvent te = mapToThreatEvent(event);
             intelligenceService.processEvent(te);
@@ -219,10 +197,7 @@ public class ProxyIntelligenceController {
      * More efficient for high-volume proxies.
      */
     @PostMapping("/events")
-    public ResponseEntity<Map<String, Object>> reportEvents(
-            @RequestHeader("X-Internal-Key") String key,
-            @RequestBody List<Map<String, Object>> events) {
-        authenticate(key);
+    public ResponseEntity<Map<String, Object>> reportEvents(            @RequestBody List<Map<String, Object>> events) {
         if (events.size() > MAX_BATCH_SIZE) {
             return ResponseEntity.badRequest().body(Map.of(
                     "error", "Batch size " + events.size() + " exceeds maximum " + MAX_BATCH_SIZE));
@@ -243,8 +218,7 @@ public class ProxyIntelligenceController {
     // ── Blocklist Management ───────────────────────────────────────────
 
     @GetMapping("/blocklist")
-    public ResponseEntity<Map<String, Object>> getBlocklist(@RequestHeader("X-Internal-Key") String key) {
-        authenticate(key);
+    public ResponseEntity<Map<String, Object>> getBlocklist() {
         Set<String> blocked = intelligenceService.getBlocklist();
         return ResponseEntity.ok(Map.of(
             "count", blocked.size(),
@@ -253,10 +227,7 @@ public class ProxyIntelligenceController {
     }
 
     @PostMapping("/blocklist")
-    public ResponseEntity<Map<String, String>> addToBlocklist(
-            @RequestHeader("X-Internal-Key") String key,
-            @RequestBody Map<String, String> request) {
-        authenticate(key);
+    public ResponseEntity<Map<String, String>> addToBlocklist(            @RequestBody Map<String, String> request) {
         String ip = request.get("ip");
         String reason = request.getOrDefault("reason", "manual");
         if (ip == null) return ResponseEntity.badRequest().body(Map.of("error", "ip is required"));
@@ -266,10 +237,7 @@ public class ProxyIntelligenceController {
     }
 
     @DeleteMapping("/blocklist/{ip}")
-    public ResponseEntity<Map<String, String>> removeFromBlocklist(
-            @RequestHeader("X-Internal-Key") String key,
-            @PathVariable String ip) {
-        authenticate(key);
+    public ResponseEntity<Map<String, String>> removeFromBlocklist(            @PathVariable String ip) {
         intelligenceService.unblockIp(ip);
         return ResponseEntity.ok(Map.of("status", "unblocked", "ip", ip));
     }
@@ -277,8 +245,7 @@ public class ProxyIntelligenceController {
     // ── Allowlist Management ───────────────────────────────────────────
 
     @GetMapping("/allowlist")
-    public ResponseEntity<Map<String, Object>> getAllowlist(@RequestHeader("X-Internal-Key") String key) {
-        authenticate(key);
+    public ResponseEntity<Map<String, Object>> getAllowlist() {
         Set<String> allowed = intelligenceService.getAllowlist();
         return ResponseEntity.ok(Map.of(
             "count", allowed.size(),
@@ -287,10 +254,7 @@ public class ProxyIntelligenceController {
     }
 
     @PostMapping("/allowlist")
-    public ResponseEntity<Map<String, String>> addToAllowlist(
-            @RequestHeader("X-Internal-Key") String key,
-            @RequestBody Map<String, String> request) {
-        authenticate(key);
+    public ResponseEntity<Map<String, String>> addToAllowlist(            @RequestBody Map<String, String> request) {
         String ip = request.get("ip");
         if (ip == null) return ResponseEntity.badRequest().body(Map.of("error", "ip is required"));
 
@@ -301,36 +265,26 @@ public class ProxyIntelligenceController {
     // ── IP Intelligence ────────────────────────────────────────────────
 
     @GetMapping("/ip/{ip}")
-    public ResponseEntity<Map<String, Object>> getIpIntelligence(
-            @RequestHeader("X-Internal-Key") String key,
-            @PathVariable String ip) {
-        authenticate(key);
+    public ResponseEntity<Map<String, Object>> getIpIntelligence(            @PathVariable String ip) {
         return ResponseEntity.ok(intelligenceService.getIpIntelligence(ip));
     }
 
     // ── Dashboard & Audit ──────────────────────────────────────────────
 
     @GetMapping("/dashboard")
-    public ResponseEntity<Map<String, Object>> getDashboard(@RequestHeader("X-Internal-Key") String key) {
-        authenticate(key);
+    public ResponseEntity<Map<String, Object>> getDashboard() {
         return ResponseEntity.ok(intelligenceService.getFullDashboard());
     }
 
     @GetMapping("/verdicts")
-    public ResponseEntity<List<Map<String, Object>>> getRecentVerdicts(
-            @RequestHeader("X-Internal-Key") String key,
-            @RequestParam(defaultValue = "50") int limit) {
-        authenticate(key);
+    public ResponseEntity<List<Map<String, Object>>> getRecentVerdicts(            @RequestParam(defaultValue = "50") int limit) {
         return ResponseEntity.ok(intelligenceService.getRecentVerdicts(limit));
     }
 
     // ── Geo Threat Feed Management ─────────────────────────────────────
 
     @PostMapping("/geo/high-risk-countries")
-    public ResponseEntity<Map<String, Object>> setHighRiskCountries(
-            @RequestHeader("X-Internal-Key") String key,
-            @RequestBody Map<String, Object> request) {
-        authenticate(key);
+    public ResponseEntity<Map<String, Object>> setHighRiskCountries(            @RequestBody Map<String, Object> request) {
         @SuppressWarnings("unchecked")
         List<String> countries = (List<String>) request.get("countries");
         if (countries != null) {
@@ -342,10 +296,7 @@ public class ProxyIntelligenceController {
     }
 
     @PostMapping("/geo/tor-nodes")
-    public ResponseEntity<Map<String, Object>> updateTorExitNodes(
-            @RequestHeader("X-Internal-Key") String key,
-            @RequestBody Map<String, Object> request) {
-        authenticate(key);
+    public ResponseEntity<Map<String, Object>> updateTorExitNodes(            @RequestBody Map<String, Object> request) {
         @SuppressWarnings("unchecked")
         List<String> nodes = (List<String>) request.get("nodes");
         if (nodes != null) {
@@ -355,10 +306,7 @@ public class ProxyIntelligenceController {
     }
 
     @PostMapping("/geo/vpn-prefixes")
-    public ResponseEntity<Map<String, Object>> updateVpnPrefixes(
-            @RequestHeader("X-Internal-Key") String key,
-            @RequestBody Map<String, Object> request) {
-        authenticate(key);
+    public ResponseEntity<Map<String, Object>> updateVpnPrefixes(            @RequestBody Map<String, Object> request) {
         @SuppressWarnings("unchecked")
         List<String> prefixes = (List<String>) request.get("prefixes");
         if (prefixes != null) {
@@ -368,8 +316,7 @@ public class ProxyIntelligenceController {
     }
 
     @GetMapping("/geo/stats")
-    public ResponseEntity<Map<String, Object>> getGeoStats(@RequestHeader("X-Internal-Key") String key) {
-        authenticate(key);
+    public ResponseEntity<Map<String, Object>> getGeoStats() {
         return ResponseEntity.ok(geoDetector.getStats());
     }
 
@@ -391,8 +338,7 @@ public class ProxyIntelligenceController {
     // ── Health ──────────────────────────────────────────────────────────
 
     @GetMapping("/health")
-    public ResponseEntity<Map<String, Object>> health(@RequestHeader("X-Internal-Key") String key) {
-        authenticate(key);
+    public ResponseEntity<Map<String, Object>> health() {
         Map<String, Object> health = new LinkedHashMap<>();
         health.put("status", "UP");
         health.put("service", "proxy-intelligence");

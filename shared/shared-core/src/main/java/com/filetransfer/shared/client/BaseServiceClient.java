@@ -1,17 +1,21 @@
 package com.filetransfer.shared.client;
 
 import com.filetransfer.shared.config.PlatformConfig;
+import com.filetransfer.shared.spiffe.SpiffeWorkloadClient;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.*;
+import org.springframework.lang.Nullable;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.Map;
 
@@ -35,6 +39,15 @@ public abstract class BaseServiceClient {
     protected final PlatformConfig platformConfig;
     private final ServiceClientProperties.ServiceEndpoint endpoint;
     private final String serviceName;
+
+    /**
+     * Optional SPIFFE workload client — auto-wired when {@code spiffe.enabled=true}.
+     * When present, outbound calls use a short-lived JWT-SVID instead of
+     * the static X-Internal-Key header. Falls back to X-Internal-Key when null.
+     */
+    @Autowired(required = false)
+    @Nullable
+    private SpiffeWorkloadClient spiffeWorkloadClient;
 
     protected BaseServiceClient(RestTemplate restTemplate,
                                 PlatformConfig platformConfig,
@@ -63,12 +76,11 @@ public abstract class BaseServiceClient {
 
     // ── HTTP helpers ────────────────────────────────────────────────────
 
-    /** Build headers with internal auth key and JSON content type. */
+    /** Build headers with internal auth and JSON content type. */
     protected HttpHeaders jsonHeaders() {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("X-Internal-Key", platformConfig.getSecurity().getControlApiKey());
-        // Propagate correlation ID for distributed tracing
+        addInternalAuth(headers);
         String correlationId = MDC.get("correlationId");
         if (correlationId != null) {
             headers.set("X-Correlation-ID", correlationId);
@@ -76,17 +88,45 @@ public abstract class BaseServiceClient {
         return headers;
     }
 
-    /** Build headers with internal auth key and multipart content type. */
+    /** Build headers with internal auth and multipart content type. */
     protected HttpHeaders multipartHeaders() {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
-        headers.set("X-Internal-Key", platformConfig.getSecurity().getControlApiKey());
-        // Propagate correlation ID for distributed tracing
+        addInternalAuth(headers);
         String correlationId = MDC.get("correlationId");
         if (correlationId != null) {
             headers.set("X-Correlation-ID", correlationId);
         }
         return headers;
+    }
+
+    /**
+     * Adds SPIFFE JWT-SVID authentication to outbound inter-service headers.
+     *
+     * <p>Uses the SPIRE Workload API to fetch a short-lived (1h), auto-rotating
+     * JWT-SVID for the target service. If SPIFFE is unavailable, no auth header
+     * is added — the target service will return 401 (fail-safe, no static secret fallback).
+     */
+    protected void addInternalAuth(HttpHeaders headers) {
+        if (spiffeWorkloadClient != null && spiffeWorkloadClient.isAvailable()) {
+            String target = deriveTargetServiceName();
+            String jwtSvid = spiffeWorkloadClient.getJwtSvidFor(target);
+            if (jwtSvid != null) {
+                headers.setBearerAuth(jwtSvid);
+            }
+        }
+    }
+
+    /**
+     * Derives the target service's SPIFFE path segment from the configured URL.
+     * e.g. {@code http://gateway-service:8085/...} → {@code gateway-service}
+     */
+    private String deriveTargetServiceName() {
+        try {
+            return new URI(baseUrl()).getHost();
+        } catch (Exception e) {
+            return "unknown";
+        }
     }
 
     /** GET with auth headers, returning the response body mapped to the given type. */
@@ -179,7 +219,7 @@ public abstract class BaseServiceClient {
         if (!isEnabled()) return false;
         try {
             HttpHeaders headers = new HttpHeaders();
-            headers.set("X-Internal-Key", platformConfig.getSecurity().getControlApiKey());
+            addInternalAuth(headers);
             HttpEntity<Void> entity = new HttpEntity<>(headers);
             ResponseEntity<String> response = restTemplate.exchange(
                     baseUrl() + healthPath(), HttpMethod.GET, entity, String.class);

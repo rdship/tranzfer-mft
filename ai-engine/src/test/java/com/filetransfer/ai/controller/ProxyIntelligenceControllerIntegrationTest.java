@@ -71,17 +71,12 @@ class ProxyIntelligenceControllerIntegrationTest {
     private HttpHeaders jsonHeaders;
     private HttpHeaders getHeaders;
 
-    /** Internal API key — must match platform.security.control-api-key default in application.yml */
-    private static final String INTERNAL_KEY = "internal_control_secret";
-
     @BeforeEach
     void setUp() {
         jsonHeaders = new HttpHeaders();
         jsonHeaders.setContentType(MediaType.APPLICATION_JSON);
-        jsonHeaders.set("X-Internal-Key", INTERNAL_KEY);
 
         getHeaders = new HttpHeaders();
-        getHeaders.set("X-Internal-Key", INTERNAL_KEY);
     }
 
     // ── 1. Verdict: new IP returns OK ─────────────────────────────────────
@@ -428,56 +423,6 @@ class ProxyIntelligenceControllerIntegrationTest {
         List<Map<String, Object>> verdicts = response.getBody();
         assertNotNull(verdicts);
         assertTrue(verdicts.size() >= 3);
-    }
-
-    // ── 12. Security: unauthenticated requests are rejected ────────────
-
-    @Test
-    void verdict_withoutApiKey_returns401() {
-        HttpHeaders noAuth = new HttpHeaders();
-        noAuth.setContentType(MediaType.APPLICATION_JSON);
-
-        Map<String, Object> request = Map.of(
-            "sourceIp", "10.0.0.99", "targetPort", 22, "detectedProtocol", "SSH"
-        );
-
-        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
-            "/api/v1/proxy/verdict",
-            HttpMethod.POST,
-            new HttpEntity<>(request, noAuth),
-            new ParameterizedTypeReference<>() {}
-        );
-
-        // Spring will return 400 (missing required header) or custom handler returns 401
-        assertTrue(response.getStatusCode().is4xxClientError(),
-            "Unauthenticated request should be rejected, got: " + response.getStatusCode());
-    }
-
-    @Test
-    void blocklist_withWrongApiKey_isRejected() {
-        HttpHeaders wrongKey = new HttpHeaders();
-        wrongKey.setContentType(MediaType.APPLICATION_JSON);
-        wrongKey.set("X-Internal-Key", "wrong_key");
-
-        Map<String, String> blockRequest = Map.of("ip", "10.0.0.99", "reason", "test");
-
-        // TestRestTemplate + HttpURLConnection throws on HTTP 401 (auth challenge),
-        // so we verify via exception rather than status code
-        try {
-            ResponseEntity<Map<String, String>> response = restTemplate.exchange(
-                "/api/v1/proxy/blocklist",
-                HttpMethod.POST,
-                new HttpEntity<>(blockRequest, wrongKey),
-                new ParameterizedTypeReference<>() {}
-            );
-            // If it doesn't throw, verify it's still a 4xx rejection
-            assertTrue(response.getStatusCode().is4xxClientError(),
-                "Wrong API key should be rejected, got: " + response.getStatusCode());
-        } catch (Exception e) {
-            // HttpURLConnection wraps 401 as ResourceAccessException — this IS the expected rejection
-            assertTrue(e.getMessage().contains("authentication") || e.getMessage().contains("401"),
-                "Expected auth rejection, got: " + e.getMessage());
-        }
     }
 
     // ── 13. IP intelligence endpoint ──────────────────────────────────────

@@ -45,9 +45,12 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
-        // Bypass rate limiting for inter-service calls using X-Internal-Key
-        String internalKey = request.getHeader("X-Internal-Key");
-        if (internalKey != null && !internalKey.isBlank()) {
+        // Bypass rate limiting for authenticated internal services (ROLE_INTERNAL).
+        // This filter runs AFTER PlatformJwtAuthFilter so ROLE_INTERNAL is already set
+        // in the SecurityContext when a valid SPIFFE JWT-SVID was presented.
+        Authentication internalAuth = SecurityContextHolder.getContext().getAuthentication();
+        if (internalAuth != null && internalAuth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_INTERNAL".equals(a.getAuthority()))) {
             filterChain.doFilter(request, response);
             return;
         }

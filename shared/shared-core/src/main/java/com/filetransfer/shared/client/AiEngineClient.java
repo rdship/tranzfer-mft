@@ -43,13 +43,9 @@ public class AiEngineClient extends ResilientServiceClient {
         }
         try {
             return withResilience("classify", () -> {
-                HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.MULTIPART_FORM_DATA);
-                headers.set("X-Internal-Key", platformConfig.getSecurity().getControlApiKey());
-
                 MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
                 body.add("file", new FileSystemResource(filePath.toFile()));
-                HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(body, headers);
+                HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(body, multipartHeaders());
 
                 ResponseEntity<Map> response = restTemplate.postForEntity(
                         baseUrl() + "/api/v1/ai/classify", entity, Map.class);

@@ -16,7 +16,6 @@ import static org.mockito.Mockito.*;
 class PlatformJwtAuthFilterTest {
 
     private static final String SECRET = "this_is_a_256bit_secret_key_for_testing_purposes!!";
-    private static final String CONTROL_API_KEY = "test_internal_key";
 
     private JwtUtil jwtUtil;
     private PlatformConfig platformConfig;
@@ -31,7 +30,6 @@ class PlatformJwtAuthFilterTest {
         jwtUtil = new JwtUtil(SECRET, 900_000);
 
         platformConfig = new PlatformConfig();
-        platformConfig.getSecurity().setControlApiKey(CONTROL_API_KEY);
 
         filter = new PlatformJwtAuthFilter(jwtUtil, platformConfig);
 
@@ -46,7 +44,6 @@ class PlatformJwtAuthFilterTest {
     void validJwtToken_setsAuthenticationWithCorrectRoleAndSubject() throws Exception {
         String token = jwtUtil.generateToken("admin@test.com", "ADMIN");
         when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
-        when(request.getHeader("X-Internal-Key")).thenReturn(null);
 
         filter.doFilterInternal(request, response, filterChain);
 
@@ -59,36 +56,8 @@ class PlatformJwtAuthFilterTest {
     }
 
     @Test
-    void validInternalKey_setsInternalServiceAuthentication() throws Exception {
-        when(request.getHeader("Authorization")).thenReturn(null);
-        when(request.getHeader("X-Internal-Key")).thenReturn(CONTROL_API_KEY);
-
-        filter.doFilterInternal(request, response, filterChain);
-
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        assertNotNull(auth);
-        assertEquals("internal-service", auth.getPrincipal());
-        assertTrue(auth.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_INTERNAL")));
-        verify(filterChain).doFilter(request, response);
-    }
-
-    @Test
     void invalidJwtToken_fallsThrough_noAuthentication() throws Exception {
         when(request.getHeader("Authorization")).thenReturn("Bearer invalid.token.here");
-        when(request.getHeader("X-Internal-Key")).thenReturn(null);
-
-        filter.doFilterInternal(request, response, filterChain);
-
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        assertNull(auth);
-        verify(filterChain).doFilter(request, response);
-    }
-
-    @Test
-    void wrongInternalKey_noAuthentication() throws Exception {
-        when(request.getHeader("Authorization")).thenReturn(null);
-        when(request.getHeader("X-Internal-Key")).thenReturn("wrong_key");
 
         filter.doFilterInternal(request, response, filterChain);
 
@@ -100,7 +69,6 @@ class PlatformJwtAuthFilterTest {
     @Test
     void noHeaders_noAuthentication() throws Exception {
         when(request.getHeader("Authorization")).thenReturn(null);
-        when(request.getHeader("X-Internal-Key")).thenReturn(null);
 
         filter.doFilterInternal(request, response, filterChain);
 
@@ -110,10 +78,9 @@ class PlatformJwtAuthFilterTest {
     }
 
     @Test
-    void jwtTakesPrecedenceOverInternalKey() throws Exception {
+    void jwtAlwaysTakesPrecedence_principalIsJwtSubject() throws Exception {
         String token = jwtUtil.generateToken("partner@co.com", "PARTNER");
         when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
-        when(request.getHeader("X-Internal-Key")).thenReturn(CONTROL_API_KEY);
 
         filter.doFilterInternal(request, response, filterChain);
 
@@ -129,7 +96,6 @@ class PlatformJwtAuthFilterTest {
         JwtUtil expiredUtil = new JwtUtil(SECRET, -1000);
         String token = expiredUtil.generateToken("user@test.com", "ADMIN");
         when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
-        when(request.getHeader("X-Internal-Key")).thenReturn(null);
 
         filter.doFilterInternal(request, response, filterChain);
 
@@ -142,18 +108,6 @@ class PlatformJwtAuthFilterTest {
     void bearerPrefixRequired_rawTokenIgnored() throws Exception {
         String token = jwtUtil.generateToken("user@test.com", "ADMIN");
         when(request.getHeader("Authorization")).thenReturn(token); // no "Bearer " prefix
-        when(request.getHeader("X-Internal-Key")).thenReturn(null);
-
-        filter.doFilterInternal(request, response, filterChain);
-
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        assertNull(auth);
-    }
-
-    @Test
-    void emptyInternalKey_noAuthentication() throws Exception {
-        when(request.getHeader("Authorization")).thenReturn(null);
-        when(request.getHeader("X-Internal-Key")).thenReturn("");
 
         filter.doFilterInternal(request, response, filterChain);
 
@@ -165,7 +119,6 @@ class PlatformJwtAuthFilterTest {
     void filterAlwaysContinuesChain() throws Exception {
         // Even with no auth, filter should call doFilter
         when(request.getHeader("Authorization")).thenReturn(null);
-        when(request.getHeader("X-Internal-Key")).thenReturn(null);
 
         filter.doFilterInternal(request, response, filterChain);
 

@@ -14,10 +14,13 @@ import com.filetransfer.shared.repository.FileFlowRepository;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;
 import com.filetransfer.shared.repository.FlowExecutionRepository;
 import com.filetransfer.shared.repository.PartnerRepository;
+import com.filetransfer.shared.spiffe.SpiffeWorkloadClient;
 import com.filetransfer.shared.util.TrackIdGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
+import org.springframework.lang.Nullable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +49,10 @@ public class RoutingEngine {
     private final RestTemplate restTemplate;
     private final TrackIdGenerator trackIdGenerator;
     private final FlowProcessingEngine flowEngine;
+
+    @Autowired(required = false)
+    @Nullable
+    private SpiffeWorkloadClient spiffeWorkloadClient;
     private final FileFlowRepository flowRepository;
     private final AuditService auditService;
     private final AiClassificationClient aiClassifier;
@@ -300,7 +307,7 @@ public class RoutingEngine {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("X-Internal-Key", platformConfig.getSecurity().getControlApiKey());
+        addInternalAuth(headers, destService.getHost());
         HttpEntity<FileForwardRequest> entity = new HttpEntity<>(req, headers);
 
         ResponseEntity<Void> response = restTemplate.exchange(url, HttpMethod.POST, entity, Void.class);
@@ -316,6 +323,13 @@ public class RoutingEngine {
 
     private boolean isLocalService(ServiceRegistration service) {
         return clusterService.isLocalService(service);
+    }
+
+    private void addInternalAuth(HttpHeaders headers, String targetService) {
+        if (spiffeWorkloadClient != null && spiffeWorkloadClient.isAvailable()) {
+            String token = spiffeWorkloadClient.getJwtSvidFor(targetService);
+            if (token != null) headers.setBearerAuth(token);
+        }
     }
 
     @Transactional

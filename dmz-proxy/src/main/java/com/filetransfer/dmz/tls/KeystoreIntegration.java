@@ -1,5 +1,6 @@
 package com.filetransfer.dmz.tls;
 
+import com.filetransfer.dmz.security.SpiffeProxyAuth;
 import com.filetransfer.dmz.tls.TlsTerminator.TlsConfig;
 import lombok.extern.slf4j.Slf4j;
 
@@ -55,7 +56,7 @@ public class KeystoreIntegration {
     // ── Configuration ─────────────────────────────────────────────────────
 
     private final String keystoreManagerUrl;
-    private final String internalApiKey;
+    private final SpiffeProxyAuth spiffeAuth;
     private final Path certCacheDir;
     private final long refreshIntervalSeconds;
 
@@ -81,11 +82,11 @@ public class KeystoreIntegration {
      * @param refreshIntervalSeconds interval between certificate refresh checks in seconds
      *                               (default: 3600)
      */
-    public KeystoreIntegration(String keystoreManagerUrl, String internalApiKey,
+    public KeystoreIntegration(String keystoreManagerUrl, SpiffeProxyAuth spiffeAuth,
                                String certCacheDir, long refreshIntervalSeconds) {
         this.keystoreManagerUrl = keystoreManagerUrl != null ? keystoreManagerUrl
                 : "http://keystore-manager:8093";
-        this.internalApiKey = Objects.requireNonNull(internalApiKey, "internalApiKey must not be null");
+        this.spiffeAuth = spiffeAuth;
         this.certCacheDir = Path.of(certCacheDir != null ? certCacheDir : "./cert-cache");
         this.refreshIntervalSeconds = refreshIntervalSeconds > 0 ? refreshIntervalSeconds : 3600;
 
@@ -255,13 +256,16 @@ public class KeystoreIntegration {
     private TlsConfig fetchFromKeystoreManager(String alias) throws IOException, InterruptedException {
         String url = keystoreManagerUrl + "/api/keystore/entries/" + alias + "/export";
 
-        HttpRequest request = HttpRequest.newBuilder()
+        HttpRequest.Builder keystoreBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(url))
-                .header("X-Internal-Key", internalApiKey)
                 .header("Accept", "application/json")
                 .timeout(Duration.ofSeconds(15))
-                .GET()
-                .build();
+                .GET();
+        if (spiffeAuth != null && spiffeAuth.isAvailable()) {
+            String token = spiffeAuth.getJwtSvidFor("keystore-manager");
+            if (token != null) keystoreBuilder.header("Authorization", "Bearer " + token);
+        }
+        HttpRequest request = keystoreBuilder.build();
 
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 

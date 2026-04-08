@@ -10,10 +10,13 @@ import com.filetransfer.shared.entity.*;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.enums.ServiceType;
 import com.filetransfer.shared.repository.*;
+import com.filetransfer.shared.spiffe.SpiffeWorkloadClient;
 import com.filetransfer.shared.util.TrackIdGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
+import org.springframework.lang.Nullable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +46,10 @@ public class FlowProcessingEngine {
     private final ClusterService clusterService;
     private final RestTemplate restTemplate;
     private final PlatformConfig platformConfig;
+
+    @Autowired(required = false)
+    @Nullable
+    private SpiffeWorkloadClient spiffeWorkloadClient;
     private final ServiceClientProperties serviceProps;
 
     /**
@@ -397,7 +404,7 @@ public class FlowProcessingEngine {
 
             org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
             headers.setContentType(org.springframework.http.MediaType.MULTIPART_FORM_DATA);
-            headers.set("X-Internal-Key", platformConfig.getSecurity().getControlApiKey());
+            addInternalAuth(headers, "screening-service");
 
             String url = screeningUrl + "/api/v1/screening/scan?trackId=" + trackId;
             if (cfg.containsKey("columns")) url += "&columns=" + cfg.get("columns");
@@ -491,7 +498,7 @@ public class FlowProcessingEngine {
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("X-Internal-Key", platformConfig.getSecurity().getControlApiKey());
+            addInternalAuth(headers, svc.getHost());
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
 
             restTemplate.postForEntity(url, entity, Void.class);
@@ -542,7 +549,7 @@ public class FlowProcessingEngine {
 
                 HttpHeaders headers = new HttpHeaders();
                 headers.setContentType(MediaType.TEXT_PLAIN);
-                headers.set("X-Internal-Key", platformConfig.getSecurity().getControlApiKey());
+                addInternalAuth(headers, "external-forwarder-service");
                 HttpEntity<String> entity = new HttpEntity<>(base64Content, headers);
 
                 restTemplate.postForEntity(url, entity, Map.class);
@@ -587,6 +594,13 @@ public class FlowProcessingEngine {
         return true;
     }
 
+    private void addInternalAuth(HttpHeaders headers, String targetService) {
+        if (spiffeWorkloadClient != null && spiffeWorkloadClient.isAvailable()) {
+            String token = spiffeWorkloadClient.getJwtSvidFor(targetService);
+            if (token != null) headers.setBearerAuth(token);
+        }
+    }
+
     private ServiceType protocolToServiceType(Protocol protocol) {
         return switch (protocol) {
             case SFTP -> ServiceType.SFTP;
@@ -617,7 +631,7 @@ public class FlowProcessingEngine {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("X-Internal-Key", platformConfig.getSecurity().getControlApiKey());
+        addInternalAuth(headers, "edi-converter");
         HttpEntity<Map<String, String>> entity = new HttpEntity<>(body, headers);
 
         @SuppressWarnings("unchecked")

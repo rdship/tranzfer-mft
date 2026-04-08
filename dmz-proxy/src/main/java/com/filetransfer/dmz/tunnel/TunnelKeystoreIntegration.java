@@ -1,5 +1,6 @@
 package com.filetransfer.dmz.tunnel;
 
+import com.filetransfer.dmz.security.SpiffeProxyAuth;
 import com.filetransfer.dmz.tls.KeystoreIntegration;
 import com.filetransfer.dmz.tls.TlsTerminator.TlsConfig;
 import com.filetransfer.tunnel.control.ControlMessage;
@@ -10,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -41,7 +43,7 @@ public class TunnelKeystoreIntegration extends KeystoreIntegration {
     private static final long FETCH_TIMEOUT_MS = 15_000;
 
     private final TunnelAcceptor tunnelAcceptor;
-    private final String internalApiKey;
+    private final SpiffeProxyAuth spiffeAuth;
     private final Path certCacheDir;
     private final long refreshIntervalSeconds;
 
@@ -53,17 +55,17 @@ public class TunnelKeystoreIntegration extends KeystoreIntegration {
 
     /**
      * @param keystoreManagerUrl     base URL (used by parent for identification only)
-     * @param internalApiKey         API key for X-Internal-Key header
+     * @param spiffeAuth             SPIFFE auth helper for outbound JWT-SVID headers
      * @param certCacheDir           local directory for caching fetched certificates
      * @param refreshIntervalSeconds interval between certificate refresh checks
      * @param tunnelAcceptor         the tunnel acceptor (handler resolved lazily)
      */
-    public TunnelKeystoreIntegration(String keystoreManagerUrl, String internalApiKey,
+    public TunnelKeystoreIntegration(String keystoreManagerUrl, SpiffeProxyAuth spiffeAuth,
                                       String certCacheDir, long refreshIntervalSeconds,
                                       TunnelAcceptor tunnelAcceptor) {
-        super(keystoreManagerUrl, internalApiKey, certCacheDir, refreshIntervalSeconds);
+        super(keystoreManagerUrl, spiffeAuth, certCacheDir, refreshIntervalSeconds);
         this.tunnelAcceptor = tunnelAcceptor;
-        this.internalApiKey = internalApiKey;
+        this.spiffeAuth = spiffeAuth;
         this.certCacheDir = Path.of(certCacheDir != null ? certCacheDir : "./cert-cache");
         this.refreshIntervalSeconds = refreshIntervalSeconds;
     }
@@ -177,7 +179,7 @@ public class TunnelKeystoreIntegration extends KeystoreIntegration {
                 UUID.randomUUID().toString(),
                 "GET",
                 "/api/keystore/entries/" + alias + "/export",
-                Map.of("X-Internal-Key", internalApiKey, "Accept", "application/json"),
+                keystoreHeaders(),
                 null
         );
 
@@ -253,6 +255,16 @@ public class TunnelKeystoreIntegration extends KeystoreIntegration {
             log.warn("Failed to cache certificate for alias '{}' from tunnel: {}", alias, e.getMessage());
             return null;
         }
+    }
+
+    private Map<String, String> keystoreHeaders() {
+        LinkedHashMap<String, String> h = new LinkedHashMap<>();
+        if (spiffeAuth != null && spiffeAuth.isAvailable()) {
+            String token = spiffeAuth.getJwtSvidFor("keystore-manager");
+            if (token != null) h.put("Authorization", "Bearer " + token);
+        }
+        h.put("Accept", "application/json");
+        return h;
     }
 
     /**

@@ -11,9 +11,12 @@ import com.filetransfer.shared.client.ServiceClientProperties;
 import com.filetransfer.shared.config.PlatformConfig;
 import com.filetransfer.shared.entity.FileFlow;
 import com.filetransfer.shared.repository.FileFlowRepository;
+import com.filetransfer.shared.spiffe.SpiffeWorkloadClient;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
+import org.springframework.lang.Nullable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,6 +57,10 @@ public class MappingCorrectionService {
     private final ObjectMapper objectMapper;
 
     private final RestTemplate restTemplate = new RestTemplate();
+
+    @Autowired(required = false)
+    @Nullable
+    private SpiffeWorkloadClient spiffeWorkloadClient;
 
     // ===================================================================
     // Start Session
@@ -446,7 +453,7 @@ public class MappingCorrectionService {
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("X-Internal-Key", platformConfig.getSecurity().getControlApiKey());
+            addInternalAuth(headers, "edi-converter");
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
 
             @SuppressWarnings("unchecked")
@@ -520,11 +527,18 @@ public class MappingCorrectionService {
         }
     }
 
+    private void addInternalAuth(HttpHeaders headers, String targetService) {
+        if (spiffeWorkloadClient != null && spiffeWorkloadClient.isAvailable()) {
+            String token = spiffeWorkloadClient.getJwtSvidFor(targetService);
+            if (token != null) headers.setBearerAuth(token);
+        }
+    }
+
     private void invalidateConverterCache() {
         try {
             String converterUrl = serviceProps.getEdiConverter().getUrl();
             HttpHeaders headers = new HttpHeaders();
-            headers.set("X-Internal-Key", platformConfig.getSecurity().getControlApiKey());
+            addInternalAuth(headers, "edi-converter");
             HttpEntity<Void> entity = new HttpEntity<>(headers);
             restTemplate.postForEntity(
                     converterUrl + "/api/v1/convert/trained/invalidate-cache",

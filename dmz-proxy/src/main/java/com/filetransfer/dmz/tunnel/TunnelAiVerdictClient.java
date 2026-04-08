@@ -1,6 +1,7 @@
 package com.filetransfer.dmz.tunnel;
 
 import com.filetransfer.dmz.security.AiVerdictClient;
+import com.filetransfer.dmz.security.SpiffeProxyAuth;
 import com.filetransfer.tunnel.control.ControlMessage;
 import com.filetransfer.tunnel.control.ControlMessageCodec;
 import lombok.extern.slf4j.Slf4j;
@@ -43,20 +44,20 @@ public class TunnelAiVerdictClient extends AiVerdictClient {
     }
 
     private final TunnelAcceptor tunnelAcceptor;
-    private final String internalApiKey;
+    private final SpiffeProxyAuth spiffeAuth;
     private final long verdictTimeoutMs;
 
     /**
      * @param aiEngineUrl      base URL of the AI engine (used only by parent for cache-key compat)
      * @param verdictTimeoutMs timeout for verdict requests in milliseconds (preserved via orTimeout)
-     * @param internalApiKey   API key for X-Internal-Key header
+     * @param spiffeAuth       SPIFFE auth helper for outbound JWT-SVID headers
      * @param tunnelAcceptor   the tunnel acceptor (handler resolved lazily on client connect)
      */
     public TunnelAiVerdictClient(String aiEngineUrl, long verdictTimeoutMs,
-                                  String internalApiKey, TunnelAcceptor tunnelAcceptor) {
-        super(aiEngineUrl, verdictTimeoutMs, internalApiKey);
+                                  SpiffeProxyAuth spiffeAuth, TunnelAcceptor tunnelAcceptor) {
+        super(aiEngineUrl, verdictTimeoutMs, spiffeAuth);
         this.tunnelAcceptor = tunnelAcceptor;
-        this.internalApiKey = internalApiKey;
+        this.spiffeAuth = spiffeAuth;
         this.verdictTimeoutMs = verdictTimeoutMs;
     }
 
@@ -97,7 +98,7 @@ public class TunnelAiVerdictClient extends AiVerdictClient {
                     UUID.randomUUID().toString(),
                     "POST",
                     "/api/v1/proxy/verdict",
-                    Map.of("Content-Type", "application/json", "X-Internal-Key", internalApiKey),
+                    aiHeaders(),
                     body
             );
 
@@ -133,7 +134,7 @@ public class TunnelAiVerdictClient extends AiVerdictClient {
                     UUID.randomUUID().toString(),
                     "POST",
                     "/api/v1/proxy/event",
-                    Map.of("Content-Type", "application/json", "X-Internal-Key", internalApiKey),
+                    aiHeaders(),
                     body
             );
             // Fire-and-forget — don't await response
@@ -153,7 +154,7 @@ public class TunnelAiVerdictClient extends AiVerdictClient {
                     UUID.randomUUID().toString(),
                     "POST",
                     "/api/v1/proxy/events",
-                    Map.of("Content-Type", "application/json", "X-Internal-Key", internalApiKey),
+                    aiHeaders(),
                     body
             );
             // Fire-and-forget — don't await response
@@ -165,6 +166,16 @@ public class TunnelAiVerdictClient extends AiVerdictClient {
     }
 
     // ── Private helpers ──────────────────────────────────────────────────
+
+    private Map<String, String> aiHeaders() {
+        LinkedHashMap<String, String> h = new LinkedHashMap<>();
+        h.put("Content-Type", "application/json");
+        if (spiffeAuth != null && spiffeAuth.isAvailable()) {
+            String token = spiffeAuth.getJwtSvidFor("ai-engine");
+            if (token != null) h.put("Authorization", "Bearer " + token);
+        }
+        return h;
+    }
 
     /**
      * Parses a verdict JSON response body. Mirrors parent's private parseVerdict() logic

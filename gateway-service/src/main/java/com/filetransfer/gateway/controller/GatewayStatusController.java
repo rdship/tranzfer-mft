@@ -9,12 +9,9 @@ import com.filetransfer.shared.repository.TransferAccountRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.sshd.server.SshServer;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -35,18 +32,6 @@ public class GatewayStatusController {
     private final LegacyServerConfigRepository legacyRepo;
     private final ServerInstanceRepository serverInstanceRepo;
     private final TransferAccountRepository accountRepo;
-
-    @Value("${platform.security.control-api-key:internal_control_secret}")
-    private String controlApiKey;
-
-    /** Validate internal API key — all endpoints require this */
-    private void authenticate(String key) {
-        if (key == null || !MessageDigest.isEqual(
-                controlApiKey.getBytes(StandardCharsets.UTF_8),
-                key.getBytes(StandardCharsets.UTF_8))) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or missing X-Internal-Key");
-        }
-    }
 
     @Value("${gateway.sftp.port:2220}")
     private int sftpPort;
@@ -73,8 +58,8 @@ public class GatewayStatusController {
     private int internalFtpWebPort;
 
     @GetMapping("/status")
-    public Map<String, Object> status(@RequestHeader("X-Internal-Key") String key) {
-        authenticate(key);
+    @PreAuthorize("hasRole('INTERNAL')")
+    public Map<String, Object> status() {
         return Map.of(
                 "sftpGatewayPort", sftpPort,
                 "ftpGatewayPort", ftpPort,
@@ -83,10 +68,9 @@ public class GatewayStatusController {
     }
 
     @GetMapping("/legacy-servers")
+    @PreAuthorize("hasRole('INTERNAL')")
     public List<LegacyServerConfig> legacyServers(
-            @RequestHeader("X-Internal-Key") String key,
             @RequestParam(required = false) Protocol protocol) {
-        authenticate(key);
         return protocol != null
                 ? legacyRepo.findByProtocolAndActiveTrue(protocol)
                 : legacyRepo.findAll();
@@ -94,8 +78,8 @@ public class GatewayStatusController {
 
     /** Full route table: default services + server instances + legacy fallbacks */
     @GetMapping("/routes")
-    public Map<String, Object> routes(@RequestHeader("X-Internal-Key") String key) {
-        authenticate(key);
+    @PreAuthorize("hasRole('INTERNAL')")
+    public Map<String, Object> routes() {
         // Default internal routes
         List<Map<String, Object>> defaultRoutes = List.of(
                 Map.of("name", "SFTP Default", "protocol", "SFTP",
@@ -150,8 +134,8 @@ public class GatewayStatusController {
 
     /** Gateway statistics: account counts, instance counts, port mapping */
     @GetMapping("/stats")
-    public Map<String, Object> stats(@RequestHeader("X-Internal-Key") String key) {
-        authenticate(key);
+    @PreAuthorize("hasRole('INTERNAL')")
+    public Map<String, Object> stats() {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("sftpGatewayPort", sftpPort);
         result.put("ftpGatewayPort", ftpPort);

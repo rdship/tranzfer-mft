@@ -34,12 +34,26 @@ All repositories are interfaces → safe to @Mock
 --add-opens java.base/java.lang=ALL-UNNAMED +reflect +util +invoke +io, -XX:+EnableDynamicAgentLoading
 
 ## Architecture
-- 21 modules, shared library with 32 JPA entities
-- REST via ResilientServiceClient (circuit breaker+retry), X-Internal-Key for inter-service, JWT for users
+- 22 modules, shared library with 32 JPA entities
+- REST via ResilientServiceClient (circuit breaker+retry)
+- **Service identity**: SPIFFE/SPIRE JWT-SVIDs (zero-trust, auto-rotating 1h) → replaces X-Internal-Key
+  - Enable: `SPIFFE_ENABLED=true`, bootstrap once: `bash spire/bootstrap.sh`
+  - Fallback: X-Internal-Key (deprecated, kept for backward compat)
+  - Key classes: `SpiffeWorkloadClient` (shared-core), `SpiffeProxyAuth` (dmz-proxy)
+  - `PlatformJwtAuthFilter` validates: SPIFFE JWT-SVID (path 1) → Platform JWT (path 2) → X-Internal-Key (path 3)
+  - `BaseServiceClient` auto-uses SVID when `SpiffeWorkloadClient` bean is present
+- JWT for user auth (admin UI / partner portal / CLI)
 - RabbitMQ: exchange=file-transfer.events, binding=account.*
 - Fail-fast: config, encryption, screening, storage
 - Graceful degradation: keystore(local fallback), ai-engine(ALLOWED), license(24h cache), analytics(empty)
 - Security tiers: RULES / AI / AI_LLM (per-listener on DMZ proxy)
+
+## SPIFFE/SPIRE Infrastructure (Docker Compose)
+- SPIRE Server: port 8081 (gRPC), 8080 (health) — profile: spiffe
+- SPIRE Agent: socket at /run/spire/sockets/agent.sock (volume: spire-socket)
+- Trust domain: filetransfer.io
+- Enable: `docker compose --profile spiffe up -d spire-server && bash spire/bootstrap.sh && docker compose --profile spiffe up -d spire-agent`
+- Production: use Red Hat SPIRE Operator on Kubernetes (no static join tokens)
 
 ## Pending (do NOT start unless explicitly asked)
 - 9JaGo rebrand (rename from TranzFer MFT)

@@ -4,6 +4,14 @@ version: '3.9'
 # TranzFer MFT Platform — Docker Compose (Development)
 # =============================================================================
 
+x-spiffe-env: &spiffe-env
+  SPIFFE_ENABLED: ${SPIFFE_ENABLED:-false}
+  SPIFFE_TRUST_DOMAIN: ${SPIFFE_TRUST_DOMAIN:-filetransfer.io}
+  SPIFFE_SOCKET: unix:/run/spire/sockets/agent.sock
+
+x-spiffe-volume: &spiffe-volume
+  - spire-socket:/run/spire/sockets:ro
+
 x-common-env: &common-env
   JAVA_TOOL_OPTIONS: >-
     -Xmx384m -Xms192m
@@ -39,6 +47,65 @@ x-service-healthcheck: &healthcheck
     start_period: 30s
 
 services:
+  # ---------------------------------------------------------------------------
+  # SPIFFE/SPIRE — Zero-Trust Workload Identity
+  # Provides short-lived X.509 and JWT-SVIDs to every service.
+  # Replaces the static X-Internal-Key shared secret.
+  #
+  # Enable: SPIFFE_ENABLED=true docker compose up
+  # Bootstrap (run once after spire-server is healthy):
+  #   bash spire/bootstrap.sh
+  # ---------------------------------------------------------------------------
+  spire-server:
+    image: ghcr.io/spiffe/spire-server:1.9.6
+    container_name: mft-spire-server
+    profiles: [spiffe]
+    volumes:
+      - ./spire/server:/opt/spire/conf/server:ro
+      - spire-server-data:/opt/spire/data
+      - spire-server-sock:/tmp/spire-server
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 15s
+    networks:
+      - mft-network
+
+  spire-agent:
+    image: ghcr.io/spiffe/spire-agent:1.9.6
+    container_name: mft-spire-agent
+    profiles: [spiffe]
+    depends_on:
+      spire-server:
+        condition: service_healthy
+    volumes:
+      - ./spire/agent:/opt/spire/conf/agent:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - spire-socket:/run/spire/sockets
+      - spire-server-sock:/tmp/spire-server:ro
+      - spire-init-data:/tmp/spire-init:ro
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo "Waiting for join token..."
+        until [ -f /tmp/spire-init/join-token ]; do sleep 2; done
+        TOKEN=$(cat /tmp/spire-init/join-token)
+        exec /opt/spire/bin/spire-agent run \
+          -config /opt/spire/conf/agent/agent.conf \
+          -joinToken "$$TOKEN"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+    networks:
+      - mft-network
+
   # ---------------------------------------------------------------------------
   # Infrastructure
   # ---------------------------------------------------------------------------
@@ -785,6 +852,11 @@ services:
       - ui-service
 
 volumes:
+  # SPIRE volumes — only used when profile=spiffe is active
+  spire-server-data: # SPIRE Server CA, keys, SQLite DB
+  spire-server-sock: # SPIRE Server admin socket (shared with spire-init)
+  spire-init-data:   # Bootstrap join-token file (written by bootstrap.sh)
+  spire-socket:      # SPIFFE Workload API socket (mounted read-only into services)
   postgres_data:
   rabbitmq_data:
   sftp_data:       # Shared across all SFTP replicas

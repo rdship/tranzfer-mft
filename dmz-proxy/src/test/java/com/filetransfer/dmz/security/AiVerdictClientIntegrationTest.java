@@ -34,7 +34,7 @@ class AiVerdictClientIntegrationTest {
         wireMock = new WireMockServer(WireMockConfiguration.wireMockConfig().dynamicPort());
         wireMock.start();
         WireMock.configureFor("localhost", wireMock.port());
-        client = new AiVerdictClient("http://localhost:" + wireMock.port(), 2000);
+        client = new AiVerdictClient("http://localhost:" + wireMock.port(), 2000, null);
     }
 
     @AfterEach
@@ -270,7 +270,7 @@ class AiVerdictClientIntegrationTest {
         // async health check (throttled to once per 30s). Rather than waiting 30s,
         // create a fresh client to prove the recovered engine serves real verdicts.
         client.shutdown();
-        client = new AiVerdictClient("http://localhost:" + wireMock.port(), 2000);
+        client = new AiVerdictClient("http://localhost:" + wireMock.port(), 2000, null);
 
         CachedVerdict recovered = client.getVerdict("10.0.0.6", 22, "SSH");
         assertEquals(Action.ALLOW, recovered.action());

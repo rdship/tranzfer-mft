@@ -17,6 +17,14 @@
             <artifactId>shared-tunnel</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!-- SPIFFE/SPIRE: zero-trust identity for management API auth -->
+        <!-- Optional: activated via SPIFFE_ENABLED=true env var -->
+        <dependency>
+            <groupId>io.spiffe</groupId>
+            <artifactId>java-spiffe-provider</artifactId>
+            <version>0.8.3</version>
+            <optional>true</optional>
+        </dependency>
         <!-- No shared module: DMZ proxy is intentionally isolated — no DB access -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
