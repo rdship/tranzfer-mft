@@ -40,6 +40,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: demo-postgres
+    profiles: [full]
     environment:
       POSTGRES_DB: filetransfer
       POSTGRES_USER: postgres
@@ -55,6 +56,7 @@ services:
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     container_name: demo-rabbitmq
+    profiles: [full]
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
@@ -73,6 +75,7 @@ services:
   ai-engine:
     build: ./ai-engine
     container_name: demo-ai-engine
+    profiles: [full]
     ports:
       - "8191:8091"
     environment:
@@ -112,18 +115,19 @@ services:
   #   - Audit logging
   #   - Hot-configurable port mappings via REST API
 
-  dmz-proxy:
+  demo-dmz-proxy:
     build: ./dmz-proxy
     container_name: demo-dmz-proxy
     ports:
       - "8189:8088"     # Management API
-      - "2222:2222"     # SFTP → my-sftp-server (reconfigured in run.sh)
+      - "12222:2222"    # SFTP → my-sftp-server (reconfigured in run.sh; 12222 avoids conflict with mft-sftp-service on 2222)
       - "8180:443"      # HTTP → my-web-app    (reconfigured in run.sh)
     environment:
       CONTROL_API_KEY: demo-key-2024
       SERVER_PORT: 8088
       DMZ_SECURITY_ENABLED: "true"
-      AI_ENGINE_URL: http://ai-engine:8091
+      # Reuse the main stack's ai-engine if running; falls back to ALLOW on timeout
+      AI_ENGINE_URL: http://host.docker.internal:8091
       DMZ_AUDIT_ENABLED: "true"
       DMZ_ZONES_ENABLED: "false"       # Docker bridge: all on same network
       DMZ_EGRESS_ENABLED: "false"      # Docker bridge: backend DNS resolves internally
@@ -136,12 +140,11 @@ services:
       GATEWAY_HOST: my-sftp-server
       FTPWEB_HOST: my-web-app
     depends_on:
-      ai-engine:
-        condition: service_healthy
       my-sftp-server:
         condition: service_started
       my-web-app:
         condition: service_started
+
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8088/api/proxy/health | grep -q 'UP' || exit 1"]
       interval: 10s
