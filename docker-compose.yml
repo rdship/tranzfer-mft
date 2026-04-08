@@ -351,6 +351,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
 
   external-forwarder-service:
     build: ./external-forwarder-service
@@ -402,13 +404,14 @@ services:
     ports:
       - "8089:8089"
     environment:
-      DATABASE_URL: jdbc:postgresql://postgres:5432/filetransfer?stringtype=unspecified
-      DB_USERNAME: postgres
-      DB_PASSWORD: postgres
+      <<: *common-env
+      CLUSTER_HOST: license-service
       LICENSE_ADMIN_KEY: ${LICENSE_ADMIN_KEY:-license_admin_secret_key}
       SERVER_PORT: 8089
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   analytics-service:
@@ -442,6 +445,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
 
   ai-engine-2:
     build: ./ai-engine
@@ -459,6 +464,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
 
   keystore-manager:
     build: ./keystore-manager
@@ -474,6 +481,8 @@ services:
       PLATFORM_ENVIRONMENT: DEV
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   storage-manager:
@@ -494,6 +503,8 @@ services:
       - storage_data:/data/storage
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   edi-converter:
