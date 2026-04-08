@@ -43,6 +43,7 @@ import PartnerDetail from './pages/PartnerDetail'
 import PartnerSetup from './pages/PartnerSetup'
 import ServiceManagement from './pages/ServiceManagement'
 import VfsStorage from './pages/VfsStorage'
+import ActivityMonitor from './pages/ActivityMonitor'
 
 export default function App() {
   return (
@@ -81,6 +82,7 @@ export default function App() {
             <Route path="storage" element={<Storage />} />
             <Route path="vfs-storage" element={<VfsStorage />} />
             <Route path="activity" element={<Activity />} />
+            <Route path="activity-monitor" element={<ActivityMonitor />} />
             <Route path="2fa" element={<TwoFactor />} />
             <Route path="api-console" element={<ApiConsole />} />
             <Route path="edi" element={<Edi />} />

@@ -1,0 +1,144 @@
+package com.filetransfer.onboarding.controller;
+
+import com.filetransfer.onboarding.dto.response.ActivityMonitorEntry;
+import com.filetransfer.shared.entity.*;
+import com.filetransfer.shared.enums.FileTransferStatus;
+import com.filetransfer.shared.enums.Protocol;
+import com.filetransfer.shared.repository.FileTransferRecordRepository;
+import com.filetransfer.shared.repository.FlowExecutionRepository;
+import com.filetransfer.shared.repository.PartnerRepository;
+import com.filetransfer.shared.security.Roles;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+@RestController
+@RequestMapping("/api/activity-monitor")
+@RequiredArgsConstructor
+@PreAuthorize(Roles.VIEWER)
+@Tag(name = "Activity Monitor", description = "Paginated view of all file transfers")
+public class ActivityMonitorController {
+
+    private static final Set<String> VALID_SORT_COLUMNS = Set.of(
+            "uploadedAt", "routedAt", "downloadedAt", "completedAt",
+            "originalFilename", "status", "fileSizeBytes", "retryCount", "trackId"
+    );
+
+    private final FileTransferRecordRepository transferRepo;
+    private final FlowExecutionRepository flowExecRepo;
+    private final PartnerRepository partnerRepo;
+
+    @GetMapping
+    @Operation(summary = "Search and list file transfers with optional filters")
+    public Page<ActivityMonitorEntry> search(
+            @RequestParam(required = false) String trackId,
+            @RequestParam(required = false) String filename,
+            @RequestParam(required = false) FileTransferStatus status,
+            @RequestParam(required = false) String sourceUsername,
+            @RequestParam(required = false) Protocol protocol,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size,
+            @RequestParam(defaultValue = "uploadedAt") String sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDir) {
+
+        // Cap page size at 100
+        if (size > 100) size = 100;
+
+        // Validate sort column
+        if (!VALID_SORT_COLUMNS.contains(sortBy)) {
+            sortBy = "uploadedAt";
+        }
+
+        Sort.Direction direction = "ASC".equalsIgnoreCase(sortDir) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by(direction, sortBy));
+
+        // Load partner map once: partnerId -> displayName (or companyName)
+        Map<UUID, String> partnerMap = partnerRepo.findAll().stream()
+                .collect(Collectors.toMap(
+                        Partner::getId,
+                        p -> p.getDisplayName() != null ? p.getDisplayName() : p.getCompanyName(),
+                        (a, b) -> a
+                ));
+
+        // Execute paginated query
+        Page<FileTransferRecord> records = transferRepo.searchForActivityMonitor(
+                trackId, filename, status, sourceUsername, protocol, pageRequest);
+
+        // Batch-fetch flow executions for trackIds in this page
+        List<String> trackIds = records.getContent().stream()
+                .map(FileTransferRecord::getTrackId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        Map<String, FlowExecution> flowMap = trackIds.isEmpty()
+                ? Collections.emptyMap()
+                : flowExecRepo.findByTrackIdIn(trackIds).stream()
+                        .collect(Collectors.toMap(FlowExecution::getTrackId, Function.identity(), (a, b) -> a));
+
+        // Map to DTOs
+        return records.map(r -> toEntry(r, partnerMap, flowMap));
+    }
+
+    private ActivityMonitorEntry toEntry(FileTransferRecord r,
+                                         Map<UUID, String> partnerMap,
+                                         Map<String, FlowExecution> flowMap) {
+        FolderMapping fm = r.getFolderMapping();
+        TransferAccount src = fm.getSourceAccount();
+        TransferAccount dest = fm.getDestinationAccount();
+        ExternalDestination extDest = fm.getExternalDestination();
+
+        // Integrity check
+        String integrityStatus = "PENDING";
+        if (r.getSourceChecksum() != null && r.getDestinationChecksum() != null) {
+            integrityStatus = r.getSourceChecksum().equals(r.getDestinationChecksum()) ? "VERIFIED" : "MISMATCH";
+        }
+
+        // Flow enrichment
+        FlowExecution flowExec = flowMap.get(r.getTrackId());
+
+        return ActivityMonitorEntry.builder()
+                .trackId(r.getTrackId())
+                .filename(r.getOriginalFilename())
+                .status(r.getStatus().name())
+                .fileSizeBytes(r.getFileSizeBytes())
+                // Source
+                .sourceUsername(src != null ? src.getUsername() : null)
+                .sourceProtocol(src != null ? src.getProtocol().name() : null)
+                .sourcePartnerName(src != null && src.getPartnerId() != null ? partnerMap.get(src.getPartnerId()) : null)
+                .sourcePath(r.getSourceFilePath())
+                // Destination
+                .destUsername(dest != null ? dest.getUsername() : null)
+                .destProtocol(dest != null ? dest.getProtocol().name() : null)
+                .destPartnerName(dest != null && dest.getPartnerId() != null ? partnerMap.get(dest.getPartnerId()) : null)
+                .destPath(r.getDestinationFilePath())
+                // External destination
+                .externalDestName(extDest != null ? extDest.getName() : null)
+                // Checksums
+                .sourceChecksum(r.getSourceChecksum())
+                .destinationChecksum(r.getDestinationChecksum())
+                .integrityStatus(integrityStatus)
+                // Encryption
+                .encryptionOption(fm.getEncryptionOption().name())
+                // Flow
+                .flowName(flowExec != null && flowExec.getFlow() != null ? flowExec.getFlow().getName() : null)
+                .flowStatus(flowExec != null ? flowExec.getStatus().name() : null)
+                // Timestamps
+                .uploadedAt(r.getUploadedAt())
+                .routedAt(r.getRoutedAt())
+                .downloadedAt(r.getDownloadedAt())
+                .completedAt(r.getCompletedAt())
+                // Error & retry
+                .retryCount(r.getRetryCount())
+                .errorMessage(r.getErrorMessage())
+                .build();
+    }
+}

@@ -29,6 +29,7 @@ const navGroups = [
       { to: '/services', icon: CircleStackIcon, label: 'Services', role: 'ADMIN' },
       { to: '/journey', icon: DocumentTextIcon, label: 'Transfer Journey' },
       { to: '/activity', icon: WifiIcon, label: 'Live Activity' },
+      { to: '/activity-monitor', icon: ChartBarIcon, label: 'Activity Monitor' },
     ]
   },
   {

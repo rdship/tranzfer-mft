@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { onboardingApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { MagnifyingGlassIcon, CheckCircleIcon, XCircleIcon, ClockIcon, ArrowRightIcon, ShieldCheckIcon } from '@heroicons/react/24/outline'
@@ -12,8 +13,18 @@ const stageIcons = {
 const statusColor = { COMPLETED: 'bg-green-500', PASSED: 'bg-green-500', CLEAR: 'bg-green-500', FAILED: 'bg-red-500', BLOCKED: 'bg-red-500', HIT: 'bg-red-500', PROCESSING: 'bg-yellow-500', PENDING: 'bg-gray-400' }
 
 export default function Journey() {
-  const [trackId, setTrackId] = useState('')
-  const [searchId, setSearchId] = useState(null)
+  const [searchParams] = useSearchParams()
+  const incomingTrackId = searchParams.get('trackId') || ''
+  const [trackId, setTrackId] = useState(incomingTrackId)
+  const [searchId, setSearchId] = useState(incomingTrackId || null)
+
+  // Auto-search when navigated with trackId param (e.g. from Activity Monitor)
+  useEffect(() => {
+    if (incomingTrackId) {
+      setTrackId(incomingTrackId)
+      setSearchId(incomingTrackId)
+    }
+  }, [incomingTrackId])
 
   const { data: journey, isLoading, isError } = useQuery({
     queryKey: ['journey', searchId], enabled: !!searchId,

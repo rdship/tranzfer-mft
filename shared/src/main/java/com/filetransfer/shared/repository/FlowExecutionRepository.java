@@ -15,6 +15,9 @@ import java.util.UUID;
 public interface FlowExecutionRepository extends JpaRepository<FlowExecution, UUID> {
     Optional<FlowExecution> findByTrackId(String trackId);
 
+    @Query("SELECT e FROM FlowExecution e LEFT JOIN FETCH e.flow WHERE e.trackId IN :trackIds")
+    List<FlowExecution> findByTrackIdIn(@Param("trackIds") List<String> trackIds);
+
     @Query("SELECT e FROM FlowExecution e WHERE " +
            "(:trackId IS NULL OR e.trackId = :trackId) AND " +
            "(:filename IS NULL OR e.originalFilename LIKE %:filename%) AND " +

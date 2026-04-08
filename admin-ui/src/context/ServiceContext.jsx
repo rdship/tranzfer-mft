@@ -74,6 +74,7 @@ const PAGE_SERVICE_MAP = {
   // New pages
   '/storage': ['core'],
   '/activity': ['core'],
+  '/activity-monitor': ['core'],
   '/encryption': ['encryption'],
   '/server-instances': ['core'],
   '/platform-config': ['config'],
