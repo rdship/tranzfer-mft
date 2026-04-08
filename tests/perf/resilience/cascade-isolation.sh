@@ -25,6 +25,20 @@
 # =============================================================================
 set -uo pipefail
 
+# ── Bash 4+ required (associative arrays) ─────────────────────────────────────
+if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
+  for _b in /opt/homebrew/bin/bash /usr/local/bin/bash; do
+    [[ -x "$_b" ]] && exec "$_b" "$0" "$@"
+  done
+  echo "ERROR: bash 4+ required (have ${BASH_VERSION}). Install: brew install bash" >&2; exit 1
+fi
+
+# Portable millisecond timestamp — macOS BSD date does not support %N
+ms() {
+  if command -v gdate &>/dev/null; then gdate +%s%3N
+  else python3 -c "import time; print(int(time.time()*1000))"; fi
+}
+
 # ── Config ────────────────────────────────────────────────────────────────────
 BASE_URL="${MFT_BASE_URL:-http://localhost}"
 ADMIN_EMAIL="${MFT_ADMIN_EMAIL:-admin@filetransfer.local}"
@@ -113,7 +127,7 @@ probe_n_times() {
 
   for _ in $(seq 1 "$n"); do
     local t0
-    t0=$(date +%s%3N)
+    t0=$(ms)
     local code
 
     if [[ "$method" == "POST" && -n "$body" ]]; then
@@ -129,7 +143,7 @@ probe_n_times() {
         "$url" 2>/dev/null || echo "000")
     fi
 
-    local elapsed_ms=$(( $(date +%s%3N) - t0 ))
+    local elapsed_ms=$(( $(ms) - t0 ))
     latencies+=("$elapsed_ms")
 
     case "$code" in
@@ -207,7 +221,7 @@ if should_run 1; then
   sleep 3  # Let circuit register
 
   # Probe screening with a clean transfer (should return ALLOWED)
-  TRACK_ID="CASCADE-S1-$(date +%s%3N)"
+  TRACK_ID="CASCADE-S1-$(ms)"
   SCAN_URL="${BASE_URL}:8092/api/v1/screening/scan/text"
   SCAN_BODY="{\"content\":\"COMPANY: ACME\",\"filename\":\"test.csv\",\"trackId\":\"${TRACK_ID}\"}"
 
@@ -340,12 +354,12 @@ if should_run 3; then
 
   # Run for 60s to prove the 24h cache holds
   echo "  Probing encryption for 60s with keystore down..."
-  start_ms=$(date +%s%3N)
+  start_ms=$(ms)
   ok_in_window=0
   fail_in_window=0
   probe_cycle=0
 
-  while [[ $(( ($(date +%s%3N) - start_ms) / 1000 )) -lt 60 ]]; do
+  while [[ $(( ($(ms) - start_ms) / 1000 )) -lt 60 ]]; do
     probe_cycle=$((probe_cycle + 1))
     code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 \
       -X POST "$ENCRYPT_URL" \
@@ -601,7 +615,7 @@ if should_run 7; then
 
     # 2. Send a deliberately invalid AS2 POST — should get fast 400 (bad headers), not timeout
     #    We don't have a real partnership, so we expect 400. What matters is SPEED.
-    invalid_as2_start=$(date +%s%3N)
+    invalid_as2_start=$(ms)
     invalid_as2_code=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 5 \
       -X POST "${BASE_URL}:8094/as2/receive" \
       -H "Content-Type: application/octet-stream" \
@@ -610,7 +624,7 @@ if should_run 7; then
       -H "AS2-To: unknown-recipient" \
       -H "Message-ID: <chaos-$(date +%s)@test>" \
       -d "test payload" 2>/dev/null || echo "000")
-    invalid_as2_dur=$(( $(date +%s%3N) - invalid_as2_start ))
+    invalid_as2_dur=$(( $(ms) - invalid_as2_start ))
 
     echo "  Invalid AS2 POST: HTTP ${invalid_as2_code} in ${invalid_as2_dur}ms (expected 4xx fast)"
 

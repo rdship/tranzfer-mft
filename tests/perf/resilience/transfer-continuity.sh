@@ -26,6 +26,12 @@
 # =============================================================================
 set -uo pipefail
 
+# Portable millisecond timestamp — macOS BSD date does not support %N
+ms() {
+  if command -v gdate &>/dev/null; then gdate +%s%3N
+  else python3 -c "import time; print(int(time.time()*1000))"; fi
+}
+
 # ── Config ────────────────────────────────────────────────────────────────────
 BASE_URL="${MFT_BASE_URL:-http://localhost}"
 ADMIN_EMAIL="${MFT_ADMIN_EMAIL:-admin@filetransfer.local}"
@@ -187,7 +193,7 @@ echo "  DLQ depth now:   ${dlq_baseline}"
 # ── Step 2: Initiate N transfers concurrently ─────────────────────────────────
 echo ""
 echo -e "${GREEN}[2] Initiating ${TOTAL_TRANSFERS} concurrent transfers...${NC}"
-TRANSFERS_START_MS=$(date +%s%3N)
+TRANSFERS_START_MS=$(ms)
 TRANSFER_PIDS=()
 
 for i in $(seq 1 "$TOTAL_TRANSFERS"); do
@@ -199,7 +205,7 @@ for i in $(seq 1 "$TOTAL_TRANSFERS"); do
       TOKEN_OBTAINED_AT=$(date +%s)
     fi
 
-    track_id="CONTINUITY-$(date +%s%3N)-${i}-$$"
+    track_id="CONTINUITY-$(ms)-${i}-$$"
     code=$(curl -s \
       -o "${RESULTS_DIR}/responses/resp_${i}.json" \
       -w "%{http_code}" \
@@ -275,7 +281,7 @@ fi
 echo ""
 echo "[4] Waiting for all transfer requests to complete..."
 wait "${TRANSFER_PIDS[@]}" 2>/dev/null || true
-TRANSFERS_END_MS=$(date +%s%3N)
+TRANSFERS_END_MS=$(ms)
 echo "  All transfer goroutines finished in $(( (TRANSFERS_END_MS - TRANSFERS_START_MS) / 1000 ))s"
 
 # ── Step 4: Count results ─────────────────────────────────────────────────────

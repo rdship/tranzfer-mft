@@ -23,6 +23,14 @@
 # =============================================================================
 set -uo pipefail
 
+# ── Bash 4+ required (associative arrays) ─────────────────────────────────────
+if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
+  for _b in /opt/homebrew/bin/bash /usr/local/bin/bash; do
+    [[ -x "$_b" ]] && exec "$_b" "$0" "$@"
+  done
+  echo "ERROR: bash 4+ required (have ${BASH_VERSION}). Install: brew install bash" >&2; exit 1
+fi
+
 # ── Config ────────────────────────────────────────────────────────────────────
 BASE_URL="${MFT_BASE_URL:-http://localhost}"
 ADMIN_EMAIL="${MFT_ADMIN_EMAIL:-admin@filetransfer.local}"

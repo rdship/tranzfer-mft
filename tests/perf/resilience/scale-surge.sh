@@ -25,6 +25,20 @@
 # =============================================================================
 set -uo pipefail
 
+# ── Bash 4+ required (associative arrays) ─────────────────────────────────────
+if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
+  for _b in /opt/homebrew/bin/bash /usr/local/bin/bash; do
+    [[ -x "$_b" ]] && exec "$_b" "$0" "$@"
+  done
+  echo "ERROR: bash 4+ required (have ${BASH_VERSION}). Install: brew install bash" >&2; exit 1
+fi
+
+# Portable millisecond timestamp — macOS BSD date does not support %N
+ms() {
+  if command -v gdate &>/dev/null; then gdate +%s%3N
+  else python3 -c "import time; print(int(time.time()*1000))"; fi
+}
+
 # ── Config ────────────────────────────────────────────────────────────────────
 BASE_URL="${MFT_BASE_URL:-http://localhost}"
 ADMIN_EMAIL="${MFT_ADMIN_EMAIL:-admin@filetransfer.local}"
@@ -133,22 +147,22 @@ run_load_window() {
 
   local tmpdir
   tmpdir=$(mktemp -d)
-  local end_ms=$(( $(date +%s%3N) + duration_s * 1000 ))
+  local end_ms=$(( $(ms) + duration_s * 1000 ))
   local batch=0
 
   echo -ne "    ${label}: "
 
-  while [[ $(date +%s%3N) -lt $end_ms ]]; do
+  while [[ $(ms) -lt $end_ms ]]; do
     batch=$((batch + 1))
     for i in $(seq 1 "$vus"); do
       {
         local t0
-        t0=$(date +%s%3N)
+        t0=$(ms)
         local code
         code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 \
           -H "Authorization: Bearer ${token}" "$url" 2>/dev/null || echo "000")
         local t1
-        t1=$(date +%s%3N)
+        t1=$(ms)
         echo "${code} $((t1 - t0))" >> "${tmpdir}/res_${batch}_${i}.txt"
       } &
     done
@@ -231,7 +245,7 @@ test_service() {
   # ── Phase 2: Scale-up (start replica-2 while load continues) ─────────────
   echo ""
   echo -e "  ${GREEN}Phase 2: Scale-up — starting ${replica_container}...${NC}"
-  SCALEUP_START_MS=$(date +%s%3N)
+  SCALEUP_START_MS=$(ms)
 
   # Check if replica-2 image/container exists
   if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^${replica_container}$"; then
@@ -255,7 +269,7 @@ test_service() {
 
   while [[ $scaleup_elapsed -lt 75 ]]; do
     sleep 2
-    scaleup_elapsed=$(( ($(date +%s%3N) - SCALEUP_START_MS) / 1000 ))
+    scaleup_elapsed=$(( ($(ms) - SCALEUP_START_MS) / 1000 ))
     code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$health_url" 2>/dev/null || echo "000")
     scaleup_total=$((scaleup_total + 1))
     case "$code" in
@@ -297,15 +311,15 @@ test_service() {
   TOKEN=$(get_token)
   local sd_tmpdir
   sd_tmpdir=$(mktemp -d)
-  local sd_end_ms=$(( $(date +%s%3N) + (SCALEDOWN_DRAIN + 20) * 1000 ))
+  local sd_end_ms=$(( $(ms) + (SCALEDOWN_DRAIN + 20) * 1000 ))
 
   # Background load during drain
   (
     local_token="$TOKEN"
-    while [[ $(date +%s%3N) -lt $sd_end_ms ]]; do
+    while [[ $(ms) -lt $sd_end_ms ]]; do
       code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 \
         -H "Authorization: Bearer ${local_token}" "$health_url" 2>/dev/null || echo "000")
-      echo "$(date +%s%3N) $code" >> "${sd_tmpdir}/drain.log"
+      echo "$(ms) $code" >> "${sd_tmpdir}/drain.log"
       sleep 0.5
     done
   ) &

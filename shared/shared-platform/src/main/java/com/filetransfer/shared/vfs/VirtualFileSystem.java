@@ -547,10 +547,19 @@ public class VirtualFileSystem {
      * Zero disk I/O — purely in-memory PostgreSQL lock manager.
      */
     private void lockPath(UUID accountId, String path) {
-        long hash = (long) accountId.hashCode() * 31 + path.hashCode();
-        entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(:hash)")
-                .setParameter("hash", hash)
-                .getSingleResult();
+        // Mix UUID bits across the full long range to minimise hash collisions
+        long hash = accountId.getMostSignificantBits()
+                ^ (accountId.getLeastSignificantBits() >>> 17)
+                ^ ((long) path.hashCode() << 31);
+        try {
+            entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(:hash)")
+                    .setParameter("hash", hash)
+                    .getSingleResult();
+        } catch (Exception e) {
+            log.warn("[VFS] lockPath contention account={} path={}: {}", accountId, path, e.getMessage());
+            throw new IllegalStateException(
+                    "Concurrent write contention on VFS path [" + path + "] — retry the operation", e);
+        }
     }
 
     private VfsIntent createIntent(UUID accountId, VfsIntent.OpType op, String path,
