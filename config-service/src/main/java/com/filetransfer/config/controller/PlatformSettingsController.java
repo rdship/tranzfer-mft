@@ -4,6 +4,7 @@ import com.filetransfer.config.service.PlatformSettingsService;
 import com.filetransfer.shared.entity.PlatformSetting;
 import com.filetransfer.shared.enums.Environment;
 import com.filetransfer.shared.security.Roles;
+import jakarta.validation.Valid;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -62,12 +63,12 @@ public class PlatformSettingsController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public PlatformSetting create(@RequestBody PlatformSetting setting) {
+    public PlatformSetting create(@Valid @RequestBody PlatformSetting setting) {
         return service.create(setting);
     }
 
     @PutMapping("/{id}")
-    public PlatformSetting update(@PathVariable UUID id, @RequestBody PlatformSetting setting) {
+    public PlatformSetting update(@PathVariable UUID id, @Valid @RequestBody PlatformSetting setting) {
         return service.update(id, setting);
     }
 

@@ -6,6 +6,7 @@ import com.filetransfer.shared.enums.DeliveryProtocol;
 import com.filetransfer.shared.repository.DeliveryEndpointRepository;
 import com.filetransfer.shared.security.Roles;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -49,7 +50,7 @@ public class DeliveryEndpointController {
     }
 
     @PostMapping
-    public ResponseEntity<DeliveryEndpoint> create(@RequestBody DeliveryEndpoint endpoint) {
+    public ResponseEntity<DeliveryEndpoint> create(@Valid @RequestBody DeliveryEndpoint endpoint) {
         if (repository.existsByName(endpoint.getName())) {
             throw new IllegalArgumentException("Endpoint name already exists: " + endpoint.getName());
         }
@@ -59,7 +60,7 @@ public class DeliveryEndpointController {
     }
 
     @PutMapping("/{id}")
-    public DeliveryEndpoint update(@PathVariable UUID id, @RequestBody DeliveryEndpoint endpoint) {
+    public DeliveryEndpoint update(@PathVariable UUID id, @Valid @RequestBody DeliveryEndpoint endpoint) {
         if (!repository.existsById(id)) {
             throw new EntityNotFoundException("Delivery endpoint not found: " + id);
         }

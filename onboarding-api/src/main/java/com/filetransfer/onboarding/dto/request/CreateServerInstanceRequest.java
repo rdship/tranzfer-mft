@@ -39,4 +39,6 @@ public class CreateServerInstanceRequest {
     private Integer maxConnections = 500;
 
     private UUID folderTemplateId;
+
+    private String defaultStorageMode = "PHYSICAL";
 }

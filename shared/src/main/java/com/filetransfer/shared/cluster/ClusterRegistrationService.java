@@ -52,21 +52,8 @@ public class ClusterRegistrationService {
     private String serviceInstanceId;
 
     @PostConstruct
-    @Transactional
     public void register() {
         serviceInstanceId = UUID.randomUUID().toString();
-
-        ServiceRegistration reg = ServiceRegistration.builder()
-                .serviceInstanceId(serviceInstanceId)
-                .clusterId(clusterId)
-                .serviceType(serviceType)
-                .host(host)
-                .controlPort(controlPort)
-                .active(true)
-                .lastHeartbeat(Instant.now())
-                .build();
-
-        repository.save(reg);
 
         clusterContext.setServiceInstanceId(serviceInstanceId);
         clusterContext.setClusterId(clusterId);
@@ -80,7 +67,46 @@ public class ClusterRegistrationService {
         }
         clusterContext.setCommunicationMode(mode);
 
-        // Ensure this cluster is registered in the cluster_nodes table
+        // Register with retry — DB may still be accepting connections during cold start
+        registerWithRetry(mode);
+    }
+
+    private void registerWithRetry(ClusterCommunicationMode mode) {
+        int maxRetries = 5;
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                doRegister(mode);
+                return;
+            } catch (Exception e) {
+                if (attempt == maxRetries) {
+                    log.error("Failed to register service after {} attempts: {}", maxRetries, e.getMessage());
+                    return; // Don't block boot — heartbeat will retry registration
+                }
+                long backoff = attempt * 2000L;
+                log.warn("Cluster registration attempt {}/{} failed (retrying in {}ms): {}",
+                        attempt, maxRetries, backoff, e.getMessage());
+                try { Thread.sleep(backoff); } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        }
+    }
+
+    @Transactional
+    public void doRegister(ClusterCommunicationMode mode) {
+        ServiceRegistration reg = ServiceRegistration.builder()
+                .serviceInstanceId(serviceInstanceId)
+                .clusterId(clusterId)
+                .serviceType(serviceType)
+                .host(host)
+                .controlPort(controlPort)
+                .active(true)
+                .lastHeartbeat(Instant.now())
+                .build();
+
+        repository.save(reg);
+
         ensureClusterNodeExists(mode);
 
         log.info("Registered service instance: id={} cluster={} type={} host={}:{} mode={}",

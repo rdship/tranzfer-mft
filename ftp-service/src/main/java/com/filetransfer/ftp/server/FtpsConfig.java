@@ -53,7 +53,7 @@ public class FtpsConfig {
     @Value("${ftp.ftps.keystore-type:JKS}")
     private String keystoreType;
 
-    @Value("${ftp.ftps.protocol:TLSv1.2}")
+    @Value("${ftp.ftps.protocol:TLSv1.3}")
     private String protocol;
 
     /**
@@ -72,11 +72,11 @@ public class FtpsConfig {
     private boolean implicit;
 
     /** Require FTPS -- reject any plain (unencrypted) FTP connections. */
-    @Value("${ftp.ftps.require:false}")
+    @Value("${ftp.ftps.require:true}")
     private boolean requireTls;
 
     /** Require encrypted data channel (PROT P). When true, PROT C is rejected. */
-    @Value("${ftp.ftps.require-data-tls:false}")
+    @Value("${ftp.ftps.require-data-tls:true}")
     private boolean requireDataTls;
 
     /** Comma-separated list of enabled cipher suites (empty = JVM defaults). */
@@ -216,7 +216,8 @@ public class FtpsConfig {
                     sslFactory.setTruststorePassword(truststorePassword);
                     if ("changeit".equals(truststorePassword)
                             && ("PROD".equals(env) || "STAGING".equals(env) || "CERT".equals(env))) {
-                        log.warn("FTPS truststore using default password 'changeit' in {} environment — consider changing for production use", env);
+                        log.error("FTPS truststore using default password 'changeit' in {} environment — this must be changed", env);
+                        throw new IllegalStateException("FTPS truststore password must be changed from default in production environments");
                     }
                     log.info("FTPS truststore configured: {}", truststorePath);
                 } else {

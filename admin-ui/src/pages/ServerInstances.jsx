@@ -9,7 +9,10 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
 import toast from 'react-hot-toast'
-import { PlusIcon, TrashIcon, PencilIcon, ServerStackIcon, SignalIcon, SignalSlashIcon } from '@heroicons/react/24/outline'
+import {
+  PlusIcon, TrashIcon, PencilIcon, ServerStackIcon, SignalIcon, SignalSlashIcon,
+  FolderIcon, CircleStackIcon, LockClosedIcon
+} from '@heroicons/react/24/outline'
 import { useState, useEffect } from 'react'
 
 const PROTOCOLS = ['SFTP', 'FTP', 'FTP_WEB', 'HTTPS']
@@ -34,6 +37,11 @@ const SECURITY_BADGES = {
   AI_LLM: { badge: 'badge-purple', label: 'AI+LLM' },
 }
 
+const STORAGE_MODES = [
+  { value: 'PHYSICAL', label: 'Physical Storage', desc: 'Traditional filesystem — files stored directly on disk at home directory paths', icon: FolderIcon, color: 'blue' },
+  { value: 'VIRTUAL', label: 'Virtual File System (VFS)', desc: 'Phantom folders — zero-cost provisioning, content-addressed storage, inline small files', icon: CircleStackIcon, color: 'purple' },
+]
+
 const emptyForm = {
   instanceId: '', protocol: 'SFTP', name: '', description: '',
   internalHost: '', internalPort: 2222,
@@ -42,6 +50,7 @@ const emptyForm = {
   maxConnections: 500,
   folderTemplateId: '',
   clearFolderTemplate: false,
+  defaultStorageMode: 'PHYSICAL',
   securityTier: 'AI', securityPolicy: {},
   protocolCredentials: {}
 }
@@ -86,6 +95,7 @@ export default function ServerInstances() {
       useProxy: s.useProxy, proxyHost: s.proxyHost || '', proxyPort: s.proxyPort || '',
       maxConnections: s.maxConnections,
       folderTemplateId: s.folderTemplateId || '',
+      defaultStorageMode: s.defaultStorageMode || 'PHYSICAL',
       securityTier: s.securityTier || 'AI',
       securityPolicy: s.securityPolicy || {},
       protocolCredentials: s.protocolCredentials || {}
@@ -116,7 +126,7 @@ export default function ServerInstances() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-5 gap-4">
         <div className="card p-4">
           <p className="text-xs text-gray-500 uppercase tracking-wider">Total Servers</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">{servers.length}</p>
@@ -126,12 +136,16 @@ export default function ServerInstances() {
           <p className="text-2xl font-bold text-green-600 mt-1">{servers.filter(s => s.active).length}</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wider">With Proxy</p>
-          <p className="text-2xl font-bold text-blue-600 mt-1">{servers.filter(s => s.useProxy).length}</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider">Physical Storage</p>
+          <p className="text-2xl font-bold text-blue-600 mt-1">{servers.filter(s => !s.defaultStorageMode || s.defaultStorageMode === 'PHYSICAL').length}</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wider">Protocols</p>
-          <p className="text-2xl font-bold text-purple-600 mt-1">{new Set(servers.map(s => s.protocol)).size}</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider">VFS (Virtual)</p>
+          <p className="text-2xl font-bold text-purple-600 mt-1">{servers.filter(s => s.defaultStorageMode === 'VIRTUAL').length}</p>
+        </div>
+        <div className="card p-4">
+          <p className="text-xs text-gray-500 uppercase tracking-wider">With Proxy</p>
+          <p className="text-2xl font-bold text-amber-600 mt-1">{servers.filter(s => s.useProxy).length}</p>
         </div>
       </div>
 
@@ -168,9 +182,9 @@ export default function ServerInstances() {
                 <th className="table-header">Instance</th>
                 <th className="table-header">Protocol</th>
                 <th className="table-header">Name</th>
+                <th className="table-header">Storage</th>
                 <th className="table-header">Internal</th>
                 <th className="table-header">Client Connection</th>
-                <th className="table-header">Proxy</th>
                 <th className="table-header">Security</th>
                 <th className="table-header">Status</th>
                 <th className="table-header">Actions</th>
@@ -181,6 +195,7 @@ export default function ServerInstances() {
                 const tierInfo = s.securityTier
                   ? SECURITY_BADGES[s.securityTier] || SECURITY_BADGES.RULES
                   : SECURITY_BADGES.RULES
+                const isVFS = s.defaultStorageMode === 'VIRTUAL'
                 return (
                   <tr key={s.id} className="table-row">
                     <td className="table-cell">
@@ -202,13 +217,18 @@ export default function ServerInstances() {
                         {s.description && <p className="text-xs text-gray-400">{s.description}</p>}
                       </div>
                     </td>
-                    <td className="table-cell font-mono text-xs text-gray-500">{s.internalHost}:{s.internalPort}</td>
-                    <td className="table-cell font-mono text-xs text-gray-700">{s.clientHost}:{s.clientPort}</td>
                     <td className="table-cell">
-                      {s.useProxy ? (
-                        <span className="badge badge-blue">Proxy: {s.proxyHost}:{s.proxyPort}</span>
-                      ) : (
-                        <span className="text-gray-400 text-xs">Direct</span>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                        isVFS ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {isVFS ? <><CircleStackIcon className="w-3 h-3" /> VFS</> : <><FolderIcon className="w-3 h-3" /> Physical</>}
+                      </span>
+                    </td>
+                    <td className="table-cell font-mono text-xs text-gray-500">{s.internalHost}:{s.internalPort}</td>
+                    <td className="table-cell font-mono text-xs text-gray-700">
+                      {s.clientHost}:{s.clientPort}
+                      {s.useProxy && (
+                        <span className="ml-1 text-[10px] text-blue-500">(proxy)</span>
                       )}
                     </td>
                     <td className="table-cell">
@@ -243,7 +263,7 @@ export default function ServerInstances() {
 
       {/* Create Modal */}
       {showCreate && (
-        <Modal title="Add Server Instance" onClose={() => setShowCreate(false)} size="lg">
+        <Modal title="Add Server Instance" onClose={() => setShowCreate(false)} size="xl">
           <ServerForm form={form} setForm={setForm}
             onSubmit={() => createMut.mutate(form)}
             isPending={createMut.isPending}
@@ -256,7 +276,7 @@ export default function ServerInstances() {
 
       {/* Edit Modal */}
       {editServer && (
-        <Modal title={`Edit: ${editServer.name}`} onClose={() => setEditServer(null)} size="lg">
+        <Modal title={`Edit: ${editServer.name}`} onClose={() => setEditServer(null)} size="xl">
           <ServerForm form={form} setForm={setForm}
             onSubmit={() => updateMut.mutate({ id: editServer.id, data: form })}
             isPending={updateMut.isPending}
@@ -286,8 +306,6 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
     staleTime: 300_000
   })
 
-  const selectedTemplate = folderTemplates.find(t => t.id === form.folderTemplateId)
-
   const f = (key, val) => setForm(prev => ({ ...prev, [key]: val }))
 
   const handleProtocolChange = (protocol) => {
@@ -307,7 +325,7 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
   }, [form.useProxy, dmzRunning])
 
   return (
-    <form onSubmit={e => { e.preventDefault(); onSubmit() }} className="space-y-4">
+    <form onSubmit={e => { e.preventDefault(); onSubmit() }} className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
       {/* Protocol selector */}
       <div>
         <label>Protocol</label>
@@ -330,24 +348,96 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
       </div>
       <div><label>Description</label><input value={form.description} onChange={e => f('description', e.target.value)} placeholder="Production server for EU region" /></div>
 
-      {/* Folder Template */}
-      <div>
-        <label>Folder Template</label>
-        <select value={form.folderTemplateId || ''} onChange={e => {
-          const val = e.target.value
-          f('folderTemplateId', val || null)
-          f('clearFolderTemplate', !val)
-        }}>
-          <option value="">None (no folder template assigned)</option>
-          {folderTemplates.map(t => (
-            <option key={t.id} value={t.id}>{t.name}{t.builtIn ? ' (built-in)' : ''} — {t.folders.length} folders</option>
-          ))}
-        </select>
-        {selectedTemplate && (
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {selectedTemplate.folders.map((fd, i) => (
-              <span key={i} className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-xs font-mono text-gray-600">{fd.path}</span>
-            ))}
+      {/* ============ Storage Mode ============ */}
+      <div className="pt-2">
+        <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">Storage Mode</p>
+        <div className="grid grid-cols-2 gap-3">
+          {STORAGE_MODES.map(mode => {
+            const Icon = mode.icon
+            const selected = form.defaultStorageMode === mode.value
+            return (
+              <button key={mode.value} type="button"
+                onClick={() => f('defaultStorageMode', mode.value)}
+                className={`p-4 rounded-xl border-2 text-left transition-all ${
+                  selected
+                    ? mode.color === 'purple' ? 'border-purple-500 bg-purple-50' : 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <Icon className={`w-5 h-5 ${selected ? (mode.color === 'purple' ? 'text-purple-600' : 'text-blue-600') : 'text-gray-400'}`} />
+                  <span className={`font-semibold text-sm ${selected ? (mode.color === 'purple' ? 'text-purple-700' : 'text-blue-700') : 'text-gray-700'}`}>
+                    {mode.label}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500">{mode.desc}</p>
+              </button>
+            )
+          })}
+        </div>
+        {form.defaultStorageMode === 'VIRTUAL' && (
+          <div className="mt-2 bg-purple-50 border border-purple-100 rounded-lg p-2.5 text-xs text-purple-700">
+            <span className="font-medium">VFS Mode:</span> Accounts on this server will use phantom folders with content-addressed storage.
+            Small files (&lt;64KB) stored inline in DB for sub-millisecond access. No physical disk provisioning needed.
+          </div>
+        )}
+      </div>
+
+      {/* ============ Folder Template ============ */}
+      <div className="pt-2">
+        <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Folder Template</p>
+        <p className="text-xs text-gray-400 mb-3">
+          Directory structure users see when connecting — inbox, outbox, archive, etc.
+        </p>
+
+        {folderTemplates.length > 0 ? (
+          <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+            {/* None option */}
+            <button type="button"
+              onClick={() => { f('folderTemplateId', null); f('clearFolderTemplate', true) }}
+              className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
+                !form.folderTemplateId ? 'border-gray-400 bg-gray-50' : 'border-gray-200 hover:border-gray-300'
+              }`}>
+              <p className={`text-sm font-medium ${!form.folderTemplateId ? 'text-gray-900' : 'text-gray-500'}`}>
+                No folder template
+              </p>
+              <p className="text-xs text-gray-400">Accounts use a flat home directory with no predefined structure</p>
+            </button>
+
+            {/* Template cards */}
+            {folderTemplates.map(t => {
+              const isSelected = form.folderTemplateId === t.id
+              return (
+                <button key={t.id} type="button"
+                  onClick={() => { f('folderTemplateId', t.id); f('clearFolderTemplate', false) }}
+                  className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
+                    isSelected ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-200' : 'border-gray-200 hover:border-gray-300'
+                  }`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className={`text-sm font-medium ${isSelected ? 'text-blue-900' : 'text-gray-900'}`}>{t.name}</p>
+                    {t.builtIn && (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-600">
+                        <LockClosedIcon className="w-2.5 h-2.5" /> Built-in
+                      </span>
+                    )}
+                    <span className="text-[10px] text-gray-400 ml-auto">{t.folders.length} folder{t.folders.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  {t.description && <p className="text-xs text-gray-500 mb-1.5">{t.description}</p>}
+                  <div className="flex flex-wrap gap-1">
+                    {t.folders.map((fd, i) => (
+                      <span key={i} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono ${
+                        isSelected ? 'bg-blue-100/70 text-blue-700' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        <FolderIcon className="w-3 h-3 text-yellow-500" /> {fd.path}
+                      </span>
+                    ))}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-500 border border-gray-200">
+            No folder templates available. Create templates on the <span className="font-medium">Folder Templates</span> page first.
           </div>
         )}
       </div>

@@ -22,6 +22,8 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.filetransfer.shared.entity.SecurityProfile;
+
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.*;
@@ -168,13 +170,19 @@ public class SftpServerConfig {
     }
 
     /**
-     * Configures allowed ciphers if specified. Filters the MINA built-in cipher
-     * list to only those named in the configuration.
+     * Configures allowed ciphers. When explicit config is provided, uses that list.
+     * Otherwise applies a hardened default that excludes CBC-mode and weak ciphers.
      */
     private void configureCiphers(SshServer sshd) {
-        if (configuredCiphers == null || configuredCiphers.isBlank()) return;
+        Set<String> allowed;
+        if (configuredCiphers != null && !configuredCiphers.isBlank()) {
+            allowed = parseCommaSeparated(configuredCiphers);
+        } else {
+            // Hardened defaults: AEAD + CTR only, no CBC
+            allowed = SecurityProfile.ALLOWED_SSH_CIPHERS;
+            log.info("No SFTP ciphers configured — applying hardened defaults");
+        }
 
-        Set<String> allowed = parseCommaSeparated(configuredCiphers);
         List<NamedFactory<Cipher>> filtered = BuiltinCiphers.VALUES.stream()
                 .filter(c -> allowed.contains(c.getName()))
                 .filter(BuiltinCiphers::isSupported)
@@ -182,7 +190,7 @@ public class SftpServerConfig {
                 .collect(Collectors.toList());
 
         if (filtered.isEmpty()) {
-            log.warn("No valid ciphers matched configuration '{}'; using MINA defaults", configuredCiphers);
+            log.warn("No valid ciphers matched — using MINA defaults (NOT RECOMMENDED for production)");
             return;
         }
 
@@ -191,12 +199,18 @@ public class SftpServerConfig {
     }
 
     /**
-     * Configures allowed MAC algorithms if specified.
+     * Configures allowed MAC algorithms. Defaults to ETM (encrypt-then-MAC) variants.
      */
     private void configureMacs(SshServer sshd) {
-        if (configuredMacs == null || configuredMacs.isBlank()) return;
+        Set<String> allowed;
+        if (configuredMacs != null && !configuredMacs.isBlank()) {
+            allowed = parseCommaSeparated(configuredMacs);
+        } else {
+            // Hardened defaults: ETM + SHA-2 only
+            allowed = SecurityProfile.ALLOWED_SSH_MACS;
+            log.info("No SFTP MACs configured — applying hardened defaults");
+        }
 
-        Set<String> allowed = parseCommaSeparated(configuredMacs);
         List<NamedFactory<Mac>> filtered = BuiltinMacs.VALUES.stream()
                 .filter(m -> allowed.contains(m.getName()))
                 .filter(BuiltinMacs::isSupported)
@@ -204,7 +218,7 @@ public class SftpServerConfig {
                 .collect(Collectors.toList());
 
         if (filtered.isEmpty()) {
-            log.warn("No valid MACs matched configuration '{}'; using MINA defaults", configuredMacs);
+            log.warn("No valid MACs matched — using MINA defaults (NOT RECOMMENDED for production)");
             return;
         }
 
@@ -213,14 +227,18 @@ public class SftpServerConfig {
     }
 
     /**
-     * Configures allowed key exchange algorithms if specified.
+     * Configures allowed key exchange algorithms. Defaults to ECDH + strong DH groups.
      */
     private void configureKex(SshServer sshd) {
-        if (configuredKex == null || configuredKex.isBlank()) return;
+        Set<String> allowed;
+        if (configuredKex != null && !configuredKex.isBlank()) {
+            allowed = parseCommaSeparated(configuredKex);
+        } else {
+            // Hardened defaults: curve25519, ECDH, DH group16+
+            allowed = SecurityProfile.ALLOWED_SSH_KEX;
+            log.info("No SFTP KEX configured — applying hardened defaults");
+        }
 
-        Set<String> allowed = parseCommaSeparated(configuredKex);
-
-        // Filter the server's existing KEX factories to only those in the allowed list
         List<KeyExchangeFactory> currentKex = sshd.getKeyExchangeFactories();
         if (currentKex == null || currentKex.isEmpty()) {
             currentKex = SshServer.setUpDefaultServer().getKeyExchangeFactories();
@@ -231,7 +249,7 @@ public class SftpServerConfig {
                 .collect(Collectors.toList());
 
         if (filtered.isEmpty()) {
-            log.warn("No valid KEX algorithms matched configuration '{}'; using MINA defaults", configuredKex);
+            log.warn("No valid KEX algorithms matched — using MINA defaults (NOT RECOMMENDED for production)");
             return;
         }
 

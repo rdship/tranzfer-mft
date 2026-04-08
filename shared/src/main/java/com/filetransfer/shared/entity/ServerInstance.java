@@ -66,6 +66,11 @@ public class ServerInstance {
     @JoinColumn(name = "folder_template_id")
     private FolderTemplate folderTemplate;
 
+    /** PHYSICAL = legacy filesystem, VIRTUAL = phantom folder VFS. */
+    @Column(name = "default_storage_mode", length = 10)
+    @Builder.Default
+    private String defaultStorageMode = "PHYSICAL";
+
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;

@@ -21,4 +21,5 @@ public class UpdateServerInstanceRequest {
     private Boolean active;
     private UUID folderTemplateId;
     private boolean clearFolderTemplate;
+    private String defaultStorageMode;
 }

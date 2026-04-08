@@ -3,6 +3,7 @@ package com.filetransfer.config.controller;
 import com.filetransfer.config.service.FolderTemplateService;
 import com.filetransfer.shared.entity.FolderTemplate;
 import com.filetransfer.shared.security.Roles;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -31,12 +32,12 @@ public class FolderTemplateController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public FolderTemplate create(@RequestBody FolderTemplate template) {
+    public FolderTemplate create(@Valid @RequestBody FolderTemplate template) {
         return service.create(template);
     }
 
     @PutMapping("/{id}")
-    public FolderTemplate update(@PathVariable UUID id, @RequestBody FolderTemplate template) {
+    public FolderTemplate update(@PathVariable UUID id, @Valid @RequestBody FolderTemplate template) {
         return service.update(id, template);
     }
 

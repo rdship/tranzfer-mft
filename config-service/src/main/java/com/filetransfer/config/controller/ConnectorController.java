@@ -4,6 +4,7 @@ import com.filetransfer.shared.entity.WebhookConnector;
 import com.filetransfer.shared.repository.WebhookConnectorRepository;
 import com.filetransfer.shared.security.Roles;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,13 +27,13 @@ public class ConnectorController {
     public List<WebhookConnector> getAll() { return connectorRepository.findByActiveTrue(); }
 
     @PostMapping
-    public ResponseEntity<WebhookConnector> create(@RequestBody WebhookConnector connector) {
+    public ResponseEntity<WebhookConnector> create(@Valid @RequestBody WebhookConnector connector) {
         connector.setId(null);
         return ResponseEntity.status(HttpStatus.CREATED).body(connectorRepository.save(connector));
     }
 
     @PutMapping("/{id}")
-    public WebhookConnector update(@PathVariable UUID id, @RequestBody WebhookConnector connector) {
+    public WebhookConnector update(@PathVariable UUID id, @Valid @RequestBody WebhookConnector connector) {
         if (!connectorRepository.existsById(id)) throw new EntityNotFoundException("Not found: " + id);
         connector.setId(id);
         return connectorRepository.save(connector);

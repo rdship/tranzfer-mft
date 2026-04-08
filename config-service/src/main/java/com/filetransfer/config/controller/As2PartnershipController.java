@@ -1,8 +1,10 @@
 package com.filetransfer.config.controller;
 
 import com.filetransfer.shared.entity.As2Partnership;
+import com.filetransfer.shared.entity.SecurityProfile;
 import com.filetransfer.shared.repository.As2PartnershipRepository;
 import com.filetransfer.shared.security.Roles;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -49,7 +51,7 @@ public class As2PartnershipController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public As2Partnership create(@RequestBody As2Partnership partnership) {
+    public As2Partnership create(@Valid @RequestBody As2Partnership partnership) {
         validatePartnership(partnership);
         log.info("Creating AS2 partnership: {} (partner={}, protocol={})",
                 partnership.getPartnerName(), partnership.getPartnerAs2Id(), partnership.getProtocol());
@@ -57,11 +59,12 @@ public class As2PartnershipController {
     }
 
     @PutMapping("/{id}")
-    public As2Partnership update(@PathVariable UUID id, @RequestBody As2Partnership updated) {
+    public As2Partnership update(@PathVariable UUID id, @Valid @RequestBody As2Partnership updated) {
         As2Partnership existing = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Partnership not found: " + id));
 
+        validatePartnership(updated);
         existing.setPartnerName(updated.getPartnerName());
         existing.setPartnerAs2Id(updated.getPartnerAs2Id());
         existing.setOurAs2Id(updated.getOurAs2Id());
@@ -114,5 +117,26 @@ public class As2PartnershipController {
         String proto = p.getProtocol();
         if (proto == null || (!"AS2".equals(proto) && !"AS4".equals(proto)))
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "protocol must be AS2 or AS4");
+
+        // Reject deprecated/weak cryptographic algorithms
+        String signing = p.getSigningAlgorithm();
+        if (signing != null && SecurityProfile.DEPRECATED_AS2_ALGORITHMS.contains(signing.toUpperCase())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Signing algorithm '" + signing + "' is deprecated. Use: " + SecurityProfile.ALLOWED_AS2_SIGNING);
+        }
+        if (signing != null && !SecurityProfile.ALLOWED_AS2_SIGNING.contains(signing.toUpperCase())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Signing algorithm '" + signing + "' not allowed. Use: " + SecurityProfile.ALLOWED_AS2_SIGNING);
+        }
+
+        String encryption = p.getEncryptionAlgorithm();
+        if (encryption != null && SecurityProfile.DEPRECATED_AS2_ALGORITHMS.contains(encryption.toUpperCase())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Encryption algorithm '" + encryption + "' is deprecated. Use: " + SecurityProfile.ALLOWED_AS2_ENCRYPTION);
+        }
+        if (encryption != null && !SecurityProfile.ALLOWED_AS2_ENCRYPTION.contains(encryption.toUpperCase())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Encryption algorithm '" + encryption + "' not allowed. Use: " + SecurityProfile.ALLOWED_AS2_ENCRYPTION);
+        }
     }
 }

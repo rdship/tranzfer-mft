@@ -4,6 +4,7 @@ import com.filetransfer.shared.entity.LegacyServerConfig;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.repository.LegacyServerConfigRepository;
 import com.filetransfer.shared.security.Roles;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -45,13 +46,13 @@ public class LegacyServerController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public LegacyServerConfig create(@RequestBody LegacyServerConfig config) {
+    public LegacyServerConfig create(@Valid @RequestBody LegacyServerConfig config) {
         config.setId(null);
         return repository.save(config);
     }
 
     @PutMapping("/{id}")
-    public LegacyServerConfig update(@PathVariable UUID id, @RequestBody LegacyServerConfig config) {
+    public LegacyServerConfig update(@PathVariable UUID id, @Valid @RequestBody LegacyServerConfig config) {
         if (!repository.existsById(id)) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         config.setId(id);
         return repository.save(config);

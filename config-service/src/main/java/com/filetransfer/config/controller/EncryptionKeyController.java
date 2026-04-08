@@ -4,6 +4,7 @@ import com.filetransfer.shared.entity.EncryptionKey;
 import com.filetransfer.shared.repository.EncryptionKeyRepository;
 import com.filetransfer.shared.repository.TransferAccountRepository;
 import com.filetransfer.shared.security.Roles;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -43,7 +44,7 @@ public class EncryptionKeyController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public EncryptionKey create(@RequestBody EncryptionKey key) {
+    public EncryptionKey create(@Valid @RequestBody EncryptionKey key) {
         if (key.getAccount() == null || key.getAccount().getId() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "account.id is required");
         }

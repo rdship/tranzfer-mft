@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.*;
 import java.net.HttpURLConnection;
-import java.net.URL;
+import java.net.URI;
 import java.time.Instant;
 import java.util.*;
 
@@ -52,10 +52,16 @@ public class SanctionsListLoader {
     private volatile Map<String, Long> listCounts = new LinkedHashMap<>();
 
     @EventListener(ApplicationReadyEvent.class)
-    @Transactional
     public void onStartup() {
-        log.info("Screening service starting — loading sanctions lists...");
-        refreshAllLists();
+        // Load sanctions in background thread — don't block boot or health checks
+        Thread.ofVirtual().name("sanctions-loader").start(() -> {
+            try {
+                log.info("Screening service starting — loading sanctions lists in background...");
+                refreshAllLists();
+            } catch (Exception e) {
+                log.warn("Background sanctions load failed (scheduled refresh will retry): {}", e.getMessage());
+            }
+        });
     }
 
     @Scheduled(cron = "0 0 */6 * * *") // Every 6 hours
@@ -98,7 +104,7 @@ public class SanctionsListLoader {
     private long loadOfacSdn() {
         try {
             log.info("Fetching OFAC SDN list from {}...", ofacSdnUrl);
-            HttpURLConnection conn = (HttpURLConnection) new URL(ofacSdnUrl).openConnection();
+            HttpURLConnection conn = (HttpURLConnection) URI.create(ofacSdnUrl).toURL().openConnection();
             conn.setRequestProperty("User-Agent", "TranzFer-MFT-Screening/1.0");
             conn.setConnectTimeout(30000);
             conn.setReadTimeout(60000);

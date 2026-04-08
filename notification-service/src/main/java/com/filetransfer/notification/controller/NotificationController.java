@@ -11,6 +11,7 @@ import com.filetransfer.shared.repository.NotificationRuleRepository;
 import com.filetransfer.shared.repository.NotificationTemplateRepository;
 import com.filetransfer.shared.security.Roles;
 import jakarta.validation.Valid;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -55,14 +56,14 @@ public class NotificationController {
 
     @PostMapping("/templates")
     @PreAuthorize(Roles.ADMIN)
-    public NotificationTemplate createTemplate(@RequestBody NotificationTemplate template) {
+    public NotificationTemplate createTemplate(@Valid @RequestBody NotificationTemplate template) {
         return templateRepository.save(template);
     }
 
     @PutMapping("/templates/{id}")
     @PreAuthorize(Roles.ADMIN)
     public ResponseEntity<NotificationTemplate> updateTemplate(@PathVariable UUID id,
-                                                                @RequestBody NotificationTemplate update) {
+                                                                @Valid @RequestBody NotificationTemplate update) {
         return templateRepository.findById(id)
                 .map(existing -> {
                     existing.setName(update.getName());
@@ -104,14 +105,14 @@ public class NotificationController {
 
     @PostMapping("/rules")
     @PreAuthorize(Roles.ADMIN)
-    public NotificationRule createRule(@RequestBody NotificationRule rule) {
+    public NotificationRule createRule(@Valid @RequestBody NotificationRule rule) {
         return ruleRepository.save(rule);
     }
 
     @PutMapping("/rules/{id}")
     @PreAuthorize(Roles.ADMIN)
     public ResponseEntity<NotificationRule> updateRule(@PathVariable UUID id,
-                                                        @RequestBody NotificationRule update) {
+                                                        @Valid @RequestBody NotificationRule update) {
         return ruleRepository.findById(id)
                 .map(existing -> {
                     existing.setName(update.getName());

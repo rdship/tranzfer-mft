@@ -25,6 +25,7 @@ public class ServerInstanceResponse {
     private int maxConnections;
     private UUID folderTemplateId;
     private String folderTemplateName;
+    private String defaultStorageMode;
     private boolean active;
     private Instant createdAt;
     private Instant updatedAt;

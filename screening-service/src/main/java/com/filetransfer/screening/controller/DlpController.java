@@ -4,6 +4,7 @@ import com.filetransfer.screening.service.DlpEngine;
 import com.filetransfer.shared.entity.DlpPolicy;
 import com.filetransfer.shared.repository.DlpPolicyRepository;
 import com.filetransfer.shared.security.Roles;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -44,7 +45,7 @@ public class DlpController {
     /** Create a new DLP policy */
     @PostMapping("/policies")
     @PreAuthorize(Roles.ADMIN)
-    public ResponseEntity<DlpPolicy> createPolicy(@RequestBody DlpPolicy policy) {
+    public ResponseEntity<DlpPolicy> createPolicy(@Valid @RequestBody DlpPolicy policy) {
         if (policy.getName() == null || policy.getName().isBlank()) {
             return ResponseEntity.badRequest().build();
         }
@@ -58,7 +59,7 @@ public class DlpController {
     @PutMapping("/policies/{id}")
     @PreAuthorize(Roles.ADMIN)
     public ResponseEntity<DlpPolicy> updatePolicy(@PathVariable UUID id,
-                                                    @RequestBody DlpPolicy update) {
+                                                    @Valid @RequestBody DlpPolicy update) {
         DlpPolicy existing = policyRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("DLP policy not found: " + id));
 

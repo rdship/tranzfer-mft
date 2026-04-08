@@ -4,6 +4,7 @@ import com.filetransfer.shared.client.DmzProxyClient;
 import com.filetransfer.shared.entity.ListenerSecurityPolicy;
 import com.filetransfer.shared.repository.ListenerSecurityPolicyRepository;
 import com.filetransfer.shared.security.Roles;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -63,7 +64,7 @@ public class ListenerSecurityPolicyController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ListenerSecurityPolicy create(@RequestBody ListenerSecurityPolicy policy) {
+    public ListenerSecurityPolicy create(@Valid @RequestBody ListenerSecurityPolicy policy) {
         validatePolicy(policy);
         policy.setId(null);
         policy.setActive(true);
@@ -74,7 +75,7 @@ public class ListenerSecurityPolicyController {
     }
 
     @PutMapping("/{id}")
-    public ListenerSecurityPolicy update(@PathVariable UUID id, @RequestBody ListenerSecurityPolicy updates) {
+    public ListenerSecurityPolicy update(@PathVariable UUID id, @Valid @RequestBody ListenerSecurityPolicy updates) {
         ListenerSecurityPolicy existing = policyRepo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         // Update fields

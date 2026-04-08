@@ -48,7 +48,8 @@ public class TlsTerminator {
      * Any cipher suite whose name contains one of these tokens is rejected.
      */
     private static final List<String> EXCLUDED_CIPHER_KEYWORDS = List.of(
-            "NULL", "EXPORT", "DES", "RC4", "MD5", "anon", "EMPTY"
+            "NULL", "EXPORT", "DES", "3DES", "RC4", "RC2", "MD5",
+            "anon", "EMPTY", "IDEA", "SEED"
     );
 
     /**
@@ -70,6 +71,7 @@ public class TlsTerminator {
     private volatile SslContext defaultContext;
     private final ConcurrentHashMap<String, SslContext> contextCache = new ConcurrentHashMap<>();
     private volatile TlsConfig defaultConfig;
+    private final boolean blockWeakCiphers;
 
     // ── Nested config record ──────────────────────────────────────────────
 
@@ -158,6 +160,17 @@ public class TlsTerminator {
      * @throws IllegalArgumentException if TLS is enabled but the certificate/key are invalid
      */
     public TlsTerminator(TlsConfig defaultConfig) {
+        this(defaultConfig, true);
+    }
+
+    /**
+     * Creates a new TLS terminator with the given default configuration and weak cipher blocking flag.
+     *
+     * @param defaultConfig   the default TLS configuration
+     * @param blockWeakCiphers whether to actively filter out weak cipher suites
+     */
+    public TlsTerminator(TlsConfig defaultConfig, boolean blockWeakCiphers) {
+        this.blockWeakCiphers = blockWeakCiphers;
         this.defaultConfig = Objects.requireNonNull(defaultConfig, "defaultConfig must not be null");
 
         if (defaultConfig.enabled()) {
@@ -435,15 +448,17 @@ public class TlsTerminator {
         List<String> result = new ArrayList<>(TLS13_CIPHER_SUITES);
 
         if (configured != null && !configured.isEmpty()) {
-            // Use the explicitly configured list, but filter out insecure ones
             for (String cipher : configured) {
-                if (!isExcludedCipher(cipher) && !result.contains(cipher)) {
+                boolean excluded = blockWeakCiphers && isExcludedCipher(cipher);
+                if (!excluded && !result.contains(cipher)) {
                     result.add(cipher);
                 }
             }
         }
-        // When no explicit list is provided, we return just the TLS 1.3 suites
-        // and let the SupportedCipherSuiteFilter add safe JDK defaults
+
+        if (blockWeakCiphers) {
+            log.debug("Weak cipher blocking ENABLED — {} ciphers in final list", result.size());
+        }
 
         return result;
     }

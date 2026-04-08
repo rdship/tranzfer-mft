@@ -161,7 +161,7 @@ public class ProxyManager {
                 true, null, null, null, null, false,
                 tlsConfig.getMinTlsVersion(), List.of(),
                 false, 3600, 10_000);
-            this.tlsTerminator = new TlsTerminator(defaultTls);
+            this.tlsTerminator = new TlsTerminator(defaultTls, tlsConfig.isBlockWeakCiphers());
 
             this.keystoreIntegration = new KeystoreIntegration(
                 tlsConfig.getKeystoreManagerUrl(),

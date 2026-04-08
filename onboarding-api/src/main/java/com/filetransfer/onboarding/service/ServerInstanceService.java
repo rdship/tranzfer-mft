@@ -67,6 +67,7 @@ public class ServerInstanceService {
                 .proxyPort(request.getProxyPort())
                 .maxConnections(request.getMaxConnections() != null ? request.getMaxConnections() : 500)
                 .folderTemplate(resolveTemplate(request.getFolderTemplateId()))
+                .defaultStorageMode(request.getDefaultStorageMode() != null ? request.getDefaultStorageMode() : "PHYSICAL")
                 .build();
 
         repository.save(instance);
@@ -94,6 +95,7 @@ public class ServerInstanceService {
         } else if (request.getFolderTemplateId() != null) {
             instance.setFolderTemplate(resolveTemplate(request.getFolderTemplateId()));
         }
+        if (request.getDefaultStorageMode() != null) instance.setDefaultStorageMode(request.getDefaultStorageMode());
 
         repository.save(instance);
         return toResponse(instance);
@@ -129,6 +131,7 @@ public class ServerInstanceService {
                 .maxConnections(i.getMaxConnections())
                 .folderTemplateId(ft != null ? ft.getId() : null)
                 .folderTemplateName(ft != null ? ft.getName() : null)
+                .defaultStorageMode(i.getDefaultStorageMode())
                 .active(i.isActive())
                 .createdAt(i.getCreatedAt())
                 .updatedAt(i.getUpdatedAt())

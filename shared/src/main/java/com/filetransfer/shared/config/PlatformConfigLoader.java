@@ -44,13 +44,19 @@ public class PlatformConfigLoader {
 
     @PostConstruct
     public void load() {
-        reload();
+        try {
+            reload();
+        } catch (Exception e) {
+            log.warn("Failed to load platform settings on startup (will retry on first access): {}",
+                    e.getMessage());
+        }
     }
 
     /**
      * Reload all settings from DB. Called on startup and on config-change events.
      */
     public void reload() {
+        long startMs = System.currentTimeMillis();
         Environment env = parseEnvironment(environmentName);
         List<PlatformSetting> settings = settingRepository.findForServiceInEnvironment(env, serviceType);
 
@@ -70,7 +76,8 @@ public class PlatformConfigLoader {
 
         cache.clear();
         cache.putAll(fresh);
-        log.info("Loaded {} platform settings for service={} env={}", cache.size(), serviceType, env);
+        log.info("Loaded {} platform settings for service={} env={} [{}ms]",
+                cache.size(), serviceType, env, System.currentTimeMillis() - startMs);
     }
 
     public String getString(String key, String defaultValue) {

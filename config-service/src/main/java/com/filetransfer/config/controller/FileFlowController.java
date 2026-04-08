@@ -60,7 +60,7 @@ public class FileFlowController {
     }
 
     @PutMapping("/{id}")
-    public FileFlow updateFlow(@PathVariable UUID id, @RequestBody FileFlow flow) {
+    public FileFlow updateFlow(@PathVariable UUID id, @Valid @RequestBody FileFlow flow) {
         if (!flowRepository.existsById(id))
             throw new EntityNotFoundException("Flow not found: " + id);
         flow.setName(sanitizeName(flow.getName()));

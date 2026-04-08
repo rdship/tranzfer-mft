@@ -151,16 +151,16 @@ public class KeyManagementService {
 
         PGPKeyPair pgpKeyPair = new JcaPGPKeyPair(PGPPublicKey.RSA_GENERAL, kp, new Date());
 
-        // Build secret key
-        PGPDigestCalculator sha1Calc = new JcaPGPDigestCalculatorProviderBuilder().build()
-                .get(org.bouncycastle.bcpg.HashAlgorithmTags.SHA1);
+        // Build secret key — SHA-256 for digest (SHA-1 is cryptographically weak)
+        PGPDigestCalculator sha256Calc = new JcaPGPDigestCalculatorProviderBuilder().build()
+                .get(org.bouncycastle.bcpg.HashAlgorithmTags.SHA256);
         PGPSecretKey secretKey = new PGPSecretKey(
-                PGPSignature.DEFAULT_CERTIFICATION, pgpKeyPair, identity, sha1Calc,
+                PGPSignature.DEFAULT_CERTIFICATION, pgpKeyPair, identity, sha256Calc,
                 null, null,
                 new JcaPGPContentSignerBuilder(pgpKeyPair.getPublicKey().getAlgorithm(),
                         org.bouncycastle.bcpg.HashAlgorithmTags.SHA256),
                 new JcePBESecretKeyEncryptorBuilder(
-                        org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags.AES_256, sha1Calc)
+                        org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags.AES_256, sha256Calc)
                         .setProvider("BC").build(passphrase.toCharArray()));
 
         // Export armored public key

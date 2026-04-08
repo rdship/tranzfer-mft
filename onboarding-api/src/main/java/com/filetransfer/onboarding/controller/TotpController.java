@@ -179,8 +179,8 @@ public class TotpController {
         try {
             byte[] key = base32Decode(base32Secret);
             byte[] data = ByteBuffer.allocate(8).putLong(timeInterval).array();
-            Mac mac = Mac.getInstance("HmacSHA1");
-            mac.init(new SecretKeySpec(key, "HmacSHA1"));
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(key, "HmacSHA256"));
             byte[] hash = mac.doFinal(data);
             int offset = hash[hash.length - 1] & 0x0F;
             int binary = ((hash[offset] & 0x7F) << 24) | ((hash[offset + 1] & 0xFF) << 16)

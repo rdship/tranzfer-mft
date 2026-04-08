@@ -5,6 +5,7 @@ import com.filetransfer.shared.repository.PartnerAgreementRepository;
 import com.filetransfer.shared.scheduler.SlaBreachDetector;
 import com.filetransfer.shared.security.Roles;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -18,8 +19,8 @@ public class SlaController {
     private final SlaBreachDetector breachDetector;
 
     @GetMapping public List<PartnerAgreement> list() { return repo.findByActiveTrue(); }
-    @PostMapping public ResponseEntity<PartnerAgreement> create(@RequestBody PartnerAgreement sla) { sla.setId(null); return ResponseEntity.status(HttpStatus.CREATED).body(repo.save(sla)); }
-    @PutMapping("/{id}") public PartnerAgreement update(@PathVariable UUID id, @RequestBody PartnerAgreement sla) { if (!repo.existsById(id)) throw new EntityNotFoundException("Not found"); sla.setId(id); return repo.save(sla); }
+    @PostMapping public ResponseEntity<PartnerAgreement> create(@Valid @RequestBody PartnerAgreement sla) { sla.setId(null); return ResponseEntity.status(HttpStatus.CREATED).body(repo.save(sla)); }
+    @PutMapping("/{id}") public PartnerAgreement update(@PathVariable UUID id, @Valid @RequestBody PartnerAgreement sla) { if (!repo.existsById(id)) throw new EntityNotFoundException("Not found"); sla.setId(id); return repo.save(sla); }
     @DeleteMapping("/{id}") public ResponseEntity<Void> delete(@PathVariable UUID id) { repo.deleteById(id); return ResponseEntity.noContent().build(); }
     @GetMapping("/breaches") public List<SlaBreachDetector.SlaBreachEvent> breaches() { return breachDetector.getActiveBreaches(); }
 }

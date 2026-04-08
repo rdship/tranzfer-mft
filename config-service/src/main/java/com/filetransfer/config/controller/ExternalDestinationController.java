@@ -4,6 +4,7 @@ import com.filetransfer.shared.entity.ExternalDestination;
 import com.filetransfer.shared.enums.ExternalDestinationType;
 import com.filetransfer.shared.repository.ExternalDestinationRepository;
 import com.filetransfer.shared.security.Roles;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -44,13 +45,13 @@ public class ExternalDestinationController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ExternalDestination create(@RequestBody ExternalDestination dest) {
+    public ExternalDestination create(@Valid @RequestBody ExternalDestination dest) {
         dest.setId(null);
         return repository.save(dest);
     }
 
     @PutMapping("/{id}")
-    public ExternalDestination update(@PathVariable UUID id, @RequestBody ExternalDestination dest) {
+    public ExternalDestination update(@PathVariable UUID id, @Valid @RequestBody ExternalDestination dest) {
         if (!repository.existsById(id)) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         dest.setId(id);
         return repository.save(dest);
