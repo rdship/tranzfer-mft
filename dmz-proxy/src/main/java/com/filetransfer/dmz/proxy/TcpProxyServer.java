@@ -14,6 +14,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.codec.haproxy.HAProxyMessageDecoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.ReferenceCountUtil;
@@ -97,6 +98,7 @@ public class TcpProxyServer {
         // Pre-build TLS context if TLS termination enabled for this mapping
         final SslContext sslCtx = buildSslContext();
 
+        final TcpProxyServer self = this;
         ServerBootstrap b = new ServerBootstrap()
                 .group(bossGroup, workerGroup)
                 .channel(NioServerSocketChannel.class)
@@ -105,6 +107,16 @@ public class TcpProxyServer {
                     @Override
                     protected void initChannel(SocketChannel clientCh) {
                         activeConnections.incrementAndGet();
+
+                        // ── Step 0: Inbound PROXY protocol (if behind a load balancer) ──
+                        boolean inboundPP = manager != null && manager.isInboundProxyProtocolEnabled();
+                        if (inboundPP) {
+                            // HAProxyMessageDecoder auto-removes itself after parsing the
+                            // single PROXY header. InboundProxyProtocolHandler extracts the
+                            // real client IP into a channel attribute and also self-removes.
+                            clientCh.pipeline().addLast("ha-proxy-decoder", new HAProxyMessageDecoder());
+                            clientCh.pipeline().addLast("ha-proxy-handler", new InboundProxyProtocolHandler());
+                        }
 
                         // ── Step 1: TLS termination (if enabled) ──
                         if (sslCtx != null) {
@@ -115,7 +127,8 @@ public class TcpProxyServer {
                                     auditTls(clientCh, sslHandler);
                                 } else {
                                     log.warn("[{}] TLS handshake failed from {}",
-                                        mapping.getName(), clientCh.remoteAddress());
+                                        mapping.getName(),
+                                        InboundProxyProtocolHandler.resolveClientIp(clientCh));
                                     clientCh.close();
                                 }
                             });
@@ -136,7 +149,8 @@ public class TcpProxyServer {
                         BackendHealthChecker hc = manager != null ? manager.getHealthChecker() : null;
                         if (hc != null && !hc.isHealthy(mapping.getName())) {
                             log.warn("[{}] Backend unhealthy, rejecting connection from {}",
-                                mapping.getName(), clientCh.remoteAddress());
+                                mapping.getName(),
+                                InboundProxyProtocolHandler.resolveClientIp(clientCh));
                             auditConnection("REJECTED", clientCh, "backend_unhealthy");
                             activeConnections.decrementAndGet();
                             clientCh.close();
@@ -149,10 +163,13 @@ public class TcpProxyServer {
                         // runs once in ProxyManager.add() — not here on the event loop.
 
                         // ── Step 5: Zone enforcement (source IP only — target pre-resolved) ──
+                        // When inbound PROXY protocol is enabled, the real client IP is not
+                        // yet available (arrives with the first data read). Zone enforcement
+                        // is deferred to ZoneCheckHandler which runs after the PROXY header
+                        // is decoded. When PP is disabled, check immediately with socket IP.
                         ZoneEnforcer ze = manager != null ? manager.getZoneEnforcer() : null;
-                        if (ze != null) {
-                            InetSocketAddress remote = (InetSocketAddress) clientCh.remoteAddress();
-                            String sourceIp = remote != null ? remote.getAddress().getHostAddress() : "unknown";
+                        if (ze != null && !inboundPP) {
+                            String sourceIp = InboundProxyProtocolHandler.resolveClientIp(clientCh);
                             // Source IP is always an IP literal — classifyIp does NO DNS lookup.
                             // Target zone was pre-resolved at mapping creation (no DNS here).
                             ZoneEnforcer.ZoneCheckResult zoneResult = ze.checkTransitionFast(
@@ -167,12 +184,19 @@ public class TcpProxyServer {
                                 return;
                             }
                         }
+                        if (ze != null && inboundPP) {
+                            // Deferred zone check: runs as a pipeline handler after
+                            // InboundProxyProtocolHandler has set the real client IP.
+                            clientCh.pipeline().addLast("zone-check",
+                                new DeferredZoneCheckHandler(ze, mapping, self));
+                        }
 
                         // ── Step 6: Backend connection with PROXY protocol ──
-                        // Resolve client IP and inspection components for in-flight DPI
-                        InetSocketAddress clientRemote = (InetSocketAddress) clientCh.remoteAddress();
-                        String clientIp = clientRemote != null
-                            ? clientRemote.getAddress().getHostAddress() : "unknown";
+                        // When inbound PP is enabled, real IP is not yet available — pass
+                        // null and let RelayHandler lazily resolve from channel attribute.
+                        // When PP is disabled, resolve immediately from socket address.
+                        String clientIp = inboundPP ? null
+                            : InboundProxyProtocolHandler.resolveClientIp(clientCh);
                         DeepPacketInspector dpi = manager != null
                             ? manager.getDeepPacketInspector() : null;
                         FtpCommandFilter ftpFilter = manager != null
@@ -185,14 +209,13 @@ public class TcpProxyServer {
                                 .handler(new ChannelInitializer<SocketChannel>() {
                                     @Override
                                     protected void initChannel(SocketChannel backendCh) {
-                                        // PROXY protocol header (if enabled)
+                                        // PROXY protocol header to backend (if enabled).
+                                        // Use a lazy-resolving outbound handler that reads
+                                        // the real client IP from the inbound channel's
+                                        // attribute at write time (after PROXY header decoded).
                                         if (mapping.isProxyProtocolEnabled()) {
-                                            InetSocketAddress clientAddr = (InetSocketAddress) clientCh.remoteAddress();
-                                            InetSocketAddress localAddr = (InetSocketAddress) clientCh.localAddress();
-                                            if (clientAddr != null && localAddr != null) {
-                                                backendCh.pipeline().addLast("proxy-protocol",
-                                                    ProxyProtocolHandler.v1(clientAddr, localAddr));
-                                            }
+                                            backendCh.pipeline().addLast("proxy-protocol",
+                                                new LazyProxyProtocolOutboundHandler(clientCh));
                                         }
                                         // Backend→client: no inspection needed
                                         backendCh.pipeline().addLast(new RelayHandler(clientCh, bytesForwarded,
@@ -234,7 +257,9 @@ public class TcpProxyServer {
         List<String> features = new java.util.ArrayList<>();
         features.add("security=" + (securityEnabled ? "ON" : "OFF"));
         if (sslCtx != null) features.add("tls=ON");
-        if (mapping.isProxyProtocolEnabled()) features.add("proxy-protocol=ON");
+        if (mapping.isProxyProtocolEnabled()) features.add("proxy-protocol-out=ON");
+        if (manager != null && manager.isInboundProxyProtocolEnabled())
+            features.add("proxy-protocol-in=ON");
 
         log.info("DMZ proxy [{}]: listening :{} -> {}:{} [{}]",
                 mapping.getName(), mapping.getListenPort(),
@@ -279,8 +304,7 @@ public class TcpProxyServer {
         if (audit == null || !mapping.isAuditEnabled()) return;
         try {
             javax.net.ssl.SSLSession session = sslHandler.engine().getSession();
-            InetSocketAddress remote = (InetSocketAddress) clientCh.remoteAddress();
-            String sourceIp = remote != null ? remote.getAddress().getHostAddress() : "unknown";
+            String sourceIp = InboundProxyProtocolHandler.resolveClientIp(clientCh);
             audit.logTls(sourceIp, mapping.getListenPort(), mapping.getName(),
                 session.getProtocol(), session.getCipherSuite(),
                 session.getPeerCertificates() != null && session.getPeerCertificates().length > 0,
@@ -297,8 +321,7 @@ public class TcpProxyServer {
         AuditLogger audit = manager != null ? manager.getAuditLogger() : null;
         if (audit == null || !mapping.isAuditEnabled()) return;
         try {
-            InetSocketAddress remote = (InetSocketAddress) clientCh.remoteAddress();
-            String sourceIp = remote != null ? remote.getAddress().getHostAddress() : "unknown";
+            String sourceIp = InboundProxyProtocolHandler.resolveClientIp(clientCh);
             String tier = mapping.getSecurityPolicy() != null
                 ? mapping.getSecurityPolicy().getSecurityTier() : "AI";
             audit.logConnection(event, sourceIp, mapping.getListenPort(),
@@ -320,13 +343,15 @@ public class TcpProxyServer {
         // Inspection components (null when inspection disabled or backend→client direction)
         private final DeepPacketInspector dpi;
         private final FtpCommandFilter ftpFilter;
-        private final String clientIp;
+        private final String initialClientIp;  // null when inbound PP active (lazy resolve)
         private final int listenPort;
         private final String mappingName;
         private final boolean inspectTraffic;
 
         // Protocol detected from first packet (lazy, only when inspecting)
         private String detectedProtocol;
+        // Lazily resolved client IP (from channel attribute or initial value)
+        private String clientIp;
 
         RelayHandler(Channel outboundChannel, AtomicLong bytesForwarded,
                      DeepPacketInspector dpi, FtpCommandFilter ftpFilter,
@@ -336,7 +361,7 @@ public class TcpProxyServer {
             this.bytesForwarded = bytesForwarded;
             this.dpi = dpi;
             this.ftpFilter = ftpFilter;
-            this.clientIp = clientIp;
+            this.initialClientIp = clientIp;
             this.listenPort = listenPort;
             this.mappingName = mappingName;
             this.inspectTraffic = inspectTraffic;
@@ -344,6 +369,13 @@ public class TcpProxyServer {
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) {
+            // Lazy client IP resolution: when inbound PROXY protocol is active,
+            // the real IP is set as a channel attribute after the first read.
+            if (clientIp == null) {
+                clientIp = initialClientIp != null ? initialClientIp
+                        : InboundProxyProtocolHandler.resolveClientIp(ctx.channel());
+            }
+
             if (msg instanceof ByteBuf buf) {
                 bytesForwarded.addAndGet(buf.readableBytes());
 
@@ -411,6 +443,102 @@ public class TcpProxyServer {
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
             log.debug("Relay error: {}", cause.getMessage());
             ctx.close();
+        }
+    }
+
+    /**
+     * Lazy outbound PROXY protocol handler — resolves the real client IP from
+     * the inbound channel's attribute at write time (not at construction time).
+     * This is necessary when inbound PROXY protocol is active because the real
+     * client IP is only available after the first inbound read decodes the header.
+     *
+     * <p>One-shot: removes itself after sending the header on the first write.
+     */
+    static class LazyProxyProtocolOutboundHandler extends ChannelOutboundHandlerAdapter {
+        private final Channel inboundChannel;
+        private volatile boolean headerSent = false;
+
+        LazyProxyProtocolOutboundHandler(Channel inboundChannel) {
+            this.inboundChannel = inboundChannel;
+        }
+
+        @Override
+        public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise)
+                throws Exception {
+            if (!headerSent) {
+                headerSent = true;
+
+                // Resolve real client address — attribute set by InboundProxyProtocolHandler,
+                // or fall back to socket address
+                InetSocketAddress clientAddr;
+                String realIp = inboundChannel.attr(InboundProxyProtocolHandler.REAL_CLIENT_IP).get();
+                if (realIp != null) {
+                    Integer realPort = inboundChannel.attr(InboundProxyProtocolHandler.REAL_CLIENT_PORT).get();
+                    clientAddr = new InetSocketAddress(realIp, realPort != null ? realPort : 0);
+                } else {
+                    clientAddr = (InetSocketAddress) inboundChannel.remoteAddress();
+                }
+
+                InetSocketAddress localAddr = (InetSocketAddress) inboundChannel.localAddress();
+
+                if (clientAddr != null && localAddr != null) {
+                    // Replace ourselves with the real ProxyProtocolHandler (which builds
+                    // and prepends the v1 header on this same write call).
+                    ctx.pipeline().replace(this, "proxy-protocol-v1",
+                            ProxyProtocolHandler.v1(clientAddr, localAddr));
+                    // Delegate to the replacement handler which will prepend the header
+                    ctx.pipeline().context("proxy-protocol-v1").write(msg, promise);
+                    return;
+                }
+
+                // No valid addresses — remove ourselves and pass through
+                ctx.pipeline().remove(this);
+            }
+            ctx.write(msg, promise);
+        }
+    }
+
+    /**
+     * Deferred zone enforcement handler — checks zone policy after the real
+     * client IP has been extracted from the inbound PROXY protocol header.
+     * Runs on {@code channelActive} (which is deferred by InboundProxyProtocolHandler
+     * until after the PROXY header is decoded).
+     *
+     * <p>One-shot: removes itself after the zone check passes.
+     */
+    static class DeferredZoneCheckHandler extends ChannelInboundHandlerAdapter {
+        private final ZoneEnforcer zoneEnforcer;
+        private final PortMapping mapping;
+        private final TcpProxyServer server;
+
+        DeferredZoneCheckHandler(ZoneEnforcer zoneEnforcer, PortMapping mapping,
+                                 TcpProxyServer server) {
+            this.zoneEnforcer = zoneEnforcer;
+            this.mapping = mapping;
+            this.server = server;
+        }
+
+        @Override
+        public void channelActive(ChannelHandlerContext ctx) throws Exception {
+            String sourceIp = InboundProxyProtocolHandler.resolveClientIp(ctx.channel());
+
+            ZoneEnforcer.ZoneCheckResult zoneResult = zoneEnforcer.checkTransitionFast(
+                    sourceIp, mapping.getCachedTargetZone(), mapping.getTargetPort());
+
+            if (!zoneResult.allowed()) {
+                log.warn("[{}] Zone violation (deferred): {} → {}: {}",
+                        mapping.getName(), zoneResult.sourceZone(),
+                        zoneResult.targetZone(), zoneResult.reason());
+                server.auditConnection("ZONE_BLOCKED", (SocketChannel) ctx.channel(),
+                        zoneResult.reason());
+                server.activeConnections.decrementAndGet();
+                ctx.close();
+                return;
+            }
+
+            // Zone check passed — remove ourselves and continue
+            ctx.pipeline().remove(this);
+            super.channelActive(ctx);
         }
     }
 }

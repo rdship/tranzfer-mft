@@ -37,6 +37,9 @@ public class DmzProperties {
     /** Bandwidth QoS defaults */
     private Qos qos = new Qos();
 
+    /** Inbound PROXY protocol (when behind a load balancer) */
+    private ProxyProtocol proxyProtocol = new ProxyProtocol();
+
     @Data
     public static class Security {
         private boolean enabled = true;
@@ -107,6 +110,8 @@ public class DmzProperties {
         private int maxDnsResolutionMs = 2000;
         /** Always-blocked destination ports */
         private List<String> blockedPorts = List.of("25", "53", "135", "137", "138", "139", "445");
+        /** TTL for DNS cache entries in seconds (default 300 = 5 minutes) */
+        private int dnsTtlSeconds = 300;
     }
 
     @Data
@@ -149,5 +154,16 @@ public class DmzProperties {
         private long globalMaxBytesPerSecond = 0;
         /** Default per-mapping max bytes per second (0 = unlimited) */
         private long perMappingMaxBytesPerSecond = 0;
+    }
+
+    @Data
+    public static class ProxyProtocol {
+        /**
+         * Enable inbound PROXY protocol parsing. Set to true ONLY when the
+         * proxy sits behind a load balancer that sends PROXY protocol headers
+         * (v1 or v2). When false, connections that send PROXY headers will be
+         * treated as normal TCP data.
+         */
+        private boolean inboundEnabled = false;
     }
 }

@@ -93,7 +93,8 @@ class EgressFilterTest {
                     true,   // blockLoopback
                     false,  // dnsPinning — disable for predictable tests
                     2000,   // maxDnsResolutionMs
-                    List.of("25", "53")
+                    List.of("25", "53"),
+                    300     // dnsTtlSeconds
             ));
 
             EgressFilter.EgressCheckResult result = whitelisted.checkDestination("10.0.0.1", 8080);

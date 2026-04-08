@@ -3,10 +3,15 @@ package com.filetransfer.dmz.security;
 import io.netty.channel.Channel;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 /**
  * Connection Tracker — maintains per-IP connection state in-memory.
@@ -25,6 +30,9 @@ import java.util.concurrent.atomic.AtomicLong;
 public class ConnectionTracker {
 
     private static final int MAX_TRACKED_IPS = 50_000;
+    private static final int MAX_CONNECTION_TIMES = 100;
+    private static final Duration IDLE_IP_TTL = Duration.ofHours(1);
+    private static final long CLEANUP_INTERVAL_MINUTES = 5;
 
     /** Per-IP tracking data */
     public static class IpState {
@@ -63,7 +71,7 @@ public class ConnectionTracker {
             lastSeen = Instant.now();
             synchronized (connectionTimes) {
                 connectionTimes.addLast(Instant.now());
-                while (connectionTimes.size() > 500) connectionTimes.pollFirst();
+                while (connectionTimes.size() > MAX_CONNECTION_TIMES) connectionTimes.pollFirst();
             }
         }
 
@@ -108,6 +116,54 @@ public class ConnectionTracker {
     private final AtomicLong globalActiveConnections = new AtomicLong(0);
     private final AtomicLong globalTotalConnections = new AtomicLong(0);
     private final AtomicLong globalRejectedConnections = new AtomicLong(0);
+    private volatile ScheduledExecutorService cleanupScheduler;
+
+    public ConnectionTracker() {
+        startPeriodicCleanup();
+    }
+
+    /**
+     * Start the background cleanup daemon that evicts idle IPs every few minutes.
+     */
+    private void startPeriodicCleanup() {
+        cleanupScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "conn-tracker-cleanup");
+            t.setDaemon(true);
+            return t;
+        });
+        long ttlSeconds = IDLE_IP_TTL.getSeconds();
+        int ttlHours = Math.max(1, (int) (ttlSeconds / 3600));
+        cleanupScheduler.scheduleAtFixedRate(() -> {
+            try {
+                int before = ipStates.size();
+                cleanup(ttlHours);
+                int removed = before - ipStates.size();
+                if (removed > 0) {
+                    log.info("CONNECTION_TRACKER: periodic cleanup removed {} idle IPs (remaining: {})",
+                        removed, ipStates.size());
+                }
+            } catch (Exception e) {
+                log.warn("CONNECTION_TRACKER: periodic cleanup failed: {}", e.getMessage());
+            }
+        }, CLEANUP_INTERVAL_MINUTES, CLEANUP_INTERVAL_MINUTES, TimeUnit.MINUTES);
+    }
+
+    /**
+     * Shutdown the background cleanup scheduler. Call on application shutdown.
+     */
+    public void shutdown() {
+        if (cleanupScheduler != null && !cleanupScheduler.isShutdown()) {
+            cleanupScheduler.shutdown();
+            try {
+                if (!cleanupScheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                    cleanupScheduler.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                cleanupScheduler.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
 
     /** Connection metadata stored per channel */
     public record ConnectionInfo(
@@ -235,10 +291,22 @@ public class ConnectionTracker {
     // ── Cleanup ────────────────────────────────────────────────────────
 
     private void evictOldest() {
-        ipStates.entrySet().stream()
+        int toEvict = Math.max(1, ipStates.size() / 100); // Evict at least 1% per call
+        List<String> victims = ipStates.entrySet().stream()
             .filter(e -> e.getValue().getActiveConnectionCount() == 0)
-            .min(Comparator.comparing(e -> e.getValue().getLastSeen()))
-            .ifPresent(e -> ipStates.remove(e.getKey()));
+            .sorted(Comparator.comparing(e -> e.getValue().getLastSeen()))
+            .limit(toEvict)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toList());
+
+        victims.forEach(ipStates::remove);
+
+        if (victims.isEmpty() && ipStates.size() > MAX_TRACKED_IPS) {
+            log.warn("CONNECTION_TRACKER: {} tracked IPs, all have active connections — "
+                + "possible DDoS. Upstream rate limiter should be tightened.", ipStates.size());
+        } else if (!victims.isEmpty()) {
+            log.debug("CONNECTION_TRACKER: evicted {} idle IPs (tracked: {})", victims.size(), ipStates.size());
+        }
     }
 
     /**

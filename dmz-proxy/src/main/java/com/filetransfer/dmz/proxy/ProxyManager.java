@@ -64,6 +64,12 @@ public class ProxyManager {
     @Getter private BandwidthQoS bandwidthQoS;
     @Getter private ConnectionDrainer connectionDrainer;
 
+    /** Whether inbound PROXY protocol parsing is enabled (LB in front). */
+    public boolean isInboundProxyProtocolEnabled() {
+        return properties.getProxyProtocol() != null
+                && properties.getProxyProtocol().isInboundEnabled();
+    }
+
     public ProxyManager(DmzProperties properties) {
         this.properties = properties;
     }
@@ -202,7 +208,8 @@ public class ProxyManager {
                 egressConfig.isBlockLoopback(),
                 egressConfig.isDnsPinning(),
                 egressConfig.getMaxDnsResolutionMs(),
-                egressConfig.getBlockedPorts()));
+                egressConfig.getBlockedPorts(),
+                egressConfig.getDnsTtlSeconds()));
             log.info("Egress filter initialized: blockedPorts={}", egressConfig.getBlockedPorts());
         }
     }
@@ -407,6 +414,7 @@ public class ProxyManager {
         if (keystoreIntegration != null) keystoreIntegration.shutdown();
         if (bandwidthQoS != null) bandwidthQoS.shutdown();
         if (contentScreeningBridge != null) contentScreeningBridge.shutdown();
+        if (egressFilter != null) egressFilter.shutdown();
         if (auditLogger != null) {
             auditLogger.flush();
             auditLogger.shutdown();

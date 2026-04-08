@@ -99,6 +99,10 @@ dmz:
     unhealthy-threshold: 3
     healthy-threshold: 1
 
+  # Inbound PROXY protocol parsing (enable when behind a load balancer)
+  proxy-protocol:
+    inbound-enabled: ${DMZ_PROXY_PROTOCOL_INBOUND:false}
+
   # Bandwidth QoS
   qos:
     enabled: ${DMZ_QOS_ENABLED:false}

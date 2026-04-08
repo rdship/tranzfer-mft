@@ -12,7 +12,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.*;
 import lombok.extern.slf4j.Slf4j;
 
-import java.net.InetSocketAddress;
+
 
 /**
  * Intelligent Proxy Handler — Netty ChannelInboundHandler that orchestrates
@@ -100,8 +100,7 @@ public class IntelligentProxyHandler extends ChannelInboundHandlerAdapter {
         metrics.recordConnection();
         metrics.recordPort(listenPort);
 
-        InetSocketAddress remote = (InetSocketAddress) ctx.channel().remoteAddress();
-        sourceIp = remote != null ? remote.getAddress().getHostAddress() : "unknown";
+        sourceIp = InboundProxyProtocolHandler.resolveClientIp(ctx.channel());
 
         log.debug("[{}] New connection from {} on port {}", mappingName, sourceIp, listenPort);
 

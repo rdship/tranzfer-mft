@@ -124,12 +124,18 @@ public class FtpCommandFilter {
     // ── Public API ────────────────────────────────────────────────────
 
     /**
-     * Check an FTP command line (without client IP — no bounce attack prevention).
+     * Check an FTP command line (without client IP).
+     * PORT and EPRT commands will be rejected because bounce attack prevention
+     * cannot be performed without a client IP.
      *
      * @param commandLine raw FTP command line (e.g., "RETR /path/to/file.txt")
      * @return check result
+     * @deprecated Use {@link #checkCommand(String, String)} with a client IP to enable
+     *             full bounce attack prevention. This overload rejects PORT/EPRT commands.
      */
+    @Deprecated(since = "1.0", forRemoval = true)
     public FtpCommandResult checkCommand(String commandLine) {
+        log.warn("FTP checkCommand called without client IP — PORT/EPRT will be rejected");
         return checkCommand(commandLine, null);
     }
 
@@ -191,11 +197,13 @@ public class FtpCommandFilter {
                 return new FtpCommandResult(false, command, argument,
                     config.requirePassiveMode() ? "passive_mode_required" : "port_command_blocked");
             }
-            // Validate IP matches client
-            if (clientIp != null) {
-                FtpCommandResult bounceCheck = checkPortBounce(command, argument, clientIp);
-                if (!bounceCheck.allowed()) return bounceCheck;
+            // Reject if client IP unavailable — bounce check cannot be performed safely
+            if (clientIp == null) {
+                log.warn("FTP PORT command rejected — client IP unavailable for bounce attack check");
+                return new FtpCommandResult(false, command, argument, "port_bounce_no_client_ip");
             }
+            FtpCommandResult bounceCheck = checkPortBounce(command, argument, clientIp);
+            if (!bounceCheck.allowed()) return bounceCheck;
         }
 
         if ("EPRT".equals(command)) {
@@ -204,11 +212,13 @@ public class FtpCommandFilter {
                 return new FtpCommandResult(false, command, argument,
                     config.requirePassiveMode() ? "passive_mode_required" : "eprt_command_blocked");
             }
-            // Validate IP matches client
-            if (clientIp != null) {
-                FtpCommandResult bounceCheck = checkEprtBounce(command, argument, clientIp);
-                if (!bounceCheck.allowed()) return bounceCheck;
+            // Reject if client IP unavailable — bounce check cannot be performed safely
+            if (clientIp == null) {
+                log.warn("FTP EPRT command rejected — client IP unavailable for bounce attack check");
+                return new FtpCommandResult(false, command, argument, "eprt_bounce_no_client_ip");
             }
+            FtpCommandResult bounceCheck = checkEprtBounce(command, argument, clientIp);
+            if (!bounceCheck.allowed()) return bounceCheck;
         }
 
         // ── 4. SITE command block ──
@@ -235,13 +245,18 @@ public class FtpCommandFilter {
     }
 
     /**
-     * Check an FTP command extracted from a ByteBuf.
-     * Reads the first line of ASCII text from the buffer without consuming it.
+     * Check an FTP command extracted from a ByteBuf (without client IP).
+     * PORT and EPRT commands will be rejected because bounce attack prevention
+     * cannot be performed without a client IP.
      *
      * @param data the ByteBuf containing the FTP command
      * @return check result
+     * @deprecated Use {@link #checkCommand(ByteBuf, String)} with a client IP to enable
+     *             full bounce attack prevention. This overload rejects PORT/EPRT commands.
      */
+    @Deprecated(since = "1.0", forRemoval = true)
     public FtpCommandResult checkCommand(ByteBuf data) {
+        log.warn("FTP checkCommand(ByteBuf) called without client IP — PORT/EPRT will be rejected");
         return checkCommand(data, null);
     }
 

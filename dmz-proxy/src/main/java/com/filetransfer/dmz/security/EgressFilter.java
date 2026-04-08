@@ -4,9 +4,13 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -52,6 +56,7 @@ public class EgressFilter {
      * @param dnsPinning          resolve DNS once, pin IP (default {@code true})
      * @param maxDnsResolutionMs  DNS resolution timeout in ms (default 2000)
      * @param blockedPorts        always-blocked ports (e.g., "25" for SMTP)
+     * @param dnsTtlSeconds       TTL for DNS cache entries in seconds (default 300 = 5 minutes)
      */
     public record EgressConfig(
             List<String> allowedDestinations,
@@ -61,11 +66,12 @@ public class EgressFilter {
             boolean blockLoopback,
             boolean dnsPinning,
             int maxDnsResolutionMs,
-            List<String> blockedPorts
+            List<String> blockedPorts,
+            int dnsTtlSeconds
     ) {
         /**
          * Sensible production defaults: block everything dangerous, DNS pinning on,
-         * SMTP (25) and DNS (53) ports blocked.
+         * SMTP (25) and DNS (53) ports blocked, DNS TTL 5 minutes.
          */
         public static EgressConfig defaults() {
             return new EgressConfig(
@@ -76,7 +82,8 @@ public class EgressFilter {
                     true,   // blockLoopback
                     true,   // dnsPinning
                     2000,   // maxDnsResolutionMs
-                    List.of("25", "53") // SMTP, DNS
+                    List.of("25", "53"), // SMTP, DNS
+                    300     // dnsTtlSeconds (5 minutes)
             );
         }
     }
@@ -125,6 +132,20 @@ public class EgressFilter {
         }
     }
 
+    // ── DNS Cache Entry ────────────────────────────────────────────────
+
+    /**
+     * A cached DNS resolution with expiry tracking.
+     *
+     * @param ip        the resolved IP address
+     * @param expiresAt when this cache entry becomes stale
+     */
+    private record DnsCacheEntry(String ip, Instant expiresAt) {
+        boolean isExpired() {
+            return Instant.now().isAfter(expiresAt);
+        }
+    }
+
     // ── State ─────────────────────────────────────────────────────────
 
     private final EgressConfig config;
@@ -132,8 +153,11 @@ public class EgressFilter {
     private final CopyOnWriteArrayList<String> allowedDestinationStrings;
     private final Set<Integer> blockedPortSet;
 
-    /** DNS pin cache: hostname -> resolved IP. */
-    private final ConcurrentHashMap<String, String> dnsCache = new ConcurrentHashMap<>();
+    /** DNS pin cache: hostname -> resolved IP with TTL. */
+    private final ConcurrentHashMap<String, DnsCacheEntry> dnsCache = new ConcurrentHashMap<>();
+
+    /** Scheduler for periodic DNS refresh. */
+    private final ScheduledExecutorService dnsRefreshScheduler;
 
     /** Stats counters. */
     private final AtomicLong totalAllowed = new AtomicLong(0);
@@ -174,11 +198,44 @@ public class EgressFilter {
             }
         }
 
+        // Start periodic DNS refresh scheduler (runs at TTL/2 to refresh before expiry)
+        if (config.dnsPinning() && config.dnsTtlSeconds() > 0) {
+            long refreshIntervalSeconds = Math.max(config.dnsTtlSeconds() / 2, 1);
+            this.dnsRefreshScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "egress-dns-refresh");
+                t.setDaemon(true);
+                return t;
+            });
+            dnsRefreshScheduler.scheduleAtFixedRate(() -> {
+                try {
+                    refreshAllDns();
+                } catch (Exception e) {
+                    log.error("DNS refresh cycle failed: {}", e.getMessage(), e);
+                }
+            }, refreshIntervalSeconds, refreshIntervalSeconds, TimeUnit.SECONDS);
+            log.info("DNS refresh scheduler started: interval={}s, ttl={}s",
+                    refreshIntervalSeconds, config.dnsTtlSeconds());
+        } else {
+            this.dnsRefreshScheduler = null;
+        }
+
         log.info("EgressFilter initialised: {} allowed destinations, {} blocked ports, " +
-                        "blockPrivate={}, blockLinkLocal={}, blockMetadata={}, blockLoopback={}, dnsPinning={}",
+                        "blockPrivate={}, blockLinkLocal={}, blockMetadata={}, blockLoopback={}, dnsPinning={}, dnsTtl={}s",
                 allowedEntries.size(), blockedPortSet.size(),
                 config.blockPrivateRanges(), config.blockLinkLocal(),
-                config.blockMetadataService(), config.blockLoopback(), config.dnsPinning());
+                config.blockMetadataService(), config.blockLoopback(), config.dnsPinning(),
+                config.dnsTtlSeconds());
+    }
+
+    /**
+     * Shut down the DNS refresh scheduler. Call this when the filter is no longer needed
+     * (e.g., during application shutdown) to release the daemon thread promptly.
+     */
+    public void shutdown() {
+        if (dnsRefreshScheduler != null) {
+            dnsRefreshScheduler.shutdownNow();
+            log.info("DNS refresh scheduler stopped");
+        }
     }
 
     // ── Public API ────────────────────────────────────────────────────
@@ -283,12 +340,14 @@ public class EgressFilter {
     // ── DNS Pinning ───────────────────────────────────────────────────
 
     /**
-     * Get the current DNS pin cache.
+     * Get the current DNS pin cache (hostname to IP).
      *
      * @return unmodifiable map of hostname to pinned IP
      */
     public Map<String, String> getPinnedDns() {
-        return Collections.unmodifiableMap(new LinkedHashMap<>(dnsCache));
+        Map<String, String> result = new LinkedHashMap<>();
+        dnsCache.forEach((host, entry) -> result.put(host, entry.ip()));
+        return Collections.unmodifiableMap(result);
     }
 
     /**
@@ -302,11 +361,13 @@ public class EgressFilter {
         try {
             InetAddress addr = InetAddress.getByName(normalized);
             String newIp = addr.getHostAddress();
-            String oldIp = dnsCache.put(normalized, newIp);
-            if (oldIp != null && !oldIp.equals(newIp)) {
-                log.info("DNS pin updated for {}: {} -> {}", normalized, oldIp, newIp);
+            Instant expiresAt = Instant.now().plusSeconds(config.dnsTtlSeconds());
+            DnsCacheEntry oldEntry = dnsCache.put(normalized, new DnsCacheEntry(newIp, expiresAt));
+            if (oldEntry != null && !oldEntry.ip().equals(newIp)) {
+                log.warn("DNS CHANGE DETECTED for '{}': {} -> {} — possible DNS hijacking or infrastructure change. "
+                        + "Verify this change is expected.", normalized, oldEntry.ip(), newIp);
             } else {
-                log.debug("DNS pin refreshed for {}: {}", normalized, newIp);
+                log.debug("DNS pin refreshed for {}: {} (ttl={}s)", normalized, newIp, config.dnsTtlSeconds());
             }
         } catch (UnknownHostException e) {
             log.warn("DNS refresh failed for {}: {}", normalized, e.getMessage());
@@ -352,8 +413,10 @@ public class EgressFilter {
                         (m, e) -> m.put(e.getKey(), e.getValue().get()),
                         LinkedHashMap::putAll));
 
-        // Current DNS pins
-        stats.put("pinnedDns", new LinkedHashMap<>(dnsCache));
+        // Current DNS pins (expose IP only, not internal entry)
+        Map<String, String> pinnedDns = new LinkedHashMap<>();
+        dnsCache.forEach((host, entry) -> pinnedDns.put(host, entry.ip()));
+        stats.put("pinnedDns", pinnedDns);
 
         return Collections.unmodifiableMap(stats);
     }
@@ -434,18 +497,21 @@ public class EgressFilter {
 
     /**
      * Resolve a hostname to an IP, using the DNS pin cache if pinning is enabled.
-     * Respects the configured DNS resolution timeout.
+     * Cache entries expire after the configured TTL; stale entries trigger a fresh resolution.
      *
      * @return resolved IP or {@code null} on failure
      */
     private String resolveDns(String hostname) {
         String normalizedHost = hostname.trim().toLowerCase(Locale.ROOT);
 
-        // Check pin cache first
+        // Check pin cache first — return only if entry exists AND is not expired
         if (config.dnsPinning()) {
-            String pinned = dnsCache.get(normalizedHost);
-            if (pinned != null) {
-                return pinned;
+            DnsCacheEntry cached = dnsCache.get(normalizedHost);
+            if (cached != null && !cached.isExpired()) {
+                return cached.ip();
+            }
+            if (cached != null) {
+                log.debug("DNS cache entry expired for '{}' (was {})", normalizedHost, cached.ip());
             }
         }
 
@@ -458,8 +524,14 @@ public class EgressFilter {
             String resolved = addr.getHostAddress();
 
             if (config.dnsPinning()) {
-                dnsCache.put(normalizedHost, resolved);
-                log.debug("DNS pinned: {} -> {}", normalizedHost, resolved);
+                Instant expiresAt = Instant.now().plusSeconds(config.dnsTtlSeconds());
+                DnsCacheEntry oldEntry = dnsCache.put(normalizedHost, new DnsCacheEntry(resolved, expiresAt));
+                if (oldEntry != null && !oldEntry.ip().equals(resolved)) {
+                    log.warn("DNS CHANGE DETECTED for '{}': {} -> {} — possible DNS hijacking or infrastructure change. "
+                            + "Verify this change is expected.", normalizedHost, oldEntry.ip(), resolved);
+                } else {
+                    log.debug("DNS pinned: {} -> {} (ttl={}s)", normalizedHost, resolved, config.dnsTtlSeconds());
+                }
             }
 
             return resolved;

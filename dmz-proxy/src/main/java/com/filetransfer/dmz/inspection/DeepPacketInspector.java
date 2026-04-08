@@ -1,10 +1,13 @@
 package com.filetransfer.dmz.inspection;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.CompositeByteBuf;
+import io.netty.buffer.Unpooled;
 import lombok.extern.slf4j.Slf4j;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 /**
@@ -90,6 +93,14 @@ public class DeepPacketInspector {
         Pattern.compile("(?i)BENCHMARK\\s*\\("),
         Pattern.compile("(?i)LOAD_FILE\\s*\\("),
         Pattern.compile("(?i)INTO\\s+(OUT|DUMP)FILE"),
+        Pattern.compile("(?i)SLEEP\\s*\\("),
+        Pattern.compile("(?i)pg_sleep\\s*\\("),
+        Pattern.compile("(?i)WAITFOR\\s+TIME"),
+        Pattern.compile("(?i)0x[0-9a-fA-F]{4,}"),
+        Pattern.compile("(?i)CONCAT\\s*\\("),
+        Pattern.compile("(?i)(CHR|CHAR)\\s*\\("),
+        Pattern.compile("(?i)CONVERT\\s*\\("),
+        Pattern.compile("(?i)CAST\\s*\\("),
     };
 
     // ── Command injection patterns ────────────────────────────────────
@@ -101,6 +112,7 @@ public class DeepPacketInspector {
         Pattern.compile("\\$\\([^)]+\\)"),
         Pattern.compile("\\$\\{[^}]+\\}"),
         Pattern.compile("(?i)&&\\s*(ls|cat|rm|wget|curl|bash|sh)\\b"),
+        Pattern.compile("\\|\\|\\s*(ls|cat|rm|wget|curl|bash|sh|id|whoami|uname|pwd|env)\\b"),
     };
 
     // ── Path traversal patterns ───────────────────────────────────────
@@ -129,10 +141,46 @@ public class DeepPacketInspector {
         "(?i)(hydra|medusa|ncrack|libssh-scanner|go-ssh-brute|sshbrute)"
     );
 
+    // ── SSH KEX accumulation ─────────────────────────────────────────
+
+    /** Max bytes to accumulate per connection for SSH KEX inspection. */
+    private static final int SSH_KEX_MAX_ACCUMULATION = 32 * 1024; // 32 KB
+
+    /** Max packets to accumulate per connection (KEX_INIT is in packet 1 or 2). */
+    private static final int SSH_KEX_MAX_PACKETS = 2;
+
     // ── State ─────────────────────────────────────────────────────────
 
     private final InspectionConfig config;
     private final int minTlsOrdinal;
+
+    /**
+     * Per-connection SSH handshake accumulation buffer. Keyed by connection ID
+     * (e.g., channelId or clientIp:port). Used to reassemble SSH_MSG_KEXINIT
+     * that may arrive in a follow-up packet after the version banner.
+     */
+    private final ConcurrentHashMap<String, SshAccumulator> sshAccumulators = new ConcurrentHashMap<>();
+
+    /**
+     * Tracks accumulated SSH handshake data for a single connection.
+     */
+    private static class SshAccumulator {
+        final CompositeByteBuf buffer;
+        int packetCount;
+        boolean kexInspected;
+
+        SshAccumulator() {
+            this.buffer = Unpooled.compositeBuffer();
+            this.packetCount = 0;
+            this.kexInspected = false;
+        }
+
+        void release() {
+            if (buffer.refCnt() > 0) {
+                buffer.release();
+            }
+        }
+    }
 
     // ── Constructor ───────────────────────────────────────────────────
 
@@ -152,12 +200,38 @@ public class DeepPacketInspector {
      * Inspect the first bytes of a connection for security violations.
      * Does NOT consume bytes from the buffer (uses getByte/getBytes for zero-copy).
      *
+     * <p>This overload does not track per-connection SSH state. Use
+     * {@link #inspect(ByteBuf, String, int, String)} for SSH KEX accumulation
+     * across multiple packets.</p>
+     *
      * @param data             the first bytes received on the connection
      * @param detectedProtocol protocol string from ProtocolDetector (SSH, FTP, HTTP, TLS, etc.)
      * @param port             the listen port
      * @return inspection result — {@code allowed=true} if no violations found
      */
     public InspectionResult inspect(ByteBuf data, String detectedProtocol, int port) {
+        return inspect(data, detectedProtocol, port, null);
+    }
+
+    /**
+     * Inspect the first bytes of a connection for security violations, with
+     * per-connection SSH KEX accumulation support.
+     *
+     * <p>For SSH connections, if the SSH_MSG_KEXINIT message is not present in
+     * the current packet, data is accumulated in a per-connection buffer and
+     * KEX inspection is deferred until a subsequent packet delivers the KEXINIT.
+     * Accumulation is bounded to {@value #SSH_KEX_MAX_PACKETS} packets or
+     * {@value #SSH_KEX_MAX_ACCUMULATION} bytes, whichever comes first.</p>
+     *
+     * @param data             the bytes received on the connection
+     * @param detectedProtocol protocol string from ProtocolDetector (SSH, FTP, HTTP, TLS, etc.)
+     * @param port             the listen port
+     * @param connectionId     unique connection identifier (e.g., channel ID) for SSH
+     *                         KEX buffering; may be null to skip accumulation
+     * @return inspection result — {@code allowed=true} if no violations found
+     */
+    public InspectionResult inspect(ByteBuf data, String detectedProtocol, int port,
+                                    String connectionId) {
         if (!config.enabled()) {
             return new InspectionResult(true, "disabled", Severity.INFO, "DPI disabled");
         }
@@ -171,12 +245,27 @@ public class DeepPacketInspector {
 
         return switch (protocol) {
             case "TLS", "FTPS" -> inspectTls(data);
-            case "SSH"         -> inspectSsh(data);
+            case "SSH"         -> inspectSsh(data, connectionId);
             case "HTTP"        -> inspectHttp(data);
             case "FTP"         -> inspectFtp(data);
             default            -> new InspectionResult(true, "no_inspection", Severity.INFO,
                                       "No DPI rules for protocol: " + protocol);
         };
+    }
+
+    /**
+     * Release accumulated SSH handshake buffers for a connection.
+     * Must be called when a connection closes to prevent memory leaks.
+     *
+     * @param connectionId the connection identifier used in
+     *                     {@link #inspect(ByteBuf, String, int, String)}
+     */
+    public void cleanupConnection(String connectionId) {
+        if (connectionId == null) return;
+        SshAccumulator acc = sshAccumulators.remove(connectionId);
+        if (acc != null) {
+            acc.release();
+        }
     }
 
     // ── TLS Inspection ────────────────────────────────────────────────
@@ -328,8 +417,14 @@ public class DeepPacketInspector {
 
     /**
      * Inspect SSH version banner for protocol version 1 and known attack tools.
+     * Supports per-connection KEX accumulation when a connectionId is provided:
+     * if SSH_MSG_KEXINIT is not in the current packet, data is buffered and
+     * KEX inspection is retried on the next call for the same connection.
+     *
+     * @param data         the bytes received on the connection
+     * @param connectionId unique connection identifier for accumulation; may be null
      */
-    private InspectionResult inspectSsh(ByteBuf data) {
+    private InspectionResult inspectSsh(ByteBuf data, String connectionId) {
         int readerIndex = data.readerIndex();
         int readable = data.readableBytes();
         int textLen = Math.min(readable, 256);
@@ -348,6 +443,7 @@ public class DeepPacketInspector {
 
         // ── Block SSH-1.x ──
         if (config.blockSshV1() && versionLine.startsWith("SSH-1.")) {
+            cleanupConnection(connectionId);
             log.warn("DPI: SSH protocol version 1 detected: {}", versionLine);
             return new InspectionResult(false, "ssh_v1_blocked", Severity.CRITICAL,
                 "SSH protocol version 1 is insecure and blocked: " + versionLine);
@@ -355,37 +451,109 @@ public class DeepPacketInspector {
 
         // ── Flag known attack tools ──
         if (SSH_ATTACK_TOOL.matcher(versionLine).find()) {
+            cleanupConnection(connectionId);
             log.warn("DPI: SSH attack tool detected in version string: {}", versionLine);
             return new InspectionResult(false, "ssh_attack_tool", Severity.CRITICAL,
                 "Known SSH attack tool detected: " + versionLine);
         }
 
-        // ── Check allowed key exchange algorithms (if SSH_MSG_KEXINIT present) ──
+        // ── Check allowed key exchange algorithms ──
         if (config.allowedSshKex() != null && !config.allowedSshKex().isEmpty()) {
-            // SSH_MSG_KEXINIT follows the version exchange; if both are in the buffer
-            // we can inspect the KEX algorithms. The KEX_INIT starts after the banner.
-            int kexInitOffset = findSshKexInit(data, readerIndex, readable);
-            if (kexInitOffset >= 0) {
-                String kexAlgorithms = extractSshNameList(data, kexInitOffset, readable, readerIndex);
-                if (kexAlgorithms != null) {
-                    boolean hasAllowed = false;
-                    for (String alg : kexAlgorithms.split(",")) {
-                        if (config.allowedSshKex().contains(alg.trim())) {
-                            hasAllowed = true;
-                            break;
-                        }
-                    }
-                    if (!hasAllowed) {
-                        log.warn("DPI: SSH KEX algorithms not in allowed list: {}", kexAlgorithms);
-                        return new InspectionResult(false, "ssh_kex_not_allowed", Severity.HIGH,
-                            "No allowed key exchange algorithms offered: " + kexAlgorithms);
-                    }
-                }
+            InspectionResult kexResult = inspectSshKex(data, connectionId, versionLine);
+            if (kexResult != null) {
+                return kexResult;
             }
         }
 
         return new InspectionResult(true, "ssh_ok", Severity.INFO,
             "SSH inspection passed: " + versionLine);
+    }
+
+    /**
+     * Inspect SSH KEX algorithms with per-connection accumulation support.
+     *
+     * <p>SSH_MSG_KEXINIT (type 20) may arrive in the same packet as the version
+     * banner or in a subsequent packet. When a connectionId is provided, this method
+     * accumulates up to {@value #SSH_KEX_MAX_PACKETS} packets (max
+     * {@value #SSH_KEX_MAX_ACCUMULATION} bytes) to find the KEXINIT message.</p>
+     *
+     * @return an {@link InspectionResult} if KEX is found and disallowed, or null
+     *         if KEX is acceptable or not yet found (pending more data)
+     */
+    private InspectionResult inspectSshKex(ByteBuf data, String connectionId,
+                                           String versionLine) {
+        // Determine the buffer to search for KEX_INIT
+        ByteBuf searchBuf;
+        SshAccumulator accumulator = null;
+
+        if (connectionId != null) {
+            accumulator = sshAccumulators.computeIfAbsent(connectionId, k -> new SshAccumulator());
+
+            // If KEX was already inspected for this connection, skip
+            if (accumulator.kexInspected) {
+                return null;
+            }
+
+            // Append current packet data (retain a copy for the composite buffer)
+            accumulator.packetCount++;
+            ByteBuf copy = data.retainedSlice();
+            accumulator.buffer.addComponent(true, copy);
+
+            // Check limits — if exceeded, stop accumulating and allow
+            if (accumulator.buffer.readableBytes() > SSH_KEX_MAX_ACCUMULATION
+                    || accumulator.packetCount > SSH_KEX_MAX_PACKETS) {
+                log.debug("DPI: SSH KEX accumulation limit reached for connection {}, "
+                    + "packets={}, bytes={}", connectionId, accumulator.packetCount,
+                    accumulator.buffer.readableBytes());
+                accumulator.kexInspected = true;
+                cleanupConnection(connectionId);
+                return null; // allow — we cannot hold data indefinitely
+            }
+
+            searchBuf = accumulator.buffer;
+        } else {
+            // No connection tracking — inspect only the current packet (legacy behavior)
+            searchBuf = data;
+        }
+
+        int searchReaderIndex = searchBuf.readerIndex();
+        int searchReadable = searchBuf.readableBytes();
+        int kexInitOffset = findSshKexInit(searchBuf, searchReaderIndex, searchReadable);
+
+        if (kexInitOffset >= 0) {
+            String kexAlgorithms = extractSshNameList(searchBuf, kexInitOffset,
+                searchReadable, searchReaderIndex);
+            if (kexAlgorithms != null) {
+                boolean hasAllowed = false;
+                for (String alg : kexAlgorithms.split(",")) {
+                    if (config.allowedSshKex().contains(alg.trim())) {
+                        hasAllowed = true;
+                        break;
+                    }
+                }
+                // Done with KEX inspection — clean up
+                if (accumulator != null) {
+                    accumulator.kexInspected = true;
+                }
+                cleanupConnection(connectionId);
+
+                if (!hasAllowed) {
+                    log.warn("DPI: SSH KEX algorithms not in allowed list: {}", kexAlgorithms);
+                    return new InspectionResult(false, "ssh_kex_not_allowed", Severity.HIGH,
+                        "No allowed key exchange algorithms offered: " + kexAlgorithms);
+                }
+            } else {
+                // Name-list couldn't be extracted (truncated?) — mark done
+                if (accumulator != null) {
+                    accumulator.kexInspected = true;
+                }
+                cleanupConnection(connectionId);
+            }
+        }
+        // KEX_INIT not found yet — if we have an accumulator, we'll try again on next packet
+        // If no accumulator (connectionId null), this is the legacy single-packet behavior
+
+        return null;
     }
 
     /**
