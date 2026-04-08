@@ -11,4 +11,16 @@ public class UpdateAccountRequest {
     private String publicKey;
     private Map<String, Boolean> permissions;
     private String serverInstance;
+
+    /** Per-user QoS overrides (null fields = keep current value). */
+    private QoSConfig qos;
+
+    @Data
+    public static class QoSConfig {
+        private Long uploadBytesPerSecond;
+        private Long downloadBytesPerSecond;
+        private Integer maxConcurrentSessions;
+        private Integer priority;
+        private Integer burstAllowancePercent;
+    }
 }

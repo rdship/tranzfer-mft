@@ -390,6 +390,7 @@ services:
       DMZ_EGRESS_ENABLED: "false"    # Disabled in Docker dev — backend DNS resolves within bridge
       DMZ_INSPECTION_ENABLED: "true"
       DMZ_HEALTH_CHECK_ENABLED: "true"
+      DMZ_QOS_ENABLED: "true"
     depends_on:
       - ai-engine
       - gateway-service

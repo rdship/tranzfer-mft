@@ -4,6 +4,7 @@ import com.filetransfer.sftp.audit.AuditEventLogger;
 import com.filetransfer.sftp.security.IpAccessControl;
 import com.filetransfer.sftp.security.LoginAttemptTracker;
 import com.filetransfer.sftp.service.CredentialService;
+import com.filetransfer.sftp.session.ConnectionManager;
 import com.filetransfer.sftp.throttle.BandwidthThrottleManager;
 import com.filetransfer.shared.entity.TransferAccount;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ public class SftpPasswordAuthenticator implements PasswordAuthenticator {
     private final IpAccessControl ipAccessControl;
     private final AuditEventLogger auditEventLogger;
     private final BandwidthThrottleManager bandwidthThrottleManager;
+    private final ConnectionManager connectionManager;
 
     @Override
     public boolean authenticate(String username, String password, ServerSession session) {
@@ -52,11 +54,14 @@ public class SftpPasswordAuthenticator implements PasswordAuthenticator {
         if (authenticated) {
             loginAttemptTracker.recordSuccess(username);
             auditEventLogger.logLogin(username, ip, "password");
-            // Register per-user QoS bandwidth limits
-            credentialService.findAccount(username).ifPresent(account ->
+            // Register per-user QoS: bandwidth limits + session limit
+            credentialService.findAccount(username).ifPresent(account -> {
                 bandwidthThrottleManager.registerUserLimits(username,
                     account.getQosUploadBytesPerSecond(),
-                    account.getQosDownloadBytesPerSecond()));
+                    account.getQosDownloadBytesPerSecond());
+                connectionManager.registerQosSessionLimit(username,
+                    account.getQosMaxConcurrentSessions());
+            });
         } else {
             loginAttemptTracker.recordFailure(username);
             auditEventLogger.logLoginFailed(username, ip, "invalid_credentials");

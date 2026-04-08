@@ -28,6 +28,9 @@ public class ConnectionManager {
     private final ConcurrentHashMap<String, AtomicInteger> perUserConnections = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, SessionInfo> activeSessions = new ConcurrentHashMap<>();
 
+    /** Per-user QoS session limits: username → max sessions (from TransferAccount). */
+    private final ConcurrentHashMap<String, Integer> perUserQosLimits = new ConcurrentHashMap<>();
+
     /**
      * Attempts to register a new session. Returns true if the connection is allowed
      * under both global and per-user limits. Returns false if a limit would be exceeded.
@@ -45,12 +48,13 @@ public class ConnectionManager {
             return false;
         }
 
-        // Check per-user limit
-        if (maxConnectionsPerUser > 0) {
+        // Check per-user limit: QoS limit takes priority, then global config
+        int effectivePerUserLimit = perUserQosLimits.getOrDefault(username, maxConnectionsPerUser);
+        if (effectivePerUserLimit > 0) {
             AtomicInteger userCount = perUserConnections.computeIfAbsent(username, k -> new AtomicInteger(0));
-            if (userCount.get() >= maxConnectionsPerUser) {
+            if (userCount.get() >= effectivePerUserLimit) {
                 log.warn("Connection rejected: per-user limit reached ({}/{}), user={} ip={}",
-                        userCount.get(), maxConnectionsPerUser, username, ipAddress);
+                        userCount.get(), effectivePerUserLimit, username, ipAddress);
                 return false;
             }
         }
@@ -119,6 +123,20 @@ public class ConnectionManager {
      */
     public int getMaxConnectionsPerUser() {
         return maxConnectionsPerUser;
+    }
+
+    /**
+     * Register per-user QoS session limit (from TransferAccount).
+     * Called after successful authentication.
+     *
+     * @param username           the authenticated username
+     * @param maxConcurrentSessions limit from QoS config (null or 0 = use global default)
+     */
+    public void registerQosSessionLimit(String username, Integer maxConcurrentSessions) {
+        if (maxConcurrentSessions != null && maxConcurrentSessions > 0) {
+            perUserQosLimits.put(username, maxConcurrentSessions);
+            log.debug("QoS session limit registered: user={} max={}", username, maxConcurrentSessions);
+        }
     }
 
     /**

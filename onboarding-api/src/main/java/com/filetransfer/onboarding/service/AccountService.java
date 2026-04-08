@@ -155,6 +155,26 @@ public class AccountService {
             account.setServerInstance(request.getServerInstance());
         }
 
+        // Apply QoS updates (null fields = keep current value)
+        if (request.getQos() != null) {
+            UpdateAccountRequest.QoSConfig qos = request.getQos();
+            if (qos.getUploadBytesPerSecond() != null) {
+                account.setQosUploadBytesPerSecond(qos.getUploadBytesPerSecond());
+            }
+            if (qos.getDownloadBytesPerSecond() != null) {
+                account.setQosDownloadBytesPerSecond(qos.getDownloadBytesPerSecond());
+            }
+            if (qos.getMaxConcurrentSessions() != null) {
+                account.setQosMaxConcurrentSessions(qos.getMaxConcurrentSessions());
+            }
+            if (qos.getPriority() != null) {
+                account.setQosPriority(qos.getPriority());
+            }
+            if (qos.getBurstAllowancePercent() != null) {
+                account.setQosBurstAllowancePercent(qos.getBurstAllowancePercent());
+            }
+        }
+
         accountRepository.save(account);
 
         eventPublisher.publishAccountUpdated(AccountUpdatedEvent.builder()

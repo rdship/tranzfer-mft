@@ -33,8 +33,12 @@ public class BandwidthThrottleManager {
     /** Per-user download limits: username → bytes/second. */
     private final ConcurrentHashMap<String, Long> userDownloadLimits = new ConcurrentHashMap<>();
 
+    /** Per-user active session count: username → count. */
+    private final ConcurrentHashMap<String, Integer> userSessionCounts = new ConcurrentHashMap<>();
+
     /**
      * Register per-user QoS limits (called after successful authentication).
+     * Tracks session count so limits survive until the last session closes.
      *
      * @param username              the authenticated username
      * @param uploadBps             upload limit in bytes/second (null = use global, 0 = unlimited)
@@ -47,16 +51,27 @@ public class BandwidthThrottleManager {
         if (downloadBps != null) {
             userDownloadLimits.put(username, downloadBps);
         }
-        log.debug("QoS registered for {}: upload={}B/s download={}B/s",
-                username, uploadBps, downloadBps);
+        userSessionCounts.merge(username, 1, Integer::sum);
+        log.debug("QoS registered for {}: upload={}B/s download={}B/s sessions={}",
+                username, uploadBps, downloadBps, userSessionCounts.get(username));
     }
 
     /**
      * Unregister per-user QoS limits (called on session close).
+     * Only removes limits when the last session for the user closes.
      */
     public void unregisterUser(String username) {
-        userUploadLimits.remove(username);
-        userDownloadLimits.remove(username);
+        Integer remaining = userSessionCounts.compute(username, (k, v) -> {
+            if (v == null || v <= 1) return null;
+            return v - 1;
+        });
+        if (remaining == null) {
+            userUploadLimits.remove(username);
+            userDownloadLimits.remove(username);
+            log.debug("QoS fully unregistered for {} (last session closed)", username);
+        } else {
+            log.debug("QoS kept for {} ({} sessions remaining)", username, remaining);
+        }
     }
 
     /**
