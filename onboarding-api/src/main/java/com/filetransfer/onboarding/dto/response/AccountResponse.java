@@ -21,4 +21,11 @@ public class AccountResponse {
     private Instant createdAt;
     // Connection info
     private String connectionInstructions;
+
+    // QoS (effective values after SLA tier defaults applied)
+    private Long qosUploadBytesPerSecond;
+    private Long qosDownloadBytesPerSecond;
+    private Integer qosMaxConcurrentSessions;
+    private Integer qosPriority;
+    private Integer qosBurstAllowancePercent;
 }

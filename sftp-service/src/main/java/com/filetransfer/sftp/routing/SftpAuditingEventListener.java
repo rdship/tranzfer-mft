@@ -80,8 +80,9 @@ public class SftpAuditingEventListener implements SftpEventListener {
         // Track bytes for throttling and audit
         handleBytesWritten.merge(remoteHandle, (long) dataLen, Long::sum);
 
-        // Apply upload bandwidth throttle
-        bandwidthThrottleManager.throttleIfNeeded(dataLen, true);
+        // Apply per-user upload bandwidth throttle (falls back to global)
+        String username = session.getUsername();
+        bandwidthThrottleManager.throttleIfNeeded(username, dataLen, true);
     }
 
     @Override
@@ -90,8 +91,9 @@ public class SftpAuditingEventListener implements SftpEventListener {
         if (dataLen > 0) {
             handleBytesRead.merge(remoteHandle, (long) dataLen, Long::sum);
 
-            // Apply download bandwidth throttle
-            bandwidthThrottleManager.throttleIfNeeded(dataLen, false);
+            // Apply per-user download bandwidth throttle (falls back to global)
+            String username = session.getUsername();
+            bandwidthThrottleManager.throttleIfNeeded(username, dataLen, false);
         }
     }
 

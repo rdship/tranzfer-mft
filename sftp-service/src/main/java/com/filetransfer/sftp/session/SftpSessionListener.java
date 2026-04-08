@@ -1,7 +1,7 @@
 package com.filetransfer.sftp.session;
 
 import com.filetransfer.sftp.audit.AuditEventLogger;
-import com.filetransfer.sftp.security.IpAccessControl;
+import com.filetransfer.sftp.throttle.BandwidthThrottleManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.sshd.common.session.Session;
@@ -26,6 +26,7 @@ public class SftpSessionListener implements SessionListener {
 
     private final ConnectionManager connectionManager;
     private final AuditEventLogger auditEventLogger;
+    private final BandwidthThrottleManager bandwidthThrottleManager;
 
     /** Tracks session creation time for duration calculation. */
     private final ConcurrentHashMap<String, Instant> sessionStartTimes = new ConcurrentHashMap<>();
@@ -72,6 +73,7 @@ public class SftpSessionListener implements SessionListener {
                     ? serverSession.getClientAddress().toString() : "unknown";
             if (username != null) {
                 auditEventLogger.logDisconnect(username, ip, durationMs);
+                bandwidthThrottleManager.unregisterUser(username);
             }
         }
 

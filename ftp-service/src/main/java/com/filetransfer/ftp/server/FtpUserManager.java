@@ -190,8 +190,10 @@ public class FtpUserManager extends AbstractUserManager {
             authorities.add(new WritePermission());
         }
 
-        // Bandwidth throttle
-        Authority ratePermission = bandwidthThrottleService.createRatePermission();
+        // Bandwidth throttle — per-user QoS from TransferAccount, fallback to global
+        Authority ratePermission = bandwidthThrottleService.createRatePermission(
+                account.getQosUploadBytesPerSecond(),
+                account.getQosDownloadBytesPerSecond());
         if (ratePermission != null) {
             authorities.add(ratePermission);
         }

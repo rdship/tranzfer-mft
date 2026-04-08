@@ -4,6 +4,7 @@ import com.filetransfer.dmz.audit.AuditLogger;
 import com.filetransfer.dmz.health.BackendHealthChecker;
 import com.filetransfer.dmz.proxy.PortMapping;
 import com.filetransfer.dmz.proxy.ProxyManager;
+import com.filetransfer.dmz.qos.BandwidthQoS;
 import com.filetransfer.dmz.security.*;
 import io.micrometer.prometheus.PrometheusMeterRegistry;
 import lombok.RequiredArgsConstructor;
@@ -297,6 +298,40 @@ public class ProxyManagementController {
             "allowed", result.allowed(),
             "resolvedIp", result.resolvedIp() != null ? result.resolvedIp() : "N/A",
             "reason", result.reason()));
+    }
+
+    // ── QoS Bandwidth ──────────────────────────────────────────────────
+
+    @GetMapping("/qos/stats")
+    public ResponseEntity<?> qosStats(@RequestHeader("X-Internal-Key") String key) {
+        validateKey(key);
+        var qos = proxyManager.getBandwidthQoS();
+        if (qos == null) {
+            return ResponseEntity.ok(Map.of("qosEnabled", false));
+        }
+        return ResponseEntity.ok(qos.getGlobalStats());
+    }
+
+    @GetMapping("/qos/stats/{mappingName}")
+    public ResponseEntity<?> qosMappingStats(
+            @RequestHeader("X-Internal-Key") String key,
+            @PathVariable String mappingName) {
+        validateKey(key);
+        var qos = proxyManager.getBandwidthQoS();
+        if (qos == null) {
+            return ResponseEntity.ok(Map.of("qosEnabled", false));
+        }
+        var stats = qos.getStats(mappingName);
+        if (stats == null) {
+            return ResponseEntity.ok(Map.of("mapping", mappingName, "status", "not_tracked"));
+        }
+        return ResponseEntity.ok(Map.of(
+            "mapping", mappingName,
+            "currentBps", stats.currentBps(),
+            "limitBps", stats.limitBps(),
+            "utilizationPercent", stats.utilizationPercent(),
+            "activeConnections", stats.activeConnections(),
+            "totalBytes", stats.totalBytes()));
     }
 
     // ── Prometheus Scrape Endpoint ────────────────────────────────────

@@ -23,6 +23,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.filetransfer.shared.entity.Partner;
+import com.filetransfer.shared.repository.PartnerRepository;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -42,6 +45,7 @@ public class AccountService {
     private final ServerInstanceRepository serverInstanceRepository;
     private final FolderTemplateRepository folderTemplateRepository;
     private final VirtualFileSystem virtualFileSystem;
+    private final PartnerRepository partnerRepository;
 
     @Value("${file-transfer.sftp-home-base:/data/sftp}")
     private String sftpHomeBase;
@@ -54,6 +58,11 @@ public class AccountService {
 
     @Transactional
     public AccountResponse createAccount(String ownerEmail, CreateAccountRequest request) {
+        return createAccount(ownerEmail, request, null);
+    }
+
+    @Transactional
+    public AccountResponse createAccount(String ownerEmail, CreateAccountRequest request, UUID partnerId) {
         if (accountRepository.existsByUsername(request.getUsername())) {
             throw new IllegalArgumentException("Username already taken: " + request.getUsername());
         }
@@ -89,6 +98,9 @@ public class AccountService {
                 .serverInstance(request.getServerInstance())
                 .storageMode(storageMode)
                 .build();
+
+        // Apply QoS: explicit request values > SLA tier defaults
+        applyQoS(account, request.getQos(), partnerId);
 
         accountRepository.save(account);
 
@@ -212,7 +224,59 @@ public class AccountService {
                 .serverInstance(account.getServerInstance())
                 .createdAt(account.getCreatedAt())
                 .connectionInstructions(instructions)
+                .qosUploadBytesPerSecond(account.getQosUploadBytesPerSecond())
+                .qosDownloadBytesPerSecond(account.getQosDownloadBytesPerSecond())
+                .qosMaxConcurrentSessions(account.getQosMaxConcurrentSessions())
+                .qosPriority(account.getQosPriority())
+                .qosBurstAllowancePercent(account.getQosBurstAllowancePercent())
                 .build();
+    }
+
+    /**
+     * Apply QoS fields to a TransferAccount.
+     * Priority: explicit request values > partner SLA tier defaults.
+     */
+    private void applyQoS(TransferAccount account,
+                           CreateAccountRequest.QoSConfig qos,
+                           UUID partnerId) {
+        // Resolve SLA tier from partner (if linked)
+        String slaTier = "STANDARD";
+        if (partnerId != null) {
+            slaTier = partnerRepository.findById(partnerId)
+                    .map(Partner::getSlaTier).orElse("STANDARD");
+        }
+        long[] defaults = slaTierDefaults(slaTier);
+
+        if (qos != null) {
+            account.setQosUploadBytesPerSecond(
+                    qos.getUploadBytesPerSecond() != null ? qos.getUploadBytesPerSecond() : defaults[0]);
+            account.setQosDownloadBytesPerSecond(
+                    qos.getDownloadBytesPerSecond() != null ? qos.getDownloadBytesPerSecond() : defaults[1]);
+            account.setQosMaxConcurrentSessions(
+                    qos.getMaxConcurrentSessions() != null ? qos.getMaxConcurrentSessions() : (int) defaults[2]);
+            account.setQosPriority(
+                    qos.getPriority() != null ? qos.getPriority() : (int) defaults[3]);
+            account.setQosBurstAllowancePercent(
+                    qos.getBurstAllowancePercent() != null ? qos.getBurstAllowancePercent() : (int) defaults[4]);
+        } else {
+            account.setQosUploadBytesPerSecond(defaults[0]);
+            account.setQosDownloadBytesPerSecond(defaults[1]);
+            account.setQosMaxConcurrentSessions((int) defaults[2]);
+            account.setQosPriority((int) defaults[3]);
+            account.setQosBurstAllowancePercent((int) defaults[4]);
+        }
+    }
+
+    /**
+     * SLA tier → default QoS values.
+     * Returns {uploadBps, downloadBps, maxConcurrent, priority, burstPercent}.
+     */
+    private static long[] slaTierDefaults(String slaTier) {
+        return switch (slaTier != null ? slaTier.toUpperCase() : "STANDARD") {
+            case "PREMIUM"    -> new long[]{52_428_800L, 52_428_800L, 10, 3, 20};  // 50 MB/s
+            case "ENTERPRISE" -> new long[]{0L,          0L,          50, 1, 50};  // unlimited
+            default           -> new long[]{10_485_760L, 10_485_760L,  3, 5, 10};  // 10 MB/s (STANDARD)
+        };
     }
 
     private String buildConnectionInstructions(TransferAccount account) {

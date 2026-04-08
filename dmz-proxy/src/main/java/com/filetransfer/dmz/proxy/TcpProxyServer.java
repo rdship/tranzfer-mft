@@ -6,6 +6,7 @@ import com.filetransfer.dmz.inspection.DeepPacketInspector;
 import com.filetransfer.dmz.inspection.FtpCommandFilter;
 import com.filetransfer.dmz.security.*;
 import com.filetransfer.dmz.tls.TlsTerminator;
+import com.filetransfer.dmz.qos.BandwidthQoS;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
@@ -24,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -61,6 +63,9 @@ public class TcpProxyServer {
     // Enterprise components (from ProxyManager)
     private final ProxyManager manager;
 
+    // QoS bandwidth enforcement
+    private final BandwidthQoS bandwidthQoS;
+
     @Getter
     private final AtomicLong bytesForwarded = new AtomicLong(0);
     @Getter
@@ -90,6 +95,7 @@ public class TcpProxyServer {
         this.securityMetrics = securityMetrics;
         this.manualFilter = manualFilter;
         this.manager = manager;
+        this.bandwidthQoS = manager != null ? manager.getBandwidthQoS() : null;
         this.securityEnabled = connectionTracker != null && rateLimiter != null
             && aiVerdictClient != null && eventReporter != null && securityMetrics != null;
     }
@@ -107,6 +113,9 @@ public class TcpProxyServer {
                     @Override
                     protected void initChannel(SocketChannel clientCh) {
                         activeConnections.incrementAndGet();
+                        // QoS: generate connection ID and determine priority
+                        String connectionId = mapping.getName() + "-" + clientCh.id().asShortText();
+                        int qosPriority = resolveQosPriority(mapping);
 
                         // ── Step 0: Inbound PROXY protocol (if behind a load balancer) ──
                         boolean inboundPP = manager != null && manager.isInboundProxyProtocolEnabled();
@@ -222,9 +231,10 @@ public class TcpProxyServer {
                                             backendCh.pipeline().addLast("ssh-banner-rewrite",
                                                 new SshBannerRewriteHandler(manager.getSshBanner()));
                                         }
-                                        // Backend→client: no inspection needed
+                                        // Backend→client: no inspection, QoS tracks bytes only
                                         backendCh.pipeline().addLast(new RelayHandler(clientCh, bytesForwarded,
-                                            null, null, null, 0, null, false));
+                                            null, null, null, 0, null, false,
+                                            null, null, 0));
                                     }
                                 });
 
@@ -232,13 +242,17 @@ public class TcpProxyServer {
                             mapping.getTargetHost(), mapping.getTargetPort());
                         Channel backendCh = backendFuture.channel();
 
-                        // Client→backend: inspect in-flight data via DPI + FTP filter
+                        // Client→backend: inspect in-flight data via DPI + FTP filter + QoS
                         clientCh.pipeline().addLast("relay", new RelayHandler(backendCh, bytesForwarded,
                             dpi, ftpFilter, clientIp, mapping.getListenPort(),
-                            mapping.getName(), true));
+                            mapping.getName(), true, bandwidthQoS, connectionId, qosPriority));
 
                         backendFuture.addListener((ChannelFutureListener) f -> {
                             if (f.isSuccess()) {
+                                // Register connection with QoS for bandwidth tracking
+                                if (bandwidthQoS != null) {
+                                    bandwidthQoS.registerConnection(connectionId, mapping.getName(), qosPriority);
+                                }
                                 auditConnection("OPEN", clientCh, "connected");
                                 clientCh.read();
                                 backendCh.read();
@@ -252,6 +266,9 @@ public class TcpProxyServer {
 
                         clientCh.closeFuture().addListener(cf -> {
                             activeConnections.decrementAndGet();
+                            if (bandwidthQoS != null) {
+                                bandwidthQoS.unregisterConnection(connectionId);
+                            }
                             backendCh.close();
                         });
                     }
@@ -288,6 +305,19 @@ public class TcpProxyServer {
      */
     public void updateSecurityFilter(ManualSecurityFilter filter) {
         this.manualFilter = filter;
+    }
+
+    /**
+     * Resolve QoS priority for a mapping: from QoSPolicy > SecurityPolicy tier > default (5).
+     */
+    private static int resolveQosPriority(PortMapping mapping) {
+        if (mapping.getQosPolicy() != null && mapping.getQosPolicy().isEnabled()) {
+            return mapping.getQosPolicy().getPriority();
+        }
+        if (mapping.getSecurityPolicy() != null) {
+            return BandwidthQoS.tierToPriority(mapping.getSecurityPolicy().getSecurityTier());
+        }
+        return 5;
     }
 
     private SslContext buildSslContext() {
@@ -364,6 +394,11 @@ public class TcpProxyServer {
         private final String mappingName;
         private final boolean inspectTraffic;
 
+        // QoS bandwidth enforcement (null when disabled or backend→client)
+        private final BandwidthQoS qos;
+        private final String connectionId;
+        private final int qosPriority;
+
         // Protocol detected from first packet (lazy, only when inspecting)
         private String detectedProtocol;
         // Lazily resolved client IP (from channel attribute or initial value)
@@ -372,7 +407,8 @@ public class TcpProxyServer {
         RelayHandler(Channel outboundChannel, AtomicLong bytesForwarded,
                      DeepPacketInspector dpi, FtpCommandFilter ftpFilter,
                      String clientIp, int listenPort, String mappingName,
-                     boolean inspectTraffic) {
+                     boolean inspectTraffic,
+                     BandwidthQoS qos, String connectionId, int qosPriority) {
             this.outboundChannel = outboundChannel;
             this.bytesForwarded = bytesForwarded;
             this.dpi = dpi;
@@ -381,6 +417,9 @@ public class TcpProxyServer {
             this.listenPort = listenPort;
             this.mappingName = mappingName;
             this.inspectTraffic = inspectTraffic;
+            this.qos = qos;
+            this.connectionId = connectionId;
+            this.qosPriority = qosPriority;
         }
 
         @Override
@@ -435,6 +474,19 @@ public class TcpProxyServer {
                             return;
                         }
                     }
+                }
+            }
+
+            // ── QoS bandwidth enforcement (client→backend direction) ──
+            if (qos != null && msg instanceof ByteBuf qosBuf && qosBuf.readableBytes() > 0) {
+                if (!qos.tryConsume(connectionId, mappingName, qosPriority, qosBuf.readableBytes())) {
+                    // Bandwidth limit exceeded: forward this chunk but apply backpressure
+                    // by pausing reads. Token bucket refills every 100ms.
+                    ctx.channel().config().setAutoRead(false);
+                    ctx.channel().eventLoop().schedule(() -> {
+                        ctx.channel().config().setAutoRead(true);
+                        ctx.channel().read();
+                    }, 100, TimeUnit.MILLISECONDS);
                 }
             }
 

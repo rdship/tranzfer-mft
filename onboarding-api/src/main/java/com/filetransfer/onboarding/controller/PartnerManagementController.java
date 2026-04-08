@@ -86,7 +86,7 @@ public class PartnerManagementController {
     public TransferAccount createAccountForPartner(@PathVariable UUID id,
                                                    @AuthenticationPrincipal String email,
                                                    @Valid @RequestBody CreateAccountRequest request) {
-        var response = accountService.createAccount(email, request);
+        var response = accountService.createAccount(email, request, id);
         return partnerService.linkAccountToPartner(id, response.getId());
     }
 

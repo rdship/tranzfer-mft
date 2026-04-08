@@ -75,6 +75,28 @@ public class TransferAccount extends Auditable {
     @Builder.Default
     private boolean active = true;
 
+    // ── QoS (Quality of Service) — per-user bandwidth and priority ──
+
+    /** Upload speed limit in bytes/second (null = use SLA tier default, 0 = unlimited). */
+    @Column(name = "qos_upload_bytes_per_second")
+    private Long qosUploadBytesPerSecond;
+
+    /** Download speed limit in bytes/second (null = use SLA tier default, 0 = unlimited). */
+    @Column(name = "qos_download_bytes_per_second")
+    private Long qosDownloadBytesPerSecond;
+
+    /** Maximum concurrent sessions for this account (null = use SLA tier default). */
+    @Column(name = "qos_max_concurrent_sessions")
+    private Integer qosMaxConcurrentSessions;
+
+    /** QoS priority 1=highest, 10=lowest (null = use SLA tier default). */
+    @Column(name = "qos_priority")
+    private Integer qosPriority;
+
+    /** Burst allowance percent above sustained rate (null = use SLA tier default). */
+    @Column(name = "qos_burst_allowance_percent")
+    private Integer qosBurstAllowancePercent;
+
     @OneToMany(mappedBy = "account", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<AuditLog> auditLogs;
 }
