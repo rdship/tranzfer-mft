@@ -1,0 +1,159 @@
+# =============================================================================
+# TranzFer MFT — Third-Party SFTP Integration Demo
+#
+# Demonstrates: DMZ Proxy + AI Engine wrapping a completely external
+# SFTP server (atmoz/sftp) and web server (nginx) with zero code changes.
+#
+# Usage:
+#   docker compose -f docker-compose-external-demo.yml up -d
+#   tests/integration/third-party-sftp/run.sh
+#   docker compose -f docker-compose-external-demo.yml down -v
+#
+# Ports (chosen to not conflict with the main stack):
+#   8189  → DMZ Proxy management API
+#   2222  → SFTP through the proxy  (main stack uses 32222)
+#   8180  → HTTP through the proxy
+#   8191  → AI Engine health / inspect (optional)
+# =============================================================================
+
+services:
+
+  # ─── THIRD-PARTY SERVICES ─────────────────────────────────────────────────
+  # These represent any existing product you want to protect.
+  # They are NOT exposed to the internet — hidden behind the DMZ proxy.
+
+  my-sftp-server:
+    image: atmoz/sftp:alpine
+    container_name: demo-sftp-server
+    command: demo_user:demo_pass:1001
+    networks:
+      - demo-net
+
+  my-web-app:
+    image: nginx:alpine
+    container_name: demo-web-app
+    networks:
+      - demo-net
+
+  # ─── INFRASTRUCTURE ───────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: demo-postgres
+    environment:
+      POSTGRES_DB: filetransfer
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks:
+      - demo-net
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: demo-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - demo-net
+
+  # ─── AI ENGINE ────────────────────────────────────────────────────────────
+  # Provides IP reputation, anomaly detection, and ALLOW/THROTTLE/BLOCK/BLACKHOLE
+  # verdicts to the DMZ proxy for every new connection.
+
+  ai-engine:
+    build: ./ai-engine
+    container_name: demo-ai-engine
+    ports:
+      - "8191:8091"
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx256m -Xms128m -XX:+UseG1GC -Dspring.main.lazy-initialization=true"
+      DATABASE_URL: jdbc:postgresql://postgres:5432/filetransfer?stringtype=unspecified
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      SERVER_PORT: 8091
+      CONTROL_API_KEY: demo-key-2024
+      CLUSTER_ID: demo-cluster
+      CLUSTER_COMM_MODE: WITHIN_CLUSTER
+      CLUSTER_HOST: ai-engine
+      SPRING_PROFILES_ACTIVE: docker
+      PLATFORM_ENVIRONMENT: DEV
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8091/actuator/health/liveness || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 60s
+    networks:
+      - demo-net
+
+  # ─── DMZ PROXY ────────────────────────────────────────────────────────────
+  # The security layer. Wraps the external products with:
+  #   - Rate limiting (per-IP token bucket)
+  #   - AI verdicts (ALLOW / THROTTLE / BLOCK / BLACKHOLE)
+  #   - Protocol detection (SSH, FTP, HTTP, TLS)
+  #   - Deep packet inspection
+  #   - Audit logging
+  #   - Hot-configurable port mappings via REST API
+
+  dmz-proxy:
+    build: ./dmz-proxy
+    container_name: demo-dmz-proxy
+    ports:
+      - "8189:8088"     # Management API
+      - "2222:2222"     # SFTP → my-sftp-server (reconfigured in run.sh)
+      - "8180:443"      # HTTP → my-web-app    (reconfigured in run.sh)
+    environment:
+      CONTROL_API_KEY: demo-key-2024
+      SERVER_PORT: 8088
+      DMZ_SECURITY_ENABLED: "true"
+      AI_ENGINE_URL: http://ai-engine:8091
+      DMZ_AUDIT_ENABLED: "true"
+      DMZ_ZONES_ENABLED: "false"       # Docker bridge: all on same network
+      DMZ_EGRESS_ENABLED: "false"      # Docker bridge: backend DNS resolves internally
+      DMZ_INSPECTION_ENABLED: "true"
+      DMZ_HEALTH_CHECK_ENABLED: "true"
+      DMZ_QOS_ENABLED: "false"
+      DMZ_TLS_ENABLED: "false"
+      # Default mappings will be replaced by run.sh via REST API to point at
+      # my-sftp-server:22 and my-web-app:80 (see Step 2 in run.sh)
+      GATEWAY_HOST: my-sftp-server
+      FTPWEB_HOST: my-web-app
+    depends_on:
+      ai-engine:
+        condition: service_healthy
+      my-sftp-server:
+        condition: service_started
+      my-web-app:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8088/api/proxy/health | grep -q 'UP' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+    networks:
+      - demo-net
+
+networks:
+  demo-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24    # Isolated — no conflict with main stack
