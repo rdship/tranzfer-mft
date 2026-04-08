@@ -125,6 +125,14 @@ public class AuditLogger {
         });
         flushScheduler.scheduleAtFixedRate(this::flush, FLUSH_INTERVAL_MS, FLUSH_INTERVAL_MS, TimeUnit.MILLISECONDS);
 
+        // JVM shutdown hook to flush remaining buffered events on unexpected shutdown.
+        // Ensures no audit data is lost if the proxy is killed (SIGTERM, OOM, etc.).
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            if (!closed) {
+                shutdown();
+            }
+        }, "audit-shutdown-hook"));
+
         log.info("Audit logging ENABLED — dir={}, retention={}d, maxSize={}MB",
                 this.logDirectory, this.maxDays, maxFileSizeMb > 0 ? maxFileSizeMb : 100);
     }
@@ -425,11 +433,16 @@ public class AuditLogger {
     /**
      * Serializes a map entry to JSON and writes it as a single line.
      * Handles date rotation, size rotation, and all error conditions.
+     *
+     * <p>Security-critical verdicts (BLOCK, BLACKHOLE) trigger an immediate flush
+     * to ensure crash-consistent audit trail — evidence of attacks must never be
+     * lost due to buffered writes.</p>
      */
     private void writeEntry(Map<String, Object> entry) {
         if (closed) return;
 
         String json = toJson(entry);
+        boolean securityCritical = isSecurityCritical(entry);
 
         writeLock.lock();
         try {
@@ -445,8 +458,13 @@ public class AuditLogger {
                 writer.newLine();
                 eventsWritten.incrementAndGet();
 
-                // Auto-flush if threshold reached
-                if (eventsSinceFlush.incrementAndGet() >= FLUSH_EVENT_THRESHOLD) {
+                // Force-flush on security-critical verdicts (BLOCK/BLACKHOLE)
+                // to guarantee crash-consistent audit trail for attack evidence
+                if (securityCritical) {
+                    writer.flush();
+                    eventsSinceFlush.set(0);
+                } else if (eventsSinceFlush.incrementAndGet() >= FLUSH_EVENT_THRESHOLD) {
+                    // Normal events: auto-flush if threshold reached
                     writer.flush();
                     eventsSinceFlush.set(0);
                 }
@@ -460,6 +478,25 @@ public class AuditLogger {
         } finally {
             writeLock.unlock();
         }
+    }
+
+    /**
+     * Determines whether an audit entry represents a security-critical event
+     * that must be flushed immediately. BLOCK and BLACKHOLE verdicts are
+     * security-critical because they represent detected attacks — losing this
+     * evidence in a crash would compromise forensic and compliance requirements.
+     */
+    private static boolean isSecurityCritical(Map<String, Object> entry) {
+        // logConnection() stores verdict under "verdict" key
+        // logVerdict() stores verdict under "action" key
+        Object verdict = entry.get("verdict");
+        if (verdict == null) {
+            verdict = entry.get("action");
+        }
+        if (verdict instanceof String v) {
+            return "BLOCK".equalsIgnoreCase(v) || "BLACKHOLE".equalsIgnoreCase(v);
+        }
+        return false;
     }
 
     /**

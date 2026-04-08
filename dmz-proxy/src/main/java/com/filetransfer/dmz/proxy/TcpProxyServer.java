@@ -2,6 +2,8 @@ package com.filetransfer.dmz.proxy;
 
 import com.filetransfer.dmz.audit.AuditLogger;
 import com.filetransfer.dmz.health.BackendHealthChecker;
+import com.filetransfer.dmz.inspection.DeepPacketInspector;
+import com.filetransfer.dmz.inspection.FtpCommandFilter;
 import com.filetransfer.dmz.security.*;
 import com.filetransfer.dmz.tls.TlsTerminator;
 import io.netty.bootstrap.Bootstrap;
@@ -14,6 +16,7 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
+import io.netty.util.ReferenceCountUtil;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -166,6 +169,15 @@ public class TcpProxyServer {
                         }
 
                         // ── Step 6: Backend connection with PROXY protocol ──
+                        // Resolve client IP and inspection components for in-flight DPI
+                        InetSocketAddress clientRemote = (InetSocketAddress) clientCh.remoteAddress();
+                        String clientIp = clientRemote != null
+                            ? clientRemote.getAddress().getHostAddress() : "unknown";
+                        DeepPacketInspector dpi = manager != null
+                            ? manager.getDeepPacketInspector() : null;
+                        FtpCommandFilter ftpFilter = manager != null
+                            ? manager.getFtpCommandFilter() : null;
+
                         Bootstrap backendBootstrap = new Bootstrap()
                                 .group(clientCh.eventLoop())
                                 .channel(NioSocketChannel.class)
@@ -182,7 +194,9 @@ public class TcpProxyServer {
                                                     ProxyProtocolHandler.v1(clientAddr, localAddr));
                                             }
                                         }
-                                        backendCh.pipeline().addLast(new RelayHandler(clientCh, bytesForwarded));
+                                        // Backend→client: no inspection needed
+                                        backendCh.pipeline().addLast(new RelayHandler(clientCh, bytesForwarded,
+                                            null, null, null, 0, null, false));
                                     }
                                 });
 
@@ -190,7 +204,10 @@ public class TcpProxyServer {
                             mapping.getTargetHost(), mapping.getTargetPort());
                         Channel backendCh = backendFuture.channel();
 
-                        clientCh.pipeline().addLast("relay", new RelayHandler(backendCh, bytesForwarded));
+                        // Client→backend: inspect in-flight data via DPI + FTP filter
+                        clientCh.pipeline().addLast("relay", new RelayHandler(backendCh, bytesForwarded,
+                            dpi, ftpFilter, clientIp, mapping.getListenPort(),
+                            mapping.getName(), true));
 
                         backendFuture.addListener((ChannelFutureListener) f -> {
                             if (f.isSuccess()) {
@@ -291,24 +308,96 @@ public class TcpProxyServer {
         }
     }
 
-    /** Simple relay: forward all bytes from inbound channel to the paired outbound channel */
+    /**
+     * Relay handler: forwards bytes between inbound and outbound channels.
+     * When {@code inspectTraffic} is true (client→backend direction), runs DPI and FTP
+     * command filtering on every packet before forwarding.
+     */
     static class RelayHandler extends ChannelInboundHandlerAdapter {
         private final Channel outboundChannel;
         private final AtomicLong bytesForwarded;
 
-        RelayHandler(Channel outboundChannel, AtomicLong bytesForwarded) {
+        // Inspection components (null when inspection disabled or backend→client direction)
+        private final DeepPacketInspector dpi;
+        private final FtpCommandFilter ftpFilter;
+        private final String clientIp;
+        private final int listenPort;
+        private final String mappingName;
+        private final boolean inspectTraffic;
+
+        // Protocol detected from first packet (lazy, only when inspecting)
+        private String detectedProtocol;
+
+        RelayHandler(Channel outboundChannel, AtomicLong bytesForwarded,
+                     DeepPacketInspector dpi, FtpCommandFilter ftpFilter,
+                     String clientIp, int listenPort, String mappingName,
+                     boolean inspectTraffic) {
             this.outboundChannel = outboundChannel;
             this.bytesForwarded = bytesForwarded;
+            this.dpi = dpi;
+            this.ftpFilter = ftpFilter;
+            this.clientIp = clientIp;
+            this.listenPort = listenPort;
+            this.mappingName = mappingName;
+            this.inspectTraffic = inspectTraffic;
         }
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) {
-            if (msg instanceof ByteBuf buf) bytesForwarded.addAndGet(buf.readableBytes());
+            if (msg instanceof ByteBuf buf) {
+                bytesForwarded.addAndGet(buf.readableBytes());
+
+                // ── In-flight inspection (client→backend only) ──
+                if (inspectTraffic && buf.readableBytes() > 0) {
+                    // Detect protocol on first packet if not yet known
+                    if (detectedProtocol == null && buf.readableBytes() >= 3) {
+                        ProtocolDetector.DetectionResult detection =
+                            ProtocolDetector.detect(buf, listenPort);
+                        detectedProtocol = ProtocolDetector.protocolToString(detection.protocol());
+                    }
+
+                    // Deep packet inspection for file-transfer protocols
+                    if (dpi != null && detectedProtocol != null) {
+                        String proto = detectedProtocol.toUpperCase();
+                        if ("SFTP".equals(proto) || "SSH".equals(proto)
+                                || "FTP".equals(proto) || "FTPS".equals(proto)) {
+                            DeepPacketInspector.InspectionResult inspResult =
+                                dpi.inspect(buf, detectedProtocol, listenPort);
+                            if (!inspResult.allowed()) {
+                                log.warn("[{}] Relay DPI blocked {} protocol={}: {} (severity={})",
+                                    mappingName, clientIp, detectedProtocol,
+                                    inspResult.finding(), inspResult.severity());
+                                ReferenceCountUtil.release(msg);
+                                ctx.close();
+                                return;
+                            }
+                        }
+                    }
+
+                    // FTP command filtering on every command packet
+                    if (ftpFilter != null && detectedProtocol != null
+                            && "FTP".equals(detectedProtocol.toUpperCase())) {
+                        FtpCommandFilter.FtpCommandResult cmdResult =
+                            ftpFilter.checkCommand(buf, clientIp);
+                        if (!cmdResult.allowed()) {
+                            log.warn("[{}] Relay FTP filter blocked {} cmd={}: {}",
+                                mappingName, clientIp, cmdResult.command(), cmdResult.reason());
+                            ReferenceCountUtil.release(msg);
+                            ctx.close();
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // ── Forward to outbound channel ──
             if (outboundChannel.isActive()) {
                 outboundChannel.writeAndFlush(msg).addListener((ChannelFutureListener) f -> {
                     if (f.isSuccess()) ctx.channel().read();
                     else f.channel().close();
                 });
+            } else {
+                ReferenceCountUtil.release(msg);
             }
         }
 

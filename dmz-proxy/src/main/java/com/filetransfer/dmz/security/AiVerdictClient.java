@@ -20,7 +20,7 @@ import java.util.concurrent.*;
  * Design:
  * - Sync verdict query with timeout (for first connection from an IP)
  * - Local cache with TTL (subsequent connections use cache)
- * - Graceful degradation: if AI engine is down, returns ALLOW with local heuristics
+ * - Graceful degradation: if AI engine is down, returns THROTTLE with strict rate limits
  * - Async cache refresh in background
  *
  * Product-agnostic: any TCP proxy can use this as its security backend client.
@@ -264,18 +264,20 @@ public class AiVerdictClient {
 
     /**
      * Local fallback verdict when AI engine is unavailable.
-     * Conservative: allows connections but with stricter rate limits.
+     * Fail-closed: THROTTLE with strict rate limits to prevent abuse
+     * while AI-based threat detection is offline.
      */
     private CachedVerdict localFallback(String sourceIp, int targetPort, String protocol, String reason) {
+        log.warn("AI engine unavailable — falling back to THROTTLE mode (5/min per IP). Reason: {}", reason);
         Instant now = Instant.now();
         return new CachedVerdict(
-            Action.ALLOW,
-            10,  // low risk (we don't know better)
-            "Local fallback: " + reason,
-            30,   // conservative rate limit
-            10,   // conservative concurrent limit
-            100_000_000L,
-            List.of("FALLBACK"),
+            Action.THROTTLE,
+            50,  // elevated risk — we cannot assess threats without AI
+            "Local fallback (THROTTLE): " + reason,
+            5,    // max 5 connections per minute per IP
+            2,    // max 2 concurrent connections
+            10_000_000L,  // ~10 MB/min — tight limit during degraded mode
+            List.of("FALLBACK", "AI_UNAVAILABLE"),
             now,
             now.plusSeconds(30)  // short TTL so we re-check soon
         );

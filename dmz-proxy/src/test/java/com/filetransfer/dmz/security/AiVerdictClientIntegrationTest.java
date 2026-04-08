@@ -208,14 +208,15 @@ class AiVerdictClientIntegrationTest {
 
         CachedVerdict verdict = client.getVerdict("10.0.0.3", 22, "SSH");
 
-        // Fallback should return ALLOW with conservative limits
-        assertEquals(Action.ALLOW, verdict.action());
-        assertEquals(10, verdict.riskScore());
+        // Fallback should return THROTTLE with tight limits
+        assertEquals(Action.THROTTLE, verdict.action());
+        assertEquals(50, verdict.riskScore());
         assertTrue(verdict.reason().contains("Local fallback"));
         assertTrue(verdict.signals().contains("FALLBACK"));
-        assertEquals(30, verdict.maxConnectionsPerMinute());
-        assertEquals(10, verdict.maxConcurrentConnections());
-        assertEquals(100_000_000L, verdict.maxBytesPerMinute());
+        assertTrue(verdict.signals().contains("AI_UNAVAILABLE"));
+        assertEquals(5, verdict.maxConnectionsPerMinute());
+        assertEquals(2, verdict.maxConcurrentConnections());
+        assertEquals(10_000_000L, verdict.maxBytesPerMinute());
     }
 
     // ── 7. AI engine timeout: fallback to local heuristics ────────────────
@@ -229,7 +230,7 @@ class AiVerdictClientIntegrationTest {
 
         CachedVerdict verdict = client.getVerdict("10.0.0.4", 22, "SSH");
 
-        assertEquals(Action.ALLOW, verdict.action());
+        assertEquals(Action.THROTTLE, verdict.action());
         assertTrue(verdict.reason().contains("Local fallback"));
         assertTrue(verdict.signals().contains("FALLBACK"));
         assertFalse(client.isAiEngineAvailable());
@@ -245,7 +246,7 @@ class AiVerdictClientIntegrationTest {
             .willReturn(okJson("{}").withFixedDelay(3000)));
 
         CachedVerdict fallback = client.getVerdict("10.0.0.5", 22, "SSH");
-        assertEquals(Action.ALLOW, fallback.action());
+        assertEquals(Action.THROTTLE, fallback.action());
         assertTrue(fallback.reason().contains("Local fallback"));
         assertFalse(client.isAiEngineAvailable());
 

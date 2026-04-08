@@ -55,8 +55,9 @@ public class RateLimiter {
             if (elapsed >= 1000) { // refill every second
                 long tokensToAdd = (elapsed / 1000) * maxPerMinute / 60;
                 if (tokensToAdd > 0 && lastRefill.compareAndSet(last, now)) {
-                    long current = tokens.get();
-                    tokens.set(Math.min(maxPerMinute, current + tokensToAdd));
+                    int cap = maxPerMinute; // snapshot volatile once
+                    tokens.accumulateAndGet(tokensToAdd, (current, add) ->
+                        Math.min(cap, current + add));
                 }
             }
 
@@ -76,19 +77,26 @@ public class RateLimiter {
         boolean tryAcquire() {
             refill();
 
-            // Check concurrent limit
-            if (concurrent.get() >= maxConcurrent) {
-                return false;
+            // Check and increment concurrent count atomically via CAS loop
+            int maxConc = maxConcurrent; // snapshot volatile once
+            while (true) {
+                int cur = concurrent.get();
+                if (cur >= maxConc) {
+                    return false;
+                }
+                if (concurrent.compareAndSet(cur, cur + 1)) {
+                    break;
+                }
             }
 
-            // Check rate limit
+            // Check rate limit — optimistic decrement
             long remaining = tokens.decrementAndGet();
             if (remaining < 0) {
                 tokens.incrementAndGet(); // put it back
+                concurrent.decrementAndGet(); // undo concurrent reservation
                 return false;
             }
 
-            concurrent.incrementAndGet();
             return true;
         }
 
@@ -270,8 +278,10 @@ public class RateLimiter {
         long last = globalLastRefill.get();
         if (now - last >= 1000) {
             long tokensToAdd = ((now - last) / 1000) * globalMaxPerMinute / 60;
-            if (globalLastRefill.compareAndSet(last, now)) {
-                globalTokens.set(Math.min(globalMaxPerMinute, globalTokens.get() + tokensToAdd));
+            if (tokensToAdd > 0 && globalLastRefill.compareAndSet(last, now)) {
+                int cap = globalMaxPerMinute; // snapshot volatile once
+                globalTokens.accumulateAndGet(tokensToAdd, (current, add) ->
+                    Math.min(cap, current + add));
             }
         }
         return globalTokens.decrementAndGet() >= 0;
