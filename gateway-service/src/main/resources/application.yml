@@ -148,3 +148,21 @@ platform:
   readiness:
     schema-file: db/schema/gateway-service.sql
     required-tables: legacy_server_configs,server_instances,transfer_accounts
+
+# Single-port multiplexed tunnel to DMZ proxy (disabled by default)
+tunnel:
+  enabled: ${TUNNEL_ENABLED:false}
+  dmz-host: ${TUNNEL_DMZ_HOST:dmz-proxy}
+  dmz-port: ${TUNNEL_DMZ_PORT:9443}
+  management-port: ${TUNNEL_MGMT_PORT:9444}
+  tls-enabled: ${TUNNEL_TLS_ENABLED:false}
+  max-streams: ${TUNNEL_MAX_STREAMS:1024}
+  window-size: ${TUNNEL_WINDOW_SIZE:262144}
+  keepalive-interval-seconds: 15
+  keepalive-timeout-seconds: 20
+  reconnect-base-ms: 1000
+  reconnect-max-ms: 30000
+  reconnect-jitter: 0.25
+  ai-engine-url: ${AI_ENGINE_URL:http://ai-engine:8091}
+  screening-service-url: ${SCREENING_SERVICE_URL:http://screening-service:8092}
+  keystore-manager-url: ${KEYSTORE_MANAGER_URL:http://keystore-manager:8093}

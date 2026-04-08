@@ -111,6 +111,15 @@ dmz:
     global-max-bytes-per-second: 0
     per-mapping-max-bytes-per-second: 0
 
+  # Single-port multiplexed tunnel (replaces all cross-DMZ connections)
+  tunnel:
+    enabled: ${DMZ_TUNNEL_ENABLED:false}
+    port: ${DMZ_TUNNEL_PORT:9443}
+    tls-enabled: ${DMZ_TUNNEL_TLS:false}
+    max-streams: ${DMZ_TUNNEL_MAX_STREAMS:1024}
+    window-size: ${DMZ_TUNNEL_WINDOW_SIZE:262144}
+    fallback-to-direct: ${DMZ_TUNNEL_FALLBACK:true}
+
 platform:
   services:
     onboarding-api:

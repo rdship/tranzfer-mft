@@ -331,6 +331,10 @@ services:
       INTERNAL_FTP_PORT: 21
       INTERNAL_FTPWEB_HOST: ftp-web-service
       INTERNAL_FTPWEB_PORT: 8083
+      # Single-port tunnel: set to "true" to multiplex all DMZ traffic over one connection
+      TUNNEL_ENABLED: ${TUNNEL_ENABLED:-false}
+      TUNNEL_DMZ_HOST: dmz-proxy
+      TUNNEL_DMZ_PORT: "9443"
     depends_on:
       postgres:
         condition: service_healthy
@@ -379,6 +383,7 @@ services:
       - "32222:2222"
       - "32121:21"
       - "4443:443"
+      - "9443:9443"    # Tunnel port (gateway-service connects inbound)
     environment:
       CONTROL_API_KEY: ${CONTROL_API_KEY:-internal_control_secret}
       SERVER_PORT: 8088
@@ -391,6 +396,9 @@ services:
       DMZ_INSPECTION_ENABLED: "true"
       DMZ_HEALTH_CHECK_ENABLED: "true"
       DMZ_QOS_ENABLED: "true"
+      # Single-port tunnel: set to "true" to replace all cross-DMZ connections with one tunnel
+      DMZ_TUNNEL_ENABLED: ${DMZ_TUNNEL_ENABLED:-false}
+      DMZ_TUNNEL_PORT: "9443"
     depends_on:
       - ai-engine
       - gateway-service

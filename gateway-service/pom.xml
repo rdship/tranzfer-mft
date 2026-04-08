@@ -34,6 +34,12 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-amqp</artifactId>
         </dependency>
+        <!-- Single-port tunnel protocol (no Spring, no DB — shared with dmz-proxy) -->
+        <dependency>
+            <groupId>com.filetransfer</groupId>
+            <artifactId>shared-tunnel</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

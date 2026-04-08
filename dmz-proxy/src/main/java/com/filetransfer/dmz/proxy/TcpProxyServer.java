@@ -6,6 +6,7 @@ import com.filetransfer.dmz.inspection.DeepPacketInspector;
 import com.filetransfer.dmz.inspection.FtpCommandFilter;
 import com.filetransfer.dmz.security.*;
 import com.filetransfer.dmz.tls.TlsTerminator;
+import com.filetransfer.dmz.tunnel.TunnelAcceptor;
 import com.filetransfer.dmz.qos.BandwidthQoS;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
@@ -211,66 +212,108 @@ public class TcpProxyServer {
                         FtpCommandFilter ftpFilter = manager != null
                             ? manager.getFtpCommandFilter() : null;
 
-                        Bootstrap backendBootstrap = new Bootstrap()
-                                .group(clientCh.eventLoop())
-                                .channel(NioSocketChannel.class)
-                                .option(ChannelOption.AUTO_READ, false)
-                                .handler(new ChannelInitializer<SocketChannel>() {
-                                    @Override
-                                    protected void initChannel(SocketChannel backendCh) {
-                                        // PROXY protocol header to backend (if enabled).
-                                        // Use a lazy-resolving outbound handler that reads
-                                        // the real client IP from the inbound channel's
-                                        // attribute at write time (after PROXY header decoded).
-                                        if (mapping.isProxyProtocolEnabled()) {
-                                            backendCh.pipeline().addLast("proxy-protocol",
-                                                new LazyProxyProtocolOutboundHandler(clientCh));
-                                        }
-                                        // Backend→client: rewrite SSH banner to hide backend identity
-                                        if (manager != null && manager.isSshBannerRewriteEnabled()) {
-                                            backendCh.pipeline().addLast("ssh-banner-rewrite",
-                                                new SshBannerRewriteHandler(manager.getSshBanner()));
-                                        }
-                                        // Backend→client: no inspection, QoS tracks bytes only
-                                        backendCh.pipeline().addLast(new RelayHandler(clientCh, bytesForwarded,
-                                            null, null, null, 0, null, false,
-                                            null, null, 0));
-                                    }
-                                });
+                        // ── Backend connection: tunnel path vs direct path ──
+                        TunnelAcceptor tunnel = manager != null ? manager.getTunnelAcceptor() : null;
+                        boolean useTunnel = tunnel != null && tunnel.isActive()
+                                && tunnel.getConnector() != null;
 
-                        ChannelFuture backendFuture = backendBootstrap.connect(
-                            mapping.getTargetHost(), mapping.getTargetPort());
-                        Channel backendCh = backendFuture.channel();
+                        if (useTunnel) {
+                            // ── Tunnel path: multiplex over single tunnel connection ──
+                            try {
+                                ChannelFuture streamFuture = tunnel.getConnector()
+                                        .connectViaStream(mapping, clientCh);
+                                Channel streamCh = streamFuture.channel();
 
-                        // Client→backend: inspect in-flight data via DPI + FTP filter + QoS
-                        clientCh.pipeline().addLast("relay", new RelayHandler(backendCh, bytesForwarded,
-                            dpi, ftpFilter, clientIp, mapping.getListenPort(),
-                            mapping.getName(), true, bandwidthQoS, connectionId, qosPriority));
+                                // Backend→client: banner rewrite + relay via tunnel stream
+                                if (manager.isSshBannerRewriteEnabled()) {
+                                    streamCh.pipeline().addLast("ssh-banner-rewrite",
+                                        new SshBannerRewriteHandler(manager.getSshBanner()));
+                                }
+                                streamCh.pipeline().addLast(new RelayHandler(clientCh, bytesForwarded,
+                                    null, null, null, 0, null, false,
+                                    null, null, 0));
 
-                        backendFuture.addListener((ChannelFutureListener) f -> {
-                            if (f.isSuccess()) {
-                                // Register connection with QoS for bandwidth tracking
+                                // Client→backend: inspect in-flight data via DPI + FTP filter + QoS
+                                clientCh.pipeline().addLast("relay", new RelayHandler(streamCh, bytesForwarded,
+                                    dpi, ftpFilter, clientIp, mapping.getListenPort(),
+                                    mapping.getName(), true, bandwidthQoS, connectionId, qosPriority));
+
                                 if (bandwidthQoS != null) {
                                     bandwidthQoS.registerConnection(connectionId, mapping.getName(), qosPriority);
                                 }
-                                auditConnection("OPEN", clientCh, "connected");
+                                auditConnection("OPEN", clientCh, "tunnel-connected");
                                 clientCh.read();
-                                backendCh.read();
-                            } else {
-                                log.warn("Backend connection failed: {}:{} -> {}",
-                                    mapping.getName(), mapping.getTargetHost(), mapping.getTargetPort());
-                                auditConnection("BACKEND_FAILED", clientCh, "connection_refused");
-                                clientCh.close();
-                            }
-                        });
 
-                        clientCh.closeFuture().addListener(cf -> {
-                            activeConnections.decrementAndGet();
-                            if (bandwidthQoS != null) {
-                                bandwidthQoS.unregisterConnection(connectionId);
+                                clientCh.closeFuture().addListener(cf -> {
+                                    activeConnections.decrementAndGet();
+                                    if (bandwidthQoS != null) {
+                                        bandwidthQoS.unregisterConnection(connectionId);
+                                    }
+                                    streamCh.close();
+                                });
+                            } catch (Exception e) {
+                                log.warn("Tunnel stream failed for [{}]: {} — falling back to direct",
+                                    mapping.getName(), e.getMessage());
+                                // Fall through to direct connection below
+                                useTunnel = false;
                             }
-                            backendCh.close();
-                        });
+                        }
+
+                        if (!useTunnel) {
+                            // ── Direct path: Bootstrap.connect() (default / fallback) ──
+                            Bootstrap backendBootstrap = new Bootstrap()
+                                    .group(clientCh.eventLoop())
+                                    .channel(NioSocketChannel.class)
+                                    .option(ChannelOption.AUTO_READ, false)
+                                    .handler(new ChannelInitializer<SocketChannel>() {
+                                        @Override
+                                        protected void initChannel(SocketChannel backendCh) {
+                                            if (mapping.isProxyProtocolEnabled()) {
+                                                backendCh.pipeline().addLast("proxy-protocol",
+                                                    new LazyProxyProtocolOutboundHandler(clientCh));
+                                            }
+                                            if (manager != null && manager.isSshBannerRewriteEnabled()) {
+                                                backendCh.pipeline().addLast("ssh-banner-rewrite",
+                                                    new SshBannerRewriteHandler(manager.getSshBanner()));
+                                            }
+                                            backendCh.pipeline().addLast(new RelayHandler(clientCh, bytesForwarded,
+                                                null, null, null, 0, null, false,
+                                                null, null, 0));
+                                        }
+                                    });
+
+                            ChannelFuture backendFuture = backendBootstrap.connect(
+                                mapping.getTargetHost(), mapping.getTargetPort());
+                            Channel backendCh = backendFuture.channel();
+
+                            clientCh.pipeline().addLast("relay", new RelayHandler(backendCh, bytesForwarded,
+                                dpi, ftpFilter, clientIp, mapping.getListenPort(),
+                                mapping.getName(), true, bandwidthQoS, connectionId, qosPriority));
+
+                            backendFuture.addListener((ChannelFutureListener) f -> {
+                                if (f.isSuccess()) {
+                                    if (bandwidthQoS != null) {
+                                        bandwidthQoS.registerConnection(connectionId, mapping.getName(), qosPriority);
+                                    }
+                                    auditConnection("OPEN", clientCh, "connected");
+                                    clientCh.read();
+                                    backendCh.read();
+                                } else {
+                                    log.warn("Backend connection failed: {}:{} -> {}",
+                                        mapping.getName(), mapping.getTargetHost(), mapping.getTargetPort());
+                                    auditConnection("BACKEND_FAILED", clientCh, "connection_refused");
+                                    clientCh.close();
+                                }
+                            });
+
+                            clientCh.closeFuture().addListener(cf -> {
+                                activeConnections.decrementAndGet();
+                                if (bandwidthQoS != null) {
+                                    bandwidthQoS.unregisterConnection(connectionId);
+                                }
+                                backendCh.close();
+                            });
+                        }
                     }
                 });
 

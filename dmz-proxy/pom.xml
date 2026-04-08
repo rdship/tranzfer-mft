@@ -11,6 +11,12 @@
     <artifactId>dmz-proxy</artifactId>
 
     <dependencies>
+        <!-- Shared tunnel protocol — no Spring, no DB, safe for DMZ isolation -->
+        <dependency>
+            <groupId>com.filetransfer</groupId>
+            <artifactId>shared-tunnel</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <!-- No shared module: DMZ proxy is intentionally isolated — no DB access -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

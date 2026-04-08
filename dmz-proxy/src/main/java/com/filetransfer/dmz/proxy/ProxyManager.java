@@ -9,8 +9,14 @@ import com.filetransfer.dmz.qos.BandwidthQoS;
 import com.filetransfer.dmz.security.*;
 import com.filetransfer.dmz.tls.KeystoreIntegration;
 import com.filetransfer.dmz.tls.TlsTerminator;
+import com.filetransfer.dmz.tunnel.TunnelAcceptor;
+import com.filetransfer.dmz.tunnel.TunnelAiVerdictClient;
+import com.filetransfer.dmz.tunnel.TunnelBackendHealthChecker;
+import com.filetransfer.dmz.tunnel.TunnelContentScreeningBridge;
+import com.filetransfer.dmz.tunnel.TunnelKeystoreIntegration;
 import io.micrometer.prometheus.PrometheusConfig;
 import io.micrometer.prometheus.PrometheusMeterRegistry;
+import io.netty.channel.nio.NioEventLoopGroup;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.Getter;
@@ -69,6 +75,9 @@ public class ProxyManager {
     @Getter private BandwidthQoS bandwidthQoS;
     @Getter private ConnectionDrainer connectionDrainer;
 
+    // ── Tunnel (single-port multiplexed DMZ tunnel) ──
+    @Getter private TunnelAcceptor tunnelAcceptor;
+
     /** Whether inbound PROXY protocol parsing is enabled (LB in front). */
     public boolean isInboundProxyProtocolEnabled() {
         return properties.getProxyProtocol() != null
@@ -115,6 +124,7 @@ public class ProxyManager {
         initHealthChecker();
         initQoS();
         initDrainer();
+        initTunnel();
 
         // ── Load default port mappings ──
         if (properties.getMappings() != null) {
@@ -300,6 +310,86 @@ public class ProxyManager {
         this.connectionDrainer = new ConnectionDrainer(30);
     }
 
+    private void initTunnel() {
+        DmzProperties.Tunnel tunnelConfig = properties.getTunnel();
+        if (tunnelConfig == null || !tunnelConfig.isEnabled()) {
+            return;
+        }
+        try {
+            NioEventLoopGroup bossGroup = new NioEventLoopGroup(1, r -> {
+                Thread t = new Thread(r, "tunnel-boss");
+                t.setDaemon(true);
+                return t;
+            });
+            NioEventLoopGroup workerGroup = new NioEventLoopGroup(0, r -> {
+                Thread t = new Thread(r, "tunnel-worker");
+                t.setDaemon(true);
+                return t;
+            });
+
+            this.tunnelAcceptor = new TunnelAcceptor(
+                tunnelConfig.getPort(), bossGroup, workerGroup,
+                null, // TLS context — extend here when tunnel TLS is needed
+                tunnelConfig.getMaxStreams(), tunnelConfig.getWindowSize());
+            tunnelAcceptor.start();
+
+            // Swap security components to tunnel-aware versions once tunnel is active
+            // (tunnel adapter subclasses fall back to direct HTTP when tunnel is down)
+            if (securityEnabled && aiVerdictClient != null) {
+                DmzProperties.Security sec = properties.getSecurity();
+                this.aiVerdictClient = new TunnelAiVerdictClient(
+                    sec.getAiEngineUrl(), sec.getVerdictTimeoutMs(),
+                    sec.getInternalApiKey(), tunnelAcceptor);
+                // Re-create event reporter with tunnel-aware client
+                if (eventReporter != null) {
+                    eventReporter.shutdown();
+                    this.eventReporter = new ThreatEventReporter(
+                        aiVerdictClient,
+                        sec.getEventQueueCapacity(),
+                        sec.getEventBatchSize(),
+                        sec.getEventFlushIntervalMs());
+                }
+            }
+            if (contentScreeningBridge != null) {
+                DmzProperties.Inspection insp = properties.getInspection();
+                this.contentScreeningBridge = new TunnelContentScreeningBridge(
+                    insp.getScreeningServiceUrl(),
+                    properties.getSecurity().getInternalApiKey(),
+                    new ContentScreeningBridge.ContentScreeningConfig(
+                        false, 50_000_000L, 30, true, false, true,
+                        List.of("FTP", "SFTP", "HTTP")),
+                    tunnelAcceptor);
+            }
+            if (keystoreIntegration != null) {
+                DmzProperties.Tls tlsConfig = properties.getTls();
+                keystoreIntegration.shutdown();
+                this.keystoreIntegration = new TunnelKeystoreIntegration(
+                    tlsConfig.getKeystoreManagerUrl(),
+                    properties.getSecurity().getInternalApiKey(),
+                    tlsConfig.getCertCacheDir(),
+                    tlsConfig.getCertRefreshIntervalSeconds(),
+                    tunnelAcceptor);
+                keystoreIntegration.start();
+            }
+            if (healthChecker != null) {
+                healthChecker.shutdown();
+                this.healthChecker = new TunnelBackendHealthChecker(
+                    properties.getHealthCheck().getIntervalSeconds(),
+                    properties.getHealthCheck().getTimeoutSeconds(),
+                    properties.getHealthCheck().getUnhealthyThreshold(),
+                    properties.getHealthCheck().getHealthyThreshold(),
+                    tunnelAcceptor);
+                healthChecker.start();
+            }
+
+            log.info("Tunnel initialized on port {} (maxStreams={}, windowSize={})",
+                tunnelConfig.getPort(), tunnelConfig.getMaxStreams(), tunnelConfig.getWindowSize());
+        } catch (Exception e) {
+            log.error("Failed to initialize tunnel: {}", e.getMessage(), e);
+            this.tunnelAcceptor = null;
+        }
+    }
+
     public void add(PortMapping mapping) {
         if (servers.containsKey(mapping.getName())) {
             throw new IllegalArgumentException("Mapping already exists: " + mapping.getName());
@@ -471,6 +561,7 @@ public class ProxyManager {
         if (keystoreIntegration != null) keystoreIntegration.shutdown();
         if (bandwidthQoS != null) bandwidthQoS.shutdown();
         if (contentScreeningBridge != null) contentScreeningBridge.shutdown();
+        if (tunnelAcceptor != null) tunnelAcceptor.stop();
         if (egressFilter != null) egressFilter.shutdown();
         if (auditLogger != null) {
             auditLogger.flush();
@@ -494,6 +585,7 @@ public class ProxyManager {
         if (ftpCommandFilter != null) features.add("ftp_command_filter");
         if (healthChecker != null) features.add("backend_health_check");
         if (bandwidthQoS != null) features.add("bandwidth_qos");
+        if (tunnelAcceptor != null) features.add("single_port_tunnel");
         features.add("proxy_protocol");
         features.add("connection_draining");
         log.info("DMZ proxy started with {} enterprise security features: {}",

@@ -40,6 +40,9 @@ public class DmzProperties {
     /** Inbound PROXY protocol (when behind a load balancer) */
     private ProxyProtocol proxyProtocol = new ProxyProtocol();
 
+    /** Single-port multiplexed tunnel (replaces all cross-DMZ connections) */
+    private Tunnel tunnel = new Tunnel();
+
     @Data
     public static class Security {
         private boolean enabled = true;
@@ -158,6 +161,22 @@ public class DmzProperties {
         private long globalMaxBytesPerSecond = 0;
         /** Default per-mapping max bytes per second (0 = unlimited) */
         private long perMappingMaxBytesPerSecond = 0;
+    }
+
+    @Data
+    public static class Tunnel {
+        /** Enable multiplexed tunnel (gateway-service connects inbound on tunnelPort) */
+        private boolean enabled = false;
+        /** Tunnel listen port (accepts single connection from gateway-service) */
+        private int port = 9443;
+        /** Enable TLS on the tunnel connection */
+        private boolean tlsEnabled = false;
+        /** Max concurrent multiplexed streams */
+        private int maxStreams = 1024;
+        /** Per-stream flow control window in bytes */
+        private int windowSize = 262144;  // 256KB
+        /** Fall back to direct connections when tunnel is down */
+        private boolean fallbackToDirect = true;
     }
 
     @Data
