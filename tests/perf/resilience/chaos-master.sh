@@ -77,6 +77,21 @@ GLOBAL_SKIP=0
 # Per-scenario logs kept in results dir so they're committed alongside the report
 LOGS_DIR="${LOGS_SUBDIR}"
 mkdir -p "${LOGS_DIR}"
+
+# Create report file IMMEDIATELY so `tail -f` works during the run
+mkdir -p "${REPORT_DIR}"
+cat > "${REPORT_FILE}" <<INIT_EOF
+# TranzFer MFT — Chaos Test Report
+**Status:** RUNNING — started $(date '+%Y-%m-%d %H:%M:%S')
+**Platform:** ${BASE_URL}
+**Report file:** ${REPORT_FILE}
+
+> This file is written incrementally. Run \`tail -f ${REPORT_FILE}\` to watch live progress.
+
+## Live Progress
+
+INIT_EOF
+
 cleanup() {
   jobs -p 2>/dev/null | xargs kill 2>/dev/null || true
   # LOGS_DIR is under results/ — intentionally NOT deleted so logs are committed
@@ -183,16 +198,19 @@ run_scenario() {
       SCENARIO_STATUS[$name]="PASS"
       GLOBAL_PASS=$((GLOBAL_PASS + 1))
       echo -e "\n${GREEN}${BOLD}[ PASS ]${NC} ${name} completed in ${duration}s"
+      echo "- **$(date '+%H:%M:%S')** \`${name}\` — ✓ PASS (${duration}s)" >> "${REPORT_FILE}"
       ;;
     1)
       SCENARIO_STATUS[$name]="WARN"
       GLOBAL_WARN=$((GLOBAL_WARN + 1))
       echo -e "\n${YELLOW}${BOLD}[ WARN ]${NC} ${name} completed in ${duration}s"
+      echo "- **$(date '+%H:%M:%S')** \`${name}\` — ! WARN (${duration}s)" >> "${REPORT_FILE}"
       ;;
     *)
       SCENARIO_STATUS[$name]="FAIL"
       GLOBAL_FAIL=$((GLOBAL_FAIL + 1))
       echo -e "\n${RED}${BOLD}[ FAIL ]${NC} ${name} completed in ${duration}s (exit ${exit_code})"
+      echo "- **$(date '+%H:%M:%S')** \`${name}\` — ✗ FAIL (${duration}s, exit ${exit_code})" >> "${REPORT_FILE}"
       ;;
   esac
 
@@ -393,8 +411,11 @@ get_log_tail() {
   fi
 }
 
-cat > "${REPORT_FILE}" << REPORTEOF
-# TranzFer MFT — Chaos Test Report
+cat >> "${REPORT_FILE}" << REPORTEOF
+
+---
+
+# Full Report
 
 **Generated:** ${POST_TIME}
 **Platform:** ${BASE_URL}

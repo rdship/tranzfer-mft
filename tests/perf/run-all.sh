@@ -243,8 +243,18 @@ if run_phase "resilience" || run_phase "6"; then
     log "  Running MTTR measurement (graceful-degradation services only)..."
     "${SCRIPT_DIR}/resilience/recovery-time.sh" 2>&1 | tee -a "$REPORT"
     log_pass "MTTR measurements recorded"
-    log "  NOTE: Full chaos tests (RabbitMQ, DB kill) skipped in automated run."
-    log "  Run manually: ./tests/perf/resilience/chaos-rabbitmq.sh"
+
+    log "  Running chaos test suite (startup, shutdown, cascade, continuity, VFS, scale)..."
+    log "  Tail live progress: tail -f ${REPORT_DIR}/chaos-report-*.md"
+    REPORT_DIR="${REPORT_DIR}" "${SCRIPT_DIR}/resilience/chaos-master.sh" 2>&1 | tee -a "$REPORT"
+    chaos_exit=${PIPESTATUS[0]}
+    if [[ $chaos_exit -eq 0 ]]; then
+      log_pass "Chaos suite: all scenarios PASS"
+    elif [[ $chaos_exit -eq 1 ]]; then
+      log_warn "Chaos suite: WARN — review chaos-report-*.md"
+    else
+      log_fail "Chaos suite: FAIL — review chaos-report-*.md"
+    fi
   fi
 fi
 
