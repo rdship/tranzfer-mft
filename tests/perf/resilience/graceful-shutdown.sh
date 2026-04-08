@@ -396,6 +396,21 @@ echo ""
 echo "Summary: PASS=${PASS_COUNT}  WARN=${WARN_COUNT}  FAIL=${FAIL_COUNT}"
 echo ""
 
+if [[ -z "${CHAOS_MASTER_RUN:-}" ]]; then
+  _RD="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/results"
+  mkdir -p "$_RD"
+  _V="PASS"; [[ $FAIL_COUNT -gt 0 ]] && _V="FAIL" || [[ $WARN_COUNT -gt 0 ]] && _V="WARN"
+  _RF="${_RD}/chaos-graceful-shutdown-$(date +%Y%m%d-%H%M%S).md"
+  { echo "# Chaos: graceful-shutdown — $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "**Overall:** ${_V} | Pass: ${PASS_COUNT} | Warn: ${WARN_COUNT} | Fail: ${FAIL_COUNT}"
+    echo ""
+    echo "Service under test: \`${TARGET_SERVICE}\`"
+    echo ""
+    echo "Run full suite: \`./tests/perf/resilience/chaos-master.sh\`"
+  } > "$_RF"
+  echo "Results written: ${_RF}"
+fi
+
 if [[ $FAIL_COUNT -gt 0 ]]; then
   echo -e "${RED}OVERALL: FAIL${NC}"
   echo "Recommended action:"

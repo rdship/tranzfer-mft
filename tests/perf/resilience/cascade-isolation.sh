@@ -719,6 +719,25 @@ echo "  PASS : correct failure mode AND response time <${FAST_THRESHOLD_MS}ms"
 echo "  WARN : correct failure mode BUT response time >${FAST_THRESHOLD_MS}ms (slow circuit open)"
 echo "  FAIL : timeout (>5s) OR 500 error OR wrong behaviour (BLOCKED when should be ALLOWED)"
 
+if [[ -z "${CHAOS_MASTER_RUN:-}" ]]; then
+  _RD="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/results"
+  mkdir -p "$_RD"
+  _V="PASS"; [[ $FAIL_COUNT -gt 0 ]] && _V="FAIL" || [[ $WARN_COUNT -gt 0 ]] && _V="WARN"
+  _RF="${_RD}/chaos-cascade-isolation-$(date +%Y%m%d-%H%M%S).md"
+  { echo "# Chaos: cascade-isolation — $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "**Overall:** ${_V} | Pass: ${PASS_COUNT} | Warn: ${WARN_COUNT} | Fail: ${FAIL_COUNT}"
+    echo ""
+    echo "| Scenario | Verdict | Notes |"
+    echo "|----------|---------|-------|"
+    for _n in 1 2 3 4 5 6 7; do
+      echo "| ${SCENARIO_NAMES[$_n]:-scenario-$_n} | ${SCENARIO_VERDICT[$_n]:-SKIP} | ${SCENARIO_NOTE[$_n]:-} |"
+    done
+    echo ""
+    echo "Run full suite: \`./tests/perf/resilience/chaos-master.sh\`"
+  } > "$_RF"
+  echo "Results written: ${_RF}"
+fi
+
 if [[ $FAIL_COUNT -gt 0 ]]; then
   echo ""
   echo -e "${RED}OVERALL: FAIL${NC}"

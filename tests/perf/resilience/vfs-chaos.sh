@@ -1079,6 +1079,32 @@ echo "    WARN : correct behavior but slower than target, or minor discrepancies
 echo "    FAIL : stuck PENDING/RECOVERING, INLINE ops impacted by storage kill,"
 echo "           duplicate entries, VFS depends on RabbitMQ, >2 CAS objects for identical content"
 
+# ── Write standalone results file (skipped when called from chaos-master.sh) ──
+if [[ -z "${CHAOS_MASTER_RUN:-}" ]]; then
+  _RD="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/results"
+  mkdir -p "$_RD"
+  _RF="${_RD}/chaos-vfs-$(date +%Y%m%d-%H%M%S).md"
+  {
+    echo "# Chaos: vfs-chaos — $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "**Overall:** ${OVERALL} | Pass: ${PASS_COUNT} | Warn: ${WARN_COUNT} | Fail: ${FAIL_COUNT}"
+    echo ""
+    echo "| # | Scenario | Verdict | Notes |"
+    echo "|---|----------|---------|-------|"
+    for n in 1 2 3 4 5 6; do
+      should_run "$n" || continue
+      echo "| ${n} | ${SCENARIO_NAMES[$n]} | ${SCENARIO_VERDICT[$n]:-SKIP} | ${SCENARIO_NOTE[$n]:-} |"
+    done
+    echo ""
+    echo "| Metric | Value |"
+    echo "|--------|-------|"
+    echo "| Sentinel score baseline | ${SCORE_BASELINE} |"
+    echo "| Sentinel score final    | ${score_final:-?} |"
+    echo ""
+    echo "Run full suite: \`./tests/perf/resilience/chaos-master.sh\`"
+  } > "$_RF"
+  echo "  Results written: ${_RF}"
+fi
+
 # ── Optional: append to master REPORT file ────────────────────────────────────
 if [[ -n "${REPORT:-}" ]]; then
   {

@@ -435,6 +435,19 @@ echo "  - Replica-2 containers (mft-<svc>-2) must be pre-configured in docker-co
 echo "  - Startup guardrail is Docker's healthcheck start_period + retry policy."
 echo "  - A 0% error rate during scale events confirms the guardrail is working."
 
+if [[ -z "${CHAOS_MASTER_RUN:-}" ]]; then
+  _RD="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/results"
+  mkdir -p "$_RD"
+  _V="PASS"; [[ $GLOBAL_FAIL -gt 0 ]] && _V="FAIL" || [[ $GLOBAL_WARN -gt 0 ]] && _V="WARN"
+  _RF="${_RD}/chaos-scale-surge-$(date +%Y%m%d-%H%M%S).md"
+  { echo "# Chaos: scale-surge — $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "**Overall:** ${_V} | Pass: ${GLOBAL_PASS} | Warn: ${GLOBAL_WARN} | Fail: ${GLOBAL_FAIL}"
+    echo ""
+    echo "Run full suite: \`./tests/perf/resilience/chaos-master.sh\`"
+  } > "$_RF"
+  echo "Results written: ${_RF}"
+fi
+
 if [[ $GLOBAL_FAIL -gt 0 ]]; then
   exit 2
 elif [[ $GLOBAL_WARN -gt 0 ]]; then

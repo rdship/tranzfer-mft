@@ -34,9 +34,10 @@ ADMIN_PASS="${MFT_ADMIN_PASS:-Admin@1234}"
 SENTINEL_PORT=8098
 RABBITMQ_MGMT="http://localhost:15672"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPORT_DIR="${REPORT_DIR:-${SCRIPT_DIR}/../reports}"
+REPORT_DIR="${REPORT_DIR:-${SCRIPT_DIR}/../results}"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 REPORT_FILE="${REPORT_DIR}/chaos-report-${TIMESTAMP}.md"
+LOGS_SUBDIR="${REPORT_DIR}/chaos-logs-${TIMESTAMP}"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
@@ -73,11 +74,12 @@ GLOBAL_WARN=0
 GLOBAL_FAIL=0
 GLOBAL_SKIP=0
 
-# Collect output per scenario for the report
-LOGS_DIR=$(mktemp -d /tmp/chaos-master.XXXXXX)
+# Per-scenario logs kept in results dir so they're committed alongside the report
+LOGS_DIR="${LOGS_SUBDIR}"
+mkdir -p "${LOGS_DIR}"
 cleanup() {
   jobs -p 2>/dev/null | xargs kill 2>/dev/null || true
-  rm -rf "${LOGS_DIR}"
+  # LOGS_DIR is under results/ — intentionally NOT deleted so logs are committed
 }
 trap cleanup EXIT
 
@@ -163,9 +165,9 @@ run_scenario() {
   local t_start
   t_start=$(date +%s)
 
-  # Run script, tee to log
+  # Run script, tee to log; CHAOS_MASTER_RUN=1 suppresses standalone report writing
   set +e
-  bash "$script" "${args[@]}" 2>&1 | tee "$log_file"
+  CHAOS_MASTER_RUN=1 bash "$script" "${args[@]}" 2>&1 | tee "$log_file"
   local exit_code=${PIPESTATUS[0]}
   set -e
 
@@ -268,7 +270,7 @@ if [[ "$PREREQ_PASS" != "true" ]]; then
 fi
 echo -e "  ${GREEN}All prerequisites satisfied.${NC}"
 
-# Ensure reports dir exists
+# Ensure results dir exists (LOGS_DIR was already created above)
 mkdir -p "${REPORT_DIR}"
 
 # ── Step 2: Pre-chaos baseline ────────────────────────────────────────────────
