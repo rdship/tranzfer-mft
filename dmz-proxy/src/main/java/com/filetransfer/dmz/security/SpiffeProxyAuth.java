@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * so SPIFFE support is implemented directly here rather than via shared-core.
  *
  * <p><b>Activation:</b> set {@code SPIFFE_ENABLED=true} (env var).
- * When disabled the proxy falls back to X-Internal-Key (backward compat).
+ * When disabled, outbound calls proceed without a workload identity token.
  *
  * <p><b>What it validates:</b>
  * <ul>
@@ -52,7 +52,7 @@ public class SpiffeProxyAuth {
     @PostConstruct
     public void init() {
         if (!enabled) {
-            log.info("[SPIFFE] DMZ Proxy: SPIFFE disabled — using X-Internal-Key fallback");
+            log.info("[SPIFFE] DMZ Proxy: SPIFFE disabled — outbound calls will have no workload identity token");
             return;
         }
         try {
@@ -66,7 +66,7 @@ public class SpiffeProxyAuth {
                     trustDomain, SERVICE_NAME);
         } catch (Exception ex) {
             log.warn("[SPIFFE] DMZ Proxy: Workload API unavailable ({}). " +
-                    "Falling back to X-Internal-Key. Error: {}", socketPath, ex.getMessage());
+                    "Outbound calls will proceed without a workload identity token. Error: {}", socketPath, ex.getMessage());
         }
     }
 

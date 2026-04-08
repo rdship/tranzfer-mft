@@ -23,7 +23,7 @@ import java.util.Map;
  * Base class for all inter-service REST clients in the platform.
  * Provides common patterns:
  * <ul>
- *   <li>Authentication via X-Internal-Key header</li>
+ *   <li>Authentication via SPIFFE JWT-SVID (workload identity)</li>
  *   <li>Consistent error handling and logging</li>
  *   <li>Health check support</li>
  *   <li>Enabled/disabled toggle</li>
@@ -43,7 +43,7 @@ public abstract class BaseServiceClient {
     /**
      * Optional SPIFFE workload client — auto-wired when {@code spiffe.enabled=true}.
      * When present, outbound calls use a short-lived JWT-SVID instead of
-     * the static X-Internal-Key header. Falls back to X-Internal-Key when null.
+     * When absent, outbound calls proceed without a workload identity token.
      */
     @Autowired(required = false)
     @Nullable

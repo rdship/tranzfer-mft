@@ -36,12 +36,11 @@ All repositories are interfaces → safe to @Mock
 ## Architecture
 - 22 modules, shared library with 32 JPA entities
 - REST via ResilientServiceClient (circuit breaker+retry)
-- **Service identity**: SPIFFE/SPIRE JWT-SVIDs (zero-trust, auto-rotating 1h) → replaces X-Internal-Key
+- **Service identity**: SPIFFE/SPIRE JWT-SVIDs (zero-trust, auto-rotating 1h)
   - Enable: `SPIFFE_ENABLED=true`, bootstrap once: `bash spire/bootstrap.sh`
-  - Fallback: X-Internal-Key (deprecated, kept for backward compat)
   - Key classes: `SpiffeWorkloadClient` (shared-core), `SpiffeProxyAuth` (dmz-proxy)
-  - `PlatformJwtAuthFilter` validates: SPIFFE JWT-SVID (path 1) → Platform JWT (path 2) → X-Internal-Key (path 3)
-  - `BaseServiceClient` auto-uses SVID when `SpiffeWorkloadClient` bean is present
+  - `PlatformJwtAuthFilter` validates: SPIFFE JWT-SVID (path 1) → Platform JWT (path 2)
+  - `BaseServiceClient` auto-attaches SVID when `SpiffeWorkloadClient` bean is present
 - JWT for user auth (admin UI / partner portal / CLI)
 - RabbitMQ: exchange=file-transfer.events, binding=account.*
 - Fail-fast: config, encryption, screening, storage

@@ -76,7 +76,7 @@ public class KeystoreIntegration {
      *
      * @param keystoreManagerUrl   base URL of the Keystore Manager service
      *                             (default: {@code "http://keystore-manager:8093"})
-     * @param internalApiKey       value for the {@code X-Internal-Key} header
+     * @param spiffeAuth           SPIFFE workload auth for outbound requests (nullable)
      * @param certCacheDir         local directory for caching fetched certificates
      *                             (default: {@code "./cert-cache"})
      * @param refreshIntervalSeconds interval between certificate refresh checks in seconds

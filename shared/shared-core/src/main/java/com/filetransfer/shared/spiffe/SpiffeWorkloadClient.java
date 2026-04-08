@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * e.g. {@code "spiffe://filetransfer.io/gateway-service"}.
  *
  * <p>Graceful degradation: if the SPIRE agent socket is unavailable, methods
- * return {@code null} / {@code false} and the caller falls back to X-Internal-Key.
+ * return {@code null} / {@code false} and the caller proceeds without a workload identity token.
  */
 @Slf4j
 public class SpiffeWorkloadClient {
@@ -51,7 +51,7 @@ public class SpiffeWorkloadClient {
         } catch (Exception ex) {
             available.set(false);
             log.warn("[SPIFFE] Workload API unavailable ({}). " +
-                    "Falling back to X-Internal-Key. Error: {}", props.getSocket(), ex.getMessage());
+                    "Outbound calls will proceed without a workload identity token. Error: {}", props.getSocket(), ex.getMessage());
         }
         this.jwtSource = source;
     }

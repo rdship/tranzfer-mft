@@ -25,7 +25,7 @@ import java.util.concurrent.CompletableFuture;
  *   <li>/api/proxy/      -> self (gateway management API)</li>
  * </ul>
  * Uses java.net.http.HttpClient with sendAsync for non-blocking HTTP forwarding.
- * Preserves all headers (especially X-Internal-Key) from the original request.
+ * Preserves all headers from the original request.
  */
 @Slf4j
 public class TunnelControlForwarder {
