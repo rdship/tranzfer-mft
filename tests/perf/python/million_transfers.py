@@ -145,24 +145,22 @@ async def simulate_transfer(session: aiohttp.ClientSession, token: str,
 
     try:
         if fail_intentionally:
-            # Deliberately send bad data to generate DLQ entries
+            # Deliberately send malformed data to generate DLQ entries
             async with session.post(
-                f"{SCREEN_BASE}/api/v1/screening/scan",
-                json={"fileName": None, "fileSize": -1, "transferId": track_id},
+                f"{SCREEN_BASE}/api/v1/screening/scan/text",
+                json={"content": None, "filename": None, "trackId": track_id},
                 headers=headers,
                 timeout=aiohttp.ClientTimeout(total=10)
             ) as _: pass
             return False, (time.time() - start) * 1000
 
-        # Screening
+        # Screening via /scan/text (JSON body) — /scan requires multipart file upload
         async with session.post(
-            f"{SCREEN_BASE}/api/v1/screening/scan",
+            f"{SCREEN_BASE}/api/v1/screening/scan/text",
             json={
-                "fileName":     f"file-{track_id}.dat",
-                "fileSize":     file_size,
-                "senderName":   "ACME CORP",
-                "receiverName": "PARTNER INC",
-                "transferId":   track_id,
+                "content":  f"COMPANY: ACME CORP\nPARTNER: PARTNER INC\nTRACK: {track_id}",
+                "filename": f"file-{track_id}.csv",
+                "trackId":  track_id,
             },
             headers=headers,
             timeout=aiohttp.ClientTimeout(total=10)

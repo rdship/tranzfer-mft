@@ -93,14 +93,13 @@ export default function (data) {
   // ── Account creation (write throughput) — only 10% of VUs to avoid DB flood
   if (Math.random() < 0.1 && data.adminToken) {
     group('account_create', () => {
-      const suffix = randomString(8);
+      const suffix = randomString(8).toLowerCase();
       const res = http.post(
         `${BASE}/api/accounts`,
         JSON.stringify({
-          name: `PerfTest-${suffix}`,
-          email: `perf-${suffix}@test.local`,
           protocol: 'SFTP',
-          enabled: true,
+          username: `perf-${suffix}`,
+          password: `PerfTest@1234!${suffix}`,
         }),
         { headers: authHeaders(data.adminToken), tags: { test: 'account_create' } }
       );

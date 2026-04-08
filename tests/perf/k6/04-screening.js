@@ -78,8 +78,10 @@ export default function (data) {
     if (res.status === 200) {
       try {
         const result = JSON.parse(res.body);
-        const decision = result.decision || result.status || '';
-        if (decision === 'BLOCKED' || decision === 'QUARANTINED') {
+        // ScreeningResult fields: outcome (CLEAR|HIT|POSSIBLE_HIT|ERROR), actionTaken (BLOCKED|FLAGGED|PASSED)
+        const outcome     = result.outcome     || '';
+        const actionTaken = result.actionTaken || '';
+        if (outcome === 'HIT' || outcome === 'POSSIBLE_HIT' || actionTaken === 'BLOCKED' || actionTaken === 'FLAGGED') {
           hitDetected.add(1);
         } else {
           cleanPassed.add(1);

@@ -99,10 +99,14 @@ if run_phase "services" || run_phase "2"; then
   log_section "2" "Individual Service Tests"
 
   if command -v k6 &>/dev/null; then
-    # onboarding-api
+    # onboarding-api — auth/account load
     log "  Running onboarding-api (light, medium)..."
     k6 run --quiet --env PROFILE=light  "${SCRIPT_DIR}/k6/02-onboarding.js" 2>&1 | tail -3 | tee -a "$REPORT"
     k6 run --quiet --env PROFILE=medium "${SCRIPT_DIR}/k6/02-onboarding.js" 2>&1 | tail -3 | tee -a "$REPORT"
+
+    # Full onboarding flow — partner + user + SFTP/FTP account creation + login verify
+    log "  Running full onboarding flow (partner + account creation + login verify)..."
+    k6 run --quiet --env PROFILE=light  "${SCRIPT_DIR}/k6/09-onboarding-flow.js" 2>&1 | tail -3 | tee -a "$REPORT"
 
     # encryption-service (3 file sizes)
     log "  Running encryption-service (1KB, 100KB, 1MB)..."
