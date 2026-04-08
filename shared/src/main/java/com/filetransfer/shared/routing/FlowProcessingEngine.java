@@ -286,8 +286,9 @@ public class FlowProcessingEngine {
             log.info("{}({}) complete: {} -> {} ({} bytes)", operation.toUpperCase(), algo,
                     input.getFileName(), output.getFileName(), resultBytes.length);
         } catch (Exception e) {
-            log.warn("Encryption service call failed ({}): {} — passing through", endpoint, e.getMessage());
-            Files.copy(input, output, StandardCopyOption.REPLACE_EXISTING);
+            // SECURITY: Never pass through unencrypted — encryption was explicitly configured.
+            // Let the flow retry mechanism handle transient failures (encryption-service or keystore-manager not ready).
+            throw new RuntimeException("Encryption step failed (keyId=" + keyId + "): " + e.getMessage(), e);
         }
         return output.toString();
     }

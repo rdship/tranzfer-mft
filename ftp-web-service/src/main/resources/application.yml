@@ -80,6 +80,10 @@ rabbitmq:
 control-api:
   key: ${CONTROL_API_KEY:internal_control_secret}
 
+flow:
+  rules:
+    enabled: true
+
 cluster:
   id: ${CLUSTER_ID:default-cluster}
   host: ${CLUSTER_HOST:localhost}

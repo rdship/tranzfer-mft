@@ -4,6 +4,7 @@ import com.filetransfer.shared.entity.FileFlow;
 import com.filetransfer.shared.repository.FileFlowRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -12,11 +13,13 @@ import java.util.List;
 
 /**
  * Loads all active flow rules into the in-memory registry at application startup.
- * Only activates in services that have {@link FileFlowRepository} available.
+ * Only activates in services that set {@code flow.rules.enabled=true}
+ * (SFTP, FTP, FTP-Web, Gateway, AS2).
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "flow.rules.enabled", havingValue = "true", matchIfMissing = false)
 public class FlowRuleRegistryInitializer {
 
     private final FileFlowRepository flowRepository;

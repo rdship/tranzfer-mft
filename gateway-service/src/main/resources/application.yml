@@ -73,6 +73,10 @@ gateway:
   internal-ftpweb-host: ${INTERNAL_FTPWEB_HOST:ftp-web-service}
   internal-ftpweb-port: ${INTERNAL_FTPWEB_PORT:8083}
 
+flow:
+  rules:
+    enabled: true
+
 cluster:
   id: ${CLUSTER_ID:default-cluster}
   host: ${CLUSTER_HOST:localhost}

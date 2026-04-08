@@ -29,6 +29,9 @@ public class FlowRuleRegistry {
     /** Priority-ordered snapshot — rebuilt on mutation, read without locking. */
     private volatile List<CompiledFlowRule> orderedRules = List.of();
 
+    /** Set to true after initial bulk load completes. Prevents event-before-init race. */
+    private volatile boolean initialized = false;
+
     private final ReadWriteLock orderLock = new ReentrantReadWriteLock();
 
     public FlowRuleRegistry(FlowRuleCompiler compiler) {
@@ -104,8 +107,12 @@ public class FlowRuleRegistry {
             }
         }
         rebuildOrderedList();
+        initialized = true;
         log.info("Flow rule registry loaded: {}/{} flows compiled", compiled, flows.size());
     }
+
+    /** Whether the initial bulk load has completed. */
+    public boolean isInitialized() { return initialized; }
 
     public int size() { return rulesById.size(); }
 
