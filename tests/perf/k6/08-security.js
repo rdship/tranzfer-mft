@@ -8,6 +8,7 @@
 import http from 'k6/http';
 import { check, group, sleep } from 'k6';
 import { Counter, Rate } from 'k6/metrics';
+import encoding from 'k6/encoding';
 import { login, authHeaders } from './lib/auth.js';
 
 const BASE       = __ENV.BASE_URL || 'http://localhost';
@@ -30,15 +31,15 @@ export const options = {
 };
 
 const EXPIRED_JWT = 'eyJhbGciOiJIUzI1NiJ9.' +
-  btoa(JSON.stringify({ sub: 'admin@filetransfer.local', roles: ['ADMIN'], exp: 1 })) +
+  encoding.b64encode(JSON.stringify({ sub: 'admin@filetransfer.local', roles: ['ADMIN'], exp: 1 })) +
   '.fake-signature';
 
 const TAMPERED_JWT_PREFIX = 'eyJhbGciOiJIUzI1NiJ9.' +
-  btoa(JSON.stringify({ sub: 'admin@filetransfer.local', roles: ['ADMIN'], exp: 9999999999 })) +
+  encoding.b64encode(JSON.stringify({ sub: 'admin@filetransfer.local', roles: ['ADMIN'], exp: 9999999999 })) +
   '.tampered-signature-xxxx';
 
 const ESCALATED_JWT = 'eyJhbGciOiJIUzI1NiJ9.' +
-  btoa(JSON.stringify({ sub: 'user@test.local', roles: ['ADMIN', 'SUPER_ADMIN'], exp: 9999999999 })) +
+  encoding.b64encode(JSON.stringify({ sub: 'user@test.local', roles: ['ADMIN', 'SUPER_ADMIN'], exp: 9999999999 })) +
   '.fake-sig';
 
 export function setup() {
