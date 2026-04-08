@@ -57,6 +57,25 @@ public class StorageLifecycleManager {
 
     private final List<LifecycleAction> recentActions = Collections.synchronizedList(new ArrayList<>());
 
+    /** Validate a path stays within a known storage root. Prevents path traversal via DB compromise. */
+    private void validateStoragePath(Path path, String context) {
+        Path normalized = path.normalize();
+        boolean allowed = normalized.startsWith(Paths.get(hotPath).normalize())
+                || normalized.startsWith(Paths.get(warmPath).normalize())
+                || normalized.startsWith(Paths.get(coldPath).normalize())
+                || normalized.startsWith(Paths.get(backupPath).normalize());
+        if (!allowed) {
+            throw new SecurityException("Path traversal blocked (" + context + "): " + path);
+        }
+    }
+
+    /** Validate filename contains no path separators or traversal sequences. */
+    private void validateFilename(String filename, String context) {
+        if (filename == null || filename.contains("/") || filename.contains("\\") || filename.contains("..")) {
+            throw new SecurityException("Invalid filename (" + context + "): " + filename);
+        }
+    }
+
     // === TIERING — runs every 15 min ===
 
     @Scheduled(fixedDelay = 900000)
@@ -105,9 +124,12 @@ public class StorageLifecycleManager {
         int moved = 0;
         for (StorageObject obj : candidates) {
             try {
-                Path source = Paths.get(obj.getPhysicalPath());
+                validateFilename(obj.getFilename(), "tierDown");
+                Path source = Paths.get(obj.getPhysicalPath()).normalize();
+                validateStoragePath(source, "tierDown-source");
                 Path dest = Paths.get(toBase, obj.getAccountUsername() != null ? obj.getAccountUsername() : "system",
-                        obj.getFilename());
+                        obj.getFilename()).normalize();
+                validateStoragePath(dest, "tierDown-dest");
 
                 if (Files.exists(source)) {
                     String checksum = ioEngine.tierCopy(source, dest);
@@ -147,9 +169,12 @@ public class StorageLifecycleManager {
         for (StorageObject obj : all) {
             if (currentSize <= targetSizeBytes) break;
             try {
-                Path source = Paths.get(obj.getPhysicalPath());
+                validateFilename(obj.getFilename(), "forceEvict");
+                Path source = Paths.get(obj.getPhysicalPath()).normalize();
+                validateStoragePath(source, "forceEvict-source");
                 Path dest = Paths.get(toBase, obj.getAccountUsername() != null ? obj.getAccountUsername() : "system",
-                        obj.getFilename());
+                        obj.getFilename()).normalize();
+                validateStoragePath(dest, "forceEvict-dest");
                 if (Files.exists(source)) {
                     ioEngine.tierCopy(source, dest);
                     Files.delete(source);
@@ -177,7 +202,9 @@ public class StorageLifecycleManager {
         int backed = 0;
         for (StorageObject obj : pending) {
             try {
-                Path source = Paths.get(obj.getPhysicalPath());
+                validateFilename(obj.getFilename(), "backup");
+                Path source = Paths.get(obj.getPhysicalPath()).normalize();
+                validateStoragePath(source, "backup-source");
                 if (!Files.exists(source)) continue;
 
                 Path backupDest = Paths.get(backupPath,
@@ -227,8 +254,11 @@ public class StorageLifecycleManager {
                         .limit(3)
                         .forEach(obj -> {
                             try {
-                                Path source = Paths.get(obj.getPhysicalPath());
-                                Path dest = Paths.get(hotPath, obj.getAccountUsername(), obj.getFilename());
+                                validateFilename(obj.getFilename(), "preStage");
+                                Path source = Paths.get(obj.getPhysicalPath()).normalize();
+                                validateStoragePath(source, "preStage-source");
+                                Path dest = Paths.get(hotPath, obj.getAccountUsername(), obj.getFilename()).normalize();
+                                validateStoragePath(dest, "preStage-dest");
                                 if (Files.exists(source)) {
                                     ioEngine.tierCopy(source, dest);
                                     obj.setPhysicalPath(dest.toString());

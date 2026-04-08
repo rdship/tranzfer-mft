@@ -317,6 +317,10 @@ public class FlowProcessingEngine {
 
     private static final Pattern SAFE_SHELL_ARG = Pattern.compile("^[a-zA-Z0-9._/\\-]+$");
 
+    /** Shell operators that indicate command chaining / injection in templates. */
+    private static final Pattern TEMPLATE_INJECTION =
+            Pattern.compile("[;|&`!<>]|\\$\\(|\\.\\.|\\.\\\\");
+
     /** Shell-escape a value to prevent command injection. */
     private static String shellEscape(String value) {
         if (SAFE_SHELL_ARG.matcher(value).matches()) return value;
@@ -332,6 +336,19 @@ public class FlowProcessingEngine {
     private String executeScript(Path input, Path workDir, Map<String, String> cfg, String trackId) throws Exception {
         String cmdTemplate = cfg.getOrDefault("command", "echo ${file}");
         int timeout = Integer.parseInt(cfg.getOrDefault("timeoutSeconds", "300"));
+
+        // Validate the command template itself — strip known placeholders, then check remainder
+        String templateCheck = cmdTemplate
+                .replace("${file}", "").replace("${trackid}", "").replace("${workdir}", "");
+        if (TEMPLATE_INJECTION.matcher(templateCheck).find()) {
+            throw new SecurityException("[" + trackId + "] Script template contains disallowed shell operators");
+        }
+
+        // Validate the script path (first token) is a safe path
+        String scriptPath = cmdTemplate.split("\\s+")[0];
+        if (!SAFE_SHELL_ARG.matcher(scriptPath).matches()) {
+            throw new SecurityException("[" + trackId + "] Script path contains disallowed characters: " + scriptPath);
+        }
 
         // Shell-escape all interpolated values to prevent command injection
         String cmd = cmdTemplate

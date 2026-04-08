@@ -72,6 +72,10 @@ public class ScheduledTaskRunner {
     private static final java.util.regex.Pattern ALLOWED_SCRIPT_PATH =
             java.util.regex.Pattern.compile("^[a-zA-Z0-9._/\\-]+$");
 
+    /** Shell operators that indicate command chaining / injection. */
+    private static final java.util.regex.Pattern SHELL_INJECTION =
+            java.util.regex.Pattern.compile("[;|&`$(){}!<>]|\\.\\.");
+
     private void executeScript(Map<String, String> cfg) throws Exception {
         String script = cfg.get("command");
         if (script == null) throw new IllegalArgumentException("No 'command' in task config");
@@ -83,8 +87,15 @@ public class ScheduledTaskRunner {
             throw new SecurityException("Script path contains disallowed characters: " + scriptCmd);
         }
 
+        // Validate ALL arguments — block shell operators that enable command chaining
+        if (SHELL_INJECTION.matcher(script).find()) {
+            throw new SecurityException("Script command contains disallowed shell operators: " + scriptCmd);
+        }
+
         log.info("Executing script: {}", script);
-        ProcessBuilder pb = new ProcessBuilder("sh", "-c", script);
+        // Use array form to avoid shell interpretation — prevents injection entirely
+        String[] parts = script.split("\\s+");
+        ProcessBuilder pb = new ProcessBuilder(parts);
         pb.redirectErrorStream(true);
         Process proc = pb.start();
 
@@ -99,12 +110,21 @@ public class ScheduledTaskRunner {
         log.info("Script completed: {}", output.length() > 200 ? output.substring(0, 200) + "..." : output);
     }
 
+    private static final java.util.List<String> ALLOWED_CLEANUP_ROOTS = java.util.List.of(
+            "/tmp/mft-flow-work", "/data/storage", "/data/sftp", "/data/ftp", "/data/ftp-web",
+            "/data/gateway", "/data/quarantine");
+
     private void cleanup(Map<String, String> cfg) throws Exception {
         String dir = cfg.getOrDefault("directory", "/tmp/mft-flow-work");
         int maxAgeHours = Integer.parseInt(cfg.getOrDefault("maxAgeHours", "24"));
         log.info("Cleanup: {} (files older than {}h)", dir, maxAgeHours);
 
-        Path dirPath = Paths.get(dir);
+        Path dirPath = Paths.get(dir).normalize();
+        boolean allowed = ALLOWED_CLEANUP_ROOTS.stream()
+                .anyMatch(root -> dirPath.startsWith(Paths.get(root).normalize()));
+        if (!allowed) {
+            throw new SecurityException("Cleanup directory outside allowed roots: " + dir);
+        }
         if (!Files.exists(dirPath)) return;
         java.time.Instant cutoff = java.time.Instant.now().minus(maxAgeHours, java.time.temporal.ChronoUnit.HOURS);
 

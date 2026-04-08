@@ -13,6 +13,10 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.beans.factory.annotation.Value;
+
+import org.springframework.beans.factory.annotation.Value;
+
 import java.io.IOException;
 import java.nio.file.*;
 import java.time.Instant;
@@ -30,6 +34,12 @@ public class QuarantineController {
 
     private final QuarantineRecordRepository quarantineRepository;
     private final AntivirusEngine antivirusEngine;
+
+    @Value("${screening.quarantine.path:/data/quarantine}")
+    private String quarantineBasePath;
+
+    @Value("${screening.allowed-restore-root:/data}")
+    private String allowedRestoreRoot;
 
     /** List all quarantined files, optionally filtered by status */
     @GetMapping
@@ -70,7 +80,12 @@ public class QuarantineController {
                     "error", "File is not in QUARANTINED status (current: " + record.getStatus() + ")"));
         }
 
-        Path quarantinedFile = Paths.get(record.getQuarantinePath());
+        Path quarantinedFile = Paths.get(record.getQuarantinePath()).normalize();
+        if (!quarantinedFile.startsWith(Paths.get(quarantineBasePath).normalize())) {
+            log.error("Path traversal blocked in quarantine read: {}", record.getQuarantinePath());
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Quarantine path outside allowed boundary"));
+        }
         if (!Files.exists(quarantinedFile)) {
             return ResponseEntity.status(HttpStatus.GONE).body(Map.of(
                     "error", "Quarantined file no longer exists on disk"));
@@ -87,9 +102,14 @@ public class QuarantineController {
                     "status", "STILL_QUARANTINED"));
         }
 
-        // Move file back to original path
+        // Move file back to original path — validate boundaries
         try {
-            Path originalPath = Paths.get(record.getOriginalPath());
+            Path originalPath = Paths.get(record.getOriginalPath()).normalize();
+            if (!originalPath.startsWith(Paths.get(allowedRestoreRoot).normalize())) {
+                log.error("Path traversal blocked in release: {}", record.getOriginalPath());
+                return ResponseEntity.badRequest().body(Map.of(
+                        "error", "Original path outside allowed boundary"));
+            }
             Files.createDirectories(originalPath.getParent());
             Files.move(quarantinedFile, originalPath, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
@@ -128,9 +148,14 @@ public class QuarantineController {
         QuarantineRecord record = quarantineRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Quarantine record not found: " + id));
 
-        // Delete the physical file
+        // Delete the physical file — validate boundary first
         try {
-            Path quarantinedFile = Paths.get(record.getQuarantinePath());
+            Path quarantinedFile = Paths.get(record.getQuarantinePath()).normalize();
+            if (!quarantinedFile.startsWith(Paths.get(quarantineBasePath).normalize())) {
+                log.error("Path traversal blocked in quarantine delete: {}", record.getQuarantinePath());
+                return ResponseEntity.badRequest().body(Map.of(
+                        "error", "Quarantine path outside allowed boundary"));
+            }
             Files.deleteIfExists(quarantinedFile);
         } catch (IOException e) {
             log.warn("Failed to delete quarantined file from disk: {}", e.getMessage());
