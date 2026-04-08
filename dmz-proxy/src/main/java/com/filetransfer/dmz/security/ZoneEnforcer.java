@@ -144,16 +144,43 @@ public class ZoneEnforcer {
             return Integer.compare(other.prefixLength, this.prefixLength);
         }
 
+        /** @return the prefix length (e.g., 24 for a /24 CIDR) */
+        int prefixLength() {
+            return prefixLength;
+        }
+
         @Override
         public String toString() {
             return cidrNotation;
         }
     }
 
+    /**
+     * A CIDR range paired with the zone it belongs to.
+     * Used in the flattened longest-prefix-match list.
+     */
+    record ZonedCidr(Zone zone, CidrRange range) {}
+
     // ── State ─────────────────────────────────────────────────────────
 
-    /** Zone-to-CIDR mapping: immutable after construction per zone, but zones may be updated. */
+    /** Zone-to-CIDR mapping: retained for zone-specific queries and stats. */
     private final Map<Zone, List<CidrRange>> zoneCidrs;
+
+    /**
+     * Flattened list of all (zone, CIDR) pairs sorted for longest-prefix-match.
+     * Primary sort: prefix length descending (most specific first).
+     * Tiebreaker: zone priority descending (MANAGEMENT > INTERNAL > DMZ).
+     * Immutable after construction — safe for concurrent reads.
+     */
+    private final List<ZonedCidr> lpmMatchOrder;
+
+    /** Zone priority for tiebreaking: higher = checked first when prefix lengths are equal. */
+    private static final Map<Zone, Integer> ZONE_PRIORITY = Map.of(
+            Zone.MANAGEMENT, 3,
+            Zone.INTERNAL, 2,
+            Zone.DMZ, 1,
+            Zone.EXTERNAL, 0
+    );
 
     /** Rule list — swapped atomically for lock-free reads. */
     private final AtomicReference<List<ZoneRule>> rulesRef;
@@ -190,17 +217,45 @@ public class ZoneEnforcer {
             this.zoneCidrs.put(entry.getKey(), Collections.unmodifiableList(parsed));
         }
 
+        // Build flattened LPM match list across all zones
+        List<ZonedCidr> flatList = new ArrayList<>();
+        for (Map.Entry<Zone, List<CidrRange>> entry : this.zoneCidrs.entrySet()) {
+            Zone zone = entry.getKey();
+            for (CidrRange range : entry.getValue()) {
+                flatList.add(new ZonedCidr(zone, range));
+            }
+        }
+        // Sort: most specific prefix first; ties broken by zone priority (higher = first)
+        flatList.sort((a, b) -> {
+            int prefixCmp = Integer.compare(b.range().prefixLength(), a.range().prefixLength());
+            if (prefixCmp != 0) return prefixCmp;
+            return Integer.compare(
+                    ZONE_PRIORITY.getOrDefault(b.zone(), 0),
+                    ZONE_PRIORITY.getOrDefault(a.zone(), 0));
+        });
+        this.lpmMatchOrder = List.copyOf(flatList);
+
         this.rulesRef = new AtomicReference<>(List.copyOf(rules));
-        log.info("ZoneEnforcer initialised: {} zone(s) configured, {} rule(s) loaded",
-                this.zoneCidrs.size(), rules.size());
+
+        log.info("ZoneEnforcer initialised: {} zone(s) configured, {} rule(s) loaded, {} CIDR entries in LPM table",
+                this.zoneCidrs.size(), rules.size(), this.lpmMatchOrder.size());
+        if (log.isDebugEnabled()) {
+            for (int i = 0; i < lpmMatchOrder.size(); i++) {
+                ZonedCidr zc = lpmMatchOrder.get(i);
+                log.debug("  LPM[{}]: {} -> zone {} (/{} prefix)",
+                        i, zc.range(), zc.zone(), zc.range().prefixLength());
+            }
+        }
     }
 
     // ── Public API ────────────────────────────────────────────────────
 
     /**
-     * Classify an IP address into a network zone using CIDR matching.
-     * Zones are checked in order: MANAGEMENT, INTERNAL, DMZ. Any IP that does
-     * not match a configured range is classified as {@link Zone#EXTERNAL}.
+     * Classify an IP address into a network zone using longest-prefix-match (LPM).
+     * The most specific CIDR match wins regardless of which zone it belongs to.
+     * When two CIDRs have the same prefix length, zone priority breaks the tie
+     * (MANAGEMENT &gt; INTERNAL &gt; DMZ). Any IP that does not match a configured
+     * range is classified as {@link Zone#EXTERNAL}.
      *
      * @param ip the IP address (IPv4 or IPv6 string)
      * @return the zone the IP belongs to; {@link Zone#EXTERNAL} if no match
@@ -219,16 +274,10 @@ public class ZoneEnforcer {
             return Zone.EXTERNAL;
         }
 
-        // Check in priority order — more privileged zones first
-        Zone[] checkOrder = { Zone.MANAGEMENT, Zone.INTERNAL, Zone.DMZ };
-        for (Zone zone : checkOrder) {
-            List<CidrRange> ranges = zoneCidrs.get(zone);
-            if (ranges != null) {
-                for (CidrRange range : ranges) {
-                    if (range.contains(addr)) {
-                        return zone;
-                    }
-                }
+        // Longest-prefix-match: iterate pre-sorted list (most specific first)
+        for (ZonedCidr zc : lpmMatchOrder) {
+            if (zc.range().contains(addr)) {
+                return zc.zone();
             }
         }
 

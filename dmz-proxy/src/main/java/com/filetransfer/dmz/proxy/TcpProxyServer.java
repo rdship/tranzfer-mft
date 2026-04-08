@@ -56,7 +56,7 @@ public class TcpProxyServer {
     private final ThreatEventReporter eventReporter;
     private final SecurityMetrics securityMetrics;
     private final boolean securityEnabled;
-    private final ManualSecurityFilter manualFilter;
+    private volatile ManualSecurityFilter manualFilter;
 
     // Enterprise components (from ProxyManager)
     private final ProxyManager manager;
@@ -272,6 +272,17 @@ public class TcpProxyServer {
         bossGroup.shutdownGracefully();
         workerGroup.shutdownGracefully();
         log.info("DMZ proxy [{}] stopped", mapping.getName());
+    }
+
+    /**
+     * Hot-swap the manual security filter for this server.
+     * The new filter applies to all subsequent connections; existing connections
+     * are not affected (they already captured a reference at pipeline init time).
+     *
+     * @param filter the new ManualSecurityFilter (may be null to remove filtering)
+     */
+    public void updateSecurityFilter(ManualSecurityFilter filter) {
+        this.manualFilter = filter;
     }
 
     private SslContext buildSslContext() {

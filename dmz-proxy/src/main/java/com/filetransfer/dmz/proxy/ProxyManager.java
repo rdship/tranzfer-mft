@@ -9,6 +9,8 @@ import com.filetransfer.dmz.qos.BandwidthQoS;
 import com.filetransfer.dmz.security.*;
 import com.filetransfer.dmz.tls.KeystoreIntegration;
 import com.filetransfer.dmz.tls.TlsTerminator;
+import io.micrometer.prometheus.PrometheusConfig;
+import io.micrometer.prometheus.PrometheusMeterRegistry;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.Getter;
@@ -50,6 +52,9 @@ public class ProxyManager {
     @Getter private ThreatEventReporter eventReporter;
     @Getter private SecurityMetrics securityMetrics;
     @Getter private boolean securityEnabled;
+
+    // ── Prometheus metrics registry ──
+    @Getter private PrometheusMeterRegistry prometheusRegistry;
 
     // ── Enterprise security components ──
     @Getter private AuditLogger auditLogger;
@@ -143,6 +148,13 @@ public class ProxyManager {
             secConfig.getEventQueueCapacity(),
             secConfig.getEventBatchSize(),
             secConfig.getEventFlushIntervalMs());
+
+        // ── Prometheus metrics registry ──
+        this.prometheusRegistry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+        prometheusRegistry.gauge("dmz_connections_active",
+                connectionTracker, ct -> (double) ct.getActiveConnectionCount());
+        securityMetrics.registerMicrometer(prometheusRegistry);
+        log.info("Prometheus metrics registry initialized");
 
         log.info("Core security initialized");
     }
@@ -305,6 +317,13 @@ public class ProxyManager {
             if (hcp == null || hcp.isEnabled()) {
                 healthChecker.registerBackend(mapping.getName(),
                     mapping.getTargetHost(), mapping.getTargetPort());
+                // Register Prometheus gauge for this backend's health
+                if (prometheusRegistry != null) {
+                    String backendName = mapping.getName();
+                    prometheusRegistry.gauge("dmz_backend_health",
+                            io.micrometer.core.instrument.Tags.of("backend", backendName),
+                            healthChecker, hc -> hc.isHealthy(backendName) ? 1.0 : 0.0);
+                }
             }
         }
 
@@ -337,15 +356,40 @@ public class ProxyManager {
         }
     }
 
-    /** Update the security policy for an existing mapping (hot-reconfigure). */
+    /**
+     * Update the security policy for an existing mapping (hot-reconfigure).
+     * Performs an in-place update with zero downtime — the server keeps running,
+     * existing connections are unaffected, and only new connections pick up
+     * the updated policy.
+     */
     public void updateSecurityPolicy(String name, PortMapping.SecurityPolicy policy) {
         PortMapping existing = mappings.get(name);
         if (existing == null) {
             throw new IllegalArgumentException("Mapping not found: " + name);
         }
+        TcpProxyServer server = servers.get(name);
+        if (server == null) {
+            throw new IllegalStateException("Server not running for mapping: " + name);
+        }
+
+        // 1. Update the policy on the mapping (SecurityPolicy getters used by
+        //    IntelligentProxyHandler at connection init time via mapping reference)
         existing.setSecurityPolicy(policy);
-        remove(name);
-        add(existing);
+
+        // 2. Build a new ManualSecurityFilter from the updated policy
+        ManualSecurityFilter newFilter = (policy != null) ? new ManualSecurityFilter(policy) : null;
+
+        // 3. Update rate limiter port defaults for the new limits
+        if (securityEnabled && rateLimiter != null && policy != null) {
+            rateLimiter.setPortDefaults(existing.getListenPort(),
+                policy.getRateLimitPerMinute(), policy.getMaxConcurrent(),
+                policy.getMaxBytesPerMinute());
+        }
+
+        // 4. Hot-swap the filter in the running server — volatile write ensures
+        //    visibility to Netty I/O threads creating new connections
+        server.updateSecurityFilter(newFilter);
+
         log.info("Hot-reconfigured security for mapping [{}]: tier={}", name, policy.getSecurityTier());
     }
 
@@ -419,12 +463,16 @@ public class ProxyManager {
             auditLogger.flush();
             auditLogger.shutdown();
         }
+        if (prometheusRegistry != null) {
+            prometheusRegistry.close();
+        }
         log.info("DMZ proxy shutdown complete");
     }
 
     private void logStartupSummary() {
         List<String> features = new ArrayList<>();
         if (securityEnabled) features.add("ai_security");
+        if (prometheusRegistry != null) features.add("prometheus_metrics");
         if (auditLogger != null) features.add("audit_logging");
         if (tlsTerminator != null) features.add("tls_termination");
         if (zoneEnforcer != null) features.add("zone_enforcement");

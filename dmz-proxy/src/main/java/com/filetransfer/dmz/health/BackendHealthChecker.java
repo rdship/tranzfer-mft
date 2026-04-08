@@ -153,10 +153,27 @@ public class BackendHealthChecker {
     private final int healthyThreshold;
 
     // ────────────────────────────────────────────────────────────────────────
+    //  Adaptive backoff constants
+    // ────────────────────────────────────────────────────────────────────────
+
+    /** Maximum exponent for backoff calculation (2^5 = 32x multiplier). */
+    private static final int MAX_BACKOFF_EXPONENT = 5;
+
+    /** Absolute ceiling for probe interval regardless of backoff calculation (5 minutes). */
+    private static final long MAX_BACKOFF_SECONDS = 300L;
+
+    // ────────────────────────────────────────────────────────────────────────
     //  Runtime state
     // ────────────────────────────────────────────────────────────────────────
 
     private final ConcurrentHashMap<String, BackendState> backends = new ConcurrentHashMap<>();
+
+    /**
+     * Per-backend epoch millis indicating the earliest time the next probe should execute.
+     * Healthy backends use the base interval; unhealthy backends use exponential backoff.
+     */
+    private final ConcurrentHashMap<String, Long> nextProbeTime = new ConcurrentHashMap<>();
+
     private volatile ScheduledExecutorService scheduler;
     private volatile boolean running;
 
@@ -236,6 +253,7 @@ public class BackendHealthChecker {
     public void removeBackend(String name) {
         BackendState removed = backends.remove(name);
         if (removed != null) {
+            nextProbeTime.remove(name);
             log.info("Removed backend from health checking: [{}]", name);
         }
     }
@@ -360,20 +378,57 @@ public class BackendHealthChecker {
     // ────────────────────────────────────────────────────────────────────────
 
     /**
-     * Probes every registered backend. Called by the scheduler on each tick.
-     * Failures in one backend probe are caught and logged — they never propagate
+     * Probes registered backends whose next-probe time has arrived. Called by the scheduler
+     * on each tick. Backends in backoff (unhealthy with a future {@code nextProbeTime}) are
+     * skipped until their backoff window expires.
+     *
+     * <p>Failures in one backend probe are caught and logged — they never propagate
      * to affect other backends.
      */
     private void probeAllBackends() {
+        long now = System.currentTimeMillis();
+
         for (BackendState state : backends.values()) {
             try {
+                // Skip this backend if its backoff window has not yet elapsed
+                Long deadline = nextProbeTime.get(state.name);
+                if (deadline != null && now < deadline) {
+                    continue;
+                }
+
                 probeBackend(state);
+
+                // Schedule the next probe time based on current health state
+                long intervalSeconds = calculateProbeInterval(state);
+                nextProbeTime.put(state.name, System.currentTimeMillis() + intervalSeconds * 1000L);
+
             } catch (Exception e) {
                 // Defensive: this should never happen since probeBackend catches internally,
                 // but we guard here to protect the scheduler from cancellation.
                 log.error("Unexpected error probing backend [{}]: {}", state.name, e.getMessage(), e);
             }
         }
+    }
+
+    /**
+     * Calculates the probe interval for a backend based on its health state.
+     *
+     * <ul>
+     *   <li>HEALTHY / UNKNOWN: base interval ({@code checkIntervalSeconds})</li>
+     *   <li>UNHEALTHY: {@code base * 2^min(consecutiveFailures, 5)}, capped at 300s</li>
+     * </ul>
+     *
+     * @param state the backend state after the most recent probe
+     * @return interval in seconds until the next probe
+     */
+    private long calculateProbeInterval(BackendState state) {
+        if (state.status != Status.UNHEALTHY) {
+            return checkIntervalSeconds;
+        }
+
+        int exponent = Math.min(state.consecutiveFailures, MAX_BACKOFF_EXPONENT);
+        long backoff = checkIntervalSeconds * (1L << exponent);
+        return Math.min(backoff, MAX_BACKOFF_SECONDS);
     }
 
     /**
@@ -435,6 +490,7 @@ public class BackendHealthChecker {
     /**
      * Handles a successful probe: increments consecutive successes, resets failures,
      * and transitions to {@link Status#HEALTHY} if the healthy threshold is met.
+     * On recovery from UNHEALTHY, resets the backoff schedule to the base interval.
      */
     private void onProbeSuccess(BackendState state, Instant now) {
         state.consecutiveSuccesses++;
@@ -445,14 +501,20 @@ public class BackendHealthChecker {
             Status previous = state.status;
             state.status = Status.HEALTHY;
             state.lastStateChange = now;
-            log.info("Backend [{}] is now HEALTHY (was {}, after {} consecutive successes)",
-                    state.name, previous, state.consecutiveSuccesses);
+
+            // Reset backoff immediately on recovery so the backend is probed at normal cadence
+            nextProbeTime.put(state.name, System.currentTimeMillis() + checkIntervalSeconds * 1000L);
+
+            log.info("Backend [{}] is now HEALTHY (was {}, after {} consecutive successes) — "
+                            + "probe interval reset to {}s",
+                    state.name, previous, state.consecutiveSuccesses, checkIntervalSeconds);
         }
     }
 
     /**
      * Handles a failed probe: increments consecutive failures, resets successes,
      * and transitions to {@link Status#UNHEALTHY} if the unhealthy threshold is met.
+     * Logs backoff interval increases for unhealthy backends.
      */
     private void onProbeFailure(BackendState state, Instant now, String error) {
         state.consecutiveFailures++;
@@ -466,6 +528,12 @@ public class BackendHealthChecker {
             state.lastStateChange = now;
             log.warn("Backend [{}] is now UNHEALTHY (was {}, after {} consecutive failures, last error: {})",
                     state.name, previous, state.consecutiveFailures, error);
+        }
+
+        // Log backoff increase for unhealthy backends
+        if (state.status == Status.UNHEALTHY) {
+            long backoffSeconds = calculateProbeInterval(state);
+            log.info("Backend [{}] unhealthy, backing off to {}s probe interval", state.name, backoffSeconds);
         }
     }
 

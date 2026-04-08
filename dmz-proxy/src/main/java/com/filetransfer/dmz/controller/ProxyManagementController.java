@@ -5,9 +5,11 @@ import com.filetransfer.dmz.health.BackendHealthChecker;
 import com.filetransfer.dmz.proxy.PortMapping;
 import com.filetransfer.dmz.proxy.ProxyManager;
 import com.filetransfer.dmz.security.*;
+import io.micrometer.prometheus.PrometheusMeterRegistry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -36,6 +38,9 @@ import java.util.*;
  *   GET    /api/proxy/zones/rules                       — zone enforcement rules
  *   GET    /api/proxy/zones/check                       — test a zone transition
  *   GET    /api/proxy/egress/stats                      — egress filter stats
+ *
+ * Prometheus:
+ *   GET    /api/proxy/metrics                           — Prometheus scrape endpoint (text/plain)
  *
  * Health:
  *   GET    /api/proxy/health                            — overall health + all features
@@ -292,6 +297,18 @@ public class ProxyManagementController {
             "allowed", result.allowed(),
             "resolvedIp", result.resolvedIp() != null ? result.resolvedIp() : "N/A",
             "reason", result.reason()));
+    }
+
+    // ── Prometheus Scrape Endpoint ────────────────────────────────────
+
+    @GetMapping(value = "/metrics", produces = MediaType.TEXT_PLAIN_VALUE)
+    public ResponseEntity<String> prometheusMetrics() {
+        PrometheusMeterRegistry registry = proxyManager.getPrometheusRegistry();
+        if (registry == null) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body("# Prometheus metrics not available (security layer disabled)\n");
+        }
+        return ResponseEntity.ok(registry.scrape());
     }
 
     // ── Health ─────────────────────────────────────────────────────────

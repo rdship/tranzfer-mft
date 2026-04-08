@@ -1,5 +1,9 @@
 package com.filetransfer.dmz.security;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tags;
+
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -8,6 +12,9 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Centralized security metrics for the DMZ proxy.
  * Thread-safe counters and distributions for monitoring and dashboards.
+ *
+ * Dual-mode: maintains internal AtomicLong counters (for getFullStats() REST API)
+ * AND registers Micrometer metrics (for Prometheus scraping) when a MeterRegistry is provided.
  *
  * Product-agnostic: reports generic proxy security metrics.
  */
@@ -27,6 +34,7 @@ public class SecurityMetrics {
     private final AtomicLong aiVerdictCacheHits = new AtomicLong(0);
     private final AtomicLong aiVerdictFallbacks = new AtomicLong(0);
     private final AtomicLong protocolDetections = new AtomicLong(0);
+    private final AtomicLong dpiBlocks = new AtomicLong(0);
 
     // Per-protocol counters
     private final ConcurrentHashMap<String, AtomicLong> protocolCounts = new ConcurrentHashMap<>();
@@ -37,19 +45,147 @@ public class SecurityMetrics {
 
     private final Instant startedAt = Instant.now();
 
+    // ── Micrometer counters (null when no registry is provided) ──
+    private Counter mAllowed;
+    private Counter mBlocked;
+    private Counter mThrottled;
+    private Counter mBytesIn;
+    private Counter mBytesOut;
+    private Counter mAiAllow;
+    private Counter mAiBlock;
+    private Counter mAiThrottle;
+    private Counter mAiFallback;
+    private Counter mRateLimited;
+    private Counter mDpiBlocks;
+
+    // ── Micrometer registration ────────────────────────────────────────
+
+    /**
+     * Register Micrometer metrics with the given registry.
+     * Call once after construction; safe to call before any recording.
+     *
+     * Note: dmz_connections_active and dmz_backend_health gauges are registered
+     * externally by ProxyManager (they depend on ConnectionTracker / BackendHealthChecker).
+     *
+     * @param registry the MeterRegistry (typically PrometheusMeterRegistry)
+     */
+    public void registerMicrometer(MeterRegistry registry) {
+        // dmz_connections_total (counter, tags: action=allowed|blocked|throttled)
+        mAllowed = Counter.builder("dmz_connections_total")
+                .description("Total DMZ proxy connections by action")
+                .tag("action", "allowed")
+                .register(registry);
+        mBlocked = Counter.builder("dmz_connections_total")
+                .description("Total DMZ proxy connections by action")
+                .tag("action", "blocked")
+                .register(registry);
+        mThrottled = Counter.builder("dmz_connections_total")
+                .description("Total DMZ proxy connections by action")
+                .tag("action", "throttled")
+                .register(registry);
+
+        // dmz_bytes_transferred_total (counter, tags: direction=inbound|outbound)
+        mBytesIn = Counter.builder("dmz_bytes_transferred_total")
+                .description("Total bytes transferred through DMZ proxy")
+                .tag("direction", "inbound")
+                .register(registry);
+        mBytesOut = Counter.builder("dmz_bytes_transferred_total")
+                .description("Total bytes transferred through DMZ proxy")
+                .tag("direction", "outbound")
+                .register(registry);
+
+        // dmz_ai_verdicts_total (counter, tags: action=allow|block|throttle)
+        mAiAllow = Counter.builder("dmz_ai_verdicts_total")
+                .description("AI verdict decisions")
+                .tag("action", "allow")
+                .register(registry);
+        mAiBlock = Counter.builder("dmz_ai_verdicts_total")
+                .description("AI verdict decisions")
+                .tag("action", "block")
+                .register(registry);
+        mAiThrottle = Counter.builder("dmz_ai_verdicts_total")
+                .description("AI verdict decisions")
+                .tag("action", "throttle")
+                .register(registry);
+
+        // dmz_ai_fallback_total (counter)
+        mAiFallback = Counter.builder("dmz_ai_fallback_total")
+                .description("AI verdict fallbacks (AI engine unavailable)")
+                .register(registry);
+
+        // dmz_rate_limited_total (counter)
+        mRateLimited = Counter.builder("dmz_rate_limited_total")
+                .description("Connections rejected by rate limiter")
+                .register(registry);
+
+        // dmz_dpi_blocks_total (counter)
+        mDpiBlocks = Counter.builder("dmz_dpi_blocks_total")
+                .description("Connections blocked by deep packet inspection")
+                .register(registry);
+    }
+
+    /**
+     * Register backend health gauges. Call after health checker is initialized.
+     *
+     * @param registry the MeterRegistry
+     * @param healthChecker the backend health checker to read status from
+     * @param backendNames the names of backends to register gauges for
+     */
+    public void registerBackendHealthGauges(MeterRegistry registry,
+            com.filetransfer.dmz.health.BackendHealthChecker healthChecker,
+            Collection<String> backendNames) {
+        for (String name : backendNames) {
+            registry.gauge("dmz_backend_health", Tags.of("backend", name),
+                    healthChecker, hc -> hc.isHealthy(name) ? 1.0 : 0.0);
+        }
+    }
+
     // ── Recording ──────────────────────────────────────────────────────
 
     public void recordConnection() { totalConnections.incrementAndGet(); }
-    public void recordAllowed() { allowedConnections.incrementAndGet(); }
-    public void recordThrottled() { throttledConnections.incrementAndGet(); }
-    public void recordBlocked() { blockedConnections.incrementAndGet(); }
-    public void recordBlackholed() { blackholedConnections.incrementAndGet(); }
-    public void recordRateLimited() { rateLimitedConnections.incrementAndGet(); }
-    public void recordBytesIn(long bytes) { totalBytesIn.addAndGet(bytes); }
-    public void recordBytesOut(long bytes) { totalBytesOut.addAndGet(bytes); }
+
+    public void recordAllowed() {
+        allowedConnections.incrementAndGet();
+        if (mAllowed != null) mAllowed.increment();
+    }
+
+    public void recordThrottled() {
+        throttledConnections.incrementAndGet();
+        if (mThrottled != null) mThrottled.increment();
+    }
+
+    public void recordBlocked() {
+        blockedConnections.incrementAndGet();
+        if (mBlocked != null) mBlocked.increment();
+    }
+
+    public void recordBlackholed() {
+        blackholedConnections.incrementAndGet();
+        if (mBlocked != null) mBlocked.increment(); // blackhole counts as blocked for Prometheus
+    }
+
+    public void recordRateLimited() {
+        rateLimitedConnections.incrementAndGet();
+        if (mRateLimited != null) mRateLimited.increment();
+    }
+
+    public void recordBytesIn(long bytes) {
+        totalBytesIn.addAndGet(bytes);
+        if (mBytesIn != null) mBytesIn.increment(bytes);
+    }
+
+    public void recordBytesOut(long bytes) {
+        totalBytesOut.addAndGet(bytes);
+        if (mBytesOut != null) mBytesOut.increment(bytes);
+    }
+
     public void recordAiVerdictRequest() { aiVerdictRequests.incrementAndGet(); }
     public void recordAiVerdictCacheHit() { aiVerdictCacheHits.incrementAndGet(); }
-    public void recordAiVerdictFallback() { aiVerdictFallbacks.incrementAndGet(); }
+
+    public void recordAiVerdictFallback() {
+        aiVerdictFallbacks.incrementAndGet();
+        if (mAiFallback != null) mAiFallback.increment();
+    }
 
     public void recordProtocol(String protocol) {
         protocolDetections.incrementAndGet();
@@ -60,6 +196,19 @@ public class SecurityMetrics {
 
     public void recordAction(String action) {
         actionCounts.computeIfAbsent(action, k -> new AtomicLong(0)).incrementAndGet();
+        // Map action strings to Micrometer AI verdict counters
+        if (action != null) {
+            switch (action) {
+                case "ALLOW" -> { if (mAiAllow != null) mAiAllow.increment(); }
+                case "BLOCK", "MANUAL_BLOCK" -> { if (mAiBlock != null) mAiBlock.increment(); }
+                case "THROTTLE" -> { if (mAiThrottle != null) mAiThrottle.increment(); }
+                case "DPI_BLOCK" -> {
+                    dpiBlocks.incrementAndGet();
+                    if (mDpiBlocks != null) mDpiBlocks.increment();
+                }
+                default -> { /* other actions tracked only in actionCounts */ }
+            }
+        }
     }
 
     public void recordPort(int port) {
