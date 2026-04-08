@@ -1,7 +1,10 @@
 server:
   port: 8097
+  shutdown: graceful
 
 spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/filetransfer}
     username: ${DB_USERNAME:postgres}
@@ -13,7 +16,7 @@ spring:
       minimum-idle: 2
       idle-timeout: 300000
       max-lifetime: 1200000
-      connection-timeout: 10000
+      connection-timeout: 30000
       pool-name: Notification-Pool
   jpa:
     open-in-view: false
@@ -29,9 +32,13 @@ spring:
         order_updates: true
         connection:
           provider_disables_autocommit: true
+        temp:
+          use_jdbc_metadata_defaults: false
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
+    connection-timeout: 30000
+    requested-heartbeat: 60
   mail:
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:587}
@@ -52,6 +59,7 @@ spring:
     baseline-version: "0"
     placeholder-replacement: false
     locations: classpath:db/migration
+    validate-on-migrate: false
 
 management:
   endpoints:
@@ -59,6 +67,8 @@ management:
       exposure:
         include: health,metrics,prometheus,info
   health:
+    probes:
+      enabled: true
     mail:
       enabled: false
   metrics:

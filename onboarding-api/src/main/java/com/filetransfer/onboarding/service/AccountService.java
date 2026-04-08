@@ -68,6 +68,16 @@ public class AccountService {
                 ? request.getPermissions()
                 : Map.of("read", true, "write", true, "delete", false);
 
+        // Resolve server instance and inherit storage mode
+        ServerInstance resolvedServer = null;
+        if (request.getServerInstance() != null) {
+            resolvedServer = serverInstanceRepository.findByInstanceId(request.getServerInstance())
+                    .orElseThrow(() -> new NoSuchElementException(
+                            "Server instance not found: " + request.getServerInstance()));
+        }
+
+        String storageMode = resolvedServer != null ? resolvedServer.getDefaultStorageMode() : "PHYSICAL";
+
         TransferAccount account = TransferAccount.builder()
                 .user(owner)
                 .protocol(request.getProtocol())
@@ -77,11 +87,15 @@ public class AccountService {
                 .homeDir(homeDir)
                 .permissions(permissions)
                 .serverInstance(request.getServerInstance())
+                .storageMode(storageMode)
                 .build();
 
         accountRepository.save(account);
 
-        List<String> folderPaths = resolveFolderPaths(account.getServerInstance());
+        List<String> folderPaths = resolvedServer != null && resolvedServer.getFolderTemplate() != null
+                ? resolvedServer.getFolderTemplate().getFolders().stream()
+                    .map(FolderDefinition::getPath).toList()
+                : List.of();
 
         // Virtual mode: provision phantom folders (zero disk I/O)
         if ("VIRTUAL".equalsIgnoreCase(account.getStorageMode())) {

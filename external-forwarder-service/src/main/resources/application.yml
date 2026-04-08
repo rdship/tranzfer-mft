@@ -1,7 +1,15 @@
 server:
   port: 8087
+  shutdown: graceful
+
+management:
+  health:
+    probes:
+      enabled: true
 
 spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/filetransfer}
     username: ${DB_USERNAME:postgres}
@@ -13,7 +21,7 @@ spring:
       minimum-idle: 2
       idle-timeout: 300000
       max-lifetime: 1200000
-      connection-timeout: 10000
+      connection-timeout: 30000
       pool-name: Forwarder-Pool
   jpa:
     open-in-view: false
@@ -29,6 +37,8 @@ spring:
         order_updates: true
         connection:
           provider_disables_autocommit: true
+        temp:
+          use_jdbc_metadata_defaults: false
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
@@ -40,6 +50,7 @@ spring:
     baseline-version: "0"
     placeholder-replacement: false
     locations: classpath:db/migration
+    validate-on-migrate: false
 
 # --- Intelligent Transfer Management ---
 forwarder:

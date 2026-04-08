@@ -2,6 +2,11 @@ server:
   port: 8081
   shutdown: graceful
 
+management:
+  health:
+    probes:
+      enabled: true
+
 spring:
   lifecycle:
     timeout-per-shutdown-phase: 45s
@@ -16,7 +21,7 @@ spring:
       minimum-idle: 2
       idle-timeout: 300000
       max-lifetime: 1200000
-      connection-timeout: 10000
+      connection-timeout: 30000
       pool-name: SFTP-Pool
   jpa:
     open-in-view: false
@@ -33,17 +38,22 @@ spring:
         order_updates: true
         connection:
           provider_disables_autocommit: true
+        temp:
+          use_jdbc_metadata_defaults: false
   flyway:
     enabled: true
     baseline-on-migrate: true
     baseline-version: "0"
     placeholder-replacement: false
     locations: classpath:db/migration
+    validate-on-migrate: false
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USERNAME:guest}
     password: ${RABBITMQ_PASSWORD:guest}
+    connection-timeout: 30000
+    requested-heartbeat: 60
 
 jwt:
   secret: ${JWT_SECRET:change_me_in_production_256bit_secret_key!!}
@@ -80,11 +90,11 @@ sftp:
     denied-extensions: ${SFTP_DENIED_EXTENSIONS:}                    # e.g. exe,bat,sh
     prevent-symlink-traversal: ${SFTP_PREVENT_SYMLINK_TRAVERSAL:true}
 
-  # SSH algorithm configuration (comma-separated, empty = MINA defaults)
+  # SSH algorithm configuration (comma-separated, empty = hardened defaults from SecurityProfile)
   algorithms:
-    ciphers: ${SFTP_CIPHERS:}                                       # e.g. aes256-ctr,aes128-ctr
-    macs: ${SFTP_MACS:}                                              # e.g. hmac-sha2-256,hmac-sha2-512
-    kex: ${SFTP_KEX:}                                                # e.g. diffie-hellman-group16-sha512
+    ciphers: ${SFTP_CIPHERS:aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr}
+    macs: ${SFTP_MACS:hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256}
+    kex: ${SFTP_KEX:curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp521,ecdh-sha2-nistp384,ecdh-sha2-nistp256,diffie-hellman-group18-sha512,diffie-hellman-group16-sha512}
 
   # Bandwidth throttling
   throttle:

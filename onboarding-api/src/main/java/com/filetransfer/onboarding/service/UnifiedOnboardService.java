@@ -94,7 +94,22 @@ public class UnifiedOnboardService {
         auditService.logLogin(userSetup.getEmail(), null, true, "unified-onboarding-registration");
         log.info("Unified onboard: created user email={} role={}", user.getEmail(), role);
 
-        // ── 2. Create transfer accounts ────────────────────────────────
+        // ── 2. Resolve server instance (once for all accounts) ─────────
+        String serverInstanceId = request.getServerInstanceId();
+        ServerInstance resolvedServer = null;
+        if (serverInstanceId != null) {
+            resolvedServer = serverInstanceRepository.findByInstanceId(serverInstanceId)
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Server instance not found: " + serverInstanceId));
+        }
+
+        String storageMode = resolvedServer != null ? resolvedServer.getDefaultStorageMode() : "PHYSICAL";
+        List<String> folderPaths = resolvedServer != null && resolvedServer.getFolderTemplate() != null
+                ? resolvedServer.getFolderTemplate().getFolders().stream()
+                    .map(com.filetransfer.shared.dto.FolderDefinition::getPath).toList()
+                : List.of();
+
+        // ── 3. Create transfer accounts ────────────────────────────────
         Map<String, TransferAccount> accountsByUsername = new LinkedHashMap<>();
         List<AccountResult> accountResults = new ArrayList<>();
 
@@ -113,8 +128,6 @@ public class UnifiedOnboardService {
                     ? acctSetup.getPermissions()
                     : Map.of("read", true, "write", true, "delete", false);
 
-            String serverInstance = request.getServerInstanceId();
-
             TransferAccount account = TransferAccount.builder()
                     .user(user)
                     .protocol(protocol)
@@ -123,13 +136,12 @@ public class UnifiedOnboardService {
                     .publicKey(acctSetup.getPublicKey())
                     .homeDir(homeDir)
                     .permissions(permissions)
-                    .serverInstance(serverInstance)
+                    .serverInstance(serverInstanceId)
+                    .storageMode(storageMode)
                     .build();
             accountRepository.save(account);
 
             accountsByUsername.put(acctSetup.getUsername(), account);
-
-            List<String> folderPaths = resolveFolderPaths(account.getServerInstance());
 
             // Virtual mode: provision phantom folders (zero disk I/O)
             if ("VIRTUAL".equalsIgnoreCase(account.getStorageMode())) {
@@ -166,7 +178,7 @@ public class UnifiedOnboardService {
             log.info("Unified onboard: created account username={} protocol={}", account.getUsername(), protocol);
         }
 
-        // ── 3. Create partner (optional) ───────────────────────────────
+        // ── 4. Create partner (optional) ───────────────────────────────
         PartnerResult partnerResult = null;
         Partner partner = null;
 
@@ -179,7 +191,7 @@ public class UnifiedOnboardService {
                     .build();
         }
 
-        // ── 4. Create external destinations (optional) ─────────────────
+        // ── 5. Create external destinations (optional) ─────────────────
         List<ExternalDestinationResult> extDestResults = null;
         Map<String, ExternalDestination> extDestsByName = new LinkedHashMap<>();
 
@@ -202,7 +214,7 @@ public class UnifiedOnboardService {
             }
         }
 
-        // ── 5. Create file flows (optional) ────────────────────────────
+        // ── 6. Create file flows (optional) ────────────────────────────
         List<FlowResult> flowResults = null;
 
         if (request.getFlows() != null && !request.getFlows().isEmpty()) {
@@ -223,7 +235,7 @@ public class UnifiedOnboardService {
             }
         }
 
-        // ── 6. Create folder mappings (optional) ───────────────────────
+        // ── 7. Create folder mappings (optional) ───────────────────────
         List<FolderMappingResult> mappingResults = null;
 
         if (request.getFolderMappings() != null && !request.getFolderMappings().isEmpty()) {
@@ -246,7 +258,7 @@ public class UnifiedOnboardService {
             }
         }
 
-        // ── 7. Generate JWT ────────────────────────────────────────────
+        // ── 8. Generate JWT ────────────────────────────────────────────
         String token = jwtUtil.generateToken(user.getEmail(), user.getRole().name());
 
         log.info("Unified onboard complete: user={} accounts={} partner={} flows={} mappings={} extDests={}",

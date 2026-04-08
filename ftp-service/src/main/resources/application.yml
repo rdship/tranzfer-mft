@@ -2,6 +2,11 @@ server:
   port: 8082
   shutdown: graceful
 
+management:
+  health:
+    probes:
+      enabled: true
+
 spring:
   lifecycle:
     timeout-per-shutdown-phase: 45s
@@ -16,7 +21,7 @@ spring:
       minimum-idle: 2
       idle-timeout: 300000
       max-lifetime: 1200000
-      connection-timeout: 10000
+      connection-timeout: 30000
       pool-name: FTP-Pool
   jpa:
     open-in-view: false
@@ -33,17 +38,22 @@ spring:
         order_updates: true
         connection:
           provider_disables_autocommit: true
+        temp:
+          use_jdbc_metadata_defaults: false
   flyway:
     enabled: true
     baseline-on-migrate: true
     baseline-version: "0"
     placeholder-replacement: false
     locations: classpath:db/migration
+    validate-on-migrate: false
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USERNAME:guest}
     password: ${RABBITMQ_PASSWORD:guest}
+    connection-timeout: 30000
+    requested-heartbeat: 60
 
 jwt:
   secret: ${JWT_SECRET:change_me_in_production_256bit_secret_key!!}
@@ -85,13 +95,13 @@ ftp:
     keystore-path: ${FTP_TLS_KEYSTORE_FILE:${FTP_FTPS_KEYSTORE_PATH:./ftp-keystore.jks}}
     keystore-password: ${FTP_TLS_KEYSTORE_PASSWORD:${FTP_FTPS_KEYSTORE_PASSWORD:changeit}}
     keystore-type: ${FTP_TLS_KEYSTORE_TYPE:JKS}
-    protocol: ${FTP_FTPS_PROTOCOL:TLSv1.2}
+    protocol: ${FTP_FTPS_PROTOCOL:TLSv1.3}
     client-auth: ${FTP_TLS_CLIENT_AUTH:${FTP_FTPS_CLIENT_AUTH:none}}
     implicit: ${FTP_IMPLICIT_TLS:${FTP_FTPS_IMPLICIT:false}}
-    require: ${FTP_REQUIRE_TLS:false}
-    require-data-tls: ${FTP_REQUIRE_DATA_TLS:false}
-    cipher-suites: ${FTP_TLS_CIPHER_SUITES:${FTP_FTPS_CIPHER_SUITES:}}
-    enabled-protocols: ${FTP_TLS_PROTOCOLS:${FTP_FTPS_ENABLED_PROTOCOLS:}}
+    require: ${FTP_REQUIRE_TLS:true}
+    require-data-tls: ${FTP_REQUIRE_DATA_TLS:true}
+    cipher-suites: ${FTP_TLS_CIPHER_SUITES:${FTP_FTPS_CIPHER_SUITES:TLS_AES_256_GCM_SHA384,TLS_AES_128_GCM_SHA256,TLS_CHACHA20_POLY1305_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384}}
+    enabled-protocols: ${FTP_TLS_PROTOCOLS:${FTP_FTPS_ENABLED_PROTOCOLS:TLSv1.3,TLSv1.2}}
     truststore-path: ${FTP_TLS_TRUSTSTORE_FILE:${FTP_FTPS_TRUSTSTORE_PATH:}}
     truststore-password: ${FTP_TLS_TRUSTSTORE_PASSWORD:${FTP_FTPS_TRUSTSTORE_PASSWORD:changeit}}
 

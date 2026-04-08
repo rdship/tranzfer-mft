@@ -25,6 +25,7 @@ import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Dual-mode SFTP FileSystem factory.
@@ -72,9 +73,14 @@ public class SftpFileSystemFactory implements FileSystemFactory {
 
         // ── Virtual mode: Phantom Folder VFS ────────────────────────────
         if (account.isPresent() && isVirtualMode(account.get())) {
+            UUID acctId = account.get().getId();
+
+            // Safety net: if no virtual entries exist yet, provision from server's folder template
+            ensureVirtualFoldersProvisioned(acctId);
+
             VirtualSftpFileSystem vfs = new VirtualSftpFileSystem(
-                    account.get().getId(), virtualFileSystem, storageServiceClient);
-            log.info("SFTP virtual filesystem ready for user={} (account={})", username, account.get().getId());
+                    acctId, virtualFileSystem, storageServiceClient);
+            log.info("SFTP virtual filesystem ready for user={} (account={})", username, acctId);
             return vfs;
         }
 
@@ -109,5 +115,25 @@ public class SftpFileSystemFactory implements FileSystemFactory {
             log.warn("Could not resolve folder template: {}", e.getMessage());
         }
         return List.of();
+    }
+
+    /**
+     * Lazy safety net: if a VIRTUAL account connects but has no provisioned folders
+     * (e.g. event was lost, pod crashed mid-onboarding), provision from the server's
+     * folder template on first connect. Idempotent — skips if folders already exist.
+     */
+    private void ensureVirtualFoldersProvisioned(UUID accountId) {
+        try {
+            List<String> folderPaths = resolveFolderPaths();
+            if (folderPaths.isEmpty()) return;
+
+            // Quick check: if at least one template folder exists, skip
+            if (virtualFileSystem.exists(accountId, "/" + folderPaths.getFirst())) return;
+
+            virtualFileSystem.provisionFolders(accountId, folderPaths);
+            log.info("Lazy-provisioned {} virtual folders for account {}", folderPaths.size(), accountId);
+        } catch (Exception e) {
+            log.warn("Failed to lazy-provision virtual folders for account {}: {}", accountId, e.getMessage());
+        }
     }
 }

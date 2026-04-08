@@ -5,7 +5,12 @@ version: '3.9'
 # =============================================================================
 
 x-common-env: &common-env
-  JAVA_TOOL_OPTIONS: -Xmx256m -Xms128m -XX:+UseG1GC -XX:MaxGCPauseMillis=100
+  JAVA_TOOL_OPTIONS: >-
+    -Xmx384m -Xms192m
+    -XX:+UseG1GC -XX:MaxGCPauseMillis=100
+    -XX:+UseStringDeduplication
+    -Dspring.jmx.enabled=false
+    -Dspring.main.lazy-initialization=true
   PLATFORM_RATE_LIMIT_DEFAULT_LIMIT: 10000
   DATABASE_URL: jdbc:postgresql://postgres:5432/filetransfer?stringtype=unspecified
   DB_USERNAME: postgres
@@ -27,11 +32,11 @@ x-common-env: &common-env
 
 x-service-healthcheck: &healthcheck
   healthcheck:
-    test: ["CMD-SHELL", "curl -sf http://localhost:$${SERVER_PORT:-8080}/actuator/health || exit 1"]
-    interval: 20s
-    timeout: 10s
-    retries: 10
-    start_period: 120s
+    test: ["CMD-SHELL", "curl -sf http://localhost:$${SERVER_PORT:-8080}/actuator/health/liveness || exit 1"]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+    start_period: 30s
 
 services:
   # ---------------------------------------------------------------------------
@@ -223,8 +228,6 @@ services:
       postgres:
         condition: service_healthy
       rabbitmq:
-        condition: service_healthy
-      keystore-manager:
         condition: service_healthy
 
   ftp-service-3:

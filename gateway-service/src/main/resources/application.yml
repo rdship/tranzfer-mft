@@ -1,7 +1,15 @@
 server:
   port: 8085
+  shutdown: graceful
+
+management:
+  health:
+    probes:
+      enabled: true
 
 spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/filetransfer}
     username: ${DB_USERNAME:postgres}
@@ -13,7 +21,7 @@ spring:
       minimum-idle: 2
       idle-timeout: 300000
       max-lifetime: 1200000
-      connection-timeout: 10000
+      connection-timeout: 30000
       pool-name: Gateway-Pool
   jpa:
     open-in-view: false
@@ -29,15 +37,20 @@ spring:
         order_updates: true
         connection:
           provider_disables_autocommit: true
+        temp:
+          use_jdbc_metadata_defaults: false
   flyway:
     enabled: true
     baseline-on-migrate: true
     baseline-version: "0"
     placeholder-replacement: false
     locations: classpath:db/migration
+    validate-on-migrate: false
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
+    connection-timeout: 30000
+    requested-heartbeat: 60
 jwt:
   secret: ${JWT_SECRET:change_me_in_production_256bit_secret_key!!}
   expiration: 900000
@@ -46,6 +59,11 @@ gateway:
   sftp:
     port: ${GATEWAY_SFTP_PORT:2220}
     host-key-path: ${GATEWAY_HOST_KEY_PATH:./gateway_host_key}
+    # SSH algorithm hardening (applied in SftpGatewayConfig via SecurityProfile whitelist)
+    algorithms:
+      ciphers: ${GATEWAY_SFTP_CIPHERS:aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr}
+      macs: ${GATEWAY_SFTP_MACS:hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256}
+      kex: ${GATEWAY_SFTP_KEX:curve25519-sha256,ecdh-sha2-nistp521,ecdh-sha2-nistp384,diffie-hellman-group18-sha512,diffie-hellman-group16-sha512}
   ftp:
     port: ${GATEWAY_FTP_PORT:2121}
   internal-sftp-host: ${INTERNAL_SFTP_HOST:sftp-service}
