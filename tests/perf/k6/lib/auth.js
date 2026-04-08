@@ -19,7 +19,7 @@ export function login(email, password) {
   password = password || __ENV.ADMIN_PASS  || 'Admin@1234';
 
   const res = http.post(
-    `${ONBOARDING}/api/v1/auth/login`,
+    `${ONBOARDING}/api/auth/login`,
     JSON.stringify({ email, password }),
     { headers: { 'Content-Type': 'application/json' } }
   );

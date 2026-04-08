@@ -52,11 +52,11 @@ export default function (data) {
   // ── 1. No Authorization header ────────────────────────────────────────────
   group('no_auth', () => {
     const endpoints = [
-      `${ONBOARD}/api/v1/accounts`,
-      `${ENCRYPT}/api/v1/encrypt`,
-      `${SCREEN}/api/v1/screening/scan`,
+      `${ONBOARD}/api/accounts`,
+      `${ENCRYPT}/api/encrypt/encrypt/base64`,
+      `${SCREEN}/api/v1/screening/scan/text`,
       `${SENTINEL}/api/v1/sentinel/findings`,
-      `${STORAGE}/api/v1/storage/files`,
+      `${STORAGE}/api/v1/storage/objects`,
     ];
 
     for (const url of endpoints) {
@@ -75,7 +75,7 @@ export default function (data) {
   // ── 2. Expired JWT ────────────────────────────────────────────────────────
   group('expired_jwt', () => {
     const res = http.get(
-      `${ONBOARD}/api/v1/accounts`,
+      `${ONBOARD}/api/accounts`,
       { headers: authHeaders(EXPIRED_JWT) }
     );
     const rejected = check(res, {
@@ -90,7 +90,7 @@ export default function (data) {
   // ── 3. Tampered JWT signature ─────────────────────────────────────────────
   group('tampered_jwt', () => {
     const res = http.get(
-      `${ONBOARD}/api/v1/accounts`,
+      `${ONBOARD}/api/accounts`,
       { headers: authHeaders(TAMPERED_JWT_PREFIX) }
     );
     const rejected = check(res, {
@@ -105,7 +105,7 @@ export default function (data) {
   // ── 4. JWT with escalated roles ───────────────────────────────────────────
   group('role_escalation', () => {
     const res = http.delete(
-      `${ONBOARD}/api/v1/accounts/00000000-0000-0000-0000-000000000001`,
+      `${ONBOARD}/api/accounts/00000000-0000-0000-0000-000000000001`,
       { headers: authHeaders(ESCALATED_JWT) }
     );
     const rejected = check(res, {
@@ -120,9 +120,9 @@ export default function (data) {
   // ── 5. SQL injection in query params ─────────────────────────────────────
   group('sql_injection', () => {
     const injections = [
-      `${ONBOARD}/api/v1/accounts?name='; DROP TABLE accounts; --`,
-      `${ONBOARD}/api/v1/accounts?name=1' OR '1'='1`,
-      `${ONBOARD}/api/v1/accounts?search=admin' UNION SELECT * FROM users--`,
+      `${ONBOARD}/api/accounts?name='; DROP TABLE accounts; --`,
+      `${ONBOARD}/api/accounts?name=1' OR '1'='1`,
+      `${ONBOARD}/api/accounts?search=admin' UNION SELECT * FROM users--`,
     ];
     for (const url of injections) {
       const res = http.get(url, { headers: authHeaders(data.token) });
@@ -151,8 +151,8 @@ export default function (data) {
     ];
     for (const fname of maliciousFilenames) {
       const res = http.post(
-        `${SCREEN}/api/v1/screening/scan`,
-        JSON.stringify({ fileName: fname, fileSize: 100, senderName: 'TEST', receiverName: 'TEST' }),
+        `${SCREEN}/api/v1/screening/scan/text`,
+        JSON.stringify({ content: `FILE: ${fname}`, filename: fname, trackId: 'PATH-TEST' }),
         { headers: authHeaders(data.token) }
       );
       const safe = check(res, {
@@ -176,8 +176,9 @@ export default function (data) {
 <!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
 <transfer><id>&xxe;</id></transfer>`;
 
+    // POST XML to the transfer endpoint to test XXE — 400/415 expected (no file content in response)
     const res = http.post(
-      `${ONBOARD}/api/v1/transfers`,
+      `${ONBOARD}/api/v2/transfer`,
       xxePayload,
       { headers: Object.assign(authHeaders(data.token), { 'Content-Type': 'application/xml' }) }
     );
@@ -193,10 +194,10 @@ export default function (data) {
 
   // ── 8. Oversized request (file size bomb) ─────────────────────────────────
   group('size_bomb', () => {
-    // Send metadata claiming a ridiculously large file — server should reject
+    // Send oversized text content — server should handle gracefully
     const res = http.post(
-      `${SCREEN}/api/v1/screening/scan`,
-      JSON.stringify({ fileName: 'bomb.zip', fileSize: 999999999999, senderName: 'X', receiverName: 'Y' }),
+      `${SCREEN}/api/v1/screening/scan/text`,
+      JSON.stringify({ content: 'X'.repeat(100000), filename: 'bomb.zip', trackId: 'BOMB-TEST' }),
       { headers: authHeaders(data.token) }
     );
     check(res, {
@@ -212,7 +213,7 @@ export default function (data) {
     let lockoutTriggered = false;
     for (let i = 0; i < 25; i++) {
       const res = http.post(
-        `${ONBOARD}/api/v1/auth/login`,
+        `${ONBOARD}/api/auth/login`,
         JSON.stringify({ email: `brutetest-${Date.now()}@test.local`, password: 'WrongPassword!' }),
         { headers: { 'Content-Type': 'application/json' } }
       );

@@ -28,7 +28,7 @@ echo "  5. Verify DLQ drains (message replay)"
 echo ""
 
 # ── Login ─────────────────────────────────────────────────────────────────────
-TOKEN=$(curl -s -X POST "${BASE_URL}:8080/api/v1/auth/login" \
+TOKEN=$(curl -s -X POST "${BASE_URL}:8080/api/auth/login" \
   -H "Content-Type: application/json" \
   -d "{\"email\":\"${ADMIN_EMAIL}\",\"password\":\"${ADMIN_PASS}\"}" \
   | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('token',''))" 2>/dev/null)

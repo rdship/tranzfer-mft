@@ -47,17 +47,21 @@ export default function (data) {
   const isHitTest = Math.random() < 0.05; // 5% hit rate (realistic)
 
   group('file_scan', () => {
+    // Use /scan/text (accepts JSON body with inline text content for sanctions check)
+    // The primary /scan endpoint requires multipart file upload — not suitable for k6 load tests
+    const trackId = `PERF-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`;
+    const content = isHitTest
+      ? `COMPANY: ${WATCHLIST_HIT_NAME}\nTRANSACTION: Financial transfer\nAMOUNT: 50000 USD`
+      : `COMPANY: ${CLEAN_NAME}\nTRANSACTION: Routine file transfer\nAMOUNT: 1000 USD`;
+
     const payload = {
-      fileName: isHitTest ? `invoice-${WATCHLIST_HIT_NAME}.pdf` : `transfer-${Date.now()}.pdf`,
-      fileSize: 102400,
-      senderName:    isHitTest ? WATCHLIST_HIT_NAME : CLEAN_NAME,
-      receiverName:  CLEAN_NAME,
-      transferId:    `PERF-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`,
-      checkContent:  false,
+      content,
+      filename: isHitTest ? `invoice-${trackId}.csv` : `transfer-${trackId}.csv`,
+      trackId,
     };
 
     const res = http.post(
-      `${BASE_SCREEN}/api/v1/screening/scan`,
+      `${BASE_SCREEN}/api/v1/screening/scan/text`,
       JSON.stringify(payload),
       { headers: authHeaders(data.token), tags: { test: 'scan', hit: String(isHitTest) } }
     );

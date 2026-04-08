@@ -72,7 +72,7 @@ export default function (data) {
 
   // Verify login works
   const loginRes = http.post(
-    `${BASE}:8080/api/v1/auth/login`,
+    `${BASE}:8080/api/auth/login`,
     JSON.stringify({ email: 'admin@filetransfer.local', password: 'Admin@1234' }),
     { headers: { 'Content-Type': 'application/json' }, tags: { service: 'auth' } }
   );

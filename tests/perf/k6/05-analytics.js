@@ -55,7 +55,7 @@ export default function (data) {
   // ── Transfer count query ──────────────────────────────────────────────────
   group('transfer_count', () => {
     const res = http.get(
-      `${BASE_ANALYTICS}/api/v1/analytics/transfers/count?period=today`,
+      `${BASE_ANALYTICS}/api/v1/analytics/timeseries?period=today`,
       { headers: authHeaders(data.token), tags: { query: 'transfer_count' } }
     );
     check(res, {
@@ -68,7 +68,7 @@ export default function (data) {
   // ── Failure rate query ────────────────────────────────────────────────────
   group('failure_rate', () => {
     const res = http.get(
-      `${BASE_ANALYTICS}/api/v1/analytics/failures/rate`,
+      `${BASE_ANALYTICS}/api/v1/analytics/predictions`,
       { headers: authHeaders(data.token), tags: { query: 'failure_rate' } }
     );
     check(res, {

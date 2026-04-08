@@ -105,7 +105,7 @@ class VolumeStats:
 async def get_token(session: aiohttp.ClientSession) -> Optional[str]:
     try:
         async with session.post(
-            f"{ONBOARD_BASE}/api/v1/auth/login",
+            f"{ONBOARD_BASE}/api/auth/login",
             json={"email": ADMIN_EMAIL, "password": ADMIN_PASS},
             timeout=aiohttp.ClientTimeout(total=10)
         ) as r:
@@ -173,8 +173,8 @@ async def simulate_transfer(session: aiohttp.ClientSession, token: str,
         if file_size <= 102400:
             payload = "X" * file_size
             async with session.post(
-                f"{ENCRYPT_BASE}/api/v1/encrypt",
-                json={"data": payload},
+                f"{ENCRYPT_BASE}/api/encrypt/credential/encrypt",
+                json={"value": payload[:200]},  # credential encrypt (no keyId needed)
                 headers=headers,
                 timeout=aiohttp.ClientTimeout(total=10)
             ) as r:

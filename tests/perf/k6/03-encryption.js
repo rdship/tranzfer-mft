@@ -12,6 +12,7 @@
 import http from 'k6/http';
 import { check, sleep, group } from 'k6';
 import { Trend, Rate } from 'k6/metrics';
+import encoding from 'k6/encoding';
 import { login, authHeaders } from './lib/auth.js';
 
 const BASE_ENC = `${__ENV.BASE_URL || 'http://localhost'}:${__ENV.ENC_PORT || 8086}`;
@@ -81,38 +82,48 @@ export function setup() {
   const token = login();
   console.log(`Encryption test — File size: ${fileSizeLabel} (${fileSize} bytes) — VUs: ${vus}`);
 
-  // Get a key ID for encryption (assuming keystore exposes one)
+  // Get a key ID for encryption from keystore-manager
   const keysRes = http.get(
-    `${__ENV.BASE_URL || 'http://localhost'}:8093/api/v1/keys?active=true&size=1`,
+    `${__ENV.BASE_URL || 'http://localhost'}:8093/api/v1/keys`,
     { headers: authHeaders(token) }
   );
   let keyId = null;
   if (keysRes.status === 200) {
     try {
       const keys = JSON.parse(keysRes.body);
-      keyId = keys.content?.[0]?.id || keys[0]?.id || null;
+      const list = Array.isArray(keys) ? keys : (keys.content || []);
+      const activeKey = list.find(k => k.active !== false);
+      keyId = activeKey ? activeKey.id : null;
     } catch (_) {}
   }
 
+  if (!keyId) {
+    console.warn('No active encryption key found in keystore — encrypt/decrypt groups will be skipped');
+  }
   return { token, keyId };
 }
 
 export default function (data) {
+  // Skip if no active key available in keystore
+  if (!data.keyId) {
+    sleep(0.3);
+    return;
+  }
+
   const payload = generatePayload(fileSize);
+  // Encode payload as base64 for the /encrypt/base64 endpoint
+  const b64Payload = encoding.b64encode(payload);
 
-  // ── Encrypt ───────────────────────────────────────────────────────────────
-  let encryptedData = null;
+  // ── Encrypt (POST /api/encrypt/encrypt/base64?keyId={uuid}) ───────────────
+  let encryptedB64 = null;
   group('encrypt', () => {
-    const body = JSON.stringify({
-      data:     payload,
-      keyId:    data.keyId,
-      algorithm: 'AES_256_GCM',
-    });
-
     const res = http.post(
-      `${BASE_ENC}/api/v1/encrypt`,
-      body,
-      { headers: authHeaders(data.token), tags: { op: 'encrypt', size: fileSizeLabel } }
+      `${BASE_ENC}/api/encrypt/encrypt/base64?keyId=${data.keyId}`,
+      b64Payload,
+      {
+        headers: Object.assign(authHeaders(data.token), { 'Content-Type': 'text/plain' }),
+        tags: { op: 'encrypt', size: fileSizeLabel },
+      }
     );
 
     const ok = check(res, {
@@ -124,19 +135,22 @@ export default function (data) {
     encryptLatency.add(res.timings.duration);
 
     if (res.status === 200) {
-      try { encryptedData = JSON.parse(res.body).encryptedData || res.body; } catch (_) {}
+      encryptedB64 = res.body.trim();  // response is raw base64 cipher text
     }
   });
 
   sleep(0.1);
 
-  // ── Decrypt (round-trip) ──────────────────────────────────────────────────
-  if (encryptedData) {
+  // ── Decrypt round-trip (POST /api/encrypt/decrypt/base64?keyId={uuid}) ────
+  if (encryptedB64) {
     group('decrypt', () => {
       const res = http.post(
-        `${BASE_ENC}/api/v1/decrypt`,
-        JSON.stringify({ encryptedData, keyId: data.keyId }),
-        { headers: authHeaders(data.token), tags: { op: 'decrypt', size: fileSizeLabel } }
+        `${BASE_ENC}/api/encrypt/decrypt/base64?keyId=${data.keyId}`,
+        encryptedB64,
+        {
+          headers: Object.assign(authHeaders(data.token), { 'Content-Type': 'text/plain' }),
+          tags: { op: 'decrypt', size: fileSizeLabel },
+        }
       );
 
       check(res, {
@@ -144,9 +158,10 @@ export default function (data) {
         'decrypt: round-trip matches': (r) => {
           if (r.status !== 200) return false;
           try {
-            const dec = JSON.parse(r.body).data || r.body;
-            return dec.substring(0, 100) === payload.substring(0, 100);
-          } catch (_) { return true; /* body may not be JSON — accept */ }
+            // Response is base64-encoded original data
+            const decrypted = encoding.b64decode(r.body.trim(), 'rawstd', 's');
+            return decrypted.substring(0, 100) === payload.substring(0, 100);
+          } catch (_) { return true; }
         },
       });
 

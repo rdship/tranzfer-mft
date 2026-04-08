@@ -56,7 +56,7 @@ export default function (data) {
   // ── Login (JWT issuance throughput) ──────────────────────────────────────
   group('login', () => {
     const res = http.post(
-      `${BASE}/api/v1/auth/login`,
+      `${BASE}/api/auth/login`,
       JSON.stringify({ email: 'admin@filetransfer.local', password: 'Admin@1234' }),
       { headers: { 'Content-Type': 'application/json' }, tags: { test: 'login' } }
     );
@@ -78,7 +78,7 @@ export default function (data) {
   if (data.adminToken) {
     group('account_list', () => {
       const res = http.get(
-        `${BASE}/api/v1/accounts?page=0&size=10`,
+        `${BASE}/api/accounts?page=0&size=10`,
         { headers: authHeaders(data.adminToken), tags: { test: 'account_list' } }
       );
       check(res, {
@@ -95,7 +95,7 @@ export default function (data) {
     group('account_create', () => {
       const suffix = randomString(8);
       const res = http.post(
-        `${BASE}/api/v1/accounts`,
+        `${BASE}/api/accounts`,
         JSON.stringify({
           name: `PerfTest-${suffix}`,
           email: `perf-${suffix}@test.local`,

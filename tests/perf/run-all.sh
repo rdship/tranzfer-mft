@@ -142,7 +142,7 @@ if run_phase "services" || run_phase "2"; then
   # VFS benchmarks
   if command -v python3 &>/dev/null && python3 -c "import aiohttp" 2>/dev/null; then
     log "  Running VFS benchmarks..."
-    python3 "${SCRIPT_DIR}/python/vfs_benchmark.py" --scenario listing --count 200 \
+    python3 "${SCRIPT_DIR}/python/vfs_benchmark.py" --scenario dashboard --count 200 \
       2>&1 | tail -5 | tee -a "$REPORT"
     python3 "${SCRIPT_DIR}/python/vfs_benchmark.py" --scenario concurrent-reads --workers 50 --count 300 \
       2>&1 | tail -5 | tee -a "$REPORT"

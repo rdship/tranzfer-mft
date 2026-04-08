@@ -60,7 +60,7 @@ measure_throughput() {
   # Get token
   local token
   token=$(curl -s --max-time 5 \
-    -X POST "${BASE_URL}:8080/api/v1/auth/login" \
+    -X POST "${BASE_URL}:8080/api/auth/login" \
     -H "Content-Type: application/json" \
     -d "{\"email\":\"${ADMIN_EMAIL}\",\"password\":\"${ADMIN_PASS}\"}" \
     | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('token',''))" 2>/dev/null)
@@ -121,7 +121,7 @@ run_k6_quick() {
     --vus "$vus" \
     --duration "${duration}s" \
     --env URL="$url" \
-    --env TOKEN="$(curl -s -X POST "${BASE_URL}:8080/api/v1/auth/login" \
+    --env TOKEN="$(curl -s -X POST "${BASE_URL}:8080/api/auth/login" \
       -H "Content-Type: application/json" \
       -d "{\"email\":\"${ADMIN_EMAIL}\",\"password\":\"${ADMIN_PASS}\"}" \
       | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('token',''))" 2>/dev/null)" \
@@ -196,7 +196,7 @@ test_service_scaling() {
     local latencies=()
 
     token=$(curl -s --max-time 5 \
-      -X POST "${BASE_URL}:8080/api/v1/auth/login" \
+      -X POST "${BASE_URL}:8080/api/auth/login" \
       -H "Content-Type: application/json" \
       -d "{\"email\":\"${ADMIN_EMAIL}\",\"password\":\"${ADMIN_PASS}\"}" \
       | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('token',''))" 2>/dev/null)
