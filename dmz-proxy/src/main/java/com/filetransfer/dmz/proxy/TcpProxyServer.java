@@ -217,6 +217,11 @@ public class TcpProxyServer {
                                             backendCh.pipeline().addLast("proxy-protocol",
                                                 new LazyProxyProtocolOutboundHandler(clientCh));
                                         }
+                                        // Backend→client: rewrite SSH banner to hide backend identity
+                                        if (manager != null && manager.isSshBannerRewriteEnabled()) {
+                                            backendCh.pipeline().addLast("ssh-banner-rewrite",
+                                                new SshBannerRewriteHandler(manager.getSshBanner()));
+                                        }
                                         // Backend→client: no inspection needed
                                         backendCh.pipeline().addLast(new RelayHandler(clientCh, bytesForwarded,
                                             null, null, null, 0, null, false));
@@ -454,6 +459,88 @@ public class TcpProxyServer {
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
             log.debug("Relay error: {}", cause.getMessage());
             ctx.close();
+        }
+    }
+
+    /**
+     * One-shot handler that sanitizes the SSH version banner from the backend.
+     * The SSH protocol includes the version string (V_S) in the key exchange hash,
+     * so replacing it entirely would break the cryptographic handshake. Instead,
+     * this handler strips the <b>comment</b> portion (the OS/distro info after the
+     * software version) which is NOT part of the SSH identification string proper
+     * but IS included in the hash — so we can only log and alert, not modify.
+     *
+     * <p>For FTP connections (220 banner), the banner IS safely rewritable since
+     * FTP does not include it in any cryptographic computation.
+     *
+     * <p>One-shot: processes the first inbound message, then removes itself.
+     */
+    static class SshBannerRewriteHandler extends ChannelInboundHandlerAdapter {
+        private static final byte[] SSH_PREFIX = "SSH-".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        private static final byte[] FTP_220 = "220".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        private final String replacementBanner;
+
+        SshBannerRewriteHandler(String replacementBanner) {
+            this.replacementBanner = replacementBanner;
+        }
+
+        @Override
+        public void channelRead(ChannelHandlerContext ctx, Object msg) {
+            ctx.pipeline().remove(this);
+
+            if (msg instanceof ByteBuf buf && buf.readableBytes() >= 4) {
+                int readerIdx = buf.readerIndex();
+
+                // ── SSH banner: log but do NOT modify (breaks KEX hash) ──
+                if (buf.getByte(readerIdx) == SSH_PREFIX[0]
+                        && buf.getByte(readerIdx + 1) == SSH_PREFIX[1]
+                        && buf.getByte(readerIdx + 2) == SSH_PREFIX[2]
+                        && buf.getByte(readerIdx + 3) == SSH_PREFIX[3]) {
+                    // Extract the banner for audit logging
+                    int endIdx = findLineEnd(buf, readerIdx);
+                    if (endIdx > readerIdx) {
+                        byte[] bannerBytes = new byte[endIdx - readerIdx];
+                        buf.getBytes(readerIdx, bannerBytes);
+                        String banner = new String(bannerBytes, java.nio.charset.StandardCharsets.US_ASCII);
+                        log.info("Backend SSH banner detected: {} (not rewritten — SSH KEX integrity)", banner);
+                    }
+                    // Pass through unmodified — SSH KEX requires original V_S
+                    ctx.fireChannelRead(msg);
+                    return;
+                }
+
+                // ── FTP 220 banner: safe to rewrite (no crypto dependency) ──
+                if (buf.readableBytes() >= 3
+                        && buf.getByte(readerIdx) == FTP_220[0]
+                        && buf.getByte(readerIdx + 1) == FTP_220[1]
+                        && buf.getByte(readerIdx + 2) == FTP_220[2]) {
+                    int endIdx = findLineEnd(buf, readerIdx);
+                    if (endIdx > readerIdx) {
+                        String ftpBanner = "220 " + replacementBanner + " Ready\r\n";
+                        byte[] ftpBytes = ftpBanner.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+                        int afterBanner = endIdx + 2;
+                        int remaining = buf.writerIndex() - afterBanner;
+
+                        ByteBuf replacement = ctx.alloc().buffer(ftpBytes.length + remaining);
+                        replacement.writeBytes(ftpBytes);
+                        if (remaining > 0) {
+                            replacement.writeBytes(buf, afterBanner, remaining);
+                        }
+                        log.info("FTP banner rewritten to: {}", replacementBanner);
+                        ReferenceCountUtil.release(msg);
+                        ctx.fireChannelRead(replacement);
+                        return;
+                    }
+                }
+            }
+            ctx.fireChannelRead(msg);
+        }
+
+        private static int findLineEnd(ByteBuf buf, int from) {
+            for (int i = from; i < buf.writerIndex() - 1; i++) {
+                if (buf.getByte(i) == '\r' && buf.getByte(i + 1) == '\n') return i;
+            }
+            return -1;
         }
     }
 

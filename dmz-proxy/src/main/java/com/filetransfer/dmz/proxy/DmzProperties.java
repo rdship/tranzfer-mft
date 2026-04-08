@@ -53,6 +53,10 @@ public class DmzProperties {
         private int eventBatchSize = 50;
         private long eventFlushIntervalMs = 5_000;
         private String internalApiKey = "${CONTROL_API_KEY:internal_control_secret}";
+        /** Rewrite backend SSH banners to hide implementation details */
+        private boolean sshBannerRewrite = true;
+        /** Replacement SSH banner (must start with SSH-2.0-) */
+        private String sshBanner = "SSH-2.0-TranzFer_MFT_Proxy";
     }
 
     @Data

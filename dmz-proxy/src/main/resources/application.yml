@@ -34,6 +34,8 @@ dmz:
     event-batch-size: 50
     event-flush-interval-ms: 5000
     internal-api-key: ${CONTROL_API_KEY:internal_control_secret}
+    ssh-banner-rewrite: ${DMZ_SSH_BANNER_REWRITE:true}
+    ssh-banner: ${DMZ_SSH_BANNER:SSH-2.0-TranzFer_MFT_Proxy}
 
   # TLS Termination at the proxy edge
   tls:

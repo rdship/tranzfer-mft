@@ -75,6 +75,19 @@ public class ProxyManager {
                 && properties.getProxyProtocol().isInboundEnabled();
     }
 
+    /** Whether SSH banner rewriting is enabled. */
+    public boolean isSshBannerRewriteEnabled() {
+        return properties.getSecurity() != null
+                && properties.getSecurity().isSshBannerRewrite();
+    }
+
+    /** The SSH banner string to present to clients. */
+    public String getSshBanner() {
+        return properties.getSecurity() != null
+                ? properties.getSecurity().getSshBanner()
+                : "SSH-2.0-TranzFer_MFT_Proxy";
+    }
+
     public ProxyManager(DmzProperties properties) {
         this.properties = properties;
     }
