@@ -349,11 +349,11 @@ partnerPortal:
     type: ClusterIP
     port: 80
 
-adminUi:
+uiService:
   enabled: true
   replicaCount: 2
   image:
-    repository: mft/admin-ui
+    repository: mft/ui-service
   service:
     type: ClusterIP
     port: 80

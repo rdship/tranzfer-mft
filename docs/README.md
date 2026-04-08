@@ -126,7 +126,7 @@ Every microservice has its own `README.md` with detailed API endpoints, configur
 - [license-service/](../license-service/) — License validation and entitlements
 
 **Frontends:**
-- [admin-ui/](../admin-ui/) — Admin dashboard (React, 34+ pages)
+- [ui-service/](../ui-service/) — Admin dashboard (React, 34+ pages)
 - [ftp-web-ui/](../ftp-web-ui/) — File browser for end users (React)
 - [partner-portal/](../partner-portal/) — Partner self-service portal (React)
 

@@ -1,26 +1,26 @@
-{{- if .Values.adminUi.enabled }}
+{{- if .Values.uiService.enabled }}
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: admin-ui
+  name: ui-service
   namespace: {{ .Release.Namespace }}
   labels: {{- include "mft.labels" . | nindent 4 }}
-    app: admin-ui
+    app: ui-service
 spec:
-  replicas: {{ .Values.adminUi.replicaCount }}
+  replicas: {{ .Values.uiService.replicaCount }}
   selector:
     matchLabels:
-      app: admin-ui
+      app: ui-service
   template:
     metadata:
       labels:
-        app: admin-ui
+        app: ui-service
     spec:
       terminationGracePeriodSeconds: 30
       containers:
-        - name: admin-ui
-          image: "{{ .Values.global.imageRegistry }}{{ .Values.adminUi.image.repository }}:{{ .Values.global.imageTag }}"
+        - name: ui-service
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.uiService.image.repository }}:{{ .Values.global.imageTag }}"
           ports:
             - containerPort: 80
           livenessProbe:
@@ -39,15 +39,15 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: admin-ui
+  name: ui-service
   namespace: {{ .Release.Namespace }}
 spec:
-  type: {{ .Values.adminUi.service.type }}
+  type: {{ .Values.uiService.service.type }}
   ports:
-    - port: {{ .Values.adminUi.service.port }}
+    - port: {{ .Values.uiService.service.port }}
       targetPort: 80
   selector:
-    app: admin-ui
+    app: ui-service
 {{- end }}
 
 {{- if .Values.ftpWebUi.enabled }}

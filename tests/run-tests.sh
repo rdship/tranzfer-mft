@@ -121,7 +121,7 @@ run_container_health_tests() {
   local expected_containers=("mft-postgres" "mft-rabbitmq" "mft-onboarding-api" "mft-sftp-service"
     "mft-ftp-service" "mft-ftp-web-service" "mft-config-service" "mft-gateway-service"
     "mft-encryption-service" "mft-forwarder-service" "mft-dmz-proxy" "mft-license-service"
-    "mft-analytics-service" "mft-admin-ui" "mft-ftp-web-ui"
+    "mft-analytics-service" "mft-ui-service" "mft-ftp-web-ui"
     "mft-ai-engine" "mft-screening-service" "mft-keystore-manager" "mft-storage-manager"
     "mft-edi-converter" "mft-partner-portal" "mft-api-gateway")
 

@@ -61,7 +61,7 @@ curl -X POST http://localhost:8080/api/auth/register \
 > **Don't want everything?** Just pick what you need:
 > ```bash
 > # Only SFTP server + admin dashboard (minimal setup)
-> docker compose up -d postgres rabbitmq onboarding-api sftp-service config-service admin-ui
+> docker compose up -d postgres rabbitmq onboarding-api sftp-service config-service ui-service
 >
 > # Add AI features
 > docker compose up -d ai-engine
@@ -352,7 +352,7 @@ docker compose logs --tail=100 ai-engine  # Last 100 lines of AI engine
 | keystore-manager | 8093 | Central key and certificate management |
 | storage-manager | 8094 | Enterprise storage — tiered (hot/warm/cold), dedup, parallel I/O |
 | edi-converter | 8095 | EDI translation — X12, EDIFACT, HL7, SWIFT, 10 formats |
-| admin-ui | 3000 | Admin dashboard — 34 pages, white-label ready |
+| ui-service | 3000 | Admin dashboard — 34 pages, white-label ready |
 | ftp-web-ui | 3001 | Simple file upload portal for end users |
 | partner-portal | 3002 | Self-service portal for trading partners |
 | mft-client | — | Desktop client — bundled JRE, works on any OS |

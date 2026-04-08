@@ -29,7 +29,7 @@ The admin UI is the primary management interface for the TranzFer MFT platform. 
 
 ### Development (hot reload)
 ```bash
-cd admin-ui
+cd ui-service
 npm install
 npm run dev
 # Opens http://localhost:3000
@@ -37,7 +37,7 @@ npm run dev
 
 ### Production (Docker)
 ```bash
-docker compose up -d admin-ui
+docker compose up -d ui-service
 # Opens http://localhost:3000
 ```
 
@@ -113,7 +113,7 @@ npm run build
 ## Project Structure
 
 ```
-admin-ui/
+ui-service/
 ├── package.json
 ├── vite.config.js          ← Build configuration
 ├── tailwind.config.js      ← Tailwind theme

@@ -676,12 +676,12 @@ services:
   # ---------------------------------------------------------------------------
   # Frontend UIs
   # ---------------------------------------------------------------------------
-  admin-ui:
+  ui-service:
     build:
-      context: ./admin-ui
+      context: ./ui-service
       args:
         VITE_PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-PROD}
-    container_name: mft-command-center
+    container_name: mft-ui-service
     ports:
       - "3000:80"
     depends_on:
@@ -718,7 +718,7 @@ services:
     depends_on:
       - onboarding-api
       - config-service
-      - admin-ui
+      - ui-service
 
 volumes:
   postgres_data:

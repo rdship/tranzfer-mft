@@ -57,7 +57,7 @@ Every environment variable, port, and configuration option in one place.
 | 8096 | sftp-service-2 | Management API (replica) |
 | 8097 | ftp-service-2 | Management API (replica) |
 | 8098 | ftp-web-service-2 | Management API (replica) |
-| 3000 | admin-ui | Admin dashboard |
+| 3000 | ui-service | Admin dashboard |
 | 3001 | ftp-web-ui | File browser |
 | 3002 | partner-portal | Partner portal |
 | 5432 | postgresql | Database |

@@ -180,15 +180,15 @@ install_server() {
   local SERVICES="postgres rabbitmq onboarding-api config-service"
   local BUILD_MODULES="shared,onboarding-api,config-service"
   case $choice in
-    1) SERVICES="$SERVICES sftp-service admin-ui"
+    1) SERVICES="$SERVICES sftp-service ui-service"
        BUILD_MODULES="$BUILD_MODULES,sftp-service" ;;
-    2) SERVICES="$SERVICES sftp-service ftp-service admin-ui"
+    2) SERVICES="$SERVICES sftp-service ftp-service ui-service"
        BUILD_MODULES="$BUILD_MODULES,sftp-service,ftp-service" ;;
-    3) SERVICES="$SERVICES sftp-service screening-service admin-ui"
+    3) SERVICES="$SERVICES sftp-service screening-service ui-service"
        BUILD_MODULES="$BUILD_MODULES,sftp-service,screening-service" ;;
-    4) SERVICES="$SERVICES sftp-service ftp-service ftp-web-service gateway-service encryption-service external-forwarder-service dmz-proxy admin-ui ftp-web-ui"
+    4) SERVICES="$SERVICES sftp-service ftp-service ftp-web-service gateway-service encryption-service external-forwarder-service dmz-proxy ui-service ftp-web-ui"
        BUILD_MODULES="" ;; # build all
-    5|*) SERVICES="$SERVICES sftp-service ftp-service ftp-web-service gateway-service encryption-service external-forwarder-service dmz-proxy license-service analytics-service ai-engine screening-service keystore-manager storage-manager admin-ui ftp-web-ui api-gateway"
+    5|*) SERVICES="$SERVICES sftp-service ftp-service ftp-web-service gateway-service encryption-service external-forwarder-service dmz-proxy license-service analytics-service ai-engine screening-service keystore-manager storage-manager ui-service ftp-web-ui api-gateway"
        BUILD_MODULES="" ;; # build all
   esac
 

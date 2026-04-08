@@ -653,7 +653,7 @@ RabbitMQ :5672
 ### Minimal (SFTP only)
 
 ```bash
-docker compose up -d postgres rabbitmq onboarding-api sftp-service admin-ui
+docker compose up -d postgres rabbitmq onboarding-api sftp-service ui-service
 ```
 
 ```
@@ -671,7 +671,7 @@ PostgreSQL ← Onboarding API → Admin UI
 ```bash
 docker compose up -d postgres rabbitmq onboarding-api config-service \
   sftp-service ftp-service ftp-web-service gateway-service \
-  ai-engine admin-ui ftp-web-ui
+  ai-engine ui-service ftp-web-ui
 ```
 
 11 containers. ~6 GB RAM.
@@ -1280,7 +1280,7 @@ Management ports (internal only — do NOT expose):
    8095 → edi-converter
 
 Frontend ports:
-   3000 → admin-ui             3001 → ftp-web-ui
+   3000 → ui-service             3001 → ftp-web-ui
    3002 → partner-portal
 
 Infrastructure:

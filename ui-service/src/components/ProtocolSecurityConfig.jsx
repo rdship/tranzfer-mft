@@ -80,7 +80,7 @@ export default function ProtocolSecurityConfig({ protocol, credentials = {}, onC
     setGenerating(true)
     try {
       const alias = `ssh-host-${Date.now()}`
-      const key = await generateSshHost({ alias, ownerService: 'admin-ui' })
+      const key = await generateSshHost({ alias, ownerService: 'ui-service' })
       update('sshHostKeyAlias', key.alias)
       toast.success(`SSH host key generated: ${key.alias}`)
     } catch (e) { toast.error('Failed to generate SSH host key: ' + (e.response?.data?.message || e.message)) }
@@ -118,7 +118,7 @@ export default function ProtocolSecurityConfig({ protocol, credentials = {}, onC
         keyType,
         keyMaterial: importForm.keyMaterial,
         description: importForm.description,
-        ownerService: 'admin-ui',
+        ownerService: 'ui-service',
       })
       if (keyType === 'SSH_HOST_KEY') update('sshHostKeyAlias', key.alias)
       else if (keyType === 'SSH_USER_KEY') update('sshUserKeyAlias', key.alias)

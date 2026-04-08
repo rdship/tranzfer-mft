@@ -210,7 +210,7 @@ fi
 # STAGE 8: UI
 # =============================================================================
 if [[ "$SKIP_UI" == "false" ]]; then
-  docker compose up -d admin-ui 2>/dev/null && ok "admin-ui started" || warn "admin-ui not in compose"
+  docker compose up -d ui-service 2>/dev/null && ok "ui-service started" || warn "ui-service not in compose"
   echo ""
 fi
 

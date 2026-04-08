@@ -202,7 +202,7 @@ The DMZ proxy health response shows all active features:
 ## Step 6: Start Admin UI
 
 ```bash
-docker compose up -d admin-ui
+docker compose up -d ui-service
 ```
 
 Open http://localhost:3000 in your browser.

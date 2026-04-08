@@ -45,7 +45,7 @@ TranzFer has **17 services** in 5 tiers. Install only what you need.
 │  screening :8092    analytics :8090                                  │
 ├─────────────────────────────────────────────────────────────────────┤
 │  TIER 5: FRONTENDS (Optional)                                        │
-│  admin-ui :3000   file-portal :3001   license :8089                 │
+│  ui-service :3000   file-portal :3001   license :8089                 │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -702,7 +702,7 @@ docker compose up -d postgres rabbitmq onboarding-api sftp-service ftp-service c
 docker compose up -d postgres rabbitmq \
   onboarding-api sftp-service ftp-service ftp-web-service \
   config-service gateway-service encryption-service \
-  external-forwarder-service dmz-proxy admin-ui
+  external-forwarder-service dmz-proxy ui-service
 ```
 
 ### Recipe 4: Everything (17 services)
@@ -715,7 +715,7 @@ docker compose up --build -d
 
 ```bash
 docker compose up -d postgres rabbitmq \
-  onboarding-api sftp-service config-service screening-service admin-ui
+  onboarding-api sftp-service config-service screening-service ui-service
 ```
 
 ### Recipe 6: AI-Powered (8 services)
@@ -723,7 +723,7 @@ docker compose up -d postgres rabbitmq \
 ```bash
 docker compose up -d postgres rabbitmq \
   onboarding-api sftp-service config-service \
-  ai-engine analytics-service admin-ui
+  ai-engine analytics-service ui-service
 ```
 
 ---
@@ -831,5 +831,5 @@ docker compose logs sftp-service 2>&1 | grep -i "error\|fail\|exception"
 | screening-service | 8092 | Yes | No | Intelligence |
 | analytics-service | 8090 | Yes | Yes | Intelligence |
 | license-service | 8089 | Yes | No | Frontend |
-| admin-ui | 3000 | No | No | Frontend |
+| ui-service | 3000 | No | No | Frontend |
 | ftp-web-ui | 3001 | No | No | Frontend |

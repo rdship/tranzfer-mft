@@ -211,7 +211,7 @@ Every service is independently deployable. Here is what each one does and when y
 | [edi-converter](../edi-converter/) | 8095 | Optional | EDI ↔ JSON/CSV format conversion |
 | [external-forwarder](../external-forwarder-service/) | 8087 | Optional | Forward files to external SFTP/FTP/HTTP/Kafka |
 | [as2-service](../as2-service/) | 8094 | Optional | AS2/AS4 B2B protocol handler |
-| [admin-ui](../admin-ui/) | 3000 | Recommended | Admin dashboard (React) |
+| [ui-service](../ui-service/) | 3000 | Recommended | Admin dashboard (React) |
 | [ftp-web-ui](../ftp-web-ui/) | 3001 | Optional | File browser for end users (React) |
 | [partner-portal](../partner-portal/) | 3002 | Optional | Partner self-service portal (React) |
 | [api-gateway](../api-gateway/) | 80/443 | Recommended | Nginx reverse proxy for all services |
@@ -225,7 +225,7 @@ Every service is independently deployable. Here is what each one does and when y
 
 ## User Interfaces
 
-### Admin Dashboard (admin-ui)
+### Admin Dashboard (ui-service)
 Full-featured enterprise admin console with 34+ pages:
 - **Dashboard** — Real-time transfer stats, protocol breakdown, alerts
 - **Accounts** — Create, edit, enable/disable transfer accounts
@@ -371,7 +371,7 @@ The AI engine provides intelligence across three tiers:
 docker compose up --build -d
 
 # Minimal (SFTP only)
-docker compose up -d postgres rabbitmq onboarding-api sftp-service config-service admin-ui
+docker compose up -d postgres rabbitmq onboarding-api sftp-service config-service ui-service
 ```
 
 ### Kubernetes with Helm (Production)
@@ -397,7 +397,7 @@ See [INSTALL-ON-PREMISE.md](INSTALL-ON-PREMISE.md) for bare-metal installation.
 ### Scenario 1: "I just want secure file transfer"
 ```bash
 # Start minimum services
-docker compose up -d postgres rabbitmq onboarding-api sftp-service config-service admin-ui
+docker compose up -d postgres rabbitmq onboarding-api sftp-service config-service ui-service
 
 # Open admin dashboard
 open http://localhost:3000

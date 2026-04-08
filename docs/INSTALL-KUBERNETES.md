@@ -19,7 +19,7 @@ export REGISTRY=your-registry.example.com/mft
 for svc in onboarding-api sftp-service ftp-service ftp-web-service \
   config-service gateway-service encryption-service \
   external-forwarder-service dmz-proxy license-service \
-  analytics-service admin-ui ftp-web-ui; do
+  analytics-service ui-service ftp-web-ui; do
 
   docker build -t ${REGISTRY}/${svc}:2.0.0 ./${svc}
   docker push ${REGISTRY}/${svc}:2.0.0

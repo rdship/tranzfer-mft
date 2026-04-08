@@ -35,7 +35,7 @@ Every service in the platform, explained in plain language. For each service you
 - [Management Services](#management-services)
   - [license-service](#license-service)
 - [Frontend Applications](#frontend-applications)
-  - [admin-ui](#admin-ui)
+  - [ui-service](#ui-service)
   - [ftp-web-ui](#ftp-web-ui)
   - [partner-portal](#partner-portal)
 - [Client Tools](#client-tools)
@@ -68,7 +68,7 @@ Every service in the platform, explained in plain language. For each service you
 | external-forwarder | 8087 | Yes | No | If you send files to external systems |
 | edi-converter | 8095 | **No** | No | If you process EDI files |
 | license-service | 8089 | Yes | No | If you need license enforcement |
-| admin-ui | 3000 | No | No | If you want the web dashboard |
+| ui-service | 3000 | No | No | If you want the web dashboard |
 | ftp-web-ui | 3001 | No | No | If you want the file browser |
 | partner-portal | 3002 | No | No | If partners need self-service |
 
@@ -446,7 +446,7 @@ docker compose up -d api-gateway
 | `/config/` | config-service:8084 |
 | `/analytics/` | analytics-service:8090 |
 | `/license/` | license-service:8089 |
-| `/` | admin-ui:3000 |
+| `/` | ui-service:3000 |
 
 ---
 
@@ -725,13 +725,13 @@ docker compose up -d postgres license-service
 
 All frontends are React 18 + Vite + TailwindCSS, served by Nginx in Docker.
 
-### admin-ui
+### ui-service
 
 **What it does:** The admin dashboard. 34 pages covering accounts, flows, security, analytics, compliance, and more.
 
 **Run it:**
 ```bash
-docker compose up -d admin-ui
+docker compose up -d ui-service
 ```
 
 **Port:** 3000 → Open http://localhost:3000

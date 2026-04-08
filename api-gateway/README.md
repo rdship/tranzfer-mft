@@ -11,7 +11,7 @@
 The API gateway is an Nginx reverse proxy that provides a single entry point for all platform services:
 
 - **API routing** — Routes `/api/*` requests to the appropriate microservice
-- **Frontend serving** — Serves admin-ui, ftp-web-ui, and partner-portal
+- **Frontend serving** — Serves ui-service, ftp-web-ui, and partner-portal
 - **Security headers** — HSTS, X-Frame-Options, X-Content-Type-Options, CSP
 - **Rate limiting** — 100 req/s for API, 10 req/s for auth endpoints
 - **CORS handling** — Centralized CORS configuration
@@ -63,7 +63,7 @@ docker compose up -d api-gateway
 
 | Path | Backend | Description |
 |------|---------|-------------|
-| `/` | admin-ui:80 | Admin dashboard |
+| `/` | ui-service:80 | Admin dashboard |
 | `/portal/` | ftp-web-ui:80 | File manager |
 
 ---
@@ -113,7 +113,7 @@ api-gateway:
   depends_on:
     - onboarding-api
     - config-service
-    - admin-ui
+    - ui-service
 ```
 
 ---

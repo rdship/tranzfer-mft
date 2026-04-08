@@ -75,7 +75,7 @@ file-transfer-platform/
 ├── as2-service/                ← AS2 B2B protocol
 ├── cli/                        ← CLI tool
 ├── mft-client/                 ← Desktop client
-├── admin-ui/                   ← Admin dashboard (React)
+├── ui-service/                   ← Admin dashboard (React)
 ├── ftp-web-ui/                 ← File browser (React)
 ├── partner-portal/             ← Partner portal (React)
 ├── api-gateway/                ← Nginx reverse proxy
@@ -308,7 +308,7 @@ docker compose ps
 ### Minimal setup (SFTP only)
 
 ```bash
-docker compose up -d postgres rabbitmq onboarding-api sftp-service admin-ui
+docker compose up -d postgres rabbitmq onboarding-api sftp-service ui-service
 ```
 
 ### Run a service outside Docker (for debugging)
@@ -388,7 +388,7 @@ java -jar target/dmz-proxy-*.jar \
 ### Example: Working on a Frontend
 
 ```bash
-cd admin-ui
+cd ui-service
 npm install
 npm run dev     # Starts Vite dev server with hot reload on :3000
 ```
@@ -402,7 +402,7 @@ All three frontends use the same stack: **React 18 + Vite + TypeScript + Tailwin
 ### Setup
 
 ```bash
-cd admin-ui   # or ftp-web-ui, or partner-portal
+cd ui-service   # or ftp-web-ui, or partner-portal
 npm install
 ```
 
@@ -439,7 +439,7 @@ npm run lint
 
 ### Admin UI pages (partner management)
 
-The following pages were added to the Admin UI (`admin-ui`) for partner management:
+The following pages were added to the Admin UI (`ui-service`) for partner management:
 
 | Route | Page Component | Description |
 |-------|----------------|-------------|
