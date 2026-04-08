@@ -3,6 +3,7 @@ package com.filetransfer.sftp.controller;
 import com.filetransfer.sftp.audit.AuditEventLogger;
 import com.filetransfer.sftp.security.LoginAttemptTracker;
 import com.filetransfer.sftp.session.ConnectionManager;
+import com.filetransfer.sftp.throttle.BandwidthThrottleManager;
 import lombok.RequiredArgsConstructor;
 import org.apache.sshd.server.SshServer;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,7 +19,7 @@ import java.util.Map;
 
 /**
  * Enhanced health endpoint reporting active connections, disk usage, uptime,
- * locked accounts, and authentication statistics.
+ * locked accounts, authentication statistics, and QoS metrics.
  */
 @RestController
 @RequestMapping("/internal")
@@ -29,6 +30,7 @@ public class HealthController {
     private final ConnectionManager connectionManager;
     private final LoginAttemptTracker loginAttemptTracker;
     private final AuditEventLogger auditEventLogger;
+    private final BandwidthThrottleManager bandwidthThrottleManager;
 
     @org.springframework.beans.factory.annotation.Value("${sftp.instance-id:#{null}}")
     private String instanceId;
@@ -89,6 +91,16 @@ public class HealthController {
         lockout.put("maxFailedAttempts", loginAttemptTracker.getMaxFailedAttempts());
         lockout.put("lockoutDurationSeconds", loginAttemptTracker.getLockoutDurationSeconds());
         map.put("lockout", lockout);
+
+        // QoS metrics
+        Map<String, Object> qos = new LinkedHashMap<>();
+        qos.put("throttlingEnabled", bandwidthThrottleManager.isThrottlingEnabled());
+        qos.put("globalUploadLimitBps", bandwidthThrottleManager.getUploadBytesPerSecond());
+        qos.put("globalDownloadLimitBps", bandwidthThrottleManager.getDownloadBytesPerSecond());
+        Map<String, Map<String, Object>> userLimits = bandwidthThrottleManager.getUserLimits();
+        qos.put("usersWithCustomLimits", userLimits.size());
+        qos.put("perUserLimits", userLimits);
+        map.put("qos", qos);
 
         // Auth and transfer stats
         map.put("stats", auditEventLogger.getStats());

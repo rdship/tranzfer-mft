@@ -16,4 +16,11 @@ public class AccountUpdatedEvent {
     private UUID accountId;
     private String username;
     private Boolean active;
+
+    // QoS fields for live propagation to protocol services
+    private Long qosUploadBytesPerSecond;
+    private Long qosDownloadBytesPerSecond;
+    private Integer qosMaxConcurrentSessions;
+    private Integer qosPriority;
+    private Integer qosBurstAllowancePercent;
 }

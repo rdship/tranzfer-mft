@@ -2,6 +2,8 @@ package com.filetransfer.sftp.messaging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.filetransfer.sftp.service.CredentialService;
+import com.filetransfer.sftp.session.ConnectionManager;
+import com.filetransfer.sftp.throttle.BandwidthThrottleManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.*;
@@ -22,6 +24,8 @@ import java.util.Map;
 public class AccountEventConsumer {
 
     private final CredentialService credentialService;
+    private final BandwidthThrottleManager bandwidthThrottleManager;
+    private final ConnectionManager connectionManager;
 
     @Value("${rabbitmq.exchange:file-transfer.events}")
     private String exchange;
@@ -62,13 +66,27 @@ public class AccountEventConsumer {
             String homeDir = (String) event.get("homeDir");
 
             if (username == null) return;
-            log.info("Account event received: username={} homeDir={}", username, homeDir);
+            String eventType = (String) event.get("eventType");
+            log.info("Account event received: type={} username={} homeDir={}", eventType, username, homeDir);
 
             // Evict cache so next auth picks up fresh DB data
             credentialService.evictFromCache(username);
 
+            // Live QoS update: re-register bandwidth and session limits for active sessions
+            if ("account.updated".equals(eventType) && bandwidthThrottleManager.hasUserLimits(username)) {
+                credentialService.findAccount(username).ifPresent(account -> {
+                    bandwidthThrottleManager.registerUserLimits(username,
+                        account.getQosUploadBytesPerSecond(),
+                        account.getQosDownloadBytesPerSecond(),
+                        account.getQosBurstAllowancePercent());
+                    connectionManager.registerQosSessionLimit(username,
+                        account.getQosMaxConcurrentSessions());
+                    log.info("Live QoS updated for active user={}", username);
+                });
+            }
+
             // Create home directories from template (carried in event) or default
-            if (homeDir != null) {
+            if ("account.created".equals(eventType) && homeDir != null) {
                 try {
                     @SuppressWarnings("unchecked")
                     java.util.List<String> folderPaths = (java.util.List<String>) event.get("folderPaths");

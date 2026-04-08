@@ -41,4 +41,16 @@ public class CreateServerInstanceRequest {
     private UUID folderTemplateId;
 
     private String defaultStorageMode = "PHYSICAL";
+
+    /** Proxy QoS policy — applied when useProxy=true */
+    private ProxyQoSConfig proxyQos;
+
+    @Data
+    public static class ProxyQoSConfig {
+        private boolean enabled = true;
+        private Long maxBytesPerSecond;
+        private Long perConnectionMaxBytesPerSecond;
+        private Integer priority;
+        private Integer burstAllowancePercent;
+    }
 }

@@ -183,7 +183,10 @@ public class FtpUserManager extends AbstractUserManager {
         user.setMaxIdleTime(idleTimeoutSeconds);
 
         List<Authority> authorities = new ArrayList<>();
-        authorities.add(new ConcurrentLoginPermission(maxConnectionsPerUser, maxConnectionsPerIp));
+        // Per-user QoS session limit from TransferAccount, fallback to global config
+        int effectiveSessionLimit = (account.getQosMaxConcurrentSessions() != null && account.getQosMaxConcurrentSessions() > 0)
+                ? account.getQosMaxConcurrentSessions() : maxConnectionsPerUser;
+        authorities.add(new ConcurrentLoginPermission(effectiveSessionLimit, maxConnectionsPerIp));
 
         Map<String, Boolean> perms = account.getPermissions();
         if (perms != null && Boolean.TRUE.equals(perms.get("write"))) {

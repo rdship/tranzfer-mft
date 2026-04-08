@@ -140,6 +140,20 @@ public class ConnectionManager {
     }
 
     /**
+     * Unregister per-user QoS session limit.
+     * Only removes when user has no remaining active sessions.
+     *
+     * @param username the username to unregister
+     */
+    public void unregisterQosSessionLimit(String username) {
+        AtomicInteger userCount = perUserConnections.get(username);
+        if (userCount == null || userCount.get() <= 0) {
+            perUserQosLimits.remove(username);
+            log.debug("QoS session limit unregistered: user={}", username);
+        }
+    }
+
+    /**
      * Holds metadata for an active session.
      */
     @lombok.Getter

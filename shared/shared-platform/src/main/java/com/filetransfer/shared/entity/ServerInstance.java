@@ -71,6 +71,25 @@ public class ServerInstance {
     @Builder.Default
     private String defaultStorageMode = "PHYSICAL";
 
+    // Proxy QoS policy (persisted so proxy mappings can be recreated on restart)
+    @Column(name = "proxy_qos_enabled")
+    @Builder.Default
+    private boolean proxyQosEnabled = false;
+
+    @Column(name = "proxy_qos_max_bps")
+    private Long proxyQosMaxBytesPerSecond;
+
+    @Column(name = "proxy_qos_per_conn_max_bps")
+    private Long proxyQosPerConnectionMaxBytesPerSecond;
+
+    @Column(name = "proxy_qos_priority")
+    @Builder.Default
+    private Integer proxyQosPriority = 5;
+
+    @Column(name = "proxy_qos_burst_pct")
+    @Builder.Default
+    private Integer proxyQosBurstAllowancePercent = 20;
+
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;

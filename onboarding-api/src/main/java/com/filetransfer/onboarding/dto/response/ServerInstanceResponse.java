@@ -32,4 +32,11 @@ public class ServerInstanceResponse {
     // Computed: what clients should use to connect
     private String clientHost;
     private int clientPort;
+
+    // Proxy QoS policy
+    private boolean proxyQosEnabled;
+    private Long proxyQosMaxBytesPerSecond;
+    private Long proxyQosPerConnectionMaxBytesPerSecond;
+    private Integer proxyQosPriority;
+    private Integer proxyQosBurstAllowancePercent;
 }

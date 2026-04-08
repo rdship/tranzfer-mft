@@ -4,6 +4,8 @@ import com.filetransfer.sftp.audit.AuditEventLogger;
 import com.filetransfer.sftp.security.IpAccessControl;
 import com.filetransfer.sftp.security.LoginAttemptTracker;
 import com.filetransfer.sftp.service.CredentialService;
+import com.filetransfer.sftp.session.ConnectionManager;
+import com.filetransfer.sftp.throttle.BandwidthThrottleManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.sshd.common.config.keys.AuthorizedKeyEntry;
@@ -28,6 +30,8 @@ public class SftpPublicKeyAuthenticator implements PublickeyAuthenticator {
     private final LoginAttemptTracker loginAttemptTracker;
     private final IpAccessControl ipAccessControl;
     private final AuditEventLogger auditEventLogger;
+    private final BandwidthThrottleManager bandwidthThrottleManager;
+    private final ConnectionManager connectionManager;
 
     @Override
     public boolean authenticate(String username, PublicKey key, ServerSession session) {
@@ -60,6 +64,13 @@ public class SftpPublicKeyAuthenticator implements PublickeyAuthenticator {
                         log.info("SFTP publickey auth success: username={}", username);
                         loginAttemptTracker.recordSuccess(username);
                         auditEventLogger.logLogin(username, ip, "publickey");
+                        // Register per-user QoS: bandwidth limits + session limit
+                        bandwidthThrottleManager.registerUserLimits(username,
+                            account.getQosUploadBytesPerSecond(),
+                            account.getQosDownloadBytesPerSecond(),
+                            account.getQosBurstAllowancePercent());
+                        connectionManager.registerQosSessionLimit(username,
+                            account.getQosMaxConcurrentSessions());
                         return true;
                     }
                 }

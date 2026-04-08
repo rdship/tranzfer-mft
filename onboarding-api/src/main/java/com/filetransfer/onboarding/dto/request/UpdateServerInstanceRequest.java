@@ -22,4 +22,7 @@ public class UpdateServerInstanceRequest {
     private UUID folderTemplateId;
     private boolean clearFolderTemplate;
     private String defaultStorageMode;
+
+    /** Proxy QoS policy update */
+    private CreateServerInstanceRequest.ProxyQoSConfig proxyQos;
 }

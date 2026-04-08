@@ -8,6 +8,10 @@ export const removeMapping = (name) => dmzApi.delete(`/api/proxy/mappings/${enco
 // Health & status
 export const getDmzHealth = () => dmzApi.get('/api/proxy/health').then(r => r.data)
 
+// QoS stats
+export const getQosStats = () => dmzApi.get('/api/proxy/qos/stats').then(r => r.data)
+export const getQosStatsByMapping = (name) => dmzApi.get(`/api/proxy/qos/stats/${encodeURIComponent(name)}`).then(r => r.data)
+
 // Security intelligence
 export const getSecurityStats = () => dmzApi.get('/api/proxy/security/stats').then(r => r.data)
 export const getConnectionStats = () => dmzApi.get('/api/proxy/security/connections').then(r => r.data)

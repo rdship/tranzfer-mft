@@ -181,6 +181,11 @@ public class AccountService {
                 .accountId(account.getId())
                 .username(account.getUsername())
                 .active(account.isActive())
+                .qosUploadBytesPerSecond(account.getQosUploadBytesPerSecond())
+                .qosDownloadBytesPerSecond(account.getQosDownloadBytesPerSecond())
+                .qosMaxConcurrentSessions(account.getQosMaxConcurrentSessions())
+                .qosPriority(account.getQosPriority())
+                .qosBurstAllowancePercent(account.getQosBurstAllowancePercent())
                 .build());
 
         return toResponse(account);

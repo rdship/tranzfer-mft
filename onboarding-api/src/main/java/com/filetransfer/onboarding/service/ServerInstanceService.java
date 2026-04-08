@@ -3,25 +3,27 @@ package com.filetransfer.onboarding.service;
 import com.filetransfer.onboarding.dto.request.CreateServerInstanceRequest;
 import com.filetransfer.onboarding.dto.request.UpdateServerInstanceRequest;
 import com.filetransfer.onboarding.dto.response.ServerInstanceResponse;
+import com.filetransfer.shared.client.DmzProxyClient;
 import com.filetransfer.shared.entity.FolderTemplate;
 import com.filetransfer.shared.entity.ServerInstance;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.repository.FolderTemplateRepository;
 import com.filetransfer.shared.repository.ServerInstanceRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.UUID;
+import java.util.*;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ServerInstanceService {
 
     private final ServerInstanceRepository repository;
     private final FolderTemplateRepository folderTemplateRepository;
+    private final DmzProxyClient dmzProxyClient;
 
     public List<ServerInstanceResponse> listAll() {
         return repository.findAll().stream().map(this::toResponse).toList();
@@ -70,7 +72,14 @@ public class ServerInstanceService {
                 .defaultStorageMode(request.getDefaultStorageMode() != null ? request.getDefaultStorageMode() : "PHYSICAL")
                 .build();
 
+        // Persist proxy QoS policy
+        applyProxyQoS(instance, request.getProxyQos());
+
         repository.save(instance);
+
+        // Auto-create proxy mapping when proxy is configured
+        syncProxyMapping(instance);
+
         return toResponse(instance);
     }
 
@@ -97,7 +106,16 @@ public class ServerInstanceService {
         }
         if (request.getDefaultStorageMode() != null) instance.setDefaultStorageMode(request.getDefaultStorageMode());
 
+        // Update proxy QoS policy
+        if (request.getProxyQos() != null) {
+            applyProxyQoS(instance, request.getProxyQos());
+        }
+
         repository.save(instance);
+
+        // Sync proxy mapping if proxy config changed
+        syncProxyMapping(instance);
+
         return toResponse(instance);
     }
 
@@ -137,7 +155,69 @@ public class ServerInstanceService {
                 .updatedAt(i.getUpdatedAt())
                 .clientHost(i.getClientConnectionHost())
                 .clientPort(i.getClientConnectionPort())
+                .proxyQosEnabled(i.isProxyQosEnabled())
+                .proxyQosMaxBytesPerSecond(i.getProxyQosMaxBytesPerSecond())
+                .proxyQosPerConnectionMaxBytesPerSecond(i.getProxyQosPerConnectionMaxBytesPerSecond())
+                .proxyQosPriority(i.getProxyQosPriority())
+                .proxyQosBurstAllowancePercent(i.getProxyQosBurstAllowancePercent())
                 .build();
+    }
+
+    /**
+     * Apply proxy QoS config from request to entity.
+     */
+    private void applyProxyQoS(ServerInstance instance, CreateServerInstanceRequest.ProxyQoSConfig qos) {
+        if (qos == null) return;
+        instance.setProxyQosEnabled(qos.isEnabled());
+        if (qos.getMaxBytesPerSecond() != null) {
+            instance.setProxyQosMaxBytesPerSecond(qos.getMaxBytesPerSecond());
+        }
+        if (qos.getPerConnectionMaxBytesPerSecond() != null) {
+            instance.setProxyQosPerConnectionMaxBytesPerSecond(qos.getPerConnectionMaxBytesPerSecond());
+        }
+        if (qos.getPriority() != null) {
+            instance.setProxyQosPriority(qos.getPriority());
+        }
+        if (qos.getBurstAllowancePercent() != null) {
+            instance.setProxyQosBurstAllowancePercent(qos.getBurstAllowancePercent());
+        }
+    }
+
+    /**
+     * Auto-create/update the DMZ proxy mapping when a server instance uses the proxy.
+     * Best-effort: logs warning on failure but does not block instance creation.
+     */
+    private void syncProxyMapping(ServerInstance instance) {
+        if (!instance.isUseProxy() || instance.getProxyHost() == null || instance.getProxyPort() == null) {
+            return;
+        }
+        try {
+            Map<String, Object> qosPolicy = new LinkedHashMap<>();
+            qosPolicy.put("enabled", instance.isProxyQosEnabled());
+            if (instance.getProxyQosMaxBytesPerSecond() != null) {
+                qosPolicy.put("maxBytesPerSecond", instance.getProxyQosMaxBytesPerSecond());
+            }
+            if (instance.getProxyQosPerConnectionMaxBytesPerSecond() != null) {
+                qosPolicy.put("perConnectionMaxBytesPerSecond", instance.getProxyQosPerConnectionMaxBytesPerSecond());
+            }
+            qosPolicy.put("priority", instance.getProxyQosPriority() != null ? instance.getProxyQosPriority() : 5);
+            qosPolicy.put("burstAllowancePercent", instance.getProxyQosBurstAllowancePercent() != null ? instance.getProxyQosBurstAllowancePercent() : 20);
+
+            Map<String, Object> mapping = new LinkedHashMap<>();
+            mapping.put("name", instance.getInstanceId());
+            mapping.put("listenPort", instance.getProxyPort());
+            mapping.put("targetHost", instance.getInternalHost());
+            mapping.put("targetPort", instance.getInternalPort());
+            mapping.put("active", true);
+            mapping.put("qosPolicy", qosPolicy);
+
+            dmzProxyClient.createMapping(mapping);
+            log.info("Proxy mapping synced for instance={} listenPort={} qosEnabled={}",
+                    instance.getInstanceId(), instance.getProxyPort(), instance.isProxyQosEnabled());
+        } catch (Exception e) {
+            log.warn("Failed to sync proxy mapping for instance={}: {}",
+                    instance.getInstanceId(), e.getMessage());
+        }
     }
 
     private FolderTemplate resolveTemplate(UUID templateId) {

@@ -58,7 +58,8 @@ public class SftpPasswordAuthenticator implements PasswordAuthenticator {
             credentialService.findAccount(username).ifPresent(account -> {
                 bandwidthThrottleManager.registerUserLimits(username,
                     account.getQosUploadBytesPerSecond(),
-                    account.getQosDownloadBytesPerSecond());
+                    account.getQosDownloadBytesPerSecond(),
+                    account.getQosBurstAllowancePercent());
                 connectionManager.registerQosSessionLimit(username,
                     account.getQosMaxConcurrentSessions());
             });

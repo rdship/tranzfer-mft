@@ -20,6 +20,11 @@ const DmzProxy = () => {
     listenPort: '',
     targetHost: '',
     targetPort: '',
+    qosEnabled: false,
+    qosMaxBytesPerSecond: '',
+    qosPerConnectionMaxBytesPerSecond: '',
+    qosPriority: 5,
+    qosBurstAllowancePercent: 20,
   });
 
   const [controlKey, setControlKey] = useState(() => localStorage.getItem('controlKey') || '');
@@ -83,14 +88,24 @@ const DmzProxy = () => {
     }
     setSubmitting(true);
     try {
-      await dmzApi.addMapping({
+      const payload = {
         name,
         listenPort: Number(listenPort),
         targetHost,
         targetPort: Number(targetPort),
-      });
+      };
+      if (form.qosEnabled) {
+        payload.qosPolicy = {
+          enabled: true,
+          maxBytesPerSecond: form.qosMaxBytesPerSecond ? Number(form.qosMaxBytesPerSecond) * 1048576 : 0,
+          perConnectionMaxBytesPerSecond: form.qosPerConnectionMaxBytesPerSecond ? Number(form.qosPerConnectionMaxBytesPerSecond) * 1048576 : 0,
+          priority: Number(form.qosPriority) || 5,
+          burstAllowancePercent: Number(form.qosBurstAllowancePercent) || 20,
+        };
+      }
+      await dmzApi.addMapping(payload);
       setModalOpen(false);
-      setForm({ name: '', listenPort: '', targetHost: '', targetPort: '' });
+      setForm({ name: '', listenPort: '', targetHost: '', targetPort: '', qosEnabled: false, qosMaxBytesPerSecond: '', qosPerConnectionMaxBytesPerSecond: '', qosPriority: 5, qosBurstAllowancePercent: 20 });
       await fetchAll();
     } catch (err) {
       setFormError(err.response?.data?.message || err.message || 'Failed to add mapping.');
@@ -258,6 +273,7 @@ const DmzProxy = () => {
                   <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Listen Port</th>
                   <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Target Host</th>
                   <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Target Port</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">QoS</th>
                   <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Connections</th>
                   <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
@@ -280,6 +296,17 @@ const DmzProxy = () => {
                         <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-medium bg-gray-100 text-gray-700">
                           :{mapping.targetPort || '—'}
                         </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {mapping.qosPolicy?.enabled ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700"
+                            title={`Priority: ${mapping.qosPolicy.priority || 5}, Burst: ${mapping.qosPolicy.burstAllowancePercent || 0}%`}>
+                            P{mapping.qosPolicy.priority || 5}
+                            {mapping.qosPolicy.maxBytesPerSecond > 0 && ` / ${Math.round(mapping.qosPolicy.maxBytesPerSecond / 1048576)}MB/s`}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">Off</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">
                         {mapping.activeConnections ?? mapping.connections ?? '—'}
@@ -375,6 +402,42 @@ const DmzProxy = () => {
               max="65535"
               className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+          </div>
+
+          {/* QoS Policy */}
+          <div className="border-t border-gray-200 pt-3 mt-1">
+            <div className="flex items-center gap-3 mb-3">
+              <input type="checkbox" id="qosEnabled" checked={form.qosEnabled}
+                onChange={e => setForm(prev => ({ ...prev, qosEnabled: e.target.checked }))}
+                className="w-4 h-4 text-blue-600 rounded border-gray-300" />
+              <label htmlFor="qosEnabled" className="block text-sm font-medium text-gray-700">Enable QoS Policy</label>
+            </div>
+            {form.qosEnabled && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Max Bandwidth (MB/s)</label>
+                  <input type="number" min="0" name="qosMaxBytesPerSecond" value={form.qosMaxBytesPerSecond} onChange={handleChange}
+                    placeholder="0 = unlimited"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Per-Connection (MB/s)</label>
+                  <input type="number" min="0" name="qosPerConnectionMaxBytesPerSecond" value={form.qosPerConnectionMaxBytesPerSecond} onChange={handleChange}
+                    placeholder="0 = unlimited"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Priority (1=High, 10=Low)</label>
+                  <input type="number" min="1" max="10" name="qosPriority" value={form.qosPriority} onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Burst Allowance (%)</label>
+                  <input type="number" min="0" max="100" name="qosBurstAllowancePercent" value={form.qosBurstAllowancePercent} onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3 pt-2">

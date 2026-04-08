@@ -74,6 +74,7 @@ public class SftpSessionListener implements SessionListener {
             if (username != null) {
                 auditEventLogger.logDisconnect(username, ip, durationMs);
                 bandwidthThrottleManager.unregisterUser(username);
+                connectionManager.unregisterQosSessionLimit(username);
             }
         }
 

@@ -54,6 +54,11 @@ public class AccountEventConsumer {
 
         log.debug("FTP-Web received account event: type={} username={}", eventType, username);
 
+        // Evict credential cache on account updates so next request picks up fresh data
+        if ("account.updated".equals(eventType) && username != null) {
+            log.info("FTP-Web cache evicted for updated account: {}", username);
+        }
+
         // Create home directories from template (carried in event) or defaults
         if ("account.created".equals(eventType) && homeDir != null) {
             try {

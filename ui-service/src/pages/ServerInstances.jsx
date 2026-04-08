@@ -47,6 +47,7 @@ const emptyForm = {
   internalHost: '', internalPort: 2222,
   externalHost: '', externalPort: '',
   useProxy: false, proxyHost: '', proxyPort: '',
+  proxyQos: { enabled: false, maxBytesPerSecond: '', perConnectionMaxBytesPerSecond: '', priority: 5, burstAllowancePercent: 20 },
   maxConnections: 500,
   folderTemplateId: '',
   clearFolderTemplate: false,
@@ -93,6 +94,13 @@ export default function ServerInstances() {
       internalHost: s.internalHost, internalPort: s.internalPort,
       externalHost: s.externalHost || '', externalPort: s.externalPort || '',
       useProxy: s.useProxy, proxyHost: s.proxyHost || '', proxyPort: s.proxyPort || '',
+      proxyQos: {
+        enabled: s.proxyQosEnabled || false,
+        maxBytesPerSecond: s.proxyQosMaxBytesPerSecond || '',
+        perConnectionMaxBytesPerSecond: s.proxyQosPerConnectionMaxBytesPerSecond || '',
+        priority: s.proxyQosPriority || 5,
+        burstAllowancePercent: s.proxyQosBurstAllowancePercent || 20,
+      },
       maxConnections: s.maxConnections,
       folderTemplateId: s.folderTemplateId || '',
       defaultStorageMode: s.defaultStorageMode || 'PHYSICAL',
@@ -500,6 +508,47 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
               </p>
             </div>
           )}
+
+          {/* Proxy QoS Policy */}
+          <div className="pl-7 border-t border-gray-100 pt-3 mt-2">
+            <div className="flex items-center gap-3 mb-3">
+              <input type="checkbox" id="proxyQosEnabled" checked={form.proxyQos?.enabled || false}
+                onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, enabled: e.target.checked } }))}
+                className="w-4 h-4 text-blue-600 rounded border-gray-300" />
+              <label htmlFor="proxyQosEnabled" className="text-sm font-medium text-gray-700">Enable Proxy QoS</label>
+            </div>
+            {form.proxyQos?.enabled && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500">Max Bandwidth (MB/s)</label>
+                  <input type="number" min="0"
+                    value={form.proxyQos.maxBytesPerSecond ? Math.round(form.proxyQos.maxBytesPerSecond / 1048576) : ''}
+                    onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, maxBytesPerSecond: e.target.value ? Number(e.target.value) * 1048576 : 0 } }))}
+                    placeholder="0 = unlimited" />
+                  <p className="text-xs text-gray-400 mt-0.5">Aggregate for all connections through this mapping</p>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">Per-Connection Limit (MB/s)</label>
+                  <input type="number" min="0"
+                    value={form.proxyQos.perConnectionMaxBytesPerSecond ? Math.round(form.proxyQos.perConnectionMaxBytesPerSecond / 1048576) : ''}
+                    onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, perConnectionMaxBytesPerSecond: e.target.value ? Number(e.target.value) * 1048576 : 0 } }))}
+                    placeholder="0 = unlimited" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">Priority (1=Highest, 10=Lowest)</label>
+                  <input type="number" min="1" max="10"
+                    value={form.proxyQos.priority || 5}
+                    onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, priority: Number(e.target.value) } }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">Burst Allowance (%)</label>
+                  <input type="number" min="0" max="100"
+                    value={form.proxyQos.burstAllowancePercent || 20}
+                    onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, burstAllowancePercent: Number(e.target.value) } }))} />
+                </div>
+              </div>
+            )}
+          </div>
 
         </>
       )}
