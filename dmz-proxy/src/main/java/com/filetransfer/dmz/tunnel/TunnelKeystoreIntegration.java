@@ -15,6 +15,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -40,6 +43,13 @@ public class TunnelKeystoreIntegration extends KeystoreIntegration {
     private final TunnelAcceptor tunnelAcceptor;
     private final String internalApiKey;
     private final Path certCacheDir;
+    private final long refreshIntervalSeconds;
+
+    // Track aliases we've fetched so the refresh scheduler knows what to refresh
+    private final java.util.Set<String> knownAliases = ConcurrentHashMap.newKeySet();
+
+    private volatile ScheduledExecutorService tunnelRefreshScheduler;
+    private volatile boolean tunnelRefreshing;
 
     /**
      * @param keystoreManagerUrl     base URL (used by parent for identification only)
@@ -55,6 +65,75 @@ public class TunnelKeystoreIntegration extends KeystoreIntegration {
         this.tunnelAcceptor = tunnelAcceptor;
         this.internalApiKey = internalApiKey;
         this.certCacheDir = Path.of(certCacheDir != null ? certCacheDir : "./cert-cache");
+        this.refreshIntervalSeconds = refreshIntervalSeconds;
+    }
+
+    // ── Lifecycle (override parent to use tunnel-aware refresh) ──────────
+
+    /**
+     * Overrides parent's start() to prevent the background scheduler from using
+     * the parent's private fetchFromKeystoreManager() (direct HTTP).
+     * Instead, our scheduler calls the public fetchCertificate() which IS
+     * tunnel-aware via our override.
+     */
+    @Override
+    public void start() {
+        if (tunnelRefreshing) {
+            log.debug("TunnelKeystoreIntegration already running");
+            return;
+        }
+        tunnelRefreshing = true;
+
+        tunnelRefreshScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "tunnel-keystore-refresh");
+            t.setDaemon(true);
+            return t;
+        });
+
+        tunnelRefreshScheduler.scheduleAtFixedRate(
+                this::tunnelRefreshAllCertificates, 0, refreshIntervalSeconds, TimeUnit.SECONDS);
+
+        log.info("TunnelKeystoreIntegration started — refreshInterval={}s, cacheDir={}",
+                refreshIntervalSeconds, certCacheDir.toAbsolutePath());
+    }
+
+    @Override
+    public void shutdown() {
+        tunnelRefreshing = false;
+        if (tunnelRefreshScheduler != null) {
+            tunnelRefreshScheduler.shutdown();
+            try {
+                if (!tunnelRefreshScheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                    tunnelRefreshScheduler.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                tunnelRefreshScheduler.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+            tunnelRefreshScheduler = null;
+        }
+        log.info("TunnelKeystoreIntegration stopped");
+    }
+
+    /**
+     * Tunnel-aware refresh: calls the public fetchCertificate() which routes
+     * through the tunnel, falling back to disk/memory cache on tunnel failure.
+     */
+    private void tunnelRefreshAllCertificates() {
+        if (!tunnelRefreshing) return;
+
+        if (knownAliases.isEmpty()) {
+            log.trace("No cached certificate aliases to refresh via tunnel");
+            return;
+        }
+
+        for (String alias : knownAliases) {
+            try {
+                fetchCertificate(alias); // tunnel-aware override
+            } catch (Exception e) {
+                log.warn("Tunnel certificate refresh failed for alias '{}': {}", alias, e.getMessage());
+            }
+        }
     }
 
     /**
@@ -64,6 +143,7 @@ public class TunnelKeystoreIntegration extends KeystoreIntegration {
     @Override
     public Optional<TlsConfig> fetchCertificate(String alias) {
         Objects.requireNonNull(alias, "alias must not be null");
+        knownAliases.add(alias);
 
         // 1. Try fetching via tunnel
         DmzTunnelHandler th = tunnelAcceptor.getHandler();

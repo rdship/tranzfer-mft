@@ -72,11 +72,13 @@ public class TunnelAiVerdictClient extends AiVerdictClient {
             return cached;
         }
 
-        // 2. If tunnel is not connected, fall back to local heuristics
+        // 2. If tunnel is not connected, fall back to parent's direct HTTP path
+        //    This covers the startup window before gateway-service connects,
+        //    and also tunnel disconnection scenarios — avoids hard-THROTTLE.
         DmzTunnelHandler th = tunnelAcceptor.getHandler();
         if (th == null || !th.isConnected()) {
-            AI_ENGINE_AVAILABLE_HANDLE.set(this, false);
-            return localFallbackThrottle(sourceIp, targetPort, protocol, "tunnel_disconnected");
+            log.debug("Tunnel not connected — delegating to parent direct HTTP for verdict ({}:{})", sourceIp, targetPort);
+            return super.getVerdict(sourceIp, targetPort, protocol, securityTier);
         }
 
         // 3. Send CONTROL_REQ through tunnel
@@ -118,9 +120,8 @@ public class TunnelAiVerdictClient extends AiVerdictClient {
                         "http_" + response.getStatusCode());
             }
         } catch (Exception e) {
-            log.warn("AI verdict via tunnel failed: {}", e.getMessage());
-            AI_ENGINE_AVAILABLE_HANDLE.set(this, false);
-            return localFallbackThrottle(sourceIp, targetPort, protocol, "tunnel_error");
+            log.warn("AI verdict via tunnel failed: {} — falling back to direct HTTP", e.getMessage());
+            return super.getVerdict(sourceIp, targetPort, protocol, securityTier);
         }
     }
 

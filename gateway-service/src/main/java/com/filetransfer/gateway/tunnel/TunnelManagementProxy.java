@@ -8,6 +8,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -78,6 +80,19 @@ public class TunnelManagementProxy {
     public CompletableFuture<ResponseEntity<byte[]>> dmzStatus(
             @RequestHeader Map<String, String> headers) {
         return forwardControl("GET", "/api/proxy/status", headers, null);
+    }
+
+    // ── Catch-all: forward any other /api/proxy/** endpoint through the tunnel ──
+    // Covers: security/*, backends/health, audit/*, zones/*, egress/*, qos/*, metrics, health
+
+    @RequestMapping("/**")
+    public CompletableFuture<ResponseEntity<byte[]>> catchAll(
+            HttpServletRequest request,
+            @RequestHeader Map<String, String> headers,
+            @RequestBody(required = false) byte[] body) {
+        String path = request.getRequestURI();
+        String method = request.getMethod();
+        return forwardControl(method, path, headers, body);
     }
 
     // ── Internal ──

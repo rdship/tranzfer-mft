@@ -137,4 +137,13 @@ public class TunnelAcceptor {
     public boolean isActive() {
         return serverChannel != null && serverChannel.isActive();
     }
+
+    /**
+     * Returns true if the tunnel is actively connected (handler present and channel active).
+     * Use this instead of isActive() when you need to know if traffic can flow.
+     */
+    public boolean isConnected() {
+        DmzTunnelHandler h = handler;
+        return h != null && h.isConnected();
+    }
 }

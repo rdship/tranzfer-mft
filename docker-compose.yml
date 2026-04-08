@@ -104,6 +104,8 @@ services:
       <<: *common-env
       CLUSTER_HOST: onboarding-api
       SERVER_PORT: 8080
+      # When tunnel is enabled, route DMZ proxy management calls through gateway-service
+      DMZ_PROXY_URL: ${DMZ_PROXY_URL:-http://dmz-proxy:8088}
     depends_on:
       postgres:
         condition: service_healthy
@@ -306,6 +308,8 @@ services:
       <<: *common-env
       CLUSTER_HOST: config-service
       SERVER_PORT: 8084
+      # When tunnel is enabled, route DMZ proxy management calls through gateway-service
+      DMZ_PROXY_URL: ${DMZ_PROXY_URL:-http://dmz-proxy:8088}
     depends_on:
       postgres:
         condition: service_healthy

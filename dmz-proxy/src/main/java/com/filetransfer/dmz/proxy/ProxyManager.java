@@ -47,7 +47,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class ProxyManager {
 
-    private final DmzProperties properties;
+    @Getter private final DmzProperties properties;
     private final ConcurrentHashMap<String, TcpProxyServer> servers = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, PortMapping> mappings = new ConcurrentHashMap<>();
 

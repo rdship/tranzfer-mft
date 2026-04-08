@@ -62,8 +62,9 @@ public class TunnelContentScreeningBridge extends ContentScreeningBridge {
 
         DmzTunnelHandler th = tunnelAcceptor.getHandler();
         if (th == null || !th.isConnected()) {
-            return CompletableFuture.completedFuture(
-                    new ScreeningResult(Outcome.ERROR, "tunnel_disconnected", 0, 0));
+            // Fall back to parent's direct HTTP path (covers startup window + tunnel outage)
+            log.debug("Tunnel not connected — delegating screening to parent direct HTTP");
+            return super.screenTransfer(sourceIp, port, protocol, filename, content);
         }
 
         long startTime = System.currentTimeMillis();

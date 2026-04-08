@@ -214,8 +214,11 @@ public class TcpProxyServer {
 
                         // ── Backend connection: tunnel path vs direct path ──
                         TunnelAcceptor tunnel = manager != null ? manager.getTunnelAcceptor() : null;
-                        boolean useTunnel = tunnel != null && tunnel.isActive()
+                        boolean useTunnel = tunnel != null && tunnel.isConnected()
                                 && tunnel.getConnector() != null;
+                        DmzProperties.Tunnel tunnelCfg = manager != null ? manager.getProperties().getTunnel() : null;
+                        boolean tunnelOnly = tunnel != null && tunnelCfg != null
+                                && tunnelCfg.isEnabled() && !tunnelCfg.isFallbackToDirect();
 
                         if (useTunnel) {
                             // ── Tunnel path: multiplex over single tunnel connection ──
@@ -252,11 +255,25 @@ public class TcpProxyServer {
                                     streamCh.close();
                                 });
                             } catch (Exception e) {
+                                if (tunnelOnly) {
+                                    log.error("Tunnel stream failed for [{}] and fallbackToDirect=false — rejecting connection: {}",
+                                        mapping.getName(), e.getMessage());
+                                    auditConnection("TUNNEL_FAILED", clientCh, "no_fallback");
+                                    clientCh.close();
+                                    return;
+                                }
                                 log.warn("Tunnel stream failed for [{}]: {} — falling back to direct",
                                     mapping.getName(), e.getMessage());
                                 // Fall through to direct connection below
                                 useTunnel = false;
                             }
+                        } else if (tunnelOnly && tunnel != null && tunnel.isActive()) {
+                            // Tunnel is enabled with no fallback but not yet connected
+                            log.warn("Tunnel not connected for [{}] and fallbackToDirect=false — rejecting connection",
+                                mapping.getName());
+                            auditConnection("TUNNEL_UNAVAILABLE", clientCh, "no_fallback");
+                            clientCh.close();
+                            return;
                         }
 
                         if (!useTunnel) {
