@@ -42,6 +42,7 @@ const PAGE_TITLES = {
   '/vfs-storage':        'VFS Storage',
   '/gateway':            'Gateway & DMZ',
   '/dmz-proxy':          'DMZ Proxy',
+  '/proxy-groups':       'Proxy Groups',
   '/scheduler':          'Scheduler',
   '/api-console':        'Transfer API v2',
   '/edi':                'EDI Translation',

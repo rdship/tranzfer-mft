@@ -45,6 +45,7 @@ const ROUTE_THEMES = {
   '/vfs-storage':        'infra',
   '/gateway':            'infra',
   '/dmz-proxy':          'infra',
+  '/proxy-groups':       'infra',
   '/scheduler':          'infra',
   '/api-console':        'developer',
   '/edi':                'developer',

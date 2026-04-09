@@ -1,5 +1,6 @@
 package com.filetransfer.dmz.controller;
 
+import com.filetransfer.dmz.cluster.ProxyGroupRegistrar;
 import com.filetransfer.dmz.audit.AuditLogger;
 import com.filetransfer.dmz.health.BackendHealthChecker;
 import com.filetransfer.dmz.proxy.PortMapping;
@@ -65,6 +66,11 @@ public class ProxyManagementController {
     @Autowired(required = false)
     @Nullable
     private SpiffeProxyAuth spiffeProxyAuth;
+
+    /** Optional group registrar — present when Redis is on the classpath. */
+    @Autowired(required = false)
+    @Nullable
+    private ProxyGroupRegistrar groupRegistrar;
 
     // ── Port Mapping Management ────────────────────────────────────────
 
@@ -582,5 +588,46 @@ public class ProxyManagementController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                 "targetHost blocked: loopback and metadata addresses are not allowed");
         }
+    }
+
+    // ── Proxy Group Identity ────────────────────────────────────────────────
+
+    /**
+     * Returns this proxy instance's group identity and capabilities.
+     * Called by onboarding-api {@code ProxyGroupService.enrichWithHealth()} to verify
+     * instance health and gather connection metrics.
+     *
+     * <p>No auth required — this endpoint is intentionally public so the admin plane
+     * (onboarding-api) can poll it without needing proxy credentials. The data returned
+     * is non-sensitive metadata only.
+     */
+    @GetMapping("/info")
+    public Map<String, Object> getInfo() {
+        Map<String, Object> info = new LinkedHashMap<>();
+
+        if (groupRegistrar != null) {
+            info.put("groupName",    groupRegistrar.getGroupName());
+            info.put("groupType",    groupRegistrar.getGroupType());
+            info.put("instanceId",   groupRegistrar.getInstanceId());
+            info.put("startedAt",    groupRegistrar.getStartedAt() != null
+                                     ? groupRegistrar.getStartedAt().toString() : null);
+        } else {
+            info.put("groupName",  "default");
+            info.put("groupType",  "INTERNAL");
+            info.put("instanceId", "unknown");
+            info.put("startedAt",  null);
+        }
+
+        // Live connection metrics
+        Map<String, Object> stats = proxyManager.status().stream()
+                .reduce(new LinkedHashMap<>(), (acc, m) -> {
+                    acc.put((String) m.get("name"), m.get("activeConnections"));
+                    return acc;
+                }, (a, b) -> { a.putAll(b); return a; });
+        info.put("activeMappings",     proxyManager.status().size());
+        info.put("connectionsByPort",  stats);
+        info.put("healthy",            true);
+
+        return info;
     }
 }

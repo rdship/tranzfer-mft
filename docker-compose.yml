@@ -474,28 +474,35 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  # ── DMZ Proxy — INTERNAL group ────────────────────────────────────────────
+  # Handles corporate/private network traffic (SFTP, FTP, AS2, HTTPS from LAN/VPN).
+  # PROXY_GROUP_NAME=internal maps to the 'internal' ProxyGroup in the database.
   dmz-proxy:
     build: ./dmz-proxy
-    container_name: mft-dmz-proxy
+    container_name: mft-dmz-proxy-internal
     ports:
-      - "8088:8088"
-      - "32222:2222"
-      - "32121:21"
-      - "4443:443"
-      - "9443:9443"    # Tunnel port (gateway-service connects inbound)
+      - "8088:8088"       # Management REST API
+      - "32222:2222"      # SFTP (internal network clients)
+      - "32121:21"        # FTP  (internal network clients)
+      - "4443:443"        # FTP-Web (internal HTTPS)
+      - "9443:9443"       # Tunnel port (gateway-service connects inbound)
     environment:
-      PLATFORM_SECURITY_JWT_SECRET: ${PLATFORM_JWT_SECRET:-changeme_32char_secret_here_!!!!}  # signs platform JWTs for DMZ mgmt API
+      PLATFORM_SECURITY_JWT_SECRET: ${PLATFORM_JWT_SECRET:-changeme_32char_secret_here_!!!!}
       SERVER_PORT: 8088
+      PROXY_GROUP_NAME: internal
+      PROXY_GROUP_TYPE: INTERNAL
+      PROXY_INSTANCE_ID: dmz-proxy-internal-1
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       DMZ_SECURITY_ENABLED: "true"
       AI_ENGINE_URL: http://ai-engine:8091
       KEYSTORE_MANAGER_URL: http://keystore-manager:8093
       DMZ_AUDIT_ENABLED: "true"
-      DMZ_ZONES_ENABLED: "false"     # Disabled in Docker dev — all containers share bridge network
-      DMZ_EGRESS_ENABLED: "false"    # Disabled in Docker dev — backend DNS resolves within bridge
+      DMZ_ZONES_ENABLED: "false"
+      DMZ_EGRESS_ENABLED: "false"
       DMZ_INSPECTION_ENABLED: "true"
       DMZ_HEALTH_CHECK_ENABLED: "true"
       DMZ_QOS_ENABLED: "true"
-      # Single-port tunnel: set to "true" to replace all cross-DMZ connections with one tunnel
       DMZ_TUNNEL_ENABLED: ${DMZ_TUNNEL_ENABLED:-false}
       DMZ_TUNNEL_PORT: "9443"
     healthcheck:
@@ -505,8 +512,62 @@ services:
       retries: 5
       start_period: 20s
     depends_on:
-      - ai-engine
-      - gateway-service
+      redis:
+        condition: service_healthy
+      ai-engine:
+        condition: service_started
+      gateway-service:
+        condition: service_started
+
+  # ── DMZ Proxy — EXTERNAL group ────────────────────────────────────────────
+  # Handles internet-facing traffic (public partner integrations, AS2, cloud).
+  # TLS is required. Runs on different external ports from the internal proxy.
+  # Scale this group for high external traffic without touching internal proxies.
+  dmz-proxy-external:
+    build: ./dmz-proxy
+    container_name: mft-dmz-proxy-external
+    profiles:
+      - external-proxy     # start with: docker compose --profile external-proxy up
+    ports:
+      - "8089:8088"        # Management REST API (different host port)
+      - "42222:2222"       # SFTP (external/internet clients)
+      - "42121:21"         # FTP  (external/internet clients)
+      - "8443:443"         # FTP-Web HTTPS (external)
+      - "9444:9443"        # Tunnel port (separate tunnel for external proxy)
+    environment:
+      PLATFORM_SECURITY_JWT_SECRET: ${PLATFORM_JWT_SECRET:-changeme_32char_secret_here_!!!!}
+      SERVER_PORT: 8088
+      PROXY_GROUP_NAME: external
+      PROXY_GROUP_TYPE: EXTERNAL
+      PROXY_INSTANCE_ID: dmz-proxy-external-1
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      DMZ_SECURITY_ENABLED: "true"
+      DMZ_TLS_ENABLED: ${DMZ_EXTERNAL_TLS_ENABLED:-true}   # TLS mandatory for external group
+      AI_ENGINE_URL: http://ai-engine:8091
+      KEYSTORE_MANAGER_URL: http://keystore-manager:8093
+      DMZ_AUDIT_ENABLED: "true"
+      DMZ_ZONES_ENABLED: "true"                             # Zone enforcement ON for external
+      DMZ_EGRESS_ENABLED: "true"                            # Egress filter ON for external
+      DMZ_INSPECTION_ENABLED: "true"
+      DMZ_HEALTH_CHECK_ENABLED: "true"
+      DMZ_QOS_ENABLED: "true"
+      DMZ_TUNNEL_ENABLED: ${DMZ_TUNNEL_ENABLED:-false}
+      DMZ_TUNNEL_PORT: "9443"
+      GATEWAY_HOST: gateway-service
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8088/api/proxy/health | grep -q '\"status\":\"UP\"' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      redis:
+        condition: service_healthy
+      ai-engine:
+        condition: service_started
+      gateway-service:
+        condition: service_started
 
   as2-service:
     build: ./as2-service

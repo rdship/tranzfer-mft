@@ -58,6 +58,7 @@ const PAGE_SERVICE_MAP = {
   // Protocol-specific
   '/gateway': ['gateway'],
   '/dmz-proxy': ['dmz'],
+  '/proxy-groups': ['core'],
   '/p2p': ['core'],
 
   // Intelligence tier

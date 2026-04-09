@@ -45,6 +45,7 @@ import ServiceManagement from './pages/ServiceManagement'
 import VfsStorage from './pages/VfsStorage'
 import DmzProxy from './pages/DmzProxy'
 import ActivityMonitor from './pages/ActivityMonitor'
+import ProxyGroups from './pages/ProxyGroups'
 import Sentinel from './pages/Sentinel'
 import Observatory from './pages/Observatory'
 import CircuitBreakers from './pages/CircuitBreakers'
@@ -79,6 +80,7 @@ export default function App() {
             <Route path="flows" element={<Flows />} />
             <Route path="gateway" element={<GatewayStatus />} />
             <Route path="dmz-proxy" element={<DmzProxy />} />
+            <Route path="proxy-groups" element={<ProxyGroups />} />
             <Route path="journey" element={<Journey />} />
             <Route path="keystore" element={<Keystore />} />
             <Route path="scheduler" element={<Scheduler />} />

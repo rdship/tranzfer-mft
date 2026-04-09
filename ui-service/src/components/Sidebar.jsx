@@ -72,6 +72,7 @@ const navGroups = [
       { to: '/vfs-storage',       icon: CircleStackIcon,    label: 'VFS Storage',       role: 'ADMIN' },
       { to: '/gateway',           icon: BoltIcon,           label: 'Gateway & DMZ',     role: 'ADMIN' },
       { to: '/dmz-proxy',         icon: ShieldCheckIcon,    label: 'DMZ Proxy',         role: 'ADMIN' },
+      { to: '/proxy-groups',      icon: ArrowsRightLeftIcon,label: 'Proxy Groups',       role: 'ADMIN' },
       { to: '/scheduler',         icon: ClockIcon,          label: 'Scheduler',         role: 'ADMIN' },
     ],
   },

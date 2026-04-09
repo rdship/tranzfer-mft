@@ -4,6 +4,34 @@ server:
 control-api:
   key: ${CONTROL_API_KEY:internal_control_secret}
 
+# ── Proxy Group Identity ─────────────────────────────────────────────────────
+# Set PROXY_GROUP_NAME at startup to place this instance in a named group.
+# This instance will self-register in Redis under:
+#   platform:proxy-group:{PROXY_GROUP_NAME}:{instanceId}
+# and will be discoverable via GET /api/proxy-groups on onboarding-api.
+#
+# PROXY_GROUP_TYPE must be one of: INTERNAL, EXTERNAL, PARTNER, CLOUD, CUSTOM
+# PROXY_INSTANCE_ID is auto-generated (UUID) if not set — set it to a stable
+# value (e.g. hostname) when you want predictable instance identification.
+proxy:
+  group:
+    name: ${PROXY_GROUP_NAME:internal}
+    type: ${PROXY_GROUP_TYPE:INTERNAL}
+    instance-id: ${PROXY_INSTANCE_ID:}
+
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 2
+          max-idle: 2
+          min-idle: 1
+          max-wait: 1000ms
+
 # Default port mappings loaded at startup.
 # Additional mappings can be added at runtime via the REST API.
 dmz:
