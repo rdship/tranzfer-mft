@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { configApi, onboardingApi } from '../api/client'
+import { getPendingApprovals, approveStep, rejectStep } from '../api/approvals'
 import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
@@ -10,7 +11,7 @@ import {
   PlusIcon, TrashIcon, PencilSquareIcon, ChevronUpIcon, ChevronDownIcon,
   FunnelIcon, ArrowPathIcon, ClockIcon, CheckCircleIcon, XCircleIcon,
   ArrowsUpDownIcon, SparklesIcon, StopIcon,
-  ChevronRightIcon, InboxIcon, PaperAirplaneIcon
+  ChevronRightIcon, InboxIcon, PaperAirplaneIcon, HandRaisedIcon
 } from '@heroicons/react/24/outline'
 
 // ─── Step type definitions with icons, labels, categories, and config fields ───
@@ -38,6 +39,8 @@ const STEP_TYPE_CATALOG = {
   CONVERT_EDI:     { label: 'Convert EDI',       icon: '🔄', category: 'Data',         color: 'text-orange-600 bg-orange-50',   configFields: [{ key: 'format', label: 'Target Format', placeholder: 'X12', type: 'select', options: ['X12', 'EDIFACT', 'JSON', 'XML'] }] },
   // Scripting
   EXECUTE_SCRIPT:  { label: 'Execute Script',    icon: '⚡', category: 'Scripting',    color: 'text-violet-600 bg-violet-50',   configFields: [{ key: 'command', label: 'Command', placeholder: '/opt/scripts/process.sh ${filepath}' }, { key: 'timeout', label: 'Timeout (seconds)', placeholder: '30' }] },
+
+  APPROVE:         { label: 'Admin Approval',    icon: '✋', category: 'Governance',   color: 'text-purple-600 bg-purple-50',   configFields: [{ key: 'requiredApprovers', label: 'Required Approvers', placeholder: 'admin, finance-team (usernames, informational)' }] },
 }
 
 const STEP_CATEGORIES = [
@@ -267,6 +270,93 @@ function ExecutionRow({ ex }) {
   )
 }
 
+// ─── Approval Row ────────────────────────────────────────────────────────────
+function ApprovalRow({ ap, onApprove, onReject, busy }) {
+  const [showRejectBox, setShowRejectBox] = useState(false)
+  const [rejectNote, setRejectNote] = useState('')
+  const [approveNote, setApproveNote] = useState('')
+  const [showApproveNote, setShowApproveNote] = useState(false)
+
+  const paused = ap.requestedAt ? new Date(ap.requestedAt).toLocaleString() : '—'
+
+  return (
+    <div className="flex flex-col gap-2 p-3 bg-purple-50 border border-purple-100 rounded-xl">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-mono text-xs font-semibold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">
+              {ap.trackId}
+            </span>
+            <span className="text-sm font-medium text-gray-800">{ap.flowName || '—'}</span>
+            <span className="text-xs text-gray-500 truncate max-w-48">{ap.originalFilename}</span>
+          </div>
+          <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
+            <span>Step {ap.stepIndex + 1}</span>
+            <span>Paused {paused}</span>
+            {ap.requiredApprovers && (
+              <span className="text-purple-600">Approvers: {ap.requiredApprovers}</span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={() => { setShowApproveNote(!showApproveNote); setShowRejectBox(false) }}
+            disabled={busy}
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+            Approve
+          </button>
+          <button
+            onClick={() => { setShowRejectBox(!showRejectBox); setShowApproveNote(false) }}
+            disabled={busy}
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors">
+            Reject
+          </button>
+        </div>
+      </div>
+
+      {showApproveNote && (
+        <div className="flex gap-2 mt-1">
+          <input
+            type="text"
+            value={approveNote}
+            onChange={e => setApproveNote(e.target.value)}
+            placeholder="Optional note for audit trail…"
+            className="flex-1 text-xs px-3 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400"
+          />
+          <button
+            onClick={() => { onApprove(approveNote); setShowApproveNote(false) }}
+            disabled={busy}
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+            Confirm Approve
+          </button>
+        </div>
+      )}
+
+      {showRejectBox && (
+        <div className="flex gap-2 mt-1">
+          <input
+            type="text"
+            value={rejectNote}
+            onChange={e => setRejectNote(e.target.value)}
+            placeholder="Rejection reason (required)…"
+            className="flex-1 text-xs px-3 py-1.5 border border-red-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-400"
+          />
+          <button
+            onClick={() => {
+              if (!rejectNote.trim()) { toast.error('Rejection reason required'); return }
+              onReject(rejectNote)
+              setShowRejectBox(false)
+            }}
+            disabled={busy}
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors">
+            Confirm Reject
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 //  MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════
@@ -288,6 +378,32 @@ export default function Flows() {
     queryKey: ['flow-executions'],
     queryFn: () => configApi.get('/api/flows/executions?size=20').then(r => r.data?.content || r.data || []).catch(() => []),
     refetchInterval: 10000
+  })
+
+  const { data: pendingApprovals = [] } = useQuery({
+    queryKey: ['pending-approvals'],
+    queryFn: () => getPendingApprovals().catch(() => []),
+    refetchInterval: 15000
+  })
+
+  const approveMut = useMutation({
+    mutationFn: ({ trackId, stepIndex, note }) => approveStep(trackId, stepIndex, note),
+    onSuccess: () => {
+      qc.invalidateQueries(['pending-approvals'])
+      qc.invalidateQueries(['flow-executions'])
+      toast.success('Flow approved — resuming execution')
+    },
+    onError: err => toast.error(err.response?.data?.message || 'Approval failed')
+  })
+
+  const rejectMut = useMutation({
+    mutationFn: ({ trackId, stepIndex, note }) => rejectStep(trackId, stepIndex, note),
+    onSuccess: () => {
+      qc.invalidateQueries(['pending-approvals'])
+      qc.invalidateQueries(['flow-executions'])
+      toast.success('Flow rejected and cancelled')
+    },
+    onError: err => toast.error(err.response?.data?.message || 'Rejection failed')
   })
 
   const { data: accounts = [] } = useQuery({
@@ -581,6 +697,31 @@ export default function Flows() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ─── Pending Approvals ─── */}
+      {pendingApprovals.length > 0 && (
+        <div className="card border-l-4 border-purple-500">
+          <div className="flex items-center gap-2 mb-4">
+            <HandRaisedIcon className="w-5 h-5 text-purple-500" />
+            <h3 className="font-semibold text-gray-900">Pending Approvals</h3>
+            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
+              {pendingApprovals.length}
+            </span>
+            <span className="text-xs text-gray-400 ml-auto">(auto-refresh 15s)</span>
+          </div>
+          <div className="space-y-2">
+            {pendingApprovals.map(ap => (
+              <ApprovalRow
+                key={ap.id}
+                ap={ap}
+                onApprove={(note) => approveMut.mutate({ trackId: ap.trackId, stepIndex: ap.stepIndex, note })}
+                onReject={(note) => rejectMut.mutate({ trackId: ap.trackId, stepIndex: ap.stepIndex, note })}
+                busy={approveMut.isPending || rejectMut.isPending}
+              />
+            ))}
+          </div>
         </div>
       )}
 

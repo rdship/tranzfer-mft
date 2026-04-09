@@ -1,7 +1,9 @@
 package com.filetransfer.onboarding.controller;
 
+import com.filetransfer.shared.entity.FlowApproval;
 import com.filetransfer.shared.entity.FlowExecution;
 import com.filetransfer.shared.repository.FlowExecutionRepository;
+import com.filetransfer.shared.routing.FlowApprovalService;
 import com.filetransfer.shared.routing.FlowRestartService;
 import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +41,7 @@ public class FlowExecutionController {
 
     private final FlowExecutionRepository executionRepo;
     private final FlowRestartService restartService;
+    private final FlowApprovalService approvalService;
 
     // ── Read ─────────────────────────────────────────────────────────────────
 
@@ -138,6 +141,81 @@ public class FlowExecutionController {
                 "message", exec.getStatus() == FlowExecution.FlowStatus.PROCESSING
                         ? "Termination requested. Agent will exit after current step."
                         : "Execution cancelled."));
+    }
+
+    // ── Approval gates ────────────────────────────────────────────────────────
+
+    /**
+     * List all executions currently waiting for admin sign-off (status=PENDING approval).
+     */
+    @GetMapping("/pending-approvals")
+    @PreAuthorize(Roles.VIEWER)
+    public ResponseEntity<List<FlowApproval>> pendingApprovals() {
+        return ResponseEntity.ok(approvalService.getPendingApprovals());
+    }
+
+    /**
+     * Approve an APPROVE step gate — resumes the flow from the next step asynchronously.
+     * Body: {@code { "stepIndex": 2, "note": "Looks good" }}
+     */
+    @PostMapping("/{trackId}/approve")
+    @PreAuthorize(Roles.OPERATOR)
+    public ResponseEntity<Map<String, Object>> approve(
+            @PathVariable String trackId,
+            @org.springframework.web.bind.annotation.RequestBody Map<String, Object> body,
+            @AuthenticationPrincipal UserDetails user) {
+
+        int stepIndex = Integer.parseInt(body.getOrDefault("stepIndex", "0").toString());
+        String note   = (String) body.getOrDefault("note", "");
+        String principal = user != null ? user.getUsername() : "api";
+        log.info("[{}] APPROVE at step {} by {}", trackId, stepIndex, principal);
+
+        try {
+            approvalService.approve(trackId, stepIndex, principal, note);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (IllegalStateException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
+        }
+
+        return ResponseEntity.accepted().body(Map.of(
+                "status", "APPROVED",
+                "trackId", trackId,
+                "stepIndex", stepIndex,
+                "approvedBy", principal,
+                "message", "Flow approved. Resuming from step " + (stepIndex + 1) + "."));
+    }
+
+    /**
+     * Reject an APPROVE step gate — cancels the execution immediately.
+     * Body: {@code { "stepIndex": 2, "note": "Invalid file format" }}
+     */
+    @PostMapping("/{trackId}/reject")
+    @PreAuthorize(Roles.OPERATOR)
+    public ResponseEntity<Map<String, Object>> reject(
+            @PathVariable String trackId,
+            @org.springframework.web.bind.annotation.RequestBody Map<String, Object> body,
+            @AuthenticationPrincipal UserDetails user) {
+
+        int stepIndex = Integer.parseInt(body.getOrDefault("stepIndex", "0").toString());
+        String note   = (String) body.getOrDefault("note", "");
+        String principal = user != null ? user.getUsername() : "api";
+        log.info("[{}] REJECT at step {} by {}", trackId, stepIndex, principal);
+
+        try {
+            approvalService.reject(trackId, stepIndex, principal, note);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (IllegalStateException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
+        }
+
+        return ResponseEntity.ok(Map.of(
+                "status", "REJECTED",
+                "trackId", trackId,
+                "stepIndex", stepIndex,
+                "rejectedBy", principal,
+                "message", "Flow rejected and cancelled."));
     }
 
     // ── Attempt history ───────────────────────────────────────────────────────

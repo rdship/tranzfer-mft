@@ -46,6 +46,7 @@ public class FlowProcessingEngine {
 
     private final FileFlowRepository flowRepository;
     private final FlowExecutionRepository executionRepository;
+    private final FlowApprovalRepository approvalRepository;
     private final TrackIdGenerator trackIdGenerator;
     private final TransferAccountRepository accountRepository;
     private final DeliveryEndpointRepository deliveryEndpointRepository;
@@ -96,6 +97,26 @@ public class FlowProcessingEngine {
         for (int i = 0; i < flow.getSteps().size(); i++) {
             FileFlow.FlowStep step = flow.getSteps().get(i);
             Map<String, String> stepCfg = step.getConfig() != null ? step.getConfig() : Map.of();
+
+            // ── APPROVE step: pause for admin sign-off (pass-through in PHYSICAL mode) ──
+            if ("APPROVE".equalsIgnoreCase(step.getType())) {
+                FlowApproval approval = FlowApproval.builder()
+                        .executionId(exec.getId())
+                        .trackId(trackId)
+                        .flowName(flow.getName())
+                        .originalFilename(filename)
+                        .stepIndex(i)
+                        .requiredApprovers(stepCfg.get("requiredApprovers"))
+                        .build();
+                approvalRepository.save(approval);
+                exec.setStatus(FlowExecution.FlowStatus.PAUSED);
+                exec.setCurrentStep(i);
+                exec.setStepResults(results);
+                executionRepository.save(exec);
+                log.info("[{}] Flow PAUSED at APPROVE step {} — awaiting admin sign-off", trackId, i);
+                return exec;
+            }
+
             int maxStepRetries = Integer.parseInt(stepCfg.getOrDefault("retryCount", "0"));
             boolean stepSucceeded = false;
 
@@ -188,7 +209,8 @@ public class FlowProcessingEngine {
             case "MAILBOX" -> executeMailbox(input, cfg, trackId);
             case "FILE_DELIVERY" -> executeFileDelivery(input, cfg, trackId);
             case "CONVERT_EDI" -> callEdiConverter(input, workDir, cfg, trackId);
-            case "ROUTE" -> inputPath; // Route is handled by RoutingEngine after flow completes
+            case "ROUTE"   -> inputPath; // Route is handled by RoutingEngine after flow completes
+            case "APPROVE" -> inputPath; // Handled above loop; pass-through if reached
             default -> throw new IllegalArgumentException("Unknown step type: " + step.getType());
         };
     }
@@ -733,6 +755,37 @@ public class FlowProcessingEngine {
         for (int i = startFromStep; i < flow.getSteps().size(); i++) {
             FileFlow.FlowStep step = flow.getSteps().get(i);
             Map<String, String> stepCfg = step.getConfig() != null ? step.getConfig() : Map.of();
+
+            // ── APPROVE step: record pass-through snapshot, pause for admin sign-off ──
+            if ("APPROVE".equalsIgnoreCase(step.getType())) {
+                // Snapshot with identical in/out keys — so resume can find the key via step index
+                eventPublisher.publishEvent(new FlowStepEvent(
+                        trackId, exec.getId(), i, "APPROVE", "PENDING_APPROVAL",
+                        currentKey, currentKey,
+                        currentPath, currentPath,
+                        currentSize, currentSize,
+                        0L, null));
+                FlowApproval approval = FlowApproval.builder()
+                        .executionId(exec.getId())
+                        .trackId(trackId)
+                        .flowName(flow.getName())
+                        .originalFilename(filename)
+                        .stepIndex(i)
+                        .pausedStorageKey(currentKey)
+                        .pausedVirtualPath(currentPath)
+                        .pausedSizeBytes(currentSize)
+                        .requiredApprovers(stepCfg.get("requiredApprovers"))
+                        .build();
+                approvalRepository.save(approval);
+                exec.setStatus(FlowExecution.FlowStatus.PAUSED);
+                exec.setCurrentStep(i);
+                exec.setStepResults(results);
+                executionRepository.save(exec);
+                log.info("[{}] Flow PAUSED at APPROVE step {} (VIRTUAL) — awaiting admin sign-off, key={}",
+                        trackId, i, abbrev(currentKey));
+                return exec;
+            }
+
             int maxRetries = Integer.parseInt(stepCfg.getOrDefault("retryCount", "0"));
             boolean stepSucceeded = false;
 
@@ -860,6 +913,7 @@ public class FlowProcessingEngine {
             case "EXECUTE_SCRIPT"  -> throw new UnsupportedOperationException(
                     "EXECUTE_SCRIPT is not supported for VIRTUAL-mode accounts");
             case "ROUTE"           -> new StepOutcome(storageKey, virtualPath, sizeBytes);
+            case "APPROVE"         -> new StepOutcome(storageKey, virtualPath, sizeBytes); // handled above loop; pass-through if reached
             default -> throw new IllegalArgumentException("Unknown step type: " + step.getType());
         };
     }
