@@ -3,11 +3,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { onboardingApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
+import EvidenceReport from '../components/EvidenceReport'
 import {
   MagnifyingGlassIcon, CheckCircleIcon, XCircleIcon, ClockIcon,
   ArrowRightIcon, ShieldCheckIcon, ArrowDownTrayIcon, EyeIcon,
   ChevronDownIcon, ChevronRightIcon, ArrowPathIcon, StopIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon, DocumentArrowDownIcon,
 } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
 
@@ -461,11 +462,29 @@ export default function Journey() {
                   <p className="text-xs text-indigo-600 mt-0.5">Attempt {execDetail.attemptNumber} · restarted by {execDetail.restartedBy}</p>
                 )}
               </div>
-              <div className="text-right flex-shrink-0">
-                <span className={`badge ${journey.overallStatus === 'MOVED_TO_SENT' || journey.overallStatus === 'COMPLETED' ? 'badge-green' : journey.overallStatus === 'FAILED' ? 'badge-red' : journey.overallStatus === 'CANCELLED' ? 'badge-yellow' : 'badge-yellow'}`}>
-                  {journey.overallStatus}
-                </span>
-                {journey.totalDurationMs && <p className="text-xs text-gray-500 mt-1">{journey.totalDurationMs}ms total</p>}
+              <div className="flex items-start gap-3 flex-shrink-0">
+                <button
+                  onClick={() => {
+                    const prev = document.title
+                    document.title = `Evidence-${journey.trackId}`
+                    window.print()
+                    document.title = prev
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
+                  style={{ borderColor: '#d1d5db', color: '#6b7280' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#f3f4f6'; e.currentTarget.style.color = '#111827' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = '#6b7280' }}
+                  title="Export as PDF — opens browser print dialog"
+                >
+                  <DocumentArrowDownIcon className="w-4 h-4" />
+                  Export PDF
+                </button>
+                <div className="text-right">
+                  <span className={`badge ${journey.overallStatus === 'MOVED_TO_SENT' || journey.overallStatus === 'COMPLETED' ? 'badge-green' : journey.overallStatus === 'FAILED' ? 'badge-red' : journey.overallStatus === 'CANCELLED' ? 'badge-yellow' : 'badge-yellow'}`}>
+                    {journey.overallStatus}
+                  </span>
+                  {journey.totalDurationMs && <p className="text-xs text-gray-500 mt-1">{journey.totalDurationMs}ms total</p>}
+                </div>
               </div>
             </div>
 
@@ -536,6 +555,11 @@ export default function Journey() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Hidden print-only evidence report — revealed by @media print CSS */}
+      {journey && (
+        <EvidenceReport journey={journey} execDetail={execDetail} />
       )}
 
       {/* Recent Transfers */}

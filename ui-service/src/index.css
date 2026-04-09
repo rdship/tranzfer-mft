@@ -540,3 +540,29 @@ label {
   to   { opacity: 1; transform: scale(1);    }
 }
 .animate-scale-in { animation: scale-in 0.2s ease-out; }
+
+/* ─── Print / PDF Evidence Report ────────────────────────────────────────── */
+/* When window.print() is called, hide all UI chrome and show only the report */
+@media print {
+  /* Hide all application UI */
+  body > * { display: none !important; }
+  nav, header, aside, footer, .sidebar-nav-item,
+  .no-print, [data-no-print] { display: none !important; }
+
+  /* Force white background, black text */
+  body { background: #fff !important; color: #000 !important; }
+
+  /* Show ONLY the evidence report */
+  #evidence-report { display: block !important; }
+
+  /* Page setup: A4, minimal margins */
+  @page { size: A4; margin: 15mm 15mm 20mm 15mm; }
+
+  /* Ensure tables don't break badly across pages */
+  table { page-break-inside: auto; }
+  tr    { page-break-inside: avoid; page-break-after: auto; }
+  thead { display: table-header-group; }
+
+  /* No link decorations in print */
+  a { text-decoration: none; color: #000; }
+}
