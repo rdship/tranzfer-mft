@@ -13,6 +13,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Dispatches events to all configured external connectors.
@@ -35,12 +36,37 @@ public class ConnectorDispatcher {
     private final WebhookConnectorRepository connectorRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /** 30-second in-process cache for the active connector list — avoids a DB round-trip per event. */
+    private final AtomicReference<List<WebhookConnector>> connectorCache = new AtomicReference<>(null);
+    private volatile Instant cacheExpiry = Instant.EPOCH;
+
+    private List<WebhookConnector> activeConnectors() {
+        Instant now = Instant.now();
+        if (connectorCache.get() == null || now.isAfter(cacheExpiry)) {
+            synchronized (this) {
+                if (connectorCache.get() == null || now.isAfter(cacheExpiry)) {
+                    connectorCache.set(connectorRepository.findByActiveTrue());
+                    cacheExpiry = now.plusSeconds(30);
+                }
+            }
+        }
+        return connectorCache.get();
+    }
+
+    /** Invalidate the connector list cache (call after create/update/delete connector). */
+    public void invalidateCache() {
+        connectorCache.set(null);
+        cacheExpiry = Instant.EPOCH;
+    }
+
     /**
      * Fire an event to all matching connectors.
+     * Uses a 30-second in-process cache for active connectors and atomic counter
+     * increments to avoid full entity saves on every dispatch.
      */
     @Async
     public void dispatch(MftEvent event) {
-        List<WebhookConnector> connectors = connectorRepository.findByActiveTrue();
+        List<WebhookConnector> connectors = activeConnectors();
 
         for (WebhookConnector connector : connectors) {
             if (!shouldTrigger(connector, event)) continue;
@@ -55,9 +81,8 @@ public class ConnectorDispatcher {
                     default -> sendGenericWebhook(connector, event);
                 }
 
-                connector.setLastTriggered(Instant.now());
-                connector.setTotalNotifications(connector.getTotalNotifications() + 1);
-                connectorRepository.save(connector);
+                // Atomic UPDATE — 2 columns only, no SELECT, no dirty-tracking overhead
+                connectorRepository.incrementNotificationCount(connector.getId(), Instant.now());
                 log.info("Connector '{}' ({}): dispatched {} for [{}]",
                         connector.getName(), connector.getType(), event.eventType, event.trackId);
 

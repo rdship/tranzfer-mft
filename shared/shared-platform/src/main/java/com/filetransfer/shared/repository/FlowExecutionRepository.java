@@ -34,6 +34,17 @@ public interface FlowExecutionRepository extends JpaRepository<FlowExecution, UU
 
     List<FlowExecution> findByStatusOrderByStartedAtDesc(FlowExecution.FlowStatus status);
     long countByStatus(FlowExecution.FlowStatus status);
+
+    /**
+     * Returns status → count for the 4 live-dashboard statuses in a single query.
+     * Rows: [status (String), count (Long)]
+     * Replaces 4 separate countByStatus() calls → 75% fewer DB round-trips on 5s polling.
+     */
+    @Query(value = "SELECT status, COUNT(*) FROM flow_executions " +
+                   "WHERE status IN ('PROCESSING','PENDING','PAUSED','FAILED') GROUP BY status",
+           nativeQuery = true)
+    List<Object[]> countLiveStatuses();
+
     long countByStartedAtAfter(Instant since);
 
     /** For stuck execution recovery — finds PROCESSING executions older than threshold */

@@ -279,7 +279,7 @@ export default function CircuitBreakers() {
   const { data, isLoading, isError, refetch, dataUpdatedAt } = useQuery({
     queryKey: ['circuit-breakers'],
     queryFn: getCircuitBreakers,
-    refetchInterval: 30_000,
+    refetchInterval: 60_000,   // was 30s — CB states are stable; halves sentinel polling
     staleTime: 25_000,
   })
 

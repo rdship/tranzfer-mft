@@ -668,7 +668,7 @@ export default function Flows() {
   const { data: scheduledRetries = [] } = useQuery({
     queryKey: ['scheduled-retries'],
     queryFn: () => onboardingApi.get('/api/flow-executions/scheduled-retries').then(r => r.data).catch(() => []),
-    refetchInterval: 30000
+    refetchInterval: 60000  // was 30s — scheduled retries change infrequently
   })
 
   const { data: accounts = [] } = useQuery({

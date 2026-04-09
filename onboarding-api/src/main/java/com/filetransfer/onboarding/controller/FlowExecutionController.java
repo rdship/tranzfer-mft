@@ -315,14 +315,23 @@ public class FlowExecutionController {
      * Live dashboard stats — counts of flow executions by status.
      * Used by the Dashboard "Live Activity" gauge; refreshes every 5 seconds.
      */
+    /**
+     * Live dashboard stats — single GROUP BY query instead of 4 separate counts.
+     * Cuts DB round-trips by 75% at 5-10s polling frequency.
+     */
     @GetMapping("/live-stats")
     @PreAuthorize(Roles.VIEWER)
     public ResponseEntity<Map<String, Object>> getLiveStats() {
         Map<String, Object> stats = new LinkedHashMap<>();
-        stats.put("processing", executionRepo.countByStatus(FlowExecution.FlowStatus.PROCESSING));
-        stats.put("pending",    executionRepo.countByStatus(FlowExecution.FlowStatus.PENDING));
-        stats.put("paused",     executionRepo.countByStatus(FlowExecution.FlowStatus.PAUSED));
-        stats.put("failed",     executionRepo.countByStatus(FlowExecution.FlowStatus.FAILED));
+        stats.put("processing", 0L);
+        stats.put("pending",    0L);
+        stats.put("paused",     0L);
+        stats.put("failed",     0L);
+        for (Object[] row : executionRepo.countLiveStatuses()) {
+            String status = (String) row[0];
+            long   count  = ((Number) row[1]).longValue();
+            stats.put(status.toLowerCase(), count);
+        }
         return ResponseEntity.ok(stats);
     }
 

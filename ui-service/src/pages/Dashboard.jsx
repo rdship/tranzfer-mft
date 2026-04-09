@@ -201,8 +201,8 @@ export default function Dashboard() {
   } = useQuery({
     queryKey: ['agents-dashboard'],
     queryFn: getAgentsDashboard,
-    refetchInterval: 5000,
-    staleTime: 4000,
+    refetchInterval: 15_000,   // was 5s — AI agent states change slowly
+    staleTime: 12_000,
     retry: false,
   })
   const {
@@ -210,8 +210,8 @@ export default function Dashboard() {
   } = useQuery({
     queryKey: ['flow-live-stats'],
     queryFn: getFlowLiveStats,
-    refetchInterval: 5000,
-    staleTime: 4000,
+    refetchInterval: 10_000,   // was 5s — halves DB load while keeping "live" feel
+    staleTime: 8_000,
     retry: false,
   })
 

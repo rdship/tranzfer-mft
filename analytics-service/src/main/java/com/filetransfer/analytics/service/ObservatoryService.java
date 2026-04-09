@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import org.springframework.cache.annotation.Cacheable;
+
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
@@ -65,6 +67,7 @@ public class ObservatoryService {
             Map.entry("SENTINEL",   "Sentinel")
     );
 
+    @Cacheable("observatory")
     public ObservatoryDto.ObservatoryData getObservatoryData() {
         return ObservatoryDto.ObservatoryData.builder()
                 .heatmap(buildHeatmap(30))
@@ -203,6 +206,7 @@ public class ObservatoryService {
      *   <li><b>heatmap</b>  — avg latency per step type × hour-of-day (0-23 UTC) grid.
      * </ul>
      */
+    @Cacheable(value = "step-latency", key = "#hours")
     public ObservatoryDto.StepLatencyData getStepLatencyData(int hours) {
         Instant since = Instant.now().minus(hours, ChronoUnit.HOURS);
 

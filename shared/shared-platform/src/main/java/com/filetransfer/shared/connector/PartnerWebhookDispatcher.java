@@ -65,14 +65,11 @@ public class PartnerWebhookDispatcher {
             if (!hook.getEvents().contains(eventType)) continue;
             try {
                 deliver(hook, body);
-                hook.setTotalCalls(hook.getTotalCalls() + 1);
-                hook.setLastTriggered(Instant.now());
-                webhookRepository.save(hook);
+                webhookRepository.incrementTotalCalls(hook.getId(), Instant.now());
                 log.debug("[{}] Webhook delivered to {} for event {}", exec.getTrackId(), hook.getUrl(), eventType);
             } catch (Exception e) {
-                hook.setTotalCalls(hook.getTotalCalls() + 1);
-                hook.setFailedCalls(hook.getFailedCalls() + 1);
-                webhookRepository.save(hook);
+                webhookRepository.incrementTotalCalls(hook.getId(), Instant.now());
+                webhookRepository.incrementFailedCalls(hook.getId());
                 log.warn("[{}] Webhook delivery failed to {}: {}", exec.getTrackId(), hook.getUrl(), e.getMessage());
             }
         }

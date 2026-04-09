@@ -3,6 +3,7 @@ package com.filetransfer.analytics.service;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +31,7 @@ public class DedupStatsService {
     /**
      * Full deduplication statistics report.
      */
+    @Cacheable("dedup-stats")
     public Map<String, Object> getDedupStats() {
         Map<String, Object> result = new LinkedHashMap<>();
 
