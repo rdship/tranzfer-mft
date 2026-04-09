@@ -11,7 +11,8 @@ import {
   PlusIcon, TrashIcon, PencilSquareIcon, ChevronUpIcon, ChevronDownIcon,
   FunnelIcon, ArrowPathIcon, ClockIcon, CheckCircleIcon, XCircleIcon,
   ArrowsUpDownIcon, SparklesIcon, StopIcon,
-  ChevronRightIcon, InboxIcon, PaperAirplaneIcon, HandRaisedIcon
+  ChevronRightIcon, InboxIcon, PaperAirplaneIcon, HandRaisedIcon,
+  BeakerIcon, ExclamationTriangleIcon, QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline'
 
 // ─── Step type definitions with icons, labels, categories, and config fields ───
@@ -199,6 +200,115 @@ function AddStepDropdown({ onAdd, onClose }) {
 }
 
 // ─── Execution detail row ───
+// ─── Dry Run Modal ───────────────────────────────────────────────────────────
+
+const DR_STATUS_CFG = {
+  WOULD_SUCCEED:  { icon: CheckCircleIcon,          color: '#22c55e', bg: 'rgb(20 83 45 / 0.2)',   label: 'WOULD SUCCEED' },
+  WOULD_FAIL:     { icon: XCircleIcon,              color: '#ef4444', bg: 'rgb(127 29 29 / 0.2)', label: 'WOULD FAIL' },
+  CANNOT_VERIFY:  { icon: QuestionMarkCircleIcon,   color: '#f59e0b', bg: 'rgb(120 53 15 / 0.2)', label: 'CANNOT VERIFY' },
+}
+
+function fmtEstimate(ms) {
+  if (!ms) return null
+  if (ms < 1000) return `~${ms}ms`
+  return `~${(ms / 1000).toFixed(1)}s`
+}
+
+function DryRunModal({ result, onClose }) {
+  const allSucceed  = result.wouldSucceed
+  const hasFailures = result.issues?.length > 0
+
+  return (
+    <Modal title={`Dry Run: ${result.flowName}`} size="lg" onClose={onClose}>
+      {/* Summary header */}
+      <div
+        className="flex items-center gap-3 p-4 rounded-xl mb-5"
+        style={{
+          background: allSucceed ? 'rgb(20 83 45 / 0.2)' : 'rgb(127 29 29 / 0.2)',
+          border: `1px solid ${allSucceed ? '#16a34a' : '#dc2626'}44`,
+        }}
+      >
+        {allSucceed
+          ? <CheckCircleIcon className="w-6 h-6 flex-shrink-0" style={{ color: '#22c55e' }} />
+          : <ExclamationTriangleIcon className="w-6 h-6 flex-shrink-0" style={{ color: '#ef4444' }} />
+        }
+        <div className="flex-1">
+          <p className="font-semibold text-sm" style={{ color: allSucceed ? '#22c55e' : '#ef4444' }}>
+            {allSucceed
+              ? `All ${result.steps?.length} steps would succeed`
+              : `${result.issues?.length} issue${result.issues?.length !== 1 ? 's' : ''} detected`}
+          </p>
+          <p className="text-xs mt-0.5" style={{ color: 'rgb(var(--tx-muted))' }}>
+            Test file: <span className="font-mono">{result.testFilename}</span>
+            {result.totalEstimatedMs > 0 && (
+              <> · Estimated total: <span className="font-mono">{fmtEstimate(result.totalEstimatedMs)}</span></>
+            )}
+          </p>
+        </div>
+      </div>
+
+      {/* Per-step results */}
+      <div className="space-y-2 mb-5">
+        {(result.steps || []).map((step, i) => {
+          const cfg = DR_STATUS_CFG[step.status] || DR_STATUS_CFG.CANNOT_VERIFY
+          const Icon = cfg.icon
+          return (
+            <div
+              key={i}
+              className="flex items-start gap-3 p-3 rounded-lg"
+              style={{ background: cfg.bg, border: `1px solid ${cfg.color}40` }}
+            >
+              <Icon className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: cfg.color }} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-semibold" style={{ color: 'rgb(var(--tx-primary))' }}>
+                    Step {step.stepIndex + 1} · {step.label}
+                  </span>
+                  <span
+                    className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+                    style={{ background: `${cfg.color}22`, color: cfg.color }}
+                  >
+                    {cfg.label}
+                  </span>
+                  {step.estimatedMs > 0 && (
+                    <span className="text-[10px] font-mono ml-auto" style={{ color: 'rgb(var(--tx-muted))' }}>
+                      {fmtEstimate(step.estimatedMs)}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs mt-0.5" style={{ color: 'rgb(var(--tx-secondary))' }}>
+                  {step.message}
+                </p>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Issues summary */}
+      {hasFailures && (
+        <div
+          className="p-3 rounded-lg mb-4"
+          style={{ background: 'rgb(127 29 29 / 0.15)', border: '1px solid rgb(239 68 68 / 0.3)' }}
+        >
+          <p className="text-xs font-semibold mb-1.5" style={{ color: '#ef4444' }}>
+            Issues to fix before running live:
+          </p>
+          {result.issues.map((issue, i) => (
+            <p key={i} className="text-xs" style={{ color: 'rgb(var(--tx-secondary))' }}>
+              · {issue}
+            </p>
+          ))}
+        </div>
+      )}
+
+      <div className="flex justify-end">
+        <button onClick={onClose} className="btn-secondary">Close</button>
+      </div>
+    </Modal>
+  )
+}
+
 const RESTARTABLE = new Set(['FAILED', 'CANCELLED', 'UNMATCHED'])
 
 function ExecutionRow({ ex, selected, onToggle, onSkipStep, skipPending, onScheduleRetry, onCancelSchedule, schedulePending }) {
@@ -461,6 +571,7 @@ export default function Flows() {
   const [showAddStep, setShowAddStep] = useState(false)
   const [filter, setFilter] = useState('all') // 'all' | 'active' | 'inactive'
   const [selectedIds, setSelectedIds] = useState(new Set()) // trackIds selected for bulk restart
+  const [dryRunResult, setDryRunResult] = useState(null)   // non-null = show dry run modal
 
   // ─── Queries ───
   const { data: flows = [], isLoading } = useQuery({
@@ -534,6 +645,13 @@ export default function Flows() {
       toast.success(`Retry scheduled for ${new Date(data.scheduledAt).toLocaleString()}`)
     },
     onError: err => toast.error(err.response?.data?.message || 'Failed to schedule retry')
+  })
+
+  const dryRunMut = useMutation({
+    mutationFn: ({ flowId, filename }) =>
+      onboardingApi.post(`/api/flows/${flowId}/dry-run`, { filename }).then(r => r.data),
+    onSuccess: (data) => setDryRunResult(data),
+    onError: err => toast.error(err.response?.data?.message || 'Dry run failed'),
   })
 
   const cancelScheduleMut = useMutation({
@@ -815,6 +933,15 @@ export default function Flows() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => dryRunMut.mutate({ flowId: flow.id, filename: 'test-file.xml' })}
+                    disabled={dryRunMut.isPending}
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-violet-600 hover:bg-violet-50 hover:text-violet-700 disabled:opacity-50"
+                    title="Simulate this flow without writing to storage or delivering to partners"
+                  >
+                    <BeakerIcon className="w-3.5 h-3.5" />
+                    Dry Run
+                  </button>
                   <button onClick={() => openEdit(flow)}
                     className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     title="Edit flow">
@@ -999,6 +1126,11 @@ export default function Flows() {
           </div>
         )}
       </div>
+
+      {/* ═══ Dry Run Results Modal ═══ */}
+      {dryRunResult && (
+        <DryRunModal result={dryRunResult} onClose={() => setDryRunResult(null)} />
+      )}
 
       {/* ═══ Flow Builder Modal ═══ */}
       {showEditor && (
