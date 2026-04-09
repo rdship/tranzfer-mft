@@ -68,6 +68,24 @@ spring:
     validate-on-migrate: false
 
 storage:
+  # ── Backend selector ────────────────────────────────────────────────────────
+  # local (default) — local/NFS filesystem, single-instance or NFS-mounted
+  # s3              — S3-compatible object store (MinIO internal or AWS S3 external)
+  #
+  # Switch: STORAGE_BACKEND=s3
+  backend: ${STORAGE_BACKEND:local}
+
+  # ── S3 / MinIO config (only used when storage.backend=s3) ────────────────────
+  s3:
+    # MinIO internal (Docker): bypasses DMZ proxy (auto-added to PROXY_NO_PROXY_HOSTS)
+    # AWS S3 external:         leave blank; uses DMZ proxy when PROXY_ENABLED=true
+    endpoint:   ${STORAGE_S3_ENDPOINT:http://mft-minio:9000}
+    bucket:     ${STORAGE_S3_BUCKET:mft-storage}
+    access-key: ${STORAGE_S3_ACCESS_KEY:minioadmin}
+    secret-key: ${STORAGE_S3_SECRET_KEY:minioadmin}
+    region:     ${STORAGE_S3_REGION:us-east-1}
+    path-style: ${STORAGE_S3_PATH_STYLE:true}   # true=MinIO, false=AWS S3 virtual-hosted
+
   # ── Replica identity ────────────────────────────────────────────────────────
   # This instance's own URL — registered in Redis so other instances can route
   # retrieve requests directly to the pod that holds the physical bytes.

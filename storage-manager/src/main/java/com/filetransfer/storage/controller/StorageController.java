@@ -1,14 +1,14 @@
 package com.filetransfer.storage.controller;
 
 import com.filetransfer.shared.security.Roles;
-import com.filetransfer.storage.engine.ParallelIOEngine;
+import com.filetransfer.storage.backend.StorageBackend;
 import com.filetransfer.storage.entity.StorageObject;
 import com.filetransfer.storage.lifecycle.StorageLifecycleManager;
 import com.filetransfer.storage.registry.StorageLocationRegistry;
 import com.filetransfer.storage.repository.StorageObjectRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.lang.Nullable;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,28 +17,42 @@ import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
-
-import java.nio.file.*;
+import java.io.IOException;
+import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.*;
 
+/**
+ * Storage REST API.
+ *
+ * <p>All byte I/O is delegated to the injected {@link StorageBackend}:
+ * <ul>
+ *   <li>{@code storage.backend=local} → {@link com.filetransfer.storage.backend.LocalStorageBackend}
+ *       (filesystem, single-instance or NFS)
+ *   <li>{@code storage.backend=s3}    → {@link com.filetransfer.storage.backend.S3StorageBackend}
+ *       (MinIO internal or AWS S3 via DMZ proxy — recommended for multi-replica)
+ * </ul>
+ */
+@Slf4j
 @RestController @RequestMapping("/api/v1/storage") @RequiredArgsConstructor
 @PreAuthorize(Roles.OPERATOR)
 public class StorageController {
 
-    private final ParallelIOEngine ioEngine;
+    /** Injected implementation is selected by storage.backend property. */
+    private final StorageBackend storageBackend;
     private final StorageLifecycleManager lifecycle;
     private final StorageObjectRepository objectRepo;
 
-    /** Optional — present when Redis is configured. Null → routing disabled, single-instance only. */
+    /** Optional — present when Redis is configured. Null if S3 backend (no routing needed). */
     @Autowired(required = false)
     @Nullable
     private StorageLocationRegistry locationRegistry;
 
-    @Value("${storage.hot.path:/data/storage/hot}")
-    private String hotPath;
-
-    /** Store a file — parallel striped write to HOT tier */
+    /**
+     * Store a file via the configured {@link StorageBackend}.
+     * Works identically for local and S3 backends — the backend handles dedup,
+     * physical path, and location registry transparently.
+     */
     @PostMapping("/store")
     public ResponseEntity<Map<String, Object>> store(
             @RequestPart("file") MultipartFile file,
@@ -46,66 +60,80 @@ public class StorageController {
             @RequestParam(required = false) String account) throws Exception {
 
         String filename = file.getOriginalFilename();
-        Path dest = Paths.get(hotPath, account != null ? account : "default", filename);
 
-        ParallelIOEngine.WriteResult result = ioEngine.write(
-                file.getInputStream(), dest, file.getSize());
+        // Dedup check: if sha256 already exists in DB, return existing record
+        // (backend.write() also does dedup internally, but DB check is faster)
+        StorageBackend.WriteResult result = storageBackend.write(
+                file.getInputStream(), file.getSize(), filename);
 
-        // Check dedup
-        Optional<StorageObject> existing = lifecycle.findDuplicate(result.getSha256());
-        if (existing.isPresent()) {
-            Files.deleteIfExists(dest); // Already have this file
-            StorageObject dup = existing.get();
-            dup.setAccessCount(dup.getAccessCount() + 1);
-            dup.setLastAccessedAt(Instant.now());
-            objectRepo.save(dup);
-            return ResponseEntity.ok(Map.of(
-                    "status", "DEDUPLICATED", "existingTrackId", dup.getTrackId() != null ? dup.getTrackId() : "",
-                    "sha256", result.getSha256(), "savedBytes", result.getSizeBytes()));
+        if (result.deduplicated()) {
+            StorageObject dup = objectRepo.findBySha256AndDeletedFalse(result.sha256()).orElse(null);
+            if (dup != null) {
+                dup.setAccessCount(dup.getAccessCount() + 1);
+                dup.setLastAccessedAt(Instant.now());
+                objectRepo.save(dup);
+                return ResponseEntity.ok(Map.of(
+                        "status", "DEDUPLICATED",
+                        "existingTrackId", dup.getTrackId() != null ? dup.getTrackId() : "",
+                        "sha256", result.sha256(),
+                        "savedBytes", result.sizeBytes(),
+                        "backend", storageBackend.type()));
+            }
         }
 
+        // storageKey: sha256 for S3 backend, sha256 for new local CAS, legacy path for old records
         StorageObject obj = StorageObject.builder()
-                .trackId(trackId).filename(filename)
-                .physicalPath(dest.toString()).logicalPath("/" + (account != null ? account : "default") + "/" + filename)
-                .tier("HOT").sizeBytes(result.getSizeBytes())
-                .sha256(result.getSha256()).accountUsername(account)
-                .striped(result.isStriped()).stripeCount(result.getStripeCount())
+                .trackId(trackId)
+                .filename(filename)
+                .physicalPath(result.storageKey())   // sha256 (S3) or {hotPath}/{sha256} (local)
+                .logicalPath("/" + (account != null ? account : "default") + "/" + filename)
+                .tier("HOT")
+                .sizeBytes(result.sizeBytes())
+                .sha256(result.sha256())
+                .accountUsername(account)
                 .contentType(file.getContentType())
                 .build();
         objectRepo.save(obj);
-        // Register that THIS instance holds the bytes — enables cross-replica routing
-        if (locationRegistry != null) locationRegistry.register(result.getSha256());
+
+        log.info("[Store] {} bytes → backend={} sha256={} track={} dedup={}",
+                result.sizeBytes(), storageBackend.type(), result.sha256().substring(0, 12),
+                trackId, result.deduplicated());
 
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
-                "status", "STORED", "tier", "HOT",
+                "status", "STORED",
+                "tier", "HOT",
+                "backend", storageBackend.type(),
                 "trackId", trackId != null ? trackId : "",
-                "sha256", result.getSha256(),
-                "sizeBytes", result.getSizeBytes(),
-                "striped", result.isStriped(),
-                "throughputMbps", Math.round(result.getThroughputMbps() * 10) / 10.0,
-                "durationMs", result.getDurationMs()));
+                "sha256", result.sha256(),
+                "sizeBytes", result.sizeBytes(),
+                "throughputMbps", Math.round(result.throughputMbps() * 10) / 10.0,
+                "durationMs", result.durationMs()));
     }
 
-    /** Retrieve a file — records access for AI tiering decisions */
+    /** Retrieve a file by trackId via the configured backend. */
     @GetMapping("/retrieve/{trackId}")
     public ResponseEntity<byte[]> retrieve(@PathVariable String trackId) throws Exception {
         StorageObject obj = objectRepo.findByTrackIdAndDeletedFalse(trackId)
                 .orElseThrow(() -> new RuntimeException("File not found: " + trackId));
 
-        // Record access (AI uses this for tiering decisions)
         obj.setAccessCount(obj.getAccessCount() + 1);
         obj.setLastAccessedAt(Instant.now());
         objectRepo.save(obj);
 
-        ParallelIOEngine.ReadResult result = ioEngine.read(Paths.get(obj.getPhysicalPath()));
+        // Use sha256 (canonical key) if available; fall back to physicalPath for legacy records
+        String storageKey = obj.getSha256() != null ? obj.getSha256() : obj.getPhysicalPath();
+        StorageBackend.ReadResult result = storageBackend.read(storageKey);
 
         return ResponseEntity.ok()
-                .contentType(obj.getContentType() != null ? MediaType.parseMediaType(obj.getContentType()) : MediaType.APPLICATION_OCTET_STREAM)
+                .contentType(obj.getContentType() != null
+                        ? MediaType.parseMediaType(obj.getContentType())
+                        : MediaType.APPLICATION_OCTET_STREAM)
                 .header("Content-Disposition", "attachment; filename=\"" + obj.getFilename() + "\"")
                 .header("X-Track-Id", trackId)
                 .header("X-Storage-Tier", obj.getTier())
                 .header("X-SHA256", obj.getSha256())
-                .body(result.getData());
+                .header("X-Storage-Backend", storageBackend.type())
+                .body(result.data());
     }
 
     /** List files by account or tier */
@@ -148,40 +176,37 @@ public class StorageController {
             @RequestParam(required = false) String account,
             @org.springframework.web.bind.annotation.RequestBody byte[] fileBytes) throws Exception {
 
-        Path dest = Paths.get(hotPath, account != null ? account : "default", filename);
         java.io.InputStream input = new java.io.ByteArrayInputStream(fileBytes);
+        StorageBackend.WriteResult result = storageBackend.write(input, fileBytes.length, filename);
 
-        ParallelIOEngine.WriteResult result = ioEngine.write(input, dest, fileBytes.length);
-
-        // Dedup check
-        Optional<StorageObject> existing = lifecycle.findDuplicate(result.getSha256());
-        if (existing.isPresent()) {
-            Files.deleteIfExists(dest);
-            StorageObject dup = existing.get();
-            dup.setAccessCount(dup.getAccessCount() + 1);
-            dup.setLastAccessedAt(java.time.Instant.now());
-            objectRepo.save(dup);
-            return ResponseEntity.ok(Map.of(
-                    "status", "DEDUPLICATED", "existingTrackId", dup.getTrackId() != null ? dup.getTrackId() : "",
-                    "sha256", result.getSha256(), "savedBytes", result.getSizeBytes()));
+        if (result.deduplicated()) {
+            StorageObject dup = objectRepo.findBySha256AndDeletedFalse(result.sha256()).orElse(null);
+            if (dup != null) {
+                dup.setAccessCount(dup.getAccessCount() + 1);
+                dup.setLastAccessedAt(Instant.now());
+                objectRepo.save(dup);
+                return ResponseEntity.ok(Map.of(
+                        "status", "DEDUPLICATED",
+                        "existingTrackId", dup.getTrackId() != null ? dup.getTrackId() : "",
+                        "sha256", result.sha256(), "savedBytes", result.sizeBytes()));
+            }
         }
 
         StorageObject obj = StorageObject.builder()
                 .trackId(trackId).filename(filename)
-                .physicalPath(dest.toString())
+                .physicalPath(result.storageKey())
                 .logicalPath("/" + (account != null ? account : "default") + "/" + filename)
-                .tier("HOT").sizeBytes(result.getSizeBytes())
-                .sha256(result.getSha256()).accountUsername(account)
-                .striped(result.isStriped()).stripeCount(result.getStripeCount())
+                .tier("HOT").sizeBytes(result.sizeBytes())
+                .sha256(result.sha256()).accountUsername(account)
                 .build();
         objectRepo.save(obj);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "status", "STORED", "tier", "HOT",
+                "backend", storageBackend.type(),
                 "trackId", trackId != null ? trackId : "",
-                "sha256", result.getSha256(),
-                "sizeBytes", result.getSizeBytes(),
-                "striped", result.isStriped()));
+                "sha256", result.sha256(),
+                "sizeBytes", result.sizeBytes()));
     }
 
     /**
@@ -196,19 +221,21 @@ public class StorageController {
      */
     @GetMapping("/retrieve-by-key/{sha256}")
     public ResponseEntity<byte[]> retrieveByKey(@PathVariable String sha256) throws Exception {
-        // ── Cross-replica routing check ───────────────────────────────────────
+        // ── S3 backend: read directly — no pod routing needed ─────────────────
+        // ── Local backend: cross-replica routing via Redis location registry ───
         if (locationRegistry != null && !locationRegistry.isLocal(sha256)) {
             byte[] proxied = locationRegistry.proxyRetrieve(sha256);
             if (proxied != null) {
                 return ResponseEntity.ok()
                         .header("X-SHA256", sha256)
                         .header("X-Routed-From", locationRegistry.getOwnerUrl(sha256))
+                        .header("X-Storage-Backend", storageBackend.type())
                         .body(proxied);
             }
-            // Proxy failed — fall through to local attempt (defensive)
+            // Proxy failed — fall through to backend read (defensive)
         }
 
-        // ── Local read ────────────────────────────────────────────────────────
+        // ── Backend read (works for both local and S3) ────────────────────────
         StorageObject obj = objectRepo.findBySha256AndDeletedFalse(sha256)
                 .orElseThrow(() -> new RuntimeException("File not found for key: " + sha256));
 
@@ -216,7 +243,7 @@ public class StorageController {
         obj.setLastAccessedAt(Instant.now());
         objectRepo.save(obj);
 
-        ParallelIOEngine.ReadResult result = ioEngine.read(Paths.get(obj.getPhysicalPath()));
+        StorageBackend.ReadResult result = storageBackend.read(sha256);
 
         return ResponseEntity.ok()
                 .contentType(obj.getContentType() != null
@@ -224,7 +251,8 @@ public class StorageController {
                         : MediaType.APPLICATION_OCTET_STREAM)
                 .header("X-Storage-Tier", obj.getTier())
                 .header("X-SHA256", obj.getSha256())
-                .body(result.getData());
+                .header("X-Storage-Backend", storageBackend.type())
+                .body(result.data());
     }
 
     /** Get reference count for a storage key (CAS garbage collection). */
@@ -267,9 +295,12 @@ public class StorageController {
         obj.setLastAccessedAt(Instant.now());
         objectRepo.save(obj);
 
-        Path filePath = Paths.get(obj.getPhysicalPath());
+        // For streaming, read via backend then stream the bytes
+        String storageKey = obj.getSha256() != null ? obj.getSha256() : obj.getPhysicalPath();
+        StorageBackend.ReadResult backendResult = storageBackend.read(storageKey);
+        byte[] fileData = backendResult.data();
         StreamingResponseBody body = out -> {
-            try (java.io.InputStream in = Files.newInputStream(filePath)) {
+            try (var in = new java.io.ByteArrayInputStream(fileData)) {
                 in.transferTo(out);
             }
         };
@@ -302,44 +333,41 @@ public class StorageController {
             @RequestParam(required = false) String trackId,
             @RequestParam(required = false) String account) throws Exception {
 
-        long contentLength = request.getContentLengthLong(); // -1 if unknown — that's fine
-        Path dest = Paths.get(hotPath, account != null ? account : "default", filename);
+        long contentLength = request.getContentLengthLong(); // -1 if unknown — backend handles it
+        StorageBackend.WriteResult result = storageBackend.write(
+                request.getInputStream(), contentLength, filename);
 
-        ParallelIOEngine.WriteResult result = ioEngine.write(
-                request.getInputStream(), dest, contentLength);
-
-        // Dedup check
-        Optional<StorageObject> existing = lifecycle.findDuplicate(result.getSha256());
-        if (existing.isPresent()) {
-            Files.deleteIfExists(dest);
-            StorageObject dup = existing.get();
-            dup.setAccessCount(dup.getAccessCount() + 1);
-            dup.setLastAccessedAt(Instant.now());
-            objectRepo.save(dup);
-            return ResponseEntity.ok(Map.of(
-                    "status", "DEDUPLICATED",
-                    "sha256", result.getSha256(),
-                    "sizeBytes", result.getSizeBytes(),
-                    "existingTrackId", dup.getTrackId() != null ? dup.getTrackId() : ""));
+        if (result.deduplicated()) {
+            StorageObject dup = objectRepo.findBySha256AndDeletedFalse(result.sha256()).orElse(null);
+            if (dup != null) {
+                dup.setAccessCount(dup.getAccessCount() + 1);
+                dup.setLastAccessedAt(Instant.now());
+                objectRepo.save(dup);
+                return ResponseEntity.ok(Map.of(
+                        "status", "DEDUPLICATED",
+                        "sha256", result.sha256(),
+                        "sizeBytes", result.sizeBytes(),
+                        "existingTrackId", dup.getTrackId() != null ? dup.getTrackId() : ""));
+            }
         }
 
         StorageObject obj = StorageObject.builder()
                 .trackId(trackId).filename(filename)
-                .physicalPath(dest.toString())
+                .physicalPath(result.storageKey())
                 .logicalPath("/" + (account != null ? account : "default") + "/" + filename)
-                .tier("HOT").sizeBytes(result.getSizeBytes())
-                .sha256(result.getSha256()).accountUsername(account)
-                .striped(result.isStriped()).stripeCount(result.getStripeCount())
+                .tier("HOT").sizeBytes(result.sizeBytes())
+                .sha256(result.sha256()).accountUsername(account)
                 .build();
         objectRepo.save(obj);
 
-        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(Map.of(
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "status", "STORED", "tier", "HOT",
-                "sha256", result.getSha256(),
-                "sizeBytes", result.getSizeBytes(),
+                "backend", storageBackend.type(),
+                "sha256", result.sha256(),
+                "sizeBytes", result.sizeBytes(),
                 "trackId", trackId != null ? trackId : "",
-                "throughputMbps", Math.round(result.getThroughputMbps() * 10) / 10.0,
-                "durationMs", result.getDurationMs()));
+                "throughputMbps", Math.round(result.throughputMbps() * 10) / 10.0,
+                "durationMs", result.durationMs()));
     }
 
     @GetMapping("/health")
@@ -347,8 +375,10 @@ public class StorageController {
         Map<String, Object> h = new LinkedHashMap<>(lifecycle.getStorageMetrics());
         h.put("status", "UP");
         h.put("service", "storage-manager");
+        h.put("backend", storageBackend.type());
         h.put("features", List.of("parallel-io", "tiered-storage", "deduplication",
-                "incremental-backup", "ai-lifecycle", "predictive-prestage"));
+                "incremental-backup", "ai-lifecycle", "predictive-prestage",
+                "s3-compatible-backend"));
         return h;
     }
 }
