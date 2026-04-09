@@ -84,27 +84,66 @@ public class SpiffeWorkloadClient {
                     Thread.ofVirtual().name("spiffe-refresh-", 0).factory());
 
     private final SpiffeProperties props;
-    private final JwtSource jwtSource;
-    private final AtomicBoolean available = new AtomicBoolean(true);
+    /**
+     * Volatile so the reconnect thread's write is immediately visible to request
+     * threads without locking. Set once at startup on success, or by the background
+     * reconnect thread once SPIRE becomes reachable.
+     */
+    private volatile JwtSource jwtSource;
+    private final AtomicBoolean available = new AtomicBoolean(false);
+
+    /**
+     * Background reconnect thread — runs only when the initial connection fails.
+     * Retries every 15 seconds until SPIRE agent is available (e.g., after
+     * {@code bash spire/bootstrap.sh} is run on a fresh install). Once connected,
+     * the thread exits and the service self-heals without a restart.
+     */
+    private volatile Thread reconnectThread;
 
     public SpiffeWorkloadClient(SpiffeProperties props) {
         this.props = props;
-        JwtSource source = null;
+        if (tryConnect()) {
+            log.info("[SPIFFE] Workload API connected — socket={} identity={}",
+                    props.getSocket(), props.selfSpiffeId());
+        } else {
+            log.warn("[SPIFFE] Workload API unavailable ({}). " +
+                    "Will retry every 15s — run `bash spire/bootstrap.sh` if this is a fresh install.",
+                    props.getSocket());
+            reconnectThread = Thread.ofVirtual().name("spiffe-reconnect").start(this::reconnectLoop);
+        }
+    }
+
+    /** Attempt a single connection to the SPIRE Workload API. Returns true on success. */
+    private boolean tryConnect() {
         try {
             JwtSourceOptions options = JwtSourceOptions.builder()
                     .spiffeSocketPath(props.getSocket())
                     .initTimeout(Duration.ofMillis(props.getInitTimeoutMs()))
                     .build();
-            source = DefaultJwtSource.newSource(options);
-            log.info("[SPIFFE] Workload API connected — socket={} identity={}",
-                    props.getSocket(), props.selfSpiffeId());
+            this.jwtSource = DefaultJwtSource.newSource(options);
+            this.available.set(true);
+            return true;
         } catch (Exception ex) {
-            available.set(false);
-            log.warn("[SPIFFE] Workload API unavailable ({}). " +
-                    "Outbound calls will proceed without a workload identity token. Error: {}",
-                    props.getSocket(), ex.getMessage());
+            log.debug("[SPIFFE] Connection attempt failed: {}", ex.getMessage());
+            return false;
         }
-        this.jwtSource = source;
+    }
+
+    /** Background loop: retries every 15 s until SPIRE is reachable or the bean is destroyed. */
+    private void reconnectLoop() {
+        while (!Thread.currentThread().isInterrupted()) {
+            try {
+                Thread.sleep(15_000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            if (tryConnect()) {
+                log.info("[SPIFFE] Workload API reconnected — socket={} identity={}",
+                        props.getSocket(), props.selfSpiffeId());
+                return; // success — exit the loop
+            }
+        }
     }
 
     /** True iff the SPIRE agent socket is reachable. */
@@ -199,6 +238,7 @@ public class SpiffeWorkloadClient {
 
     @PreDestroy
     public void close() {
+        if (reconnectThread != null) reconnectThread.interrupt();
         refresher.shutdownNow();
         if (jwtSource != null) {
             try { jwtSource.close(); } catch (Exception ignored) {}

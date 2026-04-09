@@ -36,11 +36,14 @@ All repositories are interfaces → safe to @Mock
 ## Architecture
 - 22 modules, shared library with 32 JPA entities
 - REST via ResilientServiceClient (circuit breaker+retry)
-- **Service identity**: SPIFFE/SPIRE JWT-SVIDs (zero-trust, auto-rotating 1h)
-  - Enable: `SPIFFE_ENABLED=true`, bootstrap once: `bash spire/bootstrap.sh`
-  - Key classes: `SpiffeWorkloadClient` (shared-core), `SpiffeProxyAuth` (dmz-proxy)
-  - `PlatformJwtAuthFilter` validates: SPIFFE JWT-SVID (path 1) → Platform JWT (path 2)
-  - `BaseServiceClient` auto-attaches SVID when `SpiffeWorkloadClient` bean is present
+- **Service identity**: SPIFFE/SPIRE — REQUIRED (X-Internal-Key removed; SPIFFE is the only inter-service auth)
+  - Default ON: `SPIFFE_ENABLED=true` in docker-compose. Fresh install: run `bash spire/bootstrap.sh` once.
+  - Services self-heal: `SpiffeWorkloadClient` retries SPIRE connection every 15s until agent is available.
+  - Key classes: `SpiffeWorkloadClient` (shared-core), `SpiffeProxyAuth` (dmz-proxy), `SpiffeX509Manager` (shared-core)
+  - `PlatformJwtAuthFilter` validates 3 paths: mTLS peer cert (path 0) → SPIFFE JWT-SVID (path 1) → Platform JWT (path 2)
+  - `BaseServiceClient` auto-attaches JWT-SVID (Phase 1) OR skips header for https:// URLs (Phase 2 mTLS)
+  - Phase 1 (default): JWT-SVIDs cached with proactive 50% TTL refresh — zero per-request SPIRE calls on hot path
+  - Phase 2 (opt-in): `spiffe.mtls-enabled=true` + `https://` service URLs → X.509-SVID in TLS channel, Apache HC5 pool
 - JWT for user auth (admin UI / partner portal / CLI)
 - RabbitMQ: exchange=file-transfer.events, binding=account.*
 - Fail-fast: config, encryption, screening, storage
@@ -48,11 +51,15 @@ All repositories are interfaces → safe to @Mock
 - Security tiers: RULES / AI / AI_LLM (per-listener on DMZ proxy)
 
 ## SPIFFE/SPIRE Infrastructure (Docker Compose)
-- SPIRE Server: port 8081 (gRPC), 8080 (health) — profile: spiffe
-- SPIRE Agent: socket at /run/spire/sockets/agent.sock (volume: spire-socket)
+- SPIRE Server + Agent: always-on (no profile gate) — start with `docker compose up -d`
+- SPIRE Agent socket: /run/spire/sockets/agent.sock (volume: spire-socket, mounted read-only into all services)
 - Trust domain: filetransfer.io
-- Enable: `docker compose --profile spiffe up -d spire-server && bash spire/bootstrap.sh && docker compose --profile spiffe up -d spire-agent`
-- Production: use Red Hat SPIRE Operator on Kubernetes (no static join tokens)
+- **Fresh install (run ONCE):**
+  1. `docker compose up -d spire-server`
+  2. `bash spire/bootstrap.sh`   ← registers all 22 services, writes join token to volume
+  3. `docker compose up -d`       ← agent connects, all services get SVIDs
+- **Subsequent restarts:** `docker compose up -d` (bootstrap data persists in spire-server-data volume)
+- Production / Kubernetes: use Red Hat SPIRE Operator (no static join tokens, automatic attestation)
 
 ## Pending (do NOT start unless explicitly asked)
 - 9JaGo rebrand (rename from TranzFer MFT)

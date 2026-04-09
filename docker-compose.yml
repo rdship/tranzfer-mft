@@ -5,7 +5,7 @@ version: '3.9'
 # =============================================================================
 
 x-spiffe-env: &spiffe-env
-  SPIFFE_ENABLED: ${SPIFFE_ENABLED:-false}
+  SPIFFE_ENABLED: ${SPIFFE_ENABLED:-true}
   SPIFFE_TRUST_DOMAIN: ${SPIFFE_TRUST_DOMAIN:-filetransfer.io}
   SPIFFE_SOCKET: unix:/run/spire/sockets/agent.sock
 
@@ -48,18 +48,23 @@ x-service-healthcheck: &healthcheck
 
 services:
   # ---------------------------------------------------------------------------
-  # SPIFFE/SPIRE — Zero-Trust Workload Identity
-  # Provides short-lived X.509 and JWT-SVIDs to every service.
-  # Replaces the static X-Internal-Key shared secret.
+  # SPIFFE/SPIRE — Zero-Trust Workload Identity (REQUIRED)
+  # Provides short-lived JWT-SVIDs for all service-to-service auth.
+  # X-Internal-Key has been removed — SPIFFE is the only inter-service
+  # auth mechanism. Services self-heal if SPIRE is not yet bootstrapped
+  # (SpiffeWorkloadClient retries every 15s until the agent is available).
   #
-  # Enable: SPIFFE_ENABLED=true docker compose up
-  # Bootstrap (run once after spire-server is healthy):
-  #   bash spire/bootstrap.sh
+  # Fresh install (run ONCE):
+  #   docker compose up -d spire-server
+  #   bash spire/bootstrap.sh          ← registers all 22 services, writes join token
+  #   docker compose up -d             ← starts everything; agent connects immediately
+  #
+  # Subsequent restarts: docker compose up -d (bootstrap data persists in volumes)
+  # Production / Kubernetes: use Red Hat SPIRE Operator (no static join tokens)
   # ---------------------------------------------------------------------------
   spire-server:
     image: ghcr.io/spiffe/spire-server:1.9.6
     container_name: mft-spire-server
-    profiles: [spiffe]
     volumes:
       - ./spire/server:/opt/spire/conf/server:ro
       - spire-server-data:/opt/spire/data
@@ -77,7 +82,6 @@ services:
   spire-agent:
     image: ghcr.io/spiffe/spire-agent:1.9.6
     container_name: mft-spire-agent
-    profiles: [spiffe]
     depends_on:
       spire-server:
         condition: service_healthy
@@ -852,7 +856,7 @@ services:
       - ui-service
 
 volumes:
-  # SPIRE volumes — only used when profile=spiffe is active
+  # SPIRE volumes — always created; persist bootstrap state across restarts
   spire-server-data: # SPIRE Server CA, keys, SQLite DB
   spire-server-sock: # SPIRE Server admin socket (shared with spire-init)
   spire-init-data:   # Bootstrap join-token file (written by bootstrap.sh)
