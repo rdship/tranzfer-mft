@@ -48,6 +48,7 @@ import ActivityMonitor from './pages/ActivityMonitor'
 import Sentinel from './pages/Sentinel'
 import Observatory from './pages/Observatory'
 import CircuitBreakers from './pages/CircuitBreakers'
+import CasDedup from './pages/CasDedup'
 
 export default function App() {
   return (
@@ -85,6 +86,7 @@ export default function App() {
             <Route path="screening" element={<Screening />} />
             <Route path="recommendations" element={<Recommendations />} />
             <Route path="storage" element={<Storage />} />
+            <Route path="cas-dedup" element={<CasDedup />} />
             <Route path="vfs-storage" element={<VfsStorage />} />
             <Route path="activity" element={<Activity />} />
             <Route path="activity-monitor" element={<ActivityMonitor />} />

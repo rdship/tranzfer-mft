@@ -38,6 +38,7 @@ const PAGE_TITLES = {
   '/keystore':           'Keystore Manager',
   '/2fa':                'Two-Factor Auth',
   '/storage':            'Storage Manager',
+  '/cas-dedup':          'CAS Deduplication Savings',
   '/vfs-storage':        'VFS Storage',
   '/gateway':            'Gateway & DMZ',
   '/dmz-proxy':          'DMZ Proxy',

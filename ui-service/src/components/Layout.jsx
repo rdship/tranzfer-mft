@@ -41,6 +41,7 @@ const ROUTE_THEMES = {
   '/keystore':           'infra',
   '/2fa':                'infra',
   '/storage':            'infra',
+  '/cas-dedup':          'infra',
   '/vfs-storage':        'infra',
   '/gateway':            'infra',
   '/dmz-proxy':          'infra',

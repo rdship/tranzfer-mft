@@ -68,6 +68,7 @@ const navGroups = [
       { to: '/keystore',          icon: KeyIcon,            label: 'Keystore Manager',  role: 'ADMIN' },
       { to: '/2fa',               icon: ShieldCheckIcon,    label: 'Two-Factor Auth' },
       { to: '/storage',           icon: ServerStackIcon,    label: 'Storage Manager',   role: 'ADMIN' },
+      { to: '/cas-dedup',         icon: CircleStackIcon,    label: 'CAS Dedup Savings', role: 'ADMIN' },
       { to: '/vfs-storage',       icon: CircleStackIcon,    label: 'VFS Storage',       role: 'ADMIN' },
       { to: '/gateway',           icon: BoltIcon,           label: 'Gateway & DMZ',     role: 'ADMIN' },
       { to: '/dmz-proxy',         icon: ShieldCheckIcon,    label: 'DMZ Proxy',         role: 'ADMIN' },

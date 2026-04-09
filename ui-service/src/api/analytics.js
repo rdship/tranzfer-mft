@@ -6,3 +6,4 @@ export const getAlertRules = () => analyticsApi.get('/api/v1/analytics/alerts').
 export const createAlertRule = (data) => analyticsApi.post('/api/v1/analytics/alerts', data).then(r => r.data)
 export const deleteAlertRule = (id) => analyticsApi.delete(`/api/v1/analytics/alerts/${id}`)
 export const getFlowLiveStats = () => onboardingApi.get('/api/flow-executions/live-stats').then(r => r.data)
+export const getDedupStats = () => analyticsApi.get('/api/v1/analytics/dedup-stats').then(r => r.data)

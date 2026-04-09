@@ -76,6 +76,7 @@ const PAGE_SERVICE_MAP = {
 
   // New pages
   '/storage': ['core'],
+  '/cas-dedup': ['analytics'],
   '/activity': ['core'],
   '/activity-monitor': ['core'],
   '/encryption': ['encryption'],

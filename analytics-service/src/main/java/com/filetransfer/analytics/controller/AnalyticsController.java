@@ -5,6 +5,7 @@ import com.filetransfer.analytics.entity.AlertRule;
 import com.filetransfer.analytics.entity.MetricSnapshot;
 import com.filetransfer.analytics.repository.AlertRuleRepository;
 import com.filetransfer.analytics.service.DashboardService;
+import com.filetransfer.analytics.service.DedupStatsService;
 import com.filetransfer.analytics.service.MetricsAggregationService;
 import com.filetransfer.analytics.service.PredictionService;
 import com.filetransfer.shared.security.Roles;
@@ -28,6 +29,7 @@ public class AnalyticsController {
     private final PredictionService predictionService;
     private final MetricsAggregationService aggregationService;
     private final AlertRuleRepository alertRuleRepository;
+    private final DedupStatsService dedupStatsService;
 
     @GetMapping("/dashboard")
     public ResponseEntity<DashboardSummary> getDashboard() {
@@ -76,5 +78,11 @@ public class AnalyticsController {
     public ResponseEntity<Void> deleteAlertRule(@PathVariable UUID id) {
         alertRuleRepository.deleteById(id);
         return ResponseEntity.noContent().build();
+    }
+
+    /** CAS deduplication savings — storage saved by SHA-256 content-addressed dedup. */
+    @GetMapping("/dedup-stats")
+    public ResponseEntity<java.util.Map<String, Object>> getDedupStats() {
+        return ResponseEntity.ok(dedupStatsService.getDedupStats());
     }
 }
