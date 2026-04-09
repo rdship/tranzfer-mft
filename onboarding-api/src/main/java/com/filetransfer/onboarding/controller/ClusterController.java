@@ -4,6 +4,8 @@ import com.filetransfer.onboarding.dto.request.UpdateClusterRequest;
 import com.filetransfer.onboarding.dto.response.ClusterInfoResponse;
 import com.filetransfer.onboarding.dto.response.ServiceRegistrationResponse;
 import com.filetransfer.shared.cluster.ClusterService;
+import com.filetransfer.shared.cluster.RedisServiceRegistry;
+import com.filetransfer.shared.cluster.ServiceInstance;
 import com.filetransfer.shared.entity.ClusterNode;
 import com.filetransfer.shared.entity.ServiceRegistration;
 import com.filetransfer.shared.enums.ClusterCommunicationMode;
@@ -11,7 +13,9 @@ import com.filetransfer.shared.repository.ClusterNodeRepository;
 import com.filetransfer.shared.repository.ServiceRegistrationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.Nullable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -40,6 +44,11 @@ public class ClusterController {
     private final ClusterService clusterService;
     private final ClusterNodeRepository clusterNodeRepository;
     private final ServiceRegistrationRepository serviceRegistrationRepository;
+
+    /** Redis-backed real-time registry — null if Redis is not on the classpath. */
+    @Autowired(required = false)
+    @Nullable
+    private RedisServiceRegistry redisServiceRegistry;
 
     @GetMapping
     public List<ClusterInfoResponse> listClusters() {
@@ -200,6 +209,32 @@ public class ClusterController {
                 .updatedAt(node.getUpdatedAt())
                 .serviceCount(serviceCount)
                 .build();
+    }
+
+    /**
+     * Live cluster view — reads from Redis presence keys (TTL-based, real-time).
+     * Unlike GET /api/clusters which reads from PostgreSQL (up to 30s stale),
+     * this endpoint reflects the actual live state: replicas appear within seconds
+     * of starting and disappear within 30s of crashing.
+     */
+    @GetMapping("/live")
+    public ResponseEntity<Map<String, Object>> getLiveRegistry() {
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        if (redisServiceRegistry == null) {
+            result.put("available", false);
+            result.put("message", "Redis service registry not active on this instance");
+            return ResponseEntity.ok(result);
+        }
+        java.util.List<ServiceInstance> all = redisServiceRegistry.getAllInstances();
+        Map<String, java.util.List<ServiceInstance>> byType = new java.util.LinkedHashMap<>();
+        for (ServiceInstance si : all) {
+            byType.computeIfAbsent(si.getServiceType(), k -> new java.util.ArrayList<>()).add(si);
+        }
+        result.put("available",      true);
+        result.put("totalInstances", all.size());
+        result.put("byServiceType",  byType);
+        result.put("generatedAt",    java.time.Instant.now().toString());
+        return ResponseEntity.ok(result);
     }
 
     private ServiceRegistrationResponse toServiceResponse(ServiceRegistration r) {

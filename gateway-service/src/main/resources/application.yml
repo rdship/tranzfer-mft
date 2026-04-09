@@ -8,6 +8,17 @@ management:
       enabled: true
 
 spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 4
+          max-idle: 4
+          min-idle: 1
+          max-wait: 1000ms
   lifecycle:
     timeout-per-shutdown-phase: 30s
   datasource:
