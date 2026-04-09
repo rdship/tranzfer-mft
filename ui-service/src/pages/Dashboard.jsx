@@ -1,207 +1,392 @@
 import { useQuery } from '@tanstack/react-query'
 import { getDashboard, getPredictions } from '../api/analytics'
 import { useAuth } from '../context/AuthContext'
-import StatCard from '../components/StatCard'
 import LoadingSpinner from '../components/LoadingSpinner'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts'
 import {
-  ChartBarIcon, ArrowUpTrayIcon, CheckCircleIcon, ServerIcon,
-  ExclamationTriangleIcon, ArrowTrendingUpIcon, ClockIcon,
-  ShieldCheckIcon, BoltIcon, ArrowsRightLeftIcon, BuildingOfficeIcon
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, PieChart, Pie, Cell,
+} from 'recharts'
+import {
+  ArrowUpTrayIcon, CheckCircleIcon, ServerIcon, ChartBarIcon,
+  ExclamationTriangleIcon, ArrowTrendingUpIcon, BoltIcon,
+  BuildingOfficeIcon, ArrowsRightLeftIcon, CpuChipIcon,
+  ClockIcon, ArrowPathIcon, ShieldCheckIcon,
 } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
 import { NavLink } from 'react-router-dom'
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
+/* Neon chart palette — pops on dark backgrounds */
+const NEON = ['#8b5cf6', '#22d3ee', '#34d399', '#f87171', '#fbbf24']
 
-// Static Tailwind class map — prevents dynamic class purging at build time
-const quickActionColors = {
-  indigo: { bg: 'bg-indigo-50', text: 'text-indigo-600', hover: 'group-hover:bg-indigo-100' },
-  blue:   { bg: 'bg-blue-50',   text: 'text-blue-600',   hover: 'group-hover:bg-blue-100' },
-  purple: { bg: 'bg-purple-50', text: 'text-purple-600', hover: 'group-hover:bg-purple-100' },
-  green:  { bg: 'bg-green-50',  text: 'text-green-600',  hover: 'group-hover:bg-green-100' },
-  amber:  { bg: 'bg-amber-50',  text: 'text-amber-600',  hover: 'group-hover:bg-amber-100' },
-  gray:   { bg: 'bg-gray-50',   text: 'text-gray-600',   hover: 'group-hover:bg-gray-100' },
-}
+const quickActions = [
+  { label: 'Partner Mgmt',     to: '/partners',        icon: BuildingOfficeIcon, color: '#8b5cf6' },
+  { label: 'Accounts',         to: '/accounts',        icon: ArrowsRightLeftIcon,color: '#22d3ee' },
+  { label: 'Flows',            to: '/flows',           icon: CpuChipIcon,        color: '#34d399' },
+  { label: 'AS2 Partners',     to: '/as2-partnerships',icon: ArrowPathIcon,      color: '#fbbf24' },
+  { label: 'Journey',          to: '/journey',         icon: ArrowTrendingUpIcon,color: '#f87171' },
+  { label: 'Audit Logs',       to: '/logs',            icon: ClockIcon,          color: '#94a3b8' },
+]
 
 function getGreeting() {
-  const hour = new Date().getHours()
-  if (hour < 12) return 'Good morning'
-  if (hour < 17) return 'Good afternoon'
+  const h = new Date().getHours()
+  if (h < 5)  return 'Still up?'
+  if (h < 12) return 'Good morning'
+  if (h < 17) return 'Good afternoon'
   return 'Good evening'
 }
 
-const quickActions = [
-  { label: 'Partners', to: '/partners', icon: BuildingOfficeIcon, color: 'indigo' },
-  { label: 'Transfer Accounts', to: '/accounts', icon: ArrowsRightLeftIcon, color: 'blue' },
-  { label: 'Processing Flows', to: '/flows', icon: BoltIcon, color: 'purple' },
-  { label: 'AS2/AS4 Partners', to: '/as2-partnerships', icon: ArrowsRightLeftIcon, color: 'green' },
-  { label: 'Transfer Journey', to: '/journey', icon: ArrowTrendingUpIcon, color: 'amber' },
-  { label: 'Audit Logs', to: '/logs', icon: ClockIcon, color: 'gray' },
-]
+/* Custom dark tooltip for charts */
+function DarkTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null
+  return (
+    <div style={{
+      background: '#18181b', border: '1px solid #3f3f46',
+      borderRadius: '8px', padding: '8px 12px', fontSize: '12px',
+    }}>
+      <p style={{ color: '#a1a1aa', marginBottom: 2 }}>{label}</p>
+      {payload.map(p => (
+        <p key={p.dataKey} style={{ color: p.color || '#8b5cf6', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>
+          {p.value?.toLocaleString()}
+        </p>
+      ))}
+    </div>
+  )
+}
+
+/* KPI tile */
+function KpiTile({ label, value, icon: Icon, color, sub }) {
+  return (
+    <div
+      className="flex items-center gap-3 p-4 rounded-xl transition-all duration-200 cursor-default group"
+      style={{ background: 'rgb(var(--surface))', border: '1px solid rgb(var(--border))' }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = `${color}44`; e.currentTarget.style.boxShadow = `0 0 20px ${color}18` }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgb(var(--border))'; e.currentTarget.style.boxShadow = 'none' }}
+    >
+      <div className="p-2 rounded-lg flex-shrink-0 transition-transform duration-200 group-hover:scale-110"
+        style={{ background: `${color}18` }}>
+        <Icon className="w-4 h-4" style={{ color }} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'rgb(var(--tx-muted))' }}>
+          {label}
+        </p>
+        <p className="font-mono font-bold text-xl leading-tight" style={{ color: 'rgb(var(--tx-primary))' }}>
+          {value}
+        </p>
+        {sub && <p className="text-[10px] mt-0.5" style={{ color: 'rgb(var(--tx-muted))' }}>{sub}</p>}
+      </div>
+    </div>
+  )
+}
 
 export default function Dashboard() {
   const { user } = useAuth()
-  const { data: dashboard, isLoading } = useQuery({ queryKey: ['dashboard'], queryFn: getDashboard, refetchInterval: 30000 })
-  const { data: predictions } = useQuery({ queryKey: ['predictions'], queryFn: getPredictions })
+  const { data: dashboard, isLoading } = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: getDashboard,
+    refetchInterval: 30000,
+  })
+  const { data: predictions } = useQuery({
+    queryKey: ['predictions'],
+    queryFn: getPredictions,
+  })
 
   if (isLoading) return <LoadingSpinner text="Loading dashboard..." />
 
-  const protocolData = Object.entries(dashboard?.transfersByProtocol || {}).map(([name, value]) => ({ name, value }))
-  const successRate = ((dashboard?.successRateToday || 1) * 100).toFixed(1)
+  const successRate   = ((dashboard?.successRateToday || 1) * 100).toFixed(1)
+  const protocolData  = Object.entries(dashboard?.transfersByProtocol || {}).map(([name, value]) => ({ name, value }))
+  const hasAlerts     = (dashboard?.alerts?.length || 0) > 0
+  const hasRecs       = predictions?.some(p => p.recommendedReplicas > 1)
+  const transferData  = dashboard?.transfersPerHour || []
 
   return (
-    <div className="space-y-6">
-      {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-6 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">{getGreeting()}, {user?.name || user?.email?.split('@')[0] || 'Admin'}</h1>
-            <p className="text-blue-100 text-sm mt-1">
-              Platform overview as of {format(new Date(), 'EEEE, MMMM d, yyyy')} at {format(new Date(), 'HH:mm')}
-            </p>
-          </div>
-          <div className="hidden lg:flex items-center gap-6 text-sm">
-            <div className="text-center">
-              <p className="text-3xl font-bold">{dashboard?.totalTransfersToday?.toLocaleString() || 0}</p>
-              <p className="text-blue-200 text-xs mt-0.5">Transfers Today</p>
-            </div>
-            <div className="w-px h-10 bg-blue-400/30" />
-            <div className="text-center">
-              <p className="text-3xl font-bold">{successRate}%</p>
-              <p className="text-blue-200 text-xs mt-0.5">Success Rate</p>
-            </div>
-            <div className="w-px h-10 bg-blue-400/30" />
-            <div className="text-center">
-              <p className="text-3xl font-bold">{(dashboard?.totalGbToday || 0).toFixed(1)}<span className="text-lg ml-0.5">GB</span></p>
-              <p className="text-blue-200 text-xs mt-0.5">Data Moved</p>
-            </div>
-          </div>
+    <div className="space-y-5 animate-page">
+
+      {/* ── Top: greeting + timestamp ── */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold" style={{ color: 'rgb(var(--tx-primary))' }}>
+            {getGreeting()},{' '}
+            <span style={{ color: 'rgb(var(--accent))' }}>
+              {user?.name || user?.email?.split('@')[0] || 'Admin'}
+            </span>
+          </h1>
+          <p className="text-xs mt-0.5" style={{ color: 'rgb(var(--tx-muted))' }}>
+            {format(new Date(), "EEEE, MMMM d, yyyy 'at' HH:mm")}
+          </p>
+        </div>
+
+        {/* Platform status pill */}
+        <div
+          className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium"
+          style={{
+            background: hasAlerts ? 'rgb(127 29 29 / 0.35)' : 'rgb(20 83 45 / 0.35)',
+            border: `1px solid ${hasAlerts ? '#7f1d1d' : '#14532d'}`,
+            color: hasAlerts ? '#f87171' : '#4ade80',
+          }}
+        >
+          <span
+            className="w-1.5 h-1.5 rounded-full"
+            style={{
+              background: hasAlerts ? '#f87171' : '#22c55e',
+              animation: 'pulse-dot 2.2s ease-in-out infinite',
+            }}
+          />
+          {hasAlerts ? `${dashboard.alerts.length} alert${dashboard.alerts.length !== 1 ? 's' : ''}` : 'All systems operational'}
         </div>
       </div>
 
-      {/* Alerts */}
-      {dashboard?.alerts?.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-          <h3 className="font-semibold text-red-800 flex items-center gap-2">
-            <ExclamationTriangleIcon className="w-4 h-4" /> Active Alerts ({dashboard.alerts.length})
+      {/* ── KPI Row ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <KpiTile
+          label="Transfers Today"
+          value={(dashboard?.totalTransfersToday || 0).toLocaleString()}
+          icon={ArrowUpTrayIcon}
+          color="#8b5cf6"
+        />
+        <KpiTile
+          label="Success Rate"
+          value={`${successRate}%`}
+          icon={CheckCircleIcon}
+          color="#22c55e"
+          sub={dashboard?.totalTransfersToday ? `${Math.round(dashboard.totalTransfersToday * (dashboard.successRateToday || 1))} succeeded` : undefined}
+        />
+        <KpiTile
+          label="Data Moved"
+          value={`${(dashboard?.totalGbToday || 0).toFixed(2)} GB`}
+          icon={ServerIcon}
+          color="#22d3ee"
+        />
+        <KpiTile
+          label="Last Hour"
+          value={(dashboard?.totalTransfersLastHour || 0).toLocaleString()}
+          icon={ChartBarIcon}
+          color="#fbbf24"
+        />
+        <KpiTile
+          label="Protocols Active"
+          value={protocolData.length || 0}
+          icon={BoltIcon}
+          color="#f87171"
+          sub={protocolData.map(p => p.name).join(' · ') || 'None yet'}
+        />
+      </div>
+
+      {/* ── Alerts ── */}
+      {hasAlerts && (
+        <div
+          className="rounded-xl p-4"
+          style={{
+            background: 'rgb(127 29 29 / 0.25)',
+            border: '1px solid rgb(127 29 29 / 0.5)',
+          }}
+        >
+          <h3 className="font-semibold text-sm flex items-center gap-2" style={{ color: '#f87171' }}>
+            <ExclamationTriangleIcon className="w-4 h-4" />
+            Active Alerts ({dashboard.alerts.length})
           </h3>
-          {dashboard.alerts.map((alert, i) => (
-            <div key={i} className="mt-2 text-sm text-red-700">
-              {alert.ruleName} — {alert.serviceType}: {alert.metric} = {alert.currentValue.toFixed(3)} (threshold: {alert.threshold})
-            </div>
-          ))}
+          <div className="mt-2 space-y-1">
+            {dashboard.alerts.map((alert, i) => (
+              <p key={i} className="text-xs" style={{ color: '#fca5a5' }}>
+                <span className="font-mono font-semibold">{alert.ruleName}</span>
+                {' — '}{alert.serviceType}: {alert.metric} = {alert.currentValue?.toFixed(3)} (threshold: {alert.threshold})
+              </p>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Stat Cards — mobile visible */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 lg:hidden">
-        <StatCard title="Transfers Today" value={dashboard?.totalTransfersToday?.toLocaleString() || 0} icon={ArrowUpTrayIcon} color="blue" />
-        <StatCard title="Success Rate" value={`${successRate}%`} icon={CheckCircleIcon} color="green" />
-        <StatCard title="Last Hour" value={dashboard?.totalTransfersLastHour?.toLocaleString() || 0} icon={ChartBarIcon} color="amber" />
-        <StatCard title="Data Transferred" value={`${(dashboard?.totalGbToday || 0).toFixed(2)} GB`} icon={ServerIcon} color="purple" />
-      </div>
+      {/* ── Main Grid: Chart + Quick Actions ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-      {/* Quick Actions */}
-      <div>
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Quick Actions</h2>
-        <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
-          {quickActions.map(action => (
-            <NavLink key={action.to} to={action.to}
-              className="card !p-4 flex flex-col items-center gap-2 text-center hover:shadow-md transition-shadow cursor-pointer group">
-              <div className={`p-2.5 rounded-xl ${quickActionColors[action.color]?.bg} ${quickActionColors[action.color]?.text} ${quickActionColors[action.color]?.hover} transition-colors`}>
-                <action.icon className="w-5 h-5" />
-              </div>
-              <span className="text-xs font-medium text-gray-700">{action.label}</span>
-            </NavLink>
-          ))}
-        </div>
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Transfer Volume Chart */}
         <div className="card lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-900">Transfer Volume (24h)</h3>
-            <span className="text-xs text-gray-400">{dashboard?.transfersPerHour?.length || 0} data points</span>
+            <p className="section-title">Transfer Volume</p>
+            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+              style={{ background: 'rgb(var(--accent) / 0.12)', color: 'rgb(var(--accent))' }}>
+              Last 24 hours
+            </span>
           </div>
-          {dashboard?.transfersPerHour?.length > 0 ? (
-            <ResponsiveContainer width="100%" height={240}>
-              <AreaChart data={dashboard.transfersPerHour}>
+
+          {transferData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={transferData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="fillBlue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.15} />
-                    <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+                  <linearGradient id="gradViolet" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%"   stopColor="#8b5cf6" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="hour" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '12px' }} />
-                <Area type="monotone" dataKey="transfers" stroke="#3b82f6" strokeWidth={2} fill="url(#fillBlue)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border))" vertical={false} />
+                <XAxis
+                  dataKey="hour"
+                  tick={{ fontSize: 10, fill: 'rgb(var(--tx-muted))' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 10, fill: 'rgb(var(--tx-muted))' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip content={<DarkTooltip />} />
+                <Area
+                  type="monotone"
+                  dataKey="transfers"
+                  stroke="#8b5cf6"
+                  strokeWidth={2.5}
+                  fill="url(#gradViolet)"
+                  dot={false}
+                  activeDot={{ r: 4, fill: '#8b5cf6', strokeWidth: 0 }}
+                />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-60 flex flex-col items-center justify-center text-gray-400">
-              <ChartBarIcon className="w-8 h-8 mb-2 text-gray-300" />
-              <p className="text-sm">No data yet</p>
-              <p className="text-xs mt-1">Transfers will appear here after the first hour</p>
+            <div className="h-52 flex flex-col items-center justify-center gap-2">
+              <ChartBarIcon className="w-8 h-8" style={{ color: 'rgb(var(--tx-muted))' }} />
+              <p className="text-sm" style={{ color: 'rgb(var(--tx-muted))' }}>No data yet</p>
+              <p className="text-xs" style={{ color: 'rgb(var(--tx-muted))' }}>Transfers will appear after the first hour</p>
             </div>
           )}
         </div>
 
+        {/* Quick Actions */}
         <div className="card">
-          <h3 className="font-semibold text-gray-900 mb-4">By Protocol</h3>
+          <p className="section-title mb-4">Quick Access</p>
+          <div className="grid grid-cols-2 gap-2">
+            {quickActions.map(action => (
+              <NavLink
+                key={action.to}
+                to={action.to}
+                className="flex flex-col items-center gap-2 p-3 rounded-xl text-center transition-all duration-150 group"
+                style={{ background: 'rgb(var(--hover))', border: '1px solid transparent' }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = `${action.color}14`
+                  e.currentTarget.style.borderColor = `${action.color}40`
+                  const icon = e.currentTarget.querySelector('.__icon')
+                  if (icon) icon.style.transform = 'scale(1.15)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'rgb(var(--hover))'
+                  e.currentTarget.style.borderColor = 'transparent'
+                  const icon = e.currentTarget.querySelector('.__icon')
+                  if (icon) icon.style.transform = 'scale(1)'
+                }}
+              >
+                <div
+                  className="__icon p-2 rounded-lg transition-transform duration-150"
+                  style={{ background: `${action.color}20` }}
+                >
+                  <action.icon className="w-4 h-4" style={{ color: action.color }} />
+                </div>
+                <span className="text-[11px] font-medium leading-tight" style={{ color: 'rgb(var(--tx-secondary))' }}>
+                  {action.label}
+                </span>
+              </NavLink>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Bottom Grid: Protocol + Recommendations ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+        {/* Protocol Breakdown */}
+        <div className="card">
+          <p className="section-title mb-3">By Protocol</p>
           {protocolData.length > 0 ? (
             <>
-              <ResponsiveContainer width="100%" height={180}>
+              <ResponsiveContainer width="100%" height={150}>
                 <PieChart>
-                  <Pie data={protocolData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                    {protocolData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  <Pie
+                    data={protocolData}
+                    cx="50%" cy="50%"
+                    innerRadius={42} outerRadius={68}
+                    dataKey="value"
+                    strokeWidth={0}
+                  >
+                    {protocolData.map((_, i) => (
+                      <Cell key={i} fill={NEON[i % NEON.length]} />
+                    ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip content={<DarkTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="grid grid-cols-2 gap-2 mt-2">
+              <div className="space-y-2 mt-2">
                 {protocolData.map((p, i) => (
-                  <div key={p.name} className="flex items-center gap-2 text-xs">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                    <span className="text-gray-600">{p.name}</span>
-                    <span className="font-semibold text-gray-900 ml-auto">{p.value}</span>
+                  <div key={p.name} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: NEON[i % NEON.length] }} />
+                      <span style={{ color: 'rgb(var(--tx-secondary))' }}>{p.name}</span>
+                    </div>
+                    <span className="font-mono font-bold" style={{ color: 'rgb(var(--tx-primary))' }}>
+                      {p.value.toLocaleString()}
+                    </span>
                   </div>
                 ))}
               </div>
             </>
           ) : (
-            <div className="h-44 flex flex-col items-center justify-center text-gray-400">
-              <ArrowsRightLeftIcon className="w-8 h-8 mb-2 text-gray-300" />
-              <p className="text-sm">No protocol data</p>
+            <div className="h-40 flex flex-col items-center justify-center gap-2">
+              <ArrowsRightLeftIcon className="w-7 h-7" style={{ color: 'rgb(var(--tx-muted))' }} />
+              <p className="text-xs" style={{ color: 'rgb(var(--tx-muted))' }}>No protocol data yet</p>
             </div>
           )}
         </div>
-      </div>
 
-      {/* Scaling Recommendations */}
-      {predictions?.some(p => p.recommendedReplicas > 1) && (
-        <div className="card">
-          <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <ArrowTrendingUpIcon className="w-5 h-5 text-amber-500" /> Scaling Recommendations
-          </h3>
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-            {predictions.filter(p => p.recommendedReplicas > 1).map(rec => (
-              <div key={rec.serviceType} className="bg-amber-50 border border-amber-100 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium text-gray-900">{rec.serviceType}</span>
-                  <span className={`badge ${rec.trend === 'INCREASING' ? 'badge-red' : 'badge-yellow'}`}>{rec.trend}</span>
+        {/* Scaling Recommendations */}
+        {hasRecs ? (
+          <div className="card lg:col-span-2">
+            <p className="section-title mb-3 flex items-center gap-2">
+              <ArrowTrendingUpIcon className="w-4 h-4" style={{ color: '#fbbf24' }} />
+              Scaling Recommendations
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+              {predictions.filter(p => p.recommendedReplicas > 1).map(rec => (
+                <div
+                  key={rec.serviceType}
+                  className="p-3 rounded-xl"
+                  style={{
+                    background: 'rgb(120 53 15 / 0.20)',
+                    border: '1px solid rgb(120 53 15 / 0.40)',
+                  }}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold" style={{ color: 'rgb(var(--tx-primary))' }}>
+                      {rec.serviceType}
+                    </span>
+                    <span className={`badge ${rec.trend === 'INCREASING' ? 'badge-red' : 'badge-yellow'}`}>
+                      {rec.trend}
+                    </span>
+                  </div>
+                  <p className="text-xs" style={{ color: 'rgb(var(--tx-secondary))' }}>
+                    Predicted: <span className="font-mono font-bold" style={{ color: '#fbbf24' }}>{Math.round(rec.predictedLoad24h)}</span> transfers
+                  </p>
+                  <p className="text-xs font-semibold mt-1" style={{ color: '#fbbf24' }}>
+                    → {rec.recommendedReplicas} replicas
+                  </p>
+                  {rec.reason && (
+                    <p className="text-[10px] mt-1.5 leading-snug" style={{ color: 'rgb(var(--tx-muted))' }}>
+                      {rec.reason}
+                    </p>
+                  )}
                 </div>
-                <p className="text-sm text-gray-600">Predicted 24h: <strong>{Math.round(rec.predictedLoad24h)}</strong> transfers</p>
-                <p className="text-sm font-semibold text-amber-700 mt-1">Scale to {rec.recommendedReplicas} replicas</p>
-                <p className="text-xs text-gray-500 mt-1 leading-tight">{rec.reason}</p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="card lg:col-span-2 flex items-center justify-center">
+            <div className="text-center">
+              <ShieldCheckIcon className="w-8 h-8 mx-auto mb-2" style={{ color: '#22c55e' }} />
+              <p className="text-sm font-medium" style={{ color: 'rgb(var(--tx-primary))' }}>Platform Healthy</p>
+              <p className="text-xs mt-1" style={{ color: 'rgb(var(--tx-muted))' }}>
+                No scaling recommendations — all services within normal parameters.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
