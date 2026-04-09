@@ -129,6 +129,33 @@ public class FlowExecutionController {
         return ResponseEntity.accepted().body(result);
     }
 
+    /**
+     * Skip step {@code step} and resume from step+1 using the skipped step's input file.
+     * Use when a step is permanently broken (wrong config, bad script) and you want the
+     * file to bypass it unchanged. Requires a FlowStepSnapshot to exist for the step.
+     */
+    @PostMapping("/{trackId}/skip/{step}")
+    @PreAuthorize(Roles.OPERATOR)
+    public ResponseEntity<Map<String, Object>> skipStep(
+            @PathVariable String trackId,
+            @PathVariable int step,
+            @AuthenticationPrincipal UserDetails user) {
+
+        validateRestartable(trackId);
+        String principal = user != null ? user.getUsername() : "api";
+        log.info("[{}] SKIP step {} requested by {}", trackId, step, principal);
+
+        restartService.skipStep(trackId, step, principal);
+
+        return ResponseEntity.accepted().body(Map.of(
+                "status", "SKIP_QUEUED",
+                "trackId", trackId,
+                "skippedStep", step,
+                "resumeAtStep", step + 1,
+                "requestedBy", principal,
+                "message", "Step " + step + " will be skipped. Resuming from step " + (step + 1) + ". Poll GET /api/flow-executions/" + trackId + " for status."));
+    }
+
     // ── Restart from specific step ────────────────────────────────────────────
 
     /**

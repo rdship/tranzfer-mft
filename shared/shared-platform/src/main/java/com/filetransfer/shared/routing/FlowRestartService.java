@@ -139,6 +139,74 @@ public class FlowRestartService {
         }
     }
 
+    /**
+     * Skip step {@code stepIndex} and resume execution from step {@code stepIndex + 1}.
+     *
+     * <p>Uses the skipped step's {@link FlowStepSnapshot#getInputStorageKey()} as the input
+     * to the next step — treating the skip as a no-op pass-through.
+     * Useful when a step is permanently broken (e.g., a script step that can never succeed)
+     * and you want the file to continue down the pipeline unchanged.
+     *
+     * @param stepIndex 0-based index of the step to skip
+     * @throws IllegalArgumentException if no snapshot exists for the step, or it's the last step
+     */
+    @Async
+    public void skipStep(String trackId, int stepIndex, String requestedBy) {
+        try {
+            FlowExecution exec = loadRestartable(trackId);
+            FileFlow flow = resolveFlow(exec);
+
+            int totalSteps = flow.getSteps() != null ? flow.getSteps().size() : 0;
+            if (stepIndex + 1 >= totalSteps) {
+                throw new IllegalArgumentException(
+                        "Cannot skip the last step (step " + stepIndex + " of " + totalSteps +
+                        "). Use terminate instead.");
+            }
+
+            FlowStepSnapshot snap = snapshotRepo.findByTrackIdAndStepIndex(trackId, stepIndex)
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "No step snapshot for trackId=" + trackId + " step=" + stepIndex +
+                            ". Run at least one full attempt first so a snapshot exists."));
+
+            String skipKey = snap.getInputStorageKey();
+            if (skipKey == null) throw new IllegalStateException(
+                    "Step " + stepIndex + " snapshot has no inputStorageKey — cannot skip");
+
+            archiveCurrentAttempt(exec);
+            exec.setAttemptNumber(exec.getAttemptNumber() + 1);
+            exec.setRestartedBy(requestedBy);
+            exec.setRestartedAt(Instant.now());
+
+            // Pass the SKIPPED step's input straight to step N+1 (skip = no-op pass-through)
+            FileRef ref = new FileRef(
+                    skipKey,
+                    snap.getInputVirtualPath() != null ? snap.getInputVirtualPath()
+                            : "/" + exec.getOriginalFilename(),
+                    null,
+                    snap.getInputSizeBytes() != null ? snap.getInputSizeBytes() : -1L,
+                    trackId,
+                    null,
+                    "STANDARD");
+
+            log.info("[{}] SKIP step {} by {} — resuming at step {} (attempt {})",
+                    trackId, stepIndex, requestedBy, stepIndex + 1, exec.getAttemptNumber());
+
+            auditService.logAction(requestedBy, "FLOW_SKIP_STEP",
+                    true, null,
+                    Map.of("trackId", trackId, "skippedStep", stepIndex,
+                           "resumeAtStep", stepIndex + 1,
+                           "attempt", exec.getAttemptNumber(), "by", requestedBy));
+
+            flowEngine.executeFlowRef(flow, trackId, exec.getOriginalFilename(), ref,
+                    exec.getMatchedCriteria(), exec, stepIndex + 1);
+
+        } catch (Exception e) {
+            auditService.logAction(requestedBy, "FLOW_SKIP_STEP", false, e.getMessage(),
+                    Map.of("trackId", trackId, "stepIndex", stepIndex, "error", e.getMessage()));
+            log.error("[{}] SKIP step {} failed: {}", trackId, stepIndex, e.getMessage());
+        }
+    }
+
     // ── Terminate ─────────────────────────────────────────────────────────────
 
     /**

@@ -201,14 +201,15 @@ function AddStepDropdown({ onAdd, onClose }) {
 // ─── Execution detail row ───
 const RESTARTABLE = new Set(['FAILED', 'CANCELLED', 'UNMATCHED'])
 
-function ExecutionRow({ ex, selected, onToggle }) {
+function ExecutionRow({ ex, selected, onToggle, onSkipStep, skipPending }) {
   const [expanded, setExpanded] = useState(false)
   const style = STATUS_STYLES[ex.status] || STATUS_STYLES.PENDING
-  const totalSteps = ex.flow?.steps?.length || '?'
+  const totalSteps = ex.flow?.steps?.length ?? ex.stepResults?.length ?? '?'
   const duration = ex.startedAt && ex.completedAt
     ? `${((new Date(ex.completedAt) - new Date(ex.startedAt)) / 1000).toFixed(1)}s`
     : ex.startedAt ? 'Running...' : '—'
-  const selectable = RESTARTABLE.has(ex.status)
+  const selectable  = RESTARTABLE.has(ex.status)
+  const canSkip     = RESTARTABLE.has(ex.status) // only on stopped executions
 
   return (
     <>
@@ -264,19 +265,35 @@ function ExecutionRow({ ex, selected, onToggle }) {
               <h4 className="text-xs font-semibold text-gray-500 mb-2">Step Results</h4>
               <div className="space-y-1.5">
                 {ex.stepResults.map((sr, i) => {
-                  const stepMeta = STEP_TYPE_CATALOG[sr.stepType]
-                  const isOk = sr.status === 'OK'
-                  const isFailed = sr.status === 'FAILED'
+                  const stepMeta  = STEP_TYPE_CATALOG[sr.stepType]
+                  const isOk      = sr.status === 'OK'
+                  const isFailed  = sr.status === 'FAILED'
+                  const isSkipped = sr.status === 'SKIPPED'
+                  const isLast    = i === (typeof totalSteps === 'number' ? totalSteps - 1 : Infinity)
+                  const showSkip  = canSkip && isFailed && !isLast
                   return (
-                    <div key={i} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs ${isFailed ? 'bg-red-50' : isOk ? 'bg-white' : 'bg-gray-100'}`}>
-                      {isOk && <CheckCircleIcon className="w-4 h-4 text-emerald-500 flex-shrink-0" />}
-                      {isFailed && <XCircleIcon className="w-4 h-4 text-red-500 flex-shrink-0" />}
-                      {!isOk && !isFailed && <ClockIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />}
+                    <div key={i} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs ${isFailed ? 'bg-red-50' : isOk ? 'bg-white' : isSkipped ? 'bg-amber-50' : 'bg-gray-100'}`}>
+                      {isOk      && <CheckCircleIcon className="w-4 h-4 text-emerald-500 flex-shrink-0" />}
+                      {isFailed  && <XCircleIcon     className="w-4 h-4 text-red-500 flex-shrink-0" />}
+                      {isSkipped && <ArrowPathIcon   className="w-4 h-4 text-amber-500 flex-shrink-0" />}
+                      {!isOk && !isFailed && !isSkipped && <ClockIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />}
                       <span className="font-medium text-gray-700">{stepMeta?.icon} {stepMeta?.label || sr.stepType}</span>
                       <span className="text-gray-400">({sr.durationMs}ms)</span>
-                      {sr.error && <span className="text-red-600 truncate max-w-60">{sr.error}</span>}
+                      {sr.error && <span className="text-red-600 truncate max-w-52">{sr.error}</span>}
                       <div className="flex-1" />
-                      <span className={`font-semibold ${isOk ? 'text-emerald-600' : isFailed ? 'text-red-600' : 'text-gray-500'}`}>{sr.status}</span>
+                      <span className={`font-semibold ${isOk ? 'text-emerald-600' : isFailed ? 'text-red-600' : isSkipped ? 'text-amber-600' : 'text-gray-500'}`}>
+                        {sr.status}
+                      </span>
+                      {showSkip && (
+                        <button
+                          onClick={e => { e.stopPropagation(); onSkipStep(i) }}
+                          disabled={skipPending}
+                          title="Skip this step and resume from the next"
+                          className="ml-1 px-2 py-0.5 text-[10px] font-semibold rounded bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-200 disabled:opacity-50 transition-colors flex-shrink-0"
+                        >
+                          {skipPending ? '…' : 'Skip →'}
+                        </button>
+                      )}
                     </div>
                   )
                 })}
@@ -439,6 +456,16 @@ export default function Flows() {
       data.queued > 0 ? toast.success(msg) : toast.error(msg)
     },
     onError: err => toast.error(err.response?.data?.error || 'Bulk restart failed')
+  })
+
+  const skipStepMut = useMutation({
+    mutationFn: ({ trackId, stepIndex }) =>
+      onboardingApi.post(`/api/flow-executions/${trackId}/skip/${stepIndex}`).then(r => r.data),
+    onSuccess: (data) => {
+      qc.invalidateQueries(['flow-executions'])
+      toast.success(`Step ${data.skippedStep + 1} skipped — resuming from step ${data.resumeAtStep + 1}`)
+    },
+    onError: err => toast.error(err.response?.data?.message || err.response?.data?.error || 'Skip failed — step snapshot may not exist')
   })
 
   const { data: accounts = [] } = useQuery({
@@ -840,6 +867,8 @@ export default function Flows() {
                       next.has(id) ? next.delete(id) : next.add(id)
                       return next
                     })}
+                    onSkipStep={(stepIndex) => skipStepMut.mutate({ trackId: ex.trackId, stepIndex })}
+                    skipPending={skipStepMut.isPending}
                   />
                 ))}
               </tbody>
