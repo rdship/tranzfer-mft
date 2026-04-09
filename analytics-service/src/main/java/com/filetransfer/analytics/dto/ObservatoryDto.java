@@ -49,4 +49,38 @@ public class ObservatoryDto {
         private List<DomainGroup> domainGroups;
         private Instant generatedAt;
     }
+
+    /** Per-step-type latency summary over a time window. */
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class StepSummary {
+        private String stepType;
+        private double avgMs;
+        private double p95Ms;
+        private long minMs;
+        private long maxMs;
+        private long totalCalls;
+        private long failedCalls;
+        /** failedCalls / totalCalls, 0.0–1.0 */
+        private double failureRate;
+    }
+
+    /** One cell in the step-type × hour-of-day latency heatmap. */
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class StepHeatmapCell {
+        private String stepType;
+        /** 0-23 UTC hour of day */
+        private int hourOfDay;
+        private double avgMs;
+        private long callCount;
+    }
+
+    /** Full step-latency data response. */
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class StepLatencyData {
+        private List<StepSummary> summary;
+        private List<StepHeatmapCell> heatmap;
+        /** Window size that was queried */
+        private int hours;
+        private Instant generatedAt;
+    }
 }

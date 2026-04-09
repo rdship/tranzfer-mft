@@ -5,6 +5,7 @@ import com.filetransfer.analytics.entity.MetricSnapshot;
 import com.filetransfer.analytics.repository.MetricSnapshotRepository;
 import com.filetransfer.shared.entity.FlowExecution;
 import com.filetransfer.shared.repository.FlowExecutionRepository;
+import com.filetransfer.shared.repository.FlowStepSnapshotRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,8 +30,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ObservatoryService {
 
-    private final MetricSnapshotRepository snapshotRepo;
-    private final FlowExecutionRepository  execRepo;
+    private final MetricSnapshotRepository     snapshotRepo;
+    private final FlowExecutionRepository      execRepo;
+    private final FlowStepSnapshotRepository   stepSnapshotRepo;
 
     /** Protocol → UI tier mapping (PLATFORM is the catch-all). */
     private static final Map<String, String> SERVICE_TIERS = Map.ofEntries(
@@ -188,5 +190,79 @@ public class ObservatoryService {
         })
         .sorted(Comparator.comparingLong(ObservatoryDto.DomainGroup::getTotalCount).reversed())
         .collect(Collectors.toList());
+    }
+
+    // ── Step Latency Heatmap ─────────────────────────────────────────────────
+
+    /**
+     * Aggregates {@code FlowStepSnapshot.durationMs} by step type over the given window.
+     *
+     * <p>Returns two data products:
+     * <ul>
+     *   <li><b>summary</b>  — avg/P95/min/max latency + call count + failure rate per step type.
+     *   <li><b>heatmap</b>  — avg latency per step type × hour-of-day (0-23 UTC) grid.
+     * </ul>
+     */
+    public ObservatoryDto.StepLatencyData getStepLatencyData(int hours) {
+        Instant since = Instant.now().minus(hours, ChronoUnit.HOURS);
+
+        // ── Summary (one row per step type) ──
+        List<ObservatoryDto.StepSummary> summary = stepSnapshotRepo
+                .summarizeByStepType(since)
+                .stream()
+                .map(row -> {
+                    long total  = toLong(row[5]);
+                    long failed = toLong(row[6]);
+                    return ObservatoryDto.StepSummary.builder()
+                            .stepType(  (String) row[0])
+                            .avgMs(     toDouble(row[1]))
+                            .p95Ms(     toDouble(row[2]))
+                            .minMs(     toLong(  row[3]))
+                            .maxMs(     toLong(  row[4]))
+                            .totalCalls(total)
+                            .failedCalls(failed)
+                            .failureRate(total > 0 ? (double) failed / total : 0.0)
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        // ── Heatmap (stepType × hourOfDay) ──
+        List<ObservatoryDto.StepHeatmapCell> heatmap = stepSnapshotRepo
+                .heatmapByStepAndHour(since)
+                .stream()
+                .map(row -> ObservatoryDto.StepHeatmapCell.builder()
+                        .stepType(  (String) row[0])
+                        .hourOfDay( toInt(   row[1]))
+                        .avgMs(     toDouble(row[2]))
+                        .callCount( toLong(  row[3]))
+                        .build())
+                .collect(Collectors.toList());
+
+        return ObservatoryDto.StepLatencyData.builder()
+                .summary(summary)
+                .heatmap(heatmap)
+                .hours(hours)
+                .generatedAt(Instant.now())
+                .build();
+    }
+
+    // ── Numeric helpers for native query Object[] rows ───────────────────────
+
+    private static double toDouble(Object o) {
+        if (o == null) return 0.0;
+        if (o instanceof Number n) return n.doubleValue();
+        return 0.0;
+    }
+
+    private static long toLong(Object o) {
+        if (o == null) return 0L;
+        if (o instanceof Number n) return n.longValue();
+        return 0L;
+    }
+
+    private static int toInt(Object o) {
+        if (o == null) return 0;
+        if (o instanceof Number n) return n.intValue();
+        return 0;
     }
 }

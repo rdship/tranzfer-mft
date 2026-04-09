@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -34,5 +35,21 @@ public class ObservatoryController {
     @GetMapping
     public ResponseEntity<ObservatoryDto.ObservatoryData> get() {
         return ResponseEntity.ok(observatoryService.getObservatoryData());
+    }
+
+    /**
+     * Step-type × hour-of-day latency heatmap.
+     *
+     * <pre>GET /api/v1/analytics/observatory/step-latency?hours=24</pre>
+     * Returns {@link ObservatoryDto.StepLatencyData} with per-step summary (avg/P95/failure rate)
+     * and a 24-column heatmap grid for trend analysis.
+     *
+     * @param hours query window in hours (default 24, max 168 = 7 days)
+     */
+    @GetMapping("/step-latency")
+    public ResponseEntity<ObservatoryDto.StepLatencyData> getStepLatency(
+            @RequestParam(defaultValue = "24") int hours) {
+        int bounded = Math.min(Math.max(hours, 1), 168);
+        return ResponseEntity.ok(observatoryService.getStepLatencyData(bounded));
     }
 }

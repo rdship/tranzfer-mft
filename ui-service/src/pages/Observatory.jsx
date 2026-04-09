@@ -2,7 +2,7 @@ import { useState, memo, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { ArrowPathIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
-import { getObservatoryData } from '../api/observatory'
+import { getObservatoryData, getStepLatency } from '../api/observatory'
 import { useServices } from '../context/ServiceContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 
@@ -340,10 +340,213 @@ const DomainGroups = memo(function DomainGroups({ domainGroups }) {
 
 })
 
+// ─── Step Latency Heatmap ─────────────────────────────────────────────────────
+
+const STEP_LABELS = {
+  COMPRESS_GZIP:   'Compress (GZIP)',
+  DECOMPRESS_GZIP: 'Decompress (GZIP)',
+  COMPRESS_ZIP:    'Compress (ZIP)',
+  DECOMPRESS_ZIP:  'Decompress (ZIP)',
+  ENCRYPT_PGP:     'Encrypt (PGP)',
+  DECRYPT_PGP:     'Decrypt (PGP)',
+  ENCRYPT_AES:     'Encrypt (AES)',
+  DECRYPT_AES:     'Decrypt (AES)',
+  SCREEN:          'Sanctions Screen',
+  MAILBOX:         'Mailbox Delivery',
+  FILE_DELIVERY:   'File Delivery',
+  ROUTE:           'Route',
+  CONVERT_EDI:     'Convert EDI',
+  EXECUTE_SCRIPT:  'Execute Script',
+  RENAME:          'Rename',
+  APPROVE:         'Approval Gate',
+}
+
+/** Map 0..max → 0..1 using a soft log scale so mid-range values aren't invisible. */
+function latencyIntensity(ms, maxMs) {
+  if (!ms || !maxMs || maxMs === 0) return 0
+  return Math.log1p(ms) / Math.log1p(maxMs)
+}
+
+/** Intensity 0..1 → CSS color (white → amber → red). */
+function intensityColor(t) {
+  if (t <= 0) return '#18181b'          // empty cell
+  if (t < 0.25) return '#1a2e1a'        // fast — dark green tint
+  if (t < 0.50) return '#2e2a0a'        // medium — dark amber tint
+  if (t < 0.75) return '#3b1a08'        // slow — dark orange tint
+  return '#3b0a0a'                       // very slow — dark red
+}
+
+function fmtMs(ms) {
+  if (!ms) return '—'
+  if (ms < 1000) return `${Math.round(ms)}ms`
+  return `${(ms / 1000).toFixed(1)}s`
+}
+
+const HOURS = Array.from({ length: 24 }, (_, i) => i)
+
+function StepLatencyHeatmap({ data, hours, onHoursChange }) {
+  const summary  = data?.summary  || []
+  const heatmap  = data?.heatmap  || []
+
+  // Build lookup: stepType → hourOfDay → avgMs
+  const cellMap = useMemo(() => {
+    const m = {}
+    heatmap.forEach(c => {
+      if (!m[c.stepType]) m[c.stepType] = {}
+      m[c.stepType][c.hourOfDay] = c
+    })
+    return m
+  }, [heatmap])
+
+  // Max avgMs across all cells (for color scaling)
+  const maxMs = useMemo(() => Math.max(...heatmap.map(c => c.avgMs || 0), 1), [heatmap])
+
+  if (summary.length === 0) {
+    return (
+      <div className="card">
+        <p className="section-title mb-2">Step Latency Heatmap</p>
+        <p className="text-sm text-center py-8" style={{ color: 'rgb(var(--tx-muted))' }}>
+          No step snapshot data yet. Step snapshots are recorded when flows run in virtual-mode.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="card space-y-5">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="section-title">Step Latency Heatmap</p>
+          <p className="text-xs mt-0.5" style={{ color: 'rgb(var(--tx-muted))' }}>
+            Avg duration per step type × hour of day (UTC) · last {hours}h
+          </p>
+        </div>
+        <select
+          value={hours}
+          onChange={e => onHoursChange(Number(e.target.value))}
+          className="text-xs rounded-lg px-2 py-1"
+          style={{ background: 'rgb(var(--hover))', border: '1px solid rgb(var(--border))', color: 'rgb(var(--tx-secondary))' }}
+        >
+          <option value={6}>6h</option>
+          <option value={24}>24h</option>
+          <option value={48}>48h</option>
+          <option value={168}>7d</option>
+        </select>
+      </div>
+
+      {/* 2D heatmap grid */}
+      <div className="overflow-x-auto">
+        <div style={{ minWidth: 560 }}>
+          {/* Hour axis header */}
+          <div className="flex mb-1">
+            <div style={{ width: 140, flexShrink: 0 }} />
+            {HOURS.map(h => (
+              <div key={h} className="flex-1 text-center text-[9px]" style={{ color: 'rgb(var(--tx-muted))' }}>
+                {h % 6 === 0 ? `${h}:00` : ''}
+              </div>
+            ))}
+          </div>
+
+          {/* Step rows */}
+          {summary.map(row => (
+            <div key={row.stepType} className="flex items-center mb-0.5 group">
+              {/* Step label */}
+              <div
+                className="text-[10px] font-medium truncate flex-shrink-0 text-right pr-2"
+                style={{ width: 140, color: 'rgb(var(--tx-secondary))' }}
+                title={row.stepType}
+              >
+                {STEP_LABELS[row.stepType] || row.stepType}
+              </div>
+              {/* Hour cells */}
+              {HOURS.map(h => {
+                const cell = cellMap[row.stepType]?.[h]
+                const t    = latencyIntensity(cell?.avgMs, maxMs)
+                const bg   = cell ? intensityColor(t) : '#18181b'
+                return (
+                  <div
+                    key={h}
+                    className="flex-1 rounded-sm transition-all cursor-default"
+                    style={{ height: 18, background: bg, margin: '0 0.5px' }}
+                    title={cell
+                      ? `${STEP_LABELS[row.stepType] || row.stepType} @ ${h}:00 UTC\nAvg: ${fmtMs(cell.avgMs)} · ${cell.callCount} calls`
+                      : `${STEP_LABELS[row.stepType] || row.stepType} @ ${h}:00 UTC — no data`}
+                  />
+                )
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Color legend */}
+      <div className="flex items-center gap-3 text-[10px]" style={{ color: 'rgb(var(--tx-muted))' }}>
+        <span>Slower →</span>
+        {['#1a2e1a', '#2e2a0a', '#3b1a08', '#3b0a0a'].map((c, i) => (
+          <div key={i} className="w-4 h-3 rounded-sm" style={{ background: c }} />
+        ))}
+        <span>← Faster</span>
+        <span className="ml-auto">Max: {fmtMs(maxMs)}</span>
+      </div>
+
+      {/* Summary table */}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'rgb(var(--tx-muted))' }}>
+          Summary ({hours}h window)
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgb(var(--border))' }}>
+                {['Step Type', 'Avg', 'P95', 'Min', 'Max', 'Calls', 'Fail %'].map(h => (
+                  <th key={h} className="text-left pb-1.5 pr-4 font-semibold uppercase tracking-wider text-[10px]"
+                    style={{ color: 'rgb(var(--tx-muted))' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {summary.map(row => (
+                <tr key={row.stepType} style={{ borderBottom: '1px solid rgb(var(--border))' }}>
+                  <td className="py-1.5 pr-4 font-medium" style={{ color: 'rgb(var(--tx-primary))' }}>
+                    {STEP_LABELS[row.stepType] || row.stepType}
+                  </td>
+                  <td className="py-1.5 pr-4 font-mono" style={{ color: 'rgb(var(--tx-primary))', fontFamily: "'JetBrains Mono',monospace" }}>
+                    {fmtMs(row.avgMs)}
+                  </td>
+                  <td className="py-1.5 pr-4 font-mono" style={{ color: 'rgb(var(--tx-secondary))', fontFamily: "'JetBrains Mono',monospace" }}>
+                    {fmtMs(row.p95Ms)}
+                  </td>
+                  <td className="py-1.5 pr-4 font-mono" style={{ color: 'rgb(var(--tx-muted))', fontFamily: "'JetBrains Mono',monospace" }}>
+                    {fmtMs(row.minMs)}
+                  </td>
+                  <td className="py-1.5 pr-4 font-mono" style={{ color: 'rgb(var(--tx-muted))', fontFamily: "'JetBrains Mono',monospace" }}>
+                    {fmtMs(row.maxMs)}
+                  </td>
+                  <td className="py-1.5 pr-4 font-mono" style={{ color: 'rgb(var(--tx-secondary))', fontFamily: "'JetBrains Mono',monospace" }}>
+                    {row.totalCalls.toLocaleString()}
+                  </td>
+                  <td className="py-1.5 font-mono" style={{
+                    color: row.failureRate > 0.1 ? '#ef4444' : row.failureRate > 0 ? '#f59e0b' : '#22c55e',
+                    fontFamily: "'JetBrains Mono',monospace"
+                  }}>
+                    {(row.failureRate * 100).toFixed(1)}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Observatory() {
   const { services } = useServices()
+  const [latencyHours, setLatencyHours] = useState(24)
 
   const { data, isLoading, dataUpdatedAt, refetch, isFetching } = useQuery({
     queryKey: ['observatory'],
@@ -351,6 +554,14 @@ export default function Observatory() {
     refetchInterval: 30_000,
     staleTime: 25_000,
     placeholderData: prev => prev,   // keep previous data visible during background refetch
+  })
+
+  const { data: latencyData } = useQuery({
+    queryKey: ['step-latency', latencyHours],
+    queryFn: () => getStepLatency(latencyHours),
+    refetchInterval: 60_000,
+    staleTime: 55_000,
+    retry: false,
   })
 
   return (
@@ -390,6 +601,13 @@ export default function Observatory() {
             <ActivityHeatmap heatmapData={data?.heatmap || []} />
             <DomainGroups domainGroups={data?.domainGroups || []} />
           </div>
+
+          {/* Step Latency Heatmap — full width */}
+          <StepLatencyHeatmap
+            data={latencyData}
+            hours={latencyHours}
+            onHoursChange={setLatencyHours}
+          />
         </>
       )}
     </div>
