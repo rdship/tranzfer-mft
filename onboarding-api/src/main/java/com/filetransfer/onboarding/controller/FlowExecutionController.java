@@ -16,6 +16,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -323,6 +324,106 @@ public class FlowExecutionController {
         stats.put("paused",     executionRepo.countByStatus(FlowExecution.FlowStatus.PAUSED));
         stats.put("failed",     executionRepo.countByStatus(FlowExecution.FlowStatus.FAILED));
         return ResponseEntity.ok(stats);
+    }
+
+    // ── Scheduled retry ───────────────────────────────────────────────────────
+
+    /**
+     * Schedule this execution to be retried at a specific time.
+     * Body: {@code { "scheduledAt": "2026-04-09T02:00:00Z" }}
+     */
+    @PostMapping("/{trackId}/schedule-retry")
+    @PreAuthorize(Roles.OPERATOR)
+    public ResponseEntity<Map<String, Object>> scheduleRetry(
+            @PathVariable String trackId,
+            @RequestBody Map<String, String> body,
+            @AuthenticationPrincipal UserDetails user) {
+
+        FlowExecution exec = executionRepo.findByTrackId(trackId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "No execution for trackId=" + trackId));
+
+        String scheduledAtStr = body.get("scheduledAt");
+        if (scheduledAtStr == null || scheduledAtStr.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "scheduledAt (ISO-8601) is required");
+        }
+
+        Instant scheduledAt;
+        try {
+            scheduledAt = Instant.parse(scheduledAtStr);
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid scheduledAt — use ISO-8601 (e.g. 2026-04-09T02:00:00Z)");
+        }
+
+        if (scheduledAt.isBefore(Instant.now())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "scheduledAt must be in the future");
+        }
+        if (exec.getStatus() == FlowExecution.FlowStatus.PROCESSING ||
+            exec.getStatus() == FlowExecution.FlowStatus.COMPLETED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Cannot schedule retry for a " + exec.getStatus() + " execution");
+        }
+
+        String principal = user != null ? user.getUsername() : "api";
+        exec.setScheduledRetryAt(scheduledAt);
+        exec.setScheduledRetryBy(principal);
+        executionRepo.save(exec);
+
+        log.info("[{}] SCHEDULE-RETRY at {} by {}", trackId, scheduledAt, principal);
+        return ResponseEntity.ok(Map.of(
+                "status", "SCHEDULED",
+                "trackId", trackId,
+                "scheduledAt", scheduledAt.toString(),
+                "scheduledBy", principal,
+                "message", "Execution will be retried at " + scheduledAt));
+    }
+
+    /**
+     * Cancel a previously scheduled retry without restarting the execution.
+     */
+    @DeleteMapping("/{trackId}/schedule-retry")
+    @PreAuthorize(Roles.OPERATOR)
+    public ResponseEntity<Map<String, Object>> cancelScheduledRetry(
+            @PathVariable String trackId,
+            @AuthenticationPrincipal UserDetails user) {
+
+        FlowExecution exec = executionRepo.findByTrackId(trackId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "No execution for trackId=" + trackId));
+
+        if (exec.getScheduledRetryAt() == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No scheduled retry for trackId=" + trackId);
+        }
+
+        exec.setScheduledRetryAt(null);
+        exec.setScheduledRetryBy(null);
+        executionRepo.save(exec);
+
+        String principal = user != null ? user.getUsername() : "api";
+        log.info("[{}] SCHEDULE-RETRY cancelled by {}", trackId, principal);
+        return ResponseEntity.ok(Map.of("status", "CANCELLED", "trackId", trackId));
+    }
+
+    /**
+     * List all executions with a pending scheduled retry, sorted by scheduled time ascending.
+     */
+    @GetMapping("/scheduled-retries")
+    @PreAuthorize(Roles.VIEWER)
+    public ResponseEntity<List<Map<String, Object>>> getScheduledRetries() {
+        List<Map<String, Object>> result = executionRepo.findAllScheduled().stream()
+                .map(e -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("trackId",        e.getTrackId());
+                    m.put("originalFilename", e.getOriginalFilename());
+                    m.put("flowName",       e.getFlow() != null ? e.getFlow().getName() : null);
+                    m.put("status",         e.getStatus().name());
+                    m.put("scheduledAt",    e.getScheduledRetryAt() != null ? e.getScheduledRetryAt().toString() : null);
+                    m.put("scheduledBy",    e.getScheduledRetryBy());
+                    m.put("attemptNumber",  e.getAttemptNumber());
+                    return m;
+                })
+                .toList();
+        return ResponseEntity.ok(result);
     }
 
     // ── Internal ──────────────────────────────────────────────────────────────

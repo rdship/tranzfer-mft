@@ -201,15 +201,18 @@ function AddStepDropdown({ onAdd, onClose }) {
 // ─── Execution detail row ───
 const RESTARTABLE = new Set(['FAILED', 'CANCELLED', 'UNMATCHED'])
 
-function ExecutionRow({ ex, selected, onToggle, onSkipStep, skipPending }) {
+function ExecutionRow({ ex, selected, onToggle, onSkipStep, skipPending, onScheduleRetry, onCancelSchedule, schedulePending }) {
   const [expanded, setExpanded] = useState(false)
+  const [showScheduler, setShowScheduler] = useState(false)
+  const [scheduleInput, setScheduleInput] = useState('')
   const style = STATUS_STYLES[ex.status] || STATUS_STYLES.PENDING
   const totalSteps = ex.flow?.steps?.length ?? ex.stepResults?.length ?? '?'
   const duration = ex.startedAt && ex.completedAt
     ? `${((new Date(ex.completedAt) - new Date(ex.startedAt)) / 1000).toFixed(1)}s`
     : ex.startedAt ? 'Running...' : '—'
   const selectable  = RESTARTABLE.has(ex.status)
-  const canSkip     = RESTARTABLE.has(ex.status) // only on stopped executions
+  const canSkip     = RESTARTABLE.has(ex.status)
+  const isScheduled = !!ex.scheduledRetryAt
 
   return (
     <>
@@ -257,10 +260,64 @@ function ExecutionRow({ ex, selected, onToggle, onSkipStep, skipPending }) {
         <td className="table-cell text-xs text-gray-500">
           {ex.startedAt ? new Date(ex.startedAt).toLocaleString() : '—'}
         </td>
+        {/* Scheduled retry / actions */}
+        <td className="table-cell" onClick={e => e.stopPropagation()}>
+          {isScheduled ? (
+            <div className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-[10px] font-semibold whitespace-nowrap">
+                <ClockIcon className="w-3 h-3" />
+                {new Date(ex.scheduledRetryAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+              <button
+                onClick={() => onCancelSchedule()}
+                disabled={schedulePending}
+                className="p-0.5 text-gray-400 hover:text-red-500 transition-colors"
+                title="Cancel scheduled retry"
+              >
+                <XCircleIcon className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : selectable && !showScheduler ? (
+            <button
+              onClick={() => { setShowScheduler(true); setScheduleInput('') }}
+              className="text-[10px] text-gray-400 hover:text-blue-600 px-1.5 py-0.5 rounded hover:bg-blue-50 transition-colors whitespace-nowrap"
+              title="Schedule retry at a specific time"
+            >
+              + Schedule
+            </button>
+          ) : showScheduler ? (
+            <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+              <input
+                type="datetime-local"
+                value={scheduleInput}
+                onChange={e => setScheduleInput(e.target.value)}
+                className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+              />
+              <button
+                onClick={() => {
+                  if (!scheduleInput) return
+                  onScheduleRetry(new Date(scheduleInput).toISOString())
+                  setShowScheduler(false)
+                }}
+                disabled={!scheduleInput || schedulePending}
+                className="text-[10px] px-2 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                Set
+              </button>
+              <button
+                onClick={() => setShowScheduler(false)}
+                className="text-[10px] text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+          ) : null}
+        </td>
       </tr>
       {expanded && ex.stepResults?.length > 0 && (
         <tr>
-          <td colSpan={8} className="px-4 pb-4 pt-0">
+          <td colSpan={9} className="px-4 pb-4 pt-0">
             <div className="ml-6 bg-gray-50 rounded-lg p-3">
               <h4 className="text-xs font-semibold text-gray-500 mb-2">Step Results</h4>
               <div className="space-y-1.5">
@@ -466,6 +523,34 @@ export default function Flows() {
       toast.success(`Step ${data.skippedStep + 1} skipped — resuming from step ${data.resumeAtStep + 1}`)
     },
     onError: err => toast.error(err.response?.data?.message || err.response?.data?.error || 'Skip failed — step snapshot may not exist')
+  })
+
+  const scheduleRetryMut = useMutation({
+    mutationFn: ({ trackId, scheduledAt }) =>
+      onboardingApi.post(`/api/flow-executions/${trackId}/schedule-retry`, { scheduledAt }).then(r => r.data),
+    onSuccess: (data) => {
+      qc.invalidateQueries(['flow-executions'])
+      qc.invalidateQueries(['scheduled-retries'])
+      toast.success(`Retry scheduled for ${new Date(data.scheduledAt).toLocaleString()}`)
+    },
+    onError: err => toast.error(err.response?.data?.message || 'Failed to schedule retry')
+  })
+
+  const cancelScheduleMut = useMutation({
+    mutationFn: (trackId) =>
+      onboardingApi.delete(`/api/flow-executions/${trackId}/schedule-retry`).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries(['flow-executions'])
+      qc.invalidateQueries(['scheduled-retries'])
+      toast.success('Scheduled retry cancelled')
+    },
+    onError: err => toast.error(err.response?.data?.message || 'Failed to cancel schedule')
+  })
+
+  const { data: scheduledRetries = [] } = useQuery({
+    queryKey: ['scheduled-retries'],
+    queryFn: () => onboardingApi.get('/api/flow-executions/scheduled-retries').then(r => r.data).catch(() => []),
+    refetchInterval: 30000
   })
 
   const { data: accounts = [] } = useQuery({
@@ -787,6 +872,40 @@ export default function Flows() {
         </div>
       )}
 
+      {/* ─── Scheduled Retries (only shown when there are any) ─── */}
+      {scheduledRetries.length > 0 && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <ClockIcon className="w-4 h-4 text-blue-500" />
+            <h3 className="font-semibold text-blue-800 text-sm">
+              Scheduled Retries ({scheduledRetries.length})
+            </h3>
+          </div>
+          <div className="space-y-2">
+            {scheduledRetries.map(r => (
+              <div key={r.trackId} className="flex items-center gap-3 text-xs bg-white rounded-lg px-3 py-2 border border-blue-100">
+                <span className="font-mono font-bold text-blue-600">{r.trackId}</span>
+                <span className="text-gray-600 truncate max-w-40">{r.originalFilename}</span>
+                <span className="text-gray-400">{r.flowName || '—'}</span>
+                <div className="flex-1" />
+                <span className="text-gray-500">by {r.scheduledBy}</span>
+                <span className="font-semibold text-blue-700">
+                  {new Date(r.scheduledAt).toLocaleString()}
+                </span>
+                <button
+                  onClick={() => cancelScheduleMut.mutate(r.trackId)}
+                  disabled={cancelScheduleMut.isPending}
+                  className="text-gray-400 hover:text-red-500 transition-colors"
+                  title="Cancel scheduled retry"
+                >
+                  <XCircleIcon className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ─── Execution History ─── */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
@@ -854,6 +973,7 @@ export default function Flows() {
                   <th className="table-header">Progress</th>
                   <th className="table-header">Duration</th>
                   <th className="table-header">Started</th>
+                  <th className="table-header">Retry</th>
                 </tr>
               </thead>
               <tbody>
@@ -869,6 +989,9 @@ export default function Flows() {
                     })}
                     onSkipStep={(stepIndex) => skipStepMut.mutate({ trackId: ex.trackId, stepIndex })}
                     skipPending={skipStepMut.isPending}
+                    onScheduleRetry={(scheduledAt) => scheduleRetryMut.mutate({ trackId: ex.trackId, scheduledAt })}
+                    onCancelSchedule={() => cancelScheduleMut.mutate(ex.trackId)}
+                    schedulePending={scheduleRetryMut.isPending || cancelScheduleMut.isPending}
                   />
                 ))}
               </tbody>

@@ -79,6 +79,13 @@ public class FlowExecution {
     private String terminatedBy;
     private Instant terminatedAt;
 
+    /**
+     * When non-null, the scheduler will restart this execution at this time.
+     * Cleared atomically by ScheduledRetryExecutor before triggering to prevent double-fire.
+     */
+    private Instant scheduledRetryAt;
+    private String scheduledRetryBy;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default

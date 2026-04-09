@@ -7,6 +7,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -39,4 +42,21 @@ public interface FlowExecutionRepository extends JpaRepository<FlowExecution, UU
     /** Observatory: recent executions with flow name eagerly loaded (avoids N+1). */
     @Query("SELECT e FROM FlowExecution e LEFT JOIN FETCH e.flow WHERE e.startedAt > :since")
     List<FlowExecution> findRecentWithFlow(@Param("since") Instant since);
+
+    /** Scheduled retry: executions whose scheduled time has arrived and are still restartable. */
+    @Query("SELECT e FROM FlowExecution e WHERE e.scheduledRetryAt IS NOT NULL AND e.scheduledRetryAt <= :now AND e.status IN :statuses")
+    List<FlowExecution> findDueForRetry(@Param("now") Instant now, @Param("statuses") List<FlowExecution.FlowStatus> statuses);
+
+    /** Scheduled retry: all executions with a pending scheduled retry, soonest first. */
+    @Query("SELECT e FROM FlowExecution e WHERE e.scheduledRetryAt IS NOT NULL ORDER BY e.scheduledRetryAt ASC")
+    List<FlowExecution> findAllScheduled();
+
+    /**
+     * Atomically clear scheduled retry fields — returns 1 if this instance "won the race",
+     * 0 if another instance already cleared it. Prevents double-trigger on multi-instance deployments.
+     */
+    @Transactional
+    @Modifying
+    @Query("UPDATE FlowExecution e SET e.scheduledRetryAt = null, e.scheduledRetryBy = null WHERE e.id = :id AND e.scheduledRetryAt IS NOT NULL")
+    int clearScheduledRetry(@Param("id") UUID id);
 }
