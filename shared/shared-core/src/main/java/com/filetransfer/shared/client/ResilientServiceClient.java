@@ -120,6 +120,11 @@ public abstract class ResilientServiceClient extends BaseServiceClient {
         return circuitBreaker.getMetrics();
     }
 
+    /** Expose the service name for endpoint enumeration and monitoring. */
+    public String getServiceName() {
+        return serviceName();
+    }
+
     /**
      * Overrides health check to short-circuit when the circuit breaker is OPEN.
      * Avoids hammering a service that is already known to be down.

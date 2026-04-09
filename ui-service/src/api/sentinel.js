@@ -22,3 +22,4 @@ export const deleteRule = (id) => sentinelApi.delete(`/api/v1/sentinel/rules/${i
 export const getDashboard = () => sentinelApi.get('/api/v1/sentinel/dashboard').then(r => r.data)
 export const triggerAnalysis = () => sentinelApi.post('/api/v1/sentinel/analyze').then(r => r.data)
 export const getSentinelHealth = () => sentinelApi.get('/api/v1/sentinel/health').then(r => r.data)
+export const getCircuitBreakers = () => sentinelApi.get('/api/v1/sentinel/circuit-breakers').then(r => r.data)

@@ -4,6 +4,7 @@ import com.filetransfer.sentinel.analyzer.CorrelationEngine;
 import com.filetransfer.sentinel.analyzer.HealthScoreCalculator;
 import com.filetransfer.sentinel.analyzer.PerformanceAnalyzer;
 import com.filetransfer.sentinel.analyzer.SecurityAnalyzer;
+import com.filetransfer.sentinel.collector.CircuitBreakerCollector;
 import com.filetransfer.sentinel.entity.CorrelationGroup;
 import com.filetransfer.sentinel.entity.HealthScore;
 import com.filetransfer.sentinel.entity.SentinelFinding;
@@ -35,6 +36,7 @@ public class SentinelController {
     private final PerformanceAnalyzer performanceAnalyzer;
     private final CorrelationEngine correlationEngine;
     private final HealthScoreCalculator healthScoreCalculator;
+    private final CircuitBreakerCollector circuitBreakerCollector;
 
     // --- Health Score ---
 
@@ -200,6 +202,20 @@ public class SentinelController {
             healthScoreCalculator.calculate();
         }).start();
         return ResponseEntity.ok(Map.of("status", "Analysis triggered"));
+    }
+
+    // --- Circuit Breakers ---
+
+    @GetMapping("/circuit-breakers")
+    public ResponseEntity<Map<String, Object>> getCircuitBreakers() {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("circuitBreakers", circuitBreakerCollector.getAllCircuitBreakers());
+        result.put("totalCount", circuitBreakerCollector.getTotalCount());
+        result.put("closedCount", circuitBreakerCollector.getClosedCount());
+        result.put("openCount", circuitBreakerCollector.getOpenCount());
+        result.put("halfOpenCount", circuitBreakerCollector.getHalfOpenCount());
+        result.put("unknownCount", circuitBreakerCollector.getUnknownCount());
+        return ResponseEntity.ok(result);
     }
 
     // --- Health ---

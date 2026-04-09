@@ -94,12 +94,13 @@ const navGroups = [
   {
     label: 'Observability',
     items: [
-      { to: '/observatory',     icon: EyeIcon,         label: 'Observatory',       role: 'ADMIN' },
-      { to: '/recommendations', icon: LightBulbIcon,   label: 'AI Recommendations' },
-      { to: '/analytics',       icon: ChartBarIcon,    label: 'Analytics' },
-      { to: '/predictions',     icon: BeakerIcon,      label: 'Predictions' },
-      { to: '/sentinel',        icon: CpuChipIcon,     label: 'Platform Sentinel', role: 'ADMIN' },
-      { to: '/logs',            icon: DocumentTextIcon,label: 'Logs' },
+      { to: '/observatory',      icon: EyeIcon,         label: 'Observatory',          role: 'ADMIN' },
+      { to: '/recommendations',  icon: LightBulbIcon,   label: 'AI Recommendations' },
+      { to: '/analytics',        icon: ChartBarIcon,    label: 'Analytics' },
+      { to: '/predictions',      icon: BeakerIcon,      label: 'Predictions' },
+      { to: '/sentinel',         icon: CpuChipIcon,     label: 'Platform Sentinel',    role: 'ADMIN' },
+      { to: '/circuit-breakers', icon: ArrowPathIcon,   label: 'Circuit Breakers',     role: 'ADMIN' },
+      { to: '/logs',             icon: DocumentTextIcon,label: 'Logs' },
     ],
   },
   {

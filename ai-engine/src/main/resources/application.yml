@@ -11,7 +11,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,prometheus,info
+        include: health,prometheus,info,circuit-breakers
   endpoint:
     health:
       show-details: when_authorized

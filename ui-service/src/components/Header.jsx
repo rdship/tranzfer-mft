@@ -50,6 +50,7 @@ const PAGE_TITLES = {
   '/analytics':          'Analytics',
   '/predictions':        'Predictions',
   '/sentinel':           'Platform Sentinel',
+  '/circuit-breakers':   'Circuit Breaker Status',
   '/logs':               'Audit Logs',
   '/platform-config':    'Platform Config',
   '/terminal':           'Terminal',

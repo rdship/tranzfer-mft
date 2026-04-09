@@ -17,6 +17,7 @@ const ROUTE_THEMES = {
   '/activity':           'dark-ops',
   '/activity-monitor':   'dark-ops',
   '/sentinel':           'dark-ops',
+  '/circuit-breakers':   'dark-ops',
   '/observatory':        'dark-ops',
   '/logs':               'dark-ops',
   '/journey':            'dark-ops',

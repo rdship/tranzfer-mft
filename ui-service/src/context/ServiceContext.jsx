@@ -90,6 +90,7 @@ const PAGE_SERVICE_MAP = {
   // AI
   '/ai': ['aiEngine'],
   '/sentinel': ['sentinel'],
+  '/circuit-breakers': ['sentinel'],
   '/recommendations': ['aiEngine'],
 }
 
