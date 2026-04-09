@@ -34,4 +34,8 @@ public interface FlowExecutionRepository extends JpaRepository<FlowExecution, UU
 
     /** For stuck execution recovery — finds PROCESSING executions older than threshold */
     List<FlowExecution> findByStatusAndStartedAtBefore(FlowExecution.FlowStatus status, Instant threshold);
+
+    /** Observatory: recent executions with flow name eagerly loaded (avoids N+1). */
+    @Query("SELECT e FROM FlowExecution e LEFT JOIN FETCH e.flow WHERE e.startedAt > :since")
+    List<FlowExecution> findRecentWithFlow(@Param("since") Instant since);
 }

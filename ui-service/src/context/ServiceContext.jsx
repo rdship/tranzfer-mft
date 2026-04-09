@@ -61,6 +61,7 @@ const PAGE_SERVICE_MAP = {
   '/p2p': ['core'],
 
   // Intelligence tier
+  '/observatory': ['analytics'],
   '/analytics': ['analytics'],
   '/predictions': ['analytics'],
   '/logs': ['core'],

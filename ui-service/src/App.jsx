@@ -46,6 +46,7 @@ import VfsStorage from './pages/VfsStorage'
 import DmzProxy from './pages/DmzProxy'
 import ActivityMonitor from './pages/ActivityMonitor'
 import Sentinel from './pages/Sentinel'
+import Observatory from './pages/Observatory'
 
 export default function App() {
   return (
@@ -87,6 +88,7 @@ export default function App() {
             <Route path="activity" element={<Activity />} />
             <Route path="activity-monitor" element={<ActivityMonitor />} />
             <Route path="sentinel" element={<Sentinel />} />
+            <Route path="observatory" element={<Observatory />} />
             <Route path="2fa" element={<TwoFactor />} />
             <Route path="api-console" element={<ApiConsole />} />
             <Route path="edi" element={<Edi />} />

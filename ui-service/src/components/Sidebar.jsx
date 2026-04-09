@@ -79,6 +79,7 @@ const navGroups = [
   {
     label: 'Observability',
     items: [
+      { to: '/observatory', icon: CpuChipIcon, label: 'Observatory', role: 'ADMIN' },
       { to: '/recommendations', icon: ChartBarIcon, label: 'AI Recommendations' },
       { to: '/analytics', icon: ChartBarIcon, label: 'Analytics' },
       { to: '/predictions', icon: CpuChipIcon, label: 'Predictions' },
