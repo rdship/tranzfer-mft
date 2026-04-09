@@ -4,10 +4,13 @@ import com.filetransfer.shared.security.Roles;
 import com.filetransfer.storage.engine.ParallelIOEngine;
 import com.filetransfer.storage.entity.StorageObject;
 import com.filetransfer.storage.lifecycle.StorageLifecycleManager;
+import com.filetransfer.storage.registry.StorageLocationRegistry;
 import com.filetransfer.storage.repository.StorageObjectRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.lang.Nullable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -26,6 +29,11 @@ public class StorageController {
     private final ParallelIOEngine ioEngine;
     private final StorageLifecycleManager lifecycle;
     private final StorageObjectRepository objectRepo;
+
+    /** Optional — present when Redis is configured. Null → routing disabled, single-instance only. */
+    @Autowired(required = false)
+    @Nullable
+    private StorageLocationRegistry locationRegistry;
 
     @Value("${storage.hot.path:/data/storage/hot}")
     private String hotPath;
@@ -65,6 +73,8 @@ public class StorageController {
                 .contentType(file.getContentType())
                 .build();
         objectRepo.save(obj);
+        // Register that THIS instance holds the bytes — enables cross-replica routing
+        if (locationRegistry != null) locationRegistry.register(result.getSha256());
 
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "status", "STORED", "tier", "HOT",
@@ -174,20 +184,44 @@ public class StorageController {
                 "striped", result.isStriped()));
     }
 
-    /** Retrieve file by SHA-256 key (used by VFS read channels). */
+    /**
+     * Retrieve file by SHA-256 key (used by VFS read channels).
+     *
+     * <p><b>Multi-replica routing:</b> if the file was written to a different storage-manager
+     * instance, the location registry returns that instance's URL and this pod proxies the
+     * request. The caller gets the bytes transparently regardless of which pod stored them.
+     *
+     * <p>Fallback: if Redis is unavailable or no location entry exists, attempt local read
+     * (works correctly in single-instance deployments and shared-storage deployments).
+     */
     @GetMapping("/retrieve-by-key/{sha256}")
     public ResponseEntity<byte[]> retrieveByKey(@PathVariable String sha256) throws Exception {
+        // ── Cross-replica routing check ───────────────────────────────────────
+        if (locationRegistry != null && !locationRegistry.isLocal(sha256)) {
+            byte[] proxied = locationRegistry.proxyRetrieve(sha256);
+            if (proxied != null) {
+                return ResponseEntity.ok()
+                        .header("X-SHA256", sha256)
+                        .header("X-Routed-From", locationRegistry.getOwnerUrl(sha256))
+                        .body(proxied);
+            }
+            // Proxy failed — fall through to local attempt (defensive)
+        }
+
+        // ── Local read ────────────────────────────────────────────────────────
         StorageObject obj = objectRepo.findBySha256AndDeletedFalse(sha256)
                 .orElseThrow(() -> new RuntimeException("File not found for key: " + sha256));
 
         obj.setAccessCount(obj.getAccessCount() + 1);
-        obj.setLastAccessedAt(java.time.Instant.now());
+        obj.setLastAccessedAt(Instant.now());
         objectRepo.save(obj);
 
         ParallelIOEngine.ReadResult result = ioEngine.read(Paths.get(obj.getPhysicalPath()));
 
         return ResponseEntity.ok()
-                .contentType(obj.getContentType() != null ? MediaType.parseMediaType(obj.getContentType()) : MediaType.APPLICATION_OCTET_STREAM)
+                .contentType(obj.getContentType() != null
+                        ? MediaType.parseMediaType(obj.getContentType())
+                        : MediaType.APPLICATION_OCTET_STREAM)
                 .header("X-Storage-Tier", obj.getTier())
                 .header("X-SHA256", obj.getSha256())
                 .body(result.getData());

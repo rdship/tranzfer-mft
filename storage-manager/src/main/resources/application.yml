@@ -10,6 +10,17 @@ management:
 spring:
   lifecycle:
     timeout-per-shutdown-phase: 45s
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 4
+          max-idle: 4
+          min-idle: 1
+          max-wait: 1000ms
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
@@ -57,6 +68,14 @@ spring:
     validate-on-migrate: false
 
 storage:
+  # ── Replica identity ────────────────────────────────────────────────────────
+  # This instance's own URL — registered in Redis so other instances can route
+  # retrieve requests directly to the pod that holds the physical bytes.
+  # Set STORAGE_INSTANCE_URL to the Docker/K8s service URL for THIS specific pod
+  # (e.g. http://storage-manager-1:8096).  Docker Compose sets this per-service.
+  # In a shared-storage deployment (NFS/S3/MinIO) this is not needed.
+  instance-url: ${STORAGE_INSTANCE_URL:http://storage-manager:8096}
+
   # Tiered storage paths
   hot:
     path: ${STORAGE_HOT_PATH:/data/storage/hot}

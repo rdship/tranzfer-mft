@@ -13,7 +13,9 @@ import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,6 +61,14 @@ public class VirtualFileSystem {
     private final VfsChunkRepository chunkRepository;
     private final EntityManager entityManager;
     private final TransferAccountRepository accountRepository;
+
+    /**
+     * Optional distributed lock — activates when Redis is available.
+     * Falls back to pg_advisory_xact_lock for single-instance deployments.
+     */
+    @Autowired(required = false)
+    @org.springframework.lang.Nullable
+    private DistributedVfsLock distributedLock;
 
     @Value("${vfs.inline-max-bytes:65536}")
     private long inlineMaxBytes;
@@ -232,8 +242,9 @@ public class VirtualFileSystem {
         String parentPath = parentOf(normalized);
         String bucket = determineBucket(sizeBytes, accountId);
 
-        // 1. Advisory lock: serialize concurrent writes to same (account, path)
-        lockPath(accountId, normalized);
+        // 1. Distributed lock: serialize concurrent writes to same (account, path) across ALL pods.
+        //    Released in the finally block below — works for Redis (distributed) and pg_advisory (local).
+        DistributedVfsLock.LockHandle lock = lockPath(accountId, normalized);
 
         // 2. Record intent BEFORE mutation
         VfsIntent intent = createIntent(accountId, VfsIntent.OpType.WRITE, normalized,
@@ -295,8 +306,12 @@ public class VirtualFileSystem {
         }
 
         // 6. Mark intent COMMITTED (same transaction — single DB commit)
-        commitIntent(intent);
-        return result;
+        try {
+            commitIntent(intent);
+            return result;
+        } finally {
+            lock.close(); // Releases Redis SETNX key (no-op for pg_advisory — auto-released on tx commit)
+        }
     }
 
     /**
@@ -438,7 +453,7 @@ public class VirtualFileSystem {
             throw new IllegalArgumentException("Cannot delete root directory");
         }
 
-        lockPath(accountId, normalized);
+        DistributedVfsLock.LockHandle lock = lockPath(accountId, normalized);
 
         VfsIntent intent = createIntent(accountId, VfsIntent.OpType.DELETE, normalized,
                 null, null, null, 0, null);
@@ -446,20 +461,24 @@ public class VirtualFileSystem {
         Optional<VirtualEntry> entry = entryRepository.findByAccountIdAndPathAndDeletedFalse(accountId, normalized);
         if (entry.isEmpty()) {
             abortIntent(intent);
+            lock.close();
             return 0;
         }
 
         int deleted;
-        if (entry.get().isDirectory()) {
-            deleted = entryRepository.softDeleteByPrefix(accountId, normalized + "%");
-        } else {
-            entry.get().setDeleted(true);
-            entryRepository.save(entry.get());
-            deleted = 1;
+        try {
+            if (entry.get().isDirectory()) {
+                deleted = entryRepository.softDeleteByPrefix(accountId, normalized + "%");
+            } else {
+                entry.get().setDeleted(true);
+                entryRepository.save(entry.get());
+                deleted = 1;
+            }
+            commitIntent(intent);
+            return deleted;
+        } finally {
+            lock.close();
         }
-
-        commitIntent(intent);
-        return deleted;
     }
 
     // ── Move / Rename (WAIP-protected) ─────────────────────────────────
@@ -471,44 +490,49 @@ public class VirtualFileSystem {
 
         if (normalizedFrom.equals(normalizedTo)) return;
 
-        // Lock BOTH paths in lexicographic order to prevent deadlocks
+        // Lock BOTH paths in lexicographic order to prevent deadlocks across pods
         String first = normalizedFrom.compareTo(normalizedTo) < 0 ? normalizedFrom : normalizedTo;
         String second = normalizedFrom.compareTo(normalizedTo) < 0 ? normalizedTo : normalizedFrom;
-        lockPath(accountId, first);
-        lockPath(accountId, second);
+        DistributedVfsLock.LockHandle lock1 = lockPath(accountId, first);
+        DistributedVfsLock.LockHandle lock2 = lockPath(accountId, second);
 
         VfsIntent intent = createIntent(accountId, VfsIntent.OpType.MOVE, normalizedFrom,
                 normalizedTo, null, null, 0, null);
 
-        if (!entryRepository.existsByAccountIdAndPathAndDeletedFalse(accountId, normalizedFrom)) {
-            throw new NoSuchElementException("Source not found: " + normalizedFrom);
-        }
-        if (entryRepository.existsByAccountIdAndPathAndDeletedFalse(accountId, normalizedTo)) {
-            throw new IllegalStateException("Destination already exists: " + normalizedTo);
-        }
+        try {
+            if (!entryRepository.existsByAccountIdAndPathAndDeletedFalse(accountId, normalizedFrom)) {
+                throw new NoSuchElementException("Source not found: " + normalizedFrom);
+            }
+            if (entryRepository.existsByAccountIdAndPathAndDeletedFalse(accountId, normalizedTo)) {
+                throw new IllegalStateException("Destination already exists: " + normalizedTo);
+            }
 
-        String destParent = parentOf(normalizedTo);
-        if (!"/".equals(destParent)) {
-            mkdirs(accountId, destParent);
+            String destParent = parentOf(normalizedTo);
+            if (!"/".equals(destParent)) {
+                mkdirs(accountId, destParent);
+            }
+
+            VirtualEntry entry = entryRepository.findByAccountIdAndPathAndDeletedFalse(accountId, normalizedFrom)
+                    .orElseThrow();
+
+            if (entry.isFile()) {
+                entry.setPath(normalizedTo);
+                entry.setParentPath(destParent);
+                entry.setName(nameOf(normalizedTo));
+                entryRepository.save(entry);
+            } else {
+                entryRepository.renamePrefixBulk(accountId, normalizedFrom, normalizedTo, destParent);
+                entry.setPath(normalizedTo);
+                entry.setParentPath(destParent);
+                entry.setName(nameOf(normalizedTo));
+                entryRepository.save(entry);
+            }
+
+            commitIntent(intent);
+        } finally {
+            lock1.close();
+            lock2.close();
         }
-
-        VirtualEntry entry = entryRepository.findByAccountIdAndPathAndDeletedFalse(accountId, normalizedFrom)
-                .orElseThrow();
-
-        if (entry.isFile()) {
-            entry.setPath(normalizedTo);
-            entry.setParentPath(destParent);
-            entry.setName(nameOf(normalizedTo));
-            entryRepository.save(entry);
-        } else {
-            entryRepository.renamePrefixBulk(accountId, normalizedFrom, normalizedTo, destParent);
-            entry.setPath(normalizedTo);
-            entry.setParentPath(destParent);
-            entry.setName(nameOf(normalizedTo));
-            entryRepository.save(entry);
-        }
-
-        commitIntent(intent);
     }
 
     // ── Bulk Operations (Onboarding) ───────────────────────────────────
@@ -542,12 +566,24 @@ public class VirtualFileSystem {
     // ── WAIP Internal ──────────────────────────────────────────────────
 
     /**
-     * Acquire path-level advisory lock within the current transaction.
-     * Uses pg_advisory_xact_lock which auto-releases on COMMIT/ROLLBACK.
-     * Zero disk I/O — purely in-memory PostgreSQL lock manager.
+     * Acquire path-level lock for VFS write operations.
+     *
+     * <p><b>Distributed mode (Redis available):</b> uses {@link DistributedVfsLock} —
+     * a Redis SET NX EX mutex that works across all pods. This closes the multi-replica
+     * race condition where two pods could bypass each other's pg_advisory locks.
+     *
+     * <p><b>Single-instance fallback (no Redis):</b> falls back to {@code pg_advisory_xact_lock}
+     * which auto-releases on COMMIT/ROLLBACK and is correct for single-pod deployments.
+     *
+     * <p><strong>CALLER MUST close the returned handle in a finally block.</strong>
      */
-    private void lockPath(UUID accountId, String path) {
-        // Mix UUID bits across the full long range to minimise hash collisions
+    private DistributedVfsLock.LockHandle lockPath(UUID accountId, String path) {
+        if (distributedLock != null) {
+            // Cross-pod distributed lock — works for N replicas
+            return distributedLock.acquire(accountId, path);
+        }
+
+        // Single-instance fallback: pg_advisory_xact_lock (session-scoped, auto-releases)
         long hash = accountId.getMostSignificantBits()
                 ^ (accountId.getLeastSignificantBits() >>> 17)
                 ^ ((long) path.hashCode() << 31);
@@ -560,6 +596,7 @@ public class VirtualFileSystem {
             throw new IllegalStateException(
                     "Concurrent write contention on VFS path [" + path + "] — retry the operation", e);
         }
+        return DistributedVfsLock.LockHandle.NOOP; // pg_advisory released on tx commit
     }
 
     private VfsIntent createIntent(UUID accountId, VfsIntent.OpType op, String path,

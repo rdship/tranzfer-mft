@@ -687,6 +687,23 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  # ─────────────────────────────────────────────────────────────────────────────
+  # IMPORTANT — Multi-replica storage warning:
+  #
+  # storage_data is a SINGLE Docker named volume mounted on ONE container.
+  # If you scale storage-manager (docker compose up --scale storage-manager=N),
+  # each replica gets its OWN copy of storage_data and CANNOT see each other's files.
+  #
+  # For true multi-replica deployments, choose one:
+  #   A) NFS shared volume: mount an NFS path at /data/storage on every replica
+  #   B) MinIO/S3: enable the mft-minio service below (profile=minio) and set
+  #      STORAGE_BACKEND=s3 on each replica (future work — see StorageBackend.java)
+  #   C) Kubernetes: use a ReadWriteMany PersistentVolumeClaim (EFS, GlusterFS, etc.)
+  #
+  # The Redis location registry (StorageLocationRegistry) is an INTERIM workaround:
+  # it records which instance holds each SHA-256 key and proxies retrieval requests.
+  # It does NOT fix data loss if the owning pod's volume is destroyed.
+  # ─────────────────────────────────────────────────────────────────────────────
   storage-manager:
     build: ./storage-manager
     container_name: mft-storage-manager
@@ -701,6 +718,9 @@ services:
       STORAGE_WARM_PATH: /data/storage/warm
       STORAGE_COLD_PATH: /data/storage/cold
       STORAGE_BACKUP_PATH: /data/storage/backup
+      # Instance URL used by the Redis location registry to route cross-replica retrieval.
+      # Set this to the pod's own URL in K8s (e.g. http://$(POD_IP):8096).
+      STORAGE_INSTANCE_URL: http://storage-manager:8096
     volumes:
       - storage_data:/data/storage
     depends_on:
@@ -708,6 +728,38 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # MinIO — shared S3-compatible object storage (the correct multi-replica fix).
+  #
+  # Enables true horizontal scaling of storage-manager: every replica reads/writes
+  # the same bucket. All storage-manager containers must point to the same MinIO.
+  #
+  # Start with:  docker compose --profile minio up -d
+  # Then set on storage-manager: STORAGE_BACKEND=s3, S3_ENDPOINT=http://minio:9000
+  # Admin UI: http://localhost:9001 (minioadmin / minioadmin)
+  # ─────────────────────────────────────────────────────────────────────────────
+  mft-minio:
+    image: minio/minio:latest
+    container_name: mft-minio
+    profiles:
+      - minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER:     ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
   edi-converter:
     build: ./edi-converter
@@ -949,6 +1001,7 @@ volumes:
   spire-init-data:   # Bootstrap join-token file (written by bootstrap.sh)
   spire-socket:      # SPIFFE Workload API socket (mounted read-only into services)
   redis_data:      # Redis AOF + RDB snapshots — cache survives restarts
+  minio_data:      # MinIO object storage — shared across all storage-manager replicas (profile=minio)
   postgres_data:
   rabbitmq_data:
   sftp_data:       # Shared across all SFTP replicas
