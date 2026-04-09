@@ -2,6 +2,7 @@ package com.filetransfer.shared.client;
 
 import com.filetransfer.shared.config.PlatformConfig;
 import com.filetransfer.shared.spiffe.SpiffeWorkloadClient;
+import com.filetransfer.shared.spiffe.SpiffeX509Manager;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,12 +43,21 @@ public abstract class BaseServiceClient {
 
     /**
      * Optional SPIFFE workload client — auto-wired when {@code spiffe.enabled=true}.
-     * When present, outbound calls use a short-lived JWT-SVID instead of
+     * Provides JWT-SVID (Phase 1: cached, proactive refresh) for {@code http://} targets.
      * When absent, outbound calls proceed without a workload identity token.
      */
     @Autowired(required = false)
     @Nullable
     private SpiffeWorkloadClient spiffeWorkloadClient;
+
+    /**
+     * Optional SPIFFE X.509 manager — auto-wired when {@code spiffe.mtls-enabled=true}.
+     * When present and the target URL uses {@code https://}, skips the JWT header entirely:
+     * the SPIFFE X.509-SVID in the TLS client certificate authenticates the call.
+     */
+    @Autowired(required = false)
+    @Nullable
+    private SpiffeX509Manager spiffeX509Manager;
 
     protected BaseServiceClient(RestTemplate restTemplate,
                                 PlatformConfig platformConfig,
@@ -101,13 +111,26 @@ public abstract class BaseServiceClient {
     }
 
     /**
-     * Adds SPIFFE JWT-SVID authentication to outbound inter-service headers.
+     * Adds authentication to outbound inter-service headers.
      *
-     * <p>Uses the SPIRE Workload API to fetch a short-lived (1h), auto-rotating
-     * JWT-SVID for the target service. If SPIFFE is unavailable, no auth header
-     * is added — the target service will return 401 (fail-safe, no static secret fallback).
+     * <p><b>Phase 2 — mTLS (https:// target):</b> when {@link SpiffeX509Manager} is present
+     * and the target URL uses {@code https://}, no JWT header is added. The SPIFFE X.509-SVID
+     * in the TLS client certificate authenticates the call — identity is in the TLS channel.
+     *
+     * <p><b>Phase 1 — JWT-SVID (http:// target):</b> fetches a cached, auto-rotating JWT-SVID
+     * from {@link SpiffeWorkloadClient} and attaches it as a Bearer token. The cache eliminates
+     * per-request SPIRE agent calls; see {@link SpiffeWorkloadClient} for details.
+     *
+     * <p>If neither SPIFFE component is available, no auth header is added — the target service
+     * returns 401 (fail-safe; no static-secret fallback).
      */
     protected void addInternalAuth(HttpHeaders headers) {
+        // Phase 2: mTLS — X.509-SVID in the TLS channel authenticates; no JWT header needed
+        if (spiffeX509Manager != null && spiffeX509Manager.isAvailable()
+                && baseUrl().startsWith("https://")) {
+            return;
+        }
+        // Phase 1: JWT-SVID (cached, proactive refresh — no per-request SPIRE call on hot path)
         if (spiffeWorkloadClient != null && spiffeWorkloadClient.isAvailable()) {
             String target = deriveTargetServiceName();
             String jwtSvid = spiffeWorkloadClient.getJwtSvidFor(target);

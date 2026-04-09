@@ -4,6 +4,7 @@ import com.filetransfer.shared.config.PlatformConfig;
 import com.filetransfer.shared.repository.RolePermissionRepository;
 import com.filetransfer.shared.repository.UserPermissionRepository;
 import com.filetransfer.shared.repository.UserRepository;
+import com.filetransfer.shared.spiffe.SpiffeMtlsAuthFilter;
 import com.filetransfer.shared.spiffe.SpiffeWorkloadClient;
 import com.filetransfer.shared.util.JwtUtil;
 import jakarta.servlet.FilterChain;
@@ -24,19 +25,25 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Combined authentication filter supporting two identity paths:
+ * Combined authentication filter supporting three identity paths, evaluated in order:
  *
  * <ol>
- *   <li><b>SPIFFE JWT-SVID</b> — Bearer token whose {@code sub} claim starts with
- *       {@code spiffe://}. Validated via the SPIRE Workload API trust bundle.
- *       Grants {@code ROLE_INTERNAL}. Used for zero-trust service-to-service auth.
+ *   <li><b>SPIFFE mTLS peer certificate (Phase 2)</b> — {@link SpiffeMtlsAuthFilter}
+ *       (pre-security) extracted the caller's SPIFFE ID from the TLS client certificate
+ *       and stored it in the {@code spiffe.mtls.peer-id} request attribute. This path
+ *       reads that attribute and grants {@code ROLE_INTERNAL} with zero JWT overhead.
+ *       Active when {@code spiffe.mtls-enabled=true} and the caller presents a cert.
+ *   <li><b>SPIFFE JWT-SVID (Phase 1)</b> — Bearer token whose {@code sub} claim starts
+ *       with {@code spiffe://}. Validated via the SPIRE Workload API trust bundle.
+ *       Grants {@code ROLE_INTERNAL}. Fallback for {@code http://} service-to-service
+ *       calls and environments without full mTLS.
  *   <li><b>Platform JWT</b> — Bearer token issued by the platform's auth service.
  *       Grants {@code ROLE_<role>} + fine-grained {@code PERM_*} authorities.
  *       Used by admin UI, partner portal, and CLI.
  * </ol>
  *
- * <p>If none match, the filter chain continues unauthenticated and Spring
- * Security enforces 401.
+ * <p>If none match, the filter chain continues unauthenticated and Spring Security
+ * enforces 401.
  */
 @Slf4j
 public class PlatformJwtAuthFilter extends OncePerRequestFilter {
@@ -71,6 +78,20 @@ public class PlatformJwtAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
+
+        // ── Path 0: SPIFFE mTLS peer certificate ────────────────────────────
+        // SpiffeMtlsAuthFilter (pre-security) extracted the SPIFFE ID from the TLS
+        // client certificate and stored it as a request attribute. Authenticate here
+        // inside the Spring Security chain so the context is not overwritten.
+        String peerSpiffeId = (String) request.getAttribute(SpiffeMtlsAuthFilter.PEER_SPIFFE_ID_ATTR);
+        if (peerSpiffeId != null) {
+            SecurityContextHolder.getContext().setAuthentication(
+                    new UsernamePasswordAuthenticationToken(
+                            peerSpiffeId, null,
+                            List.of(new SimpleGrantedAuthority("ROLE_INTERNAL"))));
+            filterChain.doFilter(request, response);
+            return;
+        }
 
         String bearerToken = extractBearerToken(request);
 

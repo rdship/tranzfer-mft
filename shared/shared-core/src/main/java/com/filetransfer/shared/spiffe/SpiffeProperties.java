@@ -44,6 +44,16 @@ public class SpiffeProperties {
     /** How long (ms) to wait for the SPIRE agent on startup. Default 10s. */
     private long initTimeoutMs = 10_000;
 
+    /**
+     * Enable mutual TLS (X.509-SVID) transport for service-to-service calls.
+     * When true, {@link SpiffeX509Manager} is registered and {@code SharedConfig}
+     * creates an mTLS-capable RestTemplate backed by Apache HttpClient 5.
+     * Service URLs must use {@code https://} to activate the mTLS path in
+     * {@code BaseServiceClient}; JWT-SVIDs remain the fallback for {@code http://} URLs.
+     * Default false — opt in per environment.
+     */
+    private boolean mtlsEnabled = false;
+
     /** Build this service's full SPIFFE ID. */
     public String selfSpiffeId() {
         return "spiffe://" + trustDomain + "/" + serviceName;

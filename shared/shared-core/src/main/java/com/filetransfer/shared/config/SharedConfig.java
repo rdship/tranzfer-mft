@@ -1,12 +1,22 @@
 package com.filetransfer.shared.config;
 
+import com.filetransfer.shared.spiffe.SpiffeX509Manager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
+import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactoryBuilder;
+import org.apache.hc.core5.util.TimeValue;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -30,11 +40,27 @@ public class SharedConfig {
 
     /**
      * Central RestTemplate bean used by all services for outbound HTTP calls.
-     * When platform.proxy.enabled=true, routes through the configured proxy.
-     * When false (default), connects directly.
+     *
+     * <p>Priority order:
+     * <ol>
+     *   <li><b>mTLS (Phase 2)</b> — when {@link SpiffeX509Manager} is present and available,
+     *       creates an Apache HttpClient 5 RestTemplate with a SPIFFE-backed SSLContext.
+     *       Connection pool: 200 total / 20 per route. Idle connections evicted after 30 s.
+     *       Services activate this path by setting their peer URLs to {@code https://} and
+     *       enabling {@code spiffe.mtls-enabled=true}. Identity rides the TLS channel —
+     *       no JWT header is attached (see {@code BaseServiceClient.addInternalAuth}).
+     *   <li><b>Proxy</b> — when {@code platform.proxy.enabled=true}, routes through the
+     *       configured HTTP/SOCKS5 proxy (unchanged from existing behaviour).
+     *   <li><b>Plain HTTP</b> — default; uses JWT-SVID cache from Phase 1.
+     * </ol>
      */
     @Bean
-    public RestTemplate restTemplate() {
+    public RestTemplate restTemplate(ObjectProvider<SpiffeX509Manager> x509ManagerProvider) {
+        SpiffeX509Manager x509Manager = x509ManagerProvider.getIfAvailable();
+        if (x509Manager != null && x509Manager.isAvailable()) {
+            return buildMtlsRestTemplate(x509Manager);
+        }
+
         PlatformConfig.ProxyConfig proxyConfig = platformConfig.getProxy();
         if (proxyConfig != null && proxyConfig.isEnabled() && proxyConfig.getHost() != null) {
             Proxy.Type proxyType = "SOCKS5".equalsIgnoreCase(proxyConfig.getType())
@@ -50,6 +76,39 @@ public class SharedConfig {
             return new RestTemplate(factory);
         }
         return new RestTemplate();
+    }
+
+    /**
+     * Build an Apache HttpClient 5 RestTemplate with SPIFFE mTLS SSLContext.
+     * The {@link SpiffeX509Manager}'s {@code SpiffeKeyManager} serves the current
+     * X.509-SVID on every TLS handshake — live-rotating from SPIRE, zero SPIRE I/O
+     * on the hot path. Falls back to plain RestTemplate on SSLContext creation failure.
+     */
+    private RestTemplate buildMtlsRestTemplate(SpiffeX509Manager x509Manager) {
+        try {
+            SSLConnectionSocketFactory sslCsf = SSLConnectionSocketFactoryBuilder.create()
+                    .setSslContext(x509Manager.createSslContext())
+                    .build();
+
+            PoolingHttpClientConnectionManager cm = PoolingHttpClientConnectionManagerBuilder.create()
+                    .setSSLSocketFactory(sslCsf)
+                    .setMaxConnTotal(200)   // across all target services
+                    .setMaxConnPerRoute(20) // per service (10 services typical)
+                    .build();
+
+            CloseableHttpClient httpClient = HttpClients.custom()
+                    .setConnectionManager(cm)
+                    .evictExpiredConnections()
+                    .evictIdleConnections(TimeValue.ofSeconds(30))
+                    .build();
+
+            log.info("[SPIFFE] mTLS RestTemplate configured — Apache HttpClient 5, pool max=200/route=20");
+            return new RestTemplate(new HttpComponentsClientHttpRequestFactory(httpClient));
+        } catch (Exception ex) {
+            log.error("[SPIFFE] Failed to create mTLS RestTemplate — falling back to plain HTTP: {}",
+                    ex.getMessage(), ex);
+            return new RestTemplate();
+        }
     }
 
     /**
