@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { configApi, onboardingApi } from '../api/client'
 import { getPendingApprovals, approveStep, rejectStep } from '../api/approvals'
@@ -199,17 +199,36 @@ function AddStepDropdown({ onAdd, onClose }) {
 }
 
 // ─── Execution detail row ───
-function ExecutionRow({ ex }) {
+const RESTARTABLE = new Set(['FAILED', 'CANCELLED', 'UNMATCHED'])
+
+function ExecutionRow({ ex, selected, onToggle }) {
   const [expanded, setExpanded] = useState(false)
   const style = STATUS_STYLES[ex.status] || STATUS_STYLES.PENDING
   const totalSteps = ex.flow?.steps?.length || '?'
   const duration = ex.startedAt && ex.completedAt
     ? `${((new Date(ex.completedAt) - new Date(ex.startedAt)) / 1000).toFixed(1)}s`
     : ex.startedAt ? 'Running...' : '—'
+  const selectable = RESTARTABLE.has(ex.status)
 
   return (
     <>
-      <tr className="table-row cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => setExpanded(!expanded)}>
+      <tr
+        className={`table-row cursor-pointer hover:bg-gray-50 transition-colors ${selected ? 'bg-red-50' : ''}`}
+        onClick={() => setExpanded(!expanded)}
+      >
+        {/* Checkbox — stop propagation so row expand doesn't fire */}
+        <td className="table-cell w-8" onClick={e => e.stopPropagation()}>
+          {selectable ? (
+            <input
+              type="checkbox"
+              checked={!!selected}
+              onChange={() => onToggle(ex.trackId)}
+              className="rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer"
+            />
+          ) : (
+            <span className="block w-4" />
+          )}
+        </td>
         <td className="table-cell">
           <div className="flex items-center gap-1">
             <ChevronRightIcon className={`w-3.5 h-3.5 text-gray-400 transition-transform ${expanded ? 'rotate-90' : ''}`} />
@@ -240,7 +259,7 @@ function ExecutionRow({ ex }) {
       </tr>
       {expanded && ex.stepResults?.length > 0 && (
         <tr>
-          <td colSpan={7} className="px-4 pb-4 pt-0">
+          <td colSpan={8} className="px-4 pb-4 pt-0">
             <div className="ml-6 bg-gray-50 rounded-lg p-3">
               <h4 className="text-xs font-semibold text-gray-500 mb-2">Step Results</h4>
               <div className="space-y-1.5">
@@ -367,6 +386,7 @@ export default function Flows() {
   const [form, setForm] = useState({ ...defaultForm })
   const [showAddStep, setShowAddStep] = useState(false)
   const [filter, setFilter] = useState('all') // 'all' | 'active' | 'inactive'
+  const [selectedIds, setSelectedIds] = useState(new Set()) // trackIds selected for bulk restart
 
   // ─── Queries ───
   const { data: flows = [], isLoading } = useQuery({
@@ -404,6 +424,21 @@ export default function Flows() {
       toast.success('Flow rejected and cancelled')
     },
     onError: err => toast.error(err.response?.data?.message || 'Rejection failed')
+  })
+
+  const bulkRestartMut = useMutation({
+    mutationFn: (trackIds) =>
+      onboardingApi.post('/api/flow-executions/bulk-restart', { trackIds }).then(r => r.data),
+    onSuccess: (data) => {
+      setSelectedIds(new Set())
+      qc.invalidateQueries(['flow-executions'])
+      const msg = data.queued === 0
+        ? `No executions restarted (${data.skipped} skipped — check status)`
+        : `${data.queued} execution${data.queued !== 1 ? 's' : ''} queued for restart` +
+          (data.skipped > 0 ? ` · ${data.skipped} skipped` : '')
+      data.queued > 0 ? toast.success(msg) : toast.error(msg)
+    },
+    onError: err => toast.error(err.response?.data?.error || 'Bulk restart failed')
   })
 
   const { data: accounts = [] } = useQuery({
@@ -733,11 +768,47 @@ export default function Flows() {
             <h3 className="font-semibold text-gray-900">Execution History</h3>
             <span className="text-xs text-gray-400">(auto-refresh 10s)</span>
           </div>
-          <button onClick={() => qc.invalidateQueries(['flow-executions'])}
-            className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-            title="Refresh now">
-            <ArrowPathIcon className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Bulk restart toolbar — visible when rows are selected */}
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-50 border border-red-200">
+                <span className="text-xs font-medium text-red-700">
+                  {selectedIds.size} selected
+                </span>
+                <button
+                  onClick={() => bulkRestartMut.mutate([...selectedIds])}
+                  disabled={bulkRestartMut.isPending}
+                  className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 transition-colors"
+                >
+                  <ArrowPathIcon className={`w-3.5 h-3.5 ${bulkRestartMut.isPending ? 'animate-spin' : ''}`} />
+                  {bulkRestartMut.isPending ? 'Restarting…' : `Restart ${selectedIds.size}`}
+                </button>
+                <button
+                  onClick={() => setSelectedIds(new Set())}
+                  className="text-xs text-red-500 hover:text-red-700 transition-colors"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+            {/* Select-all-failed button */}
+            {executions.some(ex => RESTARTABLE.has(ex.status)) && selectedIds.size === 0 && (
+              <button
+                onClick={() => {
+                  const failedIds = executions.filter(ex => RESTARTABLE.has(ex.status)).map(ex => ex.trackId)
+                  setSelectedIds(new Set(failedIds))
+                }}
+                className="text-xs text-gray-500 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 transition-colors"
+              >
+                Select all failed
+              </button>
+            )}
+            <button onClick={() => qc.invalidateQueries(['flow-executions'])}
+              className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+              title="Refresh now">
+              <ArrowPathIcon className="w-4 h-4" />
+            </button>
+          </div>
         </div>
         {executions.length === 0 ? (
           <div className="text-center py-8 text-gray-400 text-sm">
@@ -748,6 +819,7 @@ export default function Flows() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100">
+                  <th className="table-header w-8"></th>
                   <th className="table-header">Track ID</th>
                   <th className="table-header">Flow</th>
                   <th className="table-header">Filename</th>
@@ -759,7 +831,16 @@ export default function Flows() {
               </thead>
               <tbody>
                 {executions.map(ex => (
-                  <ExecutionRow key={ex.trackId || ex.id} ex={ex} />
+                  <ExecutionRow
+                    key={ex.trackId || ex.id}
+                    ex={ex}
+                    selected={selectedIds.has(ex.trackId)}
+                    onToggle={(id) => setSelectedIds(prev => {
+                      const next = new Set(prev)
+                      next.has(id) ? next.delete(id) : next.add(id)
+                      return next
+                    })}
+                  />
                 ))}
               </tbody>
             </table>

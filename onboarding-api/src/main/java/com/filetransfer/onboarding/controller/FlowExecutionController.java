@@ -16,6 +16,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,6 +80,53 @@ public class FlowExecutionController {
                 "fromStep", 0,
                 "requestedBy", principal,
                 "message", "Restart queued. Poll GET /api/flow-executions/" + trackId + " for status."));
+    }
+
+    /**
+     * Bulk-restart multiple executions in one request.
+     * Only restarts executions in a restartable state (FAILED, CANCELLED, UNMATCHED).
+     * Each restart is @Async — returns immediately with a queued count.
+     */
+    @PostMapping("/bulk-restart")
+    @PreAuthorize(Roles.OPERATOR)
+    public ResponseEntity<Map<String, Object>> bulkRestart(
+            @RequestBody Map<String, List<String>> body,
+            @AuthenticationPrincipal UserDetails user) {
+
+        List<String> trackIds = body.getOrDefault("trackIds", List.of());
+        if (trackIds.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "trackIds list is required and must not be empty"));
+        }
+        if (trackIds.size() > 100) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Bulk restart limited to 100 executions per request"));
+        }
+
+        String principal = user != null ? user.getUsername() : "api";
+        List<String> queued  = new ArrayList<>();
+        List<String> skipped = new ArrayList<>();
+
+        for (String trackId : trackIds) {
+            try {
+                validateRestartable(trackId);
+                restartService.restartFromBeginning(trackId, principal);
+                queued.add(trackId);
+                log.info("[{}] BULK-RESTART queued by {}", trackId, principal);
+            } catch (Exception e) {
+                skipped.add(trackId);
+                log.warn("[{}] BULK-RESTART skipped: {}", trackId, e.getMessage());
+            }
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("queued", queued.size());
+        result.put("skipped", skipped.size());
+        result.put("queuedIds", queued);
+        result.put("skippedIds", skipped);
+        result.put("requestedBy", principal);
+        result.put("message", queued.size() + " execution(s) queued for restart" +
+                (skipped.isEmpty() ? "" : "; " + skipped.size() + " skipped (not in restartable state)"));
+
+        return ResponseEntity.accepted().body(result);
     }
 
     // ── Restart from specific step ────────────────────────────────────────────
