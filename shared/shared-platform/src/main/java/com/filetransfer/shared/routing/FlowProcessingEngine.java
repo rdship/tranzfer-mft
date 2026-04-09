@@ -5,6 +5,8 @@ import com.filetransfer.shared.client.ForwarderServiceClient;
 import com.filetransfer.shared.client.ScreeningServiceClient;
 import com.filetransfer.shared.client.ServiceClientProperties;
 import com.filetransfer.shared.client.StorageServiceClient;
+import com.filetransfer.shared.connector.ConnectorDispatcher;
+import com.filetransfer.shared.connector.PartnerWebhookDispatcher;
 import com.filetransfer.shared.event.FlowStepEvent;
 import com.filetransfer.shared.vfs.FileRef;
 import com.filetransfer.shared.vfs.VfsFlowBridge;
@@ -65,6 +67,16 @@ public class FlowProcessingEngine {
     @Autowired(required = false)
     @Nullable
     private VfsFlowBridge vfsBridge;
+
+    /** Admin-level connector dispatch (Slack, PagerDuty, etc.). Optional — null if not configured. */
+    @Autowired(required = false)
+    @Nullable
+    private ConnectorDispatcher connectorDispatcher;
+
+    /** Partner-level webhook dispatch. Optional — null if no webhooks configured. */
+    @Autowired(required = false)
+    @Nullable
+    private PartnerWebhookDispatcher partnerWebhookDispatcher;
 
     /**
      * Execute a specific flow for a file. Creates execution record and processes each step.
@@ -165,6 +177,7 @@ public class FlowProcessingEngine {
                     exec.setStepResults(results);
                     exec.setCompletedAt(Instant.now());
                     executionRepository.save(exec);
+                    dispatchFlowEvent("FLOW_FAILED", exec, flow);
                     log.error("[{}] Step {}/{} ({}) FAILED: {}", trackId, i + 1, flow.getSteps().size(),
                             step.getType(), e.getMessage());
                     return exec;
@@ -176,6 +189,7 @@ public class FlowProcessingEngine {
                 exec.setStepResults(results);
                 exec.setCompletedAt(Instant.now());
                 executionRepository.save(exec);
+                dispatchFlowEvent("FLOW_FAILED", exec, flow);
                 return exec;
             }
         }
@@ -184,8 +198,39 @@ public class FlowProcessingEngine {
         exec.setStepResults(results);
         exec.setCompletedAt(Instant.now());
         executionRepository.save(exec);
+        dispatchFlowEvent("FLOW_COMPLETED", exec, flow);
         log.info("[{}] Flow '{}' completed successfully for '{}'", trackId, flow.getName(), filename);
         return exec;
+    }
+
+    /**
+     * Fire FLOW_COMPLETED or FLOW_FAILED to both the admin ConnectorDispatcher
+     * and the partner-level PartnerWebhookDispatcher. Both are optional — null-safe.
+     */
+    private void dispatchFlowEvent(String eventType, FlowExecution exec, FileFlow flow) {
+        String flowName = (flow != null && flow.getName() != null) ? flow.getName() : "unknown";
+        if (connectorDispatcher != null) {
+            try {
+                connectorDispatcher.dispatch(ConnectorDispatcher.MftEvent.builder()
+                        .eventType(eventType)
+                        .severity("FLOW_FAILED".equals(eventType) ? "HIGH" : "INFO")
+                        .trackId(exec.getTrackId())
+                        .filename(exec.getOriginalFilename())
+                        .summary(("FLOW_FAILED".equals(eventType) ? "Flow failed: " : "Flow completed: ") + flowName)
+                        .details(exec.getErrorMessage() != null ? exec.getErrorMessage() : flowName)
+                        .service("flow-engine")
+                        .build());
+            } catch (Exception e) {
+                log.debug("[{}] ConnectorDispatcher skipped: {}", exec.getTrackId(), e.getMessage());
+            }
+        }
+        if (partnerWebhookDispatcher != null) {
+            try {
+                partnerWebhookDispatcher.dispatch(eventType, exec, flowName);
+            } catch (Exception e) {
+                log.debug("[{}] PartnerWebhookDispatcher skipped: {}", exec.getTrackId(), e.getMessage());
+            }
+        }
     }
 
     private String processStep(FileFlow.FlowStep step, String inputPath, String trackId, int stepIndex) throws Exception {
@@ -876,6 +921,7 @@ public class FlowProcessingEngine {
                 exec.setStepResults(results);
                 exec.setCompletedAt(Instant.now());
                 executionRepository.save(exec);
+                dispatchFlowEvent("FLOW_FAILED", exec, flow);
                 return exec;
             }
         }
@@ -885,6 +931,7 @@ public class FlowProcessingEngine {
         exec.setStepResults(results);
         exec.setCompletedAt(Instant.now());
         executionRepository.save(exec);
+        dispatchFlowEvent("FLOW_COMPLETED", exec, flow);
         log.info("[{}] Flow '{}' completed (VIRTUAL) for '{}' — final key={}",
                 trackId, flow.getName(), filename, abbrev(currentKey));
         return exec;
