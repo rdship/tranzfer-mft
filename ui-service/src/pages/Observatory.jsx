@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, memo, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { ArrowPathIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
@@ -53,8 +53,11 @@ function healthColor(h) {
 
 // ─── Network Map ──────────────────────────────────────────────────────────────
 
-function NetworkMap({ serviceGraph, services }) {
-  const dataMap = Object.fromEntries((serviceGraph || []).map(n => [n.id, n]))
+const NetworkMap = memo(function NetworkMap({ serviceGraph, services }) {
+  const dataMap = useMemo(
+    () => Object.fromEntries((serviceGraph || []).map(n => [n.id, n])),
+    [serviceGraph]
+  )
 
   function nodeHealth(id) {
     const d = dataMap[id]
@@ -139,14 +142,21 @@ function NetworkMap({ serviceGraph, services }) {
       </svg>
     </div>
   )
-}
+}, (prev, next) => {
+  // Only re-render NetworkMap (resetting dot animations) when node health or traffic actually changes
+  const prevMap = Object.fromEntries((prev.serviceGraph || []).map(n => [n.id, n]))
+  const nextMap = Object.fromEntries((next.serviceGraph || []).map(n => [n.id, n]))
+  return JSON.stringify(Object.values(prevMap).map(n => ({ id: n.id, health: n.health, t: n.transfersLastHour }))) ===
+         JSON.stringify(Object.values(nextMap).map(n => ({ id: n.id, health: n.health, t: n.transfersLastHour }))) &&
+         prev.services === next.services
+})
 
 // ─── Activity Heatmap ─────────────────────────────────────────────────────────
 
 const DAYS = 30
 const HOURS = Array.from({length: 24}, (_, i) => i)
 
-function ActivityHeatmap({ heatmapData }) {
+const ActivityHeatmap = memo(function ActivityHeatmap({ heatmapData }) {
   const grid = {}
   let maxCount = 1
   for (const cell of (heatmapData || [])) {
@@ -207,7 +217,7 @@ function ActivityHeatmap({ heatmapData }) {
               {colOffsets.map(dayOffset => (
                 <div key={dayOffset}
                   title={cellTitle(dayOffset, hour)}
-                  style={{height:9, borderRadius:1, backgroundColor: cellBg(dayOffset, hour), cursor:'default'}}
+                  style={{height:9, borderRadius:1, backgroundColor: cellBg(dayOffset, hour), cursor:'default', transition:'background-color 0.6s ease'}}
                 />
               ))}
             </div>
@@ -232,6 +242,8 @@ function ActivityHeatmap({ heatmapData }) {
   )
 }
 
+})
+
 // ─── Domain Groups ────────────────────────────────────────────────────────────
 
 function timeAgo(instant) {
@@ -255,7 +267,7 @@ function healthDot(rate) {
   return 'bg-red-500'
 }
 
-function DomainGroups({ domainGroups }) {
+const DomainGroups = memo(function DomainGroups({ domainGroups }) {
   const [expanded, setExpanded] = useState(null)
   const groups = domainGroups || []
 
@@ -326,6 +338,8 @@ function DomainGroups({ domainGroups }) {
   )
 }
 
+})
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Observatory() {
@@ -336,6 +350,7 @@ export default function Observatory() {
     queryFn: getObservatoryData,
     refetchInterval: 30_000,
     staleTime: 25_000,
+    placeholderData: prev => prev,   // keep previous data visible during background refetch
   })
 
   return (
