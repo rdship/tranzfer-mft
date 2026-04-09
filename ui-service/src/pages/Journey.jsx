@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { onboardingApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EvidenceReport from '../components/EvidenceReport'
+import DataLineageGraph from '../components/DataLineageGraph'
 import {
   MagnifyingGlassIcon, CheckCircleIcon, XCircleIcon, ClockIcon,
   ArrowRightIcon, ShieldCheckIcon, ArrowDownTrayIcon, EyeIcon,
@@ -537,6 +538,9 @@ export default function Journey() {
 
           {/* ── Flow Pipeline Step Preview ─────────────────────────────────── */}
           <FlowStepsPanel trackId={journey.trackId} />
+
+          {/* ── Data Lineage Graph ─────────────────────────────────────────── */}
+          <DataLineageGraph trackId={journey.trackId} />
 
           {/* Audit Trail */}
           {journey.auditTrail?.length > 0 && (
