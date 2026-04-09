@@ -2,8 +2,10 @@ package com.filetransfer.shared.repository;
 
 import com.filetransfer.shared.entity.FlowStepSnapshot;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -40,6 +42,14 @@ public interface FlowStepSnapshotRepository extends JpaRepository<FlowStepSnapsh
         ORDER BY avg_ms DESC
         """, nativeQuery = true)
     List<Object[]> summarizeByStepType(@Param("since") Instant since);
+
+    /** Count snapshots older than the given cutoff (for retention preview). */
+    long countByCreatedAtBefore(Instant cutoff);
+
+    /** Bulk-delete snapshots older than the given cutoff (retention purge). */
+    @Transactional
+    @Modifying
+    void deleteByCreatedAtBefore(Instant cutoff);
 
     /**
      * Per-step-type × hour-of-day (UTC) grid for the latency heatmap.

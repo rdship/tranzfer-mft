@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getPlatformSettings, createPlatformSetting, updatePlatformSetting,
-  updatePlatformSettingValue, deletePlatformSetting, cloneEnvironment
+  updatePlatformSettingValue, deletePlatformSetting, cloneEnvironment,
+  getSnapshotRetention, updateSnapshotRetention, purgeSnapshotsNow,
 } from '../api/platformSettings'
 import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -10,7 +11,8 @@ import EmptyState from '../components/EmptyState'
 import toast from 'react-hot-toast'
 import {
   PlusIcon, TrashIcon, PencilIcon, DocumentDuplicateIcon,
-  EyeIcon, EyeSlashIcon, CheckIcon, XMarkIcon
+  EyeIcon, EyeSlashIcon, CheckIcon, XMarkIcon,
+  ArchiveBoxXMarkIcon, ClockIcon as ClockSolid,
 } from '@heroicons/react/24/outline'
 
 const ENVIRONMENTS = ['DEV', 'TEST', 'CERT', 'STAGING', 'PROD']
@@ -323,6 +325,135 @@ function AiLlmSection({ activeEnv }) {
   )
 }
 
+// ─── Snapshot Retention Card ─────────────────────────────────────────────────
+
+function SnapshotRetentionCard() {
+  const qc = useQueryClient()
+  const [editDays, setEditDays] = useState(null) // null = view mode, number = edit mode
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['snapshot-retention'],
+    queryFn: getSnapshotRetention,
+    refetchInterval: 30000,
+    retry: false,
+  })
+
+  const updateMut = useMutation({
+    mutationFn: (days) => updateSnapshotRetention(days),
+    onSuccess: (r) => {
+      qc.invalidateQueries(['snapshot-retention'])
+      setEditDays(null)
+      toast.success(r.message || 'Retention policy updated')
+    },
+    onError: (e) => toast.error(e.response?.data?.message || 'Update failed'),
+  })
+
+  const purgeMut = useMutation({
+    mutationFn: purgeSnapshotsNow,
+    onSuccess: (r) => {
+      qc.invalidateQueries(['snapshot-retention'])
+      toast.success(r.message || `Purge complete`)
+    },
+    onError: (e) => toast.error(e.response?.data?.message || 'Purge failed'),
+  })
+
+  const days       = data?.retentionDays ?? 90
+  const enabled    = data?.enabled ?? true
+  const total      = data?.totalSnapshots ?? 0
+  const eligible   = data?.eligibleForPurge ?? 0
+  const lastAt     = data?.lastPurgeAt
+  const lastCount  = data?.lastPurgeCount ?? -1
+
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <ArchiveBoxXMarkIcon className="w-5 h-5 text-amber-500" />
+          <h3 className="font-semibold text-gray-900">Snapshot Retention Policy</h3>
+          <span className={`badge ${enabled ? 'badge-yellow' : 'badge-gray'}`}>
+            {enabled ? `${days}d` : 'Disabled'}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => purgeMut.mutate()}
+            disabled={purgeMut.isPending || !enabled || isLoading}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+          >
+            <ArchiveBoxXMarkIcon className={`w-3.5 h-3.5 ${purgeMut.isPending ? 'animate-spin' : ''}`} />
+            {purgeMut.isPending ? 'Purging…' : 'Purge Now'}
+          </button>
+        </div>
+      </div>
+
+      {isError && (
+        <p className="text-xs text-amber-600 mb-3">Retention endpoint unavailable — is onboarding-api running?</p>
+      )}
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+        {[
+          { label: 'Total snapshots', value: isLoading ? '—' : total.toLocaleString(), color: 'text-gray-900' },
+          { label: 'Eligible for purge', value: isLoading ? '—' : eligible.toLocaleString(), color: eligible > 0 ? 'text-amber-600' : 'text-gray-500' },
+          { label: 'Last purge', value: lastAt ? new Date(lastAt).toLocaleString() : '—', color: 'text-gray-600' },
+          { label: 'Last count', value: lastCount >= 0 ? lastCount.toLocaleString() : 'Never', color: 'text-gray-600' },
+        ].map(({ label, value, color }) => (
+          <div key={label}>
+            <p className="text-xs text-gray-400 uppercase tracking-wider">{label}</p>
+            <p className={`text-sm font-semibold mt-0.5 ${color}`}>{value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-3 pt-3 border-t border-gray-100">
+        <ClockSolid className="w-4 h-4 text-gray-400 flex-shrink-0" />
+        {editDays === null ? (
+          <>
+            <p className="text-sm text-gray-600 flex-1">
+              {enabled
+                ? `Snapshots older than ${days} days are purged at 02:00 UTC daily.`
+                : 'Retention is disabled — snapshots accumulate indefinitely.'}
+            </p>
+            <button
+              onClick={() => setEditDays(days)}
+              className="text-xs text-blue-600 hover:underline flex-shrink-0"
+            >
+              Change
+            </button>
+          </>
+        ) : (
+          <>
+            <label className="text-sm text-gray-600 flex-shrink-0">Retain for</label>
+            <input
+              type="number"
+              value={editDays}
+              onChange={e => setEditDays(Number(e.target.value))}
+              min={0} max={3650}
+              className="w-24 text-sm"
+              placeholder="90"
+            />
+            <label className="text-sm text-gray-500 flex-shrink-0">days (0 = disabled)</label>
+            <div className="flex gap-2 ml-auto">
+              <button
+                onClick={() => updateMut.mutate(editDays)}
+                disabled={updateMut.isPending}
+                className="px-3 py-1 text-xs font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {updateMut.isPending ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                onClick={() => setEditDays(null)}
+                className="px-3 py-1 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function PlatformConfig() {
   const qc = useQueryClient()
   const [activeEnv, setActiveEnv] = useState('PROD')
@@ -531,6 +662,9 @@ export default function PlatformConfig() {
       )}
 
       {/* Clone Modal */}
+      {/* Snapshot Retention */}
+      <SnapshotRetentionCard />
+
       {showClone && (
         <Modal title={`Clone ${activeEnv} Settings`} onClose={() => setShowClone(false)}>
           <div className="space-y-4">

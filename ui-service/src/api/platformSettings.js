@@ -1,4 +1,4 @@
-import { configApi } from './client'
+import { configApi, onboardingApi } from './client'
 
 // ── Platform Settings CRUD ──────────────────────────────────────────────────
 
@@ -35,3 +35,14 @@ export const getCategories = () =>
 
 export const cloneEnvironment = (source, target) =>
   configApi.post(`/api/platform-settings/clone?source=${source}&target=${target}`).then(r => r.data)
+
+// ── Snapshot Retention ──────────────────────────────────────────────────────
+
+export const getSnapshotRetention = () =>
+  onboardingApi.get('/api/snapshot-retention').then(r => r.data)
+
+export const updateSnapshotRetention = (retentionDays) =>
+  onboardingApi.put('/api/snapshot-retention', { retentionDays }).then(r => r.data)
+
+export const purgeSnapshotsNow = () =>
+  onboardingApi.post('/api/snapshot-retention/purge-now').then(r => r.data)
