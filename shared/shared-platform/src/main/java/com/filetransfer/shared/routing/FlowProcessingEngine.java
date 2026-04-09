@@ -689,12 +689,40 @@ public class FlowProcessingEngine {
     public FlowExecution executeFlowRef(FileFlow flow, String trackId, String filename,
                                          FileRef ref,
                                          com.filetransfer.shared.matching.MatchCriteria matchedCriteria) {
-        FlowExecution exec = FlowExecution.builder()
-                .trackId(trackId).flow(flow).originalFilename(filename)
-                .currentStorageKey(ref.storageKey())
-                .status(FlowExecution.FlowStatus.PROCESSING)
-                .matchedCriteria(matchedCriteria).stepResults(new ArrayList<>())
-                .build();
+        return executeFlowRef(flow, trackId, filename, ref, matchedCriteria, null, 0);
+    }
+
+    /**
+     * Execute a flow from a specific step (used by restart-from-step).
+     *
+     * @param existingExec if non-null, update this record rather than creating a new one
+     * @param startFromStep 0 = full run; N = skip first N steps, start at step N
+     */
+    @Transactional
+    public FlowExecution executeFlowRef(FileFlow flow, String trackId, String filename,
+                                         FileRef ref,
+                                         com.filetransfer.shared.matching.MatchCriteria matchedCriteria,
+                                         FlowExecution existingExec,
+                                         int startFromStep) {
+        FlowExecution exec;
+        if (existingExec != null) {
+            exec = existingExec;
+            exec.setStatus(FlowExecution.FlowStatus.PROCESSING);
+            exec.setCurrentStorageKey(ref.storageKey());
+            exec.setCurrentStep(startFromStep);
+            exec.setErrorMessage(null);
+            exec.setCompletedAt(null);
+            exec.setStepResults(new ArrayList<>());
+            exec.setTerminationRequested(false);
+        } else {
+            exec = FlowExecution.builder()
+                    .trackId(trackId).flow(flow).originalFilename(filename)
+                    .currentStorageKey(ref.storageKey())
+                    .initialStorageKey(ref.storageKey())
+                    .status(FlowExecution.FlowStatus.PROCESSING)
+                    .matchedCriteria(matchedCriteria).stepResults(new ArrayList<>())
+                    .build();
+        }
         exec = executionRepository.save(exec);
 
         String currentKey  = ref.storageKey();
@@ -702,7 +730,7 @@ public class FlowProcessingEngine {
         long   currentSize = ref.sizeBytes();
         List<FlowExecution.StepResult> results = new ArrayList<>();
 
-        for (int i = 0; i < flow.getSteps().size(); i++) {
+        for (int i = startFromStep; i < flow.getSteps().size(); i++) {
             FileFlow.FlowStep step = flow.getSteps().get(i);
             Map<String, String> stepCfg = step.getConfig() != null ? step.getConfig() : Map.of();
             int maxRetries = Integer.parseInt(stepCfg.getOrDefault("retryCount", "0"));
@@ -777,6 +805,17 @@ public class FlowProcessingEngine {
                             trackId, i + 1, flow.getSteps().size(), step.getType(), e.getMessage());
                     return exec;
                 }
+            }
+            // ── termination check between steps (non-blocking poll) ───────────
+            FlowExecution fresh = executionRepository.findById(exec.getId()).orElse(null);
+            if (fresh != null && fresh.isTerminationRequested()) {
+                exec.setStatus(FlowExecution.FlowStatus.CANCELLED);
+                exec.setErrorMessage("Terminated by " + fresh.getTerminatedBy() + " after step " + i);
+                exec.setStepResults(results);
+                exec.setCompletedAt(Instant.now());
+                executionRepository.save(exec);
+                log.info("[{}] Flow CANCELLED by {} after step {}", trackId, fresh.getTerminatedBy(), i);
+                return exec;
             }
             if (!stepSucceeded) {
                 exec.setStatus(FlowExecution.FlowStatus.FAILED);

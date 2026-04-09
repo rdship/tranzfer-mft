@@ -50,6 +50,35 @@ public class FlowExecution {
     @Column(length = 64)
     private String currentStorageKey;
 
+    /**
+     * SHA-256 of the file as it entered this flow — set once at creation, never changed.
+     * Used as the restart key when admin retries from the beginning.
+     */
+    @Column(length = 64)
+    private String initialStorageKey;
+
+    /** 1-based attempt counter — increments on each restart. */
+    @Builder.Default
+    private int attemptNumber = 1;
+
+    /**
+     * JSONB array of previous failed/cancelled attempt summaries.
+     * Each element: {attempt, startedAt, failedAt, steps[], errorMessage}.
+     * Preserves full history across restarts without creating new rows.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private java.util.List<java.util.Map<String, Object>> attemptHistory;
+
+    /** Set to true by terminate API. The running agent polls this between steps and exits cleanly. */
+    @Builder.Default
+    private boolean terminationRequested = false;
+
+    private String restartedBy;
+    private Instant restartedAt;
+    private String terminatedBy;
+    private Instant terminatedAt;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
@@ -77,7 +106,7 @@ public class FlowExecution {
 
     private Instant completedAt;
 
-    public enum FlowStatus { PENDING, PROCESSING, COMPLETED, FAILED, PAUSED, UNMATCHED }
+    public enum FlowStatus { PENDING, PROCESSING, COMPLETED, FAILED, PAUSED, UNMATCHED, CANCELLED }
 
     @Data @NoArgsConstructor @AllArgsConstructor @Builder
     public static class StepResult {
