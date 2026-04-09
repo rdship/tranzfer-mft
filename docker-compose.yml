@@ -25,6 +25,8 @@ x-common-env: &common-env
   DB_PASSWORD: postgres
   RABBITMQ_HOST: rabbitmq
   RABBITMQ_PORT: 5672
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
   JWT_SECRET: ${JWT_SECRET:-change_me_in_production_256bit_secret_key!!}
   CONTROL_API_KEY: ${CONTROL_API_KEY:-internal_control_secret}  # HMAC secret for PCI audit log signing — NOT inter-service auth
   CLUSTER_ID: ${CLUSTER_ID:-cluster-1}
@@ -144,6 +146,26 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: mft-redis
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --save 60 1
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     container_name: mft-rabbitmq
@@ -181,6 +203,8 @@ services:
       postgres:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   sftp-service:
@@ -544,6 +568,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      redis:
+        condition: service_healthy
 
   ai-engine:
     build: ./ai-engine
@@ -861,6 +887,7 @@ volumes:
   spire-server-sock: # SPIRE Server admin socket (shared with spire-init)
   spire-init-data:   # Bootstrap join-token file (written by bootstrap.sh)
   spire-socket:      # SPIFFE Workload API socket (mounted read-only into services)
+  redis_data:      # Redis AOF + RDB snapshots — cache survives restarts
   postgres_data:
   rabbitmq_data:
   sftp_data:       # Shared across all SFTP replicas

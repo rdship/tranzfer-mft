@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.cache.annotation.Cacheable;
 
 /**
  * Admin-facing REST API for flow execution lifecycle management.
@@ -316,11 +317,13 @@ public class FlowExecutionController {
      * Used by the Dashboard "Live Activity" gauge; refreshes every 5 seconds.
      */
     /**
-     * Live dashboard stats — single GROUP BY query instead of 4 separate counts.
-     * Cuts DB round-trips by 75% at 5-10s polling frequency.
+     * Live dashboard stats — single GROUP BY query, Redis-cached for 5 s.
+     * All onboarding-api replicas share the same Redis entry; DB is hit once
+     * per 5 s window regardless of replica count or request concurrency.
      */
     @GetMapping("/live-stats")
     @PreAuthorize(Roles.VIEWER)
+    @Cacheable(value = "live-stats", key = "'all'")
     public ResponseEntity<Map<String, Object>> getLiveStats() {
         Map<String, Object> stats = new LinkedHashMap<>();
         stats.put("processing", 0L);

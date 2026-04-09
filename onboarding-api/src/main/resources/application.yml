@@ -10,6 +10,19 @@ management:
 spring:
   lifecycle:
     timeout-per-shutdown-phase: 30s
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 4
+          max-idle: 4
+          min-idle: 1
+          max-wait: 1000ms
+  cache:
+    type: redis
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/filetransfer}
     username: ${DB_USERNAME:postgres}

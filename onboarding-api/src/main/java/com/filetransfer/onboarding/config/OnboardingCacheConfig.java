@@ -1,5 +1,6 @@
-package com.filetransfer.analytics.config;
+package com.filetransfer.onboarding.config;
 
+import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
@@ -13,28 +14,22 @@ import java.time.Duration;
 import java.util.Map;
 
 /**
- * Redis-backed cache configuration for analytics-service.
+ * Redis-backed cache for onboarding-api.
  *
- * <p>Replaces the previous per-JVM Caffeine cache. Redis is:
+ * <p><b>live-stats</b> (5 s TTL) — the four flow-execution status counts polled every 10 s
+ * by the Dashboard live-activity strip. Redis makes this:
  * <ul>
- *   <li><b>Shared</b>   — all analytics-service replicas read the same warmed cache</li>
- *   <li><b>Persistent</b> — survives pod restarts (AOF + RDB on the Redis volume)</li>
- *   <li><b>Evicting</b>  — TTL-based eviction prevents stale data</li>
+ *   <li>Shared across all onboarding-api replicas (one warm cache, not N cold per-JVM maps)</li>
+ *   <li>Persistent across pod restarts (Redis AOF volume)</li>
+ *   <li>Cheap — cache miss triggers one GROUP BY query; hits are sub-millisecond</li>
  * </ul>
  *
- * <p>Per-cache TTLs:
- * <pre>
- *   dashboard     15 s — transfer KPI tiles, alerts
- *   observatory   30 s — service graph, 30-day heatmap, domain groups
- *   step-latency  60 s — step-type × hour latency grid (keyed by hours param)
- *   dedup-stats    5 m — 7-table JOIN aggregation; changes slowly
- * </pre>
- *
- * <p>Values serialized as JSON (GenericJackson2JsonRedisSerializer) — safe across
- * different JVM instances and class versions.
+ * <p>Graceful degradation: if Redis is unreachable the cache is bypassed and the
+ * DB query runs normally — the service stays up.
  */
 @Configuration
-public class AnalyticsCacheConfig {
+@EnableCaching
+public class OnboardingCacheConfig {
 
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory cf) {
@@ -49,10 +44,7 @@ public class AnalyticsCacheConfig {
         return RedisCacheManager.builder(cf)
                 .cacheDefaults(base.entryTtl(Duration.ofSeconds(30)))
                 .withInitialCacheConfigurations(Map.of(
-                        "dashboard",   base.entryTtl(Duration.ofSeconds(15)),
-                        "observatory", base.entryTtl(Duration.ofSeconds(30)),
-                        "step-latency",base.entryTtl(Duration.ofSeconds(60)),
-                        "dedup-stats", base.entryTtl(Duration.ofMinutes(5))
+                        "live-stats", base.entryTtl(Duration.ofSeconds(5))
                 ))
                 .build();
     }
