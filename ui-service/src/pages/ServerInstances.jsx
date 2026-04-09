@@ -1,7 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getServerInstances, createServerInstance, updateServerInstance, deleteServerInstance } from '../api/accounts'
+import {
+  getServerAccounts, assignAccountToServer, revokeServerAccess,
+  updateServerAssignment, toggleMaintenance,
+} from '../api/servers'
 import { getFolderTemplates } from '../api/config'
 import { getPlatformSettings } from '../api/platformSettings'
+import { getProxyGroups } from '../api/proxyGroups'
 import { useServices } from '../context/ServiceContext'
 import SecurityTierSelector from '../components/SecurityTierSelector'
 import ProtocolSecurityConfig from '../components/ProtocolSecurityConfig'
@@ -11,7 +16,8 @@ import Modal from '../components/Modal'
 import toast from 'react-hot-toast'
 import {
   PlusIcon, TrashIcon, PencilIcon, ServerStackIcon, SignalIcon, SignalSlashIcon,
-  FolderIcon, CircleStackIcon, LockClosedIcon
+  FolderIcon, CircleStackIcon, LockClosedIcon, UsersIcon, ShieldExclamationIcon,
+  WrenchScrewdriverIcon, ArrowPathIcon, XMarkIcon, CheckIcon,
 } from '@heroicons/react/24/outline'
 import { useState, useEffect } from 'react'
 
@@ -53,7 +59,146 @@ const emptyForm = {
   clearFolderTemplate: false,
   defaultStorageMode: 'PHYSICAL',
   securityTier: 'AI', securityPolicy: {},
-  protocolCredentials: {}
+  protocolCredentials: {},
+  // ── Advanced per-server config (V44) ──
+  proxyGroupName: '',
+  sshBannerMessage: '',
+  maxAuthAttempts: 3,
+  idleTimeoutSeconds: 300,
+  sessionMaxDurationSeconds: 86400,
+  allowedCiphers: '',
+  allowedMacs: '',
+  allowedKex: '',
+  maintenanceMode: false,
+  maintenanceMessage: '',
+}
+
+// ── AccountsPanel ──────────────────────────────────────────────────────────────
+
+function AccountsPanel({ server, onClose }) {
+  const qc = useQueryClient()
+  const [assignUsername, setAssignUsername] = useState('')
+  const [editAssignment, setEditAssignment] = useState(null)
+
+  const { data: assignments = [], isLoading } = useQuery({
+    queryKey: ['server-accounts', server.id],
+    queryFn: () => getServerAccounts(server.id),
+    refetchInterval: 15000,
+  })
+
+  const revokeMut = useMutation({
+    mutationFn: ({ accountId }) => revokeServerAccess(server.id, accountId),
+    onSuccess: () => { qc.invalidateQueries(['server-accounts', server.id]); toast.success('Access revoked') },
+    onError: () => toast.error('Revoke failed'),
+  })
+
+  const toggleEnabled = useMutation({
+    mutationFn: ({ accountId, enabled }) => updateServerAssignment(server.id, accountId, { enabled }),
+    onSuccess: () => { qc.invalidateQueries(['server-accounts', server.id]) },
+  })
+
+  return (
+    <Modal
+      title={`Accounts — ${server.name}`}
+      size="lg"
+      onClose={onClose}
+    >
+      <div className="space-y-4">
+        {/* Header info */}
+        <div className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs"
+          style={{ background: 'rgb(var(--hover))', color: 'rgb(var(--tx-secondary))' }}>
+          <ServerStackIcon className="w-4 h-4 flex-shrink-0" style={{ color: 'rgb(var(--accent))' }} />
+          <span>
+            <strong>{server.instanceId}</strong> · {server.clientHost}:{server.clientPort}
+            {server.proxyGroupName && <> · Group: <strong>{server.proxyGroupName}</strong></>}
+            {server.maintenanceMode && <span className="ml-2 font-bold text-yellow-600">⚠ MAINTENANCE</span>}
+          </span>
+        </div>
+
+        {/* Assigned accounts */}
+        {isLoading ? (
+          <div className="py-6 text-center text-sm" style={{ color: 'rgb(var(--tx-muted))' }}>Loading…</div>
+        ) : assignments.length === 0 ? (
+          <div className="py-8 text-center">
+            <UsersIcon className="w-10 h-10 mx-auto mb-2" style={{ color: 'rgb(var(--tx-muted))' }} />
+            <p className="text-sm" style={{ color: 'rgb(var(--tx-secondary))' }}>No accounts assigned to this server</p>
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-72 overflow-y-auto">
+            {assignments.map(a => (
+              <div key={a.id}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg"
+                style={{
+                  background: a.enabled ? 'rgb(var(--surface))' : 'rgb(var(--hover))',
+                  border: '1px solid rgb(var(--border))',
+                  opacity: a.enabled ? 1 : 0.65,
+                }}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold font-mono" style={{ color: 'rgb(var(--tx-primary))' }}>
+                      {a.username}
+                    </span>
+                    <span className={`badge text-[10px] ${a.protocol === 'SFTP' ? 'badge-blue' : 'badge-green'}`}>
+                      {a.protocol}
+                    </span>
+                    {!a.enabled && <span className="badge badge-yellow text-[10px]">Disabled</span>}
+                    {a.homeFolderOverride && (
+                      <span className="text-[10px] font-mono" style={{ color: 'rgb(var(--tx-muted))' }}>
+                        📁 {a.homeFolderOverride}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2 mt-0.5 text-[10px]" style={{ color: 'rgb(var(--tx-muted))' }}>
+                    {[['R', a.canRead], ['W', a.canWrite], ['D', a.canDelete]].map(([l, v]) =>
+                      v != null ? (
+                        <span key={l} style={{ color: v ? '#22c55e' : '#ef4444' }}>{v ? '✓' : '✗'}{l}</span>
+                      ) : null
+                    )}
+                    {a.maxConcurrentSessions != null && <span>max {a.maxConcurrentSessions} sess</span>}
+                    <span>added {new Date(a.createdAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => toggleEnabled.mutate({ accountId: a.accountId, enabled: !a.enabled })}
+                    title={a.enabled ? 'Disable access' : 'Enable access'}
+                    className="p-1 rounded transition-colors"
+                    style={{ color: a.enabled ? '#22c55e' : '#f59e0b' }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = '0.7'}
+                    onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                  >
+                    {a.enabled ? <CheckIcon className="w-4 h-4" /> : <ArrowPathIcon className="w-4 h-4" />}
+                  </button>
+                  <button
+                    onClick={() => { if (confirm(`Revoke ${a.username}'s access to this server?`)) revokeMut.mutate({ accountId: a.accountId }) }}
+                    title="Revoke access"
+                    className="p-1 rounded transition-colors"
+                    style={{ color: 'rgb(var(--tx-muted))' }}
+                    onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'rgb(var(--tx-muted))'}
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Note about assigning via account page */}
+        <div className="text-xs px-3 py-2 rounded-lg" style={{ background: 'rgb(var(--hover))', color: 'rgb(var(--tx-muted))' }}>
+          To assign an account to this server, use the <strong>Transfer Accounts</strong> page → select an account → Servers tab,
+          or call <code className="px-1 py-0.5 rounded" style={{ background: 'rgb(var(--surface))' }}>
+            POST /api/servers/{server.id}/accounts/{'{accountId}'}
+          </code>
+        </div>
+
+        <div className="flex justify-end pt-2">
+          <button className="btn-secondary" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </Modal>
+  )
 }
 
 export default function ServerInstances() {
@@ -62,6 +207,7 @@ export default function ServerInstances() {
   const [editServer, setEditServer] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [protocolFilter, setProtocolFilter] = useState('ALL')
+  const [accountsServer, setAccountsServer] = useState(null)
 
   const { data: servers = [], isLoading } = useQuery({ queryKey: ['server-instances'], queryFn: getServerInstances })
 
@@ -87,6 +233,15 @@ export default function ServerInstances() {
     onSuccess: () => { qc.invalidateQueries(['server-instances']); toast.success('Status updated') }
   })
 
+  const maintenanceMut = useMutation({
+    mutationFn: ({ id, enable }) => toggleMaintenance(id, enable, enable ? 'Server under maintenance' : ''),
+    onSuccess: (_, { enable }) => {
+      qc.invalidateQueries(['server-instances'])
+      toast.success(enable ? 'Maintenance mode ON — new connections blocked' : 'Maintenance mode OFF')
+    },
+    onError: () => toast.error('Failed to toggle maintenance mode'),
+  })
+
   const openEdit = (s) => {
     setEditServer(s)
     setForm({
@@ -106,7 +261,18 @@ export default function ServerInstances() {
       defaultStorageMode: s.defaultStorageMode || 'PHYSICAL',
       securityTier: s.securityTier || 'AI',
       securityPolicy: s.securityPolicy || {},
-      protocolCredentials: s.protocolCredentials || {}
+      protocolCredentials: s.protocolCredentials || {},
+      // V44 advanced fields
+      proxyGroupName: s.proxyGroupName || '',
+      sshBannerMessage: s.sshBannerMessage || '',
+      maxAuthAttempts: s.maxAuthAttempts ?? 3,
+      idleTimeoutSeconds: s.idleTimeoutSeconds ?? 300,
+      sessionMaxDurationSeconds: s.sessionMaxDurationSeconds ?? 86400,
+      allowedCiphers: s.allowedCiphers || '',
+      allowedMacs: s.allowedMacs || '',
+      allowedKex: s.allowedKex || '',
+      maintenanceMode: s.maintenanceMode || false,
+      maintenanceMessage: s.maintenanceMessage || '',
     })
   }
 
@@ -243,15 +409,41 @@ export default function ServerInstances() {
                       <span className={`badge ${tierInfo.badge}`}>{tierInfo.label}</span>
                     </td>
                     <td className="table-cell">
-                      <button onClick={() => toggleMut.mutate({ id: s.id, active: !s.active })}
-                        className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
-                          s.active ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-red-50 text-red-700 hover:bg-red-100'
-                        }`}>
-                        {s.active ? <><SignalIcon className="w-3 h-3" /> Active</> : <><SignalSlashIcon className="w-3 h-3" /> Inactive</>}
-                      </button>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <button onClick={() => toggleMut.mutate({ id: s.id, active: !s.active })}
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
+                            s.active ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-red-50 text-red-700 hover:bg-red-100'
+                          }`}>
+                          {s.active ? <><SignalIcon className="w-3 h-3" /> Active</> : <><SignalSlashIcon className="w-3 h-3" /> Inactive</>}
+                        </button>
+                        {s.maintenanceMode && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-700">
+                            <WrenchScrewdriverIcon className="w-3 h-3" /> MAINT
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="table-cell">
                       <div className="flex gap-1">
+                        {/* Accounts button */}
+                        <button
+                          onClick={() => setAccountsServer(s)}
+                          title="Manage accounts on this server"
+                          className="p-1.5 rounded hover:bg-purple-50 text-purple-400 hover:text-purple-600 transition-colors relative">
+                          <UsersIcon className="w-4 h-4" />
+                          {s.assignedAccountCount > 0 && (
+                            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-purple-500 text-white text-[9px] font-bold flex items-center justify-center">
+                              {s.assignedAccountCount > 9 ? '9+' : s.assignedAccountCount}
+                            </span>
+                          )}
+                        </button>
+                        {/* Maintenance toggle */}
+                        <button
+                          onClick={() => maintenanceMut.mutate({ id: s.id, enable: !s.maintenanceMode })}
+                          title={s.maintenanceMode ? 'Disable maintenance mode' : 'Enable maintenance mode'}
+                          className={`p-1.5 rounded transition-colors ${s.maintenanceMode ? 'text-yellow-500 hover:bg-yellow-50' : 'text-gray-300 hover:bg-yellow-50 hover:text-yellow-500'}`}>
+                          <WrenchScrewdriverIcon className="w-4 h-4" />
+                        </button>
                         <button onClick={() => openEdit(s)} className="p-1.5 rounded hover:bg-blue-50 text-blue-500">
                           <PencilIcon className="w-4 h-4" />
                         </button>
@@ -293,6 +485,11 @@ export default function ServerInstances() {
           />
         </Modal>
       )}
+
+      {/* Accounts Panel */}
+      {accountsServer && (
+        <AccountsPanel server={accountsServer} onClose={() => setAccountsServer(null)} />
+      )}
     </div>
   )
 }
@@ -300,6 +497,12 @@ export default function ServerInstances() {
 function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel, showInstanceId }) {
   const { services } = useServices() || { services: {} }
   const dmzRunning = services?.dmz !== false
+  const { data: proxyGroups = [] } = useQuery({
+    queryKey: ['proxy-groups-simple'],
+    queryFn: getProxyGroups,
+    staleTime: 60000,
+    retry: false,
+  })
 
   // Check if LLM is enabled in platform settings
   const { data: aiSettings = [] } = useQuery({
@@ -563,6 +766,87 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
           onPolicyChange={policy => f('securityPolicy', policy)}
           llmEnabled={llmEnabled}
         />
+      </div>
+
+      {/* ════════════════ Advanced Server Config (V44) ════════════════ */}
+      <div className="pt-2">
+        <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-3 flex items-center gap-2">
+          <WrenchScrewdriverIcon className="w-3.5 h-3.5" />
+          Advanced Server Configuration
+        </p>
+
+        {/* Proxy Group */}
+        <div className="mb-3">
+          <label>Proxy Group</label>
+          <select value={form.proxyGroupName || ''} onChange={e => setForm(f => ({ ...f, proxyGroupName: e.target.value }))}>
+            <option value="">— Default routing (no specific group) —</option>
+            {proxyGroups.filter(g => g.active !== false).map(g => (
+              <option key={g.name} value={g.name}>{g.name} ({g.type})</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-400 mt-1">Route inbound connections through a specific proxy group (internal / external / partner).</p>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3 mb-3">
+          <div>
+            <label>Max Auth Attempts</label>
+            <input type="number" min={1} max={10} value={form.maxAuthAttempts}
+              onChange={e => setForm(f => ({ ...f, maxAuthAttempts: Number(e.target.value) }))} />
+          </div>
+          <div>
+            <label>Idle Timeout (s)</label>
+            <input type="number" min={0} value={form.idleTimeoutSeconds}
+              onChange={e => setForm(f => ({ ...f, idleTimeoutSeconds: Number(e.target.value) }))} />
+            <p className="text-xs text-gray-400 mt-0.5">0 = no timeout</p>
+          </div>
+          <div>
+            <label>Max Session (s)</label>
+            <input type="number" min={0} value={form.sessionMaxDurationSeconds}
+              onChange={e => setForm(f => ({ ...f, sessionMaxDurationSeconds: Number(e.target.value) }))} />
+            <p className="text-xs text-gray-400 mt-0.5">0 = unlimited</p>
+          </div>
+        </div>
+
+        <div className="mb-3">
+          <label>SSH Banner Message <span className="text-xs font-normal text-gray-400">(shown to clients on connect)</span></label>
+          <textarea rows={2} value={form.sshBannerMessage || ''} placeholder="Authorized access only. Connections are monitored."
+            onChange={e => setForm(f => ({ ...f, sshBannerMessage: e.target.value }))} />
+        </div>
+
+        <div className="mb-3">
+          <p className="text-xs text-gray-500 font-semibold mb-1">Cipher / Algorithm Allowlists <span className="font-normal">(comma-separated, blank = server defaults)</span></p>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="text-xs">Ciphers</label>
+              <input value={form.allowedCiphers || ''} placeholder="aes256-gcm@openssh.com,…"
+                onChange={e => setForm(f => ({ ...f, allowedCiphers: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs">MACs</label>
+              <input value={form.allowedMacs || ''} placeholder="hmac-sha2-256-etm@openssh.com,…"
+                onChange={e => setForm(f => ({ ...f, allowedMacs: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs">KEX</label>
+              <input value={form.allowedKex || ''} placeholder="curve25519-sha256,…"
+                onChange={e => setForm(f => ({ ...f, allowedKex: e.target.value }))} />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input type="checkbox" id="maintenanceMode" checked={form.maintenanceMode}
+            onChange={e => setForm(f => ({ ...f, maintenanceMode: e.target.checked }))} className="w-auto" />
+          <label htmlFor="maintenanceMode" className="text-sm font-medium text-yellow-700 mb-0">
+            Maintenance Mode — new connections will be rejected
+          </label>
+        </div>
+        {form.maintenanceMode && (
+          <div className="mt-2">
+            <input value={form.maintenanceMessage || ''} placeholder="Server under maintenance, back in 30 min"
+              onChange={e => setForm(f => ({ ...f, maintenanceMessage: e.target.value }))} />
+          </div>
+        )}
       </div>
 
       <div className="flex gap-3 justify-end pt-4 border-t">

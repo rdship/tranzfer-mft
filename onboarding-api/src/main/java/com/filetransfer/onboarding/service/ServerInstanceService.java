@@ -111,6 +111,19 @@ public class ServerInstanceService {
             applyProxyQoS(instance, request.getProxyQos());
         }
 
+        // Advanced per-server config (V44)
+        if (request.getProxyGroupName()          != null) instance.setProxyGroupName(request.getProxyGroupName());
+        if (request.getSecurityTier()            != null) instance.setSecurityTier(request.getSecurityTier());
+        if (request.getSshBannerMessage()        != null) instance.setSshBannerMessage(request.getSshBannerMessage());
+        if (request.getMaxAuthAttempts()         != null) instance.setMaxAuthAttempts(request.getMaxAuthAttempts());
+        if (request.getIdleTimeoutSeconds()      != null) instance.setIdleTimeoutSeconds(request.getIdleTimeoutSeconds());
+        if (request.getSessionMaxDurationSeconds()!= null)instance.setSessionMaxDurationSeconds(request.getSessionMaxDurationSeconds());
+        if (request.getAllowedCiphers()          != null) instance.setAllowedCiphers(request.getAllowedCiphers());
+        if (request.getAllowedMacs()             != null) instance.setAllowedMacs(request.getAllowedMacs());
+        if (request.getAllowedKex()              != null) instance.setAllowedKex(request.getAllowedKex());
+        if (request.getMaintenanceMode()         != null) instance.setMaintenanceMode(request.getMaintenanceMode());
+        if (request.getMaintenanceMessage()      != null) instance.setMaintenanceMessage(request.getMaintenanceMessage());
+
         repository.save(instance);
 
         // Sync proxy mapping if proxy config changed
@@ -160,6 +173,19 @@ public class ServerInstanceService {
                 .proxyQosPerConnectionMaxBytesPerSecond(i.getProxyQosPerConnectionMaxBytesPerSecond())
                 .proxyQosPriority(i.getProxyQosPriority())
                 .proxyQosBurstAllowancePercent(i.getProxyQosBurstAllowancePercent())
+                // Advanced per-server config (V44)
+                .proxyGroupName(i.getProxyGroupName())
+                .securityTier(i.getSecurityTier())
+                .sshBannerMessage(i.getSshBannerMessage())
+                .maxAuthAttempts(i.getMaxAuthAttempts())
+                .idleTimeoutSeconds(i.getIdleTimeoutSeconds())
+                .sessionMaxDurationSeconds(i.getSessionMaxDurationSeconds())
+                .allowedCiphers(i.getAllowedCiphers())
+                .allowedMacs(i.getAllowedMacs())
+                .allowedKex(i.getAllowedKex())
+                .maintenanceMode(i.isMaintenanceMode())
+                .maintenanceMessage(i.getMaintenanceMessage())
+                .assignedAccountCount(0L)  // populated by controller when needed
                 .build();
     }
 

@@ -25,4 +25,25 @@ public class UpdateServerInstanceRequest {
 
     /** Proxy QoS policy update */
     private CreateServerInstanceRequest.ProxyQoSConfig proxyQos;
+
+    // ── Advanced per-server configuration (V44) ──────────────────────────────
+    /** Proxy group name (links to proxy_groups.name — V43). */
+    private String  proxyGroupName;
+    /** Security tier: NONE | RULES | AI | AI_LLM */
+    private String  securityTier;
+    /** SSH banner text shown to clients on connect. */
+    private String  sshBannerMessage;
+    /** Max failed auth attempts before disconnect. */
+    private Integer maxAuthAttempts;
+    /** Idle session timeout in seconds (0 = no timeout). */
+    private Integer idleTimeoutSeconds;
+    /** Absolute session duration limit in seconds (0 = no limit). */
+    private Integer sessionMaxDurationSeconds;
+    /** Comma-separated cipher allowlist (null = server defaults). */
+    private String  allowedCiphers;
+    private String  allowedMacs;
+    private String  allowedKex;
+    /** Toggle maintenance mode — new connections rejected gracefully. */
+    private Boolean maintenanceMode;
+    private String  maintenanceMessage;
 }

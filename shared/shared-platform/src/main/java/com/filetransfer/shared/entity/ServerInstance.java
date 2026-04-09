@@ -90,6 +90,59 @@ public class ServerInstance {
     @Builder.Default
     private Integer proxyQosBurstAllowancePercent = 20;
 
+    // ── Advanced per-server configuration (V44) ──────────────────────────────
+
+    /** Proxy group name (links to proxy_groups.name). Null = default routing. */
+    @Column(name = "proxy_group_name", length = 100)
+    private String proxyGroupName;
+
+    /** Security tier applied at this server: NONE, RULES, AI, AI_LLM. */
+    @Column(name = "security_tier", length = 20)
+    @Builder.Default
+    private String securityTier = "RULES";
+
+    /** Custom SSH banner shown to clients on connect (null = no banner). */
+    @Column(name = "ssh_banner_message", columnDefinition = "TEXT")
+    private String sshBannerMessage;
+
+    /** Max failed authentication attempts before disconnecting. */
+    @Column(name = "max_auth_attempts")
+    @Builder.Default
+    private int maxAuthAttempts = 3;
+
+    /** Idle session timeout in seconds (0 = no timeout). */
+    @Column(name = "idle_timeout_seconds")
+    @Builder.Default
+    private int idleTimeoutSeconds = 300;
+
+    /** Absolute session length limit in seconds (0 = no limit). */
+    @Column(name = "session_max_duration_sec")
+    @Builder.Default
+    private int sessionMaxDurationSeconds = 86400;
+
+    /**
+     * Comma-separated cipher allowlist (null = use server defaults).
+     * Example: {@code aes256-gcm@openssh.com,aes128-gcm@openssh.com}
+     */
+    @Column(name = "allowed_ciphers", columnDefinition = "TEXT")
+    private String allowedCiphers;
+
+    /** Comma-separated MAC allowlist. */
+    @Column(name = "allowed_macs", columnDefinition = "TEXT")
+    private String allowedMacs;
+
+    /** Comma-separated KEX allowlist. */
+    @Column(name = "allowed_kex", columnDefinition = "TEXT")
+    private String allowedKex;
+
+    /** When true: new connections are rejected with a maintenance message. */
+    @Column(name = "maintenance_mode")
+    @Builder.Default
+    private boolean maintenanceMode = false;
+
+    @Column(name = "maintenance_message", columnDefinition = "TEXT")
+    private String maintenanceMessage;
+
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;
