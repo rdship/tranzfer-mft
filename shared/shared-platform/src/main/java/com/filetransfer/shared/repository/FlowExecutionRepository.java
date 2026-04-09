@@ -30,6 +30,7 @@ public interface FlowExecutionRepository extends JpaRepository<FlowExecution, UU
             Pageable pageable);
 
     List<FlowExecution> findByStatusOrderByStartedAtDesc(FlowExecution.FlowStatus status);
+    long countByStatus(FlowExecution.FlowStatus status);
     long countByStartedAtAfter(Instant since);
 
     /** For stuck execution recovery — finds PROCESSING executions older than threshold */

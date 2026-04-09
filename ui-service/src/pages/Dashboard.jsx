@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { getDashboard, getPredictions } from '../api/analytics'
+import { getDashboard, getPredictions, getFlowLiveStats } from '../api/analytics'
+import { getAgentsDashboard } from '../api/ai'
 import { useAuth } from '../context/AuthContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 import {
@@ -79,6 +80,111 @@ function KpiTile({ label, value, icon: Icon, color, sub }) {
   )
 }
 
+/* Live gauge pill — a single real-time counter */
+function LivePill({ label, value, color, pulse }) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="relative flex-shrink-0">
+        <div className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
+        {pulse && (
+          <div
+            className="absolute inset-0 rounded-full animate-ping"
+            style={{ background: color, opacity: 0.5 }}
+          />
+        )}
+      </div>
+      <span
+        className="font-mono font-bold text-sm"
+        style={{ color, fontFamily: "'JetBrains Mono', monospace" }}
+      >
+        {value ?? '—'}
+      </span>
+      <span className="text-xs" style={{ color: 'rgb(var(--tx-muted))' }}>{label}</span>
+    </div>
+  )
+}
+
+/* Live activity strip — agents + flows + refresh cadence indicator */
+function LiveActivityStrip({ agentsData, flowStats, agentsLoading, flowsLoading, agentsError, flowsError }) {
+  const agentsRunning = agentsData?.agentsRunning ?? 0
+  const agentsTotal   = (agentsData?.agentsRunning ?? 0) + (agentsData?.agentsIdle ?? 0) +
+                        (agentsData?.agentsInError ?? 0) + (agentsData?.agentsDisabled ?? 0)
+  const processing    = flowStats?.processing ?? 0
+  const pending       = flowStats?.pending ?? 0
+  const paused        = flowStats?.paused ?? 0
+  const failed        = flowStats?.failed ?? 0
+
+  const isLoading = agentsLoading || flowsLoading
+  const hasError  = agentsError && flowsError
+
+  return (
+    <div
+      className="flex items-center gap-5 px-4 py-2.5 rounded-xl overflow-x-auto"
+      style={{
+        background: 'rgb(var(--surface))',
+        border: '1px solid rgb(var(--border))',
+      }}
+    >
+      {/* LIVE badge */}
+      <div
+        className="flex items-center gap-1.5 px-2 py-0.5 rounded-full flex-shrink-0"
+        style={{ background: 'rgb(239 68 68 / 0.15)', border: '1px solid rgb(239 68 68 / 0.3)' }}
+      >
+        <span
+          className="w-1.5 h-1.5 rounded-full animate-pulse"
+          style={{ background: '#ef4444' }}
+        />
+        <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#ef4444' }}>
+          Live
+        </span>
+      </div>
+
+      <div className="w-px h-4 flex-shrink-0" style={{ background: 'rgb(var(--border))' }} />
+
+      {isLoading ? (
+        <span className="text-xs" style={{ color: 'rgb(var(--tx-muted))' }}>Loading live data…</span>
+      ) : hasError ? (
+        <span className="text-xs" style={{ color: '#f87171' }}>Live data unavailable</span>
+      ) : (
+        <>
+          <LivePill
+            label={`/ ${agentsTotal} AI agents`}
+            value={agentsRunning}
+            color={agentsRunning > 0 ? '#8b5cf6' : '#52525b'}
+            pulse={agentsRunning > 0}
+          />
+
+          <div className="w-px h-4 flex-shrink-0" style={{ background: 'rgb(var(--border))' }} />
+
+          <LivePill
+            label="flows processing"
+            value={processing}
+            color={processing > 0 ? '#22d3ee' : '#52525b'}
+            pulse={processing > 0}
+          />
+          <LivePill
+            label="flows pending"
+            value={pending}
+            color={pending > 0 ? '#fbbf24' : '#52525b'}
+            pulse={false}
+          />
+          {paused > 0 && (
+            <LivePill label="awaiting approval" value={paused} color="#f59e0b" pulse />
+          )}
+          {failed > 0 && (
+            <LivePill label="failed" value={failed} color="#ef4444" pulse={false} />
+          )}
+        </>
+      )}
+
+      {/* Refresh cadence */}
+      <span className="ml-auto text-[10px] flex-shrink-0" style={{ color: 'rgb(var(--tx-muted))' }}>
+        ↻ 5 s
+      </span>
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const { user } = useAuth()
   const { data: dashboard, isLoading } = useQuery({
@@ -89,6 +195,24 @@ export default function Dashboard() {
   const { data: predictions } = useQuery({
     queryKey: ['predictions'],
     queryFn: getPredictions,
+  })
+  const {
+    data: agentsData, isLoading: agentsLoading, isError: agentsError,
+  } = useQuery({
+    queryKey: ['agents-dashboard'],
+    queryFn: getAgentsDashboard,
+    refetchInterval: 5000,
+    staleTime: 4000,
+    retry: false,
+  })
+  const {
+    data: flowStats, isLoading: flowsLoading, isError: flowsError,
+  } = useQuery({
+    queryKey: ['flow-live-stats'],
+    queryFn: getFlowLiveStats,
+    refetchInterval: 5000,
+    staleTime: 4000,
+    retry: false,
   })
 
   if (isLoading) return <LoadingSpinner text="Loading dashboard..." />
@@ -171,6 +295,16 @@ export default function Dashboard() {
           sub={protocolData.map(p => p.name).join(' · ') || 'None yet'}
         />
       </div>
+
+      {/* ── Live Activity Strip ── */}
+      <LiveActivityStrip
+        agentsData={agentsData}
+        flowStats={flowStats}
+        agentsLoading={agentsLoading}
+        flowsLoading={flowsLoading}
+        agentsError={agentsError}
+        flowsError={flowsError}
+      />
 
       {/* ── Alerts ── */}
       {hasAlerts && (

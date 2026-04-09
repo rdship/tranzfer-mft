@@ -16,6 +16,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -232,6 +233,21 @@ public class FlowExecutionController {
                         "No execution for trackId=" + trackId));
         List<Map<String, Object>> hist = exec.getAttemptHistory();
         return ResponseEntity.ok(hist != null ? hist : List.of());
+    }
+
+    /**
+     * Live dashboard stats — counts of flow executions by status.
+     * Used by the Dashboard "Live Activity" gauge; refreshes every 5 seconds.
+     */
+    @GetMapping("/live-stats")
+    @PreAuthorize(Roles.VIEWER)
+    public ResponseEntity<Map<String, Object>> getLiveStats() {
+        Map<String, Object> stats = new LinkedHashMap<>();
+        stats.put("processing", executionRepo.countByStatus(FlowExecution.FlowStatus.PROCESSING));
+        stats.put("pending",    executionRepo.countByStatus(FlowExecution.FlowStatus.PENDING));
+        stats.put("paused",     executionRepo.countByStatus(FlowExecution.FlowStatus.PAUSED));
+        stats.put("failed",     executionRepo.countByStatus(FlowExecution.FlowStatus.FAILED));
+        return ResponseEntity.ok(stats);
     }
 
     // ── Internal ──────────────────────────────────────────────────────────────

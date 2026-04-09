@@ -29,3 +29,6 @@ export const getRiskScore = (factors) =>
 
 export const aiHealth = () =>
   aiApi.get('/api/v1/ai/health').then(r => r.data)
+
+export const getAgentsDashboard = () =>
+  aiApi.get('/api/v1/threats/dashboard').then(r => r.data)
