@@ -180,6 +180,36 @@ public class StorageServiceClient extends ResilientServiceClient {
         }
     }
 
+    /**
+     * Stream a CAS object directly to an {@link java.io.OutputStream} — truly zero-copy
+     * from storage-manager disk to the caller's output stream.
+     *
+     * <p>Used by the step-preview endpoint to pipe file content to the HTTP response
+     * without allocating an intermediate byte buffer. Bytes flow:
+     * {@code storage-manager disk → HTTP response → OutputStream}.
+     *
+     * @param sha256 CAS key
+     * @param out    destination — typically an HTTP response OutputStream
+     */
+    public void streamToOutput(String sha256, java.io.OutputStream out) {
+        try {
+            restTemplate.execute(
+                    baseUrl() + "/api/v1/storage/stream/" + sha256,
+                    org.springframework.http.HttpMethod.GET,
+                    request -> {
+                        addInternalAuth(request.getHeaders());
+                        request.getHeaders().setAccept(
+                                List.of(org.springframework.http.MediaType.APPLICATION_OCTET_STREAM));
+                    },
+                    response -> {
+                        response.getBody().transferTo(out);
+                        return null;
+                    });
+        } catch (Exception e) {
+            throw new RuntimeException("streamToOutput failed for key=" + sha256 + ": " + e.getMessage(), e);
+        }
+    }
+
     @Override
     protected String healthPath() {
         return "/api/v1/storage/health";

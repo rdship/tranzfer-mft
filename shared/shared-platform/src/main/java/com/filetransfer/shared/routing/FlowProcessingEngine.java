@@ -5,6 +5,7 @@ import com.filetransfer.shared.client.ForwarderServiceClient;
 import com.filetransfer.shared.client.ScreeningServiceClient;
 import com.filetransfer.shared.client.ServiceClientProperties;
 import com.filetransfer.shared.client.StorageServiceClient;
+import com.filetransfer.shared.event.FlowStepEvent;
 import com.filetransfer.shared.vfs.FileRef;
 import com.filetransfer.shared.vfs.VfsFlowBridge;
 import com.filetransfer.shared.vfs.VirtualFileSystem;
@@ -19,6 +20,7 @@ import com.filetransfer.shared.util.TrackIdGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.*;
 import org.springframework.lang.Nullable;
 import org.springframework.scheduling.annotation.Async;
@@ -51,6 +53,7 @@ public class FlowProcessingEngine {
     private final RestTemplate restTemplate;
     private final PlatformConfig platformConfig;
     private final StorageServiceClient storageClient;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Autowired(required = false)
     @Nullable
@@ -723,11 +726,22 @@ public class FlowProcessingEngine {
                             .status(attempt > 0 ? "OK_AFTER_RETRY_" + attempt : "OK")
                             .inputFile(currentPath).outputFile(outcome.virtualPath())
                             .durationMs(duration).build());
+                    // ── fire-and-forget snapshot (async, non-blocking) ──────────────
+                    final String snapInKey  = currentKey;
+                    final String snapInPath = currentPath;
+                    final long   snapInSize = currentSize;
                     currentKey  = outcome.storageKey();
                     currentPath = outcome.virtualPath();
                     currentSize = outcome.sizeBytes();
                     exec.setCurrentStep(i + 1);
                     exec.setCurrentStorageKey(currentKey);
+                    eventPublisher.publishEvent(new FlowStepEvent(
+                            trackId, exec.getId(), i, step.getType(),
+                            attempt > 0 ? "OK_AFTER_RETRY_" + attempt : "OK",
+                            snapInKey, currentKey,
+                            snapInPath, currentPath,
+                            snapInSize, currentSize,
+                            duration, null));
                     log.info("[{}] Step {}/{} ({}) completed in {}ms — key={}",
                             trackId, i + 1, flow.getSteps().size(), step.getType(),
                             duration, abbrev(currentKey));
@@ -745,6 +759,13 @@ public class FlowProcessingEngine {
                             .stepIndex(i).stepType(step.getType()).status("FAILED")
                             .inputFile(currentPath).durationMs(duration)
                             .error(e.getMessage()).build());
+                    // ── fire-and-forget failure snapshot ──────────────────────────
+                    eventPublisher.publishEvent(new FlowStepEvent(
+                            trackId, exec.getId(), i, step.getType(), "FAILED",
+                            currentKey, null,
+                            currentPath, null,
+                            currentSize, 0L,
+                            duration, e.getMessage()));
                     exec.setStatus(FlowExecution.FlowStatus.FAILED);
                     exec.setErrorMessage("Step " + i + " (" + step.getType() + ") failed"
                             + (attempt > 0 ? " after " + (attempt + 1) + " attempts" : "")
