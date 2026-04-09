@@ -1,0 +1,152 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# NetworkPolicy — implements zero-trust within the cluster.
+#
+# Principle: every pod denies all ingress by default.
+# Only explicitly allowed paths are permitted.
+#
+# Topology:
+#   internet → dmz-proxy-external → gateway → internal services
+#   vpn/corp  → dmz-proxy-internal → gateway → internal services
+#   All other pods: internal-only (ClusterIP)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Default deny all ingress in namespace
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny-ingress, namespace: mft}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+
+# Default deny all egress except DNS
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-dns-egress, namespace: mft}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+  - ports: [{port: 53, protocol: UDP}, {port: 53, protocol: TCP}]  # DNS
+
+# Allow all pods to reach infrastructure services
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-infrastructure, namespace: mft}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+  - to:
+    - podSelector: {matchLabels: {app: postgres}}
+    - podSelector: {matchLabels: {app: rabbitmq}}
+    - podSelector: {matchLabels: {app: redis}}
+    ports:
+    - {port: 5432}   # PostgreSQL
+    - {port: 5672}   # RabbitMQ AMQP
+    - {port: 6379}   # Redis
+
+# Allow all pods to call other platform services (internal service mesh)
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-platform-mesh, namespace: mft}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: mft}
+    ports:
+    - {port: 8080}   # onboarding-api
+    - {port: 8081}   # sftp-service
+    - {port: 8082}   # ftp-service
+    - {port: 8083}   # ftp-web
+    - {port: 8084}   # config-service
+    - {port: 8085}   # gateway-service
+    - {port: 8086}   # encryption-service
+    - {port: 8087}   # forwarder
+    - {port: 8088}   # dmz-proxy (management)
+    - {port: 8089}   # license
+    - {port: 8090}   # analytics
+    - {port: 8091}   # ai-engine
+    - {port: 8092}   # screening
+    - {port: 8093}   # keystore
+    - {port: 8094}   # as2
+    - {port: 8095}   # edi
+    - {port: 8096}   # storage-manager
+    - {port: 8097}   # notification
+    - {port: 8098}   # sentinel
+
+# PostgreSQL: only platform services may connect
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: postgres-ingress, namespace: mft}
+spec:
+  podSelector: {matchLabels: {app: postgres}}
+  policyTypes: [Ingress]
+  ingress:
+  - from:
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: mft}}
+    ports: [{port: 5432}]
+
+# Redis: only platform services may connect (not external)
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: redis-ingress, namespace: mft}
+spec:
+  podSelector: {matchLabels: {app: redis}}
+  policyTypes: [Ingress]
+  ingress:
+  - from:
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: mft}}
+    ports: [{port: 6379}]
+
+# DMZ proxy external: ONLY pod that accepts ingress from internet
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: dmz-proxy-external-ingress, namespace: mft}
+spec:
+  podSelector: {matchLabels: {app: dmz-proxy-external}}
+  policyTypes: [Ingress]
+  ingress:
+  - ports:   # Internet-facing ports — no from: restriction (LoadBalancer handles it)
+    - {port: 2222}   # SFTP
+    - {port: 21}     # FTP
+    - {port: 443}    # HTTPS
+
+# DMZ proxy: allow egress to gateway only (not to other internal services directly)
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: dmz-proxy-egress, namespace: mft}
+spec:
+  podSelector:
+    matchExpressions:
+    - key: app
+      operator: In
+      values: [dmz-proxy-internal, dmz-proxy-external]
+  policyTypes: [Egress]
+  egress:
+  - to:
+    - podSelector: {matchLabels: {app: gateway-service}}
+    ports: [{port: 8085}, {port: 2220}, {port: 2122}]
+  - to:
+    - podSelector: {matchLabels: {app: ai-engine}}
+    ports: [{port: 8091}]
+  - to:
+    - podSelector: {matchLabels: {app: keystore-manager}}
+    ports: [{port: 8093}]
+  - to:
+    - podSelector: {matchLabels: {app: screening-service}}
+    ports: [{port: 8092}]
+  - to:
+    - podSelector: {matchLabels: {app: redis}}
+    ports: [{port: 6379}]
+  - ports: [{port: 53, protocol: UDP}]  # DNS

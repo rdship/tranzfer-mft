@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mft
+  labels:
+    app.kubernetes.io/part-of: tranzfer-mft
+    environment: production

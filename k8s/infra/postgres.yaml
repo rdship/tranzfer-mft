@@ -1,0 +1,74 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: mft
+spec:
+  selector: {app: postgres}
+  ports:
+  - {port: 5432, targetPort: 5432}
+  clusterIP: None   # Headless — direct pod connection (no load balancing for DB)
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: mft
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels: {app: postgres}
+  template:
+    metadata:
+      labels: {app: postgres}
+    spec:
+      securityContext:
+        fsGroup: 999
+        runAsUser: 999
+      containers:
+      - name: postgres
+        image: postgres:16-alpine
+        args:
+          - postgres
+          - -c max_connections=300
+          - -c shared_buffers=256MB
+          - -c effective_cache_size=512MB
+          - -c work_mem=4MB
+          - -c maintenance_work_mem=64MB
+          - -c checkpoint_completion_target=0.9
+          - -c wal_buffers=16MB
+          - -c random_page_cost=1.1
+          - -c effective_io_concurrency=200
+          - -c log_min_duration_statement=1000
+          - -c idle_in_transaction_session_timeout=60000
+          - -c statement_timeout=30000
+        env:
+        - {name: POSTGRES_DB,       value: filetransfer}
+        - {name: POSTGRES_USER,     value: postgres}
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef: {name: mft-secrets, key: DB_PASSWORD}
+        ports:
+        - {containerPort: 5432}
+        resources:
+          requests: {memory: "512Mi", cpu: "500m"}
+          limits:   {memory: "2Gi",   cpu: "2000m"}
+        readinessProbe:
+          exec:
+            command: ["pg_isready", "-U", "postgres", "-d", "filetransfer"]
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 5
+        livenessProbe:
+          exec:
+            command: ["pg_isready", "-U", "postgres"]
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        volumeMounts:
+        - {name: data, mountPath: /var/lib/postgresql/data}
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: postgres-pvc

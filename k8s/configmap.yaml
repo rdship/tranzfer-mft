@@ -1,0 +1,84 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Shared platform ConfigMap — injected as env vars into every service.
+# Non-sensitive config only. Secrets (passwords, keys) live in secrets.yaml.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mft-common
+  namespace: mft
+data:
+  # ── Database ────────────────────────────────────────────────────────────────
+  DATABASE_URL: "jdbc:postgresql://postgres:5432/filetransfer?stringtype=unspecified"
+  DB_USERNAME: "postgres"
+
+  # ── Messaging ────────────────────────────────────────────────────────────────
+  RABBITMQ_HOST: "rabbitmq"
+  RABBITMQ_PORT: "5672"
+
+  # ── Redis ────────────────────────────────────────────────────────────────────
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+
+  # ── Platform identity ─────────────────────────────────────────────────────────
+  PLATFORM_ENVIRONMENT: "PROD"
+  CLUSTER_ID: "k8s-cluster-1"
+  CLUSTER_COMM_MODE: "WITHIN_CLUSTER"
+  TRACK_ID_PREFIX: "TRZ"
+  SPRING_PROFILES_ACTIVE: "k8s"
+
+  # ── JVM tuning (override per-service in Deployment env) ───────────────────────
+  # Each service adds its own -Xmx via JAVA_TOOL_OPTIONS override
+  JAVA_TOOL_OPTIONS: >-
+    -XX:+UseG1GC
+    -XX:MaxGCPauseMillis=100
+    -XX:+UseStringDeduplication
+    -Dspring.jmx.enabled=false
+    -Dspring.main.lazy-initialization=true
+
+  # ── Proxy (DMZ) ───────────────────────────────────────────────────────────────
+  # All outbound internet traffic routes through DMZ proxy (internal network only)
+  PROXY_ENABLED: "false"          # Set true if services need outbound internet access
+  PROXY_TYPE: "HTTP"
+  PROXY_HOST: "dmz-proxy-internal"
+  PROXY_PORT: "8088"
+  PROXY_NO_PROXY_HOSTS: "localhost,127.0.0.1,postgres,rabbitmq,redis,minio,*.svc.cluster.local"
+
+  # ── SPIFFE/SPIRE ──────────────────────────────────────────────────────────────
+  SPIFFE_ENABLED: "true"
+  SPIFFE_TRUST_DOMAIN: "filetransfer.io"
+  SPIFFE_SOCKET: "unix:/run/spire/sockets/agent.sock"
+
+  # ── Storage (default: local with RWX PVC) ─────────────────────────────────────
+  STORAGE_BACKEND: "local"          # Change to "s3" for MinIO/S3 backend
+  STORAGE_HOT_PATH: "/data/storage/hot"
+  STORAGE_WARM_PATH: "/data/storage/warm"
+  STORAGE_COLD_PATH: "/data/storage/cold"
+  STORAGE_BACKUP_PATH: "/data/storage/backup"
+
+  # ── S3/MinIO (used when STORAGE_BACKEND=s3) ────────────────────────────────────
+  STORAGE_S3_ENDPOINT: "http://minio:9000"
+  STORAGE_S3_BUCKET: "mft-storage"
+  STORAGE_S3_REGION: "us-east-1"
+  STORAGE_S3_PATH_STYLE: "true"
+
+  # ── Service discovery URLs ───────────────────────────────────────────────────
+  ONBOARDING_API_URL: "http://onboarding-api:8080"
+  CONFIG_URL: "http://config-service:8084"
+  SFTP_SERVICE_URL: "http://sftp-service:8081"
+  FTP_SERVICE_URL: "http://ftp-service:8082"
+  FTP_WEB_URL: "http://ftp-web-service:8083"
+  GATEWAY_URL: "http://gateway-service:8085"
+  ENCRYPTION_URL: "http://encryption-service:8086"
+  FORWARDER_URL: "http://external-forwarder-service:8087"
+  DMZ_URL: "http://dmz-proxy-internal:8088"
+  LICENSE_URL: "http://license-service:8089"
+  ANALYTICS_URL: "http://analytics-service:8090"
+  AI_URL: "http://ai-engine:8091"
+  SCREENING_URL: "http://screening-service:8092"
+  KEYSTORE_URL: "http://keystore-manager:8093"
+  AS2_URL: "http://as2-service:8094"
+  EDI_URL: "http://edi-converter:8095"
+  STORAGE_URL: "http://storage-manager:8096"
+  NOTIFICATION_URL: "http://notification-service:8097"
+  SENTINEL_URL: "http://platform-sentinel:8098"

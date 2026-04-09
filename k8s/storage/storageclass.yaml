@@ -1,0 +1,85 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# StorageClasses for the MFT platform.
+#
+# Choose the one matching your cloud/on-prem infrastructure.
+# Only ONE of these should be the "default" (annotate accordingly).
+#
+# ReadWriteMany (RWX) is REQUIRED for storage-manager to run multiple replicas
+# sharing the same /data/storage mount.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Option A: AWS EFS (recommended for EKS) ─────────────────────────────────
+# Requires the EFS CSI Driver: https://docs.aws.amazon.com/eks/latest/userguide/efs-csi.html
+# kubectl apply -k "github.com/kubernetes-sigs/aws-efs-csi-driver/deploy/kubernetes/overlays/stable/?ref=release-2.0"
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: efs-rwx
+  namespace: mft
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: efs.csi.aws.com
+parameters:
+  provisioningMode: efs-ap
+  fileSystemId: fs-XXXXXXXXX   # Replace with your EFS File System ID
+  directoryPerms: "700"
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+
+# ── Option B: GCP Filestore (recommended for GKE) ────────────────────────────
+# Requires Filestore CSI Driver (enabled by default on GKE 1.21+)
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: filestore-rwx
+  namespace: mft
+provisioner: filestore.csi.storage.gke.io
+parameters:
+  tier: standard
+  network: default
+reclaimPolicy: Retain
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+
+# ── Option C: Azure Files (recommended for AKS) ───────────────────────────────
+# Available natively in AKS
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: azurefile-rwx
+  namespace: mft
+provisioner: file.csi.azure.com
+parameters:
+  skuName: Standard_LRS
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+allowVolumeExpansion: true
+mountOptions:
+  - dir_mode=0777
+  - file_mode=0777
+  - uid=1000
+  - gid=1000
+
+# ── Option D: NFS provisioner (on-premise / bare-metal) ───────────────────────
+# Requires nfs-subdir-external-provisioner:
+# helm repo add nfs-subdir-external-provisioner https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner/
+# helm install nfs-subdir-external-provisioner nfs-subdir-external-provisioner/nfs-subdir-external-provisioner \
+#   --set nfs.server=<NFS_SERVER_IP> --set nfs.path=/exports/mft
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs-rwx
+  namespace: mft
+provisioner: cluster.local/nfs-subdir-external-provisioner
+parameters:
+  onDelete: "retain"
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+
+# ── Standard RWO StorageClass for databases ───────────────────────────────────
+# Use the cluster's default (gp3 on EKS, pd-ssd on GKE, etc.)
+# Listed here for documentation only — references default StorageClass by not specifying one.

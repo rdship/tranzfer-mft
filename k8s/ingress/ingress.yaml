@@ -1,0 +1,133 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Ingress — HTTPS for the admin UI and partner portal.
+#
+# NOTE: File transfer protocols (SFTP/FTP) bypass ingress entirely —
+# they connect directly to dmz-proxy-external LoadBalancer (TCP passthrough).
+#
+# Requires: cert-manager for TLS certificate management.
+# Install: kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+# TLS Certificate (cert-manager ClusterIssuer required)
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mft-tls
+  namespace: mft
+spec:
+  secretName: mft-tls-secret
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+  - mft.example.com           # Admin UI
+  - partners.example.com      # Partner portal
+  - api.mft.example.com       # API gateway
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mft-ingress
+  namespace: mft
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "512m"   # Large file uploads via HTTPS
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    # Rate limiting at ingress level (per IP)
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/limit-connections: "20"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts: [mft.example.com, partners.example.com, api.mft.example.com]
+    secretName: mft-tls-secret
+  rules:
+  # Admin UI
+  - host: mft.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service: {name: ui-service, port: {number: 3000}}
+
+  # Partner portal
+  - host: partners.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service: {name: partner-portal, port: {number: 3002}}
+
+  # API (onboarding-api — for REST API clients and partner integrations)
+  - host: api.mft.example.com
+    http:
+      paths:
+      - path: /api/
+        pathType: Prefix
+        backend:
+          service: {name: onboarding-api, port: {number: 8080}}
+
+---
+# UI Service
+apiVersion: v1
+kind: Service
+metadata: {name: ui-service, namespace: mft}
+spec:
+  selector: {app: ui-service}
+  ports: [{port: 3000, targetPort: 3000}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: ui-service, namespace: mft}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: ui-service}}
+  template:
+    metadata: {labels: {app: ui-service}}
+    spec:
+      containers:
+      - name: ui-service
+        image: mft/ui-service:latest
+        ports: [{containerPort: 3000}]
+        resources:
+          requests: {memory: "64Mi",  cpu: "50m"}
+          limits:   {memory: "256Mi", cpu: "500m"}
+        readinessProbe:
+          httpGet: {path: /, port: 3000}
+          initialDelaySeconds: 5
+          periodSeconds: 10
+
+---
+# Partner portal
+apiVersion: v1
+kind: Service
+metadata: {name: partner-portal, namespace: mft}
+spec:
+  selector: {app: partner-portal}
+  ports: [{port: 3002, targetPort: 3002}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: partner-portal, namespace: mft}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: partner-portal}}
+  template:
+    metadata: {labels: {app: partner-portal}}
+    spec:
+      containers:
+      - name: partner-portal
+        image: mft/partner-portal:latest
+        ports: [{containerPort: 3002}]
+        resources:
+          requests: {memory: "64Mi",  cpu: "50m"}
+          limits:   {memory: "256Mi", cpu: "500m"}
+        readinessProbe:
+          httpGet: {path: /, port: 3002}
+          initialDelaySeconds: 5
+          periodSeconds: 10

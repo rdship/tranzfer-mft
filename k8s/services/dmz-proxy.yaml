@@ -1,0 +1,200 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# DMZ Proxy — two groups, internal and external.
+#
+# IMPORTANT network topology:
+#   All microservices → ClusterIP (internal, not accessible outside cluster)
+#   dmz-proxy-internal → ClusterIP (reachable by internal corporate network via VPN/peering)
+#   dmz-proxy-external → LoadBalancer (exposed to internet for partner file transfers)
+#
+#   Internet → LoadBalancer:2222 → dmz-proxy-external:2222 → gateway:2220
+#   VPN/Corp  → ClusterIP:2222   → dmz-proxy-internal:2222 → gateway:2220
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Internal proxy group ─────────────────────────────────────────────────────
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dmz-proxy-internal
+  namespace: mft
+  annotations:
+    description: "Internal proxy — accessible from corporate network/VPN only.
+      Not exposed to internet. Use VPN or private peering to reach."
+spec:
+  selector: {app: dmz-proxy-internal}
+  type: ClusterIP       # Internal only — reachable via VPN/private peering
+  ports:
+  - {name: management, port: 8088, targetPort: 8088}
+  - {name: sftp,       port: 2222, targetPort: 2222}
+  - {name: ftp,        port: 21,   targetPort: 21}
+  - {name: https,      port: 443,  targetPort: 443}
+  - {name: tunnel,     port: 9443, targetPort: 9443}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dmz-proxy-internal
+  namespace: mft
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: dmz-proxy-internal}
+  strategy:
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
+  template:
+    metadata:
+      labels:
+        app: dmz-proxy-internal
+        proxy-group: internal
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector: {matchLabels: {app: dmz-proxy-internal}}
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: dmz-proxy
+        image: mft/dmz-proxy:latest
+        imagePullPolicy: Always
+        ports:
+        - {containerPort: 8088}
+        - {containerPort: 2222}
+        - {containerPort: 21}
+        - {containerPort: 443}
+        - {containerPort: 9443}
+        env:
+        - {name: SERVER_PORT,          value: "8088"}
+        - {name: PROXY_GROUP_NAME,     value: internal}
+        - {name: PROXY_GROUP_TYPE,     value: INTERNAL}
+        - {name: DMZ_SECURITY_ENABLED, value: "true"}
+        - {name: DMZ_ZONES_ENABLED,    value: "true"}
+        - {name: DMZ_EGRESS_ENABLED,   value: "false"}  # Internal — no SSRF concern
+        - {name: DMZ_INSPECTION_ENABLED, value: "true"}
+        - {name: DMZ_AUDIT_ENABLED,    value: "true"}
+        - {name: DMZ_TLS_ENABLED,      value: "false"}  # TLS optional for internal
+        - {name: DMZ_TUNNEL_ENABLED,   value: "false"}
+        - {name: REDIS_HOST,           value: redis}
+        - {name: REDIS_PORT,           value: "6379"}
+        - {name: AI_ENGINE_URL,        value: "http://ai-engine:8091"}
+        - {name: KEYSTORE_MANAGER_URL, value: "http://keystore-manager:8093"}
+        - {name: SCREENING_SERVICE_URL,value: "http://screening-service:8092"}
+        - {name: GATEWAY_HOST,         value: gateway-service}
+        # Pod IP for group self-registration in Redis
+        - name: PROXY_INSTANCE_ID
+          valueFrom:
+            fieldRef: {fieldPath: metadata.name}
+        - name: PLATFORM_SECURITY_JWT_SECRET
+          valueFrom:
+            secretKeyRef: {name: mft-secrets, key: JWT_SECRET}
+        - name: CONTROL_API_KEY
+          valueFrom:
+            secretKeyRef: {name: mft-secrets, key: CONTROL_API_KEY}
+        resources:
+          requests: {memory: "256Mi", cpu: "200m"}
+          limits:   {memory: "512Mi", cpu: "1000m"}
+        readinessProbe:
+          httpGet: {path: /api/proxy/health, port: 8088}
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          failureThreshold: 3
+        livenessProbe:
+          httpGet: {path: /api/proxy/health, port: 8088}
+          initialDelaySeconds: 30
+          periodSeconds: 15
+        # SPIFFE: not via shared-platform (dmz-proxy is DB-free, custom SPIFFE integration)
+
+# ── External proxy group ─────────────────────────────────────────────────────
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dmz-proxy-external
+  namespace: mft
+  annotations:
+    description: "Internet-facing proxy — exposed via LoadBalancer.
+      Partners connect here for SFTP/FTP/AS2 file transfers.
+      TLS required. Zone enforcement and egress filtering ON."
+spec:
+  selector: {app: dmz-proxy-external}
+  type: LoadBalancer     # ← Exposed to internet — the ONLY service with public IP
+  ports:
+  - {name: sftp,       port: 22,   targetPort: 2222}   # Standard SFTP port for partners
+  - {name: ftp,        port: 21,   targetPort: 21}
+  - {name: https,      port: 443,  targetPort: 443}
+  - {name: management, port: 8089, targetPort: 8088}   # NOT exposed — firewall/SG blocks this
+  loadBalancerSourceRanges:
+  - "0.0.0.0/0"    # Restrict to known partner IPs in production
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dmz-proxy-external
+  namespace: mft
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: dmz-proxy-external}
+  strategy:
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
+  template:
+    metadata:
+      labels:
+        app: dmz-proxy-external
+        proxy-group: external
+    spec:
+      # Run external proxy pods on dedicated nodes (node selector or taint)
+      # nodeSelector:
+      #   node-role: dmz-external
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector: {matchLabels: {app: dmz-proxy-external}}
+            topologyKey: kubernetes.io/hostname   # REQUIRED: different nodes for HA
+      containers:
+      - name: dmz-proxy
+        image: mft/dmz-proxy:latest
+        imagePullPolicy: Always
+        ports:
+        - {containerPort: 8088}
+        - {containerPort: 2222}
+        - {containerPort: 21}
+        - {containerPort: 443}
+        env:
+        - {name: SERVER_PORT,          value: "8088"}
+        - {name: PROXY_GROUP_NAME,     value: external}
+        - {name: PROXY_GROUP_TYPE,     value: EXTERNAL}
+        - {name: DMZ_SECURITY_ENABLED, value: "true"}
+        - {name: DMZ_ZONES_ENABLED,    value: "true"}    # Zone enforcement ON
+        - {name: DMZ_EGRESS_ENABLED,   value: "true"}    # Anti-SSRF/exfiltration ON
+        - {name: DMZ_INSPECTION_ENABLED, value: "true"}
+        - {name: DMZ_AUDIT_ENABLED,    value: "true"}
+        - {name: DMZ_TLS_ENABLED,      value: "true"}    # TLS REQUIRED for external
+        - {name: DMZ_TUNNEL_ENABLED,   value: "false"}
+        - {name: REDIS_HOST,           value: redis}
+        - {name: REDIS_PORT,           value: "6379"}
+        - {name: AI_ENGINE_URL,        value: "http://ai-engine:8091"}
+        - {name: KEYSTORE_MANAGER_URL, value: "http://keystore-manager:8093"}
+        - {name: SCREENING_SERVICE_URL,value: "http://screening-service:8092"}
+        - {name: GATEWAY_HOST,         value: gateway-service}
+        - name: PROXY_INSTANCE_ID
+          valueFrom:
+            fieldRef: {fieldPath: metadata.name}
+        - name: PLATFORM_SECURITY_JWT_SECRET
+          valueFrom:
+            secretKeyRef: {name: mft-secrets, key: JWT_SECRET}
+        - name: CONTROL_API_KEY
+          valueFrom:
+            secretKeyRef: {name: mft-secrets, key: CONTROL_API_KEY}
+        resources:
+          requests: {memory: "256Mi", cpu: "300m"}
+          limits:   {memory: "768Mi", cpu: "2000m"}
+        readinessProbe:
+          httpGet: {path: /api/proxy/health, port: 8088}
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        livenessProbe:
+          httpGet: {path: /api/proxy/health, port: 8088}
+          initialDelaySeconds: 30
+          periodSeconds: 15

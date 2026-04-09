@@ -1,0 +1,109 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# PersistentVolumeClaims for all stateful components.
+#
+# CRITICAL: storage-manager-pvc uses ReadWriteMany so multiple replicas
+# share the same /data/storage mount. Change storageClassName to match
+# your environment (efs-rwx / filestore-rwx / azurefile-rwx / nfs-rwx).
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── PostgreSQL ── (ReadWriteOnce: single Postgres pod writes to its own disk)
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: mft
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 100Gi
+  # Uses cluster default StorageClass (gp3 on EKS, pd-ssd on GKE)
+
+# ── RabbitMQ ──
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rabbitmq-pvc
+  namespace: mft
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 20Gi
+
+# ── Redis ──
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: mft
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 10Gi
+
+# ── Storage Manager — *** ReadWriteMany *** ───────────────────────────────────
+# ALL storage-manager replicas mount this PVC simultaneously.
+# Requires an RWX StorageClass (efs-rwx / filestore-rwx / azurefile-rwx / nfs-rwx).
+# ParallelIOEngine uses POSIX FileChannel — works identically on any NFS/EFS mount.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: storage-manager-pvc
+  namespace: mft
+  annotations:
+    description: "Shared RWX storage for VFS hot/warm/cold/backup tiers.
+      Mounted at /data/storage on every storage-manager replica.
+      Use STORAGE_BACKEND=s3 with MinIO instead if you prefer object storage."
+spec:
+  accessModes: [ReadWriteMany]   # ← THE KEY DIFFERENCE vs docker-compose
+  storageClassName: efs-rwx      # ← Change to match your cloud (see storageclass.yaml)
+  resources:
+    requests:
+      storage: 2Ti               # Adjust based on expected data volume
+
+# ── SFTP data (shared across sftp-service replicas) ──
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sftp-data-pvc
+  namespace: mft
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: efs-rwx
+  resources:
+    requests:
+      storage: 500Gi
+
+# ── FTP data (shared across ftp-service replicas) ──
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ftp-data-pvc
+  namespace: mft
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: efs-rwx
+  resources:
+    requests:
+      storage: 500Gi
+
+# ── MinIO data (optional: only needed when STORAGE_BACKEND=s3) ──
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-pvc
+  namespace: mft
+spec:
+  accessModes: [ReadWriteOnce]   # MinIO handles its own replication internally
+  resources:
+    requests:
+      storage: 5Ti

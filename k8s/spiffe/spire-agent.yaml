@@ -1,0 +1,91 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: spire-agent, namespace: mft}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: spire-agent-role}
+rules:
+- apiGroups: [""]
+  resources: [nodes, pods]
+  verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: spire-agent-binding}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: spire-agent-role}
+subjects:
+- {kind: ServiceAccount, name: spire-agent, namespace: mft}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: spire-agent-config, namespace: mft}
+data:
+  agent.conf: |
+    agent {
+      data_dir = "/run/spire"
+      log_level = "INFO"
+      server_address = "spire-server"
+      server_port = "8081"
+      socket_path = "/run/spire/sockets/agent.sock"
+      trust_bundle_path = "/run/spire/bundle/bundle.crt"
+      trust_domain = "filetransfer.io"
+    }
+    plugins {
+      NodeAttestor "k8s_psat" {
+        plugin_data {
+          cluster = "mft-cluster"
+          token_path = "/var/run/secrets/tokens/spire-agent"
+        }
+      }
+      KeyManager "memory" { plugin_data {} }
+      WorkloadAttestor "k8s" {
+        plugin_data {
+          skip_kubelet_verification = true
+        }
+      }
+    }
+---
+# DaemonSet: one SPIRE agent per node, exposes workload API socket
+# All pods mount this socket to get their SVID
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: {name: spire-agent, namespace: mft}
+spec:
+  selector: {matchLabels: {app: spire-agent}}
+  template:
+    metadata: {labels: {app: spire-agent}}
+    spec:
+      serviceAccountName: spire-agent
+      hostPID: true
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      initContainers:
+      - name: init
+        image: ghcr.io/spiffe/spire-agent:1.9.0
+        args: [api, fetch, jwt, -spiffeID, "spiffe://filetransfer.io/spire-agent"]
+        command: ["sh", "-c", "until spire-agent api fetch jwt -spiffeID spiffe://filetransfer.io/spire-agent 2>/dev/null; do echo waiting for SPIRE server; sleep 5; done"]
+      containers:
+      - name: spire-agent
+        image: ghcr.io/spiffe/spire-agent:1.9.0
+        args: ["-config", "/run/spire/config/agent.conf"]
+        resources:
+          requests: {memory: "32Mi", cpu: "25m"}
+          limits:   {memory: "128Mi", cpu: "200m"}
+        volumeMounts:
+        - {name: config,         mountPath: /run/spire/config, readOnly: true}
+        - {name: spire-socket,   mountPath: /run/spire/sockets}
+        - {name: spire-token,    mountPath: /var/run/secrets/tokens}
+      volumes:
+      - name: config
+        configMap: {name: spire-agent-config}
+      - name: spire-socket
+        hostPath: {path: /run/spire/sockets, type: DirectoryOrCreate}
+      - name: spire-token
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: spire-agent
+              expirationSeconds: 7200
+              audience: spire-server

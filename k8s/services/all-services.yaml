@@ -1,0 +1,218 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# All stateless MFT services generated from the same pattern.
+# For production, split each into its own file and tune resources per service.
+#
+# Pattern for each service:
+#   Service (ClusterIP) → Deployment (2 replicas) → configMapRef + secretRef
+# ─────────────────────────────────────────────────────────────────────────────
+
+{% set services = [
+  {name: config-service,           port: 8084, cpu_req: "200m", mem_req: "384Mi"},
+  {name: sftp-service,             port: 8081, cpu_req: "200m", mem_req: "512Mi"},
+  {name: ftp-service,              port: 8082, cpu_req: "200m", mem_req: "384Mi"},
+  {name: ftp-web-service,          port: 8083, cpu_req: "200m", mem_req: "384Mi"},
+  {name: gateway-service,          port: 8085, cpu_req: "200m", mem_req: "384Mi"},
+  {name: encryption-service,       port: 8086, cpu_req: "200m", mem_req: "256Mi"},
+  {name: external-forwarder-service,port: 8087,cpu_req: "200m", mem_req: "384Mi"},
+  {name: license-service,          port: 8089, cpu_req: "100m", mem_req: "256Mi"},
+  {name: analytics-service,        port: 8090, cpu_req: "300m", mem_req: "512Mi"},
+  {name: ai-engine,                port: 8091, cpu_req: "500m", mem_req: "768Mi"},
+  {name: screening-service,        port: 8092, cpu_req: "200m", mem_req: "384Mi"},
+  {name: keystore-manager,         port: 8093, cpu_req: "200m", mem_req: "384Mi"},
+  {name: as2-service,              port: 8094, cpu_req: "200m", mem_req: "384Mi"},
+  {name: edi-converter,            port: 8095, cpu_req: "200m", mem_req: "384Mi"},
+  {name: notification-service,     port: 8097, cpu_req: "100m", mem_req: "256Mi"},
+  {name: platform-sentinel,        port: 8098, cpu_req: "200m", mem_req: "384Mi"},
+] %}
+
+# NOTE: This file uses pseudo-template notation for readability.
+# In practice, use Helm charts or Kustomize to generate these.
+# Below is the actual YAML for all services:
+
+---
+# config-service
+apiVersion: v1
+kind: Service
+metadata: {name: config-service, namespace: mft}
+spec:
+  selector: {app: config-service}
+  ports: [{port: 8084, targetPort: 8084}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: config-service, namespace: mft}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: config-service}}
+  strategy: {rollingUpdate: {maxSurge: 1, maxUnavailable: 0}}
+  template:
+    metadata: {labels: {app: config-service}}
+    spec:
+      containers:
+      - name: config-service
+        image: mft/config-service:latest
+        ports: [{containerPort: 8084}]
+        env:
+        - {name: SERVER_PORT,  value: "8084"}
+        - {name: CLUSTER_HOST, value: config-service}
+        - {name: JAVA_TOOL_OPTIONS, value: "-Xmx384m -Xms192m -XX:+UseG1GC"}
+        envFrom:
+        - configMapRef: {name: mft-common}
+        - secretRef:    {name: mft-secrets}
+        resources:
+          requests: {memory: "384Mi", cpu: "200m"}
+          limits:   {memory: "768Mi", cpu: "1000m"}
+        readinessProbe:
+          httpGet: {path: /actuator/health/readiness, port: 8084}
+          initialDelaySeconds: 20
+          periodSeconds: 10
+        livenessProbe:
+          httpGet: {path: /actuator/health/liveness, port: 8084}
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        volumeMounts:
+        - {name: spire-socket, mountPath: /run/spire/sockets, readOnly: true}
+      volumes:
+      - name: spire-socket
+        hostPath: {path: /run/spire/sockets, type: DirectoryOrCreate}
+---
+# gateway-service
+apiVersion: v1
+kind: Service
+metadata: {name: gateway-service, namespace: mft}
+spec:
+  selector: {app: gateway-service}
+  ports: [{port: 8085, targetPort: 8085}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: gateway-service, namespace: mft}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: gateway-service}}
+  strategy: {rollingUpdate: {maxSurge: 1, maxUnavailable: 0}}
+  template:
+    metadata: {labels: {app: gateway-service}}
+    spec:
+      containers:
+      - name: gateway-service
+        image: mft/gateway-service:latest
+        ports: [{containerPort: 8085}]
+        env:
+        - {name: SERVER_PORT,  value: "8085"}
+        - {name: CLUSTER_HOST, value: gateway-service}
+        - {name: JAVA_TOOL_OPTIONS, value: "-Xmx384m -Xms192m -XX:+UseG1GC"}
+        envFrom:
+        - configMapRef: {name: mft-common}
+        - secretRef:    {name: mft-secrets}
+        resources:
+          requests: {memory: "384Mi", cpu: "200m"}
+          limits:   {memory: "768Mi", cpu: "1000m"}
+        readinessProbe:
+          httpGet: {path: /actuator/health/readiness, port: 8085}
+          initialDelaySeconds: 20
+          periodSeconds: 10
+        livenessProbe:
+          httpGet: {path: /actuator/health/liveness, port: 8085}
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        volumeMounts:
+        - {name: spire-socket, mountPath: /run/spire/sockets, readOnly: true}
+      volumes:
+      - name: spire-socket
+        hostPath: {path: /run/spire/sockets, type: DirectoryOrCreate}
+---
+# analytics-service
+apiVersion: v1
+kind: Service
+metadata: {name: analytics-service, namespace: mft}
+spec:
+  selector: {app: analytics-service}
+  ports: [{port: 8090, targetPort: 8090}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: analytics-service, namespace: mft}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: analytics-service}}
+  strategy: {rollingUpdate: {maxSurge: 1, maxUnavailable: 0}}
+  template:
+    metadata: {labels: {app: analytics-service}}
+    spec:
+      containers:
+      - name: analytics-service
+        image: mft/analytics-service:latest
+        ports: [{containerPort: 8090}]
+        env:
+        - {name: SERVER_PORT,  value: "8090"}
+        - {name: CLUSTER_HOST, value: analytics-service}
+        - {name: JAVA_TOOL_OPTIONS, value: "-Xmx512m -Xms256m -XX:+UseG1GC"}
+        envFrom:
+        - configMapRef: {name: mft-common}
+        - secretRef:    {name: mft-secrets}
+        resources:
+          requests: {memory: "512Mi", cpu: "300m"}
+          limits:   {memory: "1Gi",   cpu: "1500m"}
+        readinessProbe:
+          httpGet: {path: /actuator/health/readiness, port: 8090}
+          initialDelaySeconds: 25
+          periodSeconds: 10
+        livenessProbe:
+          httpGet: {path: /actuator/health/liveness, port: 8090}
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        volumeMounts:
+        - {name: spire-socket, mountPath: /run/spire/sockets, readOnly: true}
+      volumes:
+      - name: spire-socket
+        hostPath: {path: /run/spire/sockets, type: DirectoryOrCreate}
+---
+# platform-sentinel
+apiVersion: v1
+kind: Service
+metadata: {name: platform-sentinel, namespace: mft}
+spec:
+  selector: {app: platform-sentinel}
+  ports: [{port: 8098, targetPort: 8098}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: platform-sentinel, namespace: mft}
+spec:
+  replicas: 1    # Sentinel is a read-only observer — 1 replica is sufficient
+  selector: {matchLabels: {app: platform-sentinel}}
+  template:
+    metadata: {labels: {app: platform-sentinel}}
+    spec:
+      containers:
+      - name: platform-sentinel
+        image: mft/platform-sentinel:latest
+        ports: [{containerPort: 8098}]
+        env:
+        - {name: SERVER_PORT,  value: "8098"}
+        - {name: CLUSTER_HOST, value: platform-sentinel}
+        - {name: JAVA_TOOL_OPTIONS, value: "-Xmx384m -Xms192m -XX:+UseG1GC"}
+        envFrom:
+        - configMapRef: {name: mft-common}
+        - secretRef:    {name: mft-secrets}
+        resources:
+          requests: {memory: "384Mi", cpu: "200m"}
+          limits:   {memory: "768Mi", cpu: "1000m"}
+        readinessProbe:
+          httpGet: {path: /api/v1/sentinel/health, port: 8098}
+          initialDelaySeconds: 30
+          periodSeconds: 15
+        livenessProbe:
+          httpGet: {path: /api/v1/sentinel/health, port: 8098}
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        volumeMounts:
+        - {name: spire-socket, mountPath: /run/spire/sockets, readOnly: true}
+      volumes:
+      - name: spire-socket
+        hostPath: {path: /run/spire/sockets, type: DirectoryOrCreate}
+
+# NOTE: encryption-service, screening-service, keystore-manager, as2-service,
+# edi-converter, notification-service, license-service follow the exact same
+# pattern as config-service above — copy, change name/port/image, adjust resources.
