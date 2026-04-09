@@ -39,8 +39,16 @@ public class FlowExecution {
     @Column(nullable = false)
     private String originalFilename;
 
-    /** Current working file path (changes as steps process) */
+    /** Current working file path (physical-mode accounts: local path; virtual-mode: VFS path). */
     private String currentFilePath;
+
+    /**
+     * Current CAS storage key (SHA-256) — set for VIRTUAL-mode accounts.
+     * Identifies the content in storage-manager at each pipeline step boundary.
+     * Null for physical-mode accounts.
+     */
+    @Column(length = 64)
+    private String currentStorageKey;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

@@ -16,6 +16,8 @@ import com.filetransfer.shared.repository.FlowExecutionRepository;
 import com.filetransfer.shared.repository.PartnerRepository;
 import com.filetransfer.shared.spiffe.SpiffeWorkloadClient;
 import com.filetransfer.shared.util.TrackIdGenerator;
+import com.filetransfer.shared.vfs.FileRef;
+import com.filetransfer.shared.vfs.VfsFlowBridge;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,6 +56,11 @@ public class RoutingEngine {
     @Nullable
     private SpiffeWorkloadClient spiffeWorkloadClient;
     private final FileFlowRepository flowRepository;
+
+    /** Present only when VFS is active. Null for PHYSICAL-only deployments. */
+    @Autowired(required = false)
+    @Nullable
+    private VfsFlowBridge vfsBridge;
     private final AuditService auditService;
     private final AiClassificationClient aiClassifier;
     private final ConnectorDispatcher connectorDispatcher;
@@ -113,6 +120,49 @@ public class RoutingEngine {
         FileFlow matchedFlow = matchedRule != null
                 ? flowRepository.findById(matchedRule.flowId()).orElse(null) : null;
 
+        // ── VIRTUAL-mode accounts: FileRef-based streaming pipeline ──────────────
+        if ("VIRTUAL".equals(sourceAccount.getStorageMode()) && vfsBridge != null) {
+            Optional<com.filetransfer.shared.entity.VirtualEntry> entryOpt =
+                    vfsBridge.getVfs().stat(sourceAccount.getId(), relativeFilePath);
+            if (entryOpt.isPresent()) {
+                com.filetransfer.shared.entity.VirtualEntry entry = entryOpt.get();
+                FileRef ref = new FileRef(
+                        entry.getStorageKey(), relativeFilePath, sourceAccount.getId(),
+                        entry.getSizeBytes(), trackId, entry.getContentType(),
+                        entry.getStorageBucket() != null ? entry.getStorageBucket() : "STANDARD");
+                if (matchedFlow != null) {
+                    log.info("[{}] Executing flow '{}' ({} steps) [VIRTUAL]",
+                            trackId, matchedFlow.getName(), matchedFlow.getSteps().size());
+                    try {
+                        FlowExecution exec = flowEngine.executeFlowRef(matchedFlow, trackId,
+                                filename, ref, matchedFlow.getMatchCriteria());
+                        if (exec.getStatus() == FlowExecution.FlowStatus.COMPLETED) {
+                            log.info("[{}] Flow '{}' completed (VIRTUAL). Final key={}",
+                                    trackId, matchedFlow.getName(), exec.getCurrentStorageKey());
+                        } else {
+                            log.error("[{}] Flow '{}' failed: {}", trackId,
+                                    matchedFlow.getName(), exec.getErrorMessage());
+                        }
+                    } catch (Exception e) {
+                        log.error("[{}] Flow execution error (VIRTUAL): {}", trackId, e.getMessage());
+                    }
+                } else {
+                    log.warn("[{}] UNMATCHED file (VIRTUAL): account={} file={}",
+                            trackId, sourceAccount.getUsername(), filename);
+                    executionRepository.save(FlowExecution.builder()
+                            .trackId(trackId).originalFilename(filename)
+                            .currentStorageKey(entry.getStorageKey())
+                            .status(FlowExecution.FlowStatus.UNMATCHED)
+                            .stepResults(List.of()).build());
+                }
+            } else {
+                log.warn("[{}] VIRTUAL account but no VirtualEntry for path={} — skipping",
+                        trackId, relativeFilePath);
+            }
+            return; // VIRTUAL accounts: flow IS the routing; skip physical routing below
+        }
+
+        // ── PHYSICAL-mode accounts: existing path-based flow execution ────────────
         if (matchedFlow != null) {
             log.info("[{}] Executing flow '{}' ({} steps)", trackId, matchedFlow.getName(),
                     matchedFlow.getSteps().size());

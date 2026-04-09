@@ -122,6 +122,64 @@ public class StorageServiceClient extends ResilientServiceClient {
                 (Runnable) () -> delete("/api/v1/storage/objects/" + sha256));
     }
 
+    /**
+     * Retrieve file bytes by SHA-256 CAS key.
+     * Used by the VIRTUAL-mode flow pipeline to fetch content without disk I/O.
+     */
+    public byte[] retrieveBySha256(String sha256) {
+        return withResilience("retrieveBySha256", () -> {
+            HttpHeaders headers = jsonHeaders();
+            headers.setAccept(List.of(org.springframework.http.MediaType.APPLICATION_OCTET_STREAM));
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+            ResponseEntity<byte[]> response = restTemplate.exchange(
+                    baseUrl() + "/api/v1/storage/retrieve-by-key/" + sha256,
+                    HttpMethod.GET, entity, byte[].class);
+            return response.getBody();
+        });
+    }
+
+    /**
+     * Stream-upload an {@link java.io.InputStream} to storage-manager via {@code /store-stream}.
+     *
+     * <p>The stream is piped directly as the HTTP request body — no intermediate byte buffer
+     * is allocated on the caller side. One-shot: does not use the resilience retry wrapper
+     * because an InputStream can only be consumed once.
+     *
+     * @param data          byte stream to upload
+     * @param estimatedSize byte count hint for {@code Content-Length}; pass {@code -1} if unknown
+     * @param filename      target filename in storage-manager
+     * @param account       account namespace (may be null)
+     * @param trackId       platform track ID (may be null)
+     * @return storage metadata map: sha256, sizeBytes, status, tier, etc.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> storeStream(java.io.InputStream data, long estimatedSize,
+                                            String filename, String account, String trackId) {
+        try {
+            StringBuilder url = new StringBuilder(baseUrl())
+                    .append("/api/v1/storage/store-stream?filename=")
+                    .append(java.net.URLEncoder.encode(filename, java.nio.charset.StandardCharsets.UTF_8));
+            if (account != null)
+                url.append("&account=").append(java.net.URLEncoder.encode(account, java.nio.charset.StandardCharsets.UTF_8));
+            if (trackId != null)
+                url.append("&trackId=").append(java.net.URLEncoder.encode(trackId, java.nio.charset.StandardCharsets.UTF_8));
+
+            return restTemplate.execute(url.toString(), HttpMethod.POST,
+                    request -> {
+                        request.getHeaders().setContentType(org.springframework.http.MediaType.APPLICATION_OCTET_STREAM);
+                        if (estimatedSize > 0) request.getHeaders().setContentLength(estimatedSize);
+                        addInternalAuth(request.getHeaders());
+                        data.transferTo(request.getBody());
+                    },
+                    response -> {
+                        byte[] body = response.getBody().readAllBytes();
+                        return new com.fasterxml.jackson.databind.ObjectMapper().readValue(body, Map.class);
+                    });
+        } catch (Exception e) {
+            throw new RuntimeException("storeStream failed for '" + filename + "': " + e.getMessage(), e);
+        }
+    }
+
     @Override
     protected String healthPath() {
         return "/api/v1/storage/health";

@@ -4,6 +4,10 @@ import com.filetransfer.shared.client.EncryptionServiceClient;
 import com.filetransfer.shared.client.ForwarderServiceClient;
 import com.filetransfer.shared.client.ScreeningServiceClient;
 import com.filetransfer.shared.client.ServiceClientProperties;
+import com.filetransfer.shared.client.StorageServiceClient;
+import com.filetransfer.shared.vfs.FileRef;
+import com.filetransfer.shared.vfs.VfsFlowBridge;
+import com.filetransfer.shared.vfs.VirtualFileSystem;
 import com.filetransfer.shared.cluster.ClusterService;
 import com.filetransfer.shared.config.PlatformConfig;
 import com.filetransfer.shared.entity.*;
@@ -46,11 +50,17 @@ public class FlowProcessingEngine {
     private final ClusterService clusterService;
     private final RestTemplate restTemplate;
     private final PlatformConfig platformConfig;
+    private final StorageServiceClient storageClient;
 
     @Autowired(required = false)
     @Nullable
     private SpiffeWorkloadClient spiffeWorkloadClient;
     private final ServiceClientProperties serviceProps;
+
+    /** Injected only when VFS is on the classpath (shared-platform). Null for PHYSICAL-only deployments. */
+    @Autowired(required = false)
+    @Nullable
+    private VfsFlowBridge vfsBridge;
 
     /**
      * Execute a specific flow for a file. Creates execution record and processes each step.
@@ -658,6 +668,512 @@ public class FlowProcessingEngine {
         log.info("[{}] CONVERT_EDI: {} -> {} (targetFormat={}, partnerId={})",
                 trackId, input.getFileName(), outputFile.getFileName(), targetFormat, partnerId);
         return outputFile.toString();
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════════════
+    // VIRTUAL-mode pipeline — ephemeral streaming agent, zero local disk I/O
+    // ══════════════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Execute a flow for a VIRTUAL-mode account.
+     *
+     * <p>Each transform step reads from / writes to storage-manager as a streaming
+     * operation. No local disk is touched. A single {@link FlowExecution} record is
+     * written at the start (status=PROCESSING) and updated once at the end
+     * (COMPLETED or FAILED) — minimising DB round-trips per step.
+     */
+    @Transactional
+    public FlowExecution executeFlowRef(FileFlow flow, String trackId, String filename,
+                                         FileRef ref,
+                                         com.filetransfer.shared.matching.MatchCriteria matchedCriteria) {
+        FlowExecution exec = FlowExecution.builder()
+                .trackId(trackId).flow(flow).originalFilename(filename)
+                .currentStorageKey(ref.storageKey())
+                .status(FlowExecution.FlowStatus.PROCESSING)
+                .matchedCriteria(matchedCriteria).stepResults(new ArrayList<>())
+                .build();
+        exec = executionRepository.save(exec);
+
+        String currentKey  = ref.storageKey();
+        String currentPath = ref.virtualPath();
+        long   currentSize = ref.sizeBytes();
+        List<FlowExecution.StepResult> results = new ArrayList<>();
+
+        for (int i = 0; i < flow.getSteps().size(); i++) {
+            FileFlow.FlowStep step = flow.getSteps().get(i);
+            Map<String, String> stepCfg = step.getConfig() != null ? step.getConfig() : Map.of();
+            int maxRetries = Integer.parseInt(stepCfg.getOrDefault("retryCount", "0"));
+            boolean stepSucceeded = false;
+
+            for (int attempt = 0; attempt <= maxRetries; attempt++) {
+                long start = System.currentTimeMillis();
+                try {
+                    if (attempt > 0) {
+                        long backoff = 2000L * (1L << (attempt - 1));
+                        log.info("[{}] Step {}/{} ({}) retry {}/{} — waiting {}ms",
+                                trackId, i + 1, flow.getSteps().size(), step.getType(),
+                                attempt, maxRetries, backoff);
+                        Thread.sleep(Math.min(backoff, 30000));
+                    }
+                    StepOutcome outcome = processStepRef(step, currentKey, currentPath,
+                            currentSize, ref, trackId, i);
+                    long duration = System.currentTimeMillis() - start;
+                    results.add(FlowExecution.StepResult.builder()
+                            .stepIndex(i).stepType(step.getType())
+                            .status(attempt > 0 ? "OK_AFTER_RETRY_" + attempt : "OK")
+                            .inputFile(currentPath).outputFile(outcome.virtualPath())
+                            .durationMs(duration).build());
+                    currentKey  = outcome.storageKey();
+                    currentPath = outcome.virtualPath();
+                    currentSize = outcome.sizeBytes();
+                    exec.setCurrentStep(i + 1);
+                    exec.setCurrentStorageKey(currentKey);
+                    log.info("[{}] Step {}/{} ({}) completed in {}ms — key={}",
+                            trackId, i + 1, flow.getSteps().size(), step.getType(),
+                            duration, abbrev(currentKey));
+                    stepSucceeded = true;
+                    break;
+                } catch (Exception e) {
+                    long duration = System.currentTimeMillis() - start;
+                    if (attempt < maxRetries && isRetryableStepError(e)) {
+                        log.warn("[{}] Step {}/{} ({}) attempt {} failed (retryable): {}",
+                                trackId, i + 1, flow.getSteps().size(), step.getType(),
+                                attempt + 1, e.getMessage());
+                        continue;
+                    }
+                    results.add(FlowExecution.StepResult.builder()
+                            .stepIndex(i).stepType(step.getType()).status("FAILED")
+                            .inputFile(currentPath).durationMs(duration)
+                            .error(e.getMessage()).build());
+                    exec.setStatus(FlowExecution.FlowStatus.FAILED);
+                    exec.setErrorMessage("Step " + i + " (" + step.getType() + ") failed"
+                            + (attempt > 0 ? " after " + (attempt + 1) + " attempts" : "")
+                            + ": " + e.getMessage());
+                    exec.setStepResults(results);
+                    exec.setCompletedAt(Instant.now());
+                    executionRepository.save(exec);
+                    log.error("[{}] Step {}/{} ({}) FAILED: {}",
+                            trackId, i + 1, flow.getSteps().size(), step.getType(), e.getMessage());
+                    return exec;
+                }
+            }
+            if (!stepSucceeded) {
+                exec.setStatus(FlowExecution.FlowStatus.FAILED);
+                exec.setErrorMessage("Step " + i + " (" + step.getType() + ") exhausted all retries");
+                exec.setStepResults(results);
+                exec.setCompletedAt(Instant.now());
+                executionRepository.save(exec);
+                return exec;
+            }
+        }
+
+        exec.setStatus(FlowExecution.FlowStatus.COMPLETED);
+        exec.setCurrentStorageKey(currentKey);
+        exec.setStepResults(results);
+        exec.setCompletedAt(Instant.now());
+        executionRepository.save(exec);
+        log.info("[{}] Flow '{}' completed (VIRTUAL) for '{}' — final key={}",
+                trackId, flow.getName(), filename, abbrev(currentKey));
+        return exec;
+    }
+
+    /** Carries the new storage key + virtual path after a VIRTUAL-mode step completes. */
+    private record StepOutcome(String storageKey, String virtualPath, long sizeBytes) {}
+
+    private StepOutcome processStepRef(FileFlow.FlowStep step, String storageKey,
+                                        String virtualPath, long sizeBytes, FileRef origin,
+                                        String trackId, int stepIndex) throws Exception {
+        Map<String, String> cfg = step.getConfig() != null ? step.getConfig() : Map.of();
+        return switch (step.getType().toUpperCase()) {
+            case "COMPRESS_GZIP"   -> refCompressGzip(storageKey, virtualPath, origin, trackId);
+            case "DECOMPRESS_GZIP" -> refDecompressGzip(storageKey, virtualPath, origin, trackId);
+            case "COMPRESS_ZIP"    -> refCompressZip(storageKey, virtualPath, origin, trackId);
+            case "DECOMPRESS_ZIP"  -> refDecompressZip(storageKey, virtualPath, origin, trackId);
+            case "ENCRYPT_AES", "DECRYPT_AES",
+                 "ENCRYPT_PGP", "DECRYPT_PGP" ->
+                    refEncryptDecrypt(storageKey, virtualPath, origin, trackId, step.getType(), cfg);
+            case "RENAME"          -> refRename(storageKey, virtualPath, sizeBytes, origin, trackId, cfg);
+            case "SCREEN"          -> refScreen(storageKey, virtualPath, sizeBytes, origin, trackId, cfg);
+            case "MAILBOX"         -> refMailbox(storageKey, virtualPath, sizeBytes, origin, trackId, cfg);
+            case "FILE_DELIVERY"   -> refFileDelivery(storageKey, virtualPath, sizeBytes, origin, trackId, cfg);
+            case "CONVERT_EDI"     -> refConvertEdi(storageKey, virtualPath, origin, trackId, cfg);
+            case "EXECUTE_SCRIPT"  -> throw new UnsupportedOperationException(
+                    "EXECUTE_SCRIPT is not supported for VIRTUAL-mode accounts");
+            case "ROUTE"           -> new StepOutcome(storageKey, virtualPath, sizeBytes);
+            default -> throw new IllegalArgumentException("Unknown step type: " + step.getType());
+        };
+    }
+
+    // ── VIRTUAL step implementations ──────────────────────────────────────────────
+
+    /**
+     * COMPRESS_GZIP — read raw bytes → compress in a virtual thread via PipedStream →
+     * stream to storage-manager. One read, one write, no intermediate buffer beyond the pipe.
+     */
+    private StepOutcome refCompressGzip(String storageKey, String virtualPath,
+                                         FileRef origin, String trackId) throws IOException {
+        byte[] raw = storageClient.retrieveBySha256(storageKey);
+        String newPath = virtualPath + ".gz";
+        String filename = VirtualFileSystem.nameOf(newPath);
+
+        PipedOutputStream pipedOut = new PipedOutputStream();
+        PipedInputStream  pipedIn  = new PipedInputStream(pipedOut, 65536);
+        Thread.ofVirtual().name("gzip-" + trackId).start(() -> {
+            try (GZIPOutputStream gz = new GZIPOutputStream(pipedOut)) {
+                gz.write(raw);
+            } catch (IOException e) {
+                log.warn("[{}] COMPRESS_GZIP pipe error: {}", trackId, e.getMessage());
+                try { pipedOut.close(); } catch (IOException ignored) {}
+            }
+        });
+
+        Map<String, Object> result = storageClient.storeStream(
+                pipedIn, -1L, filename, origin.accountId().toString(), trackId);
+        String newKey  = (String) result.get("sha256");
+        long   newSize = ((Number) result.get("sizeBytes")).longValue();
+        vfsBridge.registerRef(origin.accountId(), newPath, newKey, newSize, trackId, "application/gzip");
+        return new StepOutcome(newKey, newPath, newSize);
+    }
+
+    /**
+     * DECOMPRESS_GZIP — wrap compressed bytes in GZIPInputStream in a virtual thread →
+     * pipe decompressed stream to storage-manager.
+     */
+    private StepOutcome refDecompressGzip(String storageKey, String virtualPath,
+                                           FileRef origin, String trackId) throws IOException {
+        byte[] compressed = storageClient.retrieveBySha256(storageKey);
+        String newPath = virtualPath.endsWith(".gz")
+                ? virtualPath.substring(0, virtualPath.length() - 3) : virtualPath + ".ungz";
+        String filename = VirtualFileSystem.nameOf(newPath);
+
+        PipedOutputStream pipedOut = new PipedOutputStream();
+        PipedInputStream  pipedIn  = new PipedInputStream(pipedOut, 65536);
+        Thread.ofVirtual().name("gunzip-" + trackId).start(() -> {
+            try (GZIPInputStream gzIn = new GZIPInputStream(new ByteArrayInputStream(compressed));
+                 OutputStream out = pipedOut) {
+                gzIn.transferTo(out);
+            } catch (IOException e) {
+                log.warn("[{}] DECOMPRESS_GZIP pipe error: {}", trackId, e.getMessage());
+                try { pipedOut.close(); } catch (IOException ignored) {}
+            }
+        });
+
+        Map<String, Object> result = storageClient.storeStream(
+                pipedIn, -1L, filename, origin.accountId().toString(), trackId);
+        String newKey  = (String) result.get("sha256");
+        long   newSize = ((Number) result.get("sizeBytes")).longValue();
+        vfsBridge.registerRef(origin.accountId(), newPath, newKey, newSize, trackId, origin.contentType());
+        return new StepOutcome(newKey, newPath, newSize);
+    }
+
+    /** COMPRESS_ZIP — zip raw bytes in a virtual thread → pipe to storage-manager. */
+    private StepOutcome refCompressZip(String storageKey, String virtualPath,
+                                        FileRef origin, String trackId) throws IOException {
+        byte[] raw = storageClient.retrieveBySha256(storageKey);
+        String entryName = VirtualFileSystem.nameOf(virtualPath);
+        String newPath   = virtualPath + ".zip";
+        String filename  = VirtualFileSystem.nameOf(newPath);
+
+        PipedOutputStream pipedOut = new PipedOutputStream();
+        PipedInputStream  pipedIn  = new PipedInputStream(pipedOut, 65536);
+        Thread.ofVirtual().name("zip-" + trackId).start(() -> {
+            try (ZipOutputStream zipOut = new ZipOutputStream(pipedOut)) {
+                zipOut.putNextEntry(new ZipEntry(entryName));
+                zipOut.write(raw);
+                zipOut.closeEntry();
+            } catch (IOException e) {
+                log.warn("[{}] COMPRESS_ZIP pipe error: {}", trackId, e.getMessage());
+                try { pipedOut.close(); } catch (IOException ignored) {}
+            }
+        });
+
+        Map<String, Object> result = storageClient.storeStream(
+                pipedIn, -1L, filename, origin.accountId().toString(), trackId);
+        String newKey  = (String) result.get("sha256");
+        long   newSize = ((Number) result.get("sizeBytes")).longValue();
+        vfsBridge.registerRef(origin.accountId(), newPath, newKey, newSize, trackId, "application/zip");
+        return new StepOutcome(newKey, newPath, newSize);
+    }
+
+    /** DECOMPRESS_ZIP — extract first file entry in-memory → store-stream to storage-manager. */
+    private StepOutcome refDecompressZip(String storageKey, String virtualPath,
+                                          FileRef origin, String trackId) throws IOException {
+        byte[] compressed = storageClient.retrieveBySha256(storageKey);
+        String newPath = virtualPath.endsWith(".zip")
+                ? virtualPath.substring(0, virtualPath.length() - 4) : virtualPath + ".unzip";
+        String filename = VirtualFileSystem.nameOf(newPath);
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipInputStream zipIn = new ZipInputStream(new ByteArrayInputStream(compressed))) {
+            ZipEntry entry;
+            long totalBytes = 0;
+            while ((entry = zipIn.getNextEntry()) != null) {
+                if (!entry.isDirectory()) {
+                    byte[] buf = new byte[8192]; int n;
+                    while ((n = zipIn.read(buf)) != -1) {
+                        totalBytes += n;
+                        if (totalBytes > MAX_ZIP_TOTAL_SIZE)
+                            throw new IOException("ZIP exceeds max uncompressed size ("
+                                    + MAX_ZIP_TOTAL_SIZE / (1024 * 1024) + " MB)");
+                        baos.write(buf, 0, n);
+                    }
+                    break; // first non-directory entry only
+                }
+                zipIn.closeEntry();
+            }
+        }
+        byte[] decompressed = baos.toByteArray();
+        if (decompressed.length == 0) throw new IOException("ZIP archive was empty");
+
+        Map<String, Object> result = storageClient.storeStream(
+                new ByteArrayInputStream(decompressed), decompressed.length,
+                filename, origin.accountId().toString(), trackId);
+        String newKey  = (String) result.get("sha256");
+        long   newSize = ((Number) result.get("sizeBytes")).longValue();
+        vfsBridge.registerRef(origin.accountId(), newPath, newKey, newSize, trackId, origin.contentType());
+        return new StepOutcome(newKey, newPath, newSize);
+    }
+
+    /**
+     * ENCRYPT/DECRYPT — fetch bytes from storage-manager → call encryption-service
+     * with Base64 payload (in-memory, no disk) → stream result back to storage-manager.
+     * AesService lives in encryption-service, not shared, so we call the REST API.
+     */
+    private StepOutcome refEncryptDecrypt(String storageKey, String virtualPath, FileRef origin,
+                                           String trackId, String stepType,
+                                           Map<String, String> cfg) throws Exception {
+        String[] parts     = stepType.toUpperCase().split("_"); // e.g. ENCRYPT_AES
+        String   operation = parts[0].toLowerCase();            // encrypt | decrypt
+        String   keyId     = cfg.get("keyId");
+        String   name      = VirtualFileSystem.nameOf(virtualPath);
+        String   newName;
+        if ("decrypt".equals(operation) && name.endsWith(".enc"))
+            newName = name.substring(0, name.length() - 4);
+        else if ("encrypt".equals(operation))
+            newName = name + ".enc";
+        else
+            newName = name;
+        String dir     = virtualPath.substring(0, virtualPath.lastIndexOf('/') + 1);
+        String newPath = dir + newName;
+
+        if (keyId == null || keyId.isBlank()) {
+            log.warn("[{}] No keyId for {} step — passing through unchanged", trackId, operation);
+            return new StepOutcome(storageKey, newPath, -1);
+        }
+
+        byte[] fileBytes    = storageClient.retrieveBySha256(storageKey);
+        String base64Input  = java.util.Base64.getEncoder().encodeToString(fileBytes);
+        String endpoint     = serviceProps.getEncryptionService().getUrl()
+                + "/api/encrypt/" + operation + "/base64?keyId=" + keyId;
+        log.info("[{}] {} (VIRTUAL) via encryption-service (keyId={})", trackId, stepType, keyId);
+
+        HttpHeaders encHdr = new HttpHeaders();
+        encHdr.setContentType(MediaType.TEXT_PLAIN);
+        addInternalAuth(encHdr, "encryption-service");
+        String base64Result = restTemplate.postForObject(
+                endpoint, new HttpEntity<>(base64Input, encHdr), String.class);
+
+        byte[] resultBytes = java.util.Base64.getDecoder().decode(base64Result);
+        Map<String, Object> stored = storageClient.storeStream(
+                new ByteArrayInputStream(resultBytes), resultBytes.length,
+                newName, origin.accountId().toString(), trackId);
+        String newKey  = (String) stored.get("sha256");
+        long   newSize = ((Number) stored.get("sizeBytes")).longValue();
+        String ct      = "encrypt".equals(operation) ? "application/octet-stream" : origin.contentType();
+        vfsBridge.registerRef(origin.accountId(), newPath, newKey, newSize, trackId, ct);
+        return new StepOutcome(newKey, newPath, newSize);
+    }
+
+    /**
+     * RENAME — pure VFS metadata operation. Same storageKey, new virtual path.
+     * Zero bytes moved, zero network I/O beyond the single DB write.
+     */
+    private StepOutcome refRename(String storageKey, String virtualPath, long sizeBytes,
+                                   FileRef origin, String trackId,
+                                   Map<String, String> cfg) throws IOException {
+        String pattern  = cfg.getOrDefault("pattern", "${filename}");
+        String name     = VirtualFileSystem.nameOf(virtualPath);
+        String baseName = name.contains(".") ? name.substring(0, name.lastIndexOf('.')) : name;
+        String ext      = name.contains(".") ? name.substring(name.lastIndexOf('.'))    : "";
+        String newName  = pattern
+                .replace("${filename}", name).replace("${basename}", baseName)
+                .replace("${ext}", ext).replace("${trackid}", trackId)
+                .replace("${timestamp}", String.valueOf(System.currentTimeMillis()));
+        String dir     = virtualPath.substring(0, virtualPath.lastIndexOf('/') + 1);
+        String newPath = dir + newName;
+        vfsBridge.registerRef(origin.accountId(), newPath, storageKey, sizeBytes, trackId, origin.contentType());
+        log.debug("[{}] RENAME (VIRTUAL): {} → {}", trackId, virtualPath, newPath);
+        return new StepOutcome(storageKey, newPath, sizeBytes);
+    }
+
+    /**
+     * SCREEN — fetch bytes, send to screening-service via ByteArrayResource (no disk).
+     * Returns same storageKey (file is unchanged); throws SecurityException on BLOCKED.
+     */
+    private StepOutcome refScreen(String storageKey, String virtualPath, long sizeBytes,
+                                   FileRef origin, String trackId,
+                                   Map<String, String> cfg) throws Exception {
+        log.info("[{}] SCREEN (VIRTUAL) key={}", trackId, abbrev(storageKey));
+        try {
+            byte[] fileBytes = storageClient.retrieveBySha256(storageKey);
+            final String displayName = VirtualFileSystem.nameOf(virtualPath);
+            org.springframework.util.LinkedMultiValueMap<String, Object> body =
+                    new org.springframework.util.LinkedMultiValueMap<>();
+            body.add("file", new org.springframework.core.io.ByteArrayResource(fileBytes) {
+                @Override public String getFilename() { return displayName; }
+            });
+            HttpHeaders screenHdr = new HttpHeaders();
+            screenHdr.setContentType(MediaType.MULTIPART_FORM_DATA);
+            addInternalAuth(screenHdr, "screening-service");
+            String url = serviceProps.getScreeningService().getUrl()
+                    + "/api/v1/screening/scan?trackId=" + trackId;
+            if (cfg.containsKey("columns")) url += "&columns=" + cfg.get("columns");
+            @SuppressWarnings("unchecked")
+            ResponseEntity<Map<String, Object>> resp = restTemplate.postForEntity(
+                    url, new HttpEntity<>(body, screenHdr),
+                    (Class<Map<String, Object>>) (Class<?>) Map.class);
+            if (resp.getBody() != null) {
+                String action = (String) resp.getBody().get("actionTaken");
+                int hits = resp.getBody().get("hitsFound") instanceof Number n ? n.intValue() : 0;
+                log.info("[{}] SCREEN result: {} hits={}", trackId, action, hits);
+                if ("BLOCKED".equals(action))
+                    throw new SecurityException("SANCTIONS HIT: " + hits + " match(es) found.");
+            }
+        } catch (SecurityException se) {
+            throw se;
+        } catch (Exception e) {
+            if ("BLOCK".equals(cfg.getOrDefault("onFailure", "PASS")))
+                throw new Exception("Screening unreachable — blocking as configured: " + e.getMessage());
+            log.warn("[{}] SCREEN unreachable: {} — allowing (graceful degradation)", trackId, e.getMessage());
+        }
+        return new StepOutcome(storageKey, virtualPath, sizeBytes);
+    }
+
+    /**
+     * MAILBOX — zero-copy cross-account delivery.
+     * Creates one new VirtualEntry row pointing to the same storageKey. No bytes copied.
+     */
+    private StepOutcome refMailbox(String storageKey, String virtualPath, long sizeBytes,
+                                    FileRef origin, String trackId,
+                                    Map<String, String> cfg) throws Exception {
+        String destUsername = cfg.get("destinationUsername");
+        if (destUsername == null || destUsername.isBlank())
+            throw new IllegalArgumentException("MAILBOX step requires 'destinationUsername'");
+        Protocol proto;
+        try { proto = Protocol.valueOf(cfg.getOrDefault("protocol", "SFTP").toUpperCase()); }
+        catch (IllegalArgumentException ignored) { proto = Protocol.SFTP; }
+        final Protocol resolvedProtocol = proto;
+        TransferAccount dest = accountRepository
+                .findByUsernameAndProtocolAndActiveTrue(destUsername, resolvedProtocol)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Destination account not found: " + destUsername + " (" + resolvedProtocol + ")"));
+        String filename = VirtualFileSystem.nameOf(virtualPath);
+        String destPath = "/outbox/" + filename;
+        FileRef src = new FileRef(storageKey, virtualPath, origin.accountId(),
+                sizeBytes, trackId, origin.contentType(), "STANDARD");
+        vfsBridge.linkToAccount(src, dest.getId(), destPath, trackId);
+        log.info("[{}] MAILBOX (VIRTUAL): zero-copy → account={} path={}", trackId, destUsername, destPath);
+        return new StepOutcome(storageKey, virtualPath, sizeBytes);
+    }
+
+    /**
+     * FILE_DELIVERY — fetch bytes from storage-manager → deliver to external endpoints
+     * via forwarder-service. No disk I/O; bytes only transit JVM heap during Base64 encoding.
+     */
+    private StepOutcome refFileDelivery(String storageKey, String virtualPath, long sizeBytes,
+                                         FileRef origin, String trackId,
+                                         Map<String, String> cfg) throws Exception {
+        String endpointIdsStr = cfg.get("deliveryEndpointIds");
+        if (endpointIdsStr == null || endpointIdsStr.isBlank())
+            throw new IllegalArgumentException("FILE_DELIVERY step requires 'deliveryEndpointIds'");
+        List<UUID> ids = Arrays.stream(endpointIdsStr.split(","))
+                .map(String::trim).filter(s -> !s.isEmpty()).map(UUID::fromString).toList();
+        List<DeliveryEndpoint> endpoints = deliveryEndpointRepository.findByIdInAndActiveTrue(ids);
+        if (endpoints.isEmpty())
+            throw new IllegalArgumentException("No active delivery endpoints for: " + endpointIdsStr);
+
+        byte[] fileBytes = storageClient.retrieveBySha256(storageKey);
+        String base64    = Base64.getEncoder().encodeToString(fileBytes);
+        String filename  = VirtualFileSystem.nameOf(virtualPath);
+        String fwdUrl    = serviceProps.getForwarderService().getUrl();
+        int ok = 0; List<String> failures = new ArrayList<>();
+
+        for (DeliveryEndpoint ep : endpoints) {
+            try {
+                String url = fwdUrl + "/api/forward/deliver/" + ep.getId() + "/base64"
+                        + "?filename=" + java.net.URLEncoder.encode(filename, "UTF-8")
+                        + "&trackId=" + java.net.URLEncoder.encode(trackId != null ? trackId : "", "UTF-8");
+                HttpHeaders fwdHdr = new HttpHeaders();
+                fwdHdr.setContentType(MediaType.TEXT_PLAIN);
+                addInternalAuth(fwdHdr, "external-forwarder-service");
+                restTemplate.postForEntity(url, new HttpEntity<>(base64, fwdHdr), Map.class);
+                ok++;
+                log.info("[{}] FILE_DELIVERY (VIRTUAL) to '{}' OK", trackId, ep.getName());
+            } catch (Exception e) {
+                failures.add(ep.getName() + ": " + e.getMessage());
+                log.error("[{}] FILE_DELIVERY (VIRTUAL) failed for '{}': {}", trackId, ep.getName(), e.getMessage());
+            }
+        }
+        if (ok == 0)
+            throw new RuntimeException("FILE_DELIVERY failed for all " + endpoints.size()
+                    + " endpoints: " + String.join("; ", failures));
+        return new StepOutcome(storageKey, virtualPath, sizeBytes);
+    }
+
+    /**
+     * CONVERT_EDI — fetch text content from storage-manager → call EDI converter →
+     * stream result back to storage-manager. No disk I/O.
+     */
+    private StepOutcome refConvertEdi(String storageKey, String virtualPath, FileRef origin,
+                                       String trackId, Map<String, String> cfg) throws Exception {
+        String targetFormat = cfg.getOrDefault("targetFormat", "JSON");
+        String partnerId    = cfg.get("partnerId");
+
+        byte[] raw     = storageClient.retrieveBySha256(storageKey);
+        String content = new String(raw, java.nio.charset.StandardCharsets.UTF_8);
+
+        Map<String, String> body = new LinkedHashMap<>();
+        body.put("content", content); body.put("targetFormat", targetFormat);
+        if (partnerId != null && !partnerId.isBlank()) body.put("partnerId", partnerId);
+
+        HttpHeaders ediHdr = new HttpHeaders();
+        ediHdr.setContentType(MediaType.APPLICATION_JSON);
+        addInternalAuth(ediHdr, "edi-converter");
+        @SuppressWarnings("unchecked")
+        ResponseEntity<Map<String, Object>> resp = restTemplate.exchange(
+                serviceProps.getEdiConverter().getUrl() + "/api/v1/convert/trained",
+                HttpMethod.POST, new HttpEntity<>(body, ediHdr),
+                (Class<Map<String, Object>>) (Class<?>) Map.class);
+
+        String output = resp.getBody() != null ? (String) resp.getBody().get("output") : "";
+        String ext    = switch (targetFormat.toUpperCase()) {
+            case "JSON" -> ".json"; case "XML" -> ".xml";
+            case "CSV"  -> ".csv";  case "YAML" -> ".yaml"; default -> ".txt";
+        };
+        String baseName = VirtualFileSystem.nameOf(virtualPath);
+        if (baseName.contains(".")) baseName = baseName.substring(0, baseName.lastIndexOf('.'));
+        String newName = baseName + ext;
+        String dir     = virtualPath.substring(0, virtualPath.lastIndexOf('/') + 1);
+        String newPath = dir + newName;
+
+        byte[] outputBytes = output.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        String ct = switch (targetFormat.toUpperCase()) {
+            case "JSON" -> "application/json"; case "XML" -> "application/xml";
+            case "CSV"  -> "text/csv";         default    -> "text/plain";
+        };
+        Map<String, Object> stored = storageClient.storeStream(
+                new ByteArrayInputStream(outputBytes), outputBytes.length,
+                newName, origin.accountId().toString(), trackId);
+        String newKey  = (String) stored.get("sha256");
+        long   newSize = ((Number) stored.get("sizeBytes")).longValue();
+        vfsBridge.registerRef(origin.accountId(), newPath, newKey, newSize, trackId, ct);
+        log.info("[{}] CONVERT_EDI (VIRTUAL): {} → {} (format={})", trackId, virtualPath, newPath, targetFormat);
+        return new StepOutcome(newKey, newPath, newSize);
+    }
+
+    private static String abbrev(String key) {
+        if (key == null) return "null";
+        return key.length() > 8 ? key.substring(0, 8) + "…" : key;
     }
 
 }

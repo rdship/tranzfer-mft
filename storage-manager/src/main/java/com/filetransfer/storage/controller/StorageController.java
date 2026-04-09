@@ -12,6 +12,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+
 import java.nio.file.*;
 import java.time.Instant;
 import java.util.*;
@@ -211,6 +214,98 @@ public class StorageController {
         return ResponseEntity.ok(Map.of(
                 "status", "DELETED", "sha256", sha256,
                 "sizeBytes", obj.getSizeBytes()));
+    }
+
+    /**
+     * Stream a CAS object by SHA-256 key.
+     *
+     * <p>Returns a truly streaming response via {@link StreamingResponseBody} — the file
+     * is piped from storage-manager's local disk directly to the HTTP response without
+     * loading it into the JVM heap. Callers (flow step handlers, forwarder-service, etc.)
+     * can pipe this response into their own transform without an intermediate byte buffer.
+     */
+    @GetMapping("/stream/{sha256}")
+    public ResponseEntity<StreamingResponseBody> stream(@PathVariable String sha256) throws Exception {
+        StorageObject obj = objectRepo.findBySha256AndDeletedFalse(sha256)
+                .orElseThrow(() -> new RuntimeException("File not found for key: " + sha256));
+
+        obj.setAccessCount(obj.getAccessCount() + 1);
+        obj.setLastAccessedAt(Instant.now());
+        objectRepo.save(obj);
+
+        Path filePath = Paths.get(obj.getPhysicalPath());
+        StreamingResponseBody body = out -> {
+            try (java.io.InputStream in = Files.newInputStream(filePath)) {
+                in.transferTo(out);
+            }
+        };
+
+        return ResponseEntity.ok()
+                .contentType(obj.getContentType() != null
+                        ? org.springframework.http.MediaType.parseMediaType(obj.getContentType())
+                        : org.springframework.http.MediaType.APPLICATION_OCTET_STREAM)
+                .header("Content-Length", String.valueOf(obj.getSizeBytes()))
+                .header("X-SHA256", sha256)
+                .header("X-Storage-Tier", obj.getTier())
+                .body(body);
+    }
+
+    /**
+     * Accept a raw octet-stream and store it — truly streaming, no multipart overhead.
+     *
+     * <p>The request body is piped directly from the network socket into the
+     * {@link ParallelIOEngine} write path. No intermediate byte buffer is allocated
+     * beyond the engine's internal 64 KB read buffer. {@code Content-Length} is optional;
+     * if absent the engine streams until EOF.
+     *
+     * <p>Query params: {@code filename} (required), {@code trackId} (optional), {@code account} (optional).
+     */
+    @PostMapping(value = "/store-stream",
+                 consumes = org.springframework.http.MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    public ResponseEntity<Map<String, Object>> storeStream(
+            HttpServletRequest request,
+            @RequestParam String filename,
+            @RequestParam(required = false) String trackId,
+            @RequestParam(required = false) String account) throws Exception {
+
+        long contentLength = request.getContentLengthLong(); // -1 if unknown — that's fine
+        Path dest = Paths.get(hotPath, account != null ? account : "default", filename);
+
+        ParallelIOEngine.WriteResult result = ioEngine.write(
+                request.getInputStream(), dest, contentLength);
+
+        // Dedup check
+        Optional<StorageObject> existing = lifecycle.findDuplicate(result.getSha256());
+        if (existing.isPresent()) {
+            Files.deleteIfExists(dest);
+            StorageObject dup = existing.get();
+            dup.setAccessCount(dup.getAccessCount() + 1);
+            dup.setLastAccessedAt(Instant.now());
+            objectRepo.save(dup);
+            return ResponseEntity.ok(Map.of(
+                    "status", "DEDUPLICATED",
+                    "sha256", result.getSha256(),
+                    "sizeBytes", result.getSizeBytes(),
+                    "existingTrackId", dup.getTrackId() != null ? dup.getTrackId() : ""));
+        }
+
+        StorageObject obj = StorageObject.builder()
+                .trackId(trackId).filename(filename)
+                .physicalPath(dest.toString())
+                .logicalPath("/" + (account != null ? account : "default") + "/" + filename)
+                .tier("HOT").sizeBytes(result.getSizeBytes())
+                .sha256(result.getSha256()).accountUsername(account)
+                .striped(result.isStriped()).stripeCount(result.getStripeCount())
+                .build();
+        objectRepo.save(obj);
+
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(Map.of(
+                "status", "STORED", "tier", "HOT",
+                "sha256", result.getSha256(),
+                "sizeBytes", result.getSizeBytes(),
+                "trackId", trackId != null ? trackId : "",
+                "throughputMbps", Math.round(result.getThroughputMbps() * 10) / 10.0,
+                "durationMs", result.getDurationMs()));
     }
 
     @GetMapping("/health")
