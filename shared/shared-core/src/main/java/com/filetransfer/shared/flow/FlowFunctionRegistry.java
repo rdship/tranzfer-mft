@@ -20,6 +20,7 @@ public class FlowFunctionRegistry {
 
     /** Look up a function by type string (case-insensitive). */
     public Optional<FlowFunction> get(String type) {
+        if (type == null) return Optional.empty();
         return Optional.ofNullable(functions.get(type.toUpperCase()));
     }
 

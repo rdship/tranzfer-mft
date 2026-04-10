@@ -23,6 +23,9 @@ public class FunctionImportExportService {
      * and registers it.
      */
     public void importFunction(FunctionPackage pkg) {
+        if (pkg.descriptor() == null || pkg.descriptor().name() == null || pkg.descriptor().name().isBlank()) {
+            throw new IllegalArgumentException("Function package must have a non-null, non-blank descriptor name");
+        }
         String type = pkg.descriptor().name().toUpperCase().replace('-', '_');
 
         switch (pkg.runtime().toUpperCase()) {
