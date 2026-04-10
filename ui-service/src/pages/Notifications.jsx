@@ -370,17 +370,39 @@ export default function Notifications() {
             </div>
             <div>
               <label className="block text-xs font-medium text-secondary mb-1">Trigger Event Pattern *</label>
-              <div className="flex gap-2">
-                <select className="input w-full" value={ruleForm.eventTypePattern}
-                  onChange={e => setRuleForm(f => ({ ...f, eventTypePattern: e.target.value }))}>
-                  <option value="">Select or type below...</option>
-                  {EVENT_TYPES.map(e => <option key={e} value={e}>{e}</option>)}
-                </select>
-              </div>
-              <input className="input w-full mt-1" value={ruleForm.eventTypePattern}
-                onChange={e => setRuleForm(f => ({ ...f, eventTypePattern: e.target.value }))}
-                placeholder="transfer.failed or security.threat.*" />
-              <p className="text-xs text-muted mt-1">Supports wildcards: transfer.*, security.threat.*, etc.</p>
+              {(() => {
+                const isKnown = ruleForm.eventTypePattern === '' || ruleForm.eventTypePattern === '*' || EVENT_TYPES.includes(ruleForm.eventTypePattern)
+                const selectValue = isKnown ? ruleForm.eventTypePattern : '__custom__'
+                return (
+                  <>
+                    <select className="input w-full" value={selectValue}
+                      onChange={e => {
+                        const v = e.target.value
+                        if (v === '__custom__') {
+                          setRuleForm(f => ({ ...f, eventTypePattern: f.eventTypePattern && !EVENT_TYPES.includes(f.eventTypePattern) && f.eventTypePattern !== '*' ? f.eventTypePattern : '' }))
+                        } else {
+                          setRuleForm(f => ({ ...f, eventTypePattern: v }))
+                        }
+                      }}>
+                      <option value="">Select event type...</option>
+                      <option value="*">All Events (*)</option>
+                      {EVENT_TYPES.map(e => <option key={e} value={e}>{e}</option>)}
+                      <option value="__custom__">Other (custom pattern)...</option>
+                    </select>
+                    {selectValue === '__custom__' && (
+                      <input className="input w-full mt-1" value={ruleForm.eventTypePattern}
+                        onChange={e => setRuleForm(f => ({ ...f, eventTypePattern: e.target.value }))}
+                        placeholder="e.g. transfer.failed or security.threat.*"
+                        autoFocus />
+                    )}
+                    <p className="text-xs text-muted mt-1">
+                      {selectValue === '__custom__'
+                        ? 'Enter a custom wildcard pattern (e.g. transfer.*, security.threat.*)'
+                        : 'Choose "Other" to enter a custom wildcard pattern'}
+                    </p>
+                  </>
+                )
+              })()}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -517,14 +539,33 @@ export default function Notifications() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-secondary mb-1">Event Type *</label>
-                <select className="input w-full" value={templateForm.eventType}
-                  onChange={e => setTemplateForm(f => ({ ...f, eventType: e.target.value }))}>
-                  <option value="">Select event type...</option>
-                  {EVENT_TYPES.map(e => <option key={e} value={e}>{e}</option>)}
-                </select>
-                <input className="input w-full mt-1" value={templateForm.eventType}
-                  onChange={e => setTemplateForm(f => ({ ...f, eventType: e.target.value }))}
-                  placeholder="Or type custom event type" />
+                {(() => {
+                  const isKnown = templateForm.eventType === '' || EVENT_TYPES.includes(templateForm.eventType)
+                  const selectValue = isKnown ? templateForm.eventType : '__custom__'
+                  return (
+                    <>
+                      <select className="input w-full" value={selectValue}
+                        onChange={e => {
+                          const v = e.target.value
+                          if (v === '__custom__') {
+                            setTemplateForm(f => ({ ...f, eventType: f.eventType && !EVENT_TYPES.includes(f.eventType) ? f.eventType : '' }))
+                          } else {
+                            setTemplateForm(f => ({ ...f, eventType: v }))
+                          }
+                        }}>
+                        <option value="">Select event type...</option>
+                        {EVENT_TYPES.map(e => <option key={e} value={e}>{e}</option>)}
+                        <option value="__custom__">Other (custom type)...</option>
+                      </select>
+                      {selectValue === '__custom__' && (
+                        <input className="input w-full mt-1" value={templateForm.eventType}
+                          onChange={e => setTemplateForm(f => ({ ...f, eventType: e.target.value }))}
+                          placeholder="e.g. custom.event.type"
+                          autoFocus />
+                      )}
+                    </>
+                  )
+                })()}
               </div>
               <div className="flex items-end">
                 <label className="flex items-center gap-2 cursor-pointer select-none">

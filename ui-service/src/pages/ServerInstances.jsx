@@ -67,6 +67,7 @@ const emptyForm = {
   clearFolderTemplate: false,
   defaultStorageMode: 'PHYSICAL',
   complianceProfileId: '',
+  securityProfileId: '',
   securityTier: 'RULES',
   // SSH / session
   sshBannerMessage: '',
@@ -308,6 +309,7 @@ export default function ServerInstances() {
       folderTemplateId: s.folderTemplateId || '',
       defaultStorageMode: s.defaultStorageMode || 'PHYSICAL',
       complianceProfileId: s.complianceProfileId || '',
+      securityProfileId: s.securityProfileId || '',
       securityTier: s.securityTier || 'RULES',
       // SSH / session
       sshBannerMessage: s.sshBannerMessage || '',
@@ -578,11 +580,29 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
     staleTime: 300_000
   })
 
+  const { data: securityProfiles = [] } = useQuery({
+    queryKey: ['security-profiles-picker'],
+    queryFn: () => configApi.get('/api/listener-security-policies').then(r => r.data).catch(() => []),
+    staleTime: 300_000
+  })
+
+  // Filter proxy groups by selected protocol
+  const filteredProxyGroups = form.protocol
+    ? proxyGroups.filter(g => g.active !== false && (g.type === form.protocol || g.type === 'ANY'))
+    : proxyGroups.filter(g => g.active !== false)
+
   const f = (key, val) => setForm(prev => ({ ...prev, [key]: val }))
 
   const handleProtocolChange = (protocol) => {
     f('protocol', protocol)
     f('internalPort', DEFAULT_PORTS[protocol] || 2222)
+    // Clear proxy group if it no longer matches the new protocol
+    if (form.proxyGroupName) {
+      const currentGroup = proxyGroups.find(g => g.name === form.proxyGroupName)
+      if (currentGroup && currentGroup.type !== 'ANY' && currentGroup.type !== protocol) {
+        f('proxyGroupName', '')
+      }
+    }
   }
 
   // Auto-suggest DMZ proxy when proxy is enabled and DMZ is running
@@ -685,6 +705,18 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
             ))}
           </select>
           <p className="text-xs text-muted mt-1">Assign a compliance profile to enforce data rules on transfers through this server</p>
+        </div>
+
+        {/* Security Profile (Listener Security Policy) */}
+        <div>
+          <label>Security Profile</label>
+          <select value={form.securityProfileId || ''} onChange={e => f('securityProfileId', e.target.value || '')}>
+            <option value="">-- No security profile --</option>
+            {securityProfiles.map(p => (
+              <option key={p.id} value={p.id}>{p.name}{p.description ? ` -- ${p.description}` : ''}</option>
+            ))}
+          </select>
+          <p className="text-xs text-muted mt-1">Listener security policy controlling allowed ciphers, auth methods, and connection rules</p>
         </div>
 
         {/* Security Tier */}
@@ -861,16 +893,18 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
               </p>
             )}
 
-            {/* Proxy Group */}
+            {/* Proxy Group (filtered by selected protocol) */}
             <div>
               <label>Proxy Group</label>
               <select value={form.proxyGroupName || ''} onChange={e => setForm(prev => ({ ...prev, proxyGroupName: e.target.value }))}>
                 <option value="">-- Default routing (no specific group) --</option>
-                {proxyGroups.filter(g => g.active !== false).map(g => (
+                {filteredProxyGroups.map(g => (
                   <option key={g.name} value={g.name}>{g.name} ({g.type})</option>
                 ))}
               </select>
-              <p className="text-xs text-muted mt-1">Route inbound connections through a specific proxy group (internal / external / partner)</p>
+              <p className="text-xs text-muted mt-1">
+                Filtered by protocol ({PROTOCOL_LABELS[form.protocol] || form.protocol}). Shows groups matching this protocol or type ANY.
+              </p>
             </div>
 
             {/* Proxy QoS Policy */}

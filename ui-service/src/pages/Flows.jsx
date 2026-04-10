@@ -91,7 +91,7 @@ const STATUS_STYLES = {
 const defaultForm = {
   name: '', description: '', filenamePattern: '', sourcePath: '/inbox',
   destinationPath: '/outbox', priority: 100, active: true, steps: [],
-  sourceAccountId: '', protocol: 'ANY',
+  sourceAccountId: '', protocol: 'ANY', serverId: '',
   deliveryMode: 'none', externalDestinationId: '', destinationAccountId: '',
   matchCriteria: null, direction: null,
 }
@@ -792,11 +792,54 @@ export default function Flows() {
     staleTime: 60000
   })
 
+  const { data: servers = [] } = useQuery({
+    queryKey: ['servers-for-flows'],
+    queryFn: () => onboardingApi.get('/api/servers?activeOnly=true').then(r => r.data).catch(() => []),
+    staleTime: 60000
+  })
+
   const { data: partners = [] } = useQuery({
     queryKey: ['partners-for-flows'],
     queryFn: () => onboardingApi.get('/api/partners').then(r => r.data?.content || r.data || []).catch(() => []),
     staleTime: 300000
   })
+
+  // ─── Cascading protocol filters ───
+  const filteredAccounts = useMemo(() =>
+    form.protocol && form.protocol !== 'ANY'
+      ? accounts.filter(a => a.protocol === form.protocol)
+      : accounts,
+    [accounts, form.protocol]
+  )
+
+  const filteredServers = useMemo(() =>
+    form.protocol && form.protocol !== 'ANY'
+      ? servers.filter(s => s.protocol === form.protocol)
+      : servers,
+    [servers, form.protocol]
+  )
+
+  const handleProtocolChange = useCallback((newProtocol) => {
+    setForm(f => {
+      const updates = { ...f, protocol: newProtocol }
+      // Clear source account if it doesn't match the new protocol
+      if (newProtocol && newProtocol !== 'ANY' && f.sourceAccountId) {
+        const acct = accounts.find(a => a.id === f.sourceAccountId)
+        if (acct && acct.protocol !== newProtocol) updates.sourceAccountId = ''
+      }
+      // Clear server if it doesn't match the new protocol
+      if (newProtocol && newProtocol !== 'ANY' && f.serverId) {
+        const srv = servers.find(s => s.id === f.serverId)
+        if (srv && srv.protocol !== newProtocol) updates.serverId = ''
+      }
+      // Clear destination account if it doesn't match the new protocol
+      if (newProtocol && newProtocol !== 'ANY' && f.destinationAccountId) {
+        const acct = accounts.find(a => a.id === f.destinationAccountId)
+        if (acct && acct.protocol !== newProtocol) updates.destinationAccountId = ''
+      }
+      return updates
+    })
+  }, [accounts, servers])
 
   // ─── Mutations ───
   const saveMut = useMutation({
@@ -845,8 +888,14 @@ export default function Flows() {
       matchCriteria: data.matchCriteria || null,
       direction: data.direction || null,
     }
+    if (data.protocol && data.protocol !== 'ANY') {
+      payload.protocol = data.protocol
+    }
     if (data.sourceAccountId) {
       payload.sourceAccount = { id: data.sourceAccountId }
+    }
+    if (data.serverId) {
+      payload.server = { id: data.serverId }
     }
     if (data.deliveryMode === 'mailbox' && data.destinationAccountId) {
       payload.destinationAccount = { id: data.destinationAccountId }
@@ -883,7 +932,8 @@ export default function Flows() {
       active: flow.active ?? true,
       steps: (flow.steps || []).map(s => ({ type: s.type, config: s.config || {}, order: s.order })),
       sourceAccountId: flow.sourceAccount?.id || '',
-      protocol: 'ANY',
+      protocol: flow.protocol || 'ANY',
+      serverId: flow.server?.id || '',
       deliveryMode,
       externalDestinationId: flow.externalDestination?.id || '',
       destinationAccountId: flow.destinationAccount?.id || '',
@@ -1468,21 +1518,59 @@ export default function Flows() {
               partners={partners}
             />
 
-            {/* Direction filter */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs text-secondary">Direction</label>
-                <select value={form.direction || ''} onChange={e => setForm(f => ({ ...f, direction: e.target.value || null }))}>
-                  <option value="">Any Direction</option>
-                  <option value="INBOUND">Inbound</option>
-                  <option value="OUTBOUND">Outbound</option>
-                </select>
+            {/* ─── Source Configuration ─── */}
+            <div>
+              <label className="text-xs font-semibold text-secondary uppercase tracking-wider">Source Configuration</label>
+              <div className="mt-2 grid grid-cols-2 gap-4">
+                <div>
+                  <label>Protocol Filter</label>
+                  <select value={form.protocol} onChange={e => handleProtocolChange(e.target.value)}>
+                    {PROTOCOLS.map(p => (
+                      <option key={p} value={p}>{p === 'ANY' ? 'Any Protocol' : p}</option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-muted mt-1">Filters account and server dropdowns below</p>
+                </div>
+                <div>
+                  <label>Direction</label>
+                  <select value={form.direction || ''} onChange={e => setForm(f => ({ ...f, direction: e.target.value || null }))}>
+                    <option value="">Any Direction</option>
+                    <option value="INBOUND">Inbound</option>
+                    <option value="OUTBOUND">Outbound</option>
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="text-xs text-secondary">Legacy: Source Path</label>
-                <input value={form.sourcePath}
-                  onChange={e => setForm(f => ({ ...f, sourcePath: e.target.value }))}
-                  placeholder="/inbox" className="font-mono text-sm" />
+              <div className="mt-3 grid grid-cols-3 gap-4">
+                <div>
+                  <label>Source Account</label>
+                  <select value={form.sourceAccountId} onChange={e => setForm(f => ({ ...f, sourceAccountId: e.target.value }))}>
+                    <option value="">-- Select Account --</option>
+                    {filteredAccounts.map(a => (
+                      <option key={a.id} value={a.id}>{a.username} ({a.protocol})</option>
+                    ))}
+                  </select>
+                  {form.protocol !== 'ANY' && filteredAccounts.length === 0 && (
+                    <p className="text-xs text-amber-500 mt-1">No {form.protocol} accounts found</p>
+                  )}
+                </div>
+                <div>
+                  <label>Server</label>
+                  <select value={form.serverId} onChange={e => setForm(f => ({ ...f, serverId: e.target.value }))}>
+                    <option value="">-- Select Server --</option>
+                    {filteredServers.map(s => (
+                      <option key={s.id} value={s.id}>{s.name || s.hostname} ({s.protocol})</option>
+                    ))}
+                  </select>
+                  {form.protocol !== 'ANY' && filteredServers.length === 0 && (
+                    <p className="text-xs text-amber-500 mt-1">No {form.protocol} servers found</p>
+                  )}
+                </div>
+                <div>
+                  <label>Legacy: Source Path</label>
+                  <input value={form.sourcePath}
+                    onChange={e => setForm(f => ({ ...f, sourcePath: e.target.value }))}
+                    placeholder="/inbox" className="font-mono text-sm" />
+                </div>
               </div>
             </div>
 
@@ -1637,10 +1725,13 @@ export default function Flows() {
                     <select value={form.destinationAccountId}
                       onChange={e => setForm(f => ({ ...f, destinationAccountId: e.target.value }))}>
                       <option value="">-- Select Account --</option>
-                      {accounts.map(a => (
+                      {filteredAccounts.map(a => (
                         <option key={a.id} value={a.id}>{a.username} ({a.protocol})</option>
                       ))}
                     </select>
+                    {form.protocol !== 'ANY' && filteredAccounts.length === 0 && (
+                      <p className="text-xs text-amber-500 mt-1">No {form.protocol} accounts found</p>
+                    )}
                   </div>
                   <div>
                     <label>Destination Path</label>

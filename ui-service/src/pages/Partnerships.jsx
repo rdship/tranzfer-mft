@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getPartnerships, createPartnership, deletePartnership, togglePartnership } from '../api/config'
-import { keystoreApi } from '../api/client'
+import { keystoreApi, onboardingApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
@@ -29,6 +29,12 @@ export default function Partnerships() {
       .then(r => setKeystoreCerts(Array.isArray(r.data) ? r.data : []))
       .catch(() => setKeystoreCerts([]))
   }, [])
+
+  const { data: partners = [] } = useQuery({
+    queryKey: ['partners-for-partnership'],
+    queryFn: () => onboardingApi.get('/api/partners').then(r => r.data?.content || r.data || []).catch(() => []),
+    staleTime: 300000
+  })
 
   const { data: partnerships = [], isLoading } = useQuery({ queryKey: ['partnerships'], queryFn: getPartnerships })
   const createMut = useMutation({
@@ -153,7 +159,21 @@ export default function Partnerships() {
             <div>
               <h4 className="text-sm font-semibold text-primary mb-3">Partner Identity</h4>
               <div className="grid grid-cols-2 gap-3">
-                <div><label>Partner Name</label><input value={form.partnerName} onChange={e => setForm(f => ({...f, partnerName: e.target.value}))} required placeholder="Acme Corp" /></div>
+                <div><label>Partner Name</label>
+                  <select value={form.partnerName} onChange={e => setForm(f => ({...f, partnerName: e.target.value}))} required>
+                    <option value="">Select partner...</option>
+                    {partners.map(p => (
+                      <option key={p.id} value={p.name}>{p.name} ({p.slug})</option>
+                    ))}
+                  </select>
+                  {partners.length === 0 && (
+                    <p className="text-xs text-amber-500 mt-1">No partners found — type a name or add partners in Onboarding first</p>
+                  )}
+                  {partners.length === 0 && (
+                    <input value={form.partnerName} onChange={e => setForm(f => ({...f, partnerName: e.target.value}))}
+                      placeholder="Acme Corp" className="mt-1" />
+                  )}
+                </div>
                 <div><label>Protocol</label>
                   <select value={form.protocol} onChange={e => setForm(f => ({...f, protocol: e.target.value}))}>
                     <option value="AS2">AS2 (RFC 4130)</option>

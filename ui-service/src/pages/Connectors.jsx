@@ -98,7 +98,10 @@ export default function Connectors() {
 
   // Admin connectors
   const [showCreate, setShowCreate] = useState(false)
-  const [form, setForm] = useState({ name: '', type: 'SLACK', url: '', authToken: '', triggerEvents: ['TRANSFER_FAILED', 'FLOW_FAILED'], minSeverity: 'HIGH' })
+  const [form, setForm] = useState({ name: '', type: 'SLACK', url: '', authToken: '', triggerEvents: ['TRANSFER_FAILED', 'FLOW_FAILED'], minSeverity: 'HIGH',
+    // Type-specific fields
+    channel: '', apiKey: '', region: 'us', priority: 'P3', headers: '', authType: 'NONE', bearerToken: '', basicUser: '', basicPass: '',
+  })
 
   // Partner webhooks
   const [showWebhookModal, setShowWebhookModal] = useState(false)
@@ -115,6 +118,11 @@ export default function Connectors() {
     queryKey: ['partner-webhooks'],
     queryFn: () => onboardingApi.get('/api/partner-webhooks').then(r => r.data).catch(() => []),
     refetchInterval: 30000,
+  })
+
+  const { data: partners = [] } = useQuery({
+    queryKey: ['partners-for-connector'],
+    queryFn: () => onboardingApi.get('/api/partners').then(r => r.data).catch(() => [])
   })
 
   // ── Admin connector mutations ──
@@ -155,6 +163,16 @@ export default function Connectors() {
       : toast.error(`Test failed: ${d.error}`),
     onError: err => toast.error(err.response?.data?.error || 'Test failed — check the URL'),
   })
+
+  // Reset type-specific fields when connector type changes
+  const handleConnectorTypeChange = (newType) => {
+    setForm(f => ({
+      ...f,
+      type: newType,
+      url: '', channel: '', apiKey: '', region: 'us', priority: 'P3',
+      headers: '', authType: 'NONE', bearerToken: '', basicUser: '', basicPass: '',
+    }))
+  }
 
   const openCreateWebhook = () => {
     setEditingWebhook(null)
@@ -259,9 +277,84 @@ export default function Connectors() {
           <form onSubmit={e => { e.preventDefault(); createMut.mutate(form) }} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div><label>Name</label><input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} required placeholder="slack-alerts" /></div>
-              <div><label>Type</label><select value={form.type} onChange={e => setForm(f => ({...f, type: e.target.value}))}>{CONN_TYPES.map(t => <option key={t}>{t}</option>)}</select></div>
+              <div><label>Type</label><select value={form.type} onChange={e => handleConnectorTypeChange(e.target.value)}>{CONN_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
             </div>
-            <div><label>URL</label><input value={form.url} onChange={e => setForm(f => ({...f, url: e.target.value}))} required placeholder="https://hooks.slack.com/services/…" /></div>
+
+            {/* ── SLACK-specific fields ── */}
+            {form.type === 'SLACK' && (
+              <>
+                <div><label>Webhook URL</label><input value={form.url} onChange={e => setForm(f => ({...f, url: e.target.value}))} required placeholder="https://hooks.slack.com/services/T00/B00/xxx" /></div>
+                <div><label>Channel <span className="text-xs font-normal opacity-60">(optional override)</span></label><input value={form.channel} onChange={e => setForm(f => ({...f, channel: e.target.value}))} placeholder="#mft-alerts" />
+                  <p className="mt-1 text-xs text-muted">Leave blank to use the channel configured in the Slack webhook.</p>
+                </div>
+              </>
+            )}
+
+            {/* ── TEAMS-specific fields ── */}
+            {form.type === 'TEAMS' && (
+              <div><label>Webhook URL</label><input value={form.url} onChange={e => setForm(f => ({...f, url: e.target.value}))} required placeholder="https://outlook.office.com/webhook/..." /></div>
+            )}
+
+            {/* ── WEBHOOK-specific fields ── */}
+            {form.type === 'WEBHOOK' && (
+              <>
+                <div><label>URL</label><input value={form.url} onChange={e => setForm(f => ({...f, url: e.target.value}))} required placeholder="https://your-system.com/webhook" /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label>Auth Type</label>
+                    <select value={form.authType} onChange={e => setForm(f => ({...f, authType: e.target.value, bearerToken: '', basicUser: '', basicPass: ''}))}>
+                      <option value="NONE">None</option>
+                      <option value="BEARER">Bearer Token</option>
+                      <option value="BASIC">Basic Auth</option>
+                    </select>
+                  </div>
+                  {form.authType === 'BEARER' && (
+                    <div><label>Bearer Token</label><input type="password" value={form.bearerToken} onChange={e => setForm(f => ({...f, bearerToken: e.target.value}))} placeholder="eyJhbGci..." /></div>
+                  )}
+                  {form.authType === 'BASIC' && (
+                    <>
+                      <div><label>Username</label><input value={form.basicUser} onChange={e => setForm(f => ({...f, basicUser: e.target.value}))} /></div>
+                    </>
+                  )}
+                </div>
+                {form.authType === 'BASIC' && (
+                  <div><label>Password</label><input type="password" value={form.basicPass} onChange={e => setForm(f => ({...f, basicPass: e.target.value}))} /></div>
+                )}
+                <div>
+                  <label>Custom Headers <span className="text-xs font-normal opacity-60">(JSON, optional)</span></label>
+                  <input value={form.headers} onChange={e => setForm(f => ({...f, headers: e.target.value}))} placeholder='{"X-Custom-Header": "value"}' />
+                  <p className="mt-1 text-xs text-muted">Additional headers sent with each webhook request (JSON key-value pairs).</p>
+                </div>
+              </>
+            )}
+
+            {/* ── OPSGENIE-specific fields ── */}
+            {form.type === 'OPSGENIE' && (
+              <>
+                <div><label>API Key</label><input type="password" value={form.apiKey} onChange={e => setForm(f => ({...f, apiKey: e.target.value}))} required placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label>Region</label>
+                    <select value={form.region} onChange={e => setForm(f => ({...f, region: e.target.value}))}>
+                      <option value="us">US (api.opsgenie.com)</option>
+                      <option value="eu">EU (api.eu.opsgenie.com)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Default Priority</label>
+                    <select value={form.priority} onChange={e => setForm(f => ({...f, priority: e.target.value}))}>
+                      {['P1', 'P2', 'P3', 'P4', 'P5'].map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ── SERVICENOW / PAGERDUTY — keep generic URL field ── */}
+            {['SERVICENOW', 'PAGERDUTY'].includes(form.type) && (
+              <div><label>URL</label><input value={form.url} onChange={e => setForm(f => ({...f, url: e.target.value}))} required placeholder={form.type === 'SERVICENOW' ? 'https://instance.service-now.com/api/...' : 'https://events.pagerduty.com/v2/enqueue'} /></div>
+            )}
+
             <div>
               <label>Trigger Events</label>
               <div className="mt-1 flex flex-wrap gap-2">
@@ -298,9 +391,12 @@ export default function Connectors() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label>Partner Name</label>
-                <input value={webhookForm.partnerName}
+                <select value={webhookForm.partnerName}
                   onChange={e => setWebhookForm(f => ({...f, partnerName: e.target.value}))}
-                  required placeholder="Acme Corp" />
+                  required>
+                  <option value="">All Partners (global)</option>
+                  {partners.map(p => <option key={p.id} value={p.name}>{p.name}{p.industry ? ` (${p.industry})` : p.type ? ` (${p.type})` : ''}</option>)}
+                </select>
               </div>
               <div>
                 <label>Active</label>
