@@ -20,7 +20,7 @@ import java.util.Map;
  * For now, this provides the infrastructure and metrics endpoints.
  */
 @Component @Slf4j
-@ConditionalOnProperty(name = "flow.stages.enabled", havingValue = "true", matchIfMissing = false)
+@ConditionalOnProperty(name = "flow.stages.enabled", havingValue = "true", matchIfMissing = true)
 public class FlowStageManager {
 
     @Value("${flow.stage.intake.queue:1000}")
@@ -61,6 +61,22 @@ public class FlowStageManager {
     public ProcessingStage<Runnable> intake() { return intakeStage; }
     public ProcessingStage<Runnable> pipeline() { return pipelineStage; }
     public ProcessingStage<Runnable> delivery() { return deliveryStage; }
+
+    /**
+     * Submit a task to the named stage. Returns true if accepted, false if queue full.
+     *
+     * @param stageName one of "INTAKE", "PIPELINE", "DELIVERY" (case-insensitive)
+     * @param task      the work to execute on the stage's thread pool
+     */
+    public boolean submit(String stageName, Runnable task) {
+        ProcessingStage<Runnable> stage = switch (stageName.toUpperCase()) {
+            case "INTAKE"   -> intakeStage;
+            case "PIPELINE" -> pipelineStage;
+            case "DELIVERY" -> deliveryStage;
+            default -> throw new IllegalArgumentException("Unknown SEDA stage: " + stageName);
+        };
+        return stage.submit(task);
+    }
 
     /** Aggregate metrics for all stages — for health endpoints. */
     public Map<String, Object> getStats() {

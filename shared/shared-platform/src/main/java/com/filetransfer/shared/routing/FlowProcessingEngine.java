@@ -7,6 +7,7 @@ import com.filetransfer.shared.client.ServiceClientProperties;
 import com.filetransfer.shared.client.StorageServiceClient;
 import com.filetransfer.shared.connector.ConnectorDispatcher;
 import com.filetransfer.shared.connector.PartnerWebhookDispatcher;
+import com.filetransfer.shared.flow.FlowStageManager;
 import com.filetransfer.shared.event.FlowStepEvent;
 import com.filetransfer.shared.vfs.FileRef;
 import com.filetransfer.shared.vfs.VfsFlowBridge;
@@ -83,6 +84,11 @@ public class FlowProcessingEngine {
     @Nullable
     private FlowEventJournal flowEventJournal;
 
+    /** SEDA stage manager for bounded-queue flow execution. Optional — runs synchronously if absent. */
+    @Autowired(required = false)
+    @Nullable
+    private FlowStageManager stageManager;
+
     /**
      * Execute a specific flow for a file. Creates execution record and processes each step.
      */
@@ -93,6 +99,9 @@ public class FlowProcessingEngine {
 
     /**
      * Execute a specific flow with matched criteria snapshot for audit trail.
+     * When SEDA stages are available, step execution is submitted to the INTAKE
+     * stage (bounded-queue, virtual-thread pool) and this method returns immediately
+     * with status PROCESSING. When SEDA is absent, runs synchronously as before.
      */
     @Transactional
     public FlowExecution executeFlow(FileFlow flow, String trackId, String filename,
@@ -113,6 +122,24 @@ public class FlowProcessingEngine {
             flowEventJournal.recordExecutionStarted(trackId, exec.getId(), null, flow.getSteps().size());
         }
 
+        if (stageManager != null) {
+            final FlowExecution sedaExec = exec;
+            stageManager.submit("INTAKE", () -> executeFlowSteps(sedaExec, flow, trackId, filename, inputPath));
+            log.info("[{}] Flow '{}' submitted to SEDA INTAKE stage", trackId, flow.getName());
+            return exec;
+        }
+
+        // ── Synchronous fallback (no SEDA) ──
+        executeFlowSteps(exec, flow, trackId, filename, inputPath);
+        return exec;
+    }
+
+    /**
+     * Internal: execute all flow steps for a PHYSICAL-mode flow execution.
+     * Called synchronously or from SEDA INTAKE stage worker thread.
+     */
+    private void executeFlowSteps(FlowExecution exec, FileFlow flow, String trackId,
+                                   String filename, String inputPath) {
         String currentFile = inputPath;
         List<FlowExecution.StepResult> results = new ArrayList<>();
 
@@ -139,7 +166,7 @@ public class FlowProcessingEngine {
                     flowEventJournal.recordExecutionPaused(trackId, exec.getId(), i, "awaiting admin approval");
                 }
                 log.info("[{}] Flow PAUSED at APPROVE step {} — awaiting admin sign-off", trackId, i);
-                return exec;
+                return;
             }
 
             int maxStepRetries = Integer.parseInt(stepCfg.getOrDefault("retryCount", "0"));
@@ -207,7 +234,7 @@ public class FlowProcessingEngine {
                     dispatchFlowEvent("FLOW_FAILED", exec, flow);
                     log.error("[{}] Step {}/{} ({}) FAILED: {}", trackId, i + 1, flow.getSteps().size(),
                             step.getType(), e.getMessage());
-                    return exec;
+                    return;
                 }
             }
             if (!stepSucceeded) {
@@ -217,7 +244,7 @@ public class FlowProcessingEngine {
                 exec.setCompletedAt(Instant.now());
                 executionRepository.save(exec);
                 dispatchFlowEvent("FLOW_FAILED", exec, flow);
-                return exec;
+                return;
             }
         }
 
@@ -232,7 +259,6 @@ public class FlowProcessingEngine {
         }
         dispatchFlowEvent("FLOW_COMPLETED", exec, flow);
         log.info("[{}] Flow '{}' completed successfully for '{}'", trackId, flow.getName(), filename);
-        return exec;
     }
 
     /**
@@ -793,6 +819,8 @@ public class FlowProcessingEngine {
 
     /**
      * Execute a flow from a specific step (used by restart-from-step).
+     * When SEDA stages are available, step execution is submitted to the INTAKE
+     * stage and this method returns immediately with status PROCESSING.
      *
      * @param existingExec if non-null, update this record rather than creating a new one
      * @param startFromStep 0 = full run; N = skip first N steps, start at step N
@@ -824,6 +852,24 @@ public class FlowProcessingEngine {
         }
         exec = executionRepository.save(exec);
 
+        if (stageManager != null) {
+            final FlowExecution sedaExec = exec;
+            stageManager.submit("INTAKE", () -> executeFlowRefSteps(sedaExec, flow, trackId, filename, ref, startFromStep));
+            log.info("[{}] Flow '{}' submitted to SEDA INTAKE stage (VIRTUAL)", trackId, flow.getName());
+            return exec;
+        }
+
+        // ── Synchronous fallback (no SEDA) ──
+        executeFlowRefSteps(exec, flow, trackId, filename, ref, startFromStep);
+        return exec;
+    }
+
+    /**
+     * Internal: execute all flow steps for a VIRTUAL-mode flow execution.
+     * Called synchronously or from SEDA INTAKE stage worker thread.
+     */
+    private void executeFlowRefSteps(FlowExecution exec, FileFlow flow, String trackId,
+                                      String filename, FileRef ref, int startFromStep) {
         String currentKey  = ref.storageKey();
         String currentPath = ref.virtualPath();
         long   currentSize = ref.sizeBytes();
@@ -860,7 +906,7 @@ public class FlowProcessingEngine {
                 executionRepository.save(exec);
                 log.info("[{}] Flow PAUSED at APPROVE step {} (VIRTUAL) — awaiting admin sign-off, key={}",
                         trackId, i, abbrev(currentKey));
-                return exec;
+                return;
             }
 
             int maxRetries = Integer.parseInt(stepCfg.getOrDefault("retryCount", "0"));
@@ -933,7 +979,7 @@ public class FlowProcessingEngine {
                     executionRepository.save(exec);
                     log.error("[{}] Step {}/{} ({}) FAILED: {}",
                             trackId, i + 1, flow.getSteps().size(), step.getType(), e.getMessage());
-                    return exec;
+                    return;
                 }
             }
             // ── termination check between steps (non-blocking poll) ───────────
@@ -945,7 +991,7 @@ public class FlowProcessingEngine {
                 exec.setCompletedAt(Instant.now());
                 executionRepository.save(exec);
                 log.info("[{}] Flow CANCELLED by {} after step {}", trackId, fresh.getTerminatedBy(), i);
-                return exec;
+                return;
             }
             if (!stepSucceeded) {
                 exec.setStatus(FlowExecution.FlowStatus.FAILED);
@@ -954,7 +1000,7 @@ public class FlowProcessingEngine {
                 exec.setCompletedAt(Instant.now());
                 executionRepository.save(exec);
                 dispatchFlowEvent("FLOW_FAILED", exec, flow);
-                return exec;
+                return;
             }
         }
 
@@ -966,7 +1012,6 @@ public class FlowProcessingEngine {
         dispatchFlowEvent("FLOW_COMPLETED", exec, flow);
         log.info("[{}] Flow '{}' completed (VIRTUAL) for '{}' — final key={}",
                 trackId, flow.getName(), filename, abbrev(currentKey));
-        return exec;
     }
 
     /** Carries the new storage key + virtual path after a VIRTUAL-mode step completes. */

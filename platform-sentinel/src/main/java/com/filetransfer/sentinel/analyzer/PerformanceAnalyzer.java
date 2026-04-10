@@ -15,7 +15,12 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.filetransfer.shared.repository.ConnectionAuditRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.Nullable;
+
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @Service
@@ -31,6 +36,11 @@ public class PerformanceAnalyzer {
     private final TransferCollector transferCollector;
     private final HealthCollector healthCollector;
     private final ObjectMapper objectMapper;
+
+    /** Optional — only available when sentinel shares a DB with connection audit data. */
+    @Autowired(required = false)
+    @Nullable
+    private ConnectionAuditRepository connectionAuditRepo;
 
     @Scheduled(fixedDelay = 300000)
     @SchedulerLock(name = "sentinel_performanceAnalyzer", lockAtLeastFor = "PT4M", lockAtMostFor = "PT9M")
@@ -142,14 +152,49 @@ public class PerformanceAnalyzer {
     }
 
     private SentinelFinding checkDiskUsage(SentinelRule rule) {
-        // Disk usage comes from actuator health details — would need /actuator/health with details
-        // For now, this is a placeholder that activates when we get richer health data
+        try {
+            java.io.File root = new java.io.File("/");
+            long total = root.getTotalSpace();
+            long free = root.getFreeSpace();
+            if (total == 0) return null;
+            double usedPercent = ((double) (total - free) / total) * 100;
+            double threshold = rule.getThresholdValue() != null ? rule.getThresholdValue() : 85;
+            if (usedPercent > threshold) {
+                return buildFinding(rule,
+                        String.format("Disk usage at %.1f%% (threshold: %.0f%%)", usedPercent, threshold),
+                        String.format("Root filesystem usage is %.1f%% which exceeds the %.0f%% threshold. " +
+                                "Consider archiving old transfers or expanding storage.", usedPercent, threshold),
+                        evidence("usedPercent", usedPercent, "totalGb", total / 1073741824.0,
+                                "freeGb", free / 1073741824.0, "threshold", threshold));
+            }
+        } catch (Exception e) {
+            log.debug("Disk usage check failed: {}", e.getMessage());
+        }
         return null;
     }
 
     private SentinelFinding checkConnections(SentinelRule rule) {
-        // Connection saturation would come from gateway/dmz stats
-        // Placeholder for future enrichment
+        try {
+            // Count active connections in last 5 minutes from connection_audits
+            Instant since = Instant.now().minus(5, ChronoUnit.MINUTES);
+            long activeCount = connectionAuditRepo != null
+                    ? connectionAuditRepo.countByRoutedToAndConnectedAtAfter("PLATFORM", since) : 0;
+            double maxConnections = rule.getThresholdValue() != null && rule.getThresholdValue() > 0
+                    ? rule.getThresholdValue() : 1000;
+            double saturation = (activeCount / maxConnections) * 100;
+            if (saturation > 80) { // >80% of max
+                return buildFinding(rule,
+                        String.format("Connection saturation: %d active (%.0f%% of %.0f max)",
+                                activeCount, saturation, maxConnections),
+                        String.format("Active connections in the last 5 minutes: %d, which is %.0f%% of the " +
+                                "%.0f connection limit. Consider scaling gateway instances or investigating " +
+                                "connection leaks.", activeCount, saturation, maxConnections),
+                        evidence("activeConnections", activeCount, "maxConnections", maxConnections,
+                                "saturation", saturation));
+            }
+        } catch (Exception e) {
+            log.debug("Connection saturation check failed: {}", e.getMessage());
+        }
         return null;
     }
 

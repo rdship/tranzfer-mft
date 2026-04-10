@@ -12,6 +12,10 @@ spring:
   jpa:
     show-sql: true
 
+flow:
+  stages:
+    enabled: true
+
 logging:
   level:
     com.filetransfer: DEBUG

@@ -371,11 +371,11 @@ overwhelming disk or network I/O.
 ### SEDA Processing Stages
 
 Three bounded-queue stages with virtual thread workers. Gated by `flow.stages.enabled` —
-disabled by default to avoid idle threads on non-flow services.
+enabled by default (`matchIfMissing = true`). Set `false` on non-flow services to avoid idle threads.
 
 | Property | Default | Description |
 |----------|---------|-------------|
-| `flow.stages.enabled` | `false` | Enable SEDA stages (set `true` on flow-processing services) |
+| `flow.stages.enabled` | `true` | Enable SEDA stages (set `false` on non-flow services) |
 | `flow.stage.intake.queue` | `1000` | Bounded queue size for rule matching stage |
 | `flow.stage.intake.threads` | `16` | Virtual worker threads for intake |
 | `flow.stage.pipeline.queue` | `500` | Bounded queue size for file transform stage |
