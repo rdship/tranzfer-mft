@@ -168,7 +168,7 @@ class FlowExecutionEndToEndTest {
         FlowFunctionRegistrar registrar = new FlowFunctionRegistrar();
         FlowFunctionRegistry registry = registrar.flowFunctionRegistry();
 
-        assertEquals(16, registry.size(), "Should have exactly 16 built-in functions");
+        assertEquals(17, registry.size(), "Should have exactly 17 built-in functions (16 stubs + CHECKSUM_VERIFY)");
 
         List<String> expectedTypes = List.of(
                 "COMPRESS_GZIP", "DECOMPRESS_GZIP", "COMPRESS_ZIP", "DECOMPRESS_ZIP",

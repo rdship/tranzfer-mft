@@ -55,6 +55,10 @@ public class FlowFunctionRegistrar {
                 }
             });
         }
+
+        // Register real built-in function implementations
+        registry.register(new com.filetransfer.shared.flow.builtin.ChecksumVerifyFunction());
+
         return registry;
     }
 }
