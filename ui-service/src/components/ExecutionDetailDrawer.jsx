@@ -10,6 +10,8 @@ import {
   ForwardIcon,
 } from '@heroicons/react/24/outline'
 import FileDownloadButton from './FileDownloadButton'
+import ConfigLink from './ConfigLink'
+import ConfigInlineEditor from './ConfigInlineEditor'
 import {
   getExecution, getFlowSteps, getFlowEvents,
   restartExecution, restartFromStep, skipStep, terminateExecution,
@@ -364,6 +366,7 @@ export default function ExecutionDetailDrawer({ trackId, open, onClose, showActi
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [confirmAction, setConfirmAction] = useState(null)
+  const [editConfig, setEditConfig] = useState(null)  // { type, id, name }
 
   // ── Data fetching ───────────────────────────────────────────────────
   const { data: execution, isLoading: execLoading, error: execError, refetch: refetchExec } = useQuery({
@@ -494,7 +497,10 @@ export default function ExecutionDetailDrawer({ trackId, open, onClose, showActi
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h2 className="text-base font-bold text-[rgb(var(--tx-primary))] truncate">
-                {execution?.flowName || 'Execution Detail'}
+                {execution?.flowName ? (
+                  <ConfigLink type="flow" name={execution.flowName} id={execution.flowId || execution.flow?.id}
+                    onEdit={setEditConfig} navigateTo="/flows" />
+                ) : 'Execution Detail'}
               </h2>
               {execution?.status && (
                 <span className={`badge ${statusBadgeClass(execution.status)}`}>{execution.status}</span>
@@ -582,7 +588,19 @@ export default function ExecutionDetailDrawer({ trackId, open, onClose, showActi
                   {execution?.sourcePartnerName && (
                     <div>
                       <span className="text-[rgb(var(--tx-muted))] uppercase tracking-wider font-semibold" style={{ fontSize: '0.625rem' }}>Source Partner</span>
-                      <p className="text-[rgb(var(--tx-primary))] mt-0.5">{execution.sourcePartnerName}</p>
+                      <div className="mt-0.5">
+                        <ConfigLink type="partner" name={execution.sourcePartnerName} id={execution.sourcePartnerId}
+                          onEdit={setEditConfig} navigateTo={execution.sourcePartnerId ? `/partners/${execution.sourcePartnerId}` : '/partners'} />
+                      </div>
+                    </div>
+                  )}
+                  {(execution?.sourceUsername || execution?.destUsername) && (
+                    <div>
+                      <span className="text-[rgb(var(--tx-muted))] uppercase tracking-wider font-semibold" style={{ fontSize: '0.625rem' }}>Account</span>
+                      <div className="mt-0.5">
+                        <ConfigLink type="account" name={execution.sourceUsername || execution.destUsername}
+                          onEdit={setEditConfig} navigateTo="/accounts" />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -702,6 +720,19 @@ export default function ExecutionDetailDrawer({ trackId, open, onClose, showActi
           onConfirm={confirmAction.onConfirm}
           onCancel={() => setConfirmAction(null)}
         />
+      )}
+
+      {/* ── Config Inline Editor (slides on top of this drawer) ────── */}
+      {editConfig && (
+        <div className="relative z-[55]">
+          <ConfigInlineEditor
+            open={!!editConfig}
+            onClose={() => setEditConfig(null)}
+            configType={editConfig.type}
+            configId={editConfig.id}
+            configName={editConfig.name}
+          />
+        </div>
       )}
 
       {/* ── Slide-in animation ────────────────────────────────────────── */}

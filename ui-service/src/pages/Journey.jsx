@@ -6,6 +6,8 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import EvidenceReport from '../components/EvidenceReport'
 import DataLineageGraph from '../components/DataLineageGraph'
 import FileDownloadButton from '../components/FileDownloadButton'
+import ConfigLink from '../components/ConfigLink'
+import ConfigInlineEditor from '../components/ConfigInlineEditor'
 import {
   MagnifyingGlassIcon, CheckCircleIcon, XCircleIcon, ClockIcon,
   ArrowRightIcon, ShieldCheckIcon, ArrowDownTrayIcon, EyeIcon,
@@ -492,6 +494,7 @@ export default function Journey() {
   const incomingTrackId = searchParams.get('trackId') || ''
   const [trackId, setTrackId] = useState(incomingTrackId)
   const [searchId, setSearchId] = useState(incomingTrackId || null)
+  const [editConfig, setEditConfig] = useState(null)
 
   useEffect(() => {
     if (incomingTrackId) {
@@ -597,6 +600,36 @@ export default function Journey() {
                   status={execDetail.status}
                   stepSnapshots={stepSnapshots}
                 />
+              </div>
+            )}
+
+            {/* Config references — flow, source/dest accounts, partner */}
+            {execDetail?.flow && (
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 p-3 rounded-lg bg-canvas border border-border text-sm mb-4">
+                {execDetail.flow.name && (
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-secondary text-xs">Flow:</span>
+                    <ConfigLink type="flow" id={execDetail.flow.id} name={execDetail.flow.name} onEdit={setEditConfig} navigateTo="/flows" />
+                  </span>
+                )}
+                {execDetail.flow.sourceAccount?.username && (
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-secondary text-xs">Source:</span>
+                    <ConfigLink type="account" id={execDetail.flow.sourceAccount.id} name={execDetail.flow.sourceAccount.username} onEdit={setEditConfig} navigateTo="/accounts" />
+                  </span>
+                )}
+                {execDetail.flow.destinationAccount?.username && (
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-secondary text-xs">Dest:</span>
+                    <ConfigLink type="account" id={execDetail.flow.destinationAccount.id} name={execDetail.flow.destinationAccount.username} onEdit={setEditConfig} navigateTo="/accounts" />
+                  </span>
+                )}
+                {execDetail.flow.externalDestination?.name && (
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-secondary text-xs">Ext Dest:</span>
+                    <ConfigLink type="destination" id={execDetail.flow.externalDestination.id} name={execDetail.flow.externalDestination.name} onEdit={setEditConfig} navigateTo="/external-destinations" />
+                  </span>
+                )}
               </div>
             )}
 
@@ -709,6 +742,17 @@ export default function Journey() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Inline Config Editor — triggered by clicking any config link */}
+      {editConfig && (
+        <ConfigInlineEditor
+          open={!!editConfig}
+          onClose={() => setEditConfig(null)}
+          configType={editConfig.type}
+          configId={editConfig.id}
+          configName={editConfig.name}
+        />
       )}
     </div>
   )

@@ -6,6 +6,8 @@ import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer'
 import FileDownloadButton from '../components/FileDownloadButton'
+import ConfigLink from '../components/ConfigLink'
+import ConfigInlineEditor from '../components/ConfigInlineEditor'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import {
@@ -78,6 +80,31 @@ function formatTimestamp(ts) {
   }
 }
 
+// ── Config-reference column keys mapped to ConfigLink props ────────────
+const CONFIG_LINK_COLUMNS = {
+  sourceUsername:   { type: 'account',     navigateTo: '/accounts' },
+  destUsername:     { type: 'account',     navigateTo: '/accounts' },
+  sourcePartnerName:{ type: 'partner',    navigateTo: '/partners' },
+  destPartnerName:  { type: 'partner',    navigateTo: '/partners' },
+  flowName:         { type: 'flow',       navigateTo: '/flows' },
+  externalDestName: { type: 'destination',navigateTo: '/external-destinations' },
+}
+
+function renderConfigCell(col, row, onEdit) {
+  const linkMeta = CONFIG_LINK_COLUMNS[col.key]
+  if (linkMeta && row[col.key]) {
+    return (
+      <ConfigLink
+        type={linkMeta.type}
+        name={row[col.key]}
+        onEdit={onEdit}
+        navigateTo={linkMeta.navigateTo}
+      />
+    )
+  }
+  return col.render(row[col.key], row)
+}
+
 // ── Column Preferences Hook ─────────────────────────────────────────────
 function useColumnPreferences() {
   const STORAGE_KEY = 'activity-monitor-columns'
@@ -126,7 +153,7 @@ function useDebounce(value, delay) {
 }
 
 // ── Transfer Detail Panel (inline expansion) ───────────────────────────
-function TransferDetailPanel({ row, flowExec, events, navigate }) {
+function TransferDetailPanel({ row, flowExec, events, navigate, onEditConfig }) {
   const stepStatusIcon = (status) => {
     if (!status) return <ClockIcon className="w-4 h-4 text-muted" />
     if (status === 'FAILED') return <XCircleIcon className="w-4 h-4 text-red-500" />
@@ -160,13 +187,24 @@ function TransferDetailPanel({ row, flowExec, events, navigate }) {
               <span className="text-secondary">Protocol</span>
               <span className="text-primary">{row.sourceProtocol || '--'}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center">
               <span className="text-secondary">Source</span>
-              <span className="text-primary">{row.sourceUsername || '--'} {row.sourcePartnerName ? `(${row.sourcePartnerName})` : ''}</span>
+              <span className="text-primary flex items-center gap-1">
+                <ConfigLink type="account" name={row.sourceUsername} onEdit={onEditConfig} navigateTo="/accounts" />
+                {row.sourcePartnerName && <>(<ConfigLink type="partner" name={row.sourcePartnerName} onEdit={onEditConfig} navigateTo="/partners" />)</>}
+              </span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center">
               <span className="text-secondary">Destination</span>
-              <span className="text-primary">{row.destUsername || row.destPartnerName || row.externalDestName || '--'}</span>
+              <span className="text-primary">
+                {row.destUsername ? (
+                  <ConfigLink type="account" name={row.destUsername} onEdit={onEditConfig} navigateTo="/accounts" />
+                ) : row.destPartnerName ? (
+                  <ConfigLink type="partner" name={row.destPartnerName} onEdit={onEditConfig} navigateTo="/partners" />
+                ) : row.externalDestName ? (
+                  <ConfigLink type="destination" name={row.externalDestName} onEdit={onEditConfig} navigateTo="/external-destinations" />
+                ) : '--'}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-secondary">Status</span>
@@ -253,9 +291,9 @@ function TransferDetailPanel({ row, flowExec, events, navigate }) {
               </div>
             )}
             {row.flowName && (
-              <div className="flex justify-between pt-1 border-t border-border">
+              <div className="flex justify-between items-center pt-1 border-t border-border">
                 <span className="text-secondary">Flow</span>
-                <span className="text-primary">{row.flowName}</span>
+                <ConfigLink type="flow" name={row.flowName} onEdit={onEditConfig} navigateTo="/flows" />
               </div>
             )}
             {row.flowStatus && (
@@ -265,9 +303,9 @@ function TransferDetailPanel({ row, flowExec, events, navigate }) {
               </div>
             )}
             {row.externalDestName && (
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center">
                 <span className="text-secondary">External Dest</span>
-                <span className="text-primary">{row.externalDestName}</span>
+                <ConfigLink type="destination" name={row.externalDestName} onEdit={onEditConfig} navigateTo="/external-destinations" />
               </div>
             )}
           </div>
@@ -418,6 +456,9 @@ export default function ActivityMonitor() {
 
   // Execution detail drawer state (double-click)
   const [drawerTrackId, setDrawerTrackId] = useState(null)
+
+  // Inline config editor state
+  const [editConfig, setEditConfig] = useState(null)
 
   // Debounced text filters
   const debouncedFilename = useDebounce(filenameFilter, 300)
@@ -752,7 +793,9 @@ export default function ActivityMonitor() {
                           <span className="font-mono text-xs font-bold text-blue-600">{r.trackId}</span>
                         </td>
                         <td className="table-cell text-sm text-primary truncate max-w-[200px]">{r.originalFilename || '--'}</td>
-                        <td className="table-cell text-sm text-secondary">{r.flowName || '--'}</td>
+                        <td className="table-cell text-sm text-secondary">
+                          <ConfigLink type="flow" name={r.flowName} onEdit={setEditConfig} navigateTo="/flows" />
+                        </td>
                         <td className="table-cell">
                           <span className="text-xs text-red-600 truncate block max-w-[250px]" title={r.errorMessage}>
                             {r.errorMessage || '--'}
@@ -947,7 +990,7 @@ export default function ActivityMonitor() {
                                 isExpanded ? 'bg-blue-50/70' : i % 2 === 1 ? 'bg-canvas/40' : ''
                               } group-hover:bg-blue-50/50 transition-colors`}
                             >
-                              {col.render(row[col.key], row)}
+                              {renderConfigCell(col, row, setEditConfig)}
                             </td>
                           ))}
                           <td className="table-cell w-24" onClick={e => e.stopPropagation()}>
@@ -972,7 +1015,7 @@ export default function ActivityMonitor() {
                         {isExpanded && (
                           <tr>
                             <td colSpan={visibleColumns.length + 2} className="p-0 border-b border-blue-200">
-                              <TransferDetailPanel row={row} flowExec={flowExecDetail} events={flowEvents} navigate={navigate} />
+                              <TransferDetailPanel row={row} flowExec={flowExecDetail} events={flowEvents} navigate={navigate} onEditConfig={setEditConfig} />
                             </td>
                           </tr>
                         )}
@@ -1198,6 +1241,17 @@ export default function ActivityMonitor() {
         onClose={() => setDrawerTrackId(null)}
         showActions
       />
+
+      {/* Inline Config Editor — triggered by clicking any config link */}
+      {editConfig && (
+        <ConfigInlineEditor
+          open={!!editConfig}
+          onClose={() => setEditConfig(null)}
+          configType={editConfig.type}
+          configId={editConfig.id}
+          configName={editConfig.name}
+        />
+      )}
 
       {/* Slide-in animation via inline style tag */}
       <style>{`
