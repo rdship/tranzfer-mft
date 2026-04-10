@@ -56,7 +56,7 @@ export default function Compliance() {
   const [form, setForm] = useState({ ...defaultProfileForm })
   const [resolveId, setResolveId] = useState(null)
   const [resolveNote, setResolveNote] = useState('')
-  const [violationFilter, setViolationFilter] = useState({ severity: '', resolved: 'false' })
+  const [violationFilter, setViolationFilter] = useState({ severity: '', resolved: 'false', serverId: '', username: '' })
 
   // ── Queries ──
 
@@ -76,7 +76,17 @@ export default function Compliance() {
 
   const { data: violations = [], isLoading: loadingViolations } = useQuery({
     queryKey: ['compliance-violations', violationFilter],
-    queryFn: () => configApi.get(`/api/compliance/violations?${violationParams}`).then(r => r.data).catch(() => []),
+    queryFn: () => {
+      // Use server-specific endpoint when filtering by server
+      if (violationFilter.serverId) {
+        return configApi.get(`/api/compliance/violations/server/${violationFilter.serverId}?${violationParams}`).then(r => r.data).catch(() => [])
+      }
+      // Use user-specific endpoint when filtering by username
+      if (violationFilter.username) {
+        return configApi.get(`/api/compliance/violations/user/${encodeURIComponent(violationFilter.username)}?${violationParams}`).then(r => r.data).catch(() => [])
+      }
+      return configApi.get(`/api/compliance/violations?${violationParams}`).then(r => r.data).catch(() => [])
+    },
     refetchInterval: 15000
   })
 
@@ -248,6 +258,19 @@ export default function Compliance() {
           <option value="false">Unresolved</option>
           <option value="true">Resolved</option>
         </select>
+        <select className="input w-48" value={violationFilter.serverId}
+          onChange={e => setViolationFilter(f => ({ ...f, serverId: e.target.value, username: '' }))}
+          title="Filter by server">
+          <option value="">All Servers</option>
+          {servers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+        <input
+          className="input w-44"
+          placeholder="Filter by username..."
+          value={violationFilter.username}
+          onChange={e => setViolationFilter(f => ({ ...f, username: e.target.value, serverId: '' }))}
+          title="Filter by user"
+        />
         <span className="text-sm text-gray-500">{violations.length} result(s)</span>
       </div>
 

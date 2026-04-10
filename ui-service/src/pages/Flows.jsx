@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { configApi, onboardingApi } from '../api/client'
+import { configApi, onboardingApi, aiApi } from '../api/client'
 import { getPendingApprovals, approveStep, rejectStep } from '../api/approvals'
 import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -584,6 +584,8 @@ export default function Flows() {
   const [importRuntime, setImportRuntime] = useState('GRPC')
   const [importEndpoint, setImportEndpoint] = useState('')
   const [importDesc, setImportDesc] = useState('')
+  const [aiSuggestions, setAiSuggestions] = useState(null)      // { steps: [...] } or null
+  const [aiAvailable, setAiAvailable] = useState(true)
 
   // ─── Dynamic function catalog fetch ───
   const loadCatalog = useCallback(() => {
@@ -733,6 +735,27 @@ export default function Flows() {
       toast.success('Scheduled retry cancelled')
     },
     onError: err => toast.error(err.response?.data?.message || 'Failed to cancel schedule')
+  })
+
+  const aiSuggestMut = useMutation({
+    mutationFn: (payload) => aiApi.post('/api/v1/ai/nlp/suggest-flow', payload).then(r => r.data),
+    onSuccess: (data) => {
+      const steps = data.steps || data.suggestedSteps || []
+      if (steps.length === 0) {
+        toast.error('AI returned no suggestions for this configuration')
+        return
+      }
+      setAiSuggestions({ steps })
+      toast.success(`AI suggested ${steps.length} step${steps.length !== 1 ? 's' : ''}`)
+    },
+    onError: (err) => {
+      if (err.code === 'ERR_NETWORK' || err.response?.status === 503 || err.response?.status === 502) {
+        setAiAvailable(false)
+        toast.error('AI engine is not available')
+      } else {
+        toast.error(err.response?.data?.message || 'AI suggestion failed')
+      }
+    }
   })
 
   const { data: scheduledRetries = [] } = useQuery({
@@ -1420,7 +1443,7 @@ export default function Flows() {
                   </div>
                 )}
               </div>
-              <div className="mt-3 relative">
+              <div className="mt-3 relative flex items-center gap-2">
                 <button type="button" onClick={() => setShowAddStep(!showAddStep)}
                   className="btn-secondary text-sm">
                   <PlusIcon className="w-4 h-4" /> Add Step
@@ -1431,7 +1454,81 @@ export default function Flows() {
                     <AddStepDropdown onAdd={addStep} onClose={() => setShowAddStep(false)} />
                   </>
                 )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAiSuggestions(null)
+                    aiSuggestMut.mutate({
+                      sourceAccountId: form.sourceAccountId || null,
+                      filenamePattern: form.filenamePattern || null,
+                      direction: form.direction || null,
+                      existingSteps: form.steps.map(s => s.type),
+                    })
+                  }}
+                  disabled={!aiAvailable || aiSuggestMut.isPending}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors text-violet-600 hover:bg-violet-50 hover:text-violet-700 border border-violet-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={!aiAvailable ? 'AI engine not available' : 'Get AI-suggested steps based on flow configuration'}
+                >
+                  <SparklesIcon className="w-4 h-4" />
+                  {aiSuggestMut.isPending ? 'Suggesting...' : 'AI Suggest'}
+                </button>
               </div>
+
+              {/* AI Suggestions panel */}
+              {aiSuggestions && aiSuggestions.steps.length > 0 && (
+                <div className="mt-3 p-3 rounded-lg border border-violet-200 bg-violet-50/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-violet-700 flex items-center gap-1">
+                      <SparklesIcon className="w-3.5 h-3.5" /> AI-Suggested Steps
+                    </span>
+                    <button type="button" onClick={() => setAiSuggestions(null)}
+                      className="text-xs text-gray-400 hover:text-gray-600">Dismiss</button>
+                  </div>
+                  <div className="space-y-1.5">
+                    {aiSuggestions.steps.map((step, i) => {
+                      const meta = STEP_TYPE_CATALOG[step.type] || { label: step.type, icon: '?', color: 'text-gray-600 bg-gray-100' }
+                      return (
+                        <div key={i} className="flex items-center gap-2 text-sm">
+                          <span className="text-xs font-bold text-gray-400 w-5 text-center">{i + 1}</span>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${meta.color}`}>
+                            {meta.icon} {meta.label}
+                          </span>
+                          {step.reason && <span className="text-xs text-gray-500 italic">{step.reason}</span>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <button type="button"
+                      onClick={() => {
+                        const newSteps = aiSuggestions.steps.map((s, i) => ({
+                          type: s.type, config: s.config || {}, order: i
+                        }))
+                        setForm(f => ({ ...f, steps: newSteps }))
+                        setAiSuggestions(null)
+                        toast.success('AI suggestions applied')
+                      }}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition-colors">
+                      Accept All
+                    </button>
+                    <button type="button"
+                      onClick={() => {
+                        const merged = [
+                          ...form.steps,
+                          ...aiSuggestions.steps.map((s, i) => ({
+                            type: s.type, config: s.config || {}, order: form.steps.length + i
+                          }))
+                        ]
+                        setForm(f => ({ ...f, steps: merged }))
+                        setAiSuggestions(null)
+                        toast.success('AI suggestions appended')
+                      }}
+                      className="text-xs px-3 py-1.5 rounded-lg border border-violet-300 text-violet-700 hover:bg-violet-100 transition-colors">
+                      Append to Current
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* ─── Delivery Configuration ─── */}

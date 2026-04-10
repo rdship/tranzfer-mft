@@ -392,6 +392,86 @@ function FlowStepsPanel({ trackId }) {
   )
 }
 
+// ── Event Journal Timeline ───────────────────────────────────────────────────
+const EVENT_COLORS = {
+  EXECUTION_STARTED:   'bg-blue-500',
+  STEP_STARTED:        'bg-blue-400',
+  STEP_COMPLETED:      'bg-green-500',
+  STEP_FAILED:         'bg-red-500',
+  STEP_RETRYING:       'bg-yellow-500',
+  EXECUTION_COMPLETED: 'bg-green-600',
+  EXECUTION_FAILED:    'bg-red-600',
+  EXECUTION_PAUSED:    'bg-gray-400',
+  EXECUTION_CANCELLED: 'bg-red-400',
+}
+
+function EventJournal({ trackId }) {
+  const [open, setOpen] = useState(false)
+
+  const { data: events = [], isLoading, isError } = useQuery({
+    queryKey: ['flow-events', trackId],
+    queryFn: () => onboardingApi.get(`/api/flow-executions/flow-events/${trackId}`).then(r => r.data),
+    enabled: open && !!trackId,
+    staleTime: 30_000
+  })
+
+  return (
+    <div className="card">
+      <button className="flex items-center justify-between w-full" onClick={() => setOpen(v => !v)}>
+        <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+          <span>📜</span>
+          Event Journal
+          {events.length > 0 && (
+            <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+              {events.length} event{events.length !== 1 ? 's' : ''}
+            </span>
+          )}
+        </h3>
+        {open ? <ChevronDownIcon className="w-4 h-4 text-gray-400" /> : <ChevronRightIcon className="w-4 h-4 text-gray-400" />}
+      </button>
+
+      {open && (
+        <div className="mt-3">
+          {isLoading && <div className="animate-pulse h-4 w-32 bg-gray-200 rounded" />}
+          {isError && <p className="text-xs text-gray-400 italic">Event journal not available for this transfer.</p>}
+          {!isLoading && !isError && events.length === 0 && (
+            <p className="text-xs text-gray-400 italic">No events recorded yet.</p>
+          )}
+          {events.length > 0 && (
+            <div className="space-y-0 relative ml-3">
+              {/* Vertical line */}
+              <div className="absolute left-[5px] top-2 bottom-2 w-0.5 bg-gray-200" />
+              {events.map((evt, i) => {
+                const dotColor = EVENT_COLORS[evt.eventType] || 'bg-gray-400'
+                const ts = evt.timestamp ? format(new Date(evt.timestamp), 'HH:mm:ss.SSS') : ''
+                return (
+                  <div key={i} className="flex items-start gap-3 py-1 relative">
+                    <div className={`w-2.5 h-2.5 rounded-full ${dotColor} flex-shrink-0 mt-1.5 z-10 ring-2 ring-white`} />
+                    <span className="text-xs font-mono text-gray-400 w-24 flex-shrink-0">{ts}</span>
+                    <span className={`text-xs font-semibold w-44 flex-shrink-0 ${
+                      evt.eventType?.includes('COMPLETED') ? 'text-green-700' :
+                      evt.eventType?.includes('FAILED') ? 'text-red-700' :
+                      evt.eventType?.includes('RETRYING') ? 'text-yellow-700' :
+                      evt.eventType?.includes('STARTED') ? 'text-blue-700' :
+                      evt.eventType?.includes('PAUSED') ? 'text-gray-500' : 'text-gray-600'
+                    }`}>
+                      {evt.eventType?.replace(/_/g, ' ')}
+                    </span>
+                    <span className="text-xs text-gray-500 truncate">
+                      {evt.detail || evt.message || ''}
+                      {evt.durationMs != null && ` (${evt.durationMs.toLocaleString()}ms)`}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Journey() {
   const [searchParams] = useSearchParams()
   const incomingTrackId = searchParams.get('trackId') || ''
@@ -532,6 +612,9 @@ export default function Journey() {
               ))}
             </div>
           </div>
+
+          {/* ── Event Journal ─────────────────────────────────────────────── */}
+          <EventJournal trackId={journey.trackId} />
 
           {/* ── Attempt history ───────────────────────────────────────────── */}
           {execDetail && <AttemptHistory trackId={journey.trackId} attemptNumber={execDetail.attemptNumber} />}

@@ -52,6 +52,7 @@ export const keystoreApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http
 export const screeningApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8092' }))
 export const storageApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8096' }))
 export const aiApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8091' }))
+export const notificationApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8097' }))
 
 // Log correlation IDs from API errors for debugging
 const logCorrelationId = (error) => {
@@ -72,3 +73,4 @@ keystoreApi.interceptors.response.use(r => r, logCorrelationId)
 screeningApi.interceptors.response.use(r => r, logCorrelationId)
 storageApi.interceptors.response.use(r => r, logCorrelationId)
 aiApi.interceptors.response.use(r => r, logCorrelationId)
+notificationApi.interceptors.response.use(r => r, logCorrelationId)

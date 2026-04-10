@@ -21,6 +21,9 @@ import {
   ArrowsRightLeftIcon,
   SignalIcon,
   Cog6ToothIcon,
+  BellAlertIcon,
+  CheckCircleIcon,
+  XCircleIcon,
 } from '@heroicons/react/24/outline'
 import {
   getPartner,
@@ -31,6 +34,7 @@ import {
   getPartnerFlows,
   getPartnerEndpoints,
 } from '../api/partners'
+import { onboardingApi } from '../api/client'
 import { createAccount } from '../api/accounts'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
@@ -64,8 +68,16 @@ const TABS = [
   { key: 'accounts', label: 'Accounts' },
   { key: 'flows', label: 'Flows' },
   { key: 'endpoints', label: 'Endpoints' },
+  { key: 'webhooks', label: 'Webhooks' },
   { key: 'settings', label: 'Settings' },
 ]
+
+const WEBHOOK_EVENTS = [
+  'FILE_RECEIVED', 'FILE_DELIVERED', 'TRANSFER_FAILED', 'TRANSFER_COMPLETE',
+  'FLOW_STARTED', 'FLOW_COMPLETED', 'FLOW_FAILED', 'PARTNER_ACTIVATED', 'PARTNER_SUSPENDED'
+]
+
+const EMPTY_WEBHOOK = { url: '', events: [], active: true }
 
 const EMPTY_ACCOUNT = { protocol: 'SFTP', username: '', password: '', homeDir: '' }
 
@@ -81,6 +93,10 @@ export default function PartnerDetail() {
   const [accountForm, setAccountForm] = useState(EMPTY_ACCOUNT)
   const [settingsForm, setSettingsForm] = useState(null)
   const [settingsContacts, setSettingsContacts] = useState([])
+  const [showWebhookModal, setShowWebhookModal] = useState(false)
+  const [editingWebhook, setEditingWebhook] = useState(null)
+  const [webhookForm, setWebhookForm] = useState({ ...EMPTY_WEBHOOK })
+  const [deleteWebhookConfirm, setDeleteWebhookConfirm] = useState(null)
 
   // Main partner detail
   const { data: detail, isLoading } = useQuery({
@@ -105,6 +121,12 @@ export default function PartnerDetail() {
     queryKey: ['partner-endpoints', id],
     queryFn: () => getPartnerEndpoints(id),
     enabled: activeTab === 'endpoints',
+  })
+
+  const { data: webhooks = [], isLoading: loadingWebhooks } = useQuery({
+    queryKey: ['partner-webhooks', id],
+    queryFn: () => onboardingApi.get(`/api/partner-webhooks?partnerId=${id}`).then(r => r.data).catch(() => []),
+    enabled: activeTab === 'webhooks',
   })
 
   // Mutations
@@ -145,6 +167,36 @@ export default function PartnerDetail() {
       toast.success('Partner settings updated')
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to update partner'),
+  })
+
+  const createWebhookMut = useMutation({
+    mutationFn: (data) => onboardingApi.post('/api/partner-webhooks', { ...data, partnerId: id }).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries(['partner-webhooks', id])
+      setShowWebhookModal(false); setEditingWebhook(null); setWebhookForm({ ...EMPTY_WEBHOOK })
+      toast.success('Webhook created')
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to create webhook'),
+  })
+
+  const updateWebhookMut = useMutation({
+    mutationFn: ({ whId, data }) => onboardingApi.put(`/api/partner-webhooks/${whId}`, data).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries(['partner-webhooks', id])
+      setShowWebhookModal(false); setEditingWebhook(null); setWebhookForm({ ...EMPTY_WEBHOOK })
+      toast.success('Webhook updated')
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to update webhook'),
+  })
+
+  const deleteWebhookMut = useMutation({
+    mutationFn: (whId) => onboardingApi.delete(`/api/partner-webhooks/${whId}`),
+    onSuccess: () => {
+      qc.invalidateQueries(['partner-webhooks', id])
+      setDeleteWebhookConfirm(null)
+      toast.success('Webhook deleted')
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to delete webhook'),
   })
 
   if (isLoading) return <LoadingSpinner text="Loading partner details..." />
@@ -684,6 +736,178 @@ export default function PartnerDetail() {
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Webhooks Tab */}
+      {activeTab === 'webhooks' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-semibold text-gray-900">Partner Webhooks</h3>
+            <button className="btn-primary" onClick={() => {
+              setEditingWebhook(null); setWebhookForm({ ...EMPTY_WEBHOOK }); setShowWebhookModal(true)
+            }}>
+              <PlusIcon className="w-4 h-4" /> Add Webhook
+            </button>
+          </div>
+
+          {loadingWebhooks ? (
+            <LoadingSpinner />
+          ) : webhooks.length === 0 ? (
+            <div className="card">
+              <EmptyState
+                title="No webhooks configured"
+                description="Add a webhook to receive real-time event notifications for this partner."
+                action={
+                  <button className="btn-primary" onClick={() => {
+                    setEditingWebhook(null); setWebhookForm({ ...EMPTY_WEBHOOK }); setShowWebhookModal(true)
+                  }}>
+                    <PlusIcon className="w-4 h-4" /> Add Webhook
+                  </button>
+                }
+              />
+            </div>
+          ) : (
+            <div className="card p-0 overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr>
+                    <th className="table-header">URL</th>
+                    <th className="table-header">Events</th>
+                    <th className="table-header">Active</th>
+                    <th className="table-header">Last Triggered</th>
+                    <th className="table-header w-28">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {webhooks.map((wh) => (
+                    <tr key={wh.id} className="table-row">
+                      <td className="table-cell">
+                        <span className="font-mono text-xs text-gray-700 truncate max-w-[300px] block" title={wh.url}>{wh.url}</span>
+                      </td>
+                      <td className="table-cell">
+                        <div className="flex flex-wrap gap-1">
+                          {(wh.events || []).map(ev => (
+                            <span key={ev} className="badge badge-blue text-xs">{ev}</span>
+                          ))}
+                          {(!wh.events || wh.events.length === 0) && <span className="text-xs text-gray-400">All events</span>}
+                        </div>
+                      </td>
+                      <td className="table-cell">
+                        {wh.active ? (
+                          <span className="inline-flex items-center gap-1 badge badge-green"><CheckCircleIcon className="w-3 h-3" /> Active</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 badge badge-gray"><XCircleIcon className="w-3 h-3" /> Inactive</span>
+                        )}
+                      </td>
+                      <td className="table-cell text-xs text-gray-500">
+                        {wh.lastTriggeredAt ? format(new Date(wh.lastTriggeredAt), 'MMM d, yyyy HH:mm') : 'Never'}
+                      </td>
+                      <td className="table-cell">
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => {
+                              setEditingWebhook(wh)
+                              setWebhookForm({ url: wh.url || '', events: wh.events || [], active: wh.active !== false })
+                              setShowWebhookModal(true)
+                            }}
+                            className="p-1 rounded hover:bg-gray-100" title="Edit webhook"
+                          >
+                            <PencilSquareIcon className="w-4 h-4 text-gray-500" />
+                          </button>
+                          <button onClick={() => setDeleteWebhookConfirm(wh)} className="p-1 rounded hover:bg-gray-100" title="Delete webhook">
+                            <TrashIcon className="w-4 h-4 text-red-500" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Create/Edit Webhook Modal */}
+          {showWebhookModal && (
+            <Modal title={editingWebhook ? 'Edit Webhook' : 'Create Webhook'} onClose={() => { setShowWebhookModal(false); setEditingWebhook(null) }}>
+              <form onSubmit={e => {
+                e.preventDefault()
+                if (editingWebhook) {
+                  updateWebhookMut.mutate({ whId: editingWebhook.id, data: webhookForm })
+                } else {
+                  createWebhookMut.mutate(webhookForm)
+                }
+              }} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Webhook URL *</label>
+                  <input
+                    type="url"
+                    value={webhookForm.url}
+                    onChange={e => setWebhookForm(f => ({ ...f, url: e.target.value }))}
+                    required
+                    placeholder="https://partner.com/webhooks/file-events"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Events (select which events trigger this webhook)</label>
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    {WEBHOOK_EVENTS.map(ev => (
+                      <label key={ev} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={webhookForm.events.includes(ev)}
+                          onChange={e => {
+                            if (e.target.checked) {
+                              setWebhookForm(f => ({ ...f, events: [...f.events, ev] }))
+                            } else {
+                              setWebhookForm(f => ({ ...f, events: f.events.filter(x => x !== ev) }))
+                            }
+                          }}
+                          className="rounded border-gray-300 text-blue-600"
+                        />
+                        <span className="text-gray-700">{ev.replace(/_/g, ' ')}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">Leave all unchecked to receive all events.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={webhookForm.active}
+                    onChange={e => setWebhookForm(f => ({ ...f, active: e.target.checked }))}
+                    className="rounded border-gray-300 text-blue-600"
+                  />
+                  <label className="text-sm text-gray-700">Active</label>
+                </div>
+                <div className="flex gap-3 justify-end pt-2 border-t">
+                  <button type="button" className="btn-secondary" onClick={() => { setShowWebhookModal(false); setEditingWebhook(null) }}>Cancel</button>
+                  <button type="submit" className="btn-primary" disabled={createWebhookMut.isPending || updateWebhookMut.isPending}>
+                    {(createWebhookMut.isPending || updateWebhookMut.isPending)
+                      ? 'Saving...'
+                      : editingWebhook ? 'Update Webhook' : 'Create Webhook'}
+                  </button>
+                </div>
+              </form>
+            </Modal>
+          )}
+
+          {/* Delete confirmation */}
+          {deleteWebhookConfirm && (
+            <Modal title="Delete Webhook" onClose={() => setDeleteWebhookConfirm(null)}>
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Are you sure you want to delete the webhook for <strong className="font-mono text-xs">{deleteWebhookConfirm.url}</strong>?
+                </p>
+                <div className="flex gap-3 justify-end">
+                  <button className="btn-secondary" onClick={() => setDeleteWebhookConfirm(null)}>Cancel</button>
+                  <button className="btn-danger" onClick={() => deleteWebhookMut.mutate(deleteWebhookConfirm.id)} disabled={deleteWebhookMut.isPending}>
+                    {deleteWebhookMut.isPending ? 'Deleting...' : 'Delete Webhook'}
+                  </button>
+                </div>
+              </div>
+            </Modal>
           )}
         </div>
       )}

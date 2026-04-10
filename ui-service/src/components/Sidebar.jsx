@@ -34,6 +34,7 @@ import {
   BeakerIcon,
   AdjustmentsHorizontalIcon,
   ArrowRightOnRectangleIcon,
+  BellAlertIcon,
 } from '@heroicons/react/24/outline'
 
 const navGroups = [
@@ -82,10 +83,11 @@ const navGroups = [
     label: 'Compliance',
     items: [
       { to: '/compliance', icon: ShieldCheckIcon,     label: 'Compliance',      role: 'ADMIN', badge: 'compliance' },
-      { to: '/screening',  icon: MagnifyingGlassIcon, label: 'OFAC Screening' },
+      { to: '/screening',  icon: MagnifyingGlassIcon, label: 'Screening & DLP' },
       { to: '/sla',        icon: DocumentCheckIcon,   label: 'SLA Agreements' },
       { to: '/blockchain', icon: FingerPrintIcon,     label: 'Blockchain Proof' },
       { to: '/connectors', icon: BoltIcon,            label: 'Connectors',  role: 'ADMIN' },
+      { to: '/notifications', icon: BellAlertIcon,   label: 'Notifications', role: 'ADMIN' },
     ],
   },
   {

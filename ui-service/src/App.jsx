@@ -51,6 +51,7 @@ import Observatory from './pages/Observatory'
 import CircuitBreakers from './pages/CircuitBreakers'
 import CasDedup from './pages/CasDedup'
 import Compliance from './pages/Compliance'
+import Notifications from './pages/Notifications'
 
 export default function App() {
   return (
@@ -102,6 +103,7 @@ export default function App() {
             <Route path="tenants" element={<Tenants />} />
             <Route path="blockchain" element={<Blockchain />} />
             <Route path="compliance" element={<Compliance />} />
+            <Route path="notifications" element={<Notifications />} />
             <Route path="connectors" element={<Connectors />} />
             <Route path="platform-config" element={<PlatformConfig />} />
             <Route path="p2p" element={<PeerTransfers />} />
