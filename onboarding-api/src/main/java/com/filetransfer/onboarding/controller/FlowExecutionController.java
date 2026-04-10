@@ -1,9 +1,11 @@
 package com.filetransfer.onboarding.controller;
 
 import com.filetransfer.shared.entity.FlowApproval;
+import com.filetransfer.shared.entity.FlowEvent;
 import com.filetransfer.shared.entity.FlowExecution;
 import com.filetransfer.shared.repository.FlowExecutionRepository;
 import com.filetransfer.shared.routing.FlowApprovalService;
+import com.filetransfer.shared.routing.FlowEventJournal;
 import com.filetransfer.shared.routing.FlowRestartService;
 import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +48,7 @@ public class FlowExecutionController {
     private final FlowExecutionRepository executionRepo;
     private final FlowRestartService restartService;
     private final FlowApprovalService approvalService;
+    private final FlowEventJournal flowEventJournal;
 
     // ── Read ─────────────────────────────────────────────────────────────────
 
@@ -56,6 +59,13 @@ public class FlowExecutionController {
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "No execution for trackId=" + trackId));
+    }
+
+    /** Full event journal for a track ID — time-travel debugging. */
+    @GetMapping("/flow-events/{trackId}")
+    @PreAuthorize(Roles.VIEWER)
+    public List<FlowEvent> flowEvents(@PathVariable String trackId) {
+        return flowEventJournal.getHistory(trackId);
     }
 
     // ── Restart from beginning ────────────────────────────────────────────────
