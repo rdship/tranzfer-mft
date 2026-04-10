@@ -50,6 +50,10 @@ public class LocalStorageBackend implements StorageBackend {
     @Nullable
     private StorageLocationRegistry locationRegistry;
 
+    @Autowired(required = false)
+    @Nullable
+    private com.filetransfer.storage.lifecycle.WriteIntentService writeIntentService;
+
     @Value("${storage.hot.path:/data/storage/hot}")
     private String hotPath;
 
@@ -60,6 +64,12 @@ public class LocalStorageBackend implements StorageBackend {
         // then rename to {sha256} so the path is content-addressed.
         Path dest = Paths.get(hotPath, "tmp-" + Thread.currentThread().getId() + "-" + System.nanoTime());
 
+        // WAIL: record intent before write begins
+        com.filetransfer.storage.entity.WriteIntent intent = null;
+        if (writeIntentService != null) {
+            intent = writeIntentService.create(dest.toString(), sizeBytes, 0);
+        }
+
         long start = System.currentTimeMillis();
         ParallelIOEngine.WriteResult r = ioEngine.write(data, dest, sizeBytes);
         long durationMs = System.currentTimeMillis() - start;
@@ -68,12 +78,15 @@ public class LocalStorageBackend implements StorageBackend {
         Path casPath = Paths.get(hotPath, r.getSha256());
         if (Files.exists(casPath)) {
             Files.deleteIfExists(dest); // Dedup — content already stored
+            if (intent != null) writeIntentService.abandon(intent);
             if (locationRegistry != null) locationRegistry.register(r.getSha256());
             return new WriteResult(r.getSha256(), r.getSizeBytes(), r.getSha256(),
                     durationMs, r.getThroughputMbps(), true);
         }
         Files.move(dest, casPath);
 
+        // WAIL: mark intent completed after successful CAS rename
+        if (intent != null) writeIntentService.complete(intent, casPath.toString());
         if (locationRegistry != null) locationRegistry.register(r.getSha256());
         log.debug("[LocalBackend] Stored {} → {} ({} MB/s)", r.getSha256().substring(0, 8), casPath, String.format("%.1f", r.getThroughputMbps()));
 

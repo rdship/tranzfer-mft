@@ -2,6 +2,7 @@ package com.filetransfer.shared.flow;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
@@ -19,6 +20,7 @@ import java.util.Map;
  * For now, this provides the infrastructure and metrics endpoints.
  */
 @Component @Slf4j
+@ConditionalOnProperty(name = "flow.stages.enabled", havingValue = "true", matchIfMissing = false)
 public class FlowStageManager {
 
     @Value("${flow.stage.intake.queue:1000}")

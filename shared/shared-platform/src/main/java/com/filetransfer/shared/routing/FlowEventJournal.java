@@ -133,6 +133,22 @@ public class FlowEventJournal {
                 .stepIndex(fromStep).actor(requestedBy).build());
     }
 
+    @Async
+    public void recordExecutionResumed(String trackId, UUID executionId, int fromStep, String resumedBy) {
+        save(FlowEvent.builder()
+                .trackId(trackId).executionId(executionId)
+                .eventType("EXECUTION_RESUMED")
+                .stepIndex(fromStep).actor(resumedBy).build());
+    }
+
+    @Async
+    public void recordExecutionTerminated(String trackId, UUID executionId, String terminatedBy) {
+        save(FlowEvent.builder()
+                .trackId(trackId).executionId(executionId)
+                .eventType("EXECUTION_TERMINATED")
+                .status("CANCELLED").actor(terminatedBy).build());
+    }
+
     // ── Synchronous readers (for recovery and debugging) ─────────────────
 
     /** Get full event history for a track ID — used for time-travel debugging. */

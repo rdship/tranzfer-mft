@@ -111,9 +111,9 @@ public class StorageController {
                 "durationMs", result.durationMs()));
     }
 
-    /** Retrieve a file by trackId via the configured backend. */
+    /** Retrieve a file by trackId via streaming — no heap load. */
     @GetMapping("/retrieve/{trackId}")
-    public ResponseEntity<byte[]> retrieve(@PathVariable String trackId) throws Exception {
+    public void retrieve(@PathVariable String trackId, HttpServletResponse response) throws Exception {
         StorageObject obj = objectRepo.findByTrackIdAndDeletedFalse(trackId)
                 .orElseThrow(() -> new RuntimeException("File not found: " + trackId));
 
@@ -121,20 +121,18 @@ public class StorageController {
         obj.setLastAccessedAt(Instant.now());
         objectRepo.save(obj);
 
-        // Use sha256 (canonical key) if available; fall back to physicalPath for legacy records
         String storageKey = obj.getSha256() != null ? obj.getSha256() : obj.getPhysicalPath();
-        StorageBackend.ReadResult result = storageBackend.read(storageKey);
 
-        return ResponseEntity.ok()
-                .contentType(obj.getContentType() != null
-                        ? MediaType.parseMediaType(obj.getContentType())
-                        : MediaType.APPLICATION_OCTET_STREAM)
-                .header("Content-Disposition", "attachment; filename=\"" + obj.getFilename() + "\"")
-                .header("X-Track-Id", trackId)
-                .header("X-Storage-Tier", obj.getTier())
-                .header("X-SHA256", obj.getSha256())
-                .header("X-Storage-Backend", storageBackend.type())
-                .body(result.data());
+        response.setContentType(obj.getContentType() != null
+                ? obj.getContentType() : MediaType.APPLICATION_OCTET_STREAM_VALUE);
+        if (obj.getSizeBytes() > 0) response.setContentLengthLong(obj.getSizeBytes());
+        response.setHeader("Content-Disposition", "attachment; filename=\"" + obj.getFilename() + "\"");
+        response.setHeader("X-Track-Id", trackId);
+        response.setHeader("X-Storage-Tier", obj.getTier());
+        response.setHeader("X-SHA256", obj.getSha256() != null ? obj.getSha256() : "");
+        response.setHeader("X-Storage-Backend", storageBackend.type());
+
+        storageBackend.readTo(storageKey, response.getOutputStream());
     }
 
     /** List files by account or tier */
@@ -221,22 +219,19 @@ public class StorageController {
      * (works correctly in single-instance deployments and shared-storage deployments).
      */
     @GetMapping("/retrieve-by-key/{sha256}")
-    public ResponseEntity<byte[]> retrieveByKey(@PathVariable String sha256) throws Exception {
-        // ── S3 backend: read directly — no pod routing needed ─────────────────
-        // ── Local backend: cross-replica routing via Redis location registry ───
+    public void retrieveByKey(@PathVariable String sha256, HttpServletResponse response) throws Exception {
+        // ── Cross-replica routing via Redis location registry ───
         if (locationRegistry != null && !locationRegistry.isLocal(sha256)) {
-            byte[] proxied = locationRegistry.proxyRetrieve(sha256);
-            if (proxied != null) {
-                return ResponseEntity.ok()
-                        .header("X-SHA256", sha256)
-                        .header("X-Routed-From", locationRegistry.getOwnerUrl(sha256))
-                        .header("X-Storage-Backend", storageBackend.type())
-                        .body(proxied);
+            response.setHeader("X-SHA256", sha256);
+            response.setHeader("X-Routed-From", locationRegistry.getOwnerUrl(sha256));
+            response.setHeader("X-Storage-Backend", storageBackend.type());
+            if (locationRegistry.proxyRetrieveTo(sha256, response.getOutputStream())) {
+                return;
             }
             // Proxy failed — fall through to backend read (defensive)
         }
 
-        // ── Backend read (works for both local and S3) ────────────────────────
+        // ── Backend streaming read (works for both local and S3) ──────────────
         StorageObject obj = objectRepo.findBySha256AndDeletedFalse(sha256)
                 .orElseThrow(() -> new RuntimeException("File not found for key: " + sha256));
 
@@ -244,16 +239,14 @@ public class StorageController {
         obj.setLastAccessedAt(Instant.now());
         objectRepo.save(obj);
 
-        StorageBackend.ReadResult result = storageBackend.read(sha256);
+        response.setContentType(obj.getContentType() != null
+                ? obj.getContentType() : MediaType.APPLICATION_OCTET_STREAM_VALUE);
+        if (obj.getSizeBytes() > 0) response.setContentLengthLong(obj.getSizeBytes());
+        response.setHeader("X-Storage-Tier", obj.getTier());
+        response.setHeader("X-SHA256", obj.getSha256() != null ? obj.getSha256() : "");
+        response.setHeader("X-Storage-Backend", storageBackend.type());
 
-        return ResponseEntity.ok()
-                .contentType(obj.getContentType() != null
-                        ? MediaType.parseMediaType(obj.getContentType())
-                        : MediaType.APPLICATION_OCTET_STREAM)
-                .header("X-Storage-Tier", obj.getTier())
-                .header("X-SHA256", obj.getSha256())
-                .header("X-Storage-Backend", storageBackend.type())
-                .body(result.data());
+        storageBackend.readTo(sha256, response.getOutputStream());
     }
 
     /** Get reference count for a storage key (CAS garbage collection). */
@@ -376,7 +369,24 @@ public class StorageController {
         h.put("backend", storageBackend.type());
         h.put("features", List.of("parallel-io", "tiered-storage", "deduplication",
                 "incremental-backup", "ai-lifecycle", "predictive-prestage",
-                "s3-compatible-backend"));
+                "s3-compatible-backend", "streaming-reads", "zero-copy", "wail"));
         return h;
     }
+
+    /** DRP engine stats: I/O lanes, SEDA stages, write intents. */
+    @GetMapping("/drp-stats")
+    public Map<String, Object> drpStats() {
+        Map<String, Object> stats = new java.util.LinkedHashMap<>();
+        if (ioLaneManager != null) stats.put("ioLanes", ioLaneManager.getStats());
+        if (flowStageManager != null) stats.put("sedaStages", flowStageManager.getStats());
+        return stats;
+    }
+
+    @Autowired(required = false)
+    @Nullable
+    private com.filetransfer.shared.flow.IOLaneManager ioLaneManager;
+
+    @Autowired(required = false)
+    @Nullable
+    private com.filetransfer.shared.flow.FlowStageManager flowStageManager;
 }
