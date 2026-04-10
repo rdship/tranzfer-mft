@@ -47,6 +47,59 @@ public class ComplianceEnforcementService {
 
         List<ComplianceViolation> violations = new ArrayList<>();
 
+        // ── Geo-blocking check ─────────────────────────────────────────
+        if (ctx.sourceCountry() != null && !ctx.sourceCountry().isBlank()) {
+            String country = ctx.sourceCountry().toUpperCase();
+            if (profile.getBlockedCountries() != null && !profile.getBlockedCountries().isBlank()) {
+                if (java.util.Arrays.asList(profile.getBlockedCountries().toUpperCase().split(","))
+                        .contains(country)) {
+                    violations.add(buildViolation(ctx, profile, "BLOCKED_COUNTRY", "CRITICAL",
+                        "Login from country " + country + " is blocked by compliance profile '"
+                        + profile.getName() + "'"));
+                }
+            }
+            if (profile.getAllowedCountries() != null && !profile.getAllowedCountries().isBlank()) {
+                if (!java.util.Arrays.asList(profile.getAllowedCountries().toUpperCase().split(","))
+                        .contains(country)) {
+                    violations.add(buildViolation(ctx, profile, "COUNTRY_NOT_ALLOWED", "CRITICAL",
+                        "Login from country " + country + " is not in the allowed list ("
+                        + profile.getAllowedCountries() + ") for '" + profile.getName() + "'"));
+                }
+            }
+        }
+
+        // ── IP restriction check ───────────────────────────────────────
+        if (ctx.sourceIp() != null && profile.getBlockedIpCidrs() != null) {
+            for (String cidr : profile.getBlockedIpCidrs().split(",")) {
+                if (!cidr.isBlank() && isIpInCidr(ctx.sourceIp(), cidr.trim())) {
+                    violations.add(buildViolation(ctx, profile, "BLOCKED_IP", "CRITICAL",
+                        "IP " + ctx.sourceIp() + " is in blocked range " + cidr.trim()));
+                }
+            }
+        }
+
+        // ── Business hours check ───────────────────────────────────────
+        if (profile.isBusinessHoursOnly()) {
+            java.time.ZoneId zone = java.time.ZoneId.of(
+                profile.getBusinessHoursTimezone() != null ? profile.getBusinessHoursTimezone() : "UTC");
+            java.time.ZonedDateTime now = java.time.ZonedDateTime.now(zone);
+            int hour = now.getHour();
+            String dayOfWeek = now.getDayOfWeek().name().substring(0, 3); // MON, TUE, etc.
+
+            if (hour < profile.getBusinessHoursStart() || hour >= profile.getBusinessHoursEnd()) {
+                violations.add(buildViolation(ctx, profile, "OUTSIDE_BUSINESS_HOURS", "MEDIUM",
+                    "Transfer at " + hour + ":00 " + zone + " is outside business hours ("
+                    + profile.getBusinessHoursStart() + ":00-" + profile.getBusinessHoursEnd() + ":00)"));
+            }
+            if (profile.getAllowedDaysOfWeek() != null && !profile.getAllowedDaysOfWeek().isBlank()) {
+                if (!profile.getAllowedDaysOfWeek().toUpperCase().contains(dayOfWeek)) {
+                    violations.add(buildViolation(ctx, profile, "OUTSIDE_BUSINESS_DAYS", "MEDIUM",
+                        "Transfer on " + dayOfWeek + " is not allowed (allowed: "
+                        + profile.getAllowedDaysOfWeek() + ")"));
+                }
+            }
+        }
+
         // 1. File extension check — blocked extensions
         if (profile.getBlockedFileExtensions() != null && !profile.getBlockedFileExtensions().isBlank()) {
             String ext = getExtension(ctx.filename());
@@ -175,6 +228,31 @@ public class ComplianceEnforcementService {
         return levels.getOrDefault(actual, 0) > levels.getOrDefault(max, 2);
     }
 
+    private boolean isIpInCidr(String ip, String cidr) {
+        try {
+            String[] parts = cidr.split("/");
+            if (parts.length != 2) return false;
+            java.net.InetAddress cidrAddr = java.net.InetAddress.getByName(parts[0]);
+            java.net.InetAddress ipAddr = java.net.InetAddress.getByName(ip);
+            int prefixLen = Integer.parseInt(parts[1]);
+            byte[] cidrBytes = cidrAddr.getAddress();
+            byte[] ipBytes = ipAddr.getAddress();
+            if (cidrBytes.length != ipBytes.length) return false;
+            int fullBytes = prefixLen / 8;
+            for (int i = 0; i < fullBytes; i++) {
+                if (cidrBytes[i] != ipBytes[i]) return false;
+            }
+            int remainBits = prefixLen % 8;
+            if (remainBits > 0 && fullBytes < cidrBytes.length) {
+                int mask = (0xFF << (8 - remainBits)) & 0xFF;
+                if ((cidrBytes[fullBytes] & mask) != (ipBytes[fullBytes] & mask)) return false;
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private String getExtension(String filename) {
         if (filename == null) return "";
         int dot = filename.lastIndexOf('.');
@@ -197,7 +275,9 @@ public class ComplianceEnforcementService {
         boolean isEncrypted,
         boolean isTlsConnection,
         boolean hasChecksum,
-        Path filePath
+        Path filePath,
+        String sourceIp,          // client IP address for geo/IP checks
+        String sourceCountry      // resolved country code (ISO 3166-1 alpha-2) — null if unknown
     ) {}
 
     // ── Result record ──────────────────────────────────────────────────────

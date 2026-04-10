@@ -78,7 +78,8 @@ class ComplianceEnforcementTest {
     private ComplianceContext ctx(String filename) {
         return new ComplianceContext(
                 TRACK_ID, PROFILE_ID, SERVER_ID, SERVER_NAME, USERNAME,
-                filename, 1024L, false, true, true, Path.of("/tmp/" + filename)
+                filename, 1024L, false, true, true, Path.of("/tmp/" + filename),
+                null, null
         );
     }
 
@@ -86,14 +87,16 @@ class ComplianceEnforcementTest {
                                   boolean tls, boolean checksum) {
         return new ComplianceContext(
                 TRACK_ID, PROFILE_ID, SERVER_ID, SERVER_NAME, USERNAME,
-                filename, fileSize, encrypted, tls, checksum, Path.of("/tmp/" + filename)
+                filename, fileSize, encrypted, tls, checksum, Path.of("/tmp/" + filename),
+                null, null
         );
     }
 
     private ComplianceContext ctxNoProfile(String filename) {
         return new ComplianceContext(
                 TRACK_ID, null, SERVER_ID, SERVER_NAME, USERNAME,
-                filename, 1024L, false, true, true, Path.of("/tmp/" + filename)
+                filename, 1024L, false, true, true, Path.of("/tmp/" + filename),
+                null, null
         );
     }
 
@@ -702,7 +705,7 @@ class ComplianceEnforcementTest {
 
             ComplianceContext nullFilenameCtx = new ComplianceContext(
                     TRACK_ID, PROFILE_ID, SERVER_ID, SERVER_NAME, USERNAME,
-                    null, 1024L, false, true, true, null);
+                    null, 1024L, false, true, true, null, null, null);
 
             assertDoesNotThrow(() -> service.evaluate(nullFilenameCtx),
                     "Null filename must not throw NPE");

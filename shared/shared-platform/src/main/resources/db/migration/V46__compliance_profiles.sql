@@ -23,6 +23,42 @@ CREATE TABLE IF NOT EXISTS compliance_profiles (
     require_tls BOOLEAN NOT NULL DEFAULT TRUE,
     allow_anonymous_access BOOLEAN NOT NULL DEFAULT FALSE,
     require_mfa BOOLEAN NOT NULL DEFAULT FALSE,
+    -- Geo-blocking & IP restrictions
+    blocked_countries TEXT,
+    allowed_countries TEXT,
+    allowed_ip_cidrs TEXT,
+    blocked_ip_cidrs TEXT,
+    -- Business hours
+    business_hours_only BOOLEAN NOT NULL DEFAULT FALSE,
+    business_hours_start INTEGER NOT NULL DEFAULT 8,
+    business_hours_end INTEGER NOT NULL DEFAULT 18,
+    business_hours_timezone VARCHAR(50) DEFAULT 'UTC',
+    allowed_days_of_week TEXT,
+    -- Data retention & residency
+    data_retention_days INTEGER NOT NULL DEFAULT 90,
+    audit_retention_days INTEGER NOT NULL DEFAULT 365,
+    data_residency VARCHAR(10) DEFAULT 'ANY',
+    -- Encryption standards
+    min_encryption_key_bits INTEGER NOT NULL DEFAULT 256,
+    allowed_encryption_algorithms TEXT,
+    min_tls_version VARCHAR(5) DEFAULT '1.2',
+    -- Password & auth policy
+    min_password_length INTEGER NOT NULL DEFAULT 12,
+    require_password_complexity BOOLEAN NOT NULL DEFAULT TRUE,
+    password_rotation_days INTEGER NOT NULL DEFAULT 90,
+    max_failed_login_attempts INTEGER NOT NULL DEFAULT 5,
+    lockout_duration_minutes INTEGER NOT NULL DEFAULT 30,
+    -- Session management
+    max_session_idle_minutes INTEGER NOT NULL DEFAULT 30,
+    max_concurrent_sessions INTEGER NOT NULL DEFAULT 3,
+    -- Rate limiting
+    max_transfers_per_hour INTEGER NOT NULL DEFAULT 0,
+    max_transfers_per_day INTEGER NOT NULL DEFAULT 0,
+    max_data_per_day_bytes BIGINT NOT NULL DEFAULT 0,
+    -- Dual authorization
+    require_dual_authorization BOOLEAN NOT NULL DEFAULT FALSE,
+    dual_auth_threshold_bytes BIGINT NOT NULL DEFAULT 104857600,
+    -- Audit & enforcement
     audit_all_transfers BOOLEAN NOT NULL DEFAULT TRUE,
     notify_on_violation BOOLEAN NOT NULL DEFAULT TRUE,
     violation_action VARCHAR(10) NOT NULL DEFAULT 'BLOCK',
