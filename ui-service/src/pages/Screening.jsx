@@ -497,17 +497,17 @@ export default function Screening() {
                       <td className="table-cell">
                         <div className="flex gap-1">
                           <button onClick={(e) => { e.stopPropagation(); setExpandedRow(expandedRow === q.id ? null : q.id) }}
-                            className="p-1 rounded hover:bg-hover" title="Details">
+                            className="p-1 rounded hover:bg-hover" title="Details" aria-label="Details">
                             <EyeIcon className="w-4 h-4 text-secondary" />
                           </button>
                           {q.status === 'QUARANTINED' && (
                             <>
                               <button onClick={(e) => { e.stopPropagation(); setConfirmAction({ id: q.id, type: 'release', filename: q.filename }) }}
-                                className="p-1 rounded hover:bg-green-50" title="Release">
+                                className="p-1 rounded hover:bg-green-50" title="Release" aria-label="Release">
                                 <CheckCircleIcon className="w-4 h-4 text-green-600" />
                               </button>
                               <button onClick={(e) => { e.stopPropagation(); setConfirmAction({ id: q.id, type: 'delete', filename: q.filename }) }}
-                                className="p-1 rounded hover:bg-red-50" title="Delete permanently">
+                                className="p-1 rounded hover:bg-red-50" title="Delete permanently" aria-label="Delete permanently">
                                 <TrashIcon className="w-4 h-4 text-red-500" />
                               </button>
                             </>
@@ -658,11 +658,11 @@ export default function Screening() {
                     </td>
                     <td className="table-cell">
                       <div className="flex gap-1">
-                        <button onClick={(e) => { e.stopPropagation(); openEditPolicy(p) }} className="p-1 rounded hover:bg-hover" title="Edit">
+                        <button onClick={(e) => { e.stopPropagation(); openEditPolicy(p) }} className="p-1 rounded hover:bg-hover" title="Edit" aria-label="Edit">
                           <PencilSquareIcon className="w-4 h-4 text-secondary" />
                         </button>
                         <button onClick={(e) => { e.stopPropagation(); setConfirmDeletePolicy(p) }}
-                          className="p-1 rounded hover:bg-hover" title="Delete">
+                          className="p-1 rounded hover:bg-hover" title="Delete" aria-label="Delete">
                           <TrashIcon className="w-4 h-4 text-red-500" />
                         </button>
                       </div>
@@ -742,7 +742,7 @@ export default function Screening() {
                     </div>
                     <div className="col-span-1 flex justify-center">
                       {policyForm.patterns.length > 1 && (
-                        <button onClick={() => removePattern(idx)} className="p-1 rounded hover:bg-red-50" title="Remove">
+                        <button onClick={() => removePattern(idx)} className="p-1 rounded hover:bg-red-50" title="Remove" aria-label="Remove">
                           <TrashIcon className="w-4 h-4 text-red-400" />
                         </button>
                       )}
@@ -890,11 +890,11 @@ export default function Screening() {
                     </td>
                     <td className="table-cell">
                       <div className="flex gap-1">
-                        <button onClick={(e) => { e.stopPropagation(); openEditRule(rule) }} className="p-1 rounded hover:bg-hover" title="Edit">
+                        <button onClick={(e) => { e.stopPropagation(); openEditRule(rule) }} className="p-1 rounded hover:bg-hover" title="Edit" aria-label="Edit">
                           <PencilSquareIcon className="w-4 h-4 text-secondary" />
                         </button>
                         <button onClick={(e) => { e.stopPropagation(); setConfirmDeleteRule(rule) }}
-                          className="p-1 rounded hover:bg-hover" title="Delete">
+                          className="p-1 rounded hover:bg-hover" title="Delete" aria-label="Delete">
                           <TrashIcon className="w-4 h-4 text-red-500" />
                         </button>
                       </div>
@@ -1045,12 +1045,12 @@ export default function Screening() {
                           <>
                             <button onClick={(e) => { e.stopPropagation(); releaseFile.mutate(q.id) }}
                               disabled={releaseFile.isPending}
-                              className="p-1 rounded hover:bg-green-50" title="Release">
+                              className="p-1 rounded hover:bg-green-50" title="Release" aria-label="Release">
                               <CheckCircleIcon className="w-4 h-4 text-green-600" />
                             </button>
                             <button onClick={(e) => { e.stopPropagation(); deleteFile.mutate(q.id) }}
                               disabled={deleteFile.isPending}
-                              className="p-1 rounded hover:bg-red-50" title="Delete permanently">
+                              className="p-1 rounded hover:bg-red-50" title="Delete permanently" aria-label="Delete permanently">
                               <TrashIcon className="w-4 h-4 text-red-500" />
                             </button>
                           </>

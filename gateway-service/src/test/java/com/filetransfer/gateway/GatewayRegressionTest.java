@@ -1,5 +1,6 @@
 package com.filetransfer.gateway;
 
+import com.filetransfer.gateway.client.ConnectionAuditClient;
 import com.filetransfer.gateway.controller.GatewayStatusController;
 import com.filetransfer.gateway.routing.UserRoutingService;
 import com.filetransfer.shared.entity.TransferAccount;
@@ -35,6 +36,7 @@ class GatewayRegressionTest {
     @Mock private LegacyServerConfigRepository legacyRepo;
     @Mock private ServerInstanceRepository serverInstanceRepo;
     @Mock private TransferAccountRepository accountRepo;
+    @Mock private ConnectionAuditClient auditClient;
 
     private GatewayStatusController statusController;
     private UserRoutingService routingService;
@@ -54,7 +56,7 @@ class GatewayRegressionTest {
         setField(statusController, "internalFtpWebPort", 8083);
 
         // UserRoutingService
-        routingService = new UserRoutingService(accountRepo, legacyRepo, serverInstanceRepo);
+        routingService = new UserRoutingService(accountRepo, legacyRepo, serverInstanceRepo, auditClient);
         setField(routingService, "internalSftpHost", "sftp-service");
         setField(routingService, "internalSftpPort", 2222);
         setField(routingService, "internalFtpHost", "ftp-service");

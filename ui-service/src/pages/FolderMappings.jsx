@@ -448,9 +448,9 @@ export default function FolderMappings() {
                 </div>
                 <span className={`badge ${m.active ? 'badge-green' : 'badge-red'}`}>{m.active ? 'Active' : 'Disabled'}</span>
                 <span className="badge badge-blue">{m.encryptionOption || 'NONE'}</span>
-                <button onClick={() => openEdit(m)} title="Edit mapping"
+                <button onClick={() => openEdit(m)} title="Edit mapping" aria-label="Edit mapping"
                   className="p-1.5 rounded hover:bg-blue-50 text-blue-500 transition-colors"><PencilSquareIcon className="w-4 h-4" /></button>
-                <button onClick={() => setConfirmDelete(m)} title="Delete mapping"
+                <button onClick={() => setConfirmDelete(m)} title="Delete mapping" aria-label="Delete mapping"
                   className="p-1.5 rounded hover:bg-red-50 text-red-500"><TrashIcon className="w-4 h-4" /></button>
               </div>
             )

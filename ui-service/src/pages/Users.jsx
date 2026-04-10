@@ -286,9 +286,9 @@ export default function Users() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('email')}>Email {sortBy === 'email' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
-                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('role')}>Role {sortBy === 'role' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
-                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('status')}>Status {sortBy === 'status' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('email')} aria-sort={sortBy === 'email' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Email {sortBy === 'email' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('role')} aria-sort={sortBy === 'role' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Role {sortBy === 'role' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('status')} aria-sort={sortBy === 'status' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Status {sortBy === 'status' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                   <th className="table-header">Created</th>
                   <th className="table-header">Actions</th>
                 </tr>
@@ -330,6 +330,7 @@ export default function Users() {
                           onClick={(e) => { e.stopPropagation(); setDetailUser(u) }}
                           className="p-1.5 rounded hover:bg-accent-soft text-accent hover:text-accent transition-colors"
                           title="View details"
+                          aria-label="View details"
                         >
                           <EyeIcon className="w-4 h-4" />
                         </button>
@@ -337,6 +338,7 @@ export default function Users() {
                           onClick={(e) => { e.stopPropagation(); setResetPasswordUser(u); setNewPassword('') }}
                           className="p-1.5 rounded hover:bg-[rgb(60,50,20)] text-[rgb(240,200,100)] hover:text-[rgb(255,220,120)] transition-colors"
                           title="Reset password"
+                          aria-label="Reset password"
                         >
                           <KeyIcon className="w-4 h-4" />
                         </button>
@@ -344,6 +346,7 @@ export default function Users() {
                           onClick={(e) => { e.stopPropagation(); setDeleteConfirm(u) }}
                           className="p-1.5 rounded hover:bg-[rgb(60,20,20)] text-[rgb(240,120,120)] hover:text-[rgb(255,140,140)] transition-colors"
                           title="Delete user"
+                          aria-label="Delete user"
                         >
                           <TrashIcon className="w-4 h-4" />
                         </button>

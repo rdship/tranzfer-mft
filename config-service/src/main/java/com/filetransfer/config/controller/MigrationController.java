@@ -117,4 +117,25 @@ public class MigrationController {
     public List<Map<String, Object>> connectionStats() {
         return migrationService.getPartnerConnectionStats();
     }
+
+    /**
+     * Internal endpoint called by gateway-service to record inbound connections
+     * for migration tracking. Accessible via SPIFFE JWT-SVID (ROLE_INTERNAL).
+     */
+    @PostMapping("/audit-connection")
+    @PreAuthorize(Roles.INTERNAL)
+    public void auditConnection(@RequestBody Map<String, String> body) {
+        migrationService.recordConnection(
+            body.getOrDefault("username", ""),
+            body.getOrDefault("sourceIp", ""),
+            body.getOrDefault("protocol", ""),
+            body.getOrDefault("routedTo", "PLATFORM"),
+            body.get("legacyHost"),
+            body.get("partnerId") != null && !body.get("partnerId").isEmpty()
+                ? UUID.fromString(body.get("partnerId")) : null,
+            body.get("partnerName"),
+            !"false".equals(body.get("success")),
+            body.get("failureReason")
+        );
+    }
 }

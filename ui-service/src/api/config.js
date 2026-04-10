@@ -1,33 +1,19 @@
 import { configApi } from './client'
-export const getServers = () => configApi.get('/api/servers').then(r => r.data)
-export const createServer = (data) => configApi.post('/api/servers', data).then(r => r.data)
-export const updateServer = (id, data) => configApi.put(`/api/servers/${id}`, data).then(r => r.data)
-export const deleteServer = (id) => configApi.delete(`/api/servers/${id}`)
 export const getExternalDestinations = () => configApi.get('/api/external-destinations').then(r => r.data)
 export const createExternalDestination = (data) => configApi.post('/api/external-destinations', data).then(r => r.data)
 export const deleteExternalDestination = (id) => configApi.delete(`/api/external-destinations/${id}`)
-export const getEncryptionKeys = () => configApi.get('/api/encryption-keys').then(r => r.data)
-export const createEncryptionKey = (data) => configApi.post('/api/encryption-keys', data).then(r => r.data)
-export const deleteEncryptionKey = (id) => configApi.delete(`/api/encryption-keys/${id}`)
 export const getPartnerships = () => configApi.get('/api/as2-partnerships').then(r => r.data)
 export const createPartnership = (data) => configApi.post('/api/as2-partnerships', data).then(r => r.data)
-export const updatePartnership = (id, data) => configApi.put(`/api/as2-partnerships/${id}`, data).then(r => r.data)
 export const togglePartnership = (id) => configApi.patch(`/api/as2-partnerships/${id}/toggle`).then(r => r.data)
 export const deletePartnership = (id) => configApi.delete(`/api/as2-partnerships/${id}`)
 
 // Folder Templates
 export const getFolderTemplates = () => configApi.get('/api/folder-templates').then(r => r.data)
-export const getFolderTemplate = (id) => configApi.get(`/api/folder-templates/${id}`).then(r => r.data)
 export const createFolderTemplate = (data) => configApi.post('/api/folder-templates', data).then(r => r.data)
 export const updateFolderTemplate = (id, data) => configApi.put(`/api/folder-templates/${id}`, data).then(r => r.data)
 export const deleteFolderTemplate = (id) => configApi.delete(`/api/folder-templates/${id}`)
 export const exportAllFolderTemplates = () => configApi.get('/api/folder-templates/export').then(r => r.data)
 export const importFolderTemplates = (data) => configApi.post('/api/folder-templates/import', data).then(r => r.data)
-
-// Match Criteria
-export const getMatchFields = () => configApi.get('/api/flows/match-fields').then(r => r.data)
-export const validateCriteria = (criteria) => configApi.post('/api/flows/validate-criteria', criteria).then(r => r.data)
-export const testMatch = (criteria, fileContext) => configApi.post('/api/flows/test-match', { criteria, fileContext }).then(r => r.data)
 
 // VFS Storage Dashboard
 export const getVfsDashboard = () => configApi.get('/api/vfs/dashboard').then(r => r.data)

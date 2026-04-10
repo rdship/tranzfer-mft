@@ -190,13 +190,13 @@ export default function Accounts() {
             <thead>
               <tr className="border-b border-border">
                 <th className="table-header w-8"><input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleSelectAll} /></th>
-                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('username')}>Username {sortBy === 'username' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
-                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('protocol')}>Protocol {sortBy === 'protocol' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('username')} aria-sort={sortBy === 'username' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Username {sortBy === 'username' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('protocol')} aria-sort={sortBy === 'protocol' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Protocol {sortBy === 'protocol' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                 <th className="table-header">Server</th>
                 <th className="table-header">QoS</th>
                 <th className="table-header">Bandwidth</th>
                 <th className="table-header">Sessions</th>
-                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('active')}>Status {sortBy === 'active' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('active')} aria-sort={sortBy === 'active' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Status {sortBy === 'active' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                 <th className="table-header">Created</th>
                 <th className="table-header">Actions</th>
               </tr>
@@ -228,11 +228,11 @@ export default function Accounts() {
                   <td className="table-cell text-secondary text-xs">{acc.createdAt ? format(new Date(acc.createdAt), 'MMM d, yyyy') : '-'}</td>
                   <td className="table-cell">
                     <div className="flex gap-1">
-                      <button onClick={(e) => { e.stopPropagation(); openEdit(acc) }} title="Edit account"
+                      <button onClick={(e) => { e.stopPropagation(); openEdit(acc) }} title="Edit account" aria-label="Edit account"
                         className="p-1.5 rounded hover:bg-accent-soft text-accent hover:text-accent transition-colors">
                         <PencilSquareIcon className="w-4 h-4" />
                       </button>
-                      <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(acc) }} title="Delete account"
+                      <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(acc) }} title="Delete account" aria-label="Delete account"
                         className="p-1.5 rounded hover:bg-[rgb(60,20,20)] text-[rgb(240,120,120)] hover:text-[rgb(255,140,140)] transition-colors">
                         <TrashIcon className="w-4 h-4" />
                       </button>
@@ -283,8 +283,8 @@ export default function Accounts() {
             </FormField>
             {filteredInstances.length > 0 && (
               <div>
-                <label>Server Instance</label>
-                <select value={form.serverInstance} onChange={e => setForm(f => ({ ...f, serverInstance: e.target.value }))}>
+                <label htmlFor="acc-server-instance">Server Instance</label>
+                <select id="acc-server-instance" value={form.serverInstance} onChange={e => setForm(f => ({ ...f, serverInstance: e.target.value }))}>
                   <option value="">Any (no restriction)</option>
                   {filteredInstances.map(s => (
                     <option key={s.instanceId} value={s.instanceId}>{s.name} ({s.instanceId})</option>
@@ -309,30 +309,30 @@ export default function Accounts() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-secondary">Upload Limit (MB/s)</label>
-                  <input type="number" min="0" value={form.qos.uploadBytesPerSecond ? Math.round(form.qos.uploadBytesPerSecond / 1048576) : ''}
+                  <label htmlFor="acc-qos-upload" className="text-xs text-secondary">Upload Limit (MB/s)</label>
+                  <input id="acc-qos-upload" type="number" min="0" value={form.qos.uploadBytesPerSecond ? Math.round(form.qos.uploadBytesPerSecond / 1048576) : ''}
                     onChange={e => setForm(f => ({ ...f, qos: { ...f.qos, uploadBytesPerSecond: e.target.value ? Number(e.target.value) * 1048576 : 0 } }))}
                     placeholder="0 = unlimited" />
                 </div>
                 <div>
-                  <label className="text-xs text-secondary">Download Limit (MB/s)</label>
-                  <input type="number" min="0" value={form.qos.downloadBytesPerSecond ? Math.round(form.qos.downloadBytesPerSecond / 1048576) : ''}
+                  <label htmlFor="acc-qos-download" className="text-xs text-secondary">Download Limit (MB/s)</label>
+                  <input id="acc-qos-download" type="number" min="0" value={form.qos.downloadBytesPerSecond ? Math.round(form.qos.downloadBytesPerSecond / 1048576) : ''}
                     onChange={e => setForm(f => ({ ...f, qos: { ...f.qos, downloadBytesPerSecond: e.target.value ? Number(e.target.value) * 1048576 : 0 } }))}
                     placeholder="0 = unlimited" />
                 </div>
                 <div>
-                  <label className="text-xs text-secondary">Max Concurrent Sessions</label>
-                  <input type="number" min="1" max="100" value={form.qos.maxConcurrentSessions || ''}
+                  <label htmlFor="acc-qos-sessions" className="text-xs text-secondary">Max Concurrent Sessions</label>
+                  <input id="acc-qos-sessions" type="number" min="1" max="100" value={form.qos.maxConcurrentSessions || ''}
                     onChange={e => setForm(f => ({ ...f, qos: { ...f.qos, maxConcurrentSessions: Number(e.target.value) } }))} />
                 </div>
                 <div>
-                  <label className="text-xs text-secondary">Priority (1=Highest, 10=Lowest)</label>
-                  <input type="number" min="1" max="10" value={form.qos.priority || ''}
+                  <label htmlFor="acc-qos-priority" className="text-xs text-secondary">Priority (1=Highest, 10=Lowest)</label>
+                  <input id="acc-qos-priority" type="number" min="1" max="10" value={form.qos.priority || ''}
                     onChange={e => setForm(f => ({ ...f, qos: { ...f.qos, priority: Number(e.target.value) } }))} />
                 </div>
                 <div>
-                  <label className="text-xs text-secondary">Burst Allowance (%)</label>
-                  <input type="number" min="0" max="100" value={form.qos.burstAllowancePercent || ''}
+                  <label htmlFor="acc-qos-burst" className="text-xs text-secondary">Burst Allowance (%)</label>
+                  <input id="acc-qos-burst" type="number" min="0" max="100" value={form.qos.burstAllowancePercent || ''}
                     onChange={e => setForm(f => ({ ...f, qos: { ...f.qos, burstAllowancePercent: Number(e.target.value) } }))} />
                 </div>
               </div>
@@ -368,30 +368,30 @@ export default function Accounts() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-secondary">Upload Limit (MB/s)</label>
-                <input type="number" min="0" value={editQos.uploadBytesPerSecond ? Math.round(editQos.uploadBytesPerSecond / 1048576) : ''}
+                <label htmlFor="edit-qos-upload" className="text-xs text-secondary">Upload Limit (MB/s)</label>
+                <input id="edit-qos-upload" type="number" min="0" value={editQos.uploadBytesPerSecond ? Math.round(editQos.uploadBytesPerSecond / 1048576) : ''}
                   onChange={e => setEditQos(q => ({ ...q, uploadBytesPerSecond: e.target.value ? Number(e.target.value) * 1048576 : 0 }))}
                   placeholder="0 = unlimited" />
               </div>
               <div>
-                <label className="text-xs text-secondary">Download Limit (MB/s)</label>
-                <input type="number" min="0" value={editQos.downloadBytesPerSecond ? Math.round(editQos.downloadBytesPerSecond / 1048576) : ''}
+                <label htmlFor="edit-qos-download" className="text-xs text-secondary">Download Limit (MB/s)</label>
+                <input id="edit-qos-download" type="number" min="0" value={editQos.downloadBytesPerSecond ? Math.round(editQos.downloadBytesPerSecond / 1048576) : ''}
                   onChange={e => setEditQos(q => ({ ...q, downloadBytesPerSecond: e.target.value ? Number(e.target.value) * 1048576 : 0 }))}
                   placeholder="0 = unlimited" />
               </div>
               <div>
-                <label className="text-xs text-secondary">Max Concurrent Sessions</label>
-                <input type="number" min="1" max="100" value={editQos.maxConcurrentSessions || ''}
+                <label htmlFor="edit-qos-sessions" className="text-xs text-secondary">Max Concurrent Sessions</label>
+                <input id="edit-qos-sessions" type="number" min="1" max="100" value={editQos.maxConcurrentSessions || ''}
                   onChange={e => setEditQos(q => ({ ...q, maxConcurrentSessions: Number(e.target.value) }))} />
               </div>
               <div>
-                <label className="text-xs text-secondary">Priority (1=Highest, 10=Lowest)</label>
-                <input type="number" min="1" max="10" value={editQos.priority || ''}
+                <label htmlFor="edit-qos-priority" className="text-xs text-secondary">Priority (1=Highest, 10=Lowest)</label>
+                <input id="edit-qos-priority" type="number" min="1" max="10" value={editQos.priority || ''}
                   onChange={e => setEditQos(q => ({ ...q, priority: Number(e.target.value) }))} />
               </div>
               <div>
-                <label className="text-xs text-secondary">Burst Allowance (%)</label>
-                <input type="number" min="0" max="100" value={editQos.burstAllowancePercent || ''}
+                <label htmlFor="edit-qos-burst" className="text-xs text-secondary">Burst Allowance (%)</label>
+                <input id="edit-qos-burst" type="number" min="0" max="100" value={editQos.burstAllowancePercent || ''}
                   onChange={e => setEditQos(q => ({ ...q, burstAllowancePercent: Number(e.target.value) }))} />
               </div>
             </div>

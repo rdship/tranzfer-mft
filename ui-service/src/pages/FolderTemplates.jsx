@@ -249,12 +249,12 @@ export default function FolderTemplates() {
                     {!t.builtIn && (
                       <div className="flex gap-1 ml-2 flex-shrink-0">
                         <button className="p-1.5 rounded hover:bg-blue-50 text-muted hover:text-blue-600 transition-colors"
-                          onClick={(e) => { e.stopPropagation(); openEdit(t) }} title="Edit template">
+                          onClick={(e) => { e.stopPropagation(); openEdit(t) }} title="Edit template" aria-label="Edit template">
                           <PencilIcon className="w-4 h-4" />
                         </button>
                         <button className="p-1.5 rounded hover:bg-red-50 text-muted hover:text-red-600 transition-colors"
                           onClick={(e) => { e.stopPropagation(); setConfirmDelete(t) }}
-                          title="Delete template">
+                          title="Delete template" aria-label="Delete template">
                           <TrashIcon className="w-4 h-4" />
                         </button>
                       </div>
@@ -713,7 +713,7 @@ function TemplateForm({ form, setForm, onSubmit, addFolder, removeFolder, update
               {/* Remove button */}
               {form.folders.length > 1 && (
                 <button type="button" className="p-1.5 text-gray-300 hover:text-red-500 transition-colors mt-1"
-                  onClick={() => removeFolder(i)} title="Remove folder">
+                  onClick={() => removeFolder(i)} title="Remove folder" aria-label="Remove folder">
                   <TrashIcon className="w-4 h-4" />
                 </button>
               )}

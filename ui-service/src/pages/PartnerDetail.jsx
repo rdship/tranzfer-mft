@@ -955,11 +955,11 @@ export default function PartnerDetail() {
                                 setWebhookForm({ url: wh.url || '', events: wh.events || [], active: wh.active !== false })
                                 setShowWebhookModal(true)
                               }}
-                              className="p-1 rounded hover:bg-hover" title="Edit webhook"
+                              className="p-1 rounded hover:bg-hover" title="Edit webhook" aria-label="Edit webhook"
                             >
                               <PencilSquareIcon className="w-4 h-4 text-secondary" />
                             </button>
-                            <button onClick={() => setDeleteWebhookConfirm(wh)} className="p-1 rounded hover:bg-hover" title="Delete webhook">
+                            <button onClick={() => setDeleteWebhookConfirm(wh)} className="p-1 rounded hover:bg-hover" title="Delete webhook" aria-label="Delete webhook">
                               <TrashIcon className="w-4 h-4 text-red-500" />
                             </button>
                           </div>

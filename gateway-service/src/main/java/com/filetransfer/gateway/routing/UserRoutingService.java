@@ -1,5 +1,6 @@
 package com.filetransfer.gateway.routing;
 
+import com.filetransfer.gateway.client.ConnectionAuditClient;
 import com.filetransfer.shared.entity.LegacyServerConfig;
 import com.filetransfer.shared.entity.ServerInstance;
 import com.filetransfer.shared.entity.TransferAccount;
@@ -13,6 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Decides where to route a connecting user based on their server instance assignment.
@@ -30,6 +32,7 @@ public class UserRoutingService {
     private final TransferAccountRepository accountRepository;
     private final LegacyServerConfigRepository legacyServerConfigRepository;
     private final ServerInstanceRepository serverInstanceRepository;
+    private final ConnectionAuditClient connectionAuditClient;
 
     @Value("${gateway.internal-sftp-host:sftp-service}")
     private String internalSftpHost;
@@ -66,6 +69,9 @@ public class UserRoutingService {
         Optional<TransferAccount> account = accountRepository
                 .findByUsernameAndProtocolAndActiveTrue(username, protocol);
 
+        UUID partnerId = account.map(TransferAccount::getPartnerId).orElse(null);
+        RouteDecision decision;
+
         if (account.isPresent()) {
             String assignedInstance = account.get().getServerInstance();
 
@@ -77,7 +83,9 @@ public class UserRoutingService {
                     log.info("{} gateway: routing {} -> instance {} ({}:{})",
                             protocol, username, assignedInstance,
                             s.getInternalHost(), s.getInternalPort());
-                    return new RouteDecision(s.getInternalHost(), s.getInternalPort(), false);
+                    decision = new RouteDecision(s.getInternalHost(), s.getInternalPort(), false);
+                    auditConnection(username, protocol, decision, partnerId);
+                    return decision;
                 }
                 log.warn("{} gateway: user {} assigned to instance {} but instance not found/inactive, using default",
                         protocol, username, assignedInstance);
@@ -85,10 +93,14 @@ public class UserRoutingService {
 
             log.info("{} gateway: routing {} -> default ({}:{})",
                     protocol, username, defaultHost, defaultPort);
-            return new RouteDecision(defaultHost, defaultPort, false);
+            decision = new RouteDecision(defaultHost, defaultPort, false);
+            auditConnection(username, protocol, decision, partnerId);
+            return decision;
         }
 
-        return routeToLegacy(username, protocol);
+        decision = routeToLegacy(username, protocol);
+        auditConnection(username, protocol, decision, partnerId);
+        return decision;
     }
 
     private RouteDecision routeToLegacy(String username, Protocol protocol) {
@@ -104,6 +116,22 @@ public class UserRoutingService {
 
         log.warn("{} gateway: no legacy server configured for unknown user {}", protocol, username);
         return null; // caller must reject connection
+    }
+
+    /** Fire-and-forget audit of the routing decision for migration tracking. */
+    private void auditConnection(String username, Protocol protocol,
+                                  RouteDecision decision, UUID partnerId) {
+        if (decision == null) return;
+        try {
+            connectionAuditClient.recordConnection(
+                    username, null, protocol.name(),
+                    decision.isLegacy() ? "LEGACY" : "PLATFORM",
+                    decision.isLegacy() ? decision.host() : null,
+                    partnerId, null,
+                    true, null);
+        } catch (Exception e) {
+            log.debug("Connection audit fire-and-forget failed: {}", e.getMessage());
+        }
     }
 
     public record RouteDecision(String host, int port, boolean isLegacy) {}

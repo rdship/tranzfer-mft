@@ -469,6 +469,7 @@ function FileRow({
                 onClick={() => onConfirmAction({ id: file.id, type: 'release' })}
                 className="btn-secondary text-xs !px-2 !py-1 hover:!border-green-500/50 hover:!text-green-400"
                 title="Release from quarantine"
+                aria-label="Release from quarantine"
               >
                 <LockOpenIcon className="w-3.5 h-3.5" />
                 Release
@@ -477,6 +478,7 @@ function FileRow({
                 onClick={() => onConfirmAction({ id: file.id, type: 'delete' })}
                 className="btn-secondary text-xs !px-2 !py-1 hover:!border-red-500/50 hover:!text-red-400"
                 title="Delete permanently"
+                aria-label="Delete permanently"
               >
                 <TrashIcon className="w-3.5 h-3.5" />
                 Delete

@@ -582,7 +582,7 @@ export default function GatewayStatus() {
                           </span>
                         </td>
                         <td className="table-cell text-right" onClick={(e) => e.stopPropagation()}>
-                          <button onClick={() => setConfirmDeleteMapping(m)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted hover:text-red-600" title="Remove">
+                          <button onClick={() => setConfirmDeleteMapping(m)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted hover:text-red-600" title="Remove" aria-label="Remove">
                             <TrashIcon className="w-4 h-4" />
                           </button>
                         </td>
@@ -778,11 +778,11 @@ export default function GatewayStatus() {
                       <td className="px-4 py-3 text-secondary">{s.healthCheckUser || '—'}</td>
                       <td className="px-4 py-3"><span className={`badge ${s.active ? 'badge-green' : 'badge-red'}`}>{s.active ? 'Active' : 'Inactive'}</span></td>
                       <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => openEditLegacy(s)} className="p-1.5 rounded hover:bg-blue-50 text-blue-500 transition-colors" title="Edit">
+                        <button onClick={() => openEditLegacy(s)} className="p-1.5 rounded hover:bg-blue-50 text-blue-500 transition-colors" title="Edit" aria-label="Edit">
                           <EyeIcon className="w-4 h-4" />
                         </button>
                         <button onClick={() => setConfirmDeleteLegacy(s)}
-                          className="p-1.5 rounded hover:bg-red-50 text-red-500 transition-colors" title="Delete">
+                          className="p-1.5 rounded hover:bg-red-50 text-red-500 transition-colors" title="Delete" aria-label="Delete">
                           <TrashIcon className="w-4 h-4" />
                         </button>
                       </td>

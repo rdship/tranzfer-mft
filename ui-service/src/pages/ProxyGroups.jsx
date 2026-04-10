@@ -127,7 +127,7 @@ function GroupCard({ group, onEdit, onDelete }) {
               style={{ color: 'rgb(var(--tx-muted))' }}
               onMouseEnter={e => e.currentTarget.style.color = '#60a5fa'}
               onMouseLeave={e => e.currentTarget.style.color = 'rgb(var(--tx-muted))'}
-              title="Edit group">
+              title="Edit group" aria-label="Edit group">
               <PencilSquareIcon className="w-4 h-4" />
             </button>
             <button onClick={() => { if (confirm(`Delete proxy group "${group.name}"?`)) onDelete(group.id) }}
@@ -135,7 +135,7 @@ function GroupCard({ group, onEdit, onDelete }) {
               style={{ color: 'rgb(var(--tx-muted))' }}
               onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
               onMouseLeave={e => e.currentTarget.style.color = 'rgb(var(--tx-muted))'}
-              title="Delete group">
+              title="Delete group" aria-label="Delete group">
               <TrashIcon className="w-4 h-4" />
             </button>
           </div>

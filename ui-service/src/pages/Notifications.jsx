@@ -351,11 +351,11 @@ export default function Notifications() {
                     </td>
                     <td className="table-cell">
                       <div className="flex gap-1">
-                        <button onClick={(e) => { e.stopPropagation(); openEditRule(r) }} className="p-1 rounded hover:bg-hover" title="Edit">
+                        <button onClick={(e) => { e.stopPropagation(); openEditRule(r) }} className="p-1 rounded hover:bg-hover" title="Edit" aria-label="Edit">
                           <PencilSquareIcon className="w-4 h-4 text-secondary" />
                         </button>
                         <button onClick={(e) => { e.stopPropagation(); setConfirmDeleteRule(r) }}
-                          className="p-1 rounded hover:bg-hover" title="Delete">
+                          className="p-1 rounded hover:bg-hover" title="Delete" aria-label="Delete">
                           <TrashIcon className="w-4 h-4 text-red-500" />
                         </button>
                       </div>
@@ -510,11 +510,11 @@ export default function Notifications() {
                     </td>
                     <td className="table-cell">
                       <div className="flex gap-1">
-                        <button onClick={(e) => { e.stopPropagation(); openEditTemplate(t) }} className="p-1 rounded hover:bg-hover" title="Edit">
+                        <button onClick={(e) => { e.stopPropagation(); openEditTemplate(t) }} className="p-1 rounded hover:bg-hover" title="Edit" aria-label="Edit">
                           <PencilSquareIcon className="w-4 h-4 text-secondary" />
                         </button>
                         <button onClick={(e) => { e.stopPropagation(); setConfirmDeleteTemplate(t) }}
-                          className="p-1 rounded hover:bg-hover" title="Delete">
+                          className="p-1 rounded hover:bg-hover" title="Delete" aria-label="Delete">
                           <TrashIcon className="w-4 h-4 text-red-500" />
                         </button>
                       </div>

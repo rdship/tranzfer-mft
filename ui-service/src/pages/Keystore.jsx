@@ -353,12 +353,12 @@ export default function Keystore() {
           <table className="w-full">
             <thead>
               <tr className="border-b bg-canvas/50">
-                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('alias')}>Key {sortBy === 'alias' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
-                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('type')}>Type {sortBy === 'type' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('alias')} aria-sort={sortBy === 'alias' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Key {sortBy === 'alias' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('type')} aria-sort={sortBy === 'type' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Type {sortBy === 'type' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                 <th className="table-header">Algorithm</th>
                 <th className="table-header">Owner / Partner</th>
                 <th className="table-header">Fingerprint</th>
-                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('status')}>Expires {sortBy === 'status' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('status')} aria-sort={sortBy === 'status' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Expires {sortBy === 'status' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                 <th className="table-header">Created</th>
                 <th className="table-header text-right">Actions</th>
               </tr>
@@ -409,22 +409,22 @@ export default function Keystore() {
                       <div className="flex items-center justify-end gap-1">
                         {k.publicKeyMaterial && (
                           <button onClick={() => viewPublicKey(k.alias)}
-                            className="p-1.5 rounded-lg hover:bg-hover text-muted hover:text-blue-600" title="View Public Key">
+                            className="p-1.5 rounded-lg hover:bg-hover text-muted hover:text-blue-600" title="View Public Key" aria-label="View Public Key">
                             <EyeIcon className="w-4 h-4" />
                           </button>
                         )}
                         <a href={getDownloadUrl(k.alias, 'public')} download
-                          className="p-1.5 rounded-lg hover:bg-hover text-muted hover:text-green-600" title="Download">
+                          className="p-1.5 rounded-lg hover:bg-hover text-muted hover:text-green-600" title="Download" aria-label="Download">
                           <ArrowDownTrayIcon className="w-4 h-4" />
                         </a>
                         {['AES_SYMMETRIC', 'SSH_HOST_KEY', 'HMAC_SECRET'].includes(k.keyType) && (
                           <button onClick={() => setShowRotateConfirm(k)}
-                            className="p-1.5 rounded-lg hover:bg-hover text-muted hover:text-amber-600" title="Rotate">
+                            className="p-1.5 rounded-lg hover:bg-hover text-muted hover:text-amber-600" title="Rotate" aria-label="Rotate">
                             <ArrowPathIcon className="w-4 h-4" />
                           </button>
                         )}
                         <button onClick={() => setShowDeactivateConfirm(k)}
-                          className="p-1.5 rounded-lg hover:bg-hover text-muted hover:text-red-600" title="Deactivate">
+                          className="p-1.5 rounded-lg hover:bg-hover text-muted hover:text-red-600" title="Deactivate" aria-label="Deactivate">
                           <TrashIcon className="w-4 h-4" />
                         </button>
                       </div>
@@ -653,7 +653,7 @@ export default function Keystore() {
                       {k.fingerprint}
                     </code>
                     <button onClick={() => copyToClipboard(k.fingerprint)}
-                      className="p-2 rounded-lg hover:bg-hover text-muted hover:text-blue-600" title="Copy">
+                      className="p-2 rounded-lg hover:bg-hover text-muted hover:text-blue-600" title="Copy" aria-label="Copy">
                       <ClipboardDocumentIcon className="w-4 h-4" />
                     </button>
                   </div>

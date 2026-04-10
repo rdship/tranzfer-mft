@@ -222,6 +222,7 @@ function AccountsPanel({ server, onClose }) {
                   <button
                     onClick={() => setConfirmRevoke(a)}
                     title="Revoke access"
+                    aria-label="Revoke access"
                     className="p-1 rounded transition-colors"
                     style={{ color: 'rgb(var(--tx-muted))' }}
                     onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
@@ -455,13 +456,13 @@ export default function ServerInstances() {
             <thead>
               <tr className="border-b border-border">
                 <th className="table-header">Instance</th>
-                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('protocol')}>Protocol {sortBy === 'protocol' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
-                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('name')}>Name {sortBy === 'name' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('protocol')} aria-sort={sortBy === 'protocol' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Protocol {sortBy === 'protocol' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('name')} aria-sort={sortBy === 'name' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Name {sortBy === 'name' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                 <th className="table-header">Storage</th>
                 <th className="table-header">Internal</th>
-                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('connections')}>Client Connection {sortBy === 'connections' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('connections')} aria-sort={sortBy === 'connections' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Client Connection {sortBy === 'connections' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                 <th className="table-header">Security</th>
-                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('active')}>Status {sortBy === 'active' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('active')} aria-sort={sortBy === 'active' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Status {sortBy === 'active' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                 <th className="table-header">Actions</th>
               </tr>
             </thead>
@@ -531,6 +532,7 @@ export default function ServerInstances() {
                         <button
                           onClick={(e) => { e.stopPropagation(); setAccountsServer(s) }}
                           title="Manage accounts on this server"
+                          aria-label="Manage accounts on this server"
                           className="p-1.5 rounded hover:bg-purple-50 text-purple-400 hover:text-purple-600 transition-colors relative">
                           <UsersIcon className="w-4 h-4" />
                           {s.assignedAccountCount > 0 && (
@@ -543,13 +545,14 @@ export default function ServerInstances() {
                         <button
                           onClick={(e) => { e.stopPropagation(); maintenanceMut.mutate({ id: s.id, enable: !s.maintenanceMode }) }}
                           title={s.maintenanceMode ? 'Disable maintenance mode' : 'Enable maintenance mode'}
+                          aria-label={s.maintenanceMode ? 'Disable maintenance mode' : 'Enable maintenance mode'}
                           className={`p-1.5 rounded transition-colors ${s.maintenanceMode ? 'text-yellow-500 hover:bg-yellow-50' : 'text-gray-300 hover:bg-yellow-50 hover:text-yellow-500'}`}>
                           <WrenchScrewdriverIcon className="w-4 h-4" />
                         </button>
-                        <button onClick={(e) => { e.stopPropagation(); openEdit(s) }} title="Edit server" className="p-1.5 rounded hover:bg-blue-50 text-blue-500">
+                        <button onClick={(e) => { e.stopPropagation(); openEdit(s) }} title="Edit server" aria-label="Edit server" className="p-1.5 rounded hover:bg-blue-50 text-blue-500">
                           <PencilIcon className="w-4 h-4" />
                         </button>
-                        <button onClick={(e) => { e.stopPropagation(); setConfirmDeactivate(s) }} title="Deactivate server"
+                        <button onClick={(e) => { e.stopPropagation(); setConfirmDeactivate(s) }} title="Deactivate server" aria-label="Deactivate server"
                           className="p-1.5 rounded hover:bg-red-50 text-red-500">
                           <TrashIcon className="w-4 h-4" />
                         </button>
@@ -683,8 +686,8 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
       {/* ═══════ Section 1: Basic Information ═══════ */}
       <FormSection title="Basic Information" subtitle="Server identity and protocol">
         <div>
-          <label>Protocol *</label>
-          <select value={form.protocol} onChange={e => handleProtocolChange(e.target.value)}>
+          <label htmlFor="si-protocol">Protocol *</label>
+          <select id="si-protocol" value={form.protocol} onChange={e => handleProtocolChange(e.target.value)}>
             {PROTOCOLS.map(p => <option key={p} value={p}>{PROTOCOL_LABELS[p]}</option>)}
           </select>
           <p className="text-xs text-muted mt-1">Determines the file transfer protocol this server instance handles</p>
@@ -692,8 +695,8 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
 
         {showInstanceId && (
           <div>
-            <label>Instance ID *</label>
-            <input value={form.instanceId} onChange={e => f('instanceId', e.target.value)} required
+            <label htmlFor="si-instance-id">Instance ID *</label>
+            <input id="si-instance-id" value={form.instanceId} onChange={e => f('instanceId', e.target.value)} required
               placeholder={`${form.protocol.toLowerCase()}-3`} pattern="[a-z0-9\-]+" title="Lowercase letters, numbers, hyphens" />
             <p className="text-xs text-muted mt-1">Unique identifier (e.g., sftp-3, ftp-eu-west, ftpweb-2)</p>
           </div>
@@ -701,13 +704,13 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label>Name *</label>
-            <input value={form.name} onChange={e => f('name', e.target.value)} required placeholder="EU West Server" />
+            <label htmlFor="si-name">Name *</label>
+            <input id="si-name" value={form.name} onChange={e => f('name', e.target.value)} required placeholder="EU West Server" />
             <p className="text-xs text-muted mt-1">Human-readable name for this server</p>
           </div>
           <div>
-            <label>Description</label>
-            <input value={form.description} onChange={e => f('description', e.target.value)} placeholder="Production server for EU region" />
+            <label htmlFor="si-description">Description</label>
+            <input id="si-description" value={form.description} onChange={e => f('description', e.target.value)} placeholder="Production server for EU region" />
           </div>
         </div>
 
@@ -726,12 +729,12 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
           <p className="text-xs text-muted mb-3">Where the platform connects to this server internally</p>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label>Internal Host *</label>
-              <input value={form.internalHost} onChange={e => f('internalHost', e.target.value)} required placeholder={`${form.protocol.toLowerCase()}-service-3`} />
+              <label htmlFor="si-internal-host">Internal Host *</label>
+              <input id="si-internal-host" value={form.internalHost} onChange={e => f('internalHost', e.target.value)} required placeholder={`${form.protocol.toLowerCase()}-service-3`} />
             </div>
             <div>
-              <label>Internal Port *</label>
-              <input type="number" value={form.internalPort} onChange={e => f('internalPort', parseInt(e.target.value))} required />
+              <label htmlFor="si-internal-port">Internal Port *</label>
+              <input id="si-internal-port" type="number" value={form.internalPort} onChange={e => f('internalPort', parseInt(e.target.value))} required />
             </div>
           </div>
         </div>
@@ -741,12 +744,12 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
           <p className="text-xs text-muted mb-3">What partners/clients use to connect. Leave blank if same as internal.</p>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label>External Host</label>
-              <input value={form.externalHost} onChange={e => f('externalHost', e.target.value)} placeholder="files.example.com" />
+              <label htmlFor="si-external-host">External Host</label>
+              <input id="si-external-host" value={form.externalHost} onChange={e => f('externalHost', e.target.value)} placeholder="files.example.com" />
             </div>
             <div>
-              <label>External Port</label>
-              <input type="number" value={form.externalPort} onChange={e => f('externalPort', e.target.value ? parseInt(e.target.value) : '')} placeholder={String(DEFAULT_PORTS[form.protocol])} />
+              <label htmlFor="si-external-port">External Port</label>
+              <input id="si-external-port" type="number" value={form.externalPort} onChange={e => f('externalPort', e.target.value ? parseInt(e.target.value) : '')} placeholder={String(DEFAULT_PORTS[form.protocol])} />
             </div>
           </div>
         </div>
@@ -756,8 +759,8 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
       <FormSection title="Security" subtitle="Compliance, security tier, and authentication settings">
         {/* Compliance Profile dropdown */}
         <div>
-          <label>Compliance Profile</label>
-          <select value={form.complianceProfileId || ''} onChange={e => f('complianceProfileId', e.target.value || '')}>
+          <label htmlFor="si-compliance-profile">Compliance Profile</label>
+          <select id="si-compliance-profile" value={form.complianceProfileId || ''} onChange={e => f('complianceProfileId', e.target.value || '')}>
             <option value="">-- No compliance enforcement --</option>
             {complianceProfiles.map(p => (
               <option key={p.id} value={p.id}>{p.name}{p.description ? ` -- ${p.description}` : ''}</option>
@@ -768,8 +771,8 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
 
         {/* Security Profile (Listener Security Policy) */}
         <div>
-          <label>Security Profile</label>
-          <select value={form.securityProfileId || ''} onChange={e => f('securityProfileId', e.target.value || '')}>
+          <label htmlFor="si-security-profile">Security Profile</label>
+          <select id="si-security-profile" value={form.securityProfileId || ''} onChange={e => f('securityProfileId', e.target.value || '')}>
             <option value="">-- No security profile --</option>
             {securityProfiles.map(p => (
               <option key={p.id} value={p.id}>{p.name}{p.description ? ` -- ${p.description}` : ''}</option>
@@ -791,8 +794,8 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
 
         {/* Max Auth Attempts */}
         <div>
-          <label>Max Authentication Attempts</label>
-          <input type="number" min={1} max={10} value={form.maxAuthAttempts}
+          <label htmlFor="si-max-auth">Max Authentication Attempts</label>
+          <input id="si-max-auth" type="number" min={1} max={10} value={form.maxAuthAttempts}
             onChange={e => setForm(prev => ({ ...prev, maxAuthAttempts: Number(e.target.value) }))} />
           <p className="text-xs text-muted mt-1">Disconnect after this many failed login attempts (1-10)</p>
         </div>
@@ -801,8 +804,8 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
         {isSSH && (
           <>
             <div>
-              <label>SSH Banner Message</label>
-              <textarea rows={2} value={form.sshBannerMessage || ''} placeholder="Authorized access only. Connections are monitored."
+              <label htmlFor="si-ssh-banner">SSH Banner Message</label>
+              <textarea id="si-ssh-banner" rows={2} value={form.sshBannerMessage || ''} placeholder="Authorized access only. Connections are monitored."
                 onChange={e => setForm(prev => ({ ...prev, sshBannerMessage: e.target.value }))} />
               <p className="text-xs text-muted mt-1">Shown to SSH clients immediately after connecting (SFTP only)</p>
             </div>
@@ -829,18 +832,18 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
                   <p className="text-xs text-muted">Comma-separated allowlists. Leave blank to use server defaults.</p>
                   <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <label className="text-xs">Ciphers</label>
-                      <input value={form.allowedCiphers || ''} placeholder="aes256-gcm@openssh.com,..."
+                      <label htmlFor="si-ciphers" className="text-xs">Ciphers</label>
+                      <input id="si-ciphers" value={form.allowedCiphers || ''} placeholder="aes256-gcm@openssh.com,..."
                         onChange={e => setForm(prev => ({ ...prev, allowedCiphers: e.target.value }))} />
                     </div>
                     <div>
-                      <label className="text-xs">MACs</label>
-                      <input value={form.allowedMacs || ''} placeholder="hmac-sha2-256-etm@openssh.com,..."
+                      <label htmlFor="si-macs" className="text-xs">MACs</label>
+                      <input id="si-macs" value={form.allowedMacs || ''} placeholder="hmac-sha2-256-etm@openssh.com,..."
                         onChange={e => setForm(prev => ({ ...prev, allowedMacs: e.target.value }))} />
                     </div>
                     <div>
-                      <label className="text-xs">KEX</label>
-                      <input value={form.allowedKex || ''} placeholder="curve25519-sha256,..."
+                      <label htmlFor="si-kex" className="text-xs">KEX</label>
+                      <input id="si-kex" value={form.allowedKex || ''} placeholder="curve25519-sha256,..."
                         onChange={e => setForm(prev => ({ ...prev, allowedKex: e.target.value }))} />
                     </div>
                   </div>
@@ -855,19 +858,19 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
       <FormSection title="Session & Limits" subtitle="Connection limits, timeouts, and storage mode">
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label>Max Connections</label>
-            <input type="number" value={form.maxConnections} onChange={e => f('maxConnections', parseInt(e.target.value))} />
+            <label htmlFor="si-max-conn">Max Connections</label>
+            <input id="si-max-conn" type="number" value={form.maxConnections} onChange={e => f('maxConnections', parseInt(e.target.value))} />
             <p className="text-xs text-muted mt-1">Maximum simultaneous connections</p>
           </div>
           <div>
-            <label>Idle Timeout (seconds)</label>
-            <input type="number" min={0} value={form.idleTimeoutSeconds}
+            <label htmlFor="si-idle-timeout">Idle Timeout (seconds)</label>
+            <input id="si-idle-timeout" type="number" min={0} value={form.idleTimeoutSeconds}
               onChange={e => setForm(prev => ({ ...prev, idleTimeoutSeconds: Number(e.target.value) }))} />
             <p className="text-xs text-muted mt-1">0 = no timeout</p>
           </div>
           <div>
-            <label>Max Session Duration (seconds)</label>
-            <input type="number" min={0} value={form.sessionMaxDurationSeconds}
+            <label htmlFor="si-max-session">Max Session Duration (seconds)</label>
+            <input id="si-max-session" type="number" min={0} value={form.sessionMaxDurationSeconds}
               onChange={e => setForm(prev => ({ ...prev, sessionMaxDurationSeconds: Number(e.target.value) }))} />
             <p className="text-xs text-muted mt-1">0 = unlimited</p>
           </div>
@@ -929,12 +932,12 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
           <div className="space-y-4 pt-2">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label>Proxy Host</label>
-                <input value={form.proxyHost} onChange={e => f('proxyHost', e.target.value)} placeholder="proxy.example.com" />
+                <label htmlFor="si-proxy-host">Proxy Host</label>
+                <input id="si-proxy-host" value={form.proxyHost} onChange={e => f('proxyHost', e.target.value)} placeholder="proxy.example.com" />
               </div>
               <div>
-                <label>Proxy Port</label>
-                <input type="number" value={form.proxyPort} onChange={e => f('proxyPort', e.target.value ? parseInt(e.target.value) : '')} placeholder="2222" />
+                <label htmlFor="si-proxy-port">Proxy Port</label>
+                <input id="si-proxy-port" type="number" value={form.proxyPort} onChange={e => f('proxyPort', e.target.value ? parseInt(e.target.value) : '')} placeholder="2222" />
               </div>
             </div>
 
@@ -954,8 +957,8 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
 
             {/* Proxy Group (filtered by selected protocol) */}
             <div>
-              <label>Proxy Group</label>
-              <select value={form.proxyGroupName || ''} onChange={e => setForm(prev => ({ ...prev, proxyGroupName: e.target.value }))}>
+              <label htmlFor="si-proxy-group">Proxy Group</label>
+              <select id="si-proxy-group" value={form.proxyGroupName || ''} onChange={e => setForm(prev => ({ ...prev, proxyGroupName: e.target.value }))}>
                 <option value="">-- Default routing (no specific group) --</option>
                 {filteredProxyGroups.map(g => (
                   <option key={g.name} value={g.name}>{g.name} ({g.type})</option>
@@ -981,29 +984,29 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
               >
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-secondary">Max Bandwidth (MB/s)</label>
-                    <input type="number" min="0"
+                    <label htmlFor="si-pqos-bw" className="text-xs text-secondary">Max Bandwidth (MB/s)</label>
+                    <input id="si-pqos-bw" type="number" min="0"
                       value={form.proxyQos.maxBytesPerSecond ? Math.round(form.proxyQos.maxBytesPerSecond / 1048576) : ''}
                       onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, maxBytesPerSecond: e.target.value ? Number(e.target.value) * 1048576 : 0 } }))}
                       placeholder="0 = unlimited" />
                     <p className="text-xs text-muted mt-0.5">Aggregate for all connections through this mapping</p>
                   </div>
                   <div>
-                    <label className="text-xs text-secondary">Per-Connection Limit (MB/s)</label>
-                    <input type="number" min="0"
+                    <label htmlFor="si-pqos-per-conn" className="text-xs text-secondary">Per-Connection Limit (MB/s)</label>
+                    <input id="si-pqos-per-conn" type="number" min="0"
                       value={form.proxyQos.perConnectionMaxBytesPerSecond ? Math.round(form.proxyQos.perConnectionMaxBytesPerSecond / 1048576) : ''}
                       onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, perConnectionMaxBytesPerSecond: e.target.value ? Number(e.target.value) * 1048576 : 0 } }))}
                       placeholder="0 = unlimited" />
                   </div>
                   <div>
-                    <label className="text-xs text-secondary">Priority (1=Highest, 10=Lowest)</label>
-                    <input type="number" min="1" max="10"
+                    <label htmlFor="si-pqos-priority" className="text-xs text-secondary">Priority (1=Highest, 10=Lowest)</label>
+                    <input id="si-pqos-priority" type="number" min="1" max="10"
                       value={form.proxyQos.priority || 5}
                       onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, priority: Number(e.target.value) } }))} />
                   </div>
                   <div>
-                    <label className="text-xs text-secondary">Burst Allowance (%)</label>
-                    <input type="number" min="0" max="100"
+                    <label htmlFor="si-pqos-burst" className="text-xs text-secondary">Burst Allowance (%)</label>
+                    <input id="si-pqos-burst" type="number" min="0" max="100"
                       value={form.proxyQos.burstAllowancePercent || 20}
                       onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, burstAllowancePercent: Number(e.target.value) } }))} />
                   </div>
@@ -1091,8 +1094,8 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
             style={{ maxHeight: form.maintenanceMode ? '200px' : '0', opacity: form.maintenanceMode ? 1 : 0, overflow: 'hidden' }}
           >
             <div className="mt-3">
-              <label>Maintenance Message</label>
-              <input value={form.maintenanceMessage || ''} placeholder="Server under maintenance, back in 30 min"
+              <label htmlFor="si-maint-msg">Maintenance Message</label>
+              <input id="si-maint-msg" value={form.maintenanceMessage || ''} placeholder="Server under maintenance, back in 30 min"
                 onChange={e => setForm(prev => ({ ...prev, maintenanceMessage: e.target.value }))} />
               <p className="text-xs text-muted mt-1">Shown to clients attempting to connect during maintenance</p>
             </div>

@@ -1,5 +1,8 @@
+import { useId, cloneElement, isValidElement, Children } from 'react'
+
 /**
  * Reusable form field wrapper with required indicators, validation errors, and helper text.
+ * Automatically binds the label to the first input/select/textarea child via htmlFor/id.
  *
  * Usage:
  *   <FormField label="Email" required error={errors.email} helper="We'll send login credentials here">
@@ -7,19 +10,33 @@
  *   </FormField>
  */
 export default function FormField({ label, required, error, helper, children, className = '' }) {
+  const autoId = useId()
+  const fieldId = `ff-${autoId}`
+
+  // Clone the first input/select/textarea child to inject the generated id
+  const enhancedChildren = Children.map(children, (child, idx) => {
+    if (idx === 0 && isValidElement(child) && !child.props.id) {
+      const tag = typeof child.type === 'string' ? child.type : ''
+      if (['input', 'select', 'textarea'].includes(tag)) {
+        return cloneElement(child, { id: fieldId })
+      }
+    }
+    return child
+  })
+
   return (
     <div className={className}>
       {label && (
-        <label className="block text-sm font-medium text-primary mb-1">
+        <label htmlFor={fieldId} className="block text-sm font-medium text-primary mb-1">
           {label}
           {required && <span className="text-red-500 ml-0.5">*</span>}
         </label>
       )}
       <div className={error ? '[&>input]:border-red-300 [&>input]:focus:ring-red-500 [&>select]:border-red-300 [&>select]:focus:ring-red-500 [&>textarea]:border-red-300 [&>textarea]:focus:ring-red-500' : ''}>
-        {children}
+        {enhancedChildren}
       </div>
       {error && (
-        <p className="mt-1 text-xs text-red-600">{error}</p>
+        <p className="mt-1 text-xs text-red-600" role="alert">{error}</p>
       )}
       {!error && helper && (
         <p className="mt-1 text-xs text-muted">{helper}</p>

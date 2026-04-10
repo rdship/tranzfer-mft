@@ -756,7 +756,7 @@ export default function ActivityMonitor() {
               </div>
               <button onClick={() => qc.invalidateQueries(['activity-scheduled-retries'])}
                 className="p-1.5 text-muted hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-                title="Refresh now">
+                title="Refresh now" aria-label="Refresh now">
                 <ArrowPathIcon className="w-4 h-4" />
               </button>
             </div>

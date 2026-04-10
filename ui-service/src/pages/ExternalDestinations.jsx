@@ -126,7 +126,7 @@ export default function ExternalDestinations() {
               {['FTP', 'HTTP'].includes(d.type) && (
                 <span className="badge badge-red">No TLS</span>
               )}
-              <button onClick={() => setConfirmDelete(d)} title="Delete destination" className="p-1.5 rounded hover:bg-[rgb(60,20,20)] text-[rgb(240,120,120)]"><TrashIcon className="w-4 h-4" /></button>
+              <button onClick={() => setConfirmDelete(d)} title="Delete destination" aria-label="Delete destination" className="p-1.5 rounded hover:bg-[rgb(60,20,20)] text-[rgb(240,120,120)]"><TrashIcon className="w-4 h-4" /></button>
             </div>
           ))}
         </div>

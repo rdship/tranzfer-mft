@@ -269,6 +269,7 @@ export default function Sidebar() {
         <button
           onClick={logout}
           title="Sign out"
+          aria-label="Sign out"
           className="p-1.5 rounded-md transition-all flex-shrink-0"
           style={{ color: 'rgb(90, 95, 105)' }}
           onMouseEnter={e => { e.currentTarget.style.background = 'rgb(25, 25, 30)'; e.currentTarget.style.color = 'rgb(240, 120, 120)' }}

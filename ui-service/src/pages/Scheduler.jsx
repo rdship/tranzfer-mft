@@ -134,8 +134,8 @@ export default function Scheduler() {
       </div>
       <div className="card">
         <table className="w-full"><thead><tr className="border-b">
-          <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('name')}>Name {sortBy === 'name' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th><th className="table-header">Cron</th><th className="table-header">Type</th>
-          <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('nextRun')}>Last Run {sortBy === 'nextRun' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th><th className="table-header">Status</th><th className="table-header">Runs</th><th className="table-header cursor-pointer select-none" onClick={() => toggleSort('active')}>Actions {sortBy === 'active' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+          <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('name')} aria-sort={sortBy === 'name' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Name {sortBy === 'name' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th><th className="table-header">Cron</th><th className="table-header">Type</th>
+          <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('nextRun')} aria-sort={sortBy === 'nextRun' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Last Run {sortBy === 'nextRun' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th><th className="table-header">Status</th><th className="table-header">Runs</th><th className="table-header cursor-pointer select-none" onClick={() => toggleSort('active')} aria-sort={sortBy === 'active' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Actions {sortBy === 'active' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
         </tr></thead><tbody>
           {tasks.length === 0 ? (
             <tr><td colSpan={7} className="text-center py-8 text-secondary text-sm">No scheduled tasks yet. Create your first schedule to automate recurring jobs.</td></tr>
@@ -149,13 +149,13 @@ export default function Scheduler() {
               <td className="table-cell text-xs">{t.totalRuns} ({t.failedRuns} failed)</td>
               <td className="table-cell">
                 <div className="flex items-center gap-1">
-                  <button onClick={(e) => { e.stopPropagation(); openEdit(t) }} className="p-1 rounded hover:bg-hover" title="Edit task">
+                  <button onClick={(e) => { e.stopPropagation(); openEdit(t) }} className="p-1 rounded hover:bg-hover" title="Edit task" aria-label="Edit task">
                     <PencilSquareIcon className="w-4 h-4 text-secondary" />
                   </button>
                   <button onClick={(e) => { e.stopPropagation(); toggleMut.mutate(t.id) }} className={`text-xs px-2 py-0.5 rounded ${t.enabled ? 'text-red-600 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}>
                     {t.enabled ? 'Disable' : 'Enable'}
                   </button>
-                  <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(t) }} className="p-1 rounded hover:bg-hover" title="Delete task">
+                  <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(t) }} className="p-1 rounded hover:bg-hover" title="Delete task" aria-label="Delete task">
                     <TrashIcon className="w-4 h-4 text-red-500" />
                   </button>
                 </div>

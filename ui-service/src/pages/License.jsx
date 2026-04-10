@@ -243,6 +243,7 @@ export default function License() {
                             onClick={() => setShowRevokeConfirm(lic.id || lic.licenseId)}
                             className="p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-700 transition-colors"
                             title="Revoke license"
+                            aria-label="Revoke license"
                           >
                             <TrashIcon className="w-4 h-4" />
                           </button>

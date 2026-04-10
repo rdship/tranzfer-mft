@@ -382,14 +382,14 @@ export default function Partners() {
               <thead>
                 <tr className="border-b border-border">
                   <th className="table-header w-8"><input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleSelectAll} /></th>
-                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('companyName')}>Company {sortBy === 'companyName' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
-                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('partnerType')}>Type {sortBy === 'partnerType' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('companyName')} aria-sort={sortBy === 'companyName' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Company {sortBy === 'companyName' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('partnerType')} aria-sort={sortBy === 'partnerType' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Type {sortBy === 'partnerType' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                   <th className="table-header">Protocols</th>
-                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('status')}>Status {sortBy === 'status' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('status')} aria-sort={sortBy === 'status' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Status {sortBy === 'status' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                   <th className="table-header">Phase</th>
                   <th className="table-header">SLA Tier</th>
                   <th className="table-header">Accounts</th>
-                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('createdAt')}>Created {sortBy === 'createdAt' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('createdAt')} aria-sort={sortBy === 'createdAt' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Created {sortBy === 'createdAt' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                   <th className="table-header">Actions</th>
                 </tr>
               </thead>

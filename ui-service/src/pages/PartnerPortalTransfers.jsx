@@ -286,19 +286,19 @@ export default function PartnerPortalTransfers() {
           <table className="w-full">
             <thead>
               <tr style={{ borderBottom: '1px solid rgb(var(--border))' }}>
-                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('filename')}>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('filename')} aria-sort={sortField === 'filename' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
                   Filename <SortIndicator field="filename" />
                 </th>
-                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('size')}>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('size')} aria-sort={sortField === 'size' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
                   Size <SortIndicator field="size" />
                 </th>
-                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('status')}>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('status')} aria-sort={sortField === 'status' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
                   Status <SortIndicator field="status" />
                 </th>
-                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('startedAt')}>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('startedAt')} aria-sort={sortField === 'startedAt' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
                   Started <SortIndicator field="startedAt" />
                 </th>
-                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('completedAt')}>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('completedAt')} aria-sort={sortField === 'completedAt' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
                   Completed <SortIndicator field="completedAt" />
                 </th>
                 <th className="table-header">Track ID</th>
@@ -347,6 +347,7 @@ export default function PartnerPortalTransfers() {
                               <button
                                 className="btn-ghost text-xs px-2 py-1"
                                 title="Download receipt"
+                                aria-label="Download receipt"
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   receiptMutation.mutate(t.trackId)

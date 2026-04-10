@@ -240,10 +240,10 @@ export default function Compliance() {
                   </td>
                   <td className="table-cell">
                     <div className="flex gap-1">
-                      <button onClick={(e) => { e.stopPropagation(); openEdit(p) }} className="p-1 rounded hover:bg-hover" title="Edit">
+                      <button onClick={(e) => { e.stopPropagation(); openEdit(p) }} className="p-1 rounded hover:bg-hover" title="Edit" aria-label="Edit">
                         <PencilSquareIcon className="w-4 h-4 text-secondary" />
                       </button>
-                      <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(p) }} className="p-1 rounded hover:bg-hover" title="Deactivate">
+                      <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(p) }} className="p-1 rounded hover:bg-hover" title="Deactivate" aria-label="Deactivate">
                         <TrashIcon className="w-4 h-4 text-red-500" />
                       </button>
                     </div>

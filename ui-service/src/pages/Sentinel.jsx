@@ -268,6 +268,7 @@ function FindingsTab() {
                         <button
                           onClick={() => navigate(`/quarantine`)}
                           title="Quarantine File"
+                          aria-label="Quarantine File"
                           className="text-xs px-2 py-0.5 bg-orange-600/20 text-orange-400 rounded hover:bg-orange-600/30"
                         >
                           <ShieldExclamationIcon className="w-3 h-3 inline" />
@@ -308,6 +309,7 @@ function FindingsTab() {
                         <button
                           onClick={() => navigate(f.trackId ? `/logs?search=${encodeURIComponent(f.trackId)}` : `/logs?service=${encodeURIComponent(f.affectedService)}`)}
                           title="View Logs"
+                          aria-label="View Logs"
                           className="text-xs px-2 py-0.5 bg-gray-600/20 text-gray-300 rounded hover:bg-gray-600/30"
                         >
                           <DocumentTextIcon className="w-3 h-3 inline" />
@@ -317,6 +319,7 @@ function FindingsTab() {
                         <button
                           onClick={() => navigate(`/journey?trackId=${encodeURIComponent(f.trackId)}`)}
                           title="View Journey"
+                          aria-label="View Journey"
                           className="text-xs px-2 py-0.5 bg-blue-600/20 text-blue-400 rounded hover:bg-blue-600/30"
                         >
                           <MagnifyingGlassIcon className="w-3 h-3 inline" />

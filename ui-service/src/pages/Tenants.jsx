@@ -79,9 +79,9 @@ export default function Tenants() {
               <p>{t.transfersUsed || 0} transfers</p>
               {t.trialEndsAt && <p>Trial ends: {format(new Date(t.trialEndsAt), 'MMM d')}</p>}
             </div>
-            <button onClick={() => openEdit(t)} title="Edit tenant"
+            <button onClick={() => openEdit(t)} title="Edit tenant" aria-label="Edit tenant"
               className="p-1.5 rounded hover:bg-[rgba(100,140,255,0.1)] text-blue-500 transition-colors"><PencilSquareIcon className="w-4 h-4" /></button>
-            <button onClick={() => setConfirmDelete(t)} title="Delete tenant"
+            <button onClick={() => setConfirmDelete(t)} title="Delete tenant" aria-label="Delete tenant"
               className="p-1.5 rounded hover:bg-red-50 text-red-500 transition-colors"><TrashIcon className="w-4 h-4" /></button>
           </div>
         ))}

@@ -165,6 +165,7 @@ export default function ClusterDashboard() {
             }}
             className="btn-ghost"
             title="Refresh"
+            aria-label="Refresh"
           >
             <ArrowPathIcon className="w-4 h-4" />
           </button>
@@ -422,6 +423,7 @@ export default function ClusterDashboard() {
                           onClick={() => openEditSettings(cluster)}
                           className="btn-ghost"
                           title="Settings"
+                          aria-label="Settings"
                         >
                           <Cog6ToothIcon className="w-4 h-4" />
                         </button>

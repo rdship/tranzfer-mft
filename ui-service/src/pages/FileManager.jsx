@@ -316,6 +316,7 @@ export default function FileManager() {
                   onClick={() => refetchFiles()}
                   className="btn-ghost"
                   title="Refresh"
+                  aria-label="Refresh"
                 >
                   <ArrowPathIcon className="w-4 h-4" />
                 </button>
@@ -324,6 +325,7 @@ export default function FileManager() {
                     onClick={() => setViewMode('list')}
                     className={`p-1.5 transition-colors ${viewMode === 'list' ? 'bg-accent/15 text-accent' : 'text-secondary hover:text-primary'}`}
                     title="List view"
+                    aria-label="List view"
                   >
                     <ListBulletIcon className="w-4 h-4" />
                   </button>
@@ -331,6 +333,7 @@ export default function FileManager() {
                     onClick={() => setViewMode('grid')}
                     className={`p-1.5 transition-colors ${viewMode === 'grid' ? 'bg-accent/15 text-accent' : 'text-secondary hover:text-primary'}`}
                     title="Grid view"
+                    aria-label="Grid view"
                   >
                     <Squares2X2Icon className="w-4 h-4" />
                   </button>
@@ -459,6 +462,7 @@ export default function FileManager() {
                                   onClick={() => handleDownload(item)}
                                   className="p-1.5 rounded-lg text-secondary hover:text-accent hover:bg-hover transition-colors"
                                   title="Download"
+                                  aria-label="Download"
                                 >
                                   <ArrowDownTrayIcon className="w-4 h-4" />
                                 </button>
@@ -467,6 +471,7 @@ export default function FileManager() {
                                 onClick={() => openRename(item)}
                                 className="p-1.5 rounded-lg text-secondary hover:text-primary hover:bg-hover transition-colors"
                                 title="Rename"
+                                aria-label="Rename"
                               >
                                 <PencilSquareIcon className="w-4 h-4" />
                               </button>
@@ -474,6 +479,7 @@ export default function FileManager() {
                                 onClick={() => setDeleteConfirm(item)}
                                 className="p-1.5 rounded-lg text-secondary hover:text-red-400 hover:bg-red-500/10 transition-colors"
                                 title="Delete"
+                                aria-label="Delete"
                               >
                                 <TrashIcon className="w-4 h-4" />
                               </button>
@@ -517,6 +523,7 @@ export default function FileManager() {
                             onClick={() => handleDownload(item)}
                             className="p-1 rounded text-secondary hover:text-accent hover:bg-hover transition-colors"
                             title="Download"
+                            aria-label="Download"
                           >
                             <ArrowDownTrayIcon className="w-3.5 h-3.5" />
                           </button>
@@ -525,6 +532,7 @@ export default function FileManager() {
                           onClick={() => openRename(item)}
                           className="p-1 rounded text-secondary hover:text-primary hover:bg-hover transition-colors"
                           title="Rename"
+                          aria-label="Rename"
                         >
                           <PencilSquareIcon className="w-3.5 h-3.5" />
                         </button>
@@ -532,6 +540,7 @@ export default function FileManager() {
                           onClick={() => setDeleteConfirm(item)}
                           className="p-1 rounded text-secondary hover:text-red-400 hover:bg-red-500/10 transition-colors"
                           title="Delete"
+                          aria-label="Delete"
                         >
                           <TrashIcon className="w-3.5 h-3.5" />
                         </button>

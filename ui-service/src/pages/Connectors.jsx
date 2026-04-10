@@ -65,6 +65,7 @@ function WebhookCard({ hook, onEdit, onDelete, onTest, testPending }) {
           onMouseEnter={e => e.currentTarget.style.color = '#8b5cf6'}
           onMouseLeave={e => e.currentTarget.style.color = 'rgb(var(--tx-muted))'}
           title="Send test event"
+          aria-label="Send test event"
         >
           <ArrowPathIcon className="w-4 h-4" />
         </button>
@@ -75,6 +76,7 @@ function WebhookCard({ hook, onEdit, onDelete, onTest, testPending }) {
           onMouseEnter={e => e.currentTarget.style.color = '#60a5fa'}
           onMouseLeave={e => e.currentTarget.style.color = 'rgb(var(--tx-muted))'}
           title="Edit"
+          aria-label="Edit"
         >
           <PencilSquareIcon className="w-4 h-4" />
         </button>
@@ -85,6 +87,7 @@ function WebhookCard({ hook, onEdit, onDelete, onTest, testPending }) {
           onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
           onMouseLeave={e => e.currentTarget.style.color = 'rgb(var(--tx-muted))'}
           title="Delete"
+          aria-label="Delete"
         >
           <TrashIcon className="w-4 h-4" />
         </button>

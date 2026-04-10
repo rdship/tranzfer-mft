@@ -15,6 +15,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 /**
@@ -49,6 +51,7 @@ public class PlatformBootstrapService {
     private final ScheduledTaskRepository scheduledTaskRepository;
     private final TenantRepository tenantRepository;
     private final ComplianceProfileRepository complianceProfileRepository;
+    private final MigrationEventRepository migrationEventRepository;
     private final PasswordEncoder passwordEncoder;
 
     @EventListener(ApplicationReadyEvent.class)
@@ -204,6 +207,9 @@ public class PlatformBootstrapService {
         // Create primary contacts for each partner
         seedPartnerContacts(saved);
 
+        // ── Migration seed data — makes Acme Corp + GlobalBank look mid-migration ──
+        seedMigrationData(saved);
+
         saved.forEach(p -> log.info("[Bootstrap] Created partner: {} (slug={}, status={}, industry={})",
                 p.getCompanyName(), p.getSlug(), p.getStatus(), p.getIndustry()));
         return saved;
@@ -251,6 +257,60 @@ public class PlatformBootstrapService {
                 .role(role)
                 .isPrimary(true)
                 .build();
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 3b. Migration seed data — realistic mid-migration state for demo
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private void seedMigrationData(List<Partner> partners) {
+        // Acme Corp — completed migration from Axway
+        Partner acme = partners.get(0);
+        acme.setMigrationStatus("COMPLETED");
+        acme.setMigrationSource("axway-prod-01");
+        acme.setMigrationStartedAt(Instant.now().minus(30, ChronoUnit.DAYS));
+        acme.setMigrationCompletedAt(Instant.now().minus(5, ChronoUnit.DAYS));
+        acme.setVerificationTransferCount(247);
+        partnerRepository.save(acme);
+
+        // GlobalBank — in-progress migration with shadow mode from Sterling
+        Partner globalBank = partners.get(1);
+        globalBank.setMigrationStatus("SHADOW_MODE");
+        globalBank.setMigrationSource("sterling-legacy");
+        globalBank.setMigrationStartedAt(Instant.now().minus(10, ChronoUnit.DAYS));
+        globalBank.setShadowModeEnabled(true);
+        globalBank.setLegacyHost("legacy-sftp.globalbank.com");
+        globalBank.setLegacyPort(22);
+        globalBank.setLegacyUsername("globalbank-sftp");
+        partnerRepository.save(globalBank);
+
+        // Migration events — audit trail
+        migrationEventRepository.save(MigrationEvent.builder()
+                .partnerId(acme.getId())
+                .partnerName(acme.getCompanyName())
+                .eventType("CUTOVER_COMPLETED")
+                .details("Migration completed \u2014 partner fully on TranzFer")
+                .actor("admin@company.com")
+                .build());
+
+        migrationEventRepository.save(MigrationEvent.builder()
+                .partnerId(acme.getId())
+                .partnerName(acme.getCompanyName())
+                .eventType("VERIFICATION_PASSED")
+                .details("247 transfers verified against Axway source \u2014 zero discrepancies")
+                .actor("admin@company.com")
+                .build());
+
+        migrationEventRepository.save(MigrationEvent.builder()
+                .partnerId(globalBank.getId())
+                .partnerName(globalBank.getCompanyName())
+                .eventType("SHADOW_ENABLED")
+                .details("Shadow mode activated \u2014 mirroring traffic from sterling-legacy")
+                .actor("admin@company.com")
+                .build());
+
+        log.info("[Bootstrap] Seeded migration data: Acme Corp=COMPLETED, GlobalBank=SHADOW_MODE");
+        log.info("[Bootstrap] Seeded 3 migration events");
     }
 
     // ──────────────────────────────────────────────────────────────────────────

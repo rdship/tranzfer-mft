@@ -234,10 +234,10 @@ export default function DlqManager() {
               <tr className="border-b border-border text-muted text-xs uppercase tracking-wider">
                 <th className="px-4 py-3 text-left w-8"></th>
                 <th className="px-4 py-3 text-left">ID</th>
-                <th className="px-4 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort('queue')}>Original Queue {sortBy === 'queue' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                <th className="px-4 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort('queue')} aria-sort={sortBy === 'queue' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Original Queue {sortBy === 'queue' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                 <th className="px-4 py-3 text-left">Error Message</th>
-                <th className="px-4 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort('failedAt')}>Failed At {sortBy === 'failedAt' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
-                <th className="px-4 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort('retryCount')}>Retries {sortBy === 'retryCount' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                <th className="px-4 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort('failedAt')} aria-sort={sortBy === 'failedAt' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Failed At {sortBy === 'failedAt' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                <th className="px-4 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort('retryCount')} aria-sort={sortBy === 'retryCount' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Retries {sortBy === 'retryCount' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                 <th className="px-4 py-3 text-left">Status</th>
                 <th className="px-4 py-3 text-left">Actions</th>
               </tr>

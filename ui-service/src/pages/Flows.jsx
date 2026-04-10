@@ -403,6 +403,7 @@ function ExecutionRow({ ex, selected, onToggle, onSkipStep, skipPending, onSched
                 disabled={schedulePending}
                 className="p-0.5 text-muted hover:text-red-500 transition-colors"
                 title="Cancel scheduled retry"
+                aria-label="Cancel scheduled retry"
               >
                 <XCircleIcon className="w-3.5 h-3.5" />
               </button>
@@ -1362,7 +1363,7 @@ export default function Flows() {
                   </button>
                   <button onClick={(e) => { e.stopPropagation(); openEdit(flow) }}
                     className="p-2 text-muted hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                    title="Edit flow">
+                    title="Edit flow" aria-label="Edit flow">
                     <PencilSquareIcon className="w-4 h-4" />
                   </button>
                   <button onClick={(e) => { e.stopPropagation(); toggleMut.mutate(flow.id) }}
@@ -1378,7 +1379,7 @@ export default function Flows() {
                     setConfirmDeleteFlow(flow)
                   }}
                     className="p-2 text-muted hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Delete flow">
+                    title="Delete flow" aria-label="Delete flow">
                     <TrashIcon className="w-4 h-4" />
                   </button>
                 </div>
@@ -1442,6 +1443,7 @@ export default function Flows() {
                   disabled={cancelScheduleMut.isPending}
                   className="text-muted hover:text-red-500 transition-colors"
                   title="Cancel scheduled retry"
+                  aria-label="Cancel scheduled retry"
                 >
                   <XCircleIcon className="w-4 h-4" />
                 </button>
@@ -1496,7 +1498,7 @@ export default function Flows() {
             )}
             <button onClick={() => qc.invalidateQueries(['flow-executions'])}
               className="p-1.5 text-muted hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-              title="Refresh now">
+              title="Refresh now" aria-label="Refresh now">
               <ArrowPathIcon className="w-4 h-4" />
             </button>
           </div>
@@ -1655,14 +1657,14 @@ export default function Flows() {
               <label className="text-xs font-semibold text-secondary uppercase tracking-wider">Flow Details</label>
               <div className="mt-2 grid grid-cols-2 gap-4">
                 <div>
-                  <label>Flow Name</label>
-                  <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  <label htmlFor="flow-name">Flow Name</label>
+                  <input id="flow-name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                     required placeholder="e.g. partner-inbound-pgp" />
                 </div>
                 <div>
-                  <label>Priority (lower = matched first)</label>
+                  <label htmlFor="flow-priority">Priority (lower = matched first)</label>
                   <div className="flex items-center gap-3">
-                    <input type="range" min="1" max="1000" value={form.priority}
+                    <input id="flow-priority" type="range" min="1" max="1000" value={form.priority}
                       onChange={e => setForm(f => ({ ...f, priority: parseInt(e.target.value) }))}
                       className="flex-1 h-2 bg-gray-200 rounded-lg appearance-auto cursor-pointer accent-blue-600" />
                     <input type="number" min="1" max="1000" value={form.priority}
@@ -1672,8 +1674,8 @@ export default function Flows() {
                 </div>
               </div>
               <div className="mt-3">
-                <label>Description</label>
-                <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                <label htmlFor="flow-description">Description</label>
+                <input id="flow-description" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                   placeholder="What this flow does..." />
               </div>
             </div>
@@ -1691,8 +1693,8 @@ export default function Flows() {
               <label className="text-xs font-semibold text-secondary uppercase tracking-wider">Source Configuration</label>
               <div className="mt-2 grid grid-cols-2 gap-4">
                 <div>
-                  <label>Protocol Filter</label>
-                  <select value={form.protocol} onChange={e => handleProtocolChange(e.target.value)}>
+                  <label htmlFor="flow-protocol">Protocol Filter</label>
+                  <select id="flow-protocol" value={form.protocol} onChange={e => handleProtocolChange(e.target.value)}>
                     {PROTOCOLS.map(p => (
                       <option key={p} value={p}>{p === 'ANY' ? 'Any Protocol' : p}</option>
                     ))}
@@ -1700,8 +1702,8 @@ export default function Flows() {
                   <p className="text-[10px] text-muted mt-1">Filters account and server dropdowns below</p>
                 </div>
                 <div>
-                  <label>Direction</label>
-                  <select value={form.direction || ''} onChange={e => setForm(f => ({ ...f, direction: e.target.value || null }))}>
+                  <label htmlFor="flow-direction">Direction</label>
+                  <select id="flow-direction" value={form.direction || ''} onChange={e => setForm(f => ({ ...f, direction: e.target.value || null }))}>
                     <option value="">Any Direction</option>
                     <option value="INBOUND">Inbound</option>
                     <option value="OUTBOUND">Outbound</option>
@@ -1710,8 +1712,8 @@ export default function Flows() {
               </div>
               <div className="mt-3 grid grid-cols-3 gap-4">
                 <div>
-                  <label>Source Account</label>
-                  <select value={form.sourceAccountId} onChange={e => setForm(f => ({ ...f, sourceAccountId: e.target.value }))}>
+                  <label htmlFor="flow-source-account">Source Account</label>
+                  <select id="flow-source-account" value={form.sourceAccountId} onChange={e => setForm(f => ({ ...f, sourceAccountId: e.target.value }))}>
                     <option value="">-- Select Account --</option>
                     {filteredAccounts.map(a => (
                       <option key={a.id} value={a.id}>{a.username} ({a.protocol})</option>
@@ -1722,8 +1724,8 @@ export default function Flows() {
                   )}
                 </div>
                 <div>
-                  <label>Server</label>
-                  <select value={form.serverId} onChange={e => setForm(f => ({ ...f, serverId: e.target.value }))}>
+                  <label htmlFor="flow-server">Server</label>
+                  <select id="flow-server" value={form.serverId} onChange={e => setForm(f => ({ ...f, serverId: e.target.value }))}>
                     <option value="">-- Select Server --</option>
                     {filteredServers.map(s => (
                       <option key={s.id} value={s.id}>{s.name || s.hostname} ({s.protocol})</option>
@@ -1734,8 +1736,8 @@ export default function Flows() {
                   )}
                 </div>
                 <div>
-                  <label>Legacy: Source Path</label>
-                  <input value={form.sourcePath}
+                  <label htmlFor="flow-source-path">Legacy: Source Path</label>
+                  <input id="flow-source-path" value={form.sourcePath}
                     onChange={e => setForm(f => ({ ...f, sourcePath: e.target.value }))}
                     placeholder="/inbox" className="font-mono text-sm" />
                 </div>
@@ -1889,8 +1891,8 @@ export default function Flows() {
               {(form.deliveryMode === 'mailbox' || form.deliveryMode === 'both') && (
                 <div className="mt-3 grid grid-cols-2 gap-4">
                   <div>
-                    <label>Destination Account</label>
-                    <select value={form.destinationAccountId}
+                    <label htmlFor="flow-dest-account">Destination Account</label>
+                    <select id="flow-dest-account" value={form.destinationAccountId}
                       onChange={e => setForm(f => ({ ...f, destinationAccountId: e.target.value }))}>
                       <option value="">-- Select Account --</option>
                       {filteredAccounts.map(a => (
@@ -1902,8 +1904,8 @@ export default function Flows() {
                     )}
                   </div>
                   <div>
-                    <label>Destination Path</label>
-                    <input value={form.destinationPath}
+                    <label htmlFor="flow-dest-path">Destination Path</label>
+                    <input id="flow-dest-path" value={form.destinationPath}
                       onChange={e => setForm(f => ({ ...f, destinationPath: e.target.value }))}
                       placeholder="/outbox" className="font-mono text-sm" />
                   </div>
@@ -1911,8 +1913,8 @@ export default function Flows() {
               )}
               {(form.deliveryMode === 'external' || form.deliveryMode === 'both') && (
                 <div className="mt-3">
-                  <label>External Destination</label>
-                  <select value={form.externalDestinationId}
+                  <label htmlFor="flow-ext-dest">External Destination</label>
+                  <select id="flow-ext-dest" value={form.externalDestinationId}
                     onChange={e => setForm(f => ({ ...f, externalDestinationId: e.target.value }))}>
                     <option value="">-- Select Destination --</option>
                     {externalDests.map(d => (

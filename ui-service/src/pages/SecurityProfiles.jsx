@@ -201,11 +201,11 @@ export default function SecurityProfiles() {
                   <span className={`badge mt-2 ${p.type === 'SSH' ? 'badge-blue' : 'badge-purple'}`}>{p.type}</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button onClick={() => openEdit(p)} title="Edit profile"
+                  <button onClick={() => openEdit(p)} title="Edit profile" aria-label="Edit profile"
                     className="p-1.5 rounded hover:bg-[rgba(100,140,255,0.1)] text-blue-500 transition-colors">
                     <PencilSquareIcon className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setConfirmDelete(p)} title="Delete profile"
+                  <button onClick={() => setConfirmDelete(p)} title="Delete profile" aria-label="Delete profile"
                     className="p-1.5 rounded hover:bg-red-50 text-red-500 transition-colors">
                     <TrashIcon className="w-4 h-4" />
                   </button>

@@ -277,9 +277,9 @@ export default function Sla() {
               </div>
               <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                 <span className={`badge ${s.totalBreaches > 0 ? 'badge-red' : 'badge-green'}`}>{s.totalBreaches} breaches</span>
-                <button onClick={() => openEdit(s)} title="Edit agreement"
+                <button onClick={() => openEdit(s)} title="Edit agreement" aria-label="Edit agreement"
                   className="p-1.5 rounded hover:bg-[rgba(100,140,255,0.1)] text-blue-500 transition-colors"><PencilSquareIcon className="w-4 h-4" /></button>
-                <button onClick={() => setConfirmDelete(s)} title="Delete agreement"
+                <button onClick={() => setConfirmDelete(s)} title="Delete agreement" aria-label="Delete agreement"
                   className="p-1.5 rounded hover:bg-red-50 text-red-500 transition-colors"><TrashIcon className="w-4 h-4" /></button>
               </div>
             </div>
