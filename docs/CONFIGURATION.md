@@ -348,3 +348,71 @@ For production, use a named override:
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.production.yml up -d
 ```
+
+---
+
+## DRP Engine Configuration
+
+The Durable Reactive Pipeline (DRP) engine adds configurable I/O lanes, SEDA processing stages,
+and write-ahead intent logging. All properties have sensible defaults — no configuration required
+for basic operation.
+
+### I/O Lane Admission Control
+
+Semaphore-based concurrency limits per traffic class. Prevents any single traffic class from
+overwhelming disk or network I/O.
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `flow.lanes.realtime.permits` | `8` | Max concurrent I/O ops for partner uploads and flow reads |
+| `flow.lanes.bulk.permits` | `4` | Max concurrent I/O ops for tier migrations and backups |
+| `flow.lanes.background.permits` | `2` | Max concurrent I/O ops for pre-staging and dedup scans |
+
+### SEDA Processing Stages
+
+Three bounded-queue stages with virtual thread workers. Gated by `flow.stages.enabled` —
+disabled by default to avoid idle threads on non-flow services.
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `flow.stages.enabled` | `false` | Enable SEDA stages (set `true` on flow-processing services) |
+| `flow.stage.intake.queue` | `1000` | Bounded queue size for rule matching stage |
+| `flow.stage.intake.threads` | `16` | Virtual worker threads for intake |
+| `flow.stage.pipeline.queue` | `500` | Bounded queue size for file transform stage |
+| `flow.stage.pipeline.threads` | `32` | Virtual worker threads for pipeline |
+| `flow.stage.delivery.queue` | `2000` | Bounded queue size for routing/delivery stage |
+| `flow.stage.delivery.threads` | `16` | Virtual worker threads for delivery |
+
+### Storage — Parallel I/O Engine
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `storage.stripe-size-kb` | `4096` | Threshold (KB) for striped writes — below this uses single-thread |
+| `storage.io-threads` | `8` | Thread pool size for parallel striped writes |
+| `storage.write-buffer-mb` | `64` | Write buffer size (MB) for buffered output streams |
+| `storage.max-file-size-bytes` | `10737418240` | Maximum file size (10 GB). Rejects uploads exceeding this. |
+| `storage.fsync-enabled` | `true` | fsync after writes for durability. Disable in dev for speed. |
+
+### Storage — Tiered Lifecycle
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `storage.hot.path` | `/data/storage/hot` | HOT tier directory (SSD recommended) |
+| `storage.warm.path` | `/data/storage/warm` | WARM tier directory |
+| `storage.cold.path` | `/data/storage/cold` | COLD tier directory (archive storage) |
+| `storage.backup.path` | `/data/storage/backup` | Backup directory |
+| `storage.hot.max-size-gb` | `100` | HOT tier capacity — aggressive eviction above 80% |
+| `storage.hot-to-warm-hours` | `168` | Hours before HOT → WARM (7 days) |
+| `storage.warm-to-cold-days` | `30` | Days before WARM → COLD |
+
+### Storage — S3/MinIO Backend
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `storage.backend` | `local` | Backend type: `local` (filesystem) or `s3` (MinIO/AWS S3) |
+| `storage.s3.endpoint` | *(empty)* | MinIO: `http://mft-minio:9000`. Leave empty for AWS S3. |
+| `storage.s3.bucket` | `mft-storage` | S3 bucket name |
+| `storage.s3.access-key` | `minioadmin` | S3 access key |
+| `storage.s3.secret-key` | `minioadmin` | S3 secret key |
+| `storage.s3.region` | `us-east-1` | AWS region |
+| `storage.s3.path-style` | `true` | Path-style access (`true` for MinIO, `false` for AWS) |
