@@ -5,6 +5,9 @@ import com.filetransfer.config.service.MatchCriteriaService;
 import com.filetransfer.shared.entity.FileFlow;
 import com.filetransfer.shared.entity.FlowExecution;
 import com.filetransfer.shared.flow.FlowFunctionRegistry;
+import com.filetransfer.shared.flow.FunctionDescriptor;
+import com.filetransfer.shared.flow.FunctionImportExportService;
+import com.filetransfer.shared.flow.FunctionPackage;
 import com.filetransfer.shared.matching.MatchCriteria;
 import com.filetransfer.shared.repository.FileFlowRepository;
 import com.filetransfer.shared.repository.FlowExecutionRepository;
@@ -36,6 +39,7 @@ public class FileFlowController {
     private final MatchCriteriaService matchCriteriaService;
     private final FlowRuleEventPublisher flowRuleEventPublisher;
     private final FlowFunctionRegistry flowFunctionRegistry;
+    private final FunctionImportExportService functionImportExportService;
 
     // --- Flow CRUD ---
 
@@ -137,6 +141,30 @@ public class FileFlowController {
             ))
             .sorted(Comparator.comparing(m -> (String) m.get("type")))
             .toList();
+    }
+
+    // --- Function Import / Export ---
+
+    /** Import a gRPC or WASM function by providing endpoint and metadata. */
+    @PostMapping("/functions/import")
+    public Map<String, String> importFunction(@RequestBody Map<String, String> body) {
+        String name = body.get("name");
+        String endpoint = body.get("endpoint");
+        String runtime = body.getOrDefault("runtime", "GRPC");
+        String description = body.getOrDefault("description", name);
+        String category = body.getOrDefault("category", "TRANSFORM");
+
+        FunctionDescriptor desc = new FunctionDescriptor(name, "1.0.0", category, "PARTNER", "external", true, description);
+        FunctionPackage pkg = new FunctionPackage(desc, runtime, endpoint, null, body.get("configSchema"));
+        functionImportExportService.importFunction(pkg);
+
+        return Map.of("status", "IMPORTED", "type", name.toUpperCase().replace('-', '_'), "runtime", runtime);
+    }
+
+    /** Export function metadata. */
+    @GetMapping("/functions/{type}/export")
+    public FunctionPackage exportFunction(@PathVariable String type) {
+        return functionImportExportService.exportFunction(type.toUpperCase());
     }
 
     // --- Match Criteria ---
