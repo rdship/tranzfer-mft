@@ -48,6 +48,7 @@ public class PlatformBootstrapService {
     private final ProxyGroupRepository proxyGroupRepository;
     private final ScheduledTaskRepository scheduledTaskRepository;
     private final TenantRepository tenantRepository;
+    private final ComplianceProfileRepository complianceProfileRepository;
     private final PasswordEncoder passwordEncoder;
 
     @EventListener(ApplicationReadyEvent.class)
@@ -80,6 +81,7 @@ public class PlatformBootstrapService {
             seedProxyGroups();
             seedScheduledTasks();
             seedTenants();
+            seedComplianceProfiles(servers);
 
             log.info("[Bootstrap] ===== Platform bootstrap complete =====");
             log.info("[Bootstrap]   1 super-admin user");
@@ -1293,6 +1295,127 @@ public class PlatformBootstrapService {
                     t.getCompanyName(), t.getSlug(), t.getPlan(), t.getTransferLimit()));
         } catch (Exception e) {
             log.warn("[Bootstrap] Failed to seed tenants: {}", e.getMessage());
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 17. Compliance Profiles
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private void seedComplianceProfiles(List<ServerInstance> servers) {
+        try {
+            ComplianceProfile pciStrict = ComplianceProfile.builder()
+                    .name("PCI-DSS Strict")
+                    .description("Payment Card Industry compliance — blocks PCI data, requires encryption and TLS")
+                    .severity("CRITICAL")
+                    .allowPciData(false)
+                    .allowPhiData(false)
+                    .allowPiiData(true)
+                    .allowClassifiedData(false)
+                    .maxAllowedRiskLevel("MEDIUM")
+                    .maxAllowedRiskScore(60)
+                    .requireEncryption(true)
+                    .requireScreening(true)
+                    .requireChecksum(false)
+                    .blockedFileExtensions("exe,bat,cmd,ps1,sh,vbs,js")
+                    .requireTls(true)
+                    .allowAnonymousAccess(false)
+                    .requireMfa(false)
+                    .auditAllTransfers(true)
+                    .notifyOnViolation(true)
+                    .violationAction("BLOCK")
+                    .active(true)
+                    .build();
+
+            ComplianceProfile hipaa = ComplianceProfile.builder()
+                    .name("HIPAA Healthcare")
+                    .description("Healthcare compliance — blocks PHI data, requires encryption, screening, and checksum")
+                    .severity("CRITICAL")
+                    .allowPciData(false)
+                    .allowPhiData(false)
+                    .allowPiiData(false)
+                    .allowClassifiedData(false)
+                    .maxAllowedRiskLevel("LOW")
+                    .maxAllowedRiskScore(50)
+                    .requireEncryption(true)
+                    .requireScreening(true)
+                    .requireChecksum(true)
+                    .blockedFileExtensions("exe,bat,cmd,ps1,sh,vbs,js,msi")
+                    .requireTls(true)
+                    .allowAnonymousAccess(false)
+                    .requireMfa(false)
+                    .auditAllTransfers(true)
+                    .notifyOnViolation(true)
+                    .violationAction("BLOCK")
+                    .active(true)
+                    .build();
+
+            ComplianceProfile internal = ComplianceProfile.builder()
+                    .name("Internal Standard")
+                    .description("Standard internal policy — allows all data types, warns on violations")
+                    .severity("MEDIUM")
+                    .allowPciData(true)
+                    .allowPhiData(true)
+                    .allowPiiData(true)
+                    .allowClassifiedData(false)
+                    .maxAllowedRiskLevel("HIGH")
+                    .maxAllowedRiskScore(85)
+                    .requireEncryption(false)
+                    .requireScreening(true)
+                    .requireChecksum(false)
+                    .blockedFileExtensions("exe,bat,cmd")
+                    .requireTls(false)
+                    .allowAnonymousAccess(false)
+                    .requireMfa(false)
+                    .auditAllTransfers(true)
+                    .notifyOnViolation(true)
+                    .violationAction("WARN")
+                    .active(true)
+                    .build();
+
+            ComplianceProfile government = ComplianceProfile.builder()
+                    .name("Government Classified")
+                    .description("Government-grade compliance — no classified data, requires encryption, MFA, and TLS")
+                    .severity("CRITICAL")
+                    .allowPciData(false)
+                    .allowPhiData(false)
+                    .allowPiiData(false)
+                    .allowClassifiedData(false)
+                    .maxAllowedRiskLevel("LOW")
+                    .maxAllowedRiskScore(40)
+                    .requireEncryption(true)
+                    .requireScreening(true)
+                    .requireChecksum(true)
+                    .allowedFileExtensions("edi,xml,json,csv,txt,pdf")
+                    .blockedFileExtensions("exe,bat,cmd,ps1,sh,vbs,js,msi,dll,so")
+                    .requireTls(true)
+                    .allowAnonymousAccess(false)
+                    .requireMfa(true)
+                    .auditAllTransfers(true)
+                    .notifyOnViolation(true)
+                    .violationAction("BLOCK")
+                    .active(true)
+                    .build();
+
+            List<ComplianceProfile> saved = complianceProfileRepository.saveAll(
+                    List.of(pciStrict, hipaa, internal, government));
+            saved.forEach(p -> log.info("[Bootstrap] Created compliance profile: {} (severity={}, action={})",
+                    p.getName(), p.getSeverity(), p.getViolationAction()));
+
+            // Assign PCI-DSS Strict to FTPS servers, Internal Standard to SFTP servers
+            for (ServerInstance server : servers) {
+                if (server.getProtocol() == Protocol.FTP) {
+                    server.setComplianceProfileId(pciStrict.getId());
+                    serverInstanceRepository.save(server);
+                    log.info("[Bootstrap] Assigned '{}' to server '{}'", pciStrict.getName(), server.getName());
+                } else if (server.getProtocol() == Protocol.SFTP) {
+                    server.setComplianceProfileId(internal.getId());
+                    serverInstanceRepository.save(server);
+                    log.info("[Bootstrap] Assigned '{}' to server '{}'", internal.getName(), server.getName());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("[Bootstrap] Failed to seed compliance profiles: {}", e.getMessage());
         }
     }
 }

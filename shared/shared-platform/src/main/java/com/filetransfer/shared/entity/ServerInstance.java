@@ -136,6 +136,10 @@ public class ServerInstance {
     private String allowedKex;
 
     /** When true: new connections are rejected with a maintenance message. */
+    /** Compliance profile assigned to this server. Null = no compliance enforcement. */
+    @Column(name = "compliance_profile_id")
+    private UUID complianceProfileId;
+
     @Column(name = "maintenance_mode")
     @Builder.Default
     private boolean maintenanceMode = false;

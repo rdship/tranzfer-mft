@@ -1,7 +1,9 @@
 import { NavLink } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useBranding } from '../context/BrandingContext'
 import { useServices } from '../context/ServiceContext'
 import { useAuth } from '../context/AuthContext'
+import { configApi } from '../api/client'
 import {
   HomeIcon,
   BuildingOfficeIcon,
@@ -79,6 +81,7 @@ const navGroups = [
   {
     label: 'Compliance',
     items: [
+      { to: '/compliance', icon: ShieldCheckIcon,     label: 'Compliance',      role: 'ADMIN', badge: 'compliance' },
       { to: '/screening',  icon: MagnifyingGlassIcon, label: 'OFAC Screening' },
       { to: '/sla',        icon: DocumentCheckIcon,   label: 'SLA Agreements' },
       { to: '/blockchain', icon: FingerPrintIcon,     label: 'Blockchain Proof' },
@@ -121,6 +124,12 @@ export default function Sidebar() {
   const { user, logout }           = useAuth()
   const userRole                   = user?.role || 'USER'
   const initials                   = (user?.email?.[0] || 'A').toUpperCase()
+
+  const { data: complianceCount } = useQuery({
+    queryKey: ['compliance-violation-count-sidebar'],
+    queryFn: () => configApi.get('/api/compliance/violations/count').then(r => r.data?.unresolved || 0).catch(() => 0),
+    refetchInterval: 30000
+  })
 
   const visibleGroups = navGroups
     .map(g => ({
@@ -183,17 +192,25 @@ export default function Sidebar() {
                 {group.label}
               </p>
               <div className="space-y-0.5">
-                {group.items.map(item => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    className={({ isActive }) => `sidebar-nav-item ${isActive ? 'active' : ''}`}
-                    title={item.label}
-                  >
-                    <item.icon className="w-[15px] h-[15px] flex-shrink-0" />
-                    <span className="truncate">{item.label}</span>
-                  </NavLink>
-                ))}
+                {group.items.map(item => {
+                  const badgeCount = item.badge === 'compliance' ? complianceCount : null
+                  return (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      className={({ isActive }) => `sidebar-nav-item ${isActive ? 'active' : ''}`}
+                      title={item.label}
+                    >
+                      <item.icon className="w-[15px] h-[15px] flex-shrink-0" />
+                      <span className="truncate">{item.label}</span>
+                      {badgeCount > 0 && (
+                        <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">
+                          {badgeCount}
+                        </span>
+                      )}
+                    </NavLink>
+                  )
+                })}
               </div>
             </div>
           ))
