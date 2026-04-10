@@ -1,6 +1,7 @@
 package com.filetransfer.shared.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -27,18 +28,23 @@ public class NotificationRule extends Auditable {
     private UUID id;
 
     /** Unique rule name for identification */
+    @NotBlank
     @Column(unique = true, nullable = false)
     private String name;
 
     /** Event type pattern to match, supports wildcards: "transfer.*", "security.threat.*" */
+    @NotBlank
     @Column(nullable = false)
     private String eventTypePattern;
 
     /** Notification channel: EMAIL, WEBHOOK, SMS */
+    @NotBlank
+    @Size(max = 20)
     @Column(nullable = false, length = 20)
     private String channel;
 
     /** List of recipient addresses (emails, webhook URLs, phone numbers) */
+    @NotNull
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb", nullable = false)
     private List<String> recipients;

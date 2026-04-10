@@ -1,6 +1,7 @@
 package com.filetransfer.shared.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -23,16 +24,20 @@ public class WebhookConnector extends Auditable {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @NotBlank
     @Column(unique = true, nullable = false)
     private String name;
 
     /**
      * SERVICENOW, PAGERDUTY, SLACK, TEAMS, OPSGENIE, EMAIL, WEBHOOK
      */
+    @NotBlank
+    @Size(max = 20)
     @Column(nullable = false, length = 20)
     private String type;
 
     /** Target URL (webhook URL, ServiceNow instance, etc.) */
+    @NotBlank
     @Column(nullable = false)
     private String url;
 
@@ -66,18 +71,23 @@ public class WebhookConnector extends Auditable {
     private String snowAssignmentGroup;
     private String snowCategory;
 
+    @Size(max = 100)
     @Column(name = "channel", length = 100)
     private String channel;  // Slack channel
 
+    @Size(max = 500)
     @Column(name = "api_key", length = 500)
     private String apiKey;  // OpsGenie API key
 
+    @Size(max = 10)
     @Column(name = "region", length = 10)
     private String region;  // OpsGenie region (US, EU)
 
+    @Size(max = 10)
     @Column(name = "priority", length = 10)
     private String priority;  // OpsGenie priority (P1-P5)
 
+    @Size(max = 20)
     @Column(name = "auth_type", length = 20)
     private String authType;  // NONE, BEARER, BASIC (for webhook type)
 

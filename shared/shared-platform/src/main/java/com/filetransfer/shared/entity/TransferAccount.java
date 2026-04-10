@@ -2,6 +2,7 @@ package com.filetransfer.shared.entity;
 
 import com.filetransfer.shared.enums.Protocol;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -27,13 +28,16 @@ public class TransferAccount extends Auditable {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @NotNull
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Protocol protocol;
 
+    @NotBlank
     @Column(unique = true, nullable = false)
     private String username;
 
+    @NotBlank
     @Column(nullable = false)
     private String passwordHash;
 
@@ -41,6 +45,7 @@ public class TransferAccount extends Auditable {
     @Column(columnDefinition = "TEXT")
     private String publicKey;
 
+    @NotBlank
     @Column(nullable = false)
     private String homeDir;
 
@@ -51,6 +56,7 @@ public class TransferAccount extends Auditable {
     private Map<String, Boolean> permissions = Map.of("read", true, "write", true, "delete", false);
 
     // Server instance this account is assigned to (null = any instance, works for all protocols)
+    @Size(max = 64)
     @Column(length = 64)
     private String serverInstance;
 
@@ -59,6 +65,7 @@ public class TransferAccount extends Auditable {
     private UUID partnerId;
 
     /** PHYSICAL = legacy filesystem, VIRTUAL = phantom folder VFS. */
+    @Size(max = 10)
     @Column(name = "storage_mode", length = 10)
     @Builder.Default
     private String storageMode = "PHYSICAL";

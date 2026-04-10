@@ -2,6 +2,7 @@ package com.filetransfer.shared.entity;
 
 import com.filetransfer.shared.dto.FolderDefinition;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -18,6 +19,8 @@ public class FolderTemplate extends Auditable {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @NotBlank
+    @Size(max = 100)
     @Column(nullable = false, unique = true, length = 100)
     private String name;
 
@@ -28,6 +31,7 @@ public class FolderTemplate extends Auditable {
     @Builder.Default
     private boolean builtIn = false;
 
+    @NotNull
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb", nullable = false)
     private List<FolderDefinition> folders;

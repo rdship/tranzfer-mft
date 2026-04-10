@@ -1,6 +1,7 @@
 package com.filetransfer.shared.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -15,7 +16,7 @@ import java.util.UUID;
 @Entity @Table(name = "partner_agreements") @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class PartnerAgreement extends Auditable {
     @Id @GeneratedValue(strategy = GenerationType.UUID) private UUID id;
-    @Column(unique = true, nullable = false) private String name;
+    @NotBlank @Column(unique = true, nullable = false) private String name;
     private String description;
 
     /** Partner account this agreement applies to */
@@ -28,9 +29,9 @@ public class PartnerAgreement extends Auditable {
     private UUID partnerId;
 
     /** Expected delivery window: earliest hour (UTC) */
-    private int expectedDeliveryStartHour;
+    @Min(0) @Max(23) private int expectedDeliveryStartHour;
     /** Expected delivery window: latest hour (UTC) — breach if not received by this */
-    private int expectedDeliveryEndHour;
+    @Min(0) @Max(23) private int expectedDeliveryEndHour;
 
     /** Expected days of week (e.g. ["MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY"]) */
     @JdbcTypeCode(SqlTypes.JSON) @Column(columnDefinition = "jsonb")
@@ -46,12 +47,15 @@ public class PartnerAgreement extends Auditable {
     /** Action on breach: ALERT, ALERT_AND_ESCALATE */
     @Builder.Default private String breachAction = "ALERT";
 
+    @Size(max = 200)
     @Column(name = "partner_name", length = 200)
     private String partnerName;
 
+    @Size(max = 20)
     @Column(name = "tier", length = 20)
     private String tier;  // PLATINUM, GOLD, SILVER, BRONZE
 
+    @Size(max = 20)
     @Column(name = "protocol", length = 20)
     private String protocol;  // ANY, SFTP, FTP, AS2, HTTPS
 

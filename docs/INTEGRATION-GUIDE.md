@@ -1024,6 +1024,46 @@ curl -X POST http://localhost:8095/api/v1/convert/create \
 |---|---|
 | X12, EDIFACT, TRADACOMS, SWIFT_MT, HL7, NACHA, BAI2, ISO20022, FIX, PEPPOL, AUTO | JSON, XML, CSV, YAML, FLAT, TIF, X12, EDIFACT, HL7, SWIFT_MT |
 
+#### Map-Based EDI Conversion (Production)
+
+For production integrations, use the map-based conversion endpoint which applies structured
+field-by-field mapping with transforms, code table lookups, and confidence scoring.
+
+**Step 1: List available maps**
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8095/api/v1/convert/maps
+```
+
+**Step 2: Convert using a specific map**
+
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  http://localhost:8095/api/v1/convert/convert/map \
+  -d '{
+    "content": "ISA*00*          *00*          *ZZ*SENDER         *ZZ*RECEIVER       *260410*1200*^*00501*000000001*0*P*:~GS*PO*SENDER*RECEIVER*20260410*1200*1*X*005010~ST*850*0001~BEG*00*NE*PO-12345**20260410~SE*3*0001~GE*1*1~IEA*1*000000001~",
+    "sourceType": "X12_850",
+    "targetType": "PURCHASE_ORDER_INH"
+  }'
+```
+
+**Step 3: Clone and customize a map for your partner**
+
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  http://localhost:8091/api/v1/edi/maps/clone \
+  -d '{
+    "sourceMapId": "X12_850--INHOUSE_PURCHASE_ORDER",
+    "partnerId": "uuid",
+    "name": "Acme Custom PO Map"
+  }'
+```
+
+Map cascade priority: Partner custom → Trained (AI) → Standard (classpath). When a `partnerId`
+is provided, the converter checks for a partner-specific map first, then falls back to trained
+maps, and finally to the 31 standard maps that ship in the JAR.
+
 ---
 
 ### Use Case 6: Monitor Platform Health

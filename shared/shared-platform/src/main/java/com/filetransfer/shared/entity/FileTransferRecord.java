@@ -2,6 +2,7 @@ package com.filetransfer.shared.entity;
 
 import com.filetransfer.shared.enums.FileTransferStatus;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import lombok.*;
 
 import java.time.Instant;
@@ -20,6 +21,8 @@ public class FileTransferRecord {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @NotBlank
+    @Size(max = 12)
     @Column(unique = true, length = 12)
     private String trackId;
 
@@ -27,17 +30,21 @@ public class FileTransferRecord {
     @JoinColumn(name = "folder_mapping_id", nullable = false)
     private FolderMapping folderMapping;
 
+    @NotBlank
     @Column(nullable = false)
     private String originalFilename;
 
+    @NotBlank
     @Column(nullable = false)
     private String sourceFilePath;
 
+    @NotBlank
     @Column(nullable = false)
     private String destinationFilePath;
 
     private String archiveFilePath;
 
+    @NotNull
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
@@ -49,14 +56,17 @@ public class FileTransferRecord {
     private Long fileSizeBytes;
 
     /** SHA-256 checksum at upload (source integrity) */
+    @Size(max = 64)
     @Column(length = 64)
     private String sourceChecksum;
 
     /** SHA-256 checksum at destination (delivery integrity) */
+    @Size(max = 64)
     @Column(length = 64)
     private String destinationChecksum;
 
     /** Number of delivery attempts */
+    @Min(0)
     @Builder.Default
     private int retryCount = 0;
 

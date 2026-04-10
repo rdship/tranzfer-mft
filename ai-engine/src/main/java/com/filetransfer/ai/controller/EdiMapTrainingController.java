@@ -5,6 +5,7 @@ import com.filetransfer.ai.entity.edi.TrainingSample;
 import com.filetransfer.ai.entity.edi.TrainingSession;
 import com.filetransfer.ai.service.edi.EdiMapTrainingEngine;
 import com.filetransfer.ai.service.edi.EdiTrainingDataService;
+import com.filetransfer.ai.service.edi.SchemaMapGenerator;
 import com.filetransfer.ai.service.edi.TrainedMapStore;
 import com.filetransfer.ai.service.edi.EdiTrainingDataSeeder;
 import lombok.*;
@@ -39,6 +40,7 @@ public class EdiMapTrainingController {
     private final EdiMapTrainingEngine trainingEngine;
     private final TrainedMapStore mapStore;
     private final EdiTrainingDataSeeder trainingDataSeeder;
+    private final SchemaMapGenerator schemaMapGenerator;
 
     private static final int MAX_BATCH_SIZE = 500;
 
@@ -174,6 +176,50 @@ public class EdiMapTrainingController {
     }
 
     // ===================================================================
+    // SCHEMA-BASED MAP GENERATION
+    // ===================================================================
+
+    /** Generate a DRAFT conversion map from known schema definitions (no training samples needed) */
+    @PostMapping("/generate-from-schema")
+    public ResponseEntity<Map<String, Object>> generateFromSchema(@RequestBody Map<String, Object> request) {
+        String sourceSchema = (String) request.get("sourceSchema");
+        String targetSchema = (String) request.get("targetSchema");
+        String partnerId = (String) request.get("partnerId");
+
+        if (sourceSchema == null || sourceSchema.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sourceSchema is required");
+        }
+        if (targetSchema == null || targetSchema.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "targetSchema is required");
+        }
+
+        SchemaMapGenerator.GenerationResult result = schemaMapGenerator.generate(
+                sourceSchema.toUpperCase(), targetSchema.toUpperCase(), partnerId);
+
+        if (!result.isSuccess()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, result.getError());
+        }
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("mapId", result.getMapId());
+        response.put("mapKey", result.getMapKey());
+        response.put("status", result.getStatus());
+        response.put("overallConfidence", result.getOverallConfidence());
+        response.put("fieldMappingCount", result.getFieldMappingCount());
+        response.put("fieldMappings", result.getFieldMappings());
+        response.put("unmappedSourceFields", result.getUnmappedSourceFields());
+        response.put("unmappedTargetFields", result.getUnmappedTargetFields());
+        response.put("durationMs", result.getDurationMs());
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /** List all known schema names available for schema-based generation */
+    @GetMapping("/schemas")
+    public Map<String, Object> listSchemas() {
+        return Map.of("schemas", schemaMapGenerator.listKnownSchemas());
+    }
+
+    // ===================================================================
     // MAPS (consumed by edi-converter)
     // ===================================================================
 
@@ -275,10 +321,12 @@ public class EdiMapTrainingController {
         result.put("service", "edi-map-training");
         result.put("activeMaps", mapStore.listActiveMaps().size());
         result.put("sampleCounts", trainingDataService.getSampleCounts());
+        result.put("knownSchemas", schemaMapGenerator.listKnownSchemas().size());
         result.put("capabilities", List.of(
                 "sample-ingestion", "bulk-ingestion", "quick-train",
                 "multi-strategy-training", "versioned-maps", "rollback",
-                "test-accuracy", "transform-detection", "partner-specific-maps"));
+                "test-accuracy", "transform-detection", "partner-specific-maps",
+                "schema-based-generation", "confidence-threshold"));
         return result;
     }
 

@@ -1,6 +1,7 @@
 package com.filetransfer.shared.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import lombok.*;
 
 import java.time.Instant;
@@ -20,11 +21,14 @@ public class ComplianceProfile {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @NotBlank
     @Column(unique = true, nullable = false)
     private String name;                    // "PCI-DSS Strict", "HIPAA Healthcare", "Internal Only"
 
     private String description;
 
+    @NotBlank
+    @Size(max = 20)
     @Column(nullable = false, length = 20)
     @Builder.Default
     private String severity = "HIGH";       // LOW, MEDIUM, HIGH, CRITICAL
@@ -45,10 +49,14 @@ public class ComplianceProfile {
 
     // ── AI Risk Threshold ──────────────────────────────────────────────────
 
+    @NotBlank
+    @Size(max = 20)
     @Column(nullable = false, length = 20)
     @Builder.Default
     private String maxAllowedRiskLevel = "MEDIUM";  // NONE, LOW, MEDIUM, HIGH — files above this are BLOCKED
 
+    @Min(0)
+    @Max(100)
     @Builder.Default
     private int maxAllowedRiskScore = 70;           // 0-100, files scoring above this are BLOCKED
 
@@ -125,14 +133,17 @@ public class ComplianceProfile {
     // ── Data Retention & Residency ────────────────────────────────────────
 
     /** Days to retain transferred files before auto-purge. 0 = no auto-purge. */
+    @Min(0)
     @Builder.Default
     private int dataRetentionDays = 90;
 
     /** Days to retain audit logs. Regulatory minimum varies: PCI=1yr, HIPAA=6yr, SOX=7yr. */
+    @Min(0)
     @Builder.Default
     private int auditRetentionDays = 365;
 
     /** Data residency requirement: "US", "EU", "UK", "ANY". Controls where files are stored. */
+    @Size(max = 10)
     @Column(length = 10)
     @Builder.Default
     private String dataResidency = "ANY";
@@ -148,6 +159,7 @@ public class ComplianceProfile {
     private String allowedEncryptionAlgorithms;
 
     /** Minimum TLS version. "1.2" or "1.3". */
+    @Size(max = 5)
     @Column(length = 5)
     @Builder.Default
     private String minTlsVersion = "1.2";
@@ -155,6 +167,7 @@ public class ComplianceProfile {
     // ── Password & Authentication Policy ──────────────────────────────────
 
     /** Minimum password length for accounts on this server. */
+    @Min(1)
     @Builder.Default
     private int minPasswordLength = 12;
 
@@ -167,10 +180,12 @@ public class ComplianceProfile {
     private int passwordRotationDays = 90;
 
     /** Max failed login attempts before account lockout. */
+    @Min(1)
     @Builder.Default
     private int maxFailedLoginAttempts = 5;
 
     /** Lockout duration in minutes after max failed attempts. */
+    @Min(0)
     @Builder.Default
     private int lockoutDurationMinutes = 30;
 
@@ -216,6 +231,8 @@ public class ComplianceProfile {
     @Builder.Default
     private boolean notifyOnViolation = true;         // Send notification on violation
 
+    @NotBlank
+    @Size(max = 10)
     @Column(nullable = false, length = 10)
     @Builder.Default
     private String violationAction = "BLOCK";         // BLOCK = reject file, WARN = allow but flag, LOG = silent log

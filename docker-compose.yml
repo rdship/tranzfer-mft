@@ -802,10 +802,26 @@ services:
   edi-converter:
     build: ./edi-converter
     container_name: mft-edi-converter
+    <<: *healthcheck
     ports:
       - "8095:8095"
     environment:
+      JAVA_TOOL_OPTIONS: >-
+        -Xmx384m -Xms192m
+        -XX:+UseG1GC -XX:MaxGCPauseMillis=100
+        -XX:+UseStringDeduplication
+        -Dspring.jmx.enabled=false
+        -Dspring.main.lazy-initialization=true
       SERVER_PORT: 8095
+      <<: *spiffe-env
+      AI_ENGINE_URL: http://ai-engine:8091
+      PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-DEV}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+    volumes:
+      - spire-socket:/run/spire/sockets:ro
+    depends_on:
+      spire-agent:
+        condition: service_healthy
 
   screening-service:
     build: ./screening-service

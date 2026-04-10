@@ -2099,6 +2099,46 @@ A stateless EDI document processing service. Detects, parses, converts, validate
 
 ---
 
+#### 13.8 Map-Based Conversion (NEW)
+
+**API Endpoints**:
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/v1/convert/convert/map` | Convert using document-type mapping |
+| GET | `/api/v1/convert/maps` | List all available maps |
+| GET | `/api/v1/convert/maps/{mapId}` | Get map detail |
+| POST | `/api/v1/convert/detect/type` | Detect document type (e.g., "X12_850") |
+
+**Convert via map:**
+- Body: `{ "content": "ISA*00*...", "sourceType": "X12_850", "targetType": "PURCHASE_ORDER_INH", "partnerId": "optional" }`
+- Returns: converted output + map used + confidence score
+- Auto-detects source type if not provided
+- Map cascade: Partner custom → Trained → Standard
+
+#### Standard Map Library
+
+- 31 standard maps ship in the JAR (zero boot cost, lazy-loaded)
+- Covers: X12, EDIFACT, SWIFT MT, ISO 20022, NACHA, BAI2, TRADACOMS, HIPAA
+- Maps named intuitively: `X12_850--INHOUSE_PURCHASE_ORDER.json`
+- Auto-discovered at startup via classpath scanning
+
+#### Partner Map Customization (AI Engine)
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/v1/edi/maps/clone` | Clone standard map for partner |
+| PUT | `/api/v1/edi/maps/{mapId}` | Edit partner map |
+| POST | `/api/v1/edi/maps/{mapId}/test` | Test with sample data |
+| POST | `/api/v1/edi/maps/{mapId}/activate` | Activate for production |
+
+#### New Parsers
+
+- TRADACOMS (UK retail), NACHA/ACH (US payments), BAI2 (US banking)
+- FIX Protocol (capital markets), HIPAA X12 (US healthcare)
+
+---
+
 ---
 
 ### 14. Storage Manager (Port 8096)

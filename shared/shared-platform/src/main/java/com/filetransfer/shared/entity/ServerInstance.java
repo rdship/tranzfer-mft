@@ -2,6 +2,7 @@ package com.filetransfer.shared.entity;
 
 import com.filetransfer.shared.enums.Protocol;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import lombok.*;
 
 import java.time.Instant;
@@ -20,23 +21,30 @@ public class ServerInstance {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @NotBlank
+    @Size(max = 64)
     @Column(name = "instance_id", unique = true, nullable = false, length = 64)
     private String instanceId;
 
+    @NotNull
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     @Builder.Default
     private Protocol protocol = Protocol.SFTP;
 
+    @NotBlank
     @Column(nullable = false)
     private String name;
 
     private String description;
 
     // Internal connection (Docker service name / direct host)
+    @NotBlank
     @Column(name = "internal_host", nullable = false)
     private String internalHost;
 
+    @Min(1)
+    @Max(65535)
     @Column(name = "internal_port", nullable = false)
     @Builder.Default
     private int internalPort = 2222;
@@ -59,6 +67,7 @@ public class ServerInstance {
     @Column(name = "proxy_port")
     private Integer proxyPort;
 
+    @Min(1)
     @Builder.Default
     private int maxConnections = 500;
 
@@ -97,6 +106,7 @@ public class ServerInstance {
     private String proxyGroupName;
 
     /** Security tier applied at this server: NONE, RULES, AI, AI_LLM. */
+    @Size(max = 20)
     @Column(name = "security_tier", length = 20)
     @Builder.Default
     private String securityTier = "RULES";
@@ -106,11 +116,13 @@ public class ServerInstance {
     private String sshBannerMessage;
 
     /** Max failed authentication attempts before disconnecting. */
+    @Min(1)
     @Column(name = "max_auth_attempts")
     @Builder.Default
     private int maxAuthAttempts = 3;
 
     /** Idle session timeout in seconds (0 = no timeout). */
+    @Min(0)
     @Column(name = "idle_timeout_seconds")
     @Builder.Default
     private int idleTimeoutSeconds = 300;

@@ -1,6 +1,7 @@
 package com.filetransfer.shared.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import lombok.*;
 
 import java.util.UUID;
@@ -22,10 +23,13 @@ public class NotificationTemplate extends Auditable {
     private UUID id;
 
     /** Unique template name, e.g. "transfer-completed-email" */
+    @NotBlank
     @Column(unique = true, nullable = false)
     private String name;
 
     /** Notification channel: EMAIL, WEBHOOK, SMS */
+    @NotBlank
+    @Size(max = 20)
     @Column(nullable = false, length = 20)
     private String channel;
 
@@ -33,10 +37,12 @@ public class NotificationTemplate extends Auditable {
     private String subjectTemplate;
 
     /** Body template; may contain ${variable} placeholders */
+    @NotBlank
     @Column(columnDefinition = "TEXT", nullable = false)
     private String bodyTemplate;
 
     /** Event type this template is associated with, e.g. "transfer.completed" */
+    @NotBlank
     @Column(nullable = false)
     private String eventType;
 

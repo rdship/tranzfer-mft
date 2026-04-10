@@ -1,6 +1,7 @@
 package com.filetransfer.shared.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import lombok.*;
 
 import java.time.Instant;
@@ -23,34 +24,45 @@ public class Partner extends Auditable {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @NotBlank
     @Column(nullable = false)
     private String companyName;
 
     private String displayName;
 
+    @NotBlank
+    @Size(max = 100)
     @Column(unique = true, nullable = false, length = 100)
     private String slug;
 
+    @Size(max = 100)
     @Column(length = 100)
     private String industry;
 
+    @Size(max = 500)
     @Column(length = 500)
     private String website;
 
+    @Size(max = 1000)
     @Column(length = 1000)
     private String logoUrl;
 
     /** INTERNAL, EXTERNAL, VENDOR, CLIENT */
+    @NotBlank
+    @Size(max = 30)
     @Column(nullable = false, length = 30)
     @Builder.Default
     private String partnerType = "EXTERNAL";
 
     /** PENDING, ACTIVE, SUSPENDED, OFFBOARDED */
+    @NotBlank
+    @Size(max = 30)
     @Column(nullable = false, length = 30)
     @Builder.Default
     private String status = "PENDING";
 
     /** SETUP, CREDENTIALS, TESTING, LIVE */
+    @Size(max = 30)
     @Column(length = 30)
     @Builder.Default
     private String onboardingPhase = "SETUP";
@@ -60,6 +72,7 @@ public class Partner extends Auditable {
     @Builder.Default
     private String protocolsEnabled = "[]";
 
+    @Size(max = 30)
     @Column(length = 30)
     @Builder.Default
     private String slaTier = "STANDARD";
@@ -77,6 +90,7 @@ public class Partner extends Auditable {
     private String notes;
 
     // ── Migration tracking ──────────────────────────────────────────────────────
+    @Size(max = 20)
     @Column(name = "migration_status", length = 20)
     @Builder.Default
     private String migrationStatus = "NOT_STARTED";  // NOT_STARTED, DISCOVERED, IN_PROGRESS, SHADOW_MODE, VERIFIED, COMPLETED

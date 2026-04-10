@@ -40,6 +40,10 @@ public class MapResolver {
     @Value("${platform.services.ai-engine.url:http://ai-engine:8091}")
     private String aiEngineUrl;
 
+    /** Minimum confidence threshold (0.0-1.0) — trained maps below this fall back to standard */
+    @Value("${edi.map.min-confidence:0.7}")
+    private double minConfidence;
+
     private final RestTemplate partnerMapRestTemplate = new RestTemplate();
 
     @Autowired(required = false)
@@ -70,11 +74,17 @@ public class MapResolver {
             }
         }
 
-        // 2. Trained map (from ai-engine)
+        // 2. Trained map (from ai-engine) — enforce minimum confidence threshold
         Optional<ConversionMapDefinition> trained = getTrainedMap(sourceType, targetType);
         if (trained.isPresent()) {
-            log.debug("Resolved TRAINED map for {}", key);
-            return trained;
+            ConversionMapDefinition trainedMap = trained.get();
+            if (trainedMap.getConfidence() < minConfidence) {
+                log.warn("Trained map '{}' has low confidence {}, threshold is {}, falling back to standard",
+                        trainedMap.getMapId(), trainedMap.getConfidence(), minConfidence);
+            } else {
+                log.debug("Resolved TRAINED map for {} (confidence={})", key, trainedMap.getConfidence());
+                return trained;
+            }
         }
 
         // 3. Standard map (from classpath)

@@ -2,6 +2,7 @@ package com.filetransfer.shared.entity;
 
 import com.filetransfer.shared.enums.EncryptionOption;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import lombok.*;
 
 import java.util.UUID;
@@ -20,6 +21,7 @@ public class FolderMapping extends Auditable {
     private TransferAccount sourceAccount;
 
     /** Relative to user home, e.g. "/inbox" */
+    @NotBlank
     @Column(nullable = false)
     private String sourcePath;
 

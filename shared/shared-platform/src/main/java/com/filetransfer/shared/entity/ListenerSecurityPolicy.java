@@ -2,6 +2,7 @@ package com.filetransfer.shared.entity;
 
 import com.filetransfer.shared.enums.SecurityTier;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -18,12 +19,14 @@ public class ListenerSecurityPolicy extends Auditable {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @NotBlank
     @Column(nullable = false)
     private String name;
 
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @NotNull
     @Enumerated(EnumType.STRING)
     @Column(name = "security_tier", nullable = false, length = 10)
     @Builder.Default
@@ -57,10 +60,12 @@ public class ListenerSecurityPolicy extends Auditable {
 
     // ── Rate limiting & connections ────────────────────────────────────
 
+    @Min(1)
     @Column(name = "rate_limit_per_minute", nullable = false)
     @Builder.Default
     private int rateLimitPerMinute = 60;
 
+    @Min(1)
     @Column(name = "max_concurrent", nullable = false)
     @Builder.Default
     private int maxConcurrent = 20;
@@ -69,10 +74,12 @@ public class ListenerSecurityPolicy extends Auditable {
     @Builder.Default
     private long maxBytesPerMinute = 500_000_000L;
 
+    @Min(1)
     @Column(name = "max_auth_attempts", nullable = false)
     @Builder.Default
     private int maxAuthAttempts = 5;
 
+    @Min(0)
     @Column(name = "idle_timeout_seconds", nullable = false)
     @Builder.Default
     private int idleTimeoutSeconds = 300;

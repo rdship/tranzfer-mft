@@ -102,6 +102,9 @@ public class ConversionMap {
     /** Last time this map was used */
     private Instant lastUsedAt;
 
+    /** Running average confidence across all conversions using this map */
+    private Double avgConfidence;
+
     private Instant createdAt;
 
     @PrePersist

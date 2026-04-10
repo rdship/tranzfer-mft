@@ -2,6 +2,7 @@ package com.filetransfer.shared.entity;
 
 import com.filetransfer.shared.enums.Protocol;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import lombok.*;
 
 import java.util.UUID;
@@ -19,16 +20,21 @@ public class LegacyServerConfig extends Auditable {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @NotBlank
     @Column(nullable = false)
     private String name;
 
+    @NotNull
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Protocol protocol;
 
+    @NotBlank
     @Column(nullable = false)
     private String host;
 
+    @Min(1)
+    @Max(65535)
     @Column(nullable = false)
     private int port;
 

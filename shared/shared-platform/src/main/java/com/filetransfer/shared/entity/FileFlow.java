@@ -1,6 +1,7 @@
 package com.filetransfer.shared.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -22,6 +23,7 @@ public class FileFlow extends Auditable {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @NotBlank
     @Column(unique = true, nullable = false)
     private String name;
 
@@ -43,6 +45,7 @@ public class FileFlow extends Auditable {
      * Ordered list of processing steps as JSON.
      * Each step: {"type":"ENCRYPT|DECRYPT|COMPRESS|DECOMPRESS|RENAME|ROUTE","config":{...}}
      */
+    @NotNull
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb", nullable = false)
     private List<FlowStep> steps;
@@ -70,6 +73,7 @@ public class FileFlow extends Auditable {
     private com.filetransfer.shared.matching.MatchCriteria matchCriteria;
 
     /** Flow direction filter: INBOUND, OUTBOUND, or null (both) */
+    @Size(max = 20)
     @Column(length = 20)
     private String direction;
 

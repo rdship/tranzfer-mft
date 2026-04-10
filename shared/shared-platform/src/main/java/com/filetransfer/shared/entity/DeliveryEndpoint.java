@@ -3,6 +3,7 @@ package com.filetransfer.shared.entity;
 import com.filetransfer.shared.enums.AuthType;
 import com.filetransfer.shared.enums.DeliveryProtocol;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -24,29 +25,34 @@ public class DeliveryEndpoint extends Auditable {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @NotBlank
     @Column(unique = true, nullable = false)
     private String name;
 
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @NotNull
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private DeliveryProtocol protocol;
 
     // --- Connection ---
 
+    @Size(max = 500)
     @Column(length = 500)
     private String host;
 
     private Integer port;
 
     /** Remote directory for file protocols, base URL path for HTTP */
+    @Size(max = 1000)
     @Column(length = 1000)
     private String basePath;
 
     // --- Authentication ---
 
+    @NotNull
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     @Builder.Default
@@ -119,15 +125,19 @@ public class DeliveryEndpoint extends Auditable {
 
     // --- Resilience ---
 
+    @Min(0)
     @Builder.Default
     private int connectionTimeoutMs = 30000;
 
+    @Min(0)
     @Builder.Default
     private int readTimeoutMs = 60000;
 
+    @Min(0)
     @Builder.Default
     private int retryCount = 3;
 
+    @Min(0)
     @Builder.Default
     private int retryDelayMs = 5000;
 
@@ -144,6 +154,7 @@ public class DeliveryEndpoint extends Auditable {
     private UUID partnerId;
 
     /** Comma-separated tags for categorization and filtering */
+    @Size(max = 500)
     @Column(length = 500)
     private String tags;
 
