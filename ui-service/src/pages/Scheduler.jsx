@@ -32,7 +32,9 @@ export default function Scheduler() {
           <th className="table-header">Name</th><th className="table-header">Cron</th><th className="table-header">Type</th>
           <th className="table-header">Last Run</th><th className="table-header">Status</th><th className="table-header">Runs</th><th className="table-header">Actions</th>
         </tr></thead><tbody>
-          {tasks.map(t => (
+          {tasks.length === 0 ? (
+            <tr><td colSpan={7} className="text-center py-8 text-gray-500 text-sm">No scheduled tasks yet. Create your first schedule to automate recurring jobs.</td></tr>
+          ) : tasks.map(t => (
             <tr key={t.id} className="table-row">
               <td className="table-cell font-medium">{t.name}</td>
               <td className="table-cell font-mono text-xs">{t.cronExpression}</td>

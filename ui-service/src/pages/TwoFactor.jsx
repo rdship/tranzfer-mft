@@ -33,7 +33,9 @@ export default function TwoFactor() {
         <table className="w-full"><thead><tr className="border-b">
           <th className="table-header">Account</th><th className="table-header">Protocol</th><th className="table-header">2FA</th><th className="table-header">Actions</th>
         </tr></thead><tbody>
-          {accounts.map(a => (
+          {accounts.length === 0 ? (
+            <tr><td colSpan={4} className="text-center py-8 text-gray-500 text-sm">No transfer accounts configured. Create accounts first to manage 2FA.</td></tr>
+          ) : accounts.map(a => (
             <tr key={a.id} className="table-row">
               <td className="table-cell font-medium">{a.username}</td>
               <td className="table-cell"><span className="badge badge-blue">{a.protocol}</span></td>

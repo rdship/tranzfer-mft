@@ -53,8 +53,8 @@ export default function Logs() {
       <div className="card">
         <div className="flex gap-3 mb-4">
           <div className="relative flex-1">
-            <MagnifyingGlassIcon className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-            <input className="pl-9" placeholder="Search by username, filename, message..." value={search} onChange={e => { setSearch(e.target.value); setPage(0) }} />
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            <input className="pl-10 pr-3 py-2 text-sm border rounded-lg w-full focus:ring-2 focus:ring-blue-500" placeholder="Search by username, filename, message..." value={search} onChange={e => { setSearch(e.target.value); setPage(0) }} />
           </div>
           <select value={level} onChange={e => { setLevel(e.target.value); setPage(0) }} className="w-auto text-sm">
             {LEVELS.map(l => <option key={l}>{l}</option>)}

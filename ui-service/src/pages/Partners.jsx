@@ -289,12 +289,12 @@ export default function Partners() {
 
       {/* Search */}
       <div className="relative max-w-sm">
-        <MagnifyingGlassIcon className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
         <input
           placeholder="Search by company name..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="max-w-sm pl-9"
+          className="pl-10 pr-3 py-2 text-sm border rounded-lg w-full focus:ring-2 focus:ring-blue-500 max-w-sm"
         />
       </div>
 

@@ -40,7 +40,9 @@ export default function PeerTransfers() {
           <th className="table-header">Track ID</th><th className="table-header">Sender</th><th className="table-header"></th>
           <th className="table-header">Receiver</th><th className="table-header">File</th><th className="table-header">Status</th><th className="table-header">Time</th>
         </tr></thead><tbody>
-          {tickets.map(t => (
+          {tickets.length === 0 ? (
+            <tr><td colSpan={7} className="text-center py-8 text-gray-500 text-sm">No peer-to-peer transfers yet. Transfers will appear here as clients exchange files.</td></tr>
+          ) : tickets.map(t => (
             <tr key={t.ticketId} className="table-row">
               <td className="table-cell font-mono text-xs font-bold text-blue-600">{t.trackId}</td>
               <td className="table-cell text-sm">{t.senderAccount?.username || '?'}</td>

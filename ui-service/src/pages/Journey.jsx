@@ -440,8 +440,8 @@ export default function Journey() {
       {/* Search */}
       <div className="card flex gap-3">
         <div className="relative flex-1">
-          <MagnifyingGlassIcon className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-          <input className="pl-9" placeholder="Enter Track ID (e.g. TRZRPF8TEA5Q)..." value={trackId}
+          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+          <input className="pl-10 pr-3 py-2 text-sm border rounded-lg w-full focus:ring-2 focus:ring-blue-500" placeholder="Enter Track ID (e.g. TRZRPF8TEA5Q)..." value={trackId}
             onChange={e => setTrackId(e.target.value.toUpperCase())}
             onKeyDown={e => e.key === 'Enter' && setSearchId(trackId)} />
         </div>

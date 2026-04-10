@@ -105,9 +105,9 @@ export default function Sla() {
                 <p className="text-xs text-gray-400 mt-1">Days: {(s.expectedDays || []).join(', ')}</p></div>
               <div className="flex items-center gap-2">
                 <span className={`badge ${s.totalBreaches > 0 ? 'badge-red' : 'badge-green'}`}>{s.totalBreaches} breaches</span>
-                <button onClick={() => openEdit(s)}
+                <button onClick={() => openEdit(s)} title="Edit agreement"
                   className="p-1.5 rounded hover:bg-blue-50 text-blue-500 transition-colors"><PencilSquareIcon className="w-4 h-4" /></button>
-                <button onClick={() => { if (confirm('Delete this SLA agreement?')) deleteMut.mutate(s.id) }}
+                <button onClick={() => { if (confirm('Delete this SLA agreement?')) deleteMut.mutate(s.id) }} title="Delete agreement"
                   className="p-1.5 rounded hover:bg-red-50 text-red-500 transition-colors"><TrashIcon className="w-4 h-4" /></button>
               </div>
             </div>

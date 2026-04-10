@@ -13,6 +13,7 @@ import {
   PlusIcon, TrashIcon, PencilIcon, DocumentDuplicateIcon,
   EyeIcon, EyeSlashIcon, CheckIcon, XMarkIcon,
   ArchiveBoxXMarkIcon, ClockIcon as ClockSolid,
+  MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline'
 
 const ENVIRONMENTS = ['DEV', 'TEST', 'CERT', 'STAGING', 'PROD']
@@ -575,8 +576,11 @@ export default function PlatformConfig() {
 
         {/* Filters */}
         <div className="flex gap-3 mb-4">
-          <input placeholder="Search settings..." value={search}
-            onChange={e => setSearch(e.target.value)} className="flex-1 max-w-sm" />
+          <div className="relative flex-1 max-w-sm">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            <input placeholder="Search settings..." value={search}
+              onChange={e => setSearch(e.target.value)} className="pl-10 pr-3 py-2 text-sm border rounded-lg w-full focus:ring-2 focus:ring-blue-500" />
+          </div>
           <select value={filterService} onChange={e => setFilterService(e.target.value)}>
             <option value="">All Services</option>
             {SERVICE_NAMES.map(s => <option key={s}>{s}</option>)}

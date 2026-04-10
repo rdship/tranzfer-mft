@@ -39,11 +39,11 @@ export default function Track({ username }) {
 
       <div className="bg-white rounded-xl border p-5 flex gap-3">
         <div className="relative flex-1">
-          <MagnifyingGlassIcon className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
           <input value={trackId} onChange={e => setTrackId(e.target.value.toUpperCase())}
             onKeyDown={e => e.key === 'Enter' && search(trackId)}
             placeholder="Enter Track ID (e.g. TRZA3X5T3LUY)"
-            className="w-full pl-9 rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500" />
+            className="w-full pl-10 pr-3 py-2 text-sm font-mono border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500" />
         </div>
         <button onClick={() => search(trackId)} disabled={loading}
           className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">

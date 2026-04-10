@@ -28,10 +28,10 @@ export default function Blockchain() {
         <p className="text-gray-500 text-sm">Immutable cryptographic proof of every file transfer — non-repudiation</p></div>
 
       <div className="card flex gap-3">
-        <div className="relative flex-1"><MagnifyingGlassIcon className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+        <div className="relative flex-1"><MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
           <input value={verifyId} onChange={e => setVerifyId(e.target.value.toUpperCase())}
             onKeyDown={e => e.key === 'Enter' && verify()} placeholder="Enter Track ID to verify..."
-            className="w-full pl-9 rounded-lg border px-3 py-2 text-sm font-mono" /></div>
+            className="w-full pl-10 pr-3 py-2 text-sm border rounded-lg font-mono focus:ring-2 focus:ring-blue-500" /></div>
         <button onClick={verify} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Verify</button>
       </div>
 

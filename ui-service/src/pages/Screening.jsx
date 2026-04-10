@@ -49,7 +49,9 @@ export default function Screening() {
           <th className="table-header">Track ID</th><th className="table-header">File</th><th className="table-header">Records</th>
           <th className="table-header">Outcome</th><th className="table-header">Duration</th><th className="table-header">Time</th>
         </tr></thead><tbody>
-          {results.map(r => (
+          {results.length === 0 ? (
+            <tr><td colSpan={6} className="text-center py-8 text-gray-500 text-sm">No screening results yet. Results appear as files are screened during transfer.</td></tr>
+          ) : results.map(r => (
             <tr key={r.id} className="table-row">
               <td className="table-cell font-mono text-xs">{r.trackId}</td>
               <td className="table-cell text-sm">{r.filename}</td>

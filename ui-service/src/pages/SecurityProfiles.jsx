@@ -177,11 +177,11 @@ export default function SecurityProfiles() {
                   <span className={`badge mt-2 ${p.type === 'SSH' ? 'badge-blue' : 'badge-purple'}`}>{p.type}</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button onClick={() => openEdit(p)}
+                  <button onClick={() => openEdit(p)} title="Edit profile"
                     className="p-1.5 rounded hover:bg-blue-50 text-blue-500 transition-colors">
                     <PencilSquareIcon className="w-4 h-4" />
                   </button>
-                  <button onClick={() => { if (confirm('Delete profile?')) deleteMut.mutate(p.id) }}
+                  <button onClick={() => { if (confirm('Delete profile?')) deleteMut.mutate(p.id) }} title="Delete profile"
                     className="p-1.5 rounded hover:bg-red-50 text-red-500 transition-colors">
                     <TrashIcon className="w-4 h-4" />
                   </button>

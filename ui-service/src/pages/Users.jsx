@@ -44,7 +44,9 @@ export default function Users() {
             <th className="table-header">Actions</th>
           </tr></thead>
           <tbody>
-            {users.map(u => (
+            {users.length === 0 ? (
+              <tr><td colSpan={5} className="text-center py-8 text-gray-500 text-sm">No users registered yet.</td></tr>
+            ) : users.map(u => (
               <tr key={u.id} className="table-row">
                 <td className="table-cell font-medium">{u.email}</td>
                 <td className="table-cell">
@@ -62,7 +64,7 @@ export default function Users() {
                 <td className="table-cell text-gray-500 text-xs">{u.createdAt ? format(new Date(u.createdAt), 'MMM d, yyyy') : '--'}</td>
                 <td className="table-cell text-xs text-gray-400">{u.id?.substring(0, 8)}</td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>

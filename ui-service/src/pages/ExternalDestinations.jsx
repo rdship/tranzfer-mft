@@ -77,7 +77,7 @@ export default function ExternalDestinations() {
               {['FTP', 'HTTP'].includes(d.type) && (
                 <span className="badge badge-red">No TLS</span>
               )}
-              <button onClick={() => { if(confirm('Delete?')) deleteMut.mutate(d.id) }} className="p-1.5 rounded hover:bg-red-50 text-red-500"><TrashIcon className="w-4 h-4" /></button>
+              <button onClick={() => { if(confirm('Delete?')) deleteMut.mutate(d.id) }} title="Delete destination" className="p-1.5 rounded hover:bg-red-50 text-red-500"><TrashIcon className="w-4 h-4" /></button>
             </div>
           ))}
         </div>

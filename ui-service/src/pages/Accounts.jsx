@@ -5,7 +5,7 @@ import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import toast from 'react-hot-toast'
-import { PlusIcon, TrashIcon, PencilSquareIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, TrashIcon, PencilSquareIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
 
 const PROTOCOLS = ['SFTP', 'FTP', 'FTP_WEB']
@@ -103,7 +103,10 @@ export default function Accounts() {
 
       <div className="card">
         <div className="mb-4">
-          <input placeholder="Search by username or protocol..." value={search} onChange={e => setSearch(e.target.value)} className="max-w-sm" />
+          <div className="relative max-w-sm">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            <input placeholder="Search by username or protocol..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 pr-3 py-2 text-sm border rounded-lg w-full focus:ring-2 focus:ring-blue-500" />
+          </div>
         </div>
 
         {filtered.length === 0 ? (
@@ -149,11 +152,11 @@ export default function Accounts() {
                   <td className="table-cell text-gray-500 text-xs">{acc.createdAt ? format(new Date(acc.createdAt), 'MMM d, yyyy') : '-'}</td>
                   <td className="table-cell">
                     <div className="flex gap-1">
-                      <button onClick={() => openEdit(acc)}
+                      <button onClick={() => openEdit(acc)} title="Edit account"
                         className="p-1.5 rounded hover:bg-blue-50 text-blue-500 hover:text-blue-700 transition-colors">
                         <PencilSquareIcon className="w-4 h-4" />
                       </button>
-                      <button onClick={() => { if (confirm('Delete account?')) deleteMut.mutate(acc.id) }}
+                      <button onClick={() => { if (confirm('Delete account?')) deleteMut.mutate(acc.id) }} title="Delete account"
                         className="p-1.5 rounded hover:bg-red-50 text-red-500 hover:text-red-700 transition-colors">
                         <TrashIcon className="w-4 h-4" />
                       </button>

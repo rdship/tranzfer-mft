@@ -173,6 +173,11 @@ export default function Connectors() {
   return (
     <div className="space-y-8">
 
+      <div>
+        <h1 className="text-2xl font-bold" style={{ color: 'rgb(var(--tx-primary))' }}>Connectors &amp; Webhooks</h1>
+        <p className="text-sm" style={{ color: 'rgb(var(--tx-secondary))' }}>Manage external integrations and partner webhook notifications</p>
+      </div>
+
       {/* ── Admin Connectors ── */}
       <section>
         <div className="flex items-center justify-between mb-4">

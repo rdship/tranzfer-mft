@@ -12,6 +12,11 @@ export default function Predictions() {
     <div className="space-y-6">
       <div><h1 className="text-2xl font-bold text-gray-900">Scaling Predictions</h1>
         <p className="text-gray-500 text-sm">AI-driven capacity planning based on traffic trends</p></div>
+      {predictions.length === 0 ? (
+        <div className="card text-center py-12">
+          <p className="text-gray-500 text-sm">No predictions available yet. Predictions are generated as transfer traffic builds up.</p>
+        </div>
+      ) : (
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         {predictions.map(p => (
           <div key={p.serviceType} className="card">
@@ -43,6 +48,7 @@ export default function Predictions() {
           </div>
         ))}
       </div>
+      )}
     </div>
   )
 }

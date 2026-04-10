@@ -68,9 +68,9 @@ export default function Tenants() {
               <p>{t.transfersUsed || 0} transfers</p>
               {t.trialEndsAt && <p>Trial ends: {format(new Date(t.trialEndsAt), 'MMM d')}</p>}
             </div>
-            <button onClick={() => openEdit(t)}
+            <button onClick={() => openEdit(t)} title="Edit tenant"
               className="p-1.5 rounded hover:bg-blue-50 text-blue-500 transition-colors"><PencilSquareIcon className="w-4 h-4" /></button>
-            <button onClick={() => { if (confirm('Delete this tenant? This cannot be undone.')) deleteMut.mutate(t.id) }}
+            <button onClick={() => { if (confirm('Delete this tenant? This cannot be undone.')) deleteMut.mutate(t.id) }} title="Delete tenant"
               className="p-1.5 rounded hover:bg-red-50 text-red-500 transition-colors"><TrashIcon className="w-4 h-4" /></button>
           </div>
         ))}

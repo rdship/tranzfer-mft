@@ -444,10 +444,10 @@ export default function ServerInstances() {
                           className={`p-1.5 rounded transition-colors ${s.maintenanceMode ? 'text-yellow-500 hover:bg-yellow-50' : 'text-gray-300 hover:bg-yellow-50 hover:text-yellow-500'}`}>
                           <WrenchScrewdriverIcon className="w-4 h-4" />
                         </button>
-                        <button onClick={() => openEdit(s)} className="p-1.5 rounded hover:bg-blue-50 text-blue-500">
+                        <button onClick={() => openEdit(s)} title="Edit server" className="p-1.5 rounded hover:bg-blue-50 text-blue-500">
                           <PencilIcon className="w-4 h-4" />
                         </button>
-                        <button onClick={() => { if(confirm('Deactivate this server?')) deleteMut.mutate(s.id) }}
+                        <button onClick={() => { if(confirm('Deactivate this server?')) deleteMut.mutate(s.id) }} title="Deactivate server"
                           className="p-1.5 rounded hover:bg-red-50 text-red-500">
                           <TrashIcon className="w-4 h-4" />
                         </button>
