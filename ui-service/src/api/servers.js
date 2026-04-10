@@ -46,9 +46,12 @@ export const removeServerFromAccount = (accountId, serverId) =>
 export const toggleMaintenance = (serverId, enable, message = '') =>
   onboardingApi.post(`/api/servers/${serverId}/maintenance`, { enable, message }).then(r => r.data)
 
-// ── Legacy endpoints (kept) ───────────────────────────────────────────────────
+// ── Legacy endpoints ─────────────────────────────────────────────────────────
 export const listLegacyServers  = () => configClient.get('/api/legacy-servers').then(r => r.data)
+export const getLegacyServer    = (id) => configClient.get(`/api/legacy-servers/${id}`).then(r => r.data)
 export const addLegacyServer    = (data) => configClient.post('/api/legacy-servers', data).then(r => r.data)
+export const updateLegacyServer = (id, data) => configClient.put(`/api/legacy-servers/${id}`, data).then(r => r.data)
+export const deleteLegacyServer = (id) => configClient.delete(`/api/legacy-servers/${id}`)
 export const addDestination     = (data) => configClient.post('/api/external-destinations', data).then(r => r.data)
 export const listDestinations   = ()     => configClient.get('/api/external-destinations').then(r => r.data)
 export const serviceRegistry    = ()     => onboardingClient.get('/api/service-registry').then(r => r.data)

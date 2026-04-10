@@ -16,6 +16,7 @@ import {
 import { getGatewayStatus, getGatewayRoutes, getGatewayStats } from '../api/gateway'
 import { getDmzHealth, getSecurityStats, listMappings, addMapping, removeMapping } from '../api/dmz'
 import { getActiveTransfers, getForwarderHealth } from '../api/forwarder'
+import { listLegacyServers, addLegacyServer, updateLegacyServer, deleteLegacyServer } from '../api/servers'
 import { onboardingApi } from '../api/client'
 
 /* ─── Tabs ─── */
@@ -24,6 +25,7 @@ const TABS = [
   { key: 'security', label: 'DMZ Security', icon: ShieldCheckIcon },
   { key: 'mappings', label: 'Port Mappings', icon: ArrowsRightLeftIcon },
   { key: 'transfers', label: 'Active Transfers', icon: BoltIcon },
+  { key: 'legacy', label: 'Legacy Servers', icon: ServerIcon },
 ]
 
 /* ─── Route colors by type ─── */
@@ -47,6 +49,9 @@ export default function GatewayStatus() {
   const [showIpDetail, setShowIpDetail] = useState(null)
   const [ipSearch, setIpSearch] = useState('')
   const [expandedMapping, setExpandedMapping] = useState(null)
+  const [showLegacyForm, setShowLegacyForm] = useState(false)
+  const [editingLegacy, setEditingLegacy] = useState(null)
+  const [legacyForm, setLegacyForm] = useState({ name: '', protocol: 'SFTP', host: '', port: 22, healthCheckUser: '', active: true })
 
   // ─── Queries ───
   const { data: gwStatus } = useQuery({
@@ -87,6 +92,33 @@ export default function GatewayStatus() {
     queryFn: () => onboardingApi.get('/api/service-registry').then(r => r.data).catch(() => []),
     refetchInterval: 30000
   })
+
+  // ─── Legacy Servers ───
+  const { data: legacyServers = [] } = useQuery({
+    queryKey: ['legacy-servers'], queryFn: listLegacyServers,
+    retry: false, enabled: activeTab === 'legacy'
+  })
+  const createLegacyMut = useMutation({
+    mutationFn: addLegacyServer,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['legacy-servers'] }); setShowLegacyForm(false); resetLegacyForm(); toast.success('Legacy server created') },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to create')
+  })
+  const updateLegacyMut = useMutation({
+    mutationFn: ({ id, data }) => updateLegacyServer(id, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['legacy-servers'] }); setEditingLegacy(null); resetLegacyForm(); toast.success('Legacy server updated') },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to update')
+  })
+  const deleteLegacyMut = useMutation({
+    mutationFn: deleteLegacyServer,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['legacy-servers'] }); toast.success('Legacy server deleted') },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to delete')
+  })
+  const resetLegacyForm = () => setLegacyForm({ name: '', protocol: 'SFTP', host: '', port: 22, healthCheckUser: '', active: true })
+  const openEditLegacy = (s) => {
+    setLegacyForm({ name: s.name, protocol: s.protocol, host: s.host, port: s.port, healthCheckUser: s.healthCheckUser || '', active: s.active })
+    setEditingLegacy(s)
+  }
+  const openCreateLegacy = () => { resetLegacyForm(); setShowLegacyForm(true) }
 
   // ─── Mutations ───
   const addMappingMut = useMutation({
@@ -697,6 +729,113 @@ export default function GatewayStatus() {
                 )
               })}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── Legacy Servers Tab ─── */}
+      {activeTab === 'legacy' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-secondary">
+              Fallback servers for unknown users forwarded from the gateway. {legacyServers.length} configured.
+            </p>
+            <button className="btn-primary" onClick={openCreateLegacy}><PlusIcon className="w-4 h-4" /> Add Legacy Server</button>
+          </div>
+
+          {legacyServers.length === 0 ? (
+            <EmptyState emoji="🔗" title="No legacy servers" description="Legacy servers receive unknown users forwarded from the gateway during migration from older MFT platforms." />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead><tr>
+                  <th className="text-left text-xs font-medium text-secondary uppercase px-4 py-3">Name</th>
+                  <th className="text-left text-xs font-medium text-secondary uppercase px-4 py-3">Protocol</th>
+                  <th className="text-left text-xs font-medium text-secondary uppercase px-4 py-3">Host</th>
+                  <th className="text-left text-xs font-medium text-secondary uppercase px-4 py-3">Port</th>
+                  <th className="text-left text-xs font-medium text-secondary uppercase px-4 py-3">Health Check User</th>
+                  <th className="text-left text-xs font-medium text-secondary uppercase px-4 py-3">Status</th>
+                  <th className="text-right text-xs font-medium text-secondary uppercase px-4 py-3">Actions</th>
+                </tr></thead>
+                <tbody>
+                  {legacyServers.map(s => (
+                    <tr key={s.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]"
+                        onClick={() => openEditLegacy(s)}>
+                      <td className="px-4 py-3 font-medium text-primary">{s.name}</td>
+                      <td className="px-4 py-3"><span className={`badge badge-${PROTOCOL_COLORS[s.protocol] === 'blue' ? 'blue' : PROTOCOL_COLORS[s.protocol] === 'amber' ? 'yellow' : 'gray'}`}>{s.protocol}</span></td>
+                      <td className="px-4 py-3 font-mono text-sm">{s.host}</td>
+                      <td className="px-4 py-3">{s.port}</td>
+                      <td className="px-4 py-3 text-secondary">{s.healthCheckUser || '—'}</td>
+                      <td className="px-4 py-3"><span className={`badge ${s.active ? 'badge-green' : 'badge-red'}`}>{s.active ? 'Active' : 'Inactive'}</span></td>
+                      <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
+                        <button onClick={() => openEditLegacy(s)} className="p-1.5 rounded hover:bg-blue-50 text-blue-500 transition-colors" title="Edit">
+                          <EyeIcon className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => { if (confirm('Delete this legacy server?')) deleteLegacyMut.mutate(s.id) }}
+                          className="p-1.5 rounded hover:bg-red-50 text-red-500 transition-colors" title="Delete">
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Create/Edit Legacy Server Modal */}
+          {(showLegacyForm || editingLegacy) && (
+            <Modal title={editingLegacy ? 'Edit Legacy Server' : 'Add Legacy Server'} onClose={() => { setShowLegacyForm(false); setEditingLegacy(null); resetLegacyForm() }}>
+              <form onSubmit={e => {
+                e.preventDefault()
+                if (editingLegacy) updateLegacyMut.mutate({ id: editingLegacy.id, data: legacyForm })
+                else createLegacyMut.mutate(legacyForm)
+              }} className="space-y-4">
+                <div>
+                  <label>Name</label>
+                  <input value={legacyForm.name} onChange={e => setLegacyForm(f => ({...f, name: e.target.value}))} required placeholder="legacy-sftp-prod" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label>Protocol</label>
+                    <select value={legacyForm.protocol} onChange={e => {
+                      const p = e.target.value
+                      setLegacyForm(f => ({...f, protocol: p, port: p === 'SFTP' ? 22 : p === 'FTP' ? 21 : p === 'HTTPS' ? 443 : f.port }))
+                    }}>
+                      <option value="SFTP">SFTP</option>
+                      <option value="FTP">FTP</option>
+                      <option value="FTP_WEB">FTP Web</option>
+                      <option value="HTTPS">HTTPS</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Port</label>
+                    <input type="number" value={legacyForm.port} onChange={e => setLegacyForm(f => ({...f, port: +e.target.value}))} required min={1} max={65535} />
+                  </div>
+                </div>
+                <div>
+                  <label>Host</label>
+                  <input value={legacyForm.host} onChange={e => setLegacyForm(f => ({...f, host: e.target.value}))} required placeholder="legacy-sftp.internal.company.com" />
+                </div>
+                <div>
+                  <label>Health Check User <span className="text-secondary text-xs">(optional — used for connectivity checks only)</span></label>
+                  <input value={legacyForm.healthCheckUser} onChange={e => setLegacyForm(f => ({...f, healthCheckUser: e.target.value}))} placeholder="healthcheck" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={legacyForm.active} onChange={e => setLegacyForm(f => ({...f, active: e.target.checked}))}
+                      className="w-4 h-4 rounded border-gray-300" />
+                    <span>Active</span>
+                  </label>
+                </div>
+                <div className="flex gap-3 justify-end">
+                  <button type="button" className="btn-secondary" onClick={() => { setShowLegacyForm(false); setEditingLegacy(null); resetLegacyForm() }}>Cancel</button>
+                  <button type="submit" className="btn-primary" disabled={createLegacyMut.isPending || updateLegacyMut.isPending}>
+                    {(createLegacyMut.isPending || updateLegacyMut.isPending) ? 'Saving...' : editingLegacy ? 'Save Changes' : 'Create'}
+                  </button>
+                </div>
+              </form>
+            </Modal>
           )}
         </div>
       )}
