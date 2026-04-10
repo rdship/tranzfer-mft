@@ -9,7 +9,104 @@ This document explains how files flow through the platform when using different 
 - **SFTP Service**: Receives file uploads and records metadata in VFS
 - **Virtual File System (VFS)**: Maintains logical file locations mapping to physical storage
 - **Storage Manager**: Abstraction layer that handles storage backend operations (S3, MinIO, NFS, local)
+- **ParallelIOEngine**: Low-level I/O engine inside storage-manager — handles write path per file size
+- **StorageLifecycleManager**: Moves files between HOT / WARM / COLD tiers automatically
 - **FlowProcessingEngine**: Processes files based on VFS notifications
+
+---
+
+## How Files Are Written: Inline vs. Striped (ParallelIOEngine)
+
+Every file — regardless of upload method (SFTP, FTP, API, VFS write channel) — passes through `ParallelIOEngine.write()`. The engine picks a write strategy based on file size vs. the configured stripe size (`storage.stripe-size-kb`, default **4096 KB = 4 MB**).
+
+### Small Files (< 4 MB): Direct Write
+
+```
+Upload stream → 64 KB read buffer → BufferedOutputStream → disk
+                                   → SHA-256 computed inline
+                                   → fsync (if enabled)
+```
+
+- Single thread, no temp file
+- 64 KB read buffer, large write buffer (default 64 MB)
+- SHA-256 computed on the fly while writing
+- Fast for EDI, invoices, config files, small XML/JSON
+
+### Large Files (≥ 4 MB): Parallel Striped Write
+
+```
+Upload stream → temp file (fully buffered to disk)
+                     ↓ SHA-256 computed during buffer
+                     ↓
+             Split into N stripes (each 4 MB)
+                     ↓
+        [Thread 1]  [Thread 2]  [Thread 3] ... [Thread N]
+        write       write       write           write
+        offset 0    offset 4MB  offset 8MB      offset N*4MB
+                     ↓
+             destination file (pre-allocated, positioned writes)
+                     ↓
+                  fsync → done
+```
+
+- Destination file pre-allocated to full size before stripe writes begin
+- Each stripe uses `FileChannel.read(buf, offset)` + `FileChannel.write(buf, offset)` — thread-safe positioned I/O (GPFS-style)
+- Default 8 I/O threads (`storage.io-threads`), configurable
+- Max file size enforced: default **10 GB** (`storage.max-file-size-bytes`)
+
+### Content-Addressed Storage (CAS)
+
+All files are stored using SHA-256 as the filename — not the original name. This is how deduplication and VFS work together:
+
+```
+Step 1: Write to temp path   → {hotPath}/tmp-{threadId}-{nanoTime}
+Step 2: Compute SHA-256       → abc123def456...
+Step 3: Check if CAS exists   → {hotPath}/abc123def456...
+  → EXISTS:  delete temp, return "DEDUPLICATED"
+  → MISSING: rename temp → {hotPath}/abc123def456...
+Step 4: VFS records mapping   → "/inbox/invoice.xml" → sha256=abc123def456...
+```
+
+The logical filename (`invoice.xml`) lives only in the VFS metadata and the `StorageObject` DB record. Physical storage never knows the filename — just the content hash.
+
+### Storage Tiers
+
+New files always land in **HOT**. `StorageLifecycleManager` moves them automatically (runs every 15 min):
+
+| Tier | Path | Move Condition | Access Pattern |
+|------|------|----------------|----------------|
+| **HOT** | `/data/storage/hot/{sha256}` | Initial write | SSD, <10ms read |
+| **WARM** | `/data/storage/warm/{user}/{file}` | Not accessed for 168 h (7 days) | Slower storage |
+| **COLD** | `/data/storage/cold/{user}/{file}` | Not accessed for 30 days | Archive storage |
+| **BACKUP** | `/data/storage/backup/{date}/{tier}/{file}` | Incremental every 6 h | Disaster recovery |
+
+**Smart tiering rules:**
+- Files accessed in the last 24 h are never evicted from current tier
+- HOT files with access count > 10 are kept hot regardless of age
+- If HOT is >80% full: aggressive eviction of oldest files to target 60% capacity
+- **Predictive pre-staging**: if an account has a regular download pattern, files are moved back to HOT before their expected access time
+
+### Upload API Paths (VFS Write Channels)
+
+Storage-manager exposes three write endpoints for different use cases:
+
+| Endpoint | Content-Type | Use Case |
+|----------|-------------|----------|
+| `POST /api/v1/storage/store` | `multipart/form-data` | UI uploads, API clients |
+| `POST /api/v1/storage/store-bytes` | raw bytes in body | VFS write channels, internal services |
+| `POST /api/v1/storage/store-stream` | `application/octet-stream` | Streaming, no heap buffer for large files |
+
+`store-stream` is the most efficient for large files — the upload stream pipes directly into `ParallelIOEngine` with only a 64 KB read buffer, no intermediate byte array.
+
+### Retrieval Paths
+
+| Endpoint | Lookup | Routing |
+|----------|--------|---------|
+| `GET /api/v1/storage/retrieve/{trackId}` | DB by trackId → sha256 → backend | Single instance |
+| `GET /api/v1/storage/retrieve-by-key/{sha256}` | Redis location registry → pod routing | Multi-replica: proxies to owning pod |
+| `GET /api/v1/storage/stream/{sha256}` | Same as above, streaming response | Large file downloads |
+
+In multi-replica deployments with local backend, Redis tracks which pod stored each sha256. If you request a file that lives on pod-2 from pod-1, pod-1 proxies the request transparently. In S3 mode, all pods read from S3 directly — no routing needed.
 
 ---
 
