@@ -888,14 +888,8 @@ export default function Flows() {
       matchCriteria: data.matchCriteria || null,
       direction: data.direction || null,
     }
-    if (data.protocol && data.protocol !== 'ANY') {
-      payload.protocol = data.protocol
-    }
     if (data.sourceAccountId) {
       payload.sourceAccount = { id: data.sourceAccountId }
-    }
-    if (data.serverId) {
-      payload.server = { id: data.serverId }
     }
     if (data.deliveryMode === 'mailbox' && data.destinationAccountId) {
       payload.destinationAccount = { id: data.destinationAccountId }

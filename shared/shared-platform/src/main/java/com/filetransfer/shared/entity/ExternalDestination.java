@@ -40,6 +40,24 @@ public class ExternalDestination extends Auditable {
     @Column(columnDefinition = "TEXT")
     private String kafkaProducerConfig;
 
+    @Column(name = "auth_type", length = 20)
+    private String authType;  // NONE, BASIC, BEARER, CLIENT_CERT
+
+    @Column(name = "ssh_key_alias", length = 100)
+    private String sshKeyAlias;
+
+    @Column(name = "cert_alias", length = 100)
+    private String certAlias;
+
+    @Column(name = "passive_mode")
+    private boolean passiveMode;
+
+    @Column(name = "bearer_token")
+    private String bearerToken;
+
+    @Column(name = "protocol_config", columnDefinition = "TEXT")
+    private String protocolConfig;  // JSON for additional protocol-specific fields
+
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;

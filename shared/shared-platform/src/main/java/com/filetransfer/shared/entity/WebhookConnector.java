@@ -66,6 +66,21 @@ public class WebhookConnector extends Auditable {
     private String snowAssignmentGroup;
     private String snowCategory;
 
+    @Column(name = "channel", length = 100)
+    private String channel;  // Slack channel
+
+    @Column(name = "api_key", length = 500)
+    private String apiKey;  // OpsGenie API key
+
+    @Column(name = "region", length = 10)
+    private String region;  // OpsGenie region (US, EU)
+
+    @Column(name = "priority", length = 10)
+    private String priority;  // OpsGenie priority (P1-P5)
+
+    @Column(name = "auth_type", length = 20)
+    private String authType;  // NONE, BEARER, BASIC (for webhook type)
+
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;

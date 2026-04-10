@@ -140,6 +140,9 @@ public class ServerInstance {
     @Column(name = "compliance_profile_id")
     private UUID complianceProfileId;
 
+    @Column(name = "security_profile_id")
+    private UUID securityProfileId;
+
     @Column(name = "maintenance_mode")
     @Builder.Default
     private boolean maintenanceMode = false;

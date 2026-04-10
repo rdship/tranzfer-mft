@@ -46,6 +46,21 @@ public class PartnerAgreement extends Auditable {
     /** Action on breach: ALERT, ALERT_AND_ESCALATE */
     @Builder.Default private String breachAction = "ALERT";
 
+    @Column(name = "partner_name", length = 200)
+    private String partnerName;
+
+    @Column(name = "tier", length = 20)
+    private String tier;  // PLATINUM, GOLD, SILVER, BRONZE
+
+    @Column(name = "protocol", length = 20)
+    private String protocol;  // ANY, SFTP, FTP, AS2, HTTPS
+
+    @Column(name = "server_id")
+    private UUID serverId;
+
+    @Column(name = "max_latency_seconds")
+    private Integer maxLatencySeconds;
+
     @Builder.Default private boolean active = true;
     /** Total breaches recorded */
     @Builder.Default private int totalBreaches = 0;

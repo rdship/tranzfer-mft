@@ -1,12 +1,4 @@
-import axios from 'axios'
-
-const sentinelApi = axios.create({ baseURL: 'http://localhost:8098' })
-
-sentinelApi.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token')
-  if (token) config.headers.Authorization = `Bearer ${token}`
-  return config
-})
+import { sentinelApi } from './client'
 
 export const getHealthScore = () => sentinelApi.get('/api/v1/sentinel/health-score').then(r => r.data)
 export const getHealthScoreHistory = (hours = 24) => sentinelApi.get('/api/v1/sentinel/health-score/history', { params: { hours } }).then(r => r.data)
