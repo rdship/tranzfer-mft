@@ -40,6 +40,14 @@ public class PlatformBootstrapService {
     private final FolderMappingRepository folderMappingRepository;
     private final FileFlowRepository fileFlowRepository;
     private final PlatformSettingRepository platformSettingRepository;
+    private final WebhookConnectorRepository webhookConnectorRepository;
+    private final PartnerWebhookRepository partnerWebhookRepository;
+    private final SecurityProfileRepository securityProfileRepository;
+    private final ListenerSecurityPolicyRepository listenerSecurityPolicyRepository;
+    private final As2PartnershipRepository as2PartnershipRepository;
+    private final ProxyGroupRepository proxyGroupRepository;
+    private final ScheduledTaskRepository scheduledTaskRepository;
+    private final TenantRepository tenantRepository;
     private final PasswordEncoder passwordEncoder;
 
     @EventListener(ApplicationReadyEvent.class)
@@ -63,6 +71,16 @@ public class PlatformBootstrapService {
             seedFileFlows(accounts, endpoints, partners);
             seedPlatformSettings();
 
+            // ── Additional seed data — fills every UI page on first login ──
+            seedWebhookConnectors();
+            seedPartnerWebhooks(partners);
+            seedSecurityProfiles();
+            seedListenerSecurityPolicies(servers);
+            seedAs2Partnerships();
+            seedProxyGroups();
+            seedScheduledTasks();
+            seedTenants();
+
             log.info("[Bootstrap] ===== Platform bootstrap complete =====");
             log.info("[Bootstrap]   1 super-admin user");
             log.info("[Bootstrap]   {} server instances", servers.size());
@@ -70,8 +88,9 @@ public class PlatformBootstrapService {
             log.info("[Bootstrap]   {} transfer accounts", accounts.size());
             log.info("[Bootstrap]   {} delivery endpoints", endpoints.size());
             log.info("[Bootstrap]   1 folder template");
-            log.info("[Bootstrap]   5 file flows");
-            log.info("[Bootstrap]   Platform settings seeded");
+            log.info("[Bootstrap]   6 file flows");
+            log.info("[Bootstrap]   Platform settings, connectors, security profiles,");
+            log.info("[Bootstrap]   AS2 partnerships, proxy groups, schedules, tenants seeded");
             log.info("[Bootstrap] ==========================================");
 
         } catch (Exception e) {
@@ -899,5 +918,381 @@ public class PlatformBootstrapService {
         saved.forEach(s -> log.info("[Bootstrap] Created platform setting: {} = {} (category={}, env={})",
                 s.getSettingKey(), s.isSensitive() ? "****" : s.getSettingValue(),
                 s.getCategory(), s.getEnvironment()));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 9. Webhook Connectors (Ops Slack + Admin Email)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private void seedWebhookConnectors() {
+        try {
+            List<WebhookConnector> connectors = List.of(
+                    WebhookConnector.builder()
+                            .name("Ops Slack")
+                            .type("SLACK")
+                            .url("https://example.com/slack-webhook-placeholder")
+                            .triggerEvents(List.of("FLOW_FAIL", "TRANSFER_FAILED", "ANOMALY_DETECTED"))
+                            .minSeverity("MEDIUM")
+                            .active(true)
+                            .build(),
+                    WebhookConnector.builder()
+                            .name("Admin Email")
+                            .type("EMAIL")
+                            .url("mailto:admin@tranzfer.io")
+                            .triggerEvents(List.of("FLOW_FAIL", "LICENSE_EXPIRED", "QUARANTINE"))
+                            .minSeverity("HIGH")
+                            .active(true)
+                            .build(),
+                    WebhookConnector.builder()
+                            .name("PagerDuty On-Call")
+                            .type("PAGERDUTY")
+                            .url("https://events.pagerduty.com/v2/enqueue")
+                            .authToken("demo-pagerduty-routing-key")
+                            .triggerEvents(List.of("TRANSFER_FAILED", "INTEGRITY_FAIL", "AI_BLOCKED"))
+                            .minSeverity("CRITICAL")
+                            .active(true)
+                            .build()
+            );
+            List<WebhookConnector> saved = webhookConnectorRepository.saveAll(connectors);
+            saved.forEach(c -> log.info("[Bootstrap] Created webhook connector: {} (type={}, events={})",
+                    c.getName(), c.getType(), c.getTriggerEvents()));
+        } catch (Exception e) {
+            log.warn("[Bootstrap] Failed to seed webhook connectors: {}", e.getMessage());
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 10. Partner Webhooks (per-partner notification endpoints)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private void seedPartnerWebhooks(List<Partner> partners) {
+        try {
+            List<PartnerWebhook> webhooks = List.of(
+                    PartnerWebhook.builder()
+                            .partnerName(partners.get(0).getCompanyName())
+                            .url("https://api.acme-corp.com/webhooks/file-transfer")
+                            .secret("acme-hmac-secret-demo")
+                            .events(List.of("FLOW_COMPLETED", "FLOW_FAILED"))
+                            .description("Acme Corp — notifies their ERP system on flow completion/failure")
+                            .active(true)
+                            .build(),
+                    PartnerWebhook.builder()
+                            .partnerName(partners.get(1).getCompanyName())
+                            .url("https://integration.globalbank.com/callbacks/mft")
+                            .secret("globalbank-hmac-secret-demo")
+                            .events(List.of("FLOW_COMPLETED"))
+                            .description("GlobalBank — triggers downstream SWIFT processing on successful delivery")
+                            .active(true)
+                            .build()
+            );
+            List<PartnerWebhook> saved = partnerWebhookRepository.saveAll(webhooks);
+            saved.forEach(w -> log.info("[Bootstrap] Created partner webhook: {} → {} (events={})",
+                    w.getPartnerName(), w.getUrl(), w.getEvents()));
+        } catch (Exception e) {
+            log.warn("[Bootstrap] Failed to seed partner webhooks: {}", e.getMessage());
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 11. Security Profiles (SSH + TLS cryptographic baselines)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private void seedSecurityProfiles() {
+        try {
+            List<SecurityProfile> profiles = List.of(
+                    SecurityProfile.builder()
+                            .name("Standard SSH")
+                            .description("Balanced SSH profile — modern ciphers, broad client compatibility")
+                            .type("SSH")
+                            .sshCiphers(List.of("aes256-gcm@openssh.com", "aes128-gcm@openssh.com",
+                                    "chacha20-poly1305@openssh.com", "aes256-ctr", "aes128-ctr"))
+                            .sshMacs(List.of("hmac-sha2-512-etm@openssh.com", "hmac-sha2-256-etm@openssh.com",
+                                    "hmac-sha2-512", "hmac-sha2-256"))
+                            .kexAlgorithms(List.of("curve25519-sha256", "ecdh-sha2-nistp256",
+                                    "diffie-hellman-group16-sha512"))
+                            .hostKeyAlgorithms(List.of("ssh-ed25519", "rsa-sha2-512", "ecdsa-sha2-nistp256"))
+                            .active(true)
+                            .build(),
+                    SecurityProfile.builder()
+                            .name("High Security SSH")
+                            .description("Hardened SSH profile — AEAD-only ciphers, curve25519 KEX, no legacy algorithms")
+                            .type("SSH")
+                            .sshCiphers(List.of("aes256-gcm@openssh.com", "chacha20-poly1305@openssh.com"))
+                            .sshMacs(List.of("hmac-sha2-512-etm@openssh.com"))
+                            .kexAlgorithms(List.of("curve25519-sha256", "mlkem768x25519-sha256"))
+                            .hostKeyAlgorithms(List.of("ssh-ed25519"))
+                            .active(true)
+                            .build(),
+                    SecurityProfile.builder()
+                            .name("Standard TLS")
+                            .description("TLS 1.2+ profile for FTPS and HTTPS — ECDHE with AEAD cipher suites")
+                            .type("TLS")
+                            .tlsMinVersion("TLSv1.2")
+                            .tlsCiphers(List.of("TLS_AES_256_GCM_SHA384", "TLS_AES_128_GCM_SHA256",
+                                    "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+                                    "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"))
+                            .clientAuthRequired(false)
+                            .active(true)
+                            .build(),
+                    SecurityProfile.builder()
+                            .name("High Security TLS")
+                            .description("TLS 1.3 only — mandatory client certificate authentication for mTLS")
+                            .type("TLS")
+                            .tlsMinVersion("TLSv1.3")
+                            .tlsCiphers(List.of("TLS_AES_256_GCM_SHA384", "TLS_CHACHA20_POLY1305_SHA256"))
+                            .clientAuthRequired(true)
+                            .active(true)
+                            .build()
+            );
+            List<SecurityProfile> saved = securityProfileRepository.saveAll(profiles);
+            saved.forEach(p -> log.info("[Bootstrap] Created security profile: {} (type={}, active={})",
+                    p.getName(), p.getType(), p.isActive()));
+        } catch (Exception e) {
+            log.warn("[Bootstrap] Failed to seed security profiles: {}", e.getMessage());
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 12. Listener Security Policies (per-server firewall + rate-limit rules)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private void seedListenerSecurityPolicies(List<ServerInstance> servers) {
+        try {
+            // Map servers by instanceId for easy lookup
+            ServerInstance sftp1 = servers.stream()
+                    .filter(s -> "sftp-server-1".equals(s.getInstanceId())).findFirst().orElse(null);
+            ServerInstance ftps1 = servers.stream()
+                    .filter(s -> "ftps-server-1".equals(s.getInstanceId())).findFirst().orElse(null);
+
+            List<ListenerSecurityPolicy> policies = new ArrayList<>();
+
+            if (sftp1 != null) {
+                policies.add(ListenerSecurityPolicy.builder()
+                        .name("SFTP Primary — Standard Policy")
+                        .description("Standard rate-limiting and encryption policy for the primary SFTP listener")
+                        .securityTier(SecurityTier.AI)
+                        .serverInstance(sftp1)
+                        .rateLimitPerMinute(120)
+                        .maxConcurrent(50)
+                        .maxBytesPerMinute(1_000_000_000L)
+                        .maxAuthAttempts(5)
+                        .idleTimeoutSeconds(300)
+                        .requireEncryption(true)
+                        .connectionLogging(true)
+                        .blockedFileExtensions(List.of(".exe", ".bat", ".cmd", ".ps1", ".sh"))
+                        .maxFileSizeBytes(536_870_912L)
+                        .ipWhitelist(List.of("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
+                        .active(true)
+                        .build());
+            }
+
+            if (ftps1 != null) {
+                policies.add(ListenerSecurityPolicy.builder()
+                        .name("FTPS Primary — Financial Policy")
+                        .description("Strict policy for financial data exchange — lower rate limits, IP whitelist, encryption required")
+                        .securityTier(SecurityTier.AI_LLM)
+                        .serverInstance(ftps1)
+                        .rateLimitPerMinute(60)
+                        .maxConcurrent(20)
+                        .maxBytesPerMinute(500_000_000L)
+                        .maxAuthAttempts(3)
+                        .idleTimeoutSeconds(180)
+                        .requireEncryption(true)
+                        .connectionLogging(true)
+                        .allowedFileExtensions(List.of(".xml", ".json", ".csv", ".edi", ".txt"))
+                        .maxFileSizeBytes(268_435_456L)
+                        .geoAllowedCountries(List.of("US", "GB", "DE", "JP", "SG"))
+                        .active(true)
+                        .build());
+            }
+
+            if (!policies.isEmpty()) {
+                List<ListenerSecurityPolicy> saved = listenerSecurityPolicyRepository.saveAll(policies);
+                saved.forEach(p -> log.info("[Bootstrap] Created listener security policy: {} (tier={}, rateLimit={}/min)",
+                        p.getName(), p.getSecurityTier(), p.getRateLimitPerMinute()));
+            }
+        } catch (Exception e) {
+            log.warn("[Bootstrap] Failed to seed listener security policies: {}", e.getMessage());
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 13. AS2 Partnerships (B2B trading partner configs)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private void seedAs2Partnerships() {
+        try {
+            List<As2Partnership> partnerships = List.of(
+                    As2Partnership.builder()
+                            .partnerName("MedTech Solutions")
+                            .partnerAs2Id("MEDTECH-AS2")
+                            .ourAs2Id("TRANZFER-AS2")
+                            .endpointUrl("https://as2.medtech-solutions.com/as2/receive")
+                            .signingAlgorithm("SHA256")
+                            .encryptionAlgorithm("AES256")
+                            .mdnRequired(true)
+                            .mdnAsync(false)
+                            .compressionEnabled(true)
+                            .protocol("AS2")
+                            .active(true)
+                            .build(),
+                    As2Partnership.builder()
+                            .partnerName("GlobalBank")
+                            .partnerAs2Id("GLOBALBANK-AS2")
+                            .ourAs2Id("TRANZFER-AS2-FIN")
+                            .endpointUrl("https://as2.globalbank.com/b2b/receive")
+                            .signingAlgorithm("SHA384")
+                            .encryptionAlgorithm("AES256")
+                            .mdnRequired(true)
+                            .mdnAsync(true)
+                            .mdnUrl("https://as2.tranzfer.io/mdn/receive")
+                            .compressionEnabled(false)
+                            .protocol("AS2")
+                            .active(true)
+                            .build()
+            );
+            List<As2Partnership> saved = as2PartnershipRepository.saveAll(partnerships);
+            saved.forEach(p -> log.info("[Bootstrap] Created AS2 partnership: {} (as2Id={}, signing={}, encryption={})",
+                    p.getPartnerName(), p.getPartnerAs2Id(), p.getSigningAlgorithm(), p.getEncryptionAlgorithm()));
+        } catch (Exception e) {
+            log.warn("[Bootstrap] Failed to seed AS2 partnerships: {}", e.getMessage());
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 14. Proxy Groups (DMZ network zones)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private void seedProxyGroups() {
+        try {
+            List<ProxyGroup> groups = List.of(
+                    ProxyGroup.builder()
+                            .name("Internal Network")
+                            .type("INTERNAL")
+                            .description("Corporate/private network zone — all protocols, TLS optional, " +
+                                    "trusted CIDR ranges for internal service-to-service traffic")
+                            .allowedProtocols(List.of("SFTP", "FTP", "FTPS", "AS2", "HTTPS"))
+                            .tlsRequired(false)
+                            .trustedCidrs("10.0.0.0/8,172.16.0.0/12,192.168.0.0/16")
+                            .maxConnectionsPerInstance(1000)
+                            .routingPriority(10)
+                            .active(true)
+                            .build(),
+                    ProxyGroup.builder()
+                            .name("External / Partner DMZ")
+                            .type("EXTERNAL")
+                            .description("Internet-facing DMZ zone — SFTP and AS2 only, TLS mandatory, " +
+                                    "rate-limited for partner connections through DMZ proxy")
+                            .allowedProtocols(List.of("SFTP", "AS2", "HTTPS"))
+                            .tlsRequired(true)
+                            .maxConnectionsPerInstance(500)
+                            .routingPriority(20)
+                            .active(true)
+                            .build(),
+                    ProxyGroup.builder()
+                            .name("Cloud Bridge")
+                            .type("CLOUD")
+                            .description("Cloud-to-cloud connectivity zone for AWS/Azure/GCP storage " +
+                                    "integrations — HTTPS only, mTLS required")
+                            .allowedProtocols(List.of("HTTPS"))
+                            .tlsRequired(true)
+                            .maxConnectionsPerInstance(200)
+                            .routingPriority(30)
+                            .active(true)
+                            .build()
+            );
+            List<ProxyGroup> saved = proxyGroupRepository.saveAll(groups);
+            saved.forEach(g -> log.info("[Bootstrap] Created proxy group: {} (type={}, protocols={}, tlsRequired={})",
+                    g.getName(), g.getType(), g.getAllowedProtocols(), g.isTlsRequired()));
+        } catch (Exception e) {
+            log.warn("[Bootstrap] Failed to seed proxy groups: {}", e.getMessage());
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 15. Scheduled Tasks (automated jobs)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private void seedScheduledTasks() {
+        try {
+            List<ScheduledTask> tasks = List.of(
+                    ScheduledTask.builder()
+                            .name("Daily Archive Cleanup")
+                            .description("Purges archived files older than the retention period (default 90 days) " +
+                                    "every night at 2:00 AM UTC")
+                            .cronExpression("0 0 2 * * *")
+                            .timezone("UTC")
+                            .taskType("CLEANUP")
+                            .config(Map.of("retentionDays", "90", "targetPaths", "/sent,/archive"))
+                            .enabled(true)
+                            .build(),
+                    ScheduledTask.builder()
+                            .name("Hourly Partner Pull — Acme Corp")
+                            .description("Polls Acme Corp's external SFTP server every hour for new inbound files")
+                            .cronExpression("0 0 * * * *")
+                            .timezone("UTC")
+                            .taskType("PULL_FILES")
+                            .config(Map.of("accountUsername", "acme-sftp", "remotePath", "/outbound"))
+                            .enabled(true)
+                            .build(),
+                    ScheduledTask.builder()
+                            .name("Weekly Integrity Report")
+                            .description("Generates a weekly checksum integrity report for all partner transfers — " +
+                                    "runs every Sunday at 6:00 AM UTC")
+                            .cronExpression("0 0 6 * * SUN")
+                            .timezone("UTC")
+                            .taskType("EXECUTE_SCRIPT")
+                            .config(Map.of("script", "integrity-report", "emailTo", "admin@tranzfer.io"))
+                            .enabled(true)
+                            .build()
+            );
+            List<ScheduledTask> saved = scheduledTaskRepository.saveAll(tasks);
+            saved.forEach(t -> log.info("[Bootstrap] Created scheduled task: {} (cron={}, type={}, enabled={})",
+                    t.getName(), t.getCronExpression(), t.getTaskType(), t.isEnabled()));
+        } catch (Exception e) {
+            log.warn("[Bootstrap] Failed to seed scheduled tasks: {}", e.getMessage());
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 16. Tenants (multi-tenant isolation)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private void seedTenants() {
+        try {
+            List<Tenant> tenants = List.of(
+                    Tenant.builder()
+                            .slug("default")
+                            .companyName("TranzFer (Platform Owner)")
+                            .contactEmail("admin@tranzfer.io")
+                            .plan("ENTERPRISE")
+                            .transferLimit(1_000_000L)
+                            .customDomain("app.tranzfer.io")
+                            .branding(Map.of("primaryColor", "#1a73e8", "logoUrl", "/assets/logo.svg"))
+                            .active(true)
+                            .build(),
+                    Tenant.builder()
+                            .slug("acme-corp")
+                            .companyName("Acme Corp")
+                            .contactEmail("john.mitchell@acme-corp.com")
+                            .plan("PROFESSIONAL")
+                            .transferLimit(100_000L)
+                            .active(true)
+                            .build(),
+                    Tenant.builder()
+                            .slug("globalbank")
+                            .companyName("GlobalBank")
+                            .contactEmail("sarah.chen@globalbank.com")
+                            .plan("ENTERPRISE")
+                            .transferLimit(500_000L)
+                            .active(true)
+                            .build()
+            );
+            List<Tenant> saved = tenantRepository.saveAll(tenants);
+            saved.forEach(t -> log.info("[Bootstrap] Created tenant: {} (slug={}, plan={}, limit={})",
+                    t.getCompanyName(), t.getSlug(), t.getPlan(), t.getTransferLimit()));
+        } catch (Exception e) {
+            log.warn("[Bootstrap] Failed to seed tenants: {}", e.getMessage());
+        }
     }
 }
