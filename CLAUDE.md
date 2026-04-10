@@ -1,7 +1,7 @@
 # TranzFer MFT — Claude Code Instructions
 
 ## User
-Roshan Dubey — CTO/founder. Deep Java 21/Spring Boot expertise. Built all 19 services. Production-grade quality, no shortcuts.
+Roshan Dubey — CTO/founder. Deep Java 21/Spring Boot expertise. Built all 22 services. Production-grade quality, no shortcuts.
 
 ## Guiding Principle: Triangle Center
 Speed | Security | Stability+Consistency — never sacrifice one for another.
@@ -34,7 +34,7 @@ All repositories are interfaces → safe to @Mock
 --add-opens java.base/java.lang=ALL-UNNAMED +reflect +util +invoke +io, -XX:+EnableDynamicAgentLoading
 
 ## Architecture
-- 22 modules, shared library with 32 JPA entities
+- 24 modules (22 services + api-gateway + cli), shared library with 84 JPA entities
 - REST via ResilientServiceClient (circuit breaker+retry)
 - **Service identity**: SPIFFE/SPIRE — REQUIRED (X-Internal-Key removed; SPIFFE is the only inter-service auth)
   - Default ON: `SPIFFE_ENABLED=true` in docker-compose. Fresh install: fully automatic via spire-init container.
