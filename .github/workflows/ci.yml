@@ -62,16 +62,18 @@ jobs:
         run: |
           MODULES=$(grep -c '<module>' pom.xml)
           echo "Maven modules: $MODULES"
-          if [ "$MODULES" -lt 18 ]; then
-            echo "ERROR: Expected 18+ modules, found $MODULES"
+          if [ "$MODULES" -lt 22 ]; then
+            echo "ERROR: Expected 22+ modules, found $MODULES"
             exit 1
           fi
 
       - name: Check JAR artifacts
         run: |
-          for svc in onboarding-api sftp-service ftp-service config-service \
+          for svc in onboarding-api sftp-service ftp-service ftp-web-service config-service \
             gateway-service encryption-service license-service analytics-service \
-            ai-engine screening-service keystore-manager storage-manager mft-client; do
+            ai-engine screening-service keystore-manager storage-manager mft-client \
+            dmz-proxy as2-service edi-converter notification-service \
+            platform-sentinel external-forwarder-service; do
             if [ -f "${svc}/target/${svc}-1.0.0-SNAPSHOT.jar" ]; then
               echo "✓ ${svc}"
             else

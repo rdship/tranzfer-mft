@@ -342,7 +342,7 @@ export default function CircuitBreakers() {
           }}
           onMouseEnter={e => {
             e.currentTarget.style.background = 'rgb(var(--accent))'
-            e.currentTarget.style.color = '#fff'
+            e.currentTarget.style.color = 'white'
           }}
           onMouseLeave={e => {
             e.currentTarget.style.background = 'rgb(var(--hover))'

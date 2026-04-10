@@ -30,13 +30,13 @@ export default class ErrorBoundary extends Component {
         <div style={{ padding: '2rem', textAlign: 'center' }}>
           <div style={{
             maxWidth: '500px', margin: '4rem auto', padding: '2rem',
-            borderRadius: '12px', backgroundColor: '#fef2f2', border: '1px solid #fecaca'
+            borderRadius: '12px', background: 'rgb(127 29 29 / 0.15)', border: '1px solid rgb(239 68 68 / 0.25)'
           }}>
             <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>⚠</div>
-            <h2 style={{ color: '#991b1b', marginBottom: '0.5rem', fontSize: '1.25rem' }}>
+            <h2 style={{ color: '#f87171', marginBottom: '0.5rem', fontSize: '1.25rem' }}>
               Something went wrong
             </h2>
-            <p style={{ color: '#dc2626', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
+            <p style={{ color: 'rgb(var(--tx-secondary))', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
               {this.state.error?.message || 'An unexpected error occurred'}
             </p>
             <button
@@ -53,7 +53,7 @@ export default class ErrorBoundary extends Component {
               onClick={() => window.location.reload()}
               style={{
                 padding: '0.5rem 1.5rem', borderRadius: '6px', cursor: 'pointer',
-                backgroundColor: 'white', color: '#dc2626', border: '1px solid #dc2626', fontWeight: 500
+                background: 'rgb(var(--surface))', color: '#f87171', border: '1px solid rgb(239 68 68 / 0.4)', fontWeight: 500
               }}
             >
               Reload Page

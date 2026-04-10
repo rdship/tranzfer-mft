@@ -79,7 +79,12 @@ export default function FileManager() {
 
   /* ── Mutations ── */
   const uploadMut = useMutation({
-    mutationFn: ({ file }) => uploadFile(currentPath, accountId, file),
+    mutationFn: ({ file }) => uploadFile(currentPath, accountId, file, {
+      onUploadProgress: (e) => {
+        const pct = Math.round((e.loaded / (e.total || 1)) * 100)
+        setUploadProgress({ name: file.name, percent: pct })
+      },
+    }),
     onSuccess: () => {
       qc.invalidateQueries(['file-manager', accountId, currentPath])
       setUploadProgress(null)

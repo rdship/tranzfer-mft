@@ -182,7 +182,7 @@ export default function CasDedup() {
           disabled={isFetching}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
           style={{ background: 'rgb(var(--hover))', border: '1px solid rgb(var(--border))', color: 'rgb(var(--tx-secondary))' }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'rgb(var(--accent))'; e.currentTarget.style.color = '#fff' }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgb(var(--accent))'; e.currentTarget.style.color = 'white' }}
           onMouseLeave={e => { e.currentTarget.style.background = 'rgb(var(--hover))'; e.currentTarget.style.color = 'rgb(var(--tx-secondary))' }}
         >
           <ArrowPathIcon className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />

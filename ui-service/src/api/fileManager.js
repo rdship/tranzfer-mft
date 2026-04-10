@@ -12,12 +12,12 @@ ftpWebApi.interceptors.request.use((config) => {
 export const listFiles = (path = '/', accountId) =>
   ftpWebApi.get(`/api/files/list?path=${encodeURIComponent(path)}&accountId=${accountId}`).then(r => r.data)
 
-export const uploadFile = (path, accountId, file) => {
+export const uploadFile = (path, accountId, file, config = {}) => {
   const form = new FormData()
   form.append('file', file)
   form.append('path', path)
   form.append('accountId', accountId)
-  return ftpWebApi.post('/api/files/upload', form).then(r => r.data)
+  return ftpWebApi.post('/api/files/upload', form, config).then(r => r.data)
 }
 
 export const downloadFile = (path, accountId) =>

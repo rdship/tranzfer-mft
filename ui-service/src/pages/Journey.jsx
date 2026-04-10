@@ -575,9 +575,9 @@ export default function Journey() {
                     document.title = prev
                   }}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
-                  style={{ borderColor: '#d1d5db', color: '#6b7280' }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#f3f4f6'; e.currentTarget.style.color = '#111827' }}
-                  onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = '#6b7280' }}
+                  style={{ borderColor: 'rgb(var(--border))', color: 'rgb(var(--tx-secondary))' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgb(var(--hover))'; e.currentTarget.style.color = 'rgb(var(--tx-primary))' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = 'rgb(var(--tx-secondary))' }}
                   title="Export as PDF — opens browser print dialog"
                 >
                   <DocumentArrowDownIcon className="w-4 h-4" />

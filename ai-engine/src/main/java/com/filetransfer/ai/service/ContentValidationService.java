@@ -107,22 +107,26 @@ public class ContentValidationService {
         }
     }
 
-    private String detectEncoding(byte[] head) {
-        // BOM detection
-        if (head.length >= 3 && head[0] == (byte) 0xEF && head[1] == (byte) 0xBB && head[2] == (byte) 0xBF)
-            return "UTF-8-BOM";
-        if (head.length >= 2 && head[0] == (byte) 0xFF && head[1] == (byte) 0xFE)
-            return "UTF-16-LE";
-        if (head.length >= 2 && head[0] == (byte) 0xFE && head[1] == (byte) 0xFF)
-            return "UTF-16-BE";
-        // Check for non-UTF-8 bytes
-        for (byte b : head) {
-            if (b < 0 && (b & 0xFF) > 0x7F) {
-                // Could be Latin-1 or other encoding
-                return "ISO-8859-1";
-            }
+    private String detectEncoding(byte[] data) {
+        // Check BOM first
+        if (data.length >= 3 && data[0] == (byte) 0xEF && data[1] == (byte) 0xBB && data[2] == (byte) 0xBF)
+            return "UTF-8";
+        if (data.length >= 2 && data[0] == (byte) 0xFE && data[1] == (byte) 0xFF)
+            return "UTF-16BE";
+        if (data.length >= 2 && data[0] == (byte) 0xFF && data[1] == (byte) 0xFE)
+            return "UTF-16LE";
+
+        // Try to decode as UTF-8 — if it succeeds without errors, it's UTF-8
+        try {
+            java.nio.charset.CharsetDecoder decoder = java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT);
+            decoder.decode(java.nio.ByteBuffer.wrap(data));
+            return "UTF-8";
+        } catch (Exception e) {
+            // Not valid UTF-8 — likely ISO-8859-1 or Windows-1252
+            return "ISO-8859-1";
         }
-        return "UTF-8";
     }
 
     private ValidationResult result(String filename, boolean valid, List<String> issues, List<String> warnings) {

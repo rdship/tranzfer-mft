@@ -90,6 +90,10 @@ public class DataClassificationService {
                     int count = 0;
                     String firstMatch = null;
                     while (m.find()) {
+                        // Filter routing number false positives via ABA checksum
+                        if ("ROUTING_NUMBER".equals(pd.name) && !isValidRoutingNumber(m.group())) {
+                            continue;
+                        }
                         count++;
                         if (firstMatch == null) firstMatch = maskSensitive(m.group(), pd.name);
                     }
@@ -129,6 +133,22 @@ public class DataClassificationService {
             log.error("Classification failed for {}: {}", filePath, e.getMessage());
             return ClassificationResult.builder().filename(filePath.getFileName().toString())
                     .scanned(false).note("Scan error: " + e.getMessage()).build();
+        }
+    }
+
+    /**
+     * Validates an ABA routing number using the checksum algorithm:
+     * (3*(d1+d4+d7) + 7*(d2+d5+d8) + (d3+d6+d9)) % 10 == 0
+     */
+    private boolean isValidRoutingNumber(String candidate) {
+        if (candidate.length() != 9) return false;
+        try {
+            int[] d = new int[9];
+            for (int i = 0; i < 9; i++) d[i] = candidate.charAt(i) - '0';
+            int checksum = 3 * (d[0] + d[3] + d[6]) + 7 * (d[1] + d[4] + d[7]) + (d[2] + d[5] + d[8]);
+            return checksum % 10 == 0;
+        } catch (Exception e) {
+            return false;
         }
     }
 

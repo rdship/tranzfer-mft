@@ -7,6 +7,9 @@ import com.filetransfer.shared.client.ServiceClientProperties;
 import com.filetransfer.shared.client.StorageServiceClient;
 import com.filetransfer.shared.connector.ConnectorDispatcher;
 import com.filetransfer.shared.connector.PartnerWebhookDispatcher;
+import com.filetransfer.shared.flow.FlowFunction;
+import com.filetransfer.shared.flow.FlowFunctionContext;
+import com.filetransfer.shared.flow.FlowFunctionRegistry;
 import com.filetransfer.shared.flow.FlowStageManager;
 import com.filetransfer.shared.event.FlowStepEvent;
 import com.filetransfer.shared.vfs.FileRef;
@@ -88,6 +91,11 @@ public class FlowProcessingEngine {
     @Autowired(required = false)
     @Nullable
     private FlowStageManager stageManager;
+
+    /** Plugin function registry. When present, custom/plugin FlowFunctions are tried for unknown step types. */
+    @Autowired(required = false)
+    @Nullable
+    private FlowFunctionRegistry functionRegistry;
 
     /**
      * Execute a specific flow for a file. Creates execution record and processes each step.
@@ -314,7 +322,21 @@ public class FlowProcessingEngine {
             case "CONVERT_EDI" -> callEdiConverter(input, workDir, cfg, trackId);
             case "ROUTE"   -> inputPath; // Route is handled by RoutingEngine after flow completes
             case "APPROVE" -> inputPath; // Handled above loop; pass-through if reached
-            default -> throw new IllegalArgumentException("Unknown step type: " + step.getType());
+            default -> {
+                // Try FlowFunctionRegistry for custom/plugin functions
+                if (functionRegistry != null) {
+                    Optional<FlowFunction> fn = functionRegistry.get(step.getType());
+                    if (fn.isPresent()) {
+                        FlowFunctionContext ctx = new FlowFunctionContext(
+                                input, workDir, cfg, trackId,
+                                input.getFileName().toString());
+                        log.info("[{}] Executing plugin function: {} (step {})",
+                                trackId, step.getType(), stepIndex);
+                        yield fn.get().executePhysical(ctx);
+                    }
+                }
+                throw new IllegalArgumentException("Unknown step type: " + step.getType());
+            }
         };
     }
 
@@ -1038,7 +1060,53 @@ public class FlowProcessingEngine {
                     "EXECUTE_SCRIPT is not supported for VIRTUAL-mode accounts");
             case "ROUTE"           -> new StepOutcome(storageKey, virtualPath, sizeBytes);
             case "APPROVE"         -> new StepOutcome(storageKey, virtualPath, sizeBytes); // handled above loop; pass-through if reached
-            default -> throw new IllegalArgumentException("Unknown step type: " + step.getType());
+            default -> {
+                // Try FlowFunctionRegistry for custom/plugin functions (physical-mode fallback for VIRTUAL accounts).
+                // Plugin receives a temporary materialized copy; result is stored back into storage-manager.
+                if (functionRegistry != null) {
+                    Optional<FlowFunction> fn = functionRegistry.get(step.getType());
+                    if (fn.isPresent()) {
+                        log.info("[{}] Executing plugin function (VIRTUAL): {} (step {})",
+                                trackId, step.getType(), stepIndex);
+                        // Materialize bytes from storage-manager to a temp file
+                        byte[] raw = storageClient.retrieveBySha256(storageKey);
+                        Path tempDir = Files.createTempDirectory("flow-plugin-");
+                        String filename = VirtualFileSystem.nameOf(virtualPath);
+                        Path tempInput = tempDir.resolve(filename);
+                        Files.write(tempInput, raw);
+
+                        FlowFunctionContext ctx = new FlowFunctionContext(
+                                tempInput, tempDir, cfg, trackId, filename);
+                        String outputPathStr = fn.get().executePhysical(ctx);
+                        Path outputPath = Paths.get(outputPathStr);
+
+                        // If plugin returned the same file, pass through unchanged
+                        if (outputPath.equals(tempInput)) {
+                            yield new StepOutcome(storageKey, virtualPath, sizeBytes);
+                        }
+
+                        // Store the output back into storage-manager
+                        byte[] outputBytes = Files.readAllBytes(outputPath);
+                        String newFilename = outputPath.getFileName().toString();
+                        String dir = virtualPath.substring(0, virtualPath.lastIndexOf('/') + 1);
+                        String newVirtualPath = dir + newFilename;
+                        Map<String, Object> stored = storageClient.storeStream(
+                                new ByteArrayInputStream(outputBytes), outputBytes.length,
+                                newFilename, origin.accountId().toString(), trackId);
+                        String newKey  = (String) stored.get("sha256");
+                        long   newSize = ((Number) stored.get("sizeBytes")).longValue();
+                        vfsBridge.registerRef(origin.accountId(), newVirtualPath,
+                                newKey, newSize, trackId, origin.contentType());
+
+                        // Clean up temp files
+                        try { Files.deleteIfExists(outputPath); Files.deleteIfExists(tempInput); Files.deleteIfExists(tempDir); }
+                        catch (IOException ignored) {}
+
+                        yield new StepOutcome(newKey, newVirtualPath, newSize);
+                    }
+                }
+                throw new IllegalArgumentException("Unknown step type: " + step.getType());
+            }
         };
     }
 
