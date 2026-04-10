@@ -14,19 +14,19 @@ export default function PeerTransfers() {
   return (
     <div className="space-y-6">
       <div><h1 className="text-2xl font-bold text-gray-900">Peer-to-Peer Transfers</h1>
-        <p className="text-gray-500 text-sm">Direct client-to-client file transfers</p></div>
+        <p className="text-secondary text-sm">Direct client-to-client file transfers</p></div>
 
       {/* Online Peers */}
       <div className="card">
         <h3 className="font-semibold text-gray-900 mb-3">Online Clients ({peers.length})</h3>
-        {peers.length === 0 ? <p className="text-sm text-gray-500">No clients currently online</p> : (
+        {peers.length === 0 ? <p className="text-sm text-secondary">No clients currently online</p> : (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {peers.map(p => (
               <div key={p.username} className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
                 <UserIcon className="w-4 h-4 text-green-600" />
                 <div><p className="font-medium text-sm text-gray-900">{p.username}</p>
-                  <p className="text-xs text-gray-500">{p.host}:{p.port}</p></div>
+                  <p className="text-xs text-secondary">{p.host}:{p.port}</p></div>
               </div>
             ))}
           </div>
@@ -41,16 +41,16 @@ export default function PeerTransfers() {
           <th className="table-header">Receiver</th><th className="table-header">File</th><th className="table-header">Status</th><th className="table-header">Time</th>
         </tr></thead><tbody>
           {tickets.length === 0 ? (
-            <tr><td colSpan={7} className="text-center py-8 text-gray-500 text-sm">No peer-to-peer transfers yet. Transfers will appear here as clients exchange files.</td></tr>
+            <tr><td colSpan={7} className="text-center py-8 text-secondary text-sm">No peer-to-peer transfers yet. Transfers will appear here as clients exchange files.</td></tr>
           ) : tickets.map(t => (
             <tr key={t.ticketId} className="table-row">
               <td className="table-cell font-mono text-xs font-bold text-blue-600">{t.trackId}</td>
               <td className="table-cell text-sm">{t.senderAccount?.username || '?'}</td>
-              <td className="table-cell text-center"><ArrowsRightLeftIcon className="w-4 h-4 text-gray-400 inline" /></td>
+              <td className="table-cell text-center"><ArrowsRightLeftIcon className="w-4 h-4 text-muted inline" /></td>
               <td className="table-cell text-sm">{t.receiverAccount?.username || '?'}</td>
-              <td className="table-cell text-xs text-gray-500">{t.filename}</td>
+              <td className="table-cell text-xs text-secondary">{t.filename}</td>
               <td className="table-cell"><span className={`badge ${statusColor[t.status] || 'badge-gray'}`}>{t.status}</span></td>
-              <td className="table-cell text-xs text-gray-500">{t.createdAt ? format(new Date(t.createdAt), 'MMM d HH:mm') : ''}</td>
+              <td className="table-cell text-xs text-secondary">{t.createdAt ? format(new Date(t.createdAt), 'MMM d HH:mm') : ''}</td>
             </tr>
           ))}
         </tbody></table>

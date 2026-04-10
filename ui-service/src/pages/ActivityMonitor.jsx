@@ -30,7 +30,7 @@ const ALL_COLUMNS = [
   { key: 'externalDestName', label: 'External Dest', defaultVisible: false, width: 'w-36', render: (v) => v || '--' },
   { key: 'sourceChecksum', label: 'Source Checksum', defaultVisible: false, width: 'w-44', render: (v) => <span className="font-mono text-xs truncate block" title={v}>{v ? v.substring(0, 16) + '...' : '--'}</span> },
   { key: 'destinationChecksum', label: 'Dest Checksum', defaultVisible: false, width: 'w-44', render: (v) => <span className="font-mono text-xs truncate block" title={v}>{v ? v.substring(0, 16) + '...' : '--'}</span> },
-  { key: 'integrityStatus', label: 'Integrity', defaultVisible: false, width: 'w-28', render: (v) => v === 'VERIFIED' ? <span className="badge badge-green">{v}</span> : v === 'MISMATCH' ? <span className="badge badge-red">{v}</span> : <span className="text-gray-400">{v || '--'}</span> },
+  { key: 'integrityStatus', label: 'Integrity', defaultVisible: false, width: 'w-28', render: (v) => v === 'VERIFIED' ? <span className="badge badge-green">{v}</span> : v === 'MISMATCH' ? <span className="badge badge-red">{v}</span> : <span className="text-muted">{v || '--'}</span> },
   { key: 'encryptionOption', label: 'Encryption', defaultVisible: false, width: 'w-28', render: (v) => v || '--' },
   { key: 'flowName', label: 'Flow Name', defaultVisible: false, width: 'w-36', render: (v) => v || '--' },
   { key: 'flowStatus', label: 'Flow Status', defaultVisible: false, width: 'w-28', render: (v) => v || '--' },
@@ -61,16 +61,16 @@ function statusBadge(status) {
     MOVED_TO_SENT: 'badge-green',
     FAILED: 'badge-red',
   }
-  if (!status) return <span className="text-gray-400">--</span>
+  if (!status) return <span className="text-muted">--</span>
   return <span className={`badge ${map[status] || 'badge-gray'}`}>{status.replace(/_/g, ' ')}</span>
 }
 
 function formatTimestamp(ts) {
-  if (!ts) return <span className="text-gray-400">--</span>
+  if (!ts) return <span className="text-muted">--</span>
   try {
-    return <span className="text-xs text-gray-500 font-mono">{format(new Date(ts), 'MMM dd, yyyy HH:mm:ss')}</span>
+    return <span className="text-xs text-secondary font-mono">{format(new Date(ts), 'MMM dd, yyyy HH:mm:ss')}</span>
   } catch {
-    return <span className="text-gray-400">--</span>
+    return <span className="text-muted">--</span>
   }
 }
 
@@ -124,7 +124,7 @@ function useDebounce(value, delay) {
 // ── Transfer Detail Panel (inline expansion) ───────────────────────────
 function TransferDetailPanel({ row, flowExec, events, navigate }) {
   const stepStatusIcon = (status) => {
-    if (!status) return <ClockIcon className="w-4 h-4 text-gray-400" />
+    if (!status) return <ClockIcon className="w-4 h-4 text-muted" />
     if (status === 'FAILED') return <XCircleIcon className="w-4 h-4 text-red-500" />
     if (status.startsWith('OK')) return <CheckCircleIcon className="w-4 h-4 text-green-500" />
     return <ClockIcon className="w-4 h-4 text-yellow-500" />
@@ -136,36 +136,36 @@ function TransferDetailPanel({ row, flowExec, events, navigate }) {
       <div className="grid grid-cols-3 gap-5">
         {/* Transfer Summary */}
         <div className="space-y-3">
-          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+          <h4 className="text-xs font-semibold text-secondary uppercase tracking-wider flex items-center gap-1.5">
             <DocumentTextIcon className="w-3.5 h-3.5" /> Transfer Summary
           </h4>
-          <div className="bg-white rounded-lg border border-gray-100 p-3 space-y-2 text-sm">
+          <div className="bg-surface rounded-lg border border-border p-3 space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-gray-500">Track ID</span>
+              <span className="text-secondary">Track ID</span>
               <span className="font-mono text-xs font-bold text-blue-600">{row.trackId || '--'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Filename</span>
-              <span className="font-medium text-gray-900 truncate max-w-[180px]" title={row.filename}>{row.filename || '--'}</span>
+              <span className="text-secondary">Filename</span>
+              <span className="font-medium text-primary truncate max-w-[180px]" title={row.filename}>{row.filename || '--'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Size</span>
-              <span className="text-gray-700">{row.fileSizeBytes != null ? formatBytes(row.fileSizeBytes) : '--'}</span>
+              <span className="text-secondary">Size</span>
+              <span className="text-primary">{row.fileSizeBytes != null ? formatBytes(row.fileSizeBytes) : '--'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Protocol</span>
-              <span className="text-gray-700">{row.sourceProtocol || '--'}</span>
+              <span className="text-secondary">Protocol</span>
+              <span className="text-primary">{row.sourceProtocol || '--'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Source</span>
-              <span className="text-gray-700">{row.sourceUsername || '--'} {row.sourcePartnerName ? `(${row.sourcePartnerName})` : ''}</span>
+              <span className="text-secondary">Source</span>
+              <span className="text-primary">{row.sourceUsername || '--'} {row.sourcePartnerName ? `(${row.sourcePartnerName})` : ''}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Destination</span>
-              <span className="text-gray-700">{row.destUsername || row.destPartnerName || row.externalDestName || '--'}</span>
+              <span className="text-secondary">Destination</span>
+              <span className="text-primary">{row.destUsername || row.destPartnerName || row.externalDestName || '--'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Status</span>
+              <span className="text-secondary">Status</span>
               {statusBadge(row.status)}
             </div>
           </div>
@@ -173,97 +173,97 @@ function TransferDetailPanel({ row, flowExec, events, navigate }) {
 
         {/* File Details & Integrity */}
         <div className="space-y-3">
-          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+          <h4 className="text-xs font-semibold text-secondary uppercase tracking-wider flex items-center gap-1.5">
             <ShieldCheckIcon className="w-3.5 h-3.5" /> File Details & Integrity
           </h4>
-          <div className="bg-white rounded-lg border border-gray-100 p-3 space-y-2 text-sm">
+          <div className="bg-surface rounded-lg border border-border p-3 space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-gray-500">Source Checksum</span>
-              <span className="font-mono text-xs text-gray-600 truncate max-w-[140px]" title={row.sourceChecksum}>
+              <span className="text-secondary">Source Checksum</span>
+              <span className="font-mono text-xs text-secondary truncate max-w-[140px]" title={row.sourceChecksum}>
                 {row.sourceChecksum ? row.sourceChecksum.substring(0, 16) + '...' : '--'}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Dest Checksum</span>
-              <span className="font-mono text-xs text-gray-600 truncate max-w-[140px]" title={row.destinationChecksum}>
+              <span className="text-secondary">Dest Checksum</span>
+              <span className="font-mono text-xs text-secondary truncate max-w-[140px]" title={row.destinationChecksum}>
                 {row.destinationChecksum ? row.destinationChecksum.substring(0, 16) + '...' : '--'}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Integrity</span>
+              <span className="text-secondary">Integrity</span>
               {row.integrityStatus === 'VERIFIED' ? (
                 <span className="badge badge-green text-xs">VERIFIED</span>
               ) : row.integrityStatus === 'MISMATCH' ? (
                 <span className="badge badge-red text-xs">MISMATCH</span>
               ) : (
-                <span className="text-gray-400 text-xs">{row.integrityStatus || '--'}</span>
+                <span className="text-muted text-xs">{row.integrityStatus || '--'}</span>
               )}
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Encryption</span>
-              <span className="text-gray-700">{row.encryptionOption || 'None'}</span>
+              <span className="text-secondary">Encryption</span>
+              <span className="text-primary">{row.encryptionOption || 'None'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Source Path</span>
-              <span className="font-mono text-xs text-gray-600 truncate max-w-[160px]" title={row.sourcePath}>{row.sourcePath || '--'}</span>
+              <span className="text-secondary">Source Path</span>
+              <span className="font-mono text-xs text-secondary truncate max-w-[160px]" title={row.sourcePath}>{row.sourcePath || '--'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Dest Path</span>
-              <span className="font-mono text-xs text-gray-600 truncate max-w-[160px]" title={row.destPath}>{row.destPath || '--'}</span>
+              <span className="text-secondary">Dest Path</span>
+              <span className="font-mono text-xs text-secondary truncate max-w-[160px]" title={row.destPath}>{row.destPath || '--'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Retries</span>
-              <span className="text-gray-700">{row.retryCount ?? 0}</span>
+              <span className="text-secondary">Retries</span>
+              <span className="text-primary">{row.retryCount ?? 0}</span>
             </div>
           </div>
         </div>
 
         {/* Timestamps & Delivery */}
         <div className="space-y-3">
-          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+          <h4 className="text-xs font-semibold text-secondary uppercase tracking-wider flex items-center gap-1.5">
             <TruckIcon className="w-3.5 h-3.5" /> Timeline & Delivery
           </h4>
-          <div className="bg-white rounded-lg border border-gray-100 p-3 space-y-2 text-sm">
+          <div className="bg-surface rounded-lg border border-border p-3 space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-gray-500">Uploaded</span>
-              <span className="text-xs text-gray-700 font-mono">{row.uploadedAt ? format(new Date(row.uploadedAt), 'MMM dd HH:mm:ss') : '--'}</span>
+              <span className="text-secondary">Uploaded</span>
+              <span className="text-xs text-primary font-mono">{row.uploadedAt ? format(new Date(row.uploadedAt), 'MMM dd HH:mm:ss') : '--'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Routed</span>
-              <span className="text-xs text-gray-700 font-mono">{row.routedAt ? format(new Date(row.routedAt), 'MMM dd HH:mm:ss') : '--'}</span>
+              <span className="text-secondary">Routed</span>
+              <span className="text-xs text-primary font-mono">{row.routedAt ? format(new Date(row.routedAt), 'MMM dd HH:mm:ss') : '--'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Downloaded</span>
-              <span className="text-xs text-gray-700 font-mono">{row.downloadedAt ? format(new Date(row.downloadedAt), 'MMM dd HH:mm:ss') : '--'}</span>
+              <span className="text-secondary">Downloaded</span>
+              <span className="text-xs text-primary font-mono">{row.downloadedAt ? format(new Date(row.downloadedAt), 'MMM dd HH:mm:ss') : '--'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Completed</span>
-              <span className="text-xs text-gray-700 font-mono">{row.completedAt ? format(new Date(row.completedAt), 'MMM dd HH:mm:ss') : '--'}</span>
+              <span className="text-secondary">Completed</span>
+              <span className="text-xs text-primary font-mono">{row.completedAt ? format(new Date(row.completedAt), 'MMM dd HH:mm:ss') : '--'}</span>
             </div>
             {row.uploadedAt && row.completedAt && (
-              <div className="flex justify-between pt-1 border-t border-gray-100">
-                <span className="text-gray-500 font-medium">Total Duration</span>
+              <div className="flex justify-between pt-1 border-t border-border">
+                <span className="text-secondary font-medium">Total Duration</span>
                 <span className="text-xs font-semibold text-blue-600">
                   {((new Date(row.completedAt) - new Date(row.uploadedAt)) / 1000).toFixed(1)}s
                 </span>
               </div>
             )}
             {row.flowName && (
-              <div className="flex justify-between pt-1 border-t border-gray-100">
-                <span className="text-gray-500">Flow</span>
-                <span className="text-gray-700">{row.flowName}</span>
+              <div className="flex justify-between pt-1 border-t border-border">
+                <span className="text-secondary">Flow</span>
+                <span className="text-primary">{row.flowName}</span>
               </div>
             )}
             {row.flowStatus && (
               <div className="flex justify-between">
-                <span className="text-gray-500">Flow Status</span>
-                <span className="text-gray-700">{row.flowStatus}</span>
+                <span className="text-secondary">Flow Status</span>
+                <span className="text-primary">{row.flowStatus}</span>
               </div>
             )}
             {row.externalDestName && (
               <div className="flex justify-between">
-                <span className="text-gray-500">External Dest</span>
-                <span className="text-gray-700">{row.externalDestName}</span>
+                <span className="text-secondary">External Dest</span>
+                <span className="text-primary">{row.externalDestName}</span>
               </div>
             )}
           </div>
@@ -273,23 +273,23 @@ function TransferDetailPanel({ row, flowExec, events, navigate }) {
       {/* Flow Execution Steps Timeline */}
       {flowExec && flowExec.steps && flowExec.steps.length > 0 && (
         <div>
-          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+          <h4 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-3 flex items-center gap-1.5">
             <ArrowRightIcon className="w-3.5 h-3.5" /> Flow Execution Steps
           </h4>
-          <div className="bg-white rounded-lg border border-gray-100 p-4">
+          <div className="bg-surface rounded-lg border border-border p-4">
             <div className="flex items-center gap-2 overflow-x-auto pb-2">
               {flowExec.steps.map((step, idx) => (
                 <React.Fragment key={idx}>
                   <div className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg border text-xs ${
                     step.status === 'FAILED' ? 'bg-red-50 border-red-200' :
                     step.status?.startsWith('OK') ? 'bg-green-50 border-green-200' :
-                    'bg-gray-50 border-gray-200'
+                    'bg-canvas border-border'
                   }`}>
                     {stepStatusIcon(step.status)}
                     <div>
                       <p className="font-medium text-gray-800">{step.type || step.name || `Step ${idx + 1}`}</p>
                       {step.durationMs != null && (
-                        <p className="text-gray-400">{step.durationMs}ms</p>
+                        <p className="text-muted">{step.durationMs}ms</p>
                       )}
                     </div>
                   </div>
@@ -306,24 +306,24 @@ function TransferDetailPanel({ row, flowExec, events, navigate }) {
       {/* Event Journal (from flow-events) */}
       {events && events.length > 0 && (
         <div>
-          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+          <h4 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-3">
             Event Journal ({events.length} events)
           </h4>
-          <div className="bg-white rounded-lg border border-gray-100 overflow-hidden">
+          <div className="bg-surface rounded-lg border border-border overflow-hidden">
             <div className="max-h-48 overflow-y-auto">
               <table className="w-full text-xs">
-                <thead className="bg-gray-50 sticky top-0">
+                <thead className="bg-canvas sticky top-0">
                   <tr>
-                    <th className="text-left px-3 py-2 text-gray-500 font-medium">Time</th>
-                    <th className="text-left px-3 py-2 text-gray-500 font-medium">Event</th>
-                    <th className="text-left px-3 py-2 text-gray-500 font-medium">Status</th>
-                    <th className="text-left px-3 py-2 text-gray-500 font-medium">Detail</th>
+                    <th className="text-left px-3 py-2 text-secondary font-medium">Time</th>
+                    <th className="text-left px-3 py-2 text-secondary font-medium">Event</th>
+                    <th className="text-left px-3 py-2 text-secondary font-medium">Status</th>
+                    <th className="text-left px-3 py-2 text-secondary font-medium">Detail</th>
                   </tr>
                 </thead>
                 <tbody>
                   {events.map((evt, idx) => (
-                    <tr key={idx} className="border-t border-gray-50 hover:bg-gray-50/50">
-                      <td className="px-3 py-1.5 font-mono text-gray-500 whitespace-nowrap">
+                    <tr key={idx} className="border-t border-gray-50 hover:bg-canvas/50">
+                      <td className="px-3 py-1.5 font-mono text-secondary whitespace-nowrap">
                         {evt.timestamp ? format(new Date(evt.timestamp), 'HH:mm:ss.SSS') : '--'}
                       </td>
                       <td className="px-3 py-1.5 font-medium text-gray-800">{evt.event || evt.type || '--'}</td>
@@ -333,10 +333,10 @@ function TransferDetailPanel({ row, flowExec, events, navigate }) {
                         ) : evt.status === 'FAILED' ? (
                           <span className="badge badge-red text-xs">{evt.status}</span>
                         ) : (
-                          <span className="text-gray-500">{evt.status || '--'}</span>
+                          <span className="text-secondary">{evt.status || '--'}</span>
                         )}
                       </td>
-                      <td className="px-3 py-1.5 text-gray-500 truncate max-w-[300px]" title={evt.detail || evt.message}>
+                      <td className="px-3 py-1.5 text-secondary truncate max-w-[300px]" title={evt.detail || evt.message}>
                         {evt.detail || evt.message || '--'}
                       </td>
                     </tr>
@@ -357,7 +357,7 @@ function TransferDetailPanel({ row, flowExec, events, navigate }) {
       )}
 
       {/* Quick actions */}
-      <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+      <div className="flex items-center gap-2 pt-2 border-t border-border">
         <button
           onClick={(e) => { e.stopPropagation(); navigate(`/journey?trackId=${encodeURIComponent(row.trackId)}`) }}
           className="btn-secondary text-xs"
@@ -528,7 +528,7 @@ export default function ActivityMonitor() {
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-gray-900">Activity Monitor</h1>
+            <h1 className="text-2xl font-bold text-primary">Activity Monitor</h1>
             {totalElements > 0 && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-semibold rounded-full ring-1 ring-inset ring-blue-600/10">
                 {totalElements.toLocaleString()} transfers
@@ -538,7 +538,7 @@ export default function ActivityMonitor() {
               <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
             )}
           </div>
-          <p className="text-gray-500 text-sm mt-0.5">Monitor all file transfers across the platform</p>
+          <p className="text-secondary text-sm mt-0.5">Monitor all file transfers across the platform</p>
         </div>
         <div className="flex items-center gap-2">
           {/* Auto-refresh toggle */}
@@ -547,7 +547,7 @@ export default function ActivityMonitor() {
             className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border transition-all ${
               autoRefresh
                 ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
-                : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                : 'bg-surface text-secondary border-border hover:bg-canvas'
             }`}
             title={autoRefresh ? 'Auto-refresh every 30s' : 'Auto-refresh paused'}
           >
@@ -575,14 +575,14 @@ export default function ActivityMonitor() {
       {/* ── Filter Bar ───────────────────────────────────────────── */}
       <div className="card !p-4">
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5 text-gray-400">
+          <div className="flex items-center gap-1.5 text-muted">
             <FunnelIcon className="w-4 h-4" />
             <span className="text-xs font-medium uppercase tracking-wide">Filters</span>
           </div>
 
           {/* Filename */}
           <div className="relative">
-            <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+            <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted pointer-events-none" />
             <input
               className="!w-48 !py-1.5 !pl-8 !pr-3 !text-xs"
               placeholder="Filename..."
@@ -593,7 +593,7 @@ export default function ActivityMonitor() {
 
           {/* Track ID */}
           <div className="relative">
-            <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+            <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted pointer-events-none" />
             <input
               className="!w-40 !py-1.5 !pl-8 !pr-3 !text-xs font-mono"
               placeholder="Track ID..."
@@ -615,7 +615,7 @@ export default function ActivityMonitor() {
 
           {/* Source Username */}
           <div className="relative">
-            <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+            <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted pointer-events-none" />
             <input
               className="!w-40 !py-1.5 !pl-8 !pr-3 !text-xs"
               placeholder="Source user..."
@@ -657,11 +657,11 @@ export default function ActivityMonitor() {
         ) : rows.length === 0 ? (
           /* Empty state */
           <div className="flex flex-col items-center justify-center py-20 px-6">
-            <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-4">
-              <TableCellsIcon className="w-8 h-8 text-gray-400" />
+            <div className="w-16 h-16 bg-hover rounded-2xl flex items-center justify-center mb-4">
+              <TableCellsIcon className="w-8 h-8 text-muted" />
             </div>
-            <h3 className="text-base font-semibold text-gray-900 mb-1">No transfers found</h3>
-            <p className="text-sm text-gray-500 text-center max-w-sm">
+            <h3 className="text-base font-semibold text-primary mb-1">No transfers found</h3>
+            <p className="text-sm text-secondary text-center max-w-sm">
               {hasFilters
                 ? 'No transfers match your current filters. Try adjusting or clearing them.'
                 : 'File transfers will appear here once they are processed by the platform.'}
@@ -678,11 +678,11 @@ export default function ActivityMonitor() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/80">
+                  <tr className="border-b border-border bg-canvas/80">
                     {visibleColumns.map(col => (
                       <th
                         key={col.key}
-                        className={`table-header cursor-pointer select-none hover:text-gray-700 transition-colors whitespace-nowrap ${col.width}`}
+                        className={`table-header cursor-pointer select-none hover:text-primary transition-colors whitespace-nowrap ${col.width}`}
                         onClick={() => handleSort(col.key)}
                       >
                         <div className="flex items-center gap-1">
@@ -712,7 +712,7 @@ export default function ActivityMonitor() {
                             <td
                               key={col.key}
                               className={`table-cell text-sm whitespace-nowrap ${col.width} ${
-                                isExpanded ? 'bg-blue-50/70' : i % 2 === 1 ? 'bg-gray-50/40' : ''
+                                isExpanded ? 'bg-blue-50/70' : i % 2 === 1 ? 'bg-canvas/40' : ''
                               } group-hover:bg-blue-50/50 transition-colors`}
                             >
                               {col.render(row[col.key], row)}
@@ -734,14 +734,14 @@ export default function ActivityMonitor() {
             </div>
 
             {/* ── Pagination ─────────────────────────────────────── */}
-            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50/40">
-              <div className="flex items-center gap-3 text-sm text-gray-500">
+            <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-canvas/40">
+              <div className="flex items-center gap-3 text-sm text-secondary">
                 <span>
-                  Showing <span className="font-medium text-gray-700">{startItem}</span>
+                  Showing <span className="font-medium text-primary">{startItem}</span>
                   {' '}&ndash;{' '}
-                  <span className="font-medium text-gray-700">{endItem}</span>
+                  <span className="font-medium text-primary">{endItem}</span>
                   {' '}of{' '}
-                  <span className="font-medium text-gray-700">{totalElements.toLocaleString()}</span>
+                  <span className="font-medium text-primary">{totalElements.toLocaleString()}</span>
                   {' '}transfers
                 </span>
                 <span className="text-gray-300">|</span>
@@ -761,14 +761,14 @@ export default function ActivityMonitor() {
                 <button
                   onClick={() => setPage(0)}
                   disabled={page === 0}
-                  className="px-2 py-1 text-xs rounded-lg border border-gray-200 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="px-2 py-1 text-xs rounded-lg border border-border hover:bg-surface disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   First
                 </button>
                 <button
                   onClick={() => setPage(p => Math.max(0, p - 1))}
                   disabled={page === 0}
-                  className="p-1.5 rounded-lg border border-gray-200 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="p-1.5 rounded-lg border border-border hover:bg-surface disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   <ChevronLeftIcon className="w-4 h-4" />
                 </button>
@@ -780,7 +780,7 @@ export default function ActivityMonitor() {
                     className={`px-3 py-1 text-xs rounded-lg border transition-colors ${
                       pn === page
                         ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                        : 'border-gray-200 hover:bg-white text-gray-700'
+                        : 'border-border hover:bg-surface text-primary'
                     }`}
                   >
                     {pn + 1}
@@ -790,14 +790,14 @@ export default function ActivityMonitor() {
                 <button
                   onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
                   disabled={page >= totalPages - 1}
-                  className="p-1.5 rounded-lg border border-gray-200 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="p-1.5 rounded-lg border border-border hover:bg-surface disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   <ChevronRightIcon className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setPage(totalPages - 1)}
                   disabled={page >= totalPages - 1}
-                  className="px-2 py-1 text-xs rounded-lg border border-gray-200 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="px-2 py-1 text-xs rounded-lg border border-border hover:bg-surface disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   Last
                 </button>
@@ -816,17 +816,17 @@ export default function ActivityMonitor() {
             onClick={() => setSettingsOpen(false)}
           />
           {/* Panel */}
-          <div className="fixed top-0 right-0 h-full w-80 bg-white shadow-2xl z-50 flex flex-col animate-slide-in-right">
-            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+          <div className="fixed top-0 right-0 h-full w-80 bg-surface shadow-2xl z-50 flex flex-col animate-slide-in-right">
+            <div className="flex items-center justify-between p-5 border-b border-border">
               <div>
-                <h2 className="text-base font-semibold text-gray-900">Column Settings</h2>
-                <p className="text-xs text-gray-500 mt-0.5">{visibleKeys.length} of {ALL_COLUMNS.length} columns visible</p>
+                <h2 className="text-base font-semibold text-primary">Column Settings</h2>
+                <p className="text-xs text-secondary mt-0.5">{visibleKeys.length} of {ALL_COLUMNS.length} columns visible</p>
               </div>
               <button
                 onClick={() => setSettingsOpen(false)}
-                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-1.5 hover:bg-hover rounded-lg transition-colors"
               >
-                <XMarkIcon className="w-5 h-5 text-gray-500" />
+                <XMarkIcon className="w-5 h-5 text-secondary" />
               </button>
             </div>
 
@@ -835,7 +835,7 @@ export default function ActivityMonitor() {
                 {ALL_COLUMNS.map(col => (
                   <label
                     key={col.key}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-canvas cursor-pointer transition-colors"
                   >
                     <input
                       type="checkbox"
@@ -844,9 +844,9 @@ export default function ActivityMonitor() {
                       className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500/40 focus:ring-offset-0 cursor-pointer"
                     />
                     <div className="flex-1 min-w-0">
-                      <span className="text-sm font-medium text-gray-700">{col.label}</span>
+                      <span className="text-sm font-medium text-primary">{col.label}</span>
                       {col.defaultVisible && (
-                        <span className="ml-1.5 text-xs text-gray-400">(default)</span>
+                        <span className="ml-1.5 text-xs text-muted">(default)</span>
                       )}
                     </div>
                   </label>
@@ -854,7 +854,7 @@ export default function ActivityMonitor() {
               </div>
             </div>
 
-            <div className="p-5 border-t border-gray-100">
+            <div className="p-5 border-t border-border">
               <button
                 onClick={resetToDefaults}
                 className="w-full btn-secondary justify-center text-xs"

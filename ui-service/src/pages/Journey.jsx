@@ -69,12 +69,12 @@ function FilePreviewButton({ trackId, stepIndex, direction, label, storageKey, v
 function ConfirmDialog({ title, message, confirmLabel, confirmClass = 'btn-danger', onConfirm, onCancel }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl p-6 max-w-md w-full mx-4">
+      <div className="bg-surface rounded-xl shadow-xl p-6 max-w-md w-full mx-4">
         <div className="flex items-start gap-3 mb-4">
           <ExclamationTriangleIcon className="w-6 h-6 text-yellow-500 flex-shrink-0 mt-0.5" />
           <div>
-            <h3 className="font-semibold text-gray-900">{title}</h3>
-            <p className="text-sm text-gray-600 mt-1">{message}</p>
+            <h3 className="font-semibold text-primary">{title}</h3>
+            <p className="text-sm text-secondary mt-1">{message}</p>
           </div>
         </div>
         <div className="flex gap-2 justify-end">
@@ -214,32 +214,32 @@ function AttemptHistory({ trackId, attemptNumber }) {
   return (
     <div className="card">
       <button className="flex items-center justify-between w-full" onClick={() => setOpen(v => !v)}>
-        <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+        <h3 className="font-semibold text-primary flex items-center gap-2">
           <span>📋</span>
           Previous Attempts
-          <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+          <span className="text-xs font-normal text-secondary bg-hover px-2 py-0.5 rounded-full">
             {attemptNumber - 1} prior
           </span>
         </h3>
-        {open ? <ChevronDownIcon className="w-4 h-4 text-gray-400" /> : <ChevronRightIcon className="w-4 h-4 text-gray-400" />}
+        {open ? <ChevronDownIcon className="w-4 h-4 text-muted" /> : <ChevronRightIcon className="w-4 h-4 text-muted" />}
       </button>
 
       {open && (
         <div className="mt-3 space-y-2">
           {history.map((h, i) => (
-            <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100 text-sm">
+            <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-canvas border border-border text-sm">
               <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs text-white flex-shrink-0 ${h.status === 'FAILED' ? 'bg-red-400' : h.status === 'CANCELLED' ? 'bg-yellow-400' : 'bg-gray-400'}`}>
                 {h.attempt}
               </span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className={`badge text-xs ${h.status === 'FAILED' ? 'badge-red' : 'badge-yellow'}`}>{h.status}</span>
-                  <span className="text-xs text-gray-500">{h.stepCount} step(s) completed</span>
+                  <span className="text-xs text-secondary">{h.stepCount} step(s) completed</span>
                 </div>
                 {h.errorMessage && (
                   <p className="text-xs text-red-600 mt-1 truncate" title={h.errorMessage}>{h.errorMessage}</p>
                 )}
-                <p className="text-xs text-gray-400 mt-0.5">
+                <p className="text-xs text-muted mt-0.5">
                   {h.startedAt ? format(new Date(h.startedAt), 'MMM d HH:mm:ss') : ''}
                   {h.failedAt ? ` → ${format(new Date(h.failedAt), 'HH:mm:ss')}` : ''}
                 </p>
@@ -275,22 +275,22 @@ function FlowStepsPanel({ trackId }) {
         className="flex items-center justify-between w-full"
         onClick={() => setExpanded(v => !v)}
       >
-        <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+        <h3 className="font-semibold text-primary flex items-center gap-2">
           <span>⚙️</span>
           Flow Pipeline Steps
-          <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+          <span className="text-xs font-normal text-secondary bg-hover px-2 py-0.5 rounded-full">
             {steps.length} step{steps.length !== 1 ? 's' : ''}
           </span>
         </h3>
         {expanded
-          ? <ChevronDownIcon className="w-4 h-4 text-gray-400" />
-          : <ChevronRightIcon className="w-4 h-4 text-gray-400" />}
+          ? <ChevronDownIcon className="w-4 h-4 text-muted" />
+          : <ChevronRightIcon className="w-4 h-4 text-muted" />}
       </button>
 
       {expanded && (
         <div className="mt-3 space-y-2">
           {/* Header row */}
-          <div className="grid grid-cols-[2rem_1fr_4rem_5rem_1fr_2rem_1fr] gap-2 px-2 text-xs font-medium text-gray-400 uppercase tracking-wide">
+          <div className="grid grid-cols-[2rem_1fr_4rem_5rem_1fr_2rem_1fr] gap-2 px-2 text-xs font-medium text-muted uppercase tracking-wide">
             <span>#</span>
             <span>Step</span>
             <span>Status</span>
@@ -304,15 +304,15 @@ function FlowStepsPanel({ trackId }) {
             <div
               key={snap.stepIndex}
               className={`grid grid-cols-[2rem_1fr_4rem_5rem_1fr_2rem_1fr] gap-2 items-center px-2 py-2 rounded-lg text-sm
-                ${snap.stepStatus === 'FAILED' ? 'bg-red-50 border border-red-100' : 'bg-gray-50 border border-gray-100'}`}
+                ${snap.stepStatus === 'FAILED' ? 'bg-red-50 border border-red-100' : 'bg-canvas border border-border'}`}
             >
               {/* Step number */}
-              <span className="text-xs font-mono text-gray-400 font-bold">
+              <span className="text-xs font-mono text-muted font-bold">
                 {snap.stepIndex + 1}
               </span>
 
               {/* Step type */}
-              <span className="flex items-center gap-1.5 font-medium text-gray-700 text-xs">
+              <span className="flex items-center gap-1.5 font-medium text-primary text-xs">
                 <span>{STEP_ICONS[snap.stepType] || '⚙️'}</span>
                 {snap.stepType.replace(/_/g, ' ')}
               </span>
@@ -327,7 +327,7 @@ function FlowStepsPanel({ trackId }) {
               </span>
 
               {/* Duration */}
-              <span className="text-xs text-gray-500 font-mono">
+              <span className="text-xs text-secondary font-mono">
                 {snap.durationMs != null ? `${snap.durationMs}ms` : '—'}
               </span>
 
@@ -342,7 +342,7 @@ function FlowStepsPanel({ trackId }) {
                   virtualPath={snap.inputVirtualPath}
                 />
                 {snap.inputSizeBytes != null && (
-                  <span className="ml-1 text-xs text-gray-400">
+                  <span className="ml-1 text-xs text-muted">
                     ({(snap.inputSizeBytes / 1024).toFixed(1)} KB)
                   </span>
                 )}
@@ -373,7 +373,7 @@ function FlowStepsPanel({ trackId }) {
                       virtualPath={snap.outputVirtualPath}
                     />
                     {snap.outputSizeBytes != null && snap.outputSizeBytes > 0 && (
-                      <span className="ml-1 text-xs text-gray-400">
+                      <span className="ml-1 text-xs text-muted">
                         ({(snap.outputSizeBytes / 1024).toFixed(1)} KB)
                       </span>
                     )}
@@ -383,7 +383,7 @@ function FlowStepsPanel({ trackId }) {
             </div>
           ))}
 
-          <p className="text-xs text-gray-400 px-2 pt-1">
+          <p className="text-xs text-muted px-2 pt-1">
             Click any file name to open/preview directly from storage — no download required.
           </p>
         </div>
@@ -418,24 +418,24 @@ function EventJournal({ trackId }) {
   return (
     <div className="card">
       <button className="flex items-center justify-between w-full" onClick={() => setOpen(v => !v)}>
-        <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+        <h3 className="font-semibold text-primary flex items-center gap-2">
           <span>📜</span>
           Event Journal
           {events.length > 0 && (
-            <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+            <span className="text-xs font-normal text-secondary bg-hover px-2 py-0.5 rounded-full">
               {events.length} event{events.length !== 1 ? 's' : ''}
             </span>
           )}
         </h3>
-        {open ? <ChevronDownIcon className="w-4 h-4 text-gray-400" /> : <ChevronRightIcon className="w-4 h-4 text-gray-400" />}
+        {open ? <ChevronDownIcon className="w-4 h-4 text-muted" /> : <ChevronRightIcon className="w-4 h-4 text-muted" />}
       </button>
 
       {open && (
         <div className="mt-3">
           {isLoading && <div className="animate-pulse h-4 w-32 bg-gray-200 rounded" />}
-          {isError && <p className="text-xs text-gray-400 italic">Event journal not available for this transfer.</p>}
+          {isError && <p className="text-xs text-muted italic">Event journal not available for this transfer.</p>}
           {!isLoading && !isError && events.length === 0 && (
-            <p className="text-xs text-gray-400 italic">No events recorded yet.</p>
+            <p className="text-xs text-muted italic">No events recorded yet.</p>
           )}
           {events.length > 0 && (
             <div className="space-y-0 relative ml-3">
@@ -447,17 +447,17 @@ function EventJournal({ trackId }) {
                 return (
                   <div key={i} className="flex items-start gap-3 py-1 relative">
                     <div className={`w-2.5 h-2.5 rounded-full ${dotColor} flex-shrink-0 mt-1.5 z-10 ring-2 ring-white`} />
-                    <span className="text-xs font-mono text-gray-400 w-24 flex-shrink-0">{ts}</span>
+                    <span className="text-xs font-mono text-muted w-24 flex-shrink-0">{ts}</span>
                     <span className={`text-xs font-semibold w-44 flex-shrink-0 ${
                       evt.eventType?.includes('COMPLETED') ? 'text-green-700' :
                       evt.eventType?.includes('FAILED') ? 'text-red-700' :
                       evt.eventType?.includes('RETRYING') ? 'text-yellow-700' :
                       evt.eventType?.includes('STARTED') ? 'text-blue-700' :
-                      evt.eventType?.includes('PAUSED') ? 'text-gray-500' : 'text-gray-600'
+                      evt.eventType?.includes('PAUSED') ? 'text-secondary' : 'text-secondary'
                     }`}>
                       {evt.eventType?.replace(/_/g, ' ')}
                     </span>
-                    <span className="text-xs text-gray-500 truncate">
+                    <span className="text-xs text-secondary truncate">
                       {evt.detail || evt.message || ''}
                       {evt.durationMs != null && ` (${evt.durationMs.toLocaleString()}ms)`}
                     </span>
@@ -513,14 +513,14 @@ export default function Journey() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Transfer Journey Tracker</h1>
-        <p className="text-gray-500 text-sm">Complete lifecycle view — click any pipeline step to open the file before or after transformation</p>
+        <h1 className="text-2xl font-bold text-primary">Transfer Journey Tracker</h1>
+        <p className="text-secondary text-sm">Complete lifecycle view — click any pipeline step to open the file before or after transformation</p>
       </div>
 
       {/* Search */}
       <div className="card flex gap-3">
         <div className="relative flex-1">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted pointer-events-none" />
           <input className="pl-10 pr-3 py-2 text-sm border rounded-lg w-full focus:ring-2 focus:ring-blue-500" placeholder="Enter Track ID (e.g. TRZRPF8TEA5Q)..." value={trackId}
             onChange={e => setTrackId(e.target.value.toUpperCase())}
             onKeyDown={e => e.key === 'Enter' && setSearchId(trackId)} />
@@ -537,8 +537,8 @@ export default function Journey() {
           <div className="card">
             <div className="flex items-start justify-between mb-4 gap-4">
               <div>
-                <h2 className="text-lg font-bold text-gray-900 font-mono">{journey.trackId}</h2>
-                <p className="text-sm text-gray-500">{journey.filename}</p>
+                <h2 className="text-lg font-bold text-primary font-mono">{journey.trackId}</h2>
+                <p className="text-sm text-secondary">{journey.filename}</p>
                 {execDetail?.attemptNumber > 1 && (
                   <p className="text-xs text-indigo-600 mt-0.5">Attempt {execDetail.attemptNumber} · restarted by {execDetail.restartedBy}</p>
                 )}
@@ -564,14 +564,14 @@ export default function Journey() {
                   <span className={`badge ${journey.overallStatus === 'MOVED_TO_SENT' || journey.overallStatus === 'COMPLETED' ? 'badge-green' : journey.overallStatus === 'FAILED' ? 'badge-red' : journey.overallStatus === 'CANCELLED' ? 'badge-yellow' : 'badge-yellow'}`}>
                     {journey.overallStatus}
                   </span>
-                  {journey.totalDurationMs && <p className="text-xs text-gray-500 mt-1">{journey.totalDurationMs}ms total</p>}
+                  {journey.totalDurationMs && <p className="text-xs text-secondary mt-1">{journey.totalDurationMs}ms total</p>}
                 </div>
               </div>
             </div>
 
             {/* Action bar — only shown when a flow was matched */}
             {execDetail && (
-              <div className="mb-4 pb-4 border-b border-gray-100">
+              <div className="mb-4 pb-4 border-b border-border">
                 <FlowActionBar
                   trackId={journey.trackId}
                   status={execDetail.status}
@@ -583,7 +583,7 @@ export default function Journey() {
             {/* Integrity */}
             <div className={`flex items-center gap-2 p-3 rounded-lg text-sm mb-4 ${
               journey.integrityStatus === 'VERIFIED' ? 'bg-green-50 text-green-800' :
-              journey.integrityStatus === 'MISMATCH' ? 'bg-red-50 text-red-800' : 'bg-gray-50 text-gray-600'}`}>
+              journey.integrityStatus === 'MISMATCH' ? 'bg-red-50 text-red-800' : 'bg-canvas text-secondary'}`}>
               <ShieldCheckIcon className="w-4 h-4" />
               <span className="font-medium">Integrity: {journey.integrityStatus}</span>
               {journey.sourceChecksum && <span className="font-mono text-xs ml-2">SHA-256: {journey.sourceChecksum?.substring(0,16)}...</span>}
@@ -600,13 +600,13 @@ export default function Journey() {
                   <div className="flex-1 pb-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <span className="font-medium text-gray-900 text-sm">{stage.stage.replace(/_/g, ' ')}</span>
-                        <span className="text-xs text-gray-400 ml-2">{stage.service}</span>
+                        <span className="font-medium text-primary text-sm">{stage.stage.replace(/_/g, ' ')}</span>
+                        <span className="text-xs text-muted ml-2">{stage.service}</span>
                       </div>
                       <span className={`badge ${statusColor[stage.status] ? (stage.status === 'FAILED' ? 'badge-red' : 'badge-green') : 'badge-gray'}`}>{stage.status}</span>
                     </div>
-                    {stage.detail && <p className="text-xs text-gray-500 mt-0.5">{stage.detail}</p>}
-                    {stage.timestamp && <p className="text-xs text-gray-400">{format(new Date(stage.timestamp), 'HH:mm:ss.SSS')}</p>}
+                    {stage.detail && <p className="text-xs text-secondary mt-0.5">{stage.detail}</p>}
+                    {stage.timestamp && <p className="text-xs text-muted">{format(new Date(stage.timestamp), 'HH:mm:ss.SSS')}</p>}
                   </div>
                 </div>
               ))}
@@ -628,14 +628,14 @@ export default function Journey() {
           {/* Audit Trail */}
           {journey.auditTrail?.length > 0 && (
             <div className="card">
-              <h3 className="font-semibold text-gray-900 mb-3">Audit Trail</h3>
+              <h3 className="font-semibold text-primary mb-3">Audit Trail</h3>
               <div className="space-y-1 text-xs font-mono">
                 {journey.auditTrail.map((a, i) => (
-                  <div key={i} className={`flex gap-2 py-1 ${a.success ? 'text-gray-600' : 'text-red-600'}`}>
-                    <span className="text-gray-400 w-16">{a.timestamp ? format(new Date(a.timestamp), 'HH:mm:ss') : ''}</span>
+                  <div key={i} className={`flex gap-2 py-1 ${a.success ? 'text-secondary' : 'text-red-600'}`}>
+                    <span className="text-muted w-16">{a.timestamp ? format(new Date(a.timestamp), 'HH:mm:ss') : ''}</span>
                     <span className={`w-3 text-center ${a.success ? 'text-green-500' : 'text-red-500'}`}>{a.success ? '✓' : '✗'}</span>
                     <span className="font-semibold w-28">{a.action}</span>
-                    <span className="text-gray-400">{a.principal}</span>
+                    <span className="text-muted">{a.principal}</span>
                   </div>
                 ))}
               </div>
@@ -652,7 +652,7 @@ export default function Journey() {
       {/* Recent Transfers */}
       {!journey && recent.length > 0 && (
         <div className="card">
-          <h3 className="font-semibold text-gray-900 mb-3">Recent Transfers</h3>
+          <h3 className="font-semibold text-primary mb-3">Recent Transfers</h3>
           <table className="w-full">
             <thead>
               <tr className="border-b">
@@ -673,7 +673,7 @@ export default function Journey() {
                       {r.status}
                     </span>
                   </td>
-                  <td className="table-cell text-xs text-gray-500">
+                  <td className="table-cell text-xs text-secondary">
                     {r.uploadedAt ? format(new Date(r.uploadedAt), 'MMM d HH:mm') : ''}
                   </td>
                 </tr>

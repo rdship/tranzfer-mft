@@ -27,7 +27,7 @@ export default function Analytics() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
-          <p className="text-gray-500 text-sm">Transfer metrics and trend analysis</p></div>
+          <p className="text-secondary text-sm">Transfer metrics and trend analysis</p></div>
         <div className="flex gap-2">
           <select value={service} onChange={e => setService(e.target.value)} className="w-auto text-sm">
             {SERVICES.map(s => <option key={s}>{s}</option>)}

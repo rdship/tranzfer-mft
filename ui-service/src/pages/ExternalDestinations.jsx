@@ -55,8 +55,8 @@ export default function ExternalDestinations() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold text-gray-900">External Destinations</h1>
-          <p className="text-gray-500 text-sm">External endpoints (SFTP, FTP, FTPS, HTTP, HTTPS, API) for file forwarding</p></div>
+        <div><h1 className="text-2xl font-bold text-primary">External Destinations</h1>
+          <p className="text-secondary text-sm">External endpoints (SFTP, FTP, FTPS, HTTP, HTTPS, API) for file forwarding</p></div>
         <button className="btn-primary" onClick={() => setShowCreate(true)}><PlusIcon className="w-4 h-4" /> Add Destination</button>
       </div>
       {dests.length === 0 ? (
@@ -65,10 +65,10 @@ export default function ExternalDestinations() {
         <div className="space-y-3">
           {dests.map(d => (
             <div key={d.id} className="card flex items-center gap-4">
-              <SignalIcon className="w-5 h-5 text-blue-500 flex-shrink-0" />
+              <SignalIcon className="w-5 h-5 text-accent flex-shrink-0" />
               <div className="flex-1">
-                <h3 className="font-semibold text-gray-900">{d.name}</h3>
-                <p className="text-xs text-gray-500 font-mono">{d.type}://{d.username}@{d.host}:{d.port}{d.remotePath}</p>
+                <h3 className="font-semibold text-primary">{d.name}</h3>
+                <p className="text-xs text-secondary font-mono">{d.type}://{d.username}@{d.host}:{d.port}{d.remotePath}</p>
               </div>
               <span className={`badge ${d.active ? 'badge-green' : 'badge-red'}`}>{d.active ? 'Active' : 'Disabled'}</span>
               <span className="badge badge-blue">{d.type}</span>
@@ -79,7 +79,7 @@ export default function ExternalDestinations() {
               {['FTP', 'HTTP'].includes(d.type) && (
                 <span className="badge badge-red">No TLS</span>
               )}
-              <button onClick={() => { if(confirm('Delete?')) deleteMut.mutate(d.id) }} title="Delete destination" className="p-1.5 rounded hover:bg-red-50 text-red-500"><TrashIcon className="w-4 h-4" /></button>
+              <button onClick={() => { if(confirm('Delete?')) deleteMut.mutate(d.id) }} title="Delete destination" className="p-1.5 rounded hover:bg-[rgb(60,20,20)] text-[rgb(240,120,120)]"><TrashIcon className="w-4 h-4" /></button>
             </div>
           ))}
         </div>
@@ -99,41 +99,41 @@ export default function ExternalDestinations() {
           }} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label>Name <span className="text-red-500">*</span></label>
+                <label>Name <span className="text-[rgb(240,120,120)]">*</span></label>
                 <input value={form.name} onChange={e => { setForm(f => ({...f, name: e.target.value})); setCreateErrors(prev => { const n = {...prev}; delete n.name; return n }) }}
                   placeholder="partner-acme-sftp" className={createErrors.name ? 'border-red-300 focus:ring-red-500' : ''} />
-                {createErrors.name ? <p className="mt-1 text-xs text-red-600">{createErrors.name}</p> : <p className="mt-1 text-xs text-gray-400">Unique identifier for this destination.</p>}
+                {createErrors.name ? <p className="mt-1 text-xs text-[rgb(240,120,120)]">{createErrors.name}</p> : <p className="mt-1 text-xs text-muted">Unique identifier for this destination.</p>}
               </div>
               <div>
                 <label>Type</label>
                 <select value={form.type} onChange={e => setForm(f => ({...f, type: e.target.value, port: {SFTP:22,FTP:21,FTPS:990,HTTP:80,HTTPS:443,API:443}[e.target.value]||22}))}>
                   <option>SFTP</option><option>FTP</option><option>FTPS</option><option>HTTP</option><option>HTTPS</option><option>API</option>
                 </select>
-                <p className="mt-1 text-xs text-gray-400">Protocol used to connect to the external system.</p>
+                <p className="mt-1 text-xs text-muted">Protocol used to connect to the external system.</p>
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label>Host <span className="text-red-500">*</span></label>
+                <label>Host <span className="text-[rgb(240,120,120)]">*</span></label>
                 <input value={form.host} onChange={e => { setForm(f => ({...f, host: e.target.value})); setCreateErrors(prev => { const n = {...prev}; delete n.host; return n }) }}
                   placeholder="sftp.partner.com" className={createErrors.host ? 'border-red-300 focus:ring-red-500' : ''} />
-                {createErrors.host && <p className="mt-1 text-xs text-red-600">{createErrors.host}</p>}
+                {createErrors.host && <p className="mt-1 text-xs text-[rgb(240,120,120)]">{createErrors.host}</p>}
               </div>
               <div><label>Port</label><input type="number" value={form.port} onChange={e => setForm(f => ({...f, port: parseInt(e.target.value)}))} /></div>
               <div><label>Remote Path</label><input value={form.remotePath} onChange={e => setForm(f => ({...f, remotePath: e.target.value}))} placeholder="/incoming" /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label>Username <span className="text-red-500">*</span></label>
+                <label>Username <span className="text-[rgb(240,120,120)]">*</span></label>
                 <input value={form.username} onChange={e => { setForm(f => ({...f, username: e.target.value})); setCreateErrors(prev => { const n = {...prev}; delete n.username; return n }) }}
                   className={createErrors.username ? 'border-red-300 focus:ring-red-500' : ''} />
-                {createErrors.username && <p className="mt-1 text-xs text-red-600">{createErrors.username}</p>}
+                {createErrors.username && <p className="mt-1 text-xs text-[rgb(240,120,120)]">{createErrors.username}</p>}
               </div>
               <div>
-                <label>Password <span className="text-red-500">*</span></label>
+                <label>Password <span className="text-[rgb(240,120,120)]">*</span></label>
                 <input type="password" value={form.encryptedPassword} onChange={e => { setForm(f => ({...f, encryptedPassword: e.target.value})); setCreateErrors(prev => { const n = {...prev}; delete n.password; return n }) }}
                   className={createErrors.password ? 'border-red-300 focus:ring-red-500' : ''} />
-                {createErrors.password && <p className="mt-1 text-xs text-red-600">{createErrors.password}</p>}
+                {createErrors.password && <p className="mt-1 text-xs text-[rgb(240,120,120)]">{createErrors.password}</p>}
               </div>
             </div>
 
@@ -152,8 +152,8 @@ export default function ExternalDestinations() {
               <div className="flex items-center gap-2 mb-3">
                 <input type="checkbox" id="proxyEnabled" checked={form.proxyEnabled}
                   onChange={e => setForm(f => ({...f, proxyEnabled: e.target.checked}))}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                <label htmlFor="proxyEnabled" className="text-sm font-medium text-gray-700">
+                  className="rounded border-border text-accent focus:ring-accent" />
+                <label htmlFor="proxyEnabled" className="text-sm font-medium text-primary">
                   Route through proxy
                 </label>
               </div>
@@ -166,7 +166,7 @@ export default function ExternalDestinations() {
                         {dmzDetected ? (
                           <option value="DMZ">DMZ Proxy (Platform)</option>
                         ) : (
-                          <option value="DMZ" disabled className="text-gray-400">DMZ Proxy (Offline)</option>
+                          <option value="DMZ" disabled className="text-muted">DMZ Proxy (Offline)</option>
                         )}
                         <option value="HTTP">HTTP Proxy</option>
                         <option value="SOCKS5">SOCKS5 Proxy</option>
@@ -187,14 +187,14 @@ export default function ExternalDestinations() {
 
                   {/* DMZ detection status */}
                   {form.proxyType === 'DMZ' && dmzDetected && (
-                    <p className="text-xs text-green-600 flex items-center gap-1">
+                    <p className="text-xs text-[rgb(120,220,160)] flex items-center gap-1">
                       <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />
                       DMZ Proxy detected and running on port 8088
                     </p>
                   )}
                   {form.proxyType === 'DMZ' && !dmzDetected && (
-                    <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
-                      <p className="text-xs text-amber-700 flex items-center gap-1">
+                    <div className="bg-[rgb(60,50,20)] border border-[rgb(80,65,25)] rounded-lg p-3">
+                      <p className="text-xs text-[rgb(240,200,100)] flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
                         DMZ Proxy is offline — start the DMZ service or select a different proxy type
                       </p>
@@ -202,7 +202,7 @@ export default function ExternalDestinations() {
                   )}
 
                   {form.proxyType === 'DMZ' && (
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-secondary">
                       Traffic will be routed through the platform's DMZ Proxy for network isolation.
                     </p>
                   )}
@@ -210,7 +210,7 @@ export default function ExternalDestinations() {
                 </div>
               )}
               {!form.proxyEnabled && dmzDetected && (
-                <p className="text-xs text-blue-600 mt-1">
+                <p className="text-xs text-accent mt-1">
                   DMZ Proxy is running — consider enabling proxy routing for network isolation
                 </p>
               )}
@@ -236,7 +236,7 @@ export default function ExternalDestinations() {
                   {testing ? 'Testing...' : 'Test Connection'}
                 </button>
                 {testResult && (
-                  <span className={`text-sm ${testResult.success ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className={`text-sm ${testResult.success ? 'text-[rgb(120,220,160)]' : 'text-[rgb(240,120,120)]'}`}>
                     {testResult.success ? '\u2713' : '\u2717'} {testResult.message}
                     {testResult.latencyMs != null && ` (${testResult.latencyMs}ms)`}
                   </span>

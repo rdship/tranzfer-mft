@@ -47,13 +47,13 @@ export default function Logs() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-bold text-gray-900">Audit Logs</h1>
-          <p className="text-gray-500 text-sm">Centralized log search across all services</p></div>
+          <p className="text-secondary text-sm">Centralized log search across all services</p></div>
         <button onClick={exportCSV} className="btn-secondary"><ArrowDownTrayIcon className="w-4 h-4" /> Export CSV</button>
       </div>
       <div className="card">
         <div className="flex gap-3 mb-4">
           <div className="relative flex-1">
-            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted pointer-events-none" />
             <input className="pl-10 pr-3 py-2 text-sm border rounded-lg w-full focus:ring-2 focus:ring-blue-500" placeholder="Search by username, filename, message..." value={search} onChange={e => { setSearch(e.target.value); setPage(0) }} />
           </div>
           <select value={level} onChange={e => { setLevel(e.target.value); setPage(0) }} className="w-auto text-sm">
@@ -72,13 +72,13 @@ export default function Logs() {
               </tr></thead>
               <tbody>
                 {paginatedLogs.length === 0 ? (
-                  <tr><td colSpan={5} className="text-center py-8 text-gray-500 text-sm">No logs found</td></tr>
+                  <tr><td colSpan={5} className="text-center py-8 text-secondary text-sm">No logs found</td></tr>
                 ) : paginatedLogs.map((log, i) => (
                   <tr key={i} className="table-row">
-                    <td className="table-cell text-xs text-gray-500 font-mono">{log.createdAt ? format(new Date(log.createdAt), 'MM/dd HH:mm:ss') : '--'}</td>
+                    <td className="table-cell text-xs text-secondary font-mono">{log.createdAt ? format(new Date(log.createdAt), 'MM/dd HH:mm:ss') : '--'}</td>
                     <td className="table-cell text-sm font-medium">{log.account?.username || '--'}</td>
                     <td className="table-cell text-xs font-mono">{log.action}</td>
-                    <td className="table-cell text-xs text-gray-500 truncate max-w-48">{log.filename || '--'}</td>
+                    <td className="table-cell text-xs text-secondary truncate max-w-48">{log.filename || '--'}</td>
                     <td className="table-cell"><span className={`badge ${log.success ? 'badge-green' : 'badge-red'}`}>{log.success ? 'OK' : 'FAIL'}</span></td>
                   </tr>
                 ))}
@@ -87,7 +87,7 @@ export default function Logs() {
 
             {/* Pagination controls */}
             <div className="flex items-center justify-between pt-4 border-t border-gray-100 mt-4">
-              <div className="flex items-center gap-2 text-sm text-gray-500">
+              <div className="flex items-center gap-2 text-sm text-secondary">
                 <span>Showing {logs.length === 0 ? 0 : safePage * pageSize + 1}--{Math.min((safePage + 1) * pageSize, logs.length)} of {logs.length}</span>
                 <span className="text-gray-300">|</span>
                 <label className="flex items-center gap-1">
@@ -99,20 +99,20 @@ export default function Logs() {
               </div>
               <div className="flex items-center gap-1">
                 <button onClick={() => setPage(0)} disabled={safePage === 0}
-                  className="px-2 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">First</button>
+                  className="px-2 py-1 text-xs rounded-lg border border-border hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed">First</button>
                 <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={safePage === 0}
-                  className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                  className="p-1.5 rounded-lg border border-border hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed">
                   <ChevronLeftIcon className="w-4 h-4" />
                 </button>
-                <span className="px-3 py-1 text-sm font-medium text-gray-700">
+                <span className="px-3 py-1 text-sm font-medium text-primary">
                   Page {safePage + 1} of {totalPages}
                 </span>
                 <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={safePage >= totalPages - 1}
-                  className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                  className="p-1.5 rounded-lg border border-border hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed">
                   <ChevronRightIcon className="w-4 h-4" />
                 </button>
                 <button onClick={() => setPage(totalPages - 1)} disabled={safePage >= totalPages - 1}
-                  className="px-2 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Last</button>
+                  className="px-2 py-1 text-xs rounded-lg border border-border hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed">Last</button>
               </div>
             </div>
           </>

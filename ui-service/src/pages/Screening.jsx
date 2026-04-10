@@ -276,12 +276,12 @@ export default function Screening() {
       <div className="grid grid-cols-3 gap-4">
         {lists && Object.entries(lists.lists || {}).map(([name, count]) => (
           <div key={name} className="card text-center">
-            <p className="text-2xl font-bold text-gray-900">{Number(count).toLocaleString()}</p>
-            <p className="text-sm text-gray-500">{name}</p>
+            <p className="text-2xl font-bold text-primary">{Number(count).toLocaleString()}</p>
+            <p className="text-sm text-secondary">{name}</p>
           </div>
         ))}
       </div>
-      {lists?.lastRefresh && <p className="text-xs text-gray-400">Last refreshed: {lists.lastRefresh} (auto-refresh every 6 hours)</p>}
+      {lists?.lastRefresh && <p className="text-xs text-muted">Last refreshed: {lists.lastRefresh} (auto-refresh every 6 hours)</p>}
 
       {hits.length > 0 && (
         <div className="card border-red-200 bg-red-50">
@@ -303,13 +303,13 @@ export default function Screening() {
       )}
 
       <div className="card">
-        <h3 className="font-semibold text-gray-900 mb-3">Recent Screenings</h3>
+        <h3 className="font-semibold text-primary mb-3">Recent Screenings</h3>
         <table className="w-full"><thead><tr className="border-b">
           <th className="table-header">Track ID</th><th className="table-header">File</th><th className="table-header">Records</th>
           <th className="table-header">Outcome</th><th className="table-header">Duration</th><th className="table-header">Time</th>
         </tr></thead><tbody>
           {results.length === 0 ? (
-            <tr><td colSpan={6} className="text-center py-8 text-gray-500 text-sm">No screening results yet. Results appear as files are screened during transfer.</td></tr>
+            <tr><td colSpan={6} className="text-center py-8 text-secondary text-sm">No screening results yet. Results appear as files are screened during transfer.</td></tr>
           ) : results.map(r => (
             <tr key={r.id} className="table-row">
               <td className="table-cell font-mono text-xs">{r.trackId}</td>
@@ -317,7 +317,7 @@ export default function Screening() {
               <td className="table-cell text-xs">{r.recordsScanned}</td>
               <td className="table-cell"><span className={`badge ${r.outcome === 'CLEAR' ? 'badge-green' : r.outcome === 'HIT' ? 'badge-red' : 'badge-yellow'}`}>{r.outcome}</span></td>
               <td className="table-cell text-xs">{r.durationMs}ms</td>
-              <td className="table-cell text-xs text-gray-500">{r.screenedAt ? format(new Date(r.screenedAt), 'HH:mm:ss') : ''}</td>
+              <td className="table-cell text-xs text-secondary">{r.screenedAt ? format(new Date(r.screenedAt), 'HH:mm:ss') : ''}</td>
             </tr>
           ))}
         </tbody></table>
@@ -334,8 +334,8 @@ export default function Screening() {
       {/* Stats cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="card text-center">
-          <p className="text-2xl font-bold text-gray-900">{quarantineStats.total || 0}</p>
-          <p className="text-sm text-gray-500">Total Quarantined</p>
+          <p className="text-2xl font-bold text-primary">{quarantineStats.total || 0}</p>
+          <p className="text-sm text-secondary">Total Quarantined</p>
         </div>
         <div className="card text-center border-red-200 bg-red-50">
           <p className="text-2xl font-bold text-red-700">{quarantineStats.quarantined || 0}</p>
@@ -346,12 +346,12 @@ export default function Screening() {
           <p className="text-sm text-green-600">Released</p>
         </div>
         <div className="card text-center">
-          <p className="text-2xl font-bold text-gray-500">{quarantineStats.deleted || 0}</p>
-          <p className="text-sm text-gray-500">Deleted</p>
+          <p className="text-2xl font-bold text-secondary">{quarantineStats.deleted || 0}</p>
+          <p className="text-sm text-secondary">Deleted</p>
         </div>
       </div>
 
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-secondary">
         Files quarantined by antivirus or DLP scans. Review each file and decide to release or permanently delete. Auto-refreshes every 30 seconds.
       </p>
 
@@ -376,11 +376,11 @@ export default function Screening() {
                 {quarantineItems.map(q => (
                   <>
                     <tr key={q.id} className="table-row">
-                      <td className="table-cell text-xs text-gray-500 whitespace-nowrap">
+                      <td className="table-cell text-xs text-secondary whitespace-nowrap">
                         {q.quarantinedAt ? format(new Date(q.quarantinedAt), 'MMM dd HH:mm:ss') : ''}
                       </td>
                       <td className="table-cell">
-                        <div className="font-medium text-sm text-gray-900 max-w-[200px] truncate" title={q.filename}>{q.filename}</div>
+                        <div className="font-medium text-sm text-primary max-w-[200px] truncate" title={q.filename}>{q.filename}</div>
                       </td>
                       <td className="table-cell text-xs max-w-[200px]">
                         <span className="text-red-700" title={q.reason}>{q.reason?.length > 50 ? q.reason.slice(0, 50) + '...' : q.reason}</span>
@@ -393,8 +393,8 @@ export default function Screening() {
                       <td className="table-cell">
                         <div className="flex gap-1">
                           <button onClick={() => setExpandedRow(expandedRow === q.id ? null : q.id)}
-                            className="p-1 rounded hover:bg-gray-100" title="Details">
-                            <EyeIcon className="w-4 h-4 text-gray-500" />
+                            className="p-1 rounded hover:bg-hover" title="Details">
+                            <EyeIcon className="w-4 h-4 text-secondary" />
                           </button>
                           {q.status === 'QUARANTINED' && (
                             <>
@@ -412,20 +412,20 @@ export default function Screening() {
                       </td>
                     </tr>
                     {expandedRow === q.id && (
-                      <tr key={`${q.id}-detail`} className="bg-gray-50">
+                      <tr key={`${q.id}-detail`} className="bg-canvas">
                         <td colSpan={9} className="p-4">
                           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-                            <div><span className="font-medium text-gray-600">Reason:</span> <span className="text-gray-900">{q.reason}</span></div>
-                            <div><span className="font-medium text-gray-600">Threat:</span> <span className="text-gray-900">{q.detectedThreat || '-'}</span></div>
-                            <div><span className="font-medium text-gray-600">SHA-256:</span> <span className="font-mono text-xs text-gray-700 break-all">{q.sha256 || '-'}</span></div>
-                            <div><span className="font-medium text-gray-600">Original Path:</span> <span className="font-mono text-xs text-gray-700 break-all">{q.originalPath}</span></div>
-                            <div><span className="font-medium text-gray-600">Quarantine Path:</span> <span className="font-mono text-xs text-gray-700 break-all">{q.quarantinePath}</span></div>
-                            <div><span className="font-medium text-gray-600">Detection:</span> <span className="text-gray-900">{q.detectionSource || 'AV'}</span></div>
+                            <div><span className="font-medium text-secondary">Reason:</span> <span className="text-primary">{q.reason}</span></div>
+                            <div><span className="font-medium text-secondary">Threat:</span> <span className="text-primary">{q.detectedThreat || '-'}</span></div>
+                            <div><span className="font-medium text-secondary">SHA-256:</span> <span className="font-mono text-xs text-primary break-all">{q.sha256 || '-'}</span></div>
+                            <div><span className="font-medium text-secondary">Original Path:</span> <span className="font-mono text-xs text-primary break-all">{q.originalPath}</span></div>
+                            <div><span className="font-medium text-secondary">Quarantine Path:</span> <span className="font-mono text-xs text-primary break-all">{q.quarantinePath}</span></div>
+                            <div><span className="font-medium text-secondary">Detection:</span> <span className="text-primary">{q.detectionSource || 'AV'}</span></div>
                             {q.reviewedBy && (
                               <>
-                                <div><span className="font-medium text-gray-600">Reviewed By:</span> <span className="text-gray-900">{q.reviewedBy}</span></div>
-                                <div><span className="font-medium text-gray-600">Reviewed At:</span> <span className="text-gray-900">{q.reviewedAt ? format(new Date(q.reviewedAt), 'MMM dd HH:mm:ss') : '-'}</span></div>
-                                <div><span className="font-medium text-gray-600">Notes:</span> <span className="text-gray-900">{q.reviewNotes || '-'}</span></div>
+                                <div><span className="font-medium text-secondary">Reviewed By:</span> <span className="text-primary">{q.reviewedBy}</span></div>
+                                <div><span className="font-medium text-secondary">Reviewed At:</span> <span className="text-primary">{q.reviewedAt ? format(new Date(q.reviewedAt), 'MMM dd HH:mm:ss') : '-'}</span></div>
+                                <div><span className="font-medium text-secondary">Notes:</span> <span className="text-primary">{q.reviewNotes || '-'}</span></div>
                               </>
                             )}
                           </div>
@@ -498,7 +498,7 @@ export default function Screening() {
   const renderDlp = () => (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-secondary">
           Data Loss Prevention policies scan file contents for sensitive data patterns (credit cards, SSNs, etc.)
         </p>
         <div className="flex gap-2">
@@ -530,8 +530,8 @@ export default function Screening() {
                 {dlpPolicies.map(p => (
                   <tr key={p.id} className="table-row">
                     <td className="table-cell">
-                      <div className="font-medium text-gray-900">{p.name}</div>
-                      {p.description && <div className="text-xs text-gray-500 mt-0.5 max-w-xs truncate">{p.description}</div>}
+                      <div className="font-medium text-primary">{p.name}</div>
+                      {p.description && <div className="text-xs text-secondary mt-0.5 max-w-xs truncate">{p.description}</div>}
                     </td>
                     <td className="table-cell">
                       <div className="flex flex-wrap gap-1">
@@ -549,16 +549,16 @@ export default function Screening() {
                         ? <span className="badge badge-green">Active</span>
                         : <span className="badge badge-gray">Disabled</span>}
                     </td>
-                    <td className="table-cell text-xs text-gray-500">
+                    <td className="table-cell text-xs text-secondary">
                       {p.createdAt ? format(new Date(p.createdAt), 'MMM dd, yyyy') : ''}
                     </td>
                     <td className="table-cell">
                       <div className="flex gap-1">
-                        <button onClick={() => openEditPolicy(p)} className="p-1 rounded hover:bg-gray-100" title="Edit">
-                          <PencilSquareIcon className="w-4 h-4 text-gray-500" />
+                        <button onClick={() => openEditPolicy(p)} className="p-1 rounded hover:bg-hover" title="Edit">
+                          <PencilSquareIcon className="w-4 h-4 text-secondary" />
                         </button>
                         <button onClick={() => { if (confirm('Delete this DLP policy?')) deletePolicy.mutate(p.id) }}
-                          className="p-1 rounded hover:bg-gray-100" title="Delete">
+                          className="p-1 rounded hover:bg-hover" title="Delete">
                           <TrashIcon className="w-4 h-4 text-red-500" />
                         </button>
                       </div>
@@ -576,20 +576,20 @@ export default function Screening() {
         <Modal title={editingPolicy ? 'Edit DLP Policy' : 'Create DLP Policy'} onClose={() => { setShowPolicyModal(false); setEditingPolicy(null) }} size="lg">
           <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-2">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Name *</label>
               <input className="input w-full" value={policyForm.name}
                 onChange={e => setPolicyForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="PCI Credit Card Detection" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Description</label>
               <textarea className="input w-full" rows={2} value={policyForm.description}
                 onChange={e => setPolicyForm(f => ({ ...f, description: e.target.value }))}
                 placeholder="Detects credit card numbers in file content" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Action</label>
+                <label className="block text-xs font-medium text-secondary mb-1">Action</label>
                 <select className="input w-full" value={policyForm.action}
                   onChange={e => setPolicyForm(f => ({ ...f, action: e.target.value }))}>
                   {ACTIONS.map(a => <option key={a} value={a}>{a}</option>)}
@@ -599,9 +599,9 @@ export default function Screening() {
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <div className={`w-9 h-5 rounded-full relative transition-colors ${policyForm.active ? 'bg-indigo-600' : 'bg-gray-300'}`}
                     onClick={() => setPolicyForm(f => ({ ...f, active: !f.active }))}>
-                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${policyForm.active ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-surface shadow transition-transform ${policyForm.active ? 'translate-x-4' : 'translate-x-0.5'}`} />
                   </div>
-                  <span className="text-sm text-gray-700">Active</span>
+                  <span className="text-sm text-primary">Active</span>
                 </label>
               </div>
             </div>
@@ -609,29 +609,29 @@ export default function Screening() {
             {/* Patterns */}
             <div>
               <div className="flex justify-between items-center mb-2">
-                <h4 className="text-sm font-semibold text-gray-900 border-b pb-1">Detection Patterns</h4>
+                <h4 className="text-sm font-semibold text-primary border-b pb-1">Detection Patterns</h4>
                 <button onClick={addPattern} className="text-xs text-indigo-600 hover:underline flex items-center gap-1">
                   <PlusIcon className="w-3 h-3" /> Add Pattern
                 </button>
               </div>
               <div className="space-y-3">
                 {policyForm.patterns.map((pat, idx) => (
-                  <div key={idx} className="grid grid-cols-12 gap-2 items-end bg-gray-50 p-2 rounded-lg">
+                  <div key={idx} className="grid grid-cols-12 gap-2 items-end bg-canvas p-2 rounded-lg">
                     <div className="col-span-3">
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
+                      <label className="block text-xs font-medium text-secondary mb-1">Type</label>
                       <select className="input w-full text-xs" value={pat.type}
                         onChange={e => updatePattern(idx, 'type', e.target.value)}>
                         {PATTERN_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                       </select>
                     </div>
                     <div className="col-span-5">
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Regex Pattern *</label>
+                      <label className="block text-xs font-medium text-secondary mb-1">Regex Pattern *</label>
                       <input className="input w-full text-xs font-mono" value={pat.regex}
                         onChange={e => updatePattern(idx, 'regex', e.target.value)}
                         placeholder="\\d{4}-\\d{4}-\\d{4}-\\d{4}" />
                     </div>
                     <div className="col-span-3">
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Label</label>
+                      <label className="block text-xs font-medium text-secondary mb-1">Label</label>
                       <input className="input w-full text-xs" value={pat.label}
                         onChange={e => updatePattern(idx, 'label', e.target.value)}
                         placeholder="Visa card" />
@@ -664,17 +664,17 @@ export default function Screening() {
       {showScanModal && (
         <Modal title="Manual DLP Scan" onClose={() => setShowScanModal(false)} size="lg">
           <div className="space-y-4">
-            <p className="text-sm text-gray-500">Paste text content or upload a file to scan for sensitive data matches.</p>
+            <p className="text-sm text-secondary">Paste text content or upload a file to scan for sensitive data matches.</p>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Paste content</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Paste content</label>
               <textarea className="input w-full font-mono text-xs" rows={6} value={scanContent}
                 onChange={e => { setScanContent(e.target.value); setScanFile(null) }}
                 placeholder="Paste file content here to scan..." />
             </div>
 
             <div className="flex items-center gap-3">
-              <span className="text-xs text-gray-500">OR</span>
+              <span className="text-xs text-secondary">OR</span>
               <button onClick={() => fileInputRef.current?.click()}
                 className="btn btn-secondary flex items-center gap-1.5 text-sm">
                 <ArrowUpTrayIcon className="w-4 h-4" />
@@ -709,13 +709,13 @@ export default function Screening() {
                       <div key={i} className="flex items-center gap-2 text-sm">
                         <span className="badge badge-red">{m.policyName || m.type || 'Match'}</span>
                         <span className="text-red-700">{m.description || m.pattern || ''}</span>
-                        {m.count > 0 && <span className="text-xs text-gray-500">({m.count} occurrences)</span>}
+                        {m.count > 0 && <span className="text-xs text-secondary">({m.count} occurrences)</span>}
                       </div>
                     ))}
                   </div>
                 )}
                 {scanResult.action && (
-                  <div className="mt-2 text-xs text-gray-600">
+                  <div className="mt-2 text-xs text-secondary">
                     Action taken: <span className={`badge ${actionColor(scanResult.action)}`}>{scanResult.action}</span>
                   </div>
                 )}
@@ -736,21 +736,21 @@ export default function Screening() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
           <ShieldExclamationIcon className="w-7 h-7 text-indigo-600" />
           Security Screening
         </h1>
-        <p className="text-gray-500 text-sm">OFAC/AML sanctions screening, file quarantine management, and DLP policy enforcement</p>
+        <p className="text-secondary text-sm">OFAC/AML sanctions screening, file quarantine management, and DLP policy enforcement</p>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 border-b">
         <button onClick={() => setTab('screening')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'screening' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'screening' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-secondary hover:text-primary'}`}>
           OFAC/AML Screening
         </button>
         <button onClick={() => setTab('quarantine')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${tab === 'quarantine' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${tab === 'quarantine' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-secondary hover:text-primary'}`}>
           Quarantine
           {pendingCount > 0 && (
             <span className="bg-red-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5 min-w-[20px] text-center">
@@ -759,7 +759,7 @@ export default function Screening() {
           )}
         </button>
         <button onClick={() => setTab('dlp')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'dlp' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'dlp' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-secondary hover:text-primary'}`}>
           DLP Policies
         </button>
       </div>

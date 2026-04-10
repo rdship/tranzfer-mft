@@ -110,7 +110,7 @@ export default function Terminal() {
         <CommandLineIcon className="w-6 h-6 text-gray-700" />
         <h1 className="text-2xl font-bold text-gray-900">Admin Terminal</h1>
       </div>
-      <p className="text-gray-500 text-sm">Execute admin commands directly. Type <code className="bg-gray-100 px-1 rounded">help</code> to see all available commands.</p>
+      <p className="text-secondary text-sm">Execute admin commands directly. Type <code className="bg-gray-100 px-1 rounded">help</code> to see all available commands.</p>
 
       <div
         className="bg-gray-950 rounded-xl border border-gray-800 font-mono text-sm overflow-hidden"

@@ -95,8 +95,8 @@ export default function Accounts() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Transfer Accounts</h1>
-          <p className="text-gray-500 text-sm">{accounts.length} accounts configured</p>
+          <h1 className="text-2xl font-bold text-primary">Transfer Accounts</h1>
+          <p className="text-secondary text-sm">{accounts.length} accounts configured</p>
         </div>
         <button className="btn-primary" onClick={() => { setForm({ ...defaultForm }); setShowCreate(true) }}>
           <PlusIcon className="w-4 h-4" /> New Account
@@ -106,8 +106,8 @@ export default function Accounts() {
       <div className="card">
         <div className="mb-4">
           <div className="relative max-w-sm">
-            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-            <input placeholder="Search by username or protocol..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 pr-3 py-2 text-sm border rounded-lg w-full focus:ring-2 focus:ring-blue-500" />
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted pointer-events-none" />
+            <input placeholder="Search by username or protocol..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 pr-3 py-2 text-sm border rounded-lg w-full focus:ring-2 focus:ring-accent" />
           </div>
         </div>
 
@@ -116,7 +116,7 @@ export default function Accounts() {
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-100">
+              <tr className="border-b border-border">
                 <th className="table-header">Username</th>
                 <th className="table-header">Protocol</th>
                 <th className="table-header">Server</th>
@@ -135,14 +135,14 @@ export default function Accounts() {
                 <tr key={acc.id} className="table-row">
                   <td className="table-cell font-medium">{acc.username}</td>
                   <td className="table-cell"><span className="badge badge-blue">{acc.protocol}</span></td>
-                  <td className="table-cell text-xs text-gray-500">{acc.serverInstance || <span className="text-gray-300">Any</span>}</td>
+                  <td className="table-cell text-xs text-secondary">{acc.serverInstance || <span className="text-muted">Any</span>}</td>
                   <td className="table-cell"><span className={`badge ${tier.color}`}>{tier.label}</span></td>
-                  <td className="table-cell text-xs text-gray-500">
+                  <td className="table-cell text-xs text-secondary">
                     <span title="Upload">&uarr;{formatBps(acc.qosUploadBytesPerSecond)}</span>
                     {' / '}
                     <span title="Download">&darr;{formatBps(acc.qosDownloadBytesPerSecond)}</span>
                   </td>
-                  <td className="table-cell text-xs text-gray-500">
+                  <td className="table-cell text-xs text-secondary">
                     {acc.qosMaxConcurrentSessions || '-'}
                   </td>
                   <td className="table-cell">
@@ -151,15 +151,15 @@ export default function Accounts() {
                       {acc.active ? 'Active' : 'Disabled'}
                     </button>
                   </td>
-                  <td className="table-cell text-gray-500 text-xs">{acc.createdAt ? format(new Date(acc.createdAt), 'MMM d, yyyy') : '-'}</td>
+                  <td className="table-cell text-secondary text-xs">{acc.createdAt ? format(new Date(acc.createdAt), 'MMM d, yyyy') : '-'}</td>
                   <td className="table-cell">
                     <div className="flex gap-1">
                       <button onClick={() => openEdit(acc)} title="Edit account"
-                        className="p-1.5 rounded hover:bg-blue-50 text-blue-500 hover:text-blue-700 transition-colors">
+                        className="p-1.5 rounded hover:bg-accent-soft text-accent hover:text-accent transition-colors">
                         <PencilSquareIcon className="w-4 h-4" />
                       </button>
                       <button onClick={() => { if (confirm('Delete account?')) deleteMut.mutate(acc.id) }} title="Delete account"
-                        className="p-1.5 rounded hover:bg-red-50 text-red-500 hover:text-red-700 transition-colors">
+                        className="p-1.5 rounded hover:bg-[rgb(60,20,20)] text-[rgb(240,120,120)] hover:text-[rgb(255,140,140)] transition-colors">
                         <TrashIcon className="w-4 h-4" />
                       </button>
                     </div>
@@ -215,18 +215,18 @@ export default function Accounts() {
                     <option key={s.instanceId} value={s.instanceId}>{s.name} ({s.instanceId})</option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-400 mt-1">Restrict this account to a specific {form.protocol} server</p>
+                <p className="text-xs text-muted mt-1">Restrict this account to a specific {form.protocol} server</p>
               </div>
             )}
 
             {/* QoS Configuration */}
-            <div className="border-t border-gray-200 pt-4 mt-4">
+            <div className="border-t border-border pt-4 mt-4">
               <div className="flex items-center justify-between mb-3">
-                <label className="text-sm font-semibold text-gray-700">Quality of Service</label>
+                <label className="text-sm font-semibold text-primary">Quality of Service</label>
                 <div className="flex gap-1.5">
                   {Object.keys(QOS_PRESETS).map(tier => (
                     <button key={tier} type="button" onClick={() => applyPreset(tier)}
-                      className="px-2.5 py-1 rounded text-xs font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors">
+                      className="px-2.5 py-1 rounded text-xs font-medium bg-hover hover:bg-surface text-primary transition-colors">
                       {tier}
                     </button>
                   ))}
@@ -234,29 +234,29 @@ export default function Accounts() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-500">Upload Limit (MB/s)</label>
+                  <label className="text-xs text-secondary">Upload Limit (MB/s)</label>
                   <input type="number" min="0" value={form.qos.uploadBytesPerSecond ? Math.round(form.qos.uploadBytesPerSecond / 1048576) : ''}
                     onChange={e => setForm(f => ({ ...f, qos: { ...f.qos, uploadBytesPerSecond: e.target.value ? Number(e.target.value) * 1048576 : 0 } }))}
                     placeholder="0 = unlimited" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500">Download Limit (MB/s)</label>
+                  <label className="text-xs text-secondary">Download Limit (MB/s)</label>
                   <input type="number" min="0" value={form.qos.downloadBytesPerSecond ? Math.round(form.qos.downloadBytesPerSecond / 1048576) : ''}
                     onChange={e => setForm(f => ({ ...f, qos: { ...f.qos, downloadBytesPerSecond: e.target.value ? Number(e.target.value) * 1048576 : 0 } }))}
                     placeholder="0 = unlimited" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500">Max Concurrent Sessions</label>
+                  <label className="text-xs text-secondary">Max Concurrent Sessions</label>
                   <input type="number" min="1" max="100" value={form.qos.maxConcurrentSessions || ''}
                     onChange={e => setForm(f => ({ ...f, qos: { ...f.qos, maxConcurrentSessions: Number(e.target.value) } }))} />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500">Priority (1=Highest, 10=Lowest)</label>
+                  <label className="text-xs text-secondary">Priority (1=Highest, 10=Lowest)</label>
                   <input type="number" min="1" max="10" value={form.qos.priority || ''}
                     onChange={e => setForm(f => ({ ...f, qos: { ...f.qos, priority: Number(e.target.value) } }))} />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500">Burst Allowance (%)</label>
+                  <label className="text-xs text-secondary">Burst Allowance (%)</label>
                   <input type="number" min="0" max="100" value={form.qos.burstAllowancePercent || ''}
                     onChange={e => setForm(f => ({ ...f, qos: { ...f.qos, burstAllowancePercent: Number(e.target.value) } }))} />
                 </div>
@@ -286,36 +286,36 @@ export default function Accounts() {
                   priority: preset.priority,
                   burstAllowancePercent: preset.burstAllowancePercent,
                 })}
-                  className="px-2.5 py-1 rounded text-xs font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors">
+                  className="px-2.5 py-1 rounded text-xs font-medium bg-hover hover:bg-surface text-primary transition-colors">
                   {tier}
                 </button>
               ))}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-gray-500">Upload Limit (MB/s)</label>
+                <label className="text-xs text-secondary">Upload Limit (MB/s)</label>
                 <input type="number" min="0" value={editQos.uploadBytesPerSecond ? Math.round(editQos.uploadBytesPerSecond / 1048576) : ''}
                   onChange={e => setEditQos(q => ({ ...q, uploadBytesPerSecond: e.target.value ? Number(e.target.value) * 1048576 : 0 }))}
                   placeholder="0 = unlimited" />
               </div>
               <div>
-                <label className="text-xs text-gray-500">Download Limit (MB/s)</label>
+                <label className="text-xs text-secondary">Download Limit (MB/s)</label>
                 <input type="number" min="0" value={editQos.downloadBytesPerSecond ? Math.round(editQos.downloadBytesPerSecond / 1048576) : ''}
                   onChange={e => setEditQos(q => ({ ...q, downloadBytesPerSecond: e.target.value ? Number(e.target.value) * 1048576 : 0 }))}
                   placeholder="0 = unlimited" />
               </div>
               <div>
-                <label className="text-xs text-gray-500">Max Concurrent Sessions</label>
+                <label className="text-xs text-secondary">Max Concurrent Sessions</label>
                 <input type="number" min="1" max="100" value={editQos.maxConcurrentSessions || ''}
                   onChange={e => setEditQos(q => ({ ...q, maxConcurrentSessions: Number(e.target.value) }))} />
               </div>
               <div>
-                <label className="text-xs text-gray-500">Priority (1=Highest, 10=Lowest)</label>
+                <label className="text-xs text-secondary">Priority (1=Highest, 10=Lowest)</label>
                 <input type="number" min="1" max="10" value={editQos.priority || ''}
                   onChange={e => setEditQos(q => ({ ...q, priority: Number(e.target.value) }))} />
               </div>
               <div>
-                <label className="text-xs text-gray-500">Burst Allowance (%)</label>
+                <label className="text-xs text-secondary">Burst Allowance (%)</label>
                 <input type="number" min="0" max="100" value={editQos.burstAllowancePercent || ''}
                   onChange={e => setEditQos(q => ({ ...q, burstAllowancePercent: Number(e.target.value) }))} />
               </div>

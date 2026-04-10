@@ -244,7 +244,7 @@ export default function FolderMappings() {
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-6">
           <div className="space-y-3">
-            <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+            <h4 className="font-semibold text-primary flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-blue-500" /> Source
             </h4>
             <div><label>Account</label>
@@ -262,7 +262,7 @@ export default function FolderMappings() {
               <input value={form.sourcePath} onChange={e => setForm(f => ({...f, sourcePath: e.target.value}))} placeholder="/inbox" className="font-mono text-sm" /></div>
           </div>
           <div className="space-y-3">
-            <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+            <h4 className="font-semibold text-primary flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-green-500" /> Destination
             </h4>
             <div><label>Account</label>
@@ -298,15 +298,15 @@ export default function FolderMappings() {
     )
   }
 
-  const getProtocolColor = (proto) => PROTOCOL_COLORS[proto] || { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', badge: 'bg-gray-100 text-gray-700' }
+  const getProtocolColor = (proto) => PROTOCOL_COLORS[proto] || { bg: 'bg-canvas', text: 'text-primary', border: 'border-border', badge: 'bg-hover text-primary' }
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Folder Mappings</h1>
-          <p className="text-gray-500 text-sm">Route files between accounts across SFTP, FTP, FTP-Web, AS2, and HTTPS servers</p>
+          <h1 className="text-2xl font-bold text-primary">Folder Mappings</h1>
+          <p className="text-secondary text-sm">Route files between accounts across SFTP, FTP, FTP-Web, AS2, and HTTPS servers</p>
         </div>
         <button className="btn-primary" onClick={openCreate}>
           <PlusIcon className="w-4 h-4" /> New Mapping
@@ -316,25 +316,25 @@ export default function FolderMappings() {
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4">
         <div className="card p-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wider">Total Mappings</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{mappings.length}</p>
+          <p className="text-xs text-secondary uppercase tracking-wider">Total Mappings</p>
+          <p className="text-2xl font-bold text-primary mt-1">{mappings.length}</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wider">Active</p>
+          <p className="text-xs text-secondary uppercase tracking-wider">Active</p>
           <p className="text-2xl font-bold text-green-600 mt-1">{mappings.filter(m => m.active).length}</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wider">Encrypted</p>
+          <p className="text-xs text-secondary uppercase tracking-wider">Encrypted</p>
           <p className="text-2xl font-bold text-blue-600 mt-1">{mappings.filter(m => m.encryptionOption && m.encryptionOption !== 'NONE').length}</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wider">Accounts</p>
+          <p className="text-xs text-secondary uppercase tracking-wider">Accounts</p>
           <p className="text-2xl font-bold text-purple-600 mt-1">{accounts.length}</p>
         </div>
       </div>
 
       {/* Protocol Filter Tabs */}
-      <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+      <div className="flex items-center gap-1 bg-hover rounded-lg p-1">
         {PROTOCOL_TABS.map(tab => {
           const count = tab === 'All' ? mappings.length : (protocolCounts[tab] || 0)
           const isActive = protocolFilter === tab
@@ -344,14 +344,14 @@ export default function FolderMappings() {
               onClick={() => setProtocolFilter(tab)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
                 isActive
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'bg-surface text-primary shadow-sm'
+                  : 'text-secondary hover:text-primary'
               }`}
             >
               {tab === 'All' ? 'All' : tab.replace('_', '-')}
               {count > 0 && (
                 <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                  isActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'
+                  isActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-secondary'
                 }`}>{count}</span>
               )}
             </button>
@@ -362,7 +362,7 @@ export default function FolderMappings() {
       {/* Existing Mappings */}
       {filteredMappings.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">Active Mappings</h2>
+          <h2 className="text-sm font-semibold text-primary uppercase tracking-wider">Active Mappings</h2>
           {filteredMappings.map(m => {
             const srcAccount = accounts.find(a => a.id === m.sourceAccountId)
             const dstAccount = accounts.find(a => a.id === m.destinationAccountId)
@@ -378,17 +378,17 @@ export default function FolderMappings() {
                       </span>
                     )}
                     <span className="font-mono font-semibold text-blue-700">{srcAccount?.username || m.sourceAccountId?.substring(0,8)}</span>
-                    <span className="text-gray-400 font-mono text-xs">{m.sourcePath}</span>
-                    <ArrowRightIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <span className="text-muted font-mono text-xs">{m.sourcePath}</span>
+                    <ArrowRightIcon className="w-4 h-4 text-muted flex-shrink-0" />
                     {dstAccount?.protocol && (
                       <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${dstColor.badge}`}>
                         {dstAccount.protocol.replace('_', '-')}
                       </span>
                     )}
                     <span className="font-mono font-semibold text-green-700">{dstAccount?.username || m.destinationAccountId?.substring(0,8)}</span>
-                    <span className="text-gray-400 font-mono text-xs">{m.destinationPath}</span>
+                    <span className="text-muted font-mono text-xs">{m.destinationPath}</span>
                   </div>
-                  {m.filenamePattern && <p className="text-xs text-gray-400 font-mono mt-1">Pattern: {m.filenamePattern}</p>}
+                  {m.filenamePattern && <p className="text-xs text-muted font-mono mt-1">Pattern: {m.filenamePattern}</p>}
                 </div>
                 <span className={`badge ${m.active ? 'badge-green' : 'badge-red'}`}>{m.active ? 'Active' : 'Disabled'}</span>
                 <span className="badge badge-blue">{m.encryptionOption || 'NONE'}</span>
@@ -417,14 +417,14 @@ export default function FolderMappings() {
         <div className="flex items-center justify-between">
           <button
             onClick={() => setShowSamples(!showSamples)}
-            className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wider hover:text-gray-900 transition-colors"
+            className="flex items-center gap-2 text-sm font-semibold text-primary uppercase tracking-wider hover:text-primary transition-colors"
           >
             <SparklesIcon className="w-4 h-4 text-amber-500" />
             Sample Configurations
-            <span className="text-xs font-normal text-gray-400 lowercase">
+            <span className="text-xs font-normal text-muted lowercase">
               ({filteredSamples.length} templates)
             </span>
-            <svg className={`w-4 h-4 text-gray-400 transition-transform ${showSamples ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <svg className={`w-4 h-4 text-muted transition-transform ${showSamples ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
             </svg>
           </button>
@@ -442,34 +442,34 @@ export default function FolderMappings() {
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${color.badge}`}>
                           {sample.protocol.replace('_', '-')}
                         </span>
-                        <h3 className="font-semibold text-gray-900 text-sm">{sample.title}</h3>
+                        <h3 className="font-semibold text-primary text-sm">{sample.title}</h3>
                       </div>
                       <p className="text-xs text-gray-600">{sample.description}</p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 text-xs">
-                    <div className="flex items-center gap-1.5 bg-white/70 rounded-lg px-2.5 py-1.5">
+                    <div className="flex items-center gap-1.5 bg-surface/70 rounded-lg px-2.5 py-1.5">
                       <FolderIcon className="w-3.5 h-3.5 text-blue-500" />
-                      <span className="font-mono text-gray-700">{sample.sourcePath}</span>
-                      <span className="text-gray-400 text-[10px]">({sample.sourceHint})</span>
+                      <span className="font-mono text-primary">{sample.sourcePath}</span>
+                      <span className="text-muted text-[10px]">({sample.sourceHint})</span>
                     </div>
-                    <ArrowRightIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                    <div className="flex items-center gap-1.5 bg-white/70 rounded-lg px-2.5 py-1.5">
+                    <ArrowRightIcon className="w-3.5 h-3.5 text-muted flex-shrink-0" />
+                    <div className="flex items-center gap-1.5 bg-surface/70 rounded-lg px-2.5 py-1.5">
                       <FolderIcon className="w-3.5 h-3.5 text-green-500" />
-                      <span className="font-mono text-gray-700">{sample.destinationPath}</span>
-                      <span className="text-gray-400 text-[10px]">({sample.destHint})</span>
+                      <span className="font-mono text-primary">{sample.destinationPath}</span>
+                      <span className="text-muted text-[10px]">({sample.destHint})</span>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2">
                     {sample.filenamePattern && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white/70 text-xs font-mono text-gray-600">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-surface/70 text-xs font-mono text-gray-600">
                         <FunnelIcon className="w-3 h-3" /> {sample.filenamePattern}
                       </span>
                     )}
                     {sample.encryptionOption !== 'NONE' && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded bg-white/70 text-xs font-medium text-gray-600">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded bg-surface/70 text-xs font-medium text-gray-600">
                         {sample.encryptionOption === 'ENCRYPT_BEFORE_FORWARD' ? 'Encrypt' : 'Decrypt'}
                       </span>
                     )}
@@ -477,7 +477,7 @@ export default function FolderMappings() {
 
                   <button
                     onClick={() => openCreateFromSample(sample)}
-                    className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border ${color.border} bg-white text-sm font-medium ${color.text} hover:shadow-sm transition-all`}
+                    className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border ${color.border} bg-surface text-sm font-medium ${color.text} hover:shadow-sm transition-all`}
                   >
                     <DocumentDuplicateIcon className="w-4 h-4" />
                     Use This Template
@@ -491,11 +491,11 @@ export default function FolderMappings() {
 
       {/* Empty state when truly no mappings */}
       {mappings.length === 0 && (
-        <div className="card border-dashed border-2 border-gray-200 bg-gray-50/50">
+        <div className="card border-dashed border-2 border-border bg-canvas/50">
           <div className="text-center py-6">
             <ServerStackIcon className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-            <h3 className="text-lg font-semibold text-gray-700">No Folder Mappings Yet</h3>
-            <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto">
+            <h3 className="text-lg font-semibold text-primary">No Folder Mappings Yet</h3>
+            <p className="text-sm text-secondary mt-1 max-w-md mx-auto">
               Folder mappings route files from source accounts to destinations. Choose a sample template above
               to get started, or create a custom mapping.
             </p>

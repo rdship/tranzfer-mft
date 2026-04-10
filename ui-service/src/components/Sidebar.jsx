@@ -157,10 +157,10 @@ export default function Sidebar() {
   return (
     <aside
       className="w-56 flex flex-col overflow-hidden flex-shrink-0"
-      style={{ background: '#09090b' }}
+      style={{ background: 'rgb(12, 12, 15)' }}
     >
       {/* Brand */}
-      <div className="px-4 py-4 flex items-center gap-2.5" style={{ borderBottom: '1px solid #18181b' }}>
+      <div className="px-4 py-4 flex items-center gap-2.5" style={{ borderBottom: '1px solid rgb(30, 30, 36)' }}>
         {branding.logoUrl ? (
           <img src={branding.logoUrl} alt={branding.companyName} className="h-7 object-contain" />
         ) : (
@@ -173,7 +173,7 @@ export default function Sidebar() {
             </div>
             <div className="min-w-0">
               <p className="text-white font-bold text-sm leading-tight truncate">{branding.companyName}</p>
-              <p className="text-[10px] leading-tight" style={{ color: '#3f3f46' }}>MFT Platform</p>
+              <p className="text-[10px] leading-tight" style={{ color: 'rgb(70, 75, 85)' }}>MFT Platform</p>
             </div>
           </>
         )}
@@ -185,7 +185,7 @@ export default function Sidebar() {
           <div className="flex items-center justify-center py-10">
             <div
               className="w-4 h-4 rounded-full border-2 animate-spin"
-              style={{ borderColor: '#8b5cf6 transparent #8b5cf6 #8b5cf6' }}
+              style={{ borderColor: 'rgb(100, 140, 255) transparent rgb(100, 140, 255) rgb(100, 140, 255)' }}
             />
           </div>
         ) : (
@@ -198,7 +198,7 @@ export default function Sidebar() {
                   fontWeight: 700,
                   letterSpacing: '0.1em',
                   textTransform: 'uppercase',
-                  color: '#3f3f46',
+                  color: 'rgb(70, 75, 85)',
                 }}
               >
                 {group.label}
@@ -230,7 +230,7 @@ export default function Sidebar() {
       </nav>
 
       {/* User Footer */}
-      <div className="px-3 py-3 flex items-center gap-2.5 flex-shrink-0" style={{ borderTop: '1px solid #18181b' }}>
+      <div className="px-3 py-3 flex items-center gap-2.5 flex-shrink-0" style={{ borderTop: '1px solid rgb(30, 30, 36)' }}>
         {/* Avatar */}
         <div
           className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-white font-semibold text-xs"
@@ -241,10 +241,10 @@ export default function Sidebar() {
 
         {/* Info */}
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium truncate leading-tight" style={{ color: '#a1a1aa' }}>
+          <p className="text-xs font-medium truncate leading-tight" style={{ color: 'rgb(160, 165, 175)' }}>
             {user?.email?.split('@')[0] || 'Admin'}
           </p>
-          <p style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#52525b' }}>
+          <p style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgb(90, 95, 105)' }}>
             {userRole}
           </p>
         </div>
@@ -254,9 +254,9 @@ export default function Sidebar() {
           onClick={logout}
           title="Sign out"
           className="p-1.5 rounded-md transition-all flex-shrink-0"
-          style={{ color: '#52525b' }}
-          onMouseEnter={e => { e.currentTarget.style.background = '#18181b'; e.currentTarget.style.color = '#ef4444' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#52525b' }}
+          style={{ color: 'rgb(90, 95, 105)' }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgb(25, 25, 30)'; e.currentTarget.style.color = 'rgb(240, 120, 120)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgb(90, 95, 105)' }}
         >
           <ArrowRightOnRectangleIcon className="w-4 h-4" />
         </button>

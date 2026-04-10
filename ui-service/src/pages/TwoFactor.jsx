@@ -27,14 +27,14 @@ export default function TwoFactor() {
   return (
     <div className="space-y-6">
       <div><h1 className="text-2xl font-bold text-gray-900">Two-Factor Authentication</h1>
-        <p className="text-gray-500 text-sm">Enable TOTP 2FA per account — partners use Google Authenticator, Authy, or Microsoft Authenticator</p></div>
+        <p className="text-secondary text-sm">Enable TOTP 2FA per account — partners use Google Authenticator, Authy, or Microsoft Authenticator</p></div>
 
       <div className="card">
         <table className="w-full"><thead><tr className="border-b">
           <th className="table-header">Account</th><th className="table-header">Protocol</th><th className="table-header">2FA</th><th className="table-header">Actions</th>
         </tr></thead><tbody>
           {accounts.length === 0 ? (
-            <tr><td colSpan={4} className="text-center py-8 text-gray-500 text-sm">No transfer accounts configured. Create accounts first to manage 2FA.</td></tr>
+            <tr><td colSpan={4} className="text-center py-8 text-secondary text-sm">No transfer accounts configured. Create accounts first to manage 2FA.</td></tr>
           ) : accounts.map(a => (
             <tr key={a.id} className="table-row">
               <td className="table-cell font-medium">{a.username}</td>

@@ -170,9 +170,9 @@ export default function Compliance() {
     <label className="flex items-center gap-2 cursor-pointer select-none">
       <div className={`w-9 h-5 rounded-full relative transition-colors ${checked ? 'bg-indigo-600' : 'bg-gray-300'}`}
         onClick={onChange}>
-        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
+        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-surface shadow transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
       </div>
-      <span className="text-sm text-gray-700">{label}</span>
+      <span className="text-sm text-primary">{label}</span>
     </label>
   )
 
@@ -181,7 +181,7 @@ export default function Compliance() {
   const renderProfiles = () => (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <p className="text-sm text-gray-500">{profiles.length} active compliance profile(s)</p>
+        <p className="text-sm text-secondary">{profiles.length} active compliance profile(s)</p>
         <button onClick={openCreate} className="btn btn-primary flex items-center gap-1.5">
           <PlusIcon className="w-4 h-4" /> New Profile
         </button>
@@ -205,8 +205,8 @@ export default function Compliance() {
               {profiles.map(p => (
                 <tr key={p.id} className="table-row">
                   <td className="table-cell">
-                    <div className="font-medium text-gray-900">{p.name}</div>
-                    {p.description && <div className="text-xs text-gray-500 mt-0.5 max-w-xs truncate">{p.description}</div>}
+                    <div className="font-medium text-primary">{p.name}</div>
+                    {p.description && <div className="text-xs text-secondary mt-0.5 max-w-xs truncate">{p.description}</div>}
                   </td>
                   <td className="table-cell"><span className={`badge ${severityColor(p.severity)}`}>{p.severity}</span></td>
                   <td className="table-cell text-xs space-x-1">
@@ -226,10 +226,10 @@ export default function Compliance() {
                   </td>
                   <td className="table-cell">
                     <div className="flex gap-1">
-                      <button onClick={() => openEdit(p)} className="p-1 rounded hover:bg-gray-100" title="Edit">
-                        <PencilSquareIcon className="w-4 h-4 text-gray-500" />
+                      <button onClick={() => openEdit(p)} className="p-1 rounded hover:bg-hover" title="Edit">
+                        <PencilSquareIcon className="w-4 h-4 text-secondary" />
                       </button>
-                      <button onClick={() => { if (confirm('Deactivate this profile?')) deleteProfile.mutate(p.id) }} className="p-1 rounded hover:bg-gray-100" title="Deactivate">
+                      <button onClick={() => { if (confirm('Deactivate this profile?')) deleteProfile.mutate(p.id) }} className="p-1 rounded hover:bg-hover" title="Deactivate">
                         <TrashIcon className="w-4 h-4 text-red-500" />
                       </button>
                     </div>
@@ -272,7 +272,7 @@ export default function Compliance() {
           onChange={e => setViolationFilter(f => ({ ...f, username: e.target.value, serverId: '' }))}
           title="Filter by user"
         />
-        <span className="text-sm text-gray-500">{violations.length} result(s)</span>
+        <span className="text-sm text-secondary">{violations.length} result(s)</span>
       </div>
 
       {loadingViolations ? <LoadingSpinner /> : violations.length === 0 ? (
@@ -296,7 +296,7 @@ export default function Compliance() {
               <tbody>
                 {violations.map(v => (
                   <tr key={v.id} className="table-row">
-                    <td className="table-cell text-xs text-gray-500 whitespace-nowrap">
+                    <td className="table-cell text-xs text-secondary whitespace-nowrap">
                       {v.createdAt ? format(new Date(v.createdAt), 'MMM dd HH:mm:ss') : ''}
                     </td>
                     <td className="table-cell"><span className={`badge ${severityColor(v.severity)}`}>{v.severity}</span></td>
@@ -329,7 +329,7 @@ export default function Compliance() {
       {resolveId && (
         <Modal title="Resolve Violation" onClose={() => setResolveId(null)}>
           <div className="space-y-3">
-            <label className="block text-sm font-medium text-gray-700">Resolution Note</label>
+            <label className="block text-sm font-medium text-primary">Resolution Note</label>
             <textarea className="input w-full" rows={3} value={resolveNote}
               onChange={e => setResolveNote(e.target.value)}
               placeholder="Describe why this violation is being resolved..." />
@@ -349,7 +349,7 @@ export default function Compliance() {
 
   const renderServerAssignment = () => (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500">Assign a compliance profile to each server. Transfers on that server will be evaluated against the profile rules.</p>
+      <p className="text-sm text-secondary">Assign a compliance profile to each server. Transfers on that server will be evaluated against the profile rules.</p>
       {servers.length === 0 ? (
         <EmptyState title="No servers" description="No server instances found." />
       ) : (
@@ -365,8 +365,8 @@ export default function Compliance() {
               {servers.map(s => (
                 <tr key={s.id} className="table-row">
                   <td className="table-cell">
-                    <div className="font-medium text-gray-900">{s.name}</div>
-                    <div className="text-xs text-gray-500">{s.instanceId}</div>
+                    <div className="font-medium text-primary">{s.name}</div>
+                    <div className="text-xs text-secondary">{s.instanceId}</div>
                   </td>
                   <td className="table-cell"><span className="badge badge-blue">{s.protocol}</span></td>
                   <td className="table-cell">
@@ -401,18 +401,18 @@ export default function Compliance() {
 
         {/* Basic Info */}
         <div>
-          <h4 className="text-sm font-semibold text-gray-900 mb-2 border-b pb-1">Basic Information</h4>
+          <h4 className="text-sm font-semibold text-primary mb-2 border-b pb-1">Basic Information</h4>
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Name *</label>
               <input className="input w-full" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="PCI-DSS Strict" />
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Description</label>
               <textarea className="input w-full" rows={2} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Severity</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Severity</label>
               <select className="input w-full" value={form.severity} onChange={e => setForm(f => ({ ...f, severity: e.target.value }))}>
                 {SEVERITIES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -422,7 +422,7 @@ export default function Compliance() {
 
         {/* Data Classification */}
         <div>
-          <h4 className="text-sm font-semibold text-gray-900 mb-2 border-b pb-1">Data Classification Rules</h4>
+          <h4 className="text-sm font-semibold text-primary mb-2 border-b pb-1">Data Classification Rules</h4>
           <div className="grid grid-cols-2 gap-3">
             <Toggle label="Allow PCI Data (credit cards)" checked={form.allowPciData} onChange={() => setForm(f => ({ ...f, allowPciData: !f.allowPciData }))} />
             <Toggle label="Allow PHI Data (health info)" checked={form.allowPhiData} onChange={() => setForm(f => ({ ...f, allowPhiData: !f.allowPhiData }))} />
@@ -433,16 +433,16 @@ export default function Compliance() {
 
         {/* AI Risk Thresholds */}
         <div>
-          <h4 className="text-sm font-semibold text-gray-900 mb-2 border-b pb-1">AI Risk Thresholds</h4>
+          <h4 className="text-sm font-semibold text-primary mb-2 border-b pb-1">AI Risk Thresholds</h4>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Max Allowed Risk Level</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Max Allowed Risk Level</label>
               <select className="input w-full" value={form.maxAllowedRiskLevel} onChange={e => setForm(f => ({ ...f, maxAllowedRiskLevel: e.target.value }))}>
                 {RISK_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Max Risk Score (0-100): {form.maxAllowedRiskScore}</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Max Risk Score (0-100): {form.maxAllowedRiskScore}</label>
               <input type="range" min="0" max="100" className="w-full" value={form.maxAllowedRiskScore}
                 onChange={e => setForm(f => ({ ...f, maxAllowedRiskScore: Number(e.target.value) }))} />
             </div>
@@ -451,7 +451,7 @@ export default function Compliance() {
 
         {/* File Rules */}
         <div>
-          <h4 className="text-sm font-semibold text-gray-900 mb-2 border-b pb-1">File Rules</h4>
+          <h4 className="text-sm font-semibold text-primary mb-2 border-b pb-1">File Rules</h4>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <Toggle label="Require Encryption (PGP/AES)" checked={form.requireEncryption} onChange={() => setForm(f => ({ ...f, requireEncryption: !f.requireEncryption }))} />
@@ -460,16 +460,16 @@ export default function Compliance() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Allowed Extensions (comma-separated)</label>
+                <label className="block text-xs font-medium text-secondary mb-1">Allowed Extensions (comma-separated)</label>
                 <input className="input w-full" value={form.allowedFileExtensions} onChange={e => setForm(f => ({ ...f, allowedFileExtensions: e.target.value }))} placeholder="edi,xml,json,csv" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Blocked Extensions (comma-separated)</label>
+                <label className="block text-xs font-medium text-secondary mb-1">Blocked Extensions (comma-separated)</label>
                 <input className="input w-full" value={form.blockedFileExtensions} onChange={e => setForm(f => ({ ...f, blockedFileExtensions: e.target.value }))} placeholder="exe,bat,cmd,ps1,sh" />
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Max File Size (bytes, empty = no limit)</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Max File Size (bytes, empty = no limit)</label>
               <input type="number" className="input w-full" value={form.maxFileSizeBytes} onChange={e => setForm(f => ({ ...f, maxFileSizeBytes: e.target.value }))} placeholder="104857600" />
             </div>
           </div>
@@ -477,7 +477,7 @@ export default function Compliance() {
 
         {/* Connection Rules */}
         <div>
-          <h4 className="text-sm font-semibold text-gray-900 mb-2 border-b pb-1">Connection Rules</h4>
+          <h4 className="text-sm font-semibold text-primary mb-2 border-b pb-1">Connection Rules</h4>
           <div className="grid grid-cols-2 gap-3">
             <Toggle label="Require TLS/SFTP" checked={form.requireTls} onChange={() => setForm(f => ({ ...f, requireTls: !f.requireTls }))} />
             <Toggle label="Allow Anonymous Access" checked={form.allowAnonymousAccess} onChange={() => setForm(f => ({ ...f, allowAnonymousAccess: !f.allowAnonymousAccess }))} />
@@ -487,10 +487,10 @@ export default function Compliance() {
 
         {/* Enforcement */}
         <div>
-          <h4 className="text-sm font-semibold text-gray-900 mb-2 border-b pb-1">Enforcement</h4>
+          <h4 className="text-sm font-semibold text-primary mb-2 border-b pb-1">Enforcement</h4>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Violation Action</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Violation Action</label>
               <select className="input w-full" value={form.violationAction} onChange={e => setForm(f => ({ ...f, violationAction: e.target.value }))}>
                 {ACTIONS.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
@@ -519,24 +519,24 @@ export default function Compliance() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
           <ShieldExclamationIcon className="w-7 h-7 text-indigo-600" />
           Compliance Management
         </h1>
-        <p className="text-gray-500 text-sm">Define compliance profiles, track violations, and assign enforcement rules to servers</p>
+        <p className="text-secondary text-sm">Define compliance profiles, track violations, and assign enforcement rules to servers</p>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 border-b">
         <button
           onClick={() => setTab('profiles')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'profiles' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'profiles' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-secondary hover:text-primary'}`}
         >
           Profiles
         </button>
         <button
           onClick={() => setTab('violations')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${tab === 'violations' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${tab === 'violations' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-secondary hover:text-primary'}`}
         >
           Violations
           {unresolvedCount > 0 && (
@@ -547,7 +547,7 @@ export default function Compliance() {
         </button>
         <button
           onClick={() => setTab('servers')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'servers' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'servers' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-secondary hover:text-primary'}`}
         >
           Server Assignment
         </button>

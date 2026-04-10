@@ -209,17 +209,17 @@ export default function PartnerDetail() {
     const status = error?.response?.status
     return (
       <div className="space-y-6">
-        <button onClick={() => navigate('/partners')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+        <button onClick={() => navigate('/partners')} className="flex items-center gap-1 text-sm text-secondary hover:text-primary">
           <ArrowLeftIcon className="w-4 h-4" /> Back to Partners
         </button>
         <div className="card text-center py-12">
           <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <XCircleIcon className="w-8 h-8 text-red-400" />
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          <h3 className="text-lg font-semibold text-primary mb-2">
             {status === 404 ? 'Partner Not Found' : 'Failed to Load Partner'}
           </h3>
-          <p className="text-sm text-gray-500 max-w-sm mx-auto mb-6">
+          <p className="text-sm text-secondary max-w-sm mx-auto mb-6">
             {status === 404
               ? 'This partner does not exist or has been removed. It may have been deleted by another user.'
               : `An error occurred while loading this partner (${status || 'network error'}). Please try again.`}
@@ -242,7 +242,7 @@ export default function PartnerDetail() {
   if (!detail || !detail.partner) {
     return (
       <div className="space-y-6">
-        <button onClick={() => navigate('/partners')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+        <button onClick={() => navigate('/partners')} className="flex items-center gap-1 text-sm text-secondary hover:text-primary">
           <ArrowLeftIcon className="w-4 h-4" /> Back to Partners
         </button>
         <div className="card">
@@ -308,7 +308,7 @@ export default function PartnerDetail() {
   return (
     <div className="space-y-6">
       {/* Back Navigation */}
-      <button onClick={() => navigate('/partners')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+      <button onClick={() => navigate('/partners')} className="flex items-center gap-1 text-sm text-secondary hover:text-primary transition-colors">
         <ArrowLeftIcon className="w-4 h-4" /> Back to Partners
       </button>
 
@@ -317,7 +317,7 @@ export default function PartnerDetail() {
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl font-bold text-gray-900">{partner.companyName}</h1>
+              <h1 className="text-2xl font-bold text-primary">{partner.companyName}</h1>
               <span className={`badge ${statusBadge(partner.status)}`}>{partner.status}</span>
               {partner.onboardingPhase && (
                 <span className={`badge ${phaseBadge(partner.onboardingPhase)}`}>{partner.onboardingPhase}</span>
@@ -326,8 +326,8 @@ export default function PartnerDetail() {
                 <span className={`badge ${slaTierBadge(partner.slaTier)}`}>{partner.slaTier}</span>
               )}
             </div>
-            <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
-              {partner.slug && <span className="font-mono bg-gray-100 px-2 py-0.5 rounded text-xs">{partner.slug}</span>}
+            <div className="flex items-center gap-4 mt-2 text-sm text-secondary">
+              {partner.slug && <span className="font-mono bg-hover px-2 py-0.5 rounded text-xs">{partner.slug}</span>}
               {partner.industry && <span>{partner.industry}</span>}
               {partner.website && (
                 <a href={partner.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center gap-1">
@@ -366,7 +366,7 @@ export default function PartnerDetail() {
       </div>
 
       {/* Tab Navigation */}
-      <div className="border-b border-gray-200">
+      <div className="border-b border-border">
         <nav className="flex gap-6">
           {TABS.map((tab) => (
             <button
@@ -378,7 +378,7 @@ export default function PartnerDetail() {
               className={`pb-3 text-sm font-medium transition-colors border-b-2 ${
                 activeTab === tab.key
                   ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  : 'border-transparent text-secondary hover:text-primary'
               }`}
             >
               {tab.label}
@@ -394,60 +394,60 @@ export default function PartnerDetail() {
           <div className="lg:col-span-2 space-y-6">
             {/* Company Information */}
             <div className="card">
-              <h3 className="text-base font-semibold text-gray-900 mb-4">Company Information</h3>
+              <h3 className="text-base font-semibold text-primary mb-4">Company Information</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">Company Name</p>
-                  <p className="text-sm font-medium text-gray-900">{partner.companyName}</p>
+                  <p className="text-xs text-secondary mb-1">Company Name</p>
+                  <p className="text-sm font-medium text-primary">{partner.companyName}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">Display Name</p>
-                  <p className="text-sm font-medium text-gray-900">{partner.displayName || '-'}</p>
+                  <p className="text-xs text-secondary mb-1">Display Name</p>
+                  <p className="text-sm font-medium text-primary">{partner.displayName || '-'}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">Industry</p>
-                  <p className="text-sm font-medium text-gray-900">{partner.industry || '-'}</p>
+                  <p className="text-xs text-secondary mb-1">Industry</p>
+                  <p className="text-sm font-medium text-primary">{partner.industry || '-'}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">Website</p>
+                  <p className="text-xs text-secondary mb-1">Website</p>
                   {partner.website ? (
                     <a href={partner.website} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline">
                       {partner.website}
                     </a>
                   ) : (
-                    <p className="text-sm text-gray-900">-</p>
+                    <p className="text-sm text-primary">-</p>
                   )}
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">Slug</p>
-                  <p className="text-sm font-mono text-gray-900">{partner.slug || '-'}</p>
+                  <p className="text-xs text-secondary mb-1">Slug</p>
+                  <p className="text-sm font-mono text-primary">{partner.slug || '-'}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">Partner Type</p>
-                  <p className="text-sm font-medium text-gray-900">{partner.partnerType || '-'}</p>
+                  <p className="text-xs text-secondary mb-1">Partner Type</p>
+                  <p className="text-sm font-medium text-primary">{partner.partnerType || '-'}</p>
                 </div>
               </div>
             </div>
 
             {/* SLA Configuration */}
             <div className="card">
-              <h3 className="text-base font-semibold text-gray-900 mb-4">SLA Configuration</h3>
+              <h3 className="text-base font-semibold text-primary mb-4">SLA Configuration</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">SLA Tier</p>
+                  <p className="text-xs text-secondary mb-1">SLA Tier</p>
                   <span className={`badge ${slaTierBadge(partner.slaTier)}`}>{partner.slaTier || 'BASIC'}</span>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">Max File Size</p>
-                  <p className="text-sm font-medium text-gray-900">{formatBytes(partner.maxFileSize)}</p>
+                  <p className="text-xs text-secondary mb-1">Max File Size</p>
+                  <p className="text-sm font-medium text-primary">{formatBytes(partner.maxFileSize)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">Max Transfers/Day</p>
-                  <p className="text-sm font-medium text-gray-900">{partner.maxTransfersPerDay?.toLocaleString() || '0'}</p>
+                  <p className="text-xs text-secondary mb-1">Max Transfers/Day</p>
+                  <p className="text-sm font-medium text-primary">{partner.maxTransfersPerDay?.toLocaleString() || '0'}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">Retention Days</p>
-                  <p className="text-sm font-medium text-gray-900">{partner.retentionDays || 30} days</p>
+                  <p className="text-xs text-secondary mb-1">Retention Days</p>
+                  <p className="text-sm font-medium text-primary">{partner.retentionDays || 30} days</p>
                 </div>
               </div>
             </div>
@@ -455,8 +455,8 @@ export default function PartnerDetail() {
             {/* Notes */}
             {partner.notes && (
               <div className="card">
-                <h3 className="text-base font-semibold text-gray-900 mb-4">Notes</h3>
-                <p className="text-sm text-gray-700 whitespace-pre-wrap">{partner.notes}</p>
+                <h3 className="text-base font-semibold text-primary mb-4">Notes</h3>
+                <p className="text-sm text-primary whitespace-pre-wrap">{partner.notes}</p>
               </div>
             )}
           </div>
@@ -465,25 +465,25 @@ export default function PartnerDetail() {
           <div className="space-y-6">
             {/* Quick Stats */}
             <div className="card">
-              <h3 className="text-base font-semibold text-gray-900 mb-4">Quick Stats</h3>
+              <h3 className="text-base font-semibold text-primary mb-4">Quick Stats</h3>
               <div className="space-y-3">
-                <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                <div className="flex items-center justify-between py-2 border-b border-border">
+                  <div className="flex items-center gap-2 text-sm text-secondary">
                     <UserIcon className="w-4 h-4" /> Accounts
                   </div>
-                  <span className="text-sm font-semibold text-gray-900">{accountCount}</span>
+                  <span className="text-sm font-semibold text-primary">{accountCount}</span>
                 </div>
-                <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                <div className="flex items-center justify-between py-2 border-b border-border">
+                  <div className="flex items-center gap-2 text-sm text-secondary">
                     <ArrowsRightLeftIcon className="w-4 h-4" /> Flows
                   </div>
-                  <span className="text-sm font-semibold text-gray-900">{flowCount}</span>
+                  <span className="text-sm font-semibold text-primary">{flowCount}</span>
                 </div>
                 <div className="flex items-center justify-between py-2">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <div className="flex items-center gap-2 text-sm text-secondary">
                     <ServerIcon className="w-4 h-4" /> Endpoints
                   </div>
-                  <span className="text-sm font-semibold text-gray-900">{endpointCount}</span>
+                  <span className="text-sm font-semibold text-primary">{endpointCount}</span>
                 </div>
               </div>
             </div>
@@ -491,15 +491,15 @@ export default function PartnerDetail() {
             {/* Primary Contact */}
             {primaryContact && (
               <div className="card">
-                <h3 className="text-base font-semibold text-gray-900 mb-4">Primary Contact</h3>
+                <h3 className="text-base font-semibold text-primary mb-4">Primary Contact</h3>
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-sm">
-                    <UserIcon className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-900">{primaryContact.name}</span>
+                    <UserIcon className="w-4 h-4 text-muted" />
+                    <span className="text-primary">{primaryContact.name}</span>
                   </div>
                   {primaryContact.email && (
                     <div className="flex items-center gap-2 text-sm">
-                      <EnvelopeIcon className="w-4 h-4 text-gray-400" />
+                      <EnvelopeIcon className="w-4 h-4 text-muted" />
                       <a href={`mailto:${primaryContact.email}`} className="text-blue-600 hover:underline">
                         {primaryContact.email}
                       </a>
@@ -507,8 +507,8 @@ export default function PartnerDetail() {
                   )}
                   {primaryContact.phone && (
                     <div className="flex items-center gap-2 text-sm">
-                      <PhoneIcon className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-900">{primaryContact.phone}</span>
+                      <PhoneIcon className="w-4 h-4 text-muted" />
+                      <span className="text-primary">{primaryContact.phone}</span>
                     </div>
                   )}
                 </div>
@@ -518,7 +518,7 @@ export default function PartnerDetail() {
             {/* Protocols */}
             {protocolsEnabled.length > 0 && (
               <div className="card">
-                <h3 className="text-base font-semibold text-gray-900 mb-4">Protocols</h3>
+                <h3 className="text-base font-semibold text-primary mb-4">Protocols</h3>
                 <div className="flex flex-wrap gap-2">
                   {protocolsEnabled.map((proto) => (
                     <span key={proto} className="badge badge-blue">{proto}</span>
@@ -529,17 +529,17 @@ export default function PartnerDetail() {
 
             {/* Dates */}
             <div className="card">
-              <h3 className="text-base font-semibold text-gray-900 mb-4">Dates</h3>
+              <h3 className="text-base font-semibold text-primary mb-4">Dates</h3>
               <div className="space-y-3">
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">Created</p>
-                  <p className="text-sm text-gray-900">
+                  <p className="text-xs text-secondary mb-1">Created</p>
+                  <p className="text-sm text-primary">
                     {partner.createdAt ? format(new Date(partner.createdAt), 'MMM d, yyyy h:mm a') : '-'}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">Last Updated</p>
-                  <p className="text-sm text-gray-900">
+                  <p className="text-xs text-secondary mb-1">Last Updated</p>
+                  <p className="text-sm text-primary">
                     {partner.updatedAt ? format(new Date(partner.updatedAt), 'MMM d, yyyy h:mm a') : '-'}
                   </p>
                 </div>
@@ -553,7 +553,7 @@ export default function PartnerDetail() {
       {activeTab === 'accounts' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900">Transfer Accounts</h3>
+            <h3 className="text-base font-semibold text-primary">Transfer Accounts</h3>
             <button className="btn-primary" onClick={() => setShowAccountModal(true)}>
               <PlusIcon className="w-4 h-4" /> Add Account
             </button>
@@ -590,13 +590,13 @@ export default function PartnerDetail() {
                       <td className="table-cell">
                         <span className="badge badge-blue">{acct.protocol}</span>
                       </td>
-                      <td className="table-cell font-mono text-xs text-gray-500">{acct.homeDir || '-'}</td>
+                      <td className="table-cell font-mono text-xs text-secondary">{acct.homeDir || '-'}</td>
                       <td className="table-cell">
                         <span className={`badge ${acct.active ? 'badge-green' : 'badge-red'}`}>
                           {acct.active ? 'Active' : 'Inactive'}
                         </span>
                       </td>
-                      <td className="table-cell text-gray-500 text-sm">
+                      <td className="table-cell text-secondary text-sm">
                         {acct.createdAt ? format(new Date(acct.createdAt), 'MMM d, yyyy') : '-'}
                       </td>
                     </tr>
@@ -623,26 +623,26 @@ export default function PartnerDetail() {
                 className="space-y-4"
               >
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Protocol</label>
+                  <label className="block text-sm font-medium text-primary mb-1">Protocol</label>
                   <select value={accountForm.protocol} onChange={(e) => setAccountForm((f) => ({ ...f, protocol: e.target.value }))}>
                     <option value="SFTP">SFTP</option>
                     <option value="FTP">FTP</option>
                     <option value="FTP_WEB">FTP Web</option>
                   </select>
-                  <p className="mt-1 text-xs text-gray-400">Transfer protocol for this account.</p>
+                  <p className="mt-1 text-xs text-muted">Transfer protocol for this account.</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Username <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-primary mb-1">Username <span className="text-red-500">*</span></label>
                   <input
                     value={accountForm.username}
                     onChange={(e) => { setAccountForm((f) => ({ ...f, username: e.target.value })); setAccountErrors(prev => { const n = {...prev}; delete n.username; return n }) }}
                     placeholder="e.g. acme-sftp-user"
                     className={accountErrors.username ? 'border-red-300 focus:ring-red-500' : ''}
                   />
-                  {accountErrors.username ? <p className="mt-1 text-xs text-red-600">{accountErrors.username}</p> : <p className="mt-1 text-xs text-gray-400">Unique login name for this partner's account.</p>}
+                  {accountErrors.username ? <p className="mt-1 text-xs text-red-600">{accountErrors.username}</p> : <p className="mt-1 text-xs text-muted">Unique login name for this partner's account.</p>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Password <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-primary mb-1">Password <span className="text-red-500">*</span></label>
                   <input
                     type="password"
                     value={accountForm.password}
@@ -650,16 +650,16 @@ export default function PartnerDetail() {
                     placeholder="Enter password (min 8 characters)"
                     className={accountErrors.password ? 'border-red-300 focus:ring-red-500' : ''}
                   />
-                  {accountErrors.password ? <p className="mt-1 text-xs text-red-600">{accountErrors.password}</p> : <p className="mt-1 text-xs text-gray-400">Used for protocol authentication. Minimum 8 characters.</p>}
+                  {accountErrors.password ? <p className="mt-1 text-xs text-red-600">{accountErrors.password}</p> : <p className="mt-1 text-xs text-muted">Used for protocol authentication. Minimum 8 characters.</p>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Home Directory</label>
+                  <label className="block text-sm font-medium text-primary mb-1">Home Directory</label>
                   <input
                     value={accountForm.homeDir}
                     onChange={(e) => setAccountForm((f) => ({ ...f, homeDir: e.target.value }))}
                     placeholder="/data/partners/acme"
                   />
-                  <p className="mt-1 text-xs text-gray-400">Root directory for this account. Defaults to auto-generated path.</p>
+                  <p className="mt-1 text-xs text-muted">Root directory for this account. Defaults to auto-generated path.</p>
                 </div>
                 <div className="flex gap-3 justify-end pt-2 border-t">
                   <button type="button" className="btn-secondary" onClick={() => { setShowAccountModal(false); setAccountErrors({}) }}>
@@ -679,7 +679,7 @@ export default function PartnerDetail() {
       {activeTab === 'flows' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900">File Flows</h3>
+            <h3 className="text-base font-semibold text-primary">File Flows</h3>
             <Link to="/flows" className="btn-primary">
               <PlusIcon className="w-4 h-4" /> Create Flow
             </Link>
@@ -704,12 +704,12 @@ export default function PartnerDetail() {
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <div className="flex items-center gap-2">
-                        <h4 className="font-semibold text-gray-900">{flow.name}</h4>
+                        <h4 className="font-semibold text-primary">{flow.name}</h4>
                         <span className={`badge ${flow.status === 'ACTIVE' ? 'badge-green' : flow.status === 'PAUSED' ? 'badge-yellow' : 'badge-gray'}`}>
                           {flow.status}
                         </span>
                       </div>
-                      {flow.description && <p className="text-sm text-gray-500 mt-1">{flow.description}</p>}
+                      {flow.description && <p className="text-sm text-secondary mt-1">{flow.description}</p>}
                     </div>
                   </div>
                   {flow.steps && flow.steps.length > 0 && (
@@ -719,7 +719,7 @@ export default function PartnerDetail() {
                           <span className="bg-blue-50 text-blue-700 text-xs font-medium px-2.5 py-1 rounded-lg">
                             {step.name || step.type || `Step ${idx + 1}`}
                           </span>
-                          {idx < flow.steps.length - 1 && <ArrowRightIcon className="w-3.5 h-3.5 text-gray-400" />}
+                          {idx < flow.steps.length - 1 && <ArrowRightIcon className="w-3.5 h-3.5 text-muted" />}
                         </div>
                       ))}
                     </div>
@@ -735,7 +735,7 @@ export default function PartnerDetail() {
       {activeTab === 'endpoints' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900">Delivery Endpoints</h3>
+            <h3 className="text-base font-semibold text-primary">Delivery Endpoints</h3>
             <Link to="/external-destinations" className="btn-primary">
               <PlusIcon className="w-4 h-4" /> New Endpoint
             </Link>
@@ -768,12 +768,12 @@ export default function PartnerDetail() {
                 <tbody>
                   {endpoints.map((ep) => (
                     <tr key={ep.id} className="table-row">
-                      <td className="table-cell font-medium text-gray-900">{ep.name}</td>
+                      <td className="table-cell font-medium text-primary">{ep.name}</td>
                       <td className="table-cell">
                         <span className="badge badge-blue">{ep.protocol}</span>
                       </td>
-                      <td className="table-cell font-mono text-xs text-gray-500">{ep.host || '-'}</td>
-                      <td className="table-cell text-sm text-gray-600">{ep.authType || '-'}</td>
+                      <td className="table-cell font-mono text-xs text-secondary">{ep.host || '-'}</td>
+                      <td className="table-cell text-sm text-secondary">{ep.authType || '-'}</td>
                       <td className="table-cell">
                         <span className={`badge ${ep.active || ep.status === 'ACTIVE' ? 'badge-green' : 'badge-red'}`}>
                           {ep.active || ep.status === 'ACTIVE' ? 'Active' : 'Inactive'}
@@ -792,7 +792,7 @@ export default function PartnerDetail() {
       {activeTab === 'webhooks' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900">Partner Webhooks</h3>
+            <h3 className="text-base font-semibold text-primary">Partner Webhooks</h3>
             <button className="btn-primary" onClick={() => {
               setEditingWebhook(null); setWebhookForm({ ...EMPTY_WEBHOOK }); setShowWebhookModal(true)
             }}>
@@ -832,14 +832,14 @@ export default function PartnerDetail() {
                   {webhooks.map((wh) => (
                     <tr key={wh.id} className="table-row">
                       <td className="table-cell">
-                        <span className="font-mono text-xs text-gray-700 truncate max-w-[300px] block" title={wh.url}>{wh.url}</span>
+                        <span className="font-mono text-xs text-primary truncate max-w-[300px] block" title={wh.url}>{wh.url}</span>
                       </td>
                       <td className="table-cell">
                         <div className="flex flex-wrap gap-1">
                           {(wh.events || []).map(ev => (
                             <span key={ev} className="badge badge-blue text-xs">{ev}</span>
                           ))}
-                          {(!wh.events || wh.events.length === 0) && <span className="text-xs text-gray-400">All events</span>}
+                          {(!wh.events || wh.events.length === 0) && <span className="text-xs text-muted">All events</span>}
                         </div>
                       </td>
                       <td className="table-cell">
@@ -849,7 +849,7 @@ export default function PartnerDetail() {
                           <span className="inline-flex items-center gap-1 badge badge-gray"><XCircleIcon className="w-3 h-3" /> Inactive</span>
                         )}
                       </td>
-                      <td className="table-cell text-xs text-gray-500">
+                      <td className="table-cell text-xs text-secondary">
                         {wh.lastTriggeredAt ? format(new Date(wh.lastTriggeredAt), 'MMM d, yyyy HH:mm') : 'Never'}
                       </td>
                       <td className="table-cell">
@@ -860,11 +860,11 @@ export default function PartnerDetail() {
                               setWebhookForm({ url: wh.url || '', events: wh.events || [], active: wh.active !== false })
                               setShowWebhookModal(true)
                             }}
-                            className="p-1 rounded hover:bg-gray-100" title="Edit webhook"
+                            className="p-1 rounded hover:bg-hover" title="Edit webhook"
                           >
-                            <PencilSquareIcon className="w-4 h-4 text-gray-500" />
+                            <PencilSquareIcon className="w-4 h-4 text-secondary" />
                           </button>
-                          <button onClick={() => setDeleteWebhookConfirm(wh)} className="p-1 rounded hover:bg-gray-100" title="Delete webhook">
+                          <button onClick={() => setDeleteWebhookConfirm(wh)} className="p-1 rounded hover:bg-hover" title="Delete webhook">
                             <TrashIcon className="w-4 h-4 text-red-500" />
                           </button>
                         </div>
@@ -888,7 +888,7 @@ export default function PartnerDetail() {
                 }
               }} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Webhook URL *</label>
+                  <label className="block text-sm font-medium text-primary mb-1">Webhook URL *</label>
                   <input
                     type="url"
                     value={webhookForm.url}
@@ -898,7 +898,7 @@ export default function PartnerDetail() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Events (select which events trigger this webhook)</label>
+                  <label className="block text-sm font-medium text-primary mb-1">Events (select which events trigger this webhook)</label>
                   <div className="grid grid-cols-2 gap-2 mt-1">
                     {WEBHOOK_EVENTS.map(ev => (
                       <label key={ev} className="flex items-center gap-2 text-sm cursor-pointer">
@@ -912,22 +912,22 @@ export default function PartnerDetail() {
                               setWebhookForm(f => ({ ...f, events: f.events.filter(x => x !== ev) }))
                             }
                           }}
-                          className="rounded border-gray-300 text-blue-600"
+                          className="rounded border-border text-blue-600"
                         />
-                        <span className="text-gray-700">{ev.replace(/_/g, ' ')}</span>
+                        <span className="text-primary">{ev.replace(/_/g, ' ')}</span>
                       </label>
                     ))}
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">Leave all unchecked to receive all events.</p>
+                  <p className="text-xs text-muted mt-1">Leave all unchecked to receive all events.</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
                     checked={webhookForm.active}
                     onChange={e => setWebhookForm(f => ({ ...f, active: e.target.checked }))}
-                    className="rounded border-gray-300 text-blue-600"
+                    className="rounded border-border text-blue-600"
                   />
-                  <label className="text-sm text-gray-700">Active</label>
+                  <label className="text-sm text-primary">Active</label>
                 </div>
                 <div className="flex gap-3 justify-end pt-2 border-t">
                   <button type="button" className="btn-secondary" onClick={() => { setShowWebhookModal(false); setEditingWebhook(null) }}>Cancel</button>
@@ -945,7 +945,7 @@ export default function PartnerDetail() {
           {deleteWebhookConfirm && (
             <Modal title="Delete Webhook" onClose={() => setDeleteWebhookConfirm(null)}>
               <div className="space-y-4">
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-secondary">
                   Are you sure you want to delete the webhook for <strong className="font-mono text-xs">{deleteWebhookConfirm.url}</strong>?
                 </p>
                 <div className="flex gap-3 justify-end">
@@ -965,7 +965,7 @@ export default function PartnerDetail() {
         <form onSubmit={handleSaveSettings} className="space-y-6">
           {/* General Settings */}
           <div className="card">
-            <h3 className="text-base font-semibold text-gray-900 mb-4">General Settings</h3>
+            <h3 className="text-base font-semibold text-primary mb-4">General Settings</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label>Display Name</label>
@@ -1022,7 +1022,7 @@ export default function PartnerDetail() {
 
           {/* SLA Limits */}
           <div className="card">
-            <h3 className="text-base font-semibold text-gray-900 mb-4">SLA Limits</h3>
+            <h3 className="text-base font-semibold text-primary mb-4">SLA Limits</h3>
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <label>Max File Size (bytes)</label>
@@ -1032,7 +1032,7 @@ export default function PartnerDetail() {
                   onChange={(e) => setSettingsForm((f) => ({ ...f, maxFileSize: parseInt(e.target.value) || 0 }))}
                   placeholder="104857600"
                 />
-                <p className="text-xs text-gray-400 mt-1">{formatBytes(settingsForm.maxFileSize)}</p>
+                <p className="text-xs text-muted mt-1">{formatBytes(settingsForm.maxFileSize)}</p>
               </div>
               <div>
                 <label>Max Transfers/Day</label>
@@ -1057,7 +1057,7 @@ export default function PartnerDetail() {
 
           {/* Notes */}
           <div className="card">
-            <h3 className="text-base font-semibold text-gray-900 mb-4">Notes</h3>
+            <h3 className="text-base font-semibold text-primary mb-4">Notes</h3>
             <textarea
               rows={4}
               value={settingsForm.notes}
@@ -1069,20 +1069,20 @@ export default function PartnerDetail() {
           {/* Contacts Management */}
           <div className="card">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-semibold text-gray-900">Contacts</h3>
+              <h3 className="text-base font-semibold text-primary">Contacts</h3>
               <button type="button" className="btn-secondary" onClick={addContact}>
                 <PlusIcon className="w-4 h-4" /> Add Contact
               </button>
             </div>
 
             {settingsContacts.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-4">No contacts. Click "Add Contact" to add one.</p>
+              <p className="text-sm text-secondary text-center py-4">No contacts. Click "Add Contact" to add one.</p>
             ) : (
               <div className="space-y-4">
                 {settingsContacts.map((contact, idx) => (
-                  <div key={idx} className="border border-gray-200 rounded-lg p-4">
+                  <div key={idx} className="border border-border rounded-lg p-4">
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm font-medium text-gray-700">Contact #{idx + 1}</span>
+                      <span className="text-sm font-medium text-primary">Contact #{idx + 1}</span>
                       <button
                         type="button"
                         onClick={() => removeContact(idx)}
@@ -1132,9 +1132,9 @@ export default function PartnerDetail() {
                         type="checkbox"
                         checked={contact.isPrimary || false}
                         onChange={(e) => updateContact(idx, 'isPrimary', e.target.checked)}
-                        className="w-4 h-4 rounded border-gray-300 text-blue-600"
+                        className="w-4 h-4 rounded border-border text-blue-600"
                       />
-                      <label className="mb-0 text-sm text-gray-700">Primary Contact</label>
+                      <label className="mb-0 text-sm text-primary">Primary Contact</label>
                     </div>
                   </div>
                 ))}

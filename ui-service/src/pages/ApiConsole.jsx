@@ -32,16 +32,16 @@ export default function ApiConsole() {
   return (
     <div className="space-y-6">
       <div><h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><CodeBracketIcon className="w-7 h-7 text-blue-600" /> Transfer API v2</h1>
-        <p className="text-gray-500 text-sm">Developer console — test the single-call transfer API</p></div>
+        <p className="text-secondary text-sm">Developer console — test the single-call transfer API</p></div>
 
       <div className="card space-y-4">
         <h3 className="font-semibold">Send a Transfer</h3>
         <div className="grid grid-cols-3 gap-3">
-          <div><label className="text-sm font-medium text-gray-700 mb-1 block">File</label>
+          <div><label className="text-sm font-medium text-primary mb-1 block">File</label>
             <input type="file" onChange={e => setFile(e.target.files[0])} className="text-sm" /></div>
-          <div><label className="text-sm font-medium text-gray-700 mb-1 block">Sender Account</label>
+          <div><label className="text-sm font-medium text-primary mb-1 block">Sender Account</label>
             <input value={sender} onChange={e => setSender(e.target.value)} placeholder="client_a_sender" className="w-full rounded-lg border px-3 py-2 text-sm" /></div>
-          <div><label className="text-sm font-medium text-gray-700 mb-1 block">Destination (optional)</label>
+          <div><label className="text-sm font-medium text-primary mb-1 block">Destination (optional)</label>
             <input value={dest} onChange={e => setDest(e.target.value)} placeholder="client_b_receiver" className="w-full rounded-lg border px-3 py-2 text-sm" /></div>
         </div>
         <button onClick={sendTransfer} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
@@ -59,17 +59,17 @@ export default function ApiConsole() {
 
       {pollResult && (
         <div className="card"><h3 className="font-semibold mb-2">Transfer Status</h3>
-          <pre className="text-xs bg-gray-50 rounded p-3 overflow-auto font-mono">{JSON.stringify(pollResult, null, 2)}</pre>
+          <pre className="text-xs bg-canvas rounded p-3 overflow-auto font-mono">{JSON.stringify(pollResult, null, 2)}</pre>
         </div>
       )}
 
       <div className="card">
         <h3 className="font-semibold mb-3">API Reference</h3>
         <div className="space-y-2 text-sm font-mono">
-          <div className="p-2 bg-gray-50 rounded"><span className="text-green-600 font-bold">POST</span> /api/v2/transfer — Single-call file transfer</div>
-          <div className="p-2 bg-gray-50 rounded"><span className="text-blue-600 font-bold">GET</span> /api/v2/transfer/{'{trackId}'} — Poll transfer status</div>
-          <div className="p-2 bg-gray-50 rounded"><span className="text-green-600 font-bold">POST</span> /api/v2/transfer/batch — Batch transfer (multiple files)</div>
-          <div className="p-2 bg-gray-50 rounded"><span className="text-blue-600 font-bold">GET</span> /api/v2/transfer/{'{trackId}'}/receipt — Delivery receipt</div>
+          <div className="p-2 bg-canvas rounded"><span className="text-green-600 font-bold">POST</span> /api/v2/transfer — Single-call file transfer</div>
+          <div className="p-2 bg-canvas rounded"><span className="text-blue-600 font-bold">GET</span> /api/v2/transfer/{'{trackId}'} — Poll transfer status</div>
+          <div className="p-2 bg-canvas rounded"><span className="text-green-600 font-bold">POST</span> /api/v2/transfer/batch — Batch transfer (multiple files)</div>
+          <div className="p-2 bg-canvas rounded"><span className="text-blue-600 font-bold">GET</span> /api/v2/transfer/{'{trackId}'}/receipt — Delivery receipt</div>
         </div>
       </div>
     </div>

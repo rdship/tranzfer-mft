@@ -29,7 +29,7 @@ const CATEGORIES = [
 ]
 
 const ENV_COLORS = {
-  DEV: 'bg-gray-100 text-gray-700',
+  DEV: 'bg-hover text-primary',
   TEST: 'bg-yellow-100 text-yellow-800',
   CERT: 'bg-orange-100 text-orange-800',
   STAGING: 'bg-purple-100 text-purple-800',
@@ -98,7 +98,7 @@ function SettingForm({ initial, onSubmit, onCancel, isPending }) {
         <div className="flex items-center gap-2 pt-6">
           <input type="checkbox" id="sensitive" checked={form.sensitive}
             onChange={e => setForm(f => ({ ...f, sensitive: e.target.checked }))} className="w-4 h-4" />
-          <label htmlFor="sensitive" className="text-sm text-gray-600 cursor-pointer">Sensitive (mask in UI)</label>
+          <label htmlFor="sensitive" className="text-sm text-secondary cursor-pointer">Sensitive (mask in UI)</label>
         </div>
       </div>
       <div>
@@ -130,7 +130,7 @@ function InlineValueEditor({ setting, onSave }) {
           <div className="flex items-center gap-1">
             <span className="font-mono text-xs">{showSensitive ? setting.settingValue : '••••••••'}</span>
             <button onClick={() => setShowSensitive(!showSensitive)}
-              className="p-0.5 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600">
+              className="p-0.5 opacity-0 group-hover:opacity-100 text-muted hover:text-secondary">
               {showSensitive ? <EyeSlashIcon className="w-3.5 h-3.5" /> : <EyeIcon className="w-3.5 h-3.5" />}
             </button>
           </div>
@@ -138,7 +138,7 @@ function InlineValueEditor({ setting, onSave }) {
           <span className="font-mono text-xs">{setting.settingValue || <span className="text-gray-300">empty</span>}</span>
         )}
         <button onClick={() => setEditing(true)}
-          className="p-0.5 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-blue-600">
+          className="p-0.5 opacity-0 group-hover:opacity-100 text-muted hover:text-blue-600">
           <PencilIcon className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -154,7 +154,7 @@ function InlineValueEditor({ setting, onSave }) {
       <button onClick={() => updateMut.mutate()} className="p-0.5 text-green-600 hover:text-green-800">
         <CheckIcon className="w-4 h-4" />
       </button>
-      <button onClick={() => setEditing(false)} className="p-0.5 text-gray-400 hover:text-gray-600">
+      <button onClick={() => setEditing(false)} className="p-0.5 text-muted hover:text-secondary">
         <XMarkIcon className="w-4 h-4" />
       </button>
     </div>
@@ -238,31 +238,31 @@ function AiLlmSection({ activeEnv }) {
 
   return (
     <div className="card">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+      <h3 className="text-sm font-semibold text-primary mb-3 flex items-center gap-2">
         <span className="badge text-xs bg-purple-100 text-purple-800">AI</span>
         AI / LLM Configuration
       </h3>
 
       {/* LLM Toggle */}
-      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg mb-3">
+      <div className="flex items-center justify-between p-4 bg-canvas rounded-lg mb-3">
         <div>
-          <h4 className="font-medium text-gray-900 text-sm">Enable External LLM</h4>
-          <p className="text-xs text-gray-500">Connect an LLM for enhanced AI security verdicts and recommendations</p>
+          <h4 className="font-medium text-primary text-sm">Enable External LLM</h4>
+          <p className="text-xs text-secondary">Connect an LLM for enhanced AI security verdicts and recommendations</p>
         </div>
         <button onClick={toggleLlm} className={`relative w-12 h-6 rounded-full transition-colors ${llmEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}>
-          <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${llmEnabled ? 'translate-x-6' : ''}`} />
+          <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-surface rounded-full transition-transform ${llmEnabled ? 'translate-x-6' : ''}`} />
         </button>
       </div>
 
       {llmEnabled && (
-        <div className="space-y-3 p-4 border border-blue-100 rounded-lg bg-white">
+        <div className="space-y-3 p-4 border border-blue-100 rounded-lg bg-surface">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+            <label className="block text-sm font-medium text-primary mb-1">API Key</label>
             <input type="password" value={llmApiKey} onChange={e => setLlmApiKey(e.target.value)}
               placeholder="sk-ant-..." className="w-full" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
+            <label className="block text-sm font-medium text-primary mb-1">Model</label>
             <select value={llmModel} onChange={e => { setLlmModel(e.target.value); if (e.target.value !== '__custom__') setCustomModel('') }} className="w-full">
               <optgroup label="Anthropic">
                 <option value="claude-opus-4-6">Claude Opus 4.6 (Most capable)</option>
@@ -307,13 +307,13 @@ function AiLlmSection({ activeEnv }) {
               <input value={customModel} onChange={e => setCustomModel(e.target.value)}
                 placeholder="e.g., my-org/fine-tuned-model-v2" className="w-full mt-2" />
             )}
-            <p className="text-xs text-gray-500 mt-1">Select a model or enter a custom model ID for self-hosted / fine-tuned models.</p>
+            <p className="text-xs text-secondary mt-1">Select a model or enter a custom model ID for self-hosted / fine-tuned models.</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">API Endpoint</label>
+            <label className="block text-sm font-medium text-primary mb-1">API Endpoint</label>
             <input value={llmBaseUrl} onChange={e => setLlmBaseUrl(e.target.value)}
               placeholder="https://api.anthropic.com" className="w-full" />
-            <p className="text-xs text-gray-500 mt-1">HTTPS only — API keys must not be sent over unencrypted connections.</p>
+            <p className="text-xs text-secondary mt-1">HTTPS only — API keys must not be sent over unencrypted connections.</p>
           </div>
           <div className="flex gap-3 pt-1">
             <button className="btn-primary" onClick={saveAiSettings} disabled={saving}>
@@ -370,7 +370,7 @@ function SnapshotRetentionCard() {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <ArchiveBoxXMarkIcon className="w-5 h-5 text-amber-500" />
-          <h3 className="font-semibold text-gray-900">Snapshot Retention Policy</h3>
+          <h3 className="font-semibold text-primary">Snapshot Retention Policy</h3>
           <span className={`badge ${enabled ? 'badge-yellow' : 'badge-gray'}`}>
             {enabled ? `${days}d` : 'Disabled'}
           </span>
@@ -393,23 +393,23 @@ function SnapshotRetentionCard() {
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
         {[
-          { label: 'Total snapshots', value: isLoading ? '—' : total.toLocaleString(), color: 'text-gray-900' },
-          { label: 'Eligible for purge', value: isLoading ? '—' : eligible.toLocaleString(), color: eligible > 0 ? 'text-amber-600' : 'text-gray-500' },
-          { label: 'Last purge', value: lastAt ? new Date(lastAt).toLocaleString() : '—', color: 'text-gray-600' },
-          { label: 'Last count', value: lastCount >= 0 ? lastCount.toLocaleString() : 'Never', color: 'text-gray-600' },
+          { label: 'Total snapshots', value: isLoading ? '—' : total.toLocaleString(), color: 'text-primary' },
+          { label: 'Eligible for purge', value: isLoading ? '—' : eligible.toLocaleString(), color: eligible > 0 ? 'text-amber-600' : 'text-secondary' },
+          { label: 'Last purge', value: lastAt ? new Date(lastAt).toLocaleString() : '—', color: 'text-secondary' },
+          { label: 'Last count', value: lastCount >= 0 ? lastCount.toLocaleString() : 'Never', color: 'text-secondary' },
         ].map(({ label, value, color }) => (
           <div key={label}>
-            <p className="text-xs text-gray-400 uppercase tracking-wider">{label}</p>
+            <p className="text-xs text-muted uppercase tracking-wider">{label}</p>
             <p className={`text-sm font-semibold mt-0.5 ${color}`}>{value}</p>
           </div>
         ))}
       </div>
 
-      <div className="flex items-center gap-3 pt-3 border-t border-gray-100">
-        <ClockSolid className="w-4 h-4 text-gray-400 flex-shrink-0" />
+      <div className="flex items-center gap-3 pt-3 border-t border-border">
+        <ClockSolid className="w-4 h-4 text-muted flex-shrink-0" />
         {editDays === null ? (
           <>
-            <p className="text-sm text-gray-600 flex-1">
+            <p className="text-sm text-secondary flex-1">
               {enabled
                 ? `Snapshots older than ${days} days are purged at 02:00 UTC daily.`
                 : 'Retention is disabled — snapshots accumulate indefinitely.'}
@@ -423,7 +423,7 @@ function SnapshotRetentionCard() {
           </>
         ) : (
           <>
-            <label className="text-sm text-gray-600 flex-shrink-0">Retain for</label>
+            <label className="text-sm text-secondary flex-shrink-0">Retain for</label>
             <input
               type="number"
               value={editDays}
@@ -432,7 +432,7 @@ function SnapshotRetentionCard() {
               className="w-24 text-sm"
               placeholder="90"
             />
-            <label className="text-sm text-gray-500 flex-shrink-0">days (0 = disabled)</label>
+            <label className="text-sm text-secondary flex-shrink-0">days (0 = disabled)</label>
             <div className="flex gap-2 ml-auto">
               <button
                 onClick={() => updateMut.mutate(editDays)}
@@ -443,7 +443,7 @@ function SnapshotRetentionCard() {
               </button>
               <button
                 onClick={() => setEditDays(null)}
-                className="px-3 py-1 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+                className="px-3 py-1 text-xs font-medium rounded-lg border border-border text-secondary hover:bg-canvas"
               >
                 Cancel
               </button>
@@ -523,8 +523,8 @@ export default function PlatformConfig() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Platform Configuration</h1>
-          <p className="text-gray-500 text-sm">Database-backed settings for all microservices — survives crashes</p>
+          <h1 className="text-2xl font-bold text-primary">Platform Configuration</h1>
+          <p className="text-secondary text-sm">Database-backed settings for all microservices — survives crashes</p>
         </div>
         <div className="flex gap-2">
           <button className="btn-secondary" onClick={() => setShowClone(true)}>
@@ -539,20 +539,20 @@ export default function PlatformConfig() {
       {/* Summary cards */}
       <div className="grid grid-cols-4 gap-4">
         <div className="card p-4">
-          <p className="text-2xl font-bold text-gray-900">{totalSettings}</p>
-          <p className="text-xs text-gray-500">Settings in {activeEnv}</p>
+          <p className="text-2xl font-bold text-primary">{totalSettings}</p>
+          <p className="text-xs text-secondary">Settings in {activeEnv}</p>
         </div>
         <div className="card p-4">
-          <p className="text-2xl font-bold text-gray-900">{serviceCount}</p>
-          <p className="text-xs text-gray-500">Services Configured</p>
+          <p className="text-2xl font-bold text-primary">{serviceCount}</p>
+          <p className="text-xs text-secondary">Services Configured</p>
         </div>
         <div className="card p-4">
           <p className="text-2xl font-bold text-amber-600">{sensitiveCount}</p>
-          <p className="text-xs text-gray-500">Sensitive Values</p>
+          <p className="text-xs text-secondary">Sensitive Values</p>
         </div>
         <div className="card p-4">
           <p className="text-2xl font-bold text-green-600">{ENVIRONMENTS.length}</p>
-          <p className="text-xs text-gray-500">Environments</p>
+          <p className="text-xs text-secondary">Environments</p>
         </div>
       </div>
 
@@ -561,13 +561,13 @@ export default function PlatformConfig() {
 
       {/* Environment tabs */}
       <div className="card">
-        <div className="flex items-center gap-2 mb-4 border-b border-gray-100 pb-3">
+        <div className="flex items-center gap-2 mb-4 border-b border-border pb-3">
           {ENVIRONMENTS.map(env => (
             <button key={env} onClick={() => setActiveEnv(env)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 activeEnv === env
                   ? ENV_COLORS[env] + ' ring-2 ring-offset-1 ring-current'
-                  : 'text-gray-500 hover:bg-gray-100'
+                  : 'text-secondary hover:bg-hover'
               }`}>
               {env}
             </button>
@@ -577,7 +577,7 @@ export default function PlatformConfig() {
         {/* Filters */}
         <div className="flex gap-3 mb-4">
           <div className="relative flex-1 max-w-sm">
-            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted pointer-events-none" />
             <input placeholder="Search settings..." value={search}
               onChange={e => setSearch(e.target.value)} className="pl-10 pr-3 py-2 text-sm border rounded-lg w-full focus:ring-2 focus:ring-blue-500" />
           </div>
@@ -598,13 +598,13 @@ export default function PlatformConfig() {
         ) : (
           Object.entries(grouped).map(([svc, items]) => (
             <div key={svc} className="mb-6">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                <span className={`badge text-xs ${SERVICE_COLORS[svc] || 'bg-gray-100 text-gray-700'}`}>{svc}</span>
-                <span className="text-gray-400 text-xs">{items.length} settings</span>
+              <h3 className="text-sm font-semibold text-primary mb-2 flex items-center gap-2">
+                <span className={`badge text-xs ${SERVICE_COLORS[svc] || 'bg-hover text-primary'}`}>{svc}</span>
+                <span className="text-muted text-xs">{items.length} settings</span>
               </h3>
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-100">
+                  <tr className="border-b border-border">
                     <th className="table-header">Key</th>
                     <th className="table-header">Value</th>
                     <th className="table-header">Type</th>
@@ -616,13 +616,13 @@ export default function PlatformConfig() {
                 <tbody>
                   {items.map(s => (
                     <tr key={s.id} className="table-row">
-                      <td className="table-cell font-mono text-xs font-medium text-gray-900">{s.settingKey}</td>
+                      <td className="table-cell font-mono text-xs font-medium text-primary">{s.settingKey}</td>
                       <td className="table-cell">
                         <InlineValueEditor setting={s} onSave={handleInlineUpdate} />
                       </td>
-                      <td className="table-cell"><span className="text-xs text-gray-500">{s.dataType}</span></td>
-                      <td className="table-cell"><span className="text-xs text-gray-500">{s.category || '—'}</span></td>
-                      <td className="table-cell text-xs text-gray-500 max-w-xs truncate" title={s.description}>{s.description || '—'}</td>
+                      <td className="table-cell"><span className="text-xs text-secondary">{s.dataType}</span></td>
+                      <td className="table-cell"><span className="text-xs text-secondary">{s.category || '—'}</span></td>
+                      <td className="table-cell text-xs text-secondary max-w-xs truncate" title={s.description}>{s.description || '—'}</td>
                       <td className="table-cell">
                         <div className="flex gap-1">
                           <button onClick={() => setEditSetting(s)}
@@ -672,7 +672,7 @@ export default function PlatformConfig() {
       {showClone && (
         <Modal title={`Clone ${activeEnv} Settings`} onClose={() => setShowClone(false)}>
           <div className="space-y-4">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-secondary">
               Clone all settings from <span className="font-semibold">{activeEnv}</span> to another environment.
               Existing settings in the target will not be overwritten.
             </p>

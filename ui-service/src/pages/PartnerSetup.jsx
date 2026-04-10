@@ -286,17 +286,17 @@ export default function PartnerSetup() {
               <div
                 className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-all ${
                   isCompleted
-                    ? 'bg-green-500 text-white'
+                    ? 'bg-[rgb(60,180,100)] text-white'
                     : isCurrent
-                    ? 'bg-blue-600 text-white ring-4 ring-blue-100'
-                    : 'bg-gray-200 text-gray-500'
+                    ? 'bg-accent text-white ring-4 ring-accent/20'
+                    : 'bg-hover text-secondary'
                 }`}
               >
                 {isCompleted ? <CheckIcon className="w-5 h-5" /> : s.num}
               </div>
               <span
                 className={`text-xs mt-1 whitespace-nowrap ${
-                  isCurrent ? 'text-blue-600 font-semibold' : isCompleted ? 'text-green-600' : 'text-gray-400'
+                  isCurrent ? 'text-accent font-semibold' : isCompleted ? 'text-[rgb(120,220,160)]' : 'text-muted'
                 }`}
               >
                 {s.label}
@@ -304,7 +304,7 @@ export default function PartnerSetup() {
             </div>
             {i < STEPS.length - 1 && (
               <div
-                className={`flex-1 h-0.5 mx-2 ${step > s.num ? 'bg-green-500' : 'bg-gray-200'}`}
+                className={`flex-1 h-0.5 mx-2 ${step > s.num ? 'bg-[rgb(60,180,100)]' : 'bg-hover'}`}
               />
             )}
           </div>
@@ -316,14 +316,14 @@ export default function PartnerSetup() {
   // ---------- Step 1: Company Information ----------
   const renderStep1 = () => (
     <div className="card">
-      <h2 className="text-xl font-bold text-gray-900">Company Information</h2>
-      <p className="text-sm text-gray-500 mb-2">Tell us about the partner organization</p>
-      <p className="text-xs text-gray-400 mb-6">This information identifies the partner across the platform and appears in compliance reports.</p>
+      <h2 className="text-xl font-bold text-primary">Company Information</h2>
+      <p className="text-sm text-secondary mb-2">Tell us about the partner organization</p>
+      <p className="text-xs text-muted mb-6">This information identifies the partner across the platform and appears in compliance reports.</p>
 
       <div className="grid grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Company Name <span className="text-red-500">*</span>
+          <label className="block text-sm font-medium text-primary mb-1">
+            Company Name <span className="text-[rgb(240,120,120)]">*</span>
           </label>
           <input
             type="text"
@@ -332,21 +332,21 @@ export default function PartnerSetup() {
             placeholder="Acme Corporation"
             className={stepErrors.companyName ? 'border-red-300 focus:ring-red-500' : ''}
           />
-          {stepErrors.companyName && <p className="mt-1 text-xs text-red-600">{stepErrors.companyName}</p>}
-          {!stepErrors.companyName && <p className="mt-1 text-xs text-gray-400">The legal entity name. Used to generate the partner slug for API references.</p>}
+          {stepErrors.companyName && <p className="mt-1 text-xs text-[rgb(240,120,120)]">{stepErrors.companyName}</p>}
+          {!stepErrors.companyName && <p className="mt-1 text-xs text-muted">The legal entity name. Used to generate the partner slug for API references.</p>}
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Display Name</label>
+          <label className="block text-sm font-medium text-primary mb-1">Display Name</label>
           <input
             type="text"
             value={form.displayName}
             onChange={(e) => updateForm({ displayName: e.target.value })}
             placeholder="Acme (optional)"
           />
-          <p className="mt-1 text-xs text-gray-400">Short name shown in dashboards. Defaults to Company Name if empty.</p>
+          <p className="mt-1 text-xs text-muted">Short name shown in dashboards. Defaults to Company Name if empty.</p>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Industry</label>
+          <label className="block text-sm font-medium text-primary mb-1">Industry</label>
           <select value={form.industry} onChange={(e) => updateForm({ industry: e.target.value })}>
             <option value="">Select industry...</option>
             {INDUSTRIES.map((ind) => (
@@ -355,22 +355,22 @@ export default function PartnerSetup() {
               </option>
             ))}
           </select>
-          <p className="mt-1 text-xs text-gray-400">Helps configure compliance rules and reporting categories.</p>
+          <p className="mt-1 text-xs text-muted">Helps configure compliance rules and reporting categories.</p>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
+          <label className="block text-sm font-medium text-primary mb-1">Website</label>
           <input
             type="url"
             value={form.website}
             onChange={(e) => updateForm({ website: e.target.value })}
             placeholder="https://www.example.com"
           />
-          <p className="mt-1 text-xs text-gray-400">Partner's corporate website for reference.</p>
+          <p className="mt-1 text-xs text-muted">Partner's corporate website for reference.</p>
         </div>
       </div>
 
       <div className="mt-6">
-        <label className="block text-sm font-medium text-gray-700 mb-3">Partner Type</label>
+        <label className="block text-sm font-medium text-primary mb-3">Partner Type</label>
         <div className="grid grid-cols-4 gap-4">
           {PARTNER_TYPES.map((pt) => {
             const Icon = pt.icon
@@ -382,15 +382,15 @@ export default function PartnerSetup() {
                 onClick={() => updateForm({ partnerType: pt.value })}
                 className={`p-4 rounded-xl border-2 text-left transition-all ${
                   selected
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-accent bg-accent-soft'
+                    : 'border-border hover:border-muted'
                 }`}
               >
-                <Icon className={`w-6 h-6 mb-2 ${selected ? 'text-blue-600' : 'text-gray-400'}`} />
-                <p className={`text-sm font-semibold ${selected ? 'text-blue-700' : 'text-gray-700'}`}>
+                <Icon className={`w-6 h-6 mb-2 ${selected ? 'text-accent' : 'text-muted'}`} />
+                <p className={`text-sm font-semibold ${selected ? 'text-accent' : 'text-primary'}`}>
                   {pt.label}
                 </p>
-                <p className="text-xs text-gray-500">{pt.desc}</p>
+                <p className="text-xs text-secondary">{pt.desc}</p>
               </button>
             )
           })}
@@ -399,7 +399,7 @@ export default function PartnerSetup() {
 
       <div className="grid grid-cols-2 gap-6 mt-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Logo URL</label>
+          <label className="block text-sm font-medium text-primary mb-1">Logo URL</label>
           <input
             type="url"
             value={form.logoUrl}
@@ -410,7 +410,7 @@ export default function PartnerSetup() {
       </div>
 
       <div className="mt-6">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+        <label className="block text-sm font-medium text-primary mb-1">Notes</label>
         <textarea
           rows={3}
           value={form.notes}
@@ -424,12 +424,12 @@ export default function PartnerSetup() {
   // ---------- Step 2: Protocols ----------
   const renderStep2 = () => (
     <div className="card">
-      <h2 className="text-xl font-bold text-gray-900">Protocol Selection</h2>
-      <p className="text-sm text-gray-500 mb-2">
-        Choose which file transfer protocols this partner will use <span className="text-red-500">*</span>
+      <h2 className="text-xl font-bold text-primary">Protocol Selection</h2>
+      <p className="text-sm text-secondary mb-2">
+        Choose which file transfer protocols this partner will use <span className="text-[rgb(240,120,120)]">*</span>
       </p>
-      <p className="text-xs text-gray-400 mb-6">Each protocol creates a dedicated transfer account in the next step. You can add more later.</p>
-      {stepErrors.protocols && <p className="mb-4 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{stepErrors.protocols}</p>}
+      <p className="text-xs text-muted mb-6">Each protocol creates a dedicated transfer account in the next step. You can add more later.</p>
+      {stepErrors.protocols && <p className="mb-4 text-sm text-[rgb(240,120,120)] bg-[rgb(60,20,20)] border border-[rgb(80,30,30)] rounded-lg px-3 py-2">{stepErrors.protocols}</p>}
 
       <div className="grid grid-cols-1 gap-4">
         {PROTOCOLS.map((proto) => {
@@ -441,29 +441,29 @@ export default function PartnerSetup() {
               type="button"
               onClick={() => toggleProtocol(proto.value)}
               className={`relative flex items-center gap-4 p-5 rounded-xl border-2 text-left transition-all ${
-                selected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                selected ? 'border-accent bg-accent-soft' : 'border-border hover:border-muted'
               }`}
             >
               {selected && (
                 <div className="absolute top-3 right-3">
-                  <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                  <div className="w-6 h-6 bg-accent rounded-full flex items-center justify-center">
                     <CheckIcon className="w-4 h-4 text-white" />
                   </div>
                 </div>
               )}
               <div
                 className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                  selected ? 'bg-blue-100' : 'bg-gray-100'
+                  selected ? 'bg-accent-soft' : 'bg-hover'
                 }`}
               >
-                <Icon className={`w-6 h-6 ${selected ? 'text-blue-600' : 'text-gray-400'}`} />
+                <Icon className={`w-6 h-6 ${selected ? 'text-accent' : 'text-muted'}`} />
               </div>
               <div>
-                <p className={`font-semibold ${selected ? 'text-blue-700' : 'text-gray-700'}`}>
+                <p className={`font-semibold ${selected ? 'text-accent' : 'text-primary'}`}>
                   {proto.label}
                 </p>
-                <p className="text-sm text-gray-500">{proto.desc}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{proto.detail}</p>
+                <p className="text-sm text-secondary">{proto.desc}</p>
+                <p className="text-xs text-muted mt-0.5">{proto.detail}</p>
               </div>
             </button>
           )
@@ -471,7 +471,7 @@ export default function PartnerSetup() {
       </div>
 
       {form.protocolsEnabled.length > 0 && (
-        <div className="mt-4 bg-amber-50 border border-amber-100 rounded-lg p-3 text-sm text-amber-800">
+        <div className="mt-4 bg-[rgb(60,50,20)] border border-[rgb(80,65,25)] rounded-lg p-3 text-sm text-[rgb(240,200,100)]">
           <span className="font-medium">Network Routing:</span> If this partner connects to external endpoints,
           you can route traffic through the DMZ Proxy for network isolation. Configure proxy settings when
           creating <a href="/external-destinations" className="underline">External Destinations</a> for this partner.
@@ -483,17 +483,17 @@ export default function PartnerSetup() {
   // ---------- Step 3: Contacts ----------
   const renderStep3 = () => (
     <div className="card">
-      <h2 className="text-xl font-bold text-gray-900">Contact Information</h2>
-      <p className="text-sm text-gray-500 mb-2">Add contacts for this partner</p>
-      <p className="text-xs text-gray-400 mb-6">Contacts receive notifications about transfer events and are used for emergency escalation.</p>
-      {stepErrors.contacts && <p className="mb-4 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{stepErrors.contacts}</p>}
+      <h2 className="text-xl font-bold text-primary">Contact Information</h2>
+      <p className="text-sm text-secondary mb-2">Add contacts for this partner</p>
+      <p className="text-xs text-muted mb-6">Contacts receive notifications about transfer events and are used for emergency escalation.</p>
+      {stepErrors.contacts && <p className="mb-4 text-sm text-[rgb(240,120,120)] bg-[rgb(60,20,20)] border border-[rgb(80,30,30)] rounded-lg px-3 py-2">{stepErrors.contacts}</p>}
 
       <div className="space-y-4">
         {form.contacts.map((contact, idx) => (
-          <div key={idx} className="border border-gray-200 rounded-xl p-5 relative">
+          <div key={idx} className="border border-border rounded-xl p-5 relative">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-gray-700">Contact {idx + 1}</span>
+                <span className="text-sm font-semibold text-primary">Contact {idx + 1}</span>
                 {contact.isPrimary && (
                   <span className="badge badge-blue">Primary</span>
                 )}
@@ -503,7 +503,7 @@ export default function PartnerSetup() {
                   <button
                     type="button"
                     onClick={() => setPrimaryContact(idx)}
-                    className="text-xs text-blue-600 hover:text-blue-800"
+                    className="text-xs text-accent hover:text-accent"
                   >
                     Make Primary
                   </button>
@@ -512,7 +512,7 @@ export default function PartnerSetup() {
                   <button
                     type="button"
                     onClick={() => removeContact(idx)}
-                    className="text-gray-400 hover:text-red-500 transition-colors"
+                    className="text-muted hover:text-[rgb(240,120,120)] transition-colors"
                   >
                     <TrashIcon className="w-4 h-4" />
                   </button>
@@ -521,8 +521,8 @@ export default function PartnerSetup() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Name <span className="text-red-500">*</span>
+                <label className="block text-sm font-medium text-primary mb-1">
+                  Name <span className="text-[rgb(240,120,120)]">*</span>
                 </label>
                 <input
                   type="text"
@@ -531,11 +531,11 @@ export default function PartnerSetup() {
                   placeholder="John Doe"
                   className={stepErrors[`contact_${idx}_name`] ? 'border-red-300 focus:ring-red-500' : ''}
                 />
-                {stepErrors[`contact_${idx}_name`] && <p className="mt-1 text-xs text-red-600">{stepErrors[`contact_${idx}_name`]}</p>}
+                {stepErrors[`contact_${idx}_name`] && <p className="mt-1 text-xs text-[rgb(240,120,120)]">{stepErrors[`contact_${idx}_name`]}</p>}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email <span className="text-red-500">*</span>
+                <label className="block text-sm font-medium text-primary mb-1">
+                  Email <span className="text-[rgb(240,120,120)]">*</span>
                 </label>
                 <input
                   type="email"
@@ -544,20 +544,20 @@ export default function PartnerSetup() {
                   placeholder="john@example.com"
                   className={stepErrors[`contact_${idx}_email`] ? 'border-red-300 focus:ring-red-500' : ''}
                 />
-                {stepErrors[`contact_${idx}_email`] && <p className="mt-1 text-xs text-red-600">{stepErrors[`contact_${idx}_email`]}</p>}
+                {stepErrors[`contact_${idx}_email`] && <p className="mt-1 text-xs text-[rgb(240,120,120)]">{stepErrors[`contact_${idx}_email`]}</p>}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <label className="block text-sm font-medium text-primary mb-1">Phone</label>
                 <input
                   type="tel"
                   value={contact.phone}
                   onChange={(e) => updateContact(idx, { phone: e.target.value })}
                   placeholder="+1 (555) 123-4567"
                 />
-                <p className="mt-1 text-xs text-gray-400">Include country code for international partners.</p>
+                <p className="mt-1 text-xs text-muted">Include country code for international partners.</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                <label className="block text-sm font-medium text-primary mb-1">Role</label>
                 <select
                   value={contact.role}
                   onChange={(e) => updateContact(idx, { role: e.target.value })}
@@ -568,7 +568,7 @@ export default function PartnerSetup() {
                     </option>
                   ))}
                 </select>
-                <p className="mt-1 text-xs text-gray-400">Determines notification preferences and escalation path.</p>
+                <p className="mt-1 text-xs text-muted">Determines notification preferences and escalation path.</p>
               </div>
             </div>
           </div>
@@ -578,7 +578,7 @@ export default function PartnerSetup() {
       <button
         type="button"
         onClick={addContact}
-        className="mt-4 flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 font-medium"
+        className="mt-4 flex items-center gap-2 text-sm text-accent hover:text-accent font-medium"
       >
         <PlusIcon className="w-4 h-4" />
         Add Contact
@@ -589,9 +589,9 @@ export default function PartnerSetup() {
   // ---------- Step 4: Account Setup ----------
   const renderStep4 = () => (
     <div className="card">
-      <h2 className="text-xl font-bold text-gray-900">Transfer Accounts</h2>
-      <p className="text-sm text-gray-500 mb-2">Create accounts for each selected protocol</p>
-      <p className="text-xs text-gray-400 mb-6">Each account gives the partner credentials to connect via the selected protocol. Usernames are auto-generated but editable.</p>
+      <h2 className="text-xl font-bold text-primary">Transfer Accounts</h2>
+      <p className="text-sm text-secondary mb-2">Create accounts for each selected protocol</p>
+      <p className="text-xs text-muted mb-6">Each account gives the partner credentials to connect via the selected protocol. Usernames are auto-generated but editable.</p>
 
       <div className="flex items-center gap-3 mb-6">
         <input
@@ -599,9 +599,9 @@ export default function PartnerSetup() {
           id="skipAccounts"
           checked={skipAccounts}
           onChange={(e) => setSkipAccounts(e.target.checked)}
-          className="rounded border-gray-300"
+          className="rounded border-border"
         />
-        <label htmlFor="skipAccounts" className="text-sm text-gray-600">
+        <label htmlFor="skipAccounts" className="text-sm text-secondary">
           I'll set up accounts later
         </label>
       </div>
@@ -613,29 +613,29 @@ export default function PartnerSetup() {
             const isExpanded = expandedProtocols[acc.protocol] !== false
             const isPasswordVisible = showPasswords[idx]
             return (
-              <div key={acc.protocol} className="border border-gray-200 rounded-xl overflow-hidden">
+              <div key={acc.protocol} className="border border-border rounded-xl overflow-hidden">
                 <button
                   type="button"
                   onClick={() => toggleExpandProtocol(acc.protocol)}
-                  className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  className="w-full flex items-center justify-between p-4 bg-canvas hover:bg-hover transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    {proto && <proto.icon className="w-5 h-5 text-gray-500" />}
-                    <span className="font-semibold text-gray-700">{acc.protocol} Account</span>
+                    {proto && <proto.icon className="w-5 h-5 text-secondary" />}
+                    <span className="font-semibold text-primary">{acc.protocol} Account</span>
                     {acc.username && (
-                      <span className="text-sm text-gray-400">({acc.username})</span>
+                      <span className="text-sm text-muted">({acc.username})</span>
                     )}
                   </div>
                   {isExpanded ? (
-                    <ChevronUpIcon className="w-5 h-5 text-gray-400" />
+                    <ChevronUpIcon className="w-5 h-5 text-muted" />
                   ) : (
-                    <ChevronDownIcon className="w-5 h-5 text-gray-400" />
+                    <ChevronDownIcon className="w-5 h-5 text-muted" />
                   )}
                 </button>
                 {isExpanded && (
                   <div className="p-5 space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-primary mb-1">
                         Username
                       </label>
                       <input
@@ -646,7 +646,7 @@ export default function PartnerSetup() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-primary mb-1">
                         Password
                       </label>
                       <div className="flex gap-2">
@@ -662,7 +662,7 @@ export default function PartnerSetup() {
                             onClick={() =>
                               setShowPasswords((prev) => ({ ...prev, [idx]: !prev[idx] }))
                             }
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-secondary"
                           >
                             {isPasswordVisible ? (
                               <EyeSlashIcon className="w-4 h-4" />
@@ -682,7 +682,7 @@ export default function PartnerSetup() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-primary mb-1">
                         Home Directory
                       </label>
                       <input
@@ -699,7 +699,7 @@ export default function PartnerSetup() {
           })}
 
           {form.accounts.length === 0 && (
-            <p className="text-sm text-gray-400 italic">
+            <p className="text-sm text-muted italic">
               No protocols selected. Go back to step 2 to select protocols.
             </p>
           )}
@@ -711,9 +711,9 @@ export default function PartnerSetup() {
   // ---------- Step 5: SLA Configuration ----------
   const renderStep5 = () => (
     <div className="card">
-      <h2 className="text-xl font-bold text-gray-900">Service Level Agreement</h2>
-      <p className="text-sm text-gray-500 mb-2">Configure performance and retention settings</p>
-      <p className="text-xs text-gray-400 mb-6">The SLA tier determines transfer limits, file retention, and maximum file sizes. You can override individual values below.</p>
+      <h2 className="text-xl font-bold text-primary">Service Level Agreement</h2>
+      <p className="text-sm text-secondary mb-2">Configure performance and retention settings</p>
+      <p className="text-xs text-muted mb-6">The SLA tier determines transfer limits, file retention, and maximum file sizes. You can override individual values below.</p>
 
       <div className="grid grid-cols-2 gap-4 mb-8">
         {SLA_TIERS.map((tier) => {
@@ -724,14 +724,14 @@ export default function PartnerSetup() {
               type="button"
               onClick={() => applySLATier(tier.value)}
               className={`p-5 rounded-xl border-2 text-left transition-all ${
-                selected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                selected ? 'border-accent bg-accent-soft' : 'border-border hover:border-muted'
               }`}
             >
-              <p className={`font-bold text-lg ${selected ? 'text-blue-700' : 'text-gray-800'}`}>
+              <p className={`font-bold text-lg ${selected ? 'text-accent' : 'text-primary'}`}>
                 {tier.label}
               </p>
-              <p className="text-sm text-gray-500 mt-1">{tier.desc}</p>
-              <div className="mt-3 space-y-1 text-xs text-gray-400">
+              <p className="text-sm text-secondary mt-1">{tier.desc}</p>
+              <div className="mt-3 space-y-1 text-xs text-muted">
                 <p>
                   {tier.maxTransfers === 0
                     ? 'Unlimited transfers/day'
@@ -746,10 +746,10 @@ export default function PartnerSetup() {
       </div>
 
       <div className="border-t pt-6">
-        <h3 className="text-sm font-semibold text-gray-700 mb-4">Custom Overrides</h3>
+        <h3 className="text-sm font-semibold text-primary mb-4">Custom Overrides</h3>
         <div className="grid grid-cols-3 gap-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-primary mb-1">
               Max File Size
             </label>
             <div className="flex gap-2">
@@ -786,7 +786,7 @@ export default function PartnerSetup() {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-primary mb-1">
               Max Transfers per Day
             </label>
             <input
@@ -798,7 +798,7 @@ export default function PartnerSetup() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Retention Days</label>
+            <label className="block text-sm font-medium text-primary mb-1">Retention Days</label>
             <input
               type="number"
               value={form.retentionDays}
@@ -815,48 +815,48 @@ export default function PartnerSetup() {
   const renderStep6 = () => (
     <div className="space-y-6">
       <div className="card">
-        <h2 className="text-xl font-bold text-gray-900">Review & Create</h2>
-        <p className="text-sm text-gray-500">Verify everything looks correct</p>
+        <h2 className="text-xl font-bold text-primary">Review & Create</h2>
+        <p className="text-sm text-secondary">Verify everything looks correct</p>
       </div>
 
       {/* Company Details */}
       <div className="card">
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+        <h3 className="text-sm font-semibold text-secondary uppercase tracking-wider mb-3">
           Company Details
         </h3>
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <span className="text-gray-500">Company Name:</span>
-            <span className="ml-2 font-medium text-gray-900">{form.companyName}</span>
+            <span className="text-secondary">Company Name:</span>
+            <span className="ml-2 font-medium text-primary">{form.companyName}</span>
           </div>
           <div>
-            <span className="text-gray-500">Display Name:</span>
-            <span className="ml-2 font-medium text-gray-900">
+            <span className="text-secondary">Display Name:</span>
+            <span className="ml-2 font-medium text-primary">
               {form.displayName || form.companyName}
             </span>
           </div>
           {form.industry && (
             <div>
-              <span className="text-gray-500">Industry:</span>
-              <span className="ml-2 font-medium text-gray-900">{form.industry}</span>
+              <span className="text-secondary">Industry:</span>
+              <span className="ml-2 font-medium text-primary">{form.industry}</span>
             </div>
           )}
           {form.website && (
             <div>
-              <span className="text-gray-500">Website:</span>
-              <span className="ml-2 font-medium text-gray-900">{form.website}</span>
+              <span className="text-secondary">Website:</span>
+              <span className="ml-2 font-medium text-primary">{form.website}</span>
             </div>
           )}
           <div>
-            <span className="text-gray-500">Partner Type:</span>
+            <span className="text-secondary">Partner Type:</span>
             <span className="ml-2">
               <span className="badge badge-blue">{form.partnerType}</span>
             </span>
           </div>
           {form.notes && (
             <div className="col-span-2">
-              <span className="text-gray-500">Notes:</span>
-              <span className="ml-2 font-medium text-gray-900">{form.notes}</span>
+              <span className="text-secondary">Notes:</span>
+              <span className="ml-2 font-medium text-primary">{form.notes}</span>
             </div>
           )}
         </div>
@@ -864,7 +864,7 @@ export default function PartnerSetup() {
 
       {/* Protocols */}
       <div className="card">
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+        <h3 className="text-sm font-semibold text-secondary uppercase tracking-wider mb-3">
           Protocols
         </h3>
         <div className="flex flex-wrap gap-2">
@@ -878,23 +878,23 @@ export default function PartnerSetup() {
 
       {/* Contacts */}
       <div className="card">
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+        <h3 className="text-sm font-semibold text-secondary uppercase tracking-wider mb-3">
           Contacts ({form.contacts.length})
         </h3>
         <div className="space-y-3">
           {form.contacts.map((c, idx) => (
             <div
               key={idx}
-              className="flex items-center justify-between text-sm p-3 bg-gray-50 rounded-lg"
+              className="flex items-center justify-between text-sm p-3 bg-canvas rounded-lg"
             >
               <div>
-                <span className="font-medium text-gray-900">{c.name}</span>
-                <span className="text-gray-400 mx-2">|</span>
-                <span className="text-gray-600">{c.email}</span>
+                <span className="font-medium text-primary">{c.name}</span>
+                <span className="text-muted mx-2">|</span>
+                <span className="text-secondary">{c.email}</span>
                 {c.phone && (
                   <>
-                    <span className="text-gray-400 mx-2">|</span>
-                    <span className="text-gray-600">{c.phone}</span>
+                    <span className="text-muted mx-2">|</span>
+                    <span className="text-secondary">{c.phone}</span>
                   </>
                 )}
               </div>
@@ -910,20 +910,20 @@ export default function PartnerSetup() {
       {/* Accounts */}
       {!skipAccounts && form.accounts.length > 0 && (
         <div className="card">
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+          <h3 className="text-sm font-semibold text-secondary uppercase tracking-wider mb-3">
             Accounts ({form.accounts.length})
           </h3>
           <div className="space-y-3">
             {form.accounts.map((acc) => (
               <div
                 key={acc.protocol}
-                className="flex items-center justify-between text-sm p-3 bg-gray-50 rounded-lg"
+                className="flex items-center justify-between text-sm p-3 bg-canvas rounded-lg"
               >
                 <div>
                   <span className="badge badge-purple mr-2">{acc.protocol}</span>
-                  <span className="font-medium text-gray-900">{acc.username}</span>
+                  <span className="font-medium text-primary">{acc.username}</span>
                 </div>
-                <span className="text-gray-500 text-xs font-mono">{acc.homeDir}</span>
+                <span className="text-secondary text-xs font-mono">{acc.homeDir}</span>
               </div>
             ))}
           </div>
@@ -932,55 +932,55 @@ export default function PartnerSetup() {
 
       {/* SLA */}
       <div className="card">
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+        <h3 className="text-sm font-semibold text-secondary uppercase tracking-wider mb-3">
           SLA Configuration
         </h3>
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <span className="text-gray-500">SLA Tier:</span>
+            <span className="text-secondary">SLA Tier:</span>
             <span className="ml-2">
               <span className="badge badge-yellow">{form.slaTier}</span>
             </span>
           </div>
           <div>
-            <span className="text-gray-500">Max File Size:</span>
-            <span className="ml-2 font-medium text-gray-900">
+            <span className="text-secondary">Max File Size:</span>
+            <span className="ml-2 font-medium text-primary">
               {formatBytes(form.maxFileSizeBytes)}
             </span>
           </div>
           <div>
-            <span className="text-gray-500">Max Transfers/Day:</span>
-            <span className="ml-2 font-medium text-gray-900">
+            <span className="text-secondary">Max Transfers/Day:</span>
+            <span className="ml-2 font-medium text-primary">
               {form.maxTransfersPerDay === 0
                 ? 'Unlimited'
                 : form.maxTransfersPerDay.toLocaleString()}
             </span>
           </div>
           <div>
-            <span className="text-gray-500">Retention:</span>
-            <span className="ml-2 font-medium text-gray-900">{form.retentionDays} days</span>
+            <span className="text-secondary">Retention:</span>
+            <span className="ml-2 font-medium text-primary">{form.retentionDays} days</span>
           </div>
         </div>
       </div>
 
       {/* What happens next */}
-      <div className="card border-2 border-blue-100 bg-blue-50/50">
+      <div className="card border-2 border-blue-100 bg-accent-soft/50">
         <h3 className="text-sm font-semibold text-blue-900 mb-3">What happens when you click "Create Partner"?</h3>
         <ol className="space-y-2 text-sm text-blue-800">
           <li className="flex items-start gap-2">
-            <span className="flex-shrink-0 w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold mt-0.5">1</span>
+            <span className="flex-shrink-0 w-5 h-5 bg-accent text-white rounded-full flex items-center justify-center text-xs font-bold mt-0.5">1</span>
             <span>A new partner record is created with status <strong>PENDING</strong> and a unique slug for API references.</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="flex-shrink-0 w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold mt-0.5">2</span>
+            <span className="flex-shrink-0 w-5 h-5 bg-accent text-white rounded-full flex items-center justify-center text-xs font-bold mt-0.5">2</span>
             <span>Transfer accounts are provisioned for each selected protocol with home directories created automatically.</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="flex-shrink-0 w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold mt-0.5">3</span>
+            <span className="flex-shrink-0 w-5 h-5 bg-accent text-white rounded-full flex items-center justify-center text-xs font-bold mt-0.5">3</span>
             <span>Contacts are saved and the primary contact will receive onboarding notifications (if configured).</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="flex-shrink-0 w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold mt-0.5">4</span>
+            <span className="flex-shrink-0 w-5 h-5 bg-accent text-white rounded-full flex items-center justify-center text-xs font-bold mt-0.5">4</span>
             <span>You'll be redirected to the Partner Detail page where you can <strong>activate</strong> the partner, configure flows, and set up webhooks.</span>
           </li>
         </ol>

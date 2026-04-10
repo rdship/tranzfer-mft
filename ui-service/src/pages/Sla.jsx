@@ -68,7 +68,7 @@ export default function Sla() {
         <div className="flex flex-wrap gap-2 mt-2">
           {ALL_DAYS.map(day => (
             <button key={day} type="button" onClick={() => toggleDay(day)}
-              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${form.expectedDays.includes(day) ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${form.expectedDays.includes(day) ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-gray-100 text-secondary border border-border'}`}>
               {day.substring(0, 3)}
             </button>
           ))}
@@ -85,7 +85,7 @@ export default function Sla() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-bold text-gray-900">SLA Agreements</h1>
-          <p className="text-gray-500 text-sm">Partner delivery agreements and breach monitoring</p></div>
+          <p className="text-secondary text-sm">Partner delivery agreements and breach monitoring</p></div>
         <button className="btn-primary" onClick={openCreate}><PlusIcon className="w-4 h-4" /> New Agreement</button>
       </div>
       {breaches.length > 0 && (
@@ -101,8 +101,8 @@ export default function Sla() {
           <div key={s.id} className="card">
             <div className="flex items-center justify-between">
               <div><h3 className="font-semibold text-gray-900">{s.name}</h3>
-                <p className="text-sm text-gray-500">Delivery window: {s.expectedDeliveryStartHour}:00 — {s.expectedDeliveryEndHour}:00 UTC | Min {s.minFilesPerWindow} file(s) | Grace: {s.gracePeriodMinutes}min</p>
-                <p className="text-xs text-gray-400 mt-1">Days: {(s.expectedDays || []).join(', ')}</p></div>
+                <p className="text-sm text-secondary">Delivery window: {s.expectedDeliveryStartHour}:00 — {s.expectedDeliveryEndHour}:00 UTC | Min {s.minFilesPerWindow} file(s) | Grace: {s.gracePeriodMinutes}min</p>
+                <p className="text-xs text-muted mt-1">Days: {(s.expectedDays || []).join(', ')}</p></div>
               <div className="flex items-center gap-2">
                 <span className={`badge ${s.totalBreaches > 0 ? 'badge-red' : 'badge-green'}`}>{s.totalBreaches} breaches</span>
                 <button onClick={() => openEdit(s)} title="Edit agreement"
@@ -113,7 +113,7 @@ export default function Sla() {
             </div>
           </div>
         ))}
-        {slas.length === 0 && <div className="card text-center py-8 text-gray-500">No SLA agreements configured</div>}
+        {slas.length === 0 && <div className="card text-center py-8 text-secondary">No SLA agreements configured</div>}
       </div>
 
       {showCreate && (

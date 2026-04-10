@@ -231,8 +231,8 @@ export default function Partners() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Partner Management</h1>
-          <p className="text-gray-500 text-sm">{totalPartners} trading partners configured</p>
+          <h1 className="text-2xl font-bold text-primary">Partner Management</h1>
+          <p className="text-secondary text-sm">{totalPartners} trading partners configured</p>
         </div>
         <button className="btn-primary" onClick={() => setShowCreate(true)}>
           <PlusIcon className="w-4 h-4" /> New Partner
@@ -242,39 +242,39 @@ export default function Partners() {
       {/* Stats Bar */}
       <div className="grid grid-cols-4 gap-4">
         <div className="card !p-4 flex items-center gap-4">
-          <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-            <BuildingOfficeIcon className="w-5 h-5 text-blue-600" />
+          <div className="w-10 h-10 bg-accent-soft rounded-xl flex items-center justify-center">
+            <BuildingOfficeIcon className="w-5 h-5 text-accent" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900">{totalPartners}</p>
-            <p className="text-xs text-gray-500">Total Partners</p>
+            <p className="text-2xl font-bold text-primary">{totalPartners}</p>
+            <p className="text-xs text-secondary">Total Partners</p>
           </div>
         </div>
         <div className="card !p-4 flex items-center gap-4">
-          <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
-            <CheckCircleIcon className="w-5 h-5 text-green-600" />
+          <div className="w-10 h-10 bg-[rgb(20,60,40)] rounded-xl flex items-center justify-center">
+            <CheckCircleIcon className="w-5 h-5 text-[rgb(120,220,160)]" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900">{stats.ACTIVE || 0}</p>
-            <p className="text-xs text-gray-500">Active</p>
+            <p className="text-2xl font-bold text-primary">{stats.ACTIVE || 0}</p>
+            <p className="text-xs text-secondary">Active</p>
           </div>
         </div>
         <div className="card !p-4 flex items-center gap-4">
-          <div className="w-10 h-10 bg-yellow-100 rounded-xl flex items-center justify-center">
-            <ClockIcon className="w-5 h-5 text-yellow-600" />
+          <div className="w-10 h-10 bg-[rgb(60,50,20)] rounded-xl flex items-center justify-center">
+            <ClockIcon className="w-5 h-5 text-[rgb(240,200,100)]" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900">{stats.PENDING || 0}</p>
-            <p className="text-xs text-gray-500">Pending Setup</p>
+            <p className="text-2xl font-bold text-primary">{stats.PENDING || 0}</p>
+            <p className="text-xs text-secondary">Pending Setup</p>
           </div>
         </div>
         <div className="card !p-4 flex items-center gap-4">
-          <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
-            <ExclamationTriangleIcon className="w-5 h-5 text-red-600" />
+          <div className="w-10 h-10 bg-[rgb(60,20,20)] rounded-xl flex items-center justify-center">
+            <ExclamationTriangleIcon className="w-5 h-5 text-[rgb(240,120,120)]" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900">{stats.SUSPENDED || 0}</p>
-            <p className="text-xs text-gray-500">Suspended</p>
+            <p className="text-2xl font-bold text-primary">{stats.SUSPENDED || 0}</p>
+            <p className="text-xs text-secondary">Suspended</p>
           </div>
         </div>
       </div>
@@ -287,8 +287,8 @@ export default function Partners() {
             onClick={() => setStatusFilter(tab.value)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               statusFilter === tab.value
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                ? 'bg-accent text-white'
+                : 'bg-surface text-secondary hover:bg-hover'
             }`}
           >
             {tab.label}
@@ -298,12 +298,12 @@ export default function Partners() {
 
       {/* Search */}
       <div className="relative max-w-sm">
-        <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+        <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted pointer-events-none" />
         <input
           placeholder="Search by company name..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="pl-10 pr-3 py-2 text-sm border rounded-lg w-full focus:ring-2 focus:ring-blue-500 max-w-sm"
+          className="pl-10 pr-3 py-2 text-sm border rounded-lg w-full max-w-sm"
         />
       </div>
 
@@ -325,7 +325,7 @@ export default function Partners() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-100">
+                <tr className="border-b border-border">
                   <th className="table-header">Company</th>
                   <th className="table-header">Type</th>
                   <th className="table-header">Protocols</th>
@@ -348,8 +348,8 @@ export default function Partners() {
                     >
                       <td className="table-cell">
                         <div>
-                          <p className="font-semibold text-gray-900">{partner.companyName}</p>
-                          <p className="text-xs text-gray-400">{partner.slug}</p>
+                          <p className="font-semibold text-primary">{partner.companyName}</p>
+                          <p className="text-xs text-muted">{partner.slug}</p>
                         </div>
                       </td>
                       <td className="table-cell">
@@ -360,7 +360,7 @@ export default function Partners() {
                           {protocols.length > 0 ? protocols.map(proto => (
                             <span key={proto} className="badge badge-gray text-xs">{proto}</span>
                           )) : (
-                            <span className="text-xs text-gray-300">None</span>
+                            <span className="text-xs text-muted">None</span>
                           )}
                         </div>
                       </td>
@@ -368,15 +368,15 @@ export default function Partners() {
                         <span className={statusBadge(partner.status)}>{partner.status}</span>
                       </td>
                       <td className="table-cell">
-                        <span className="text-xs text-gray-500">{partner.onboardingPhase || '-'}</span>
+                        <span className="text-xs text-secondary">{partner.onboardingPhase || '-'}</span>
                       </td>
                       <td className="table-cell">
                         <span className={slaBadge(partner.slaTier)}>{partner.slaTier || '-'}</span>
                       </td>
                       <td className="table-cell text-center">
-                        <span className="text-sm text-gray-700">{partner.accountCount ?? 0}</span>
+                        <span className="text-sm text-primary">{partner.accountCount ?? 0}</span>
                       </td>
-                      <td className="table-cell text-xs text-gray-500">
+                      <td className="table-cell text-xs text-secondary">
                         {partner.createdAt ? format(new Date(partner.createdAt), 'MMM d, yyyy') : '-'}
                       </td>
                       <td className="table-cell">
@@ -386,22 +386,22 @@ export default function Partners() {
                               e.stopPropagation()
                               setOpenActions(openActions === partner.id ? null : partner.id)
                             }}
-                            className="p-1 rounded hover:bg-gray-100 transition-colors"
+                            className="p-1 rounded hover:bg-hover transition-colors"
                           >
-                            <EllipsisVerticalIcon className="w-5 h-5 text-gray-400" />
+                            <EllipsisVerticalIcon className="w-5 h-5 text-muted" />
                           </button>
                           {openActions === partner.id && (
-                            <div className="absolute right-0 top-8 z-20 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1">
+                            <div className="absolute right-0 top-8 z-20 w-44 bg-surface rounded-lg shadow-lg border border-border py-1">
                               <button
                                 onClick={(e) => handleView(e, partner.id)}
-                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-primary hover:bg-hover"
                               >
                                 <EyeIcon className="w-4 h-4" /> View Details
                               </button>
                               {partner.status !== 'ACTIVE' && partner.status !== 'OFFBOARDED' && (
                                 <button
                                   onClick={(e) => handleActivate(e, partner.id)}
-                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-green-700 hover:bg-green-50"
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[rgb(120,220,160)] hover:bg-hover"
                                 >
                                   <PlayIcon className="w-4 h-4" /> Activate
                                 </button>
@@ -409,14 +409,14 @@ export default function Partners() {
                               {partner.status === 'ACTIVE' && (
                                 <button
                                   onClick={(e) => handleSuspend(e, partner.id)}
-                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-yellow-700 hover:bg-yellow-50"
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[rgb(240,200,100)] hover:bg-hover"
                                 >
                                   <PauseIcon className="w-4 h-4" /> Suspend
                                 </button>
                               )}
                               <button
                                 onClick={(e) => handleDelete(e, partner.id)}
-                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-700 hover:bg-red-50"
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[rgb(240,120,120)] hover:bg-hover"
                               >
                                 <TrashIcon className="w-4 h-4" /> Delete
                               </button>
@@ -439,7 +439,7 @@ export default function Partners() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Company Information */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">Company Information</h3>
+              <h3 className="text-sm font-semibold text-primary mb-3">Company Information</h3>
               <div className="grid grid-cols-2 gap-4">
                 <FormField label="Company Name" required error={formErrors.companyName} helper="Legal entity name used in reports and compliance.">
                   <input
@@ -478,7 +478,7 @@ export default function Partners() {
 
             {/* Partner Configuration */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">Partner Configuration</h3>
+              <h3 className="text-sm font-semibold text-primary mb-3">Partner Configuration</h3>
               <div className="grid grid-cols-2 gap-4">
                 <FormField label="Partner Type" helper="Defines how this partner is categorized in reports.">
                   <select value={form.partnerType} onChange={e => setForm({ ...form, partnerType: e.target.value })}>
@@ -496,7 +496,7 @@ export default function Partners() {
                 </FormField>
               </div>
               <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Protocols</label>
+                <label className="block text-sm font-medium text-primary mb-1">Protocols</label>
                 <div className="flex flex-wrap gap-3 mt-1">
                   {PROTOCOLS.map(proto => (
                     <label key={proto} className="flex items-center gap-2 cursor-pointer">
@@ -504,19 +504,19 @@ export default function Partners() {
                         type="checkbox"
                         checked={form.protocolsEnabled.includes(proto)}
                         onChange={() => handleProtocolToggle(proto)}
-                        className="rounded border-gray-300"
+                        className="rounded border-border"
                       />
-                      <span className="text-sm text-gray-700">{proto}</span>
+                      <span className="text-sm text-primary">{proto}</span>
                     </label>
                   ))}
                 </div>
-                <p className="mt-1 text-xs text-gray-400">Select which file transfer protocols this partner will use.</p>
+                <p className="mt-1 text-xs text-muted">Select which file transfer protocols this partner will use.</p>
               </div>
             </div>
 
             {/* Primary Contact */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">Primary Contact</h3>
+              <h3 className="text-sm font-semibold text-primary mb-3">Primary Contact</h3>
               <div className="grid grid-cols-3 gap-4">
                 <FormField label="Contact Name" helper="Primary point of contact for this partner.">
                   <input
@@ -556,7 +556,7 @@ export default function Partners() {
             </FormField>
 
             {/* Actions */}
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
               <button
                 type="button"
                 className="btn-secondary"

@@ -46,9 +46,9 @@ export default function Recommendations() {
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <LightBulbIcon className="w-7 h-7 text-amber-500" /> AI Recommendations
           </h1>
-          <p className="text-gray-500 text-sm">AI-powered analysis of platform health, performance, and security</p>
+          <p className="text-secondary text-sm">AI-powered analysis of platform health, performance, and security</p>
         </div>
-        <div className="text-right text-xs text-gray-400">
+        <div className="text-right text-xs text-muted">
           <p>Last analysis: {summary.lastAnalysis ? format(new Date(summary.lastAnalysis), 'HH:mm:ss') : 'pending'}</p>
           <p>Auto-refreshes every 5 min</p>
         </div>
@@ -77,7 +77,7 @@ export default function Recommendations() {
               ['Total Records', summary.totalTransferRecords || 0],
             ].map(([label, value]) => (
               <div key={label} className="p-3 bg-gray-50 rounded-lg">
-                <p className="text-xs text-gray-500">{label}</p>
+                <p className="text-xs text-secondary">{label}</p>
                 <p className="font-bold text-gray-900">{typeof value === 'number' ? value.toLocaleString() : value}</p>
               </div>
             ))}
@@ -90,7 +90,7 @@ export default function Recommendations() {
         <div className="card text-center py-12">
           <ShieldCheckIcon className="w-12 h-12 text-green-400 mx-auto mb-3" />
           <h3 className="text-lg font-semibold text-gray-900">All Clear</h3>
-          <p className="text-sm text-gray-500 mt-1">No recommendations at this time. Platform is healthy.</p>
+          <p className="text-sm text-secondary mt-1">No recommendations at this time. Platform is healthy.</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -108,17 +108,17 @@ export default function Recommendations() {
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`badge ${severityBadge[rec.severity]}`}>{rec.severity}</span>
                       <span className="badge badge-gray">{rec.category}</span>
-                      <span className="text-xs text-gray-400 ml-auto">{rec.generatedAt ? format(new Date(rec.generatedAt), 'HH:mm') : ''}</span>
+                      <span className="text-xs text-muted ml-auto">{rec.generatedAt ? format(new Date(rec.generatedAt), 'HH:mm') : ''}</span>
                     </div>
                     <p className={`font-medium ${cfg.text}`}>{rec.finding}</p>
-                    <div className="mt-2 p-3 bg-white bg-opacity-60 rounded-lg">
-                      <p className="text-xs font-semibold text-gray-700 mb-1">Recommended Action:</p>
-                      <p className="text-sm text-gray-700 whitespace-pre-line">{rec.recommendedAction}</p>
+                    <div className="mt-2 p-3 bg-surface bg-opacity-60 rounded-lg">
+                      <p className="text-xs font-semibold text-primary mb-1">Recommended Action:</p>
+                      <p className="text-sm text-primary whitespace-pre-line">{rec.recommendedAction}</p>
                     </div>
                     {rec.data && Object.keys(rec.data).length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {Object.entries(rec.data).map(([k, v]) => (
-                          <span key={k} className="text-xs bg-white bg-opacity-60 px-2 py-0.5 rounded font-mono">
+                          <span key={k} className="text-xs bg-surface bg-opacity-60 px-2 py-0.5 rounded font-mono">
                             {k}: {typeof v === 'number' ? v.toLocaleString() : String(v)}
                           </span>
                         ))}

@@ -154,7 +154,7 @@ export default function SecurityProfiles() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Security Profiles</h1>
-          <p className="text-gray-500 text-sm">Configure cipher suites, MACs, and key exchange algorithms</p>
+          <p className="text-secondary text-sm">Configure cipher suites, MACs, and key exchange algorithms</p>
         </div>
         <button className="btn-primary" onClick={openCreate}>
           <PlusIcon className="w-4 h-4" /> New Profile
@@ -173,7 +173,7 @@ export default function SecurityProfiles() {
               <div className="flex items-start justify-between">
                 <div>
                   <h3 className="font-semibold text-gray-900">{p.name}</h3>
-                  <p className="text-sm text-gray-500 mt-0.5">{p.description}</p>
+                  <p className="text-sm text-secondary mt-0.5">{p.description}</p>
                   <span className={`badge mt-2 ${p.type === 'SSH' ? 'badge-blue' : 'badge-purple'}`}>{p.type}</span>
                 </div>
                 <div className="flex items-center gap-1">
@@ -190,9 +190,9 @@ export default function SecurityProfiles() {
               {p.type === 'SSH' && (
                 <div className="mt-4 grid grid-cols-2 gap-4 text-xs">
                   <div><p className="font-semibold text-gray-700 mb-1">Ciphers</p>
-                    {(p.sshCiphers || []).map(c => <div key={c} className="text-gray-500 font-mono">{c}</div>)}</div>
+                    {(p.sshCiphers || []).map(c => <div key={c} className="text-secondary font-mono">{c}</div>)}</div>
                   <div><p className="font-semibold text-gray-700 mb-1">MACs</p>
-                    {(p.sshMacs || []).map(m => <div key={m} className="text-gray-500 font-mono">{m}</div>)}</div>
+                    {(p.sshMacs || []).map(m => <div key={m} className="text-secondary font-mono">{m}</div>)}</div>
                 </div>
               )}
             </div>

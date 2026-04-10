@@ -53,15 +53,15 @@ export default function Edi() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">EDI Converter v3.0</h1>
-        <p className="text-gray-500 text-sm">11 formats, 66 conversion paths, AI-powered — convert, explain, heal, diff, score, map, create</p>
+        <h1 className="text-2xl font-bold text-primary">EDI Converter v3.0</h1>
+        <p className="text-secondary text-sm">11 formats, 66 conversion paths, AI-powered — convert, explain, heal, diff, score, map, create</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-200 gap-1 overflow-x-auto">
+      <div className="flex border-b border-border gap-1 overflow-x-auto">
         {TABS.map(t => (
           <button key={t.id} onClick={() => { setTab(t.id); setResult(null) }}
-            className={`pb-2 px-3 text-sm font-medium whitespace-nowrap transition-colors ${tab === t.id ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>
+            className={`pb-2 px-3 text-sm font-medium whitespace-nowrap transition-colors ${tab === t.id ? 'border-b-2 border-blue-600 text-blue-600' : 'text-secondary hover:text-primary'}`}>
             {t.label}
           </button>
         ))}
@@ -71,7 +71,7 @@ export default function Edi() {
       {tab === 'convert' && (
         <div className="card space-y-4">
           <div className="flex items-center gap-3">
-            <h3 className="font-semibold text-gray-900">Convert / Detect / Validate / Explain</h3>
+            <h3 className="font-semibold text-primary">Convert / Detect / Validate / Explain</h3>
             <button onClick={() => setContent(SAMPLE_X12)} className="text-xs text-blue-600 hover:underline">Load sample X12 850</button>
           </div>
           <textarea value={content} onChange={e => setContent(e.target.value)} rows={8}
@@ -93,8 +93,8 @@ export default function Edi() {
       {/* Explain Tab */}
       {tab === 'explain' && (
         <div className="card space-y-4">
-          <h3 className="font-semibold text-gray-900">Explain EDI in Plain English</h3>
-          <p className="text-sm text-gray-500">Paste any EDI document and get a human-readable explanation of every segment.</p>
+          <h3 className="font-semibold text-primary">Explain EDI in Plain English</h3>
+          <p className="text-sm text-secondary">Paste any EDI document and get a human-readable explanation of every segment.</p>
           <button onClick={() => setContent(SAMPLE_X12)} className="text-xs text-blue-600 hover:underline">Load sample</button>
           <textarea value={content} onChange={e => setContent(e.target.value)} rows={8}
             className="w-full rounded-lg border px-3 py-2 text-xs font-mono" placeholder="Paste EDI content..." />
@@ -107,8 +107,8 @@ export default function Edi() {
       {/* Self-Heal Tab */}
       {tab === 'heal' && (
         <div className="card space-y-4">
-          <h3 className="font-semibold text-gray-900">Self-Healing Engine</h3>
-          <p className="text-sm text-gray-500">Paste a broken or malformed EDI document. The engine auto-detects and fixes common errors.</p>
+          <h3 className="font-semibold text-primary">Self-Healing Engine</h3>
+          <p className="text-sm text-secondary">Paste a broken or malformed EDI document. The engine auto-detects and fixes common errors.</p>
           <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-800">
             Fixes 25+ error types: missing terminators, wrong segment counts, ISA padding, missing trailers, BOM removal, null bytes, mixed line endings, and more.
           </div>
@@ -123,8 +123,8 @@ export default function Edi() {
       {/* Compliance Tab */}
       {tab === 'compliance' && (
         <div className="card space-y-4">
-          <h3 className="font-semibold text-gray-900">Compliance Scoring (0-100)</h3>
-          <p className="text-sm text-gray-500">Score your EDI document against the standard. Get a grade (A+ to F) with detailed breakdown.</p>
+          <h3 className="font-semibold text-primary">Compliance Scoring (0-100)</h3>
+          <p className="text-sm text-secondary">Score your EDI document against the standard. Get a grade (A+ to F) with detailed breakdown.</p>
           <button onClick={() => setContent(SAMPLE_X12)} className="text-xs text-blue-600 hover:underline">Load sample</button>
           <textarea value={content} onChange={e => setContent(e.target.value)} rows={8}
             className="w-full rounded-lg border px-3 py-2 text-xs font-mono" placeholder="Paste EDI content..." />
@@ -137,16 +137,16 @@ export default function Edi() {
       {/* Diff Tab */}
       {tab === 'diff' && (
         <div className="card space-y-4">
-          <h3 className="font-semibold text-gray-900">Semantic Diff</h3>
-          <p className="text-sm text-gray-500">Compare two EDI documents with field-level semantic diff — not character-level, BUSINESS-level.</p>
+          <h3 className="font-semibold text-primary">Semantic Diff</h3>
+          <p className="text-sm text-secondary">Compare two EDI documents with field-level semantic diff — not character-level, BUSINESS-level.</p>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-medium text-gray-600">Left (before)</label>
+              <label className="text-xs font-medium text-secondary">Left (before)</label>
               <textarea value={content} onChange={e => setContent(e.target.value)} rows={8}
                 className="w-full rounded-lg border px-3 py-2 text-xs font-mono" placeholder="Paste first EDI..." />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-600">Right (after)</label>
+              <label className="text-xs font-medium text-secondary">Right (after)</label>
               <textarea value={content2} onChange={e => setContent2(e.target.value)} rows={8}
                 className="w-full rounded-lg border px-3 py-2 text-xs font-mono" placeholder="Paste second EDI..." />
             </div>
@@ -160,8 +160,8 @@ export default function Edi() {
       {/* NL Create Tab */}
       {tab === 'nlcreate' && (
         <div className="card space-y-4">
-          <h3 className="font-semibold text-gray-900">Create EDI from Natural Language</h3>
-          <p className="text-sm text-gray-500">Describe what you need in plain English. We'll generate valid EDI.</p>
+          <h3 className="font-semibold text-primary">Create EDI from Natural Language</h3>
+          <p className="text-sm text-secondary">Describe what you need in plain English. We'll generate valid EDI.</p>
           <div className="bg-green-50 border border-green-100 rounded-lg p-3 text-sm text-green-800 space-y-1">
             <p className="font-medium">Try these:</p>
             <p className="cursor-pointer hover:underline" onClick={() => setNlText('Create a purchase order for 500 widgets at $12.50 each to Acme Corp')}>
@@ -188,16 +188,16 @@ export default function Edi() {
       {/* AI Mapping Tab */}
       {tab === 'mapping' && (
         <div className="card space-y-4">
-          <h3 className="font-semibold text-gray-900">AI Mapping Generator</h3>
-          <p className="text-sm text-gray-500">Upload a source EDI and your desired JSON output. We auto-generate the mapping rules.</p>
+          <h3 className="font-semibold text-primary">AI Mapping Generator</h3>
+          <p className="text-sm text-secondary">Upload a source EDI and your desired JSON output. We auto-generate the mapping rules.</p>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-medium text-gray-600">Source EDI</label>
+              <label className="text-xs font-medium text-secondary">Source EDI</label>
               <textarea value={mappingSource} onChange={e => setMappingSource(e.target.value)} rows={8}
                 className="w-full rounded-lg border px-3 py-2 text-xs font-mono" placeholder="Paste source EDI..." />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-600">Desired JSON Output</label>
+              <label className="text-xs font-medium text-secondary">Desired JSON Output</label>
               <textarea value={mappingTarget} onChange={e => setMappingTarget(e.target.value)} rows={8}
                 className="w-full rounded-lg border px-3 py-2 text-xs font-mono"
                 placeholder='{"poNumber":"PO123456","buyer":"ACME CORP","seller":"GLOBAL SUPPLY","items":[...]}' />
@@ -212,15 +212,15 @@ export default function Edi() {
       {/* Partners Tab */}
       {tab === 'partners' && (
         <div className="card space-y-4">
-          <h3 className="font-semibold text-gray-900">Partner Profile Manager</h3>
-          <p className="text-sm text-gray-500">Upload a sample EDI from a new trading partner to auto-generate their profile.</p>
+          <h3 className="font-semibold text-primary">Partner Profile Manager</h3>
+          <p className="text-sm text-secondary">Upload a sample EDI from a new trading partner to auto-generate their profile.</p>
           <div className="grid grid-cols-2 gap-4">
-            <div><label className="text-xs font-medium text-gray-600">Partner ID</label>
+            <div><label className="text-xs font-medium text-secondary">Partner ID</label>
               <input value={partnerId} onChange={e => setPartnerId(e.target.value)} placeholder="acme-corp" /></div>
-            <div><label className="text-xs font-medium text-gray-600">Partner Name</label>
+            <div><label className="text-xs font-medium text-secondary">Partner Name</label>
               <input value={partnerName} onChange={e => setPartnerName(e.target.value)} placeholder="Acme Corporation" /></div>
           </div>
-          <label className="text-xs font-medium text-gray-600">Sample EDI from this partner</label>
+          <label className="text-xs font-medium text-secondary">Sample EDI from this partner</label>
           <textarea value={content} onChange={e => setContent(e.target.value)} rows={6}
             className="w-full rounded-lg border px-3 py-2 text-xs font-mono" placeholder="Paste a sample EDI from this partner..." />
           <button onClick={() => call(`/api/v1/convert/partners/${partnerId || 'partner-1'}/analyze`,
@@ -233,36 +233,36 @@ export default function Edi() {
       {/* Results */}
       {result && (
         <div className="card">
-          <h3 className="font-semibold text-gray-900 mb-2">{result.label} Result</h3>
+          <h3 className="font-semibold text-primary mb-2">{result.label} Result</h3>
 
           {/* Special rendering for compliance */}
           {result.label === 'Compliance' && result.data?.overallScore !== undefined && (
-            <div className="mb-4 p-4 rounded-lg bg-gray-50">
+            <div className="mb-4 p-4 rounded-lg bg-canvas">
               <div className="flex items-center gap-4 mb-3">
                 <div className={`text-4xl font-bold ${result.data.overallScore >= 90 ? 'text-green-600' : result.data.overallScore >= 70 ? 'text-yellow-600' : 'text-red-600'}`}>
                   {result.data.overallScore}
                 </div>
                 <div>
                   <div className="text-lg font-semibold">Grade: {result.data.grade}</div>
-                  <div className="text-sm text-gray-500">{result.data.verdict}</div>
+                  <div className="text-sm text-secondary">{result.data.verdict}</div>
                 </div>
               </div>
               <div className="grid grid-cols-4 gap-2 text-sm">
-                <div className="bg-white rounded p-2 text-center">
+                <div className="bg-surface rounded p-2 text-center">
                   <div className="font-bold text-blue-600">{result.data.structureScore}</div>
-                  <div className="text-xs text-gray-500">Structure</div>
+                  <div className="text-xs text-secondary">Structure</div>
                 </div>
-                <div className="bg-white rounded p-2 text-center">
+                <div className="bg-surface rounded p-2 text-center">
                   <div className="font-bold text-purple-600">{result.data.elementScore}</div>
-                  <div className="text-xs text-gray-500">Elements</div>
+                  <div className="text-xs text-secondary">Elements</div>
                 </div>
-                <div className="bg-white rounded p-2 text-center">
+                <div className="bg-surface rounded p-2 text-center">
                   <div className="font-bold text-green-600">{result.data.businessRuleScore}</div>
-                  <div className="text-xs text-gray-500">Business Rules</div>
+                  <div className="text-xs text-secondary">Business Rules</div>
                 </div>
-                <div className="bg-white rounded p-2 text-center">
+                <div className="bg-surface rounded p-2 text-center">
                   <div className="font-bold text-amber-600">{result.data.bestPracticeScore}</div>
-                  <div className="text-xs text-gray-500">Best Practice</div>
+                  <div className="text-xs text-secondary">Best Practice</div>
                 </div>
               </div>
             </div>
@@ -270,7 +270,7 @@ export default function Edi() {
 
           {/* Special rendering for self-heal */}
           {result.label === 'Self-Heal' && result.data?.verdict && (
-            <div className={`mb-4 p-3 rounded-lg text-sm ${result.data.wasHealed ? 'bg-green-50 text-green-800 border border-green-100' : 'bg-gray-50 text-gray-700'}`}>
+            <div className={`mb-4 p-3 rounded-lg text-sm ${result.data.wasHealed ? 'bg-green-50 text-green-800 border border-green-100' : 'bg-canvas text-primary'}`}>
               <span className="font-medium">{result.data.verdict}</span>
               {result.data.wasHealed && <span className="ml-2">({result.data.issuesFixed} of {result.data.issuesFound} fixed)</span>}
             </div>
@@ -281,9 +281,9 @@ export default function Edi() {
             <div className="mb-4 space-y-2">
               <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-800">{result.data.explanation}</div>
               {result.data.confidence > 0 && (
-                <div className="text-xs text-gray-500">Confidence: {result.data.confidence}%</div>
+                <div className="text-xs text-secondary">Confidence: {result.data.confidence}%</div>
               )}
-              <label className="text-xs font-medium text-gray-600">Generated EDI:</label>
+              <label className="text-xs font-medium text-secondary">Generated EDI:</label>
               <pre className="text-xs bg-gray-900 text-green-400 rounded-lg p-3 overflow-auto font-mono max-h-64">
                 {result.data.generatedEdi}
               </pre>
@@ -292,16 +292,16 @@ export default function Edi() {
 
           {/* Special rendering for diff */}
           {result.label === 'Diff' && result.data?.verdict && (
-            <div className="mb-4 p-3 bg-gray-50 rounded-lg text-sm">
+            <div className="mb-4 p-3 bg-canvas rounded-lg text-sm">
               <span className="font-medium">{result.data.verdict}</span>
-              <span className="text-gray-500 ml-2">
+              <span className="text-secondary ml-2">
                 (+{result.data.segmentsAdded} added, -{result.data.segmentsRemoved} removed, ~{result.data.segmentsModified} modified)
               </span>
             </div>
           )}
 
           {/* JSON output */}
-          <pre className="text-xs bg-gray-50 rounded-lg p-3 overflow-auto font-mono max-h-96">
+          <pre className="text-xs bg-canvas rounded-lg p-3 overflow-auto font-mono max-h-96">
             {typeof result.data === 'string' ? result.data : JSON.stringify(result.data, null, 2)}
           </pre>
         </div>
@@ -321,9 +321,9 @@ export default function Edi() {
             ['Partner Profiles', 'Upload a sample from a new partner → auto-generate their profile in minutes'],
             ['Canonical Model', 'Universal JSON schema — one model for all formats. Eliminates per-partner mapping.'],
           ].map(([title, desc]) => (
-            <div key={title} className="p-4 bg-gray-50 rounded-lg">
-              <h4 className="font-medium text-gray-900 text-sm">{title}</h4>
-              <p className="text-xs text-gray-500 mt-1">{desc}</p>
+            <div key={title} className="p-4 bg-canvas rounded-lg">
+              <h4 className="font-medium text-primary text-sm">{title}</h4>
+              <p className="text-xs text-secondary mt-1">{desc}</p>
             </div>
           ))}
         </div>

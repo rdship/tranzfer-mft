@@ -209,8 +209,8 @@ export default function DmzProxy() {
       {/* ─── Header ─── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">DMZ Proxy Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Full visibility into the DMZ zone — security, mappings, and diagnostics</p>
+          <h1 className="text-2xl font-bold text-primary">DMZ Proxy Dashboard</h1>
+          <p className="text-sm text-secondary mt-0.5">Full visibility into the DMZ zone — security, mappings, and diagnostics</p>
         </div>
         <div className="flex items-center gap-3">
           <span className={`px-3 py-1 rounded-full text-xs font-medium ${
@@ -240,7 +240,7 @@ export default function DmzProxy() {
               value={controlKey}
               onChange={(e) => setControlKey(e.target.value)}
               placeholder="Enter control key"
-              className="flex-1 px-3 py-1.5 border border-amber-300 rounded-lg text-sm font-mono bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+              className="flex-1 px-3 py-1.5 border border-amber-300 rounded-lg text-sm font-mono bg-surface focus:outline-none focus:ring-2 focus:ring-amber-400"
             />
             <button onClick={handleSaveKey}
               className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors">
@@ -270,14 +270,14 @@ export default function DmzProxy() {
       </div>
 
       {/* ─── Tab Bar ─── */}
-      <div className="border-b border-gray-200 overflow-x-auto">
+      <div className="border-b border-border overflow-x-auto">
         <nav className="flex gap-1 -mb-px">
           {TABS.map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
               className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === tab.key
                   ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  : 'border-transparent text-secondary hover:text-primary hover:border-border'
               }`}>
               <tab.icon className="w-4 h-4" />
               {tab.label}
@@ -293,9 +293,9 @@ export default function DmzProxy() {
         <div className="space-y-6">
           {/* Listeners Grid */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">Listeners</h2>
+            <h2 className="text-lg font-semibold text-primary mb-3">Listeners</h2>
             {listeners.length === 0 ? (
-              <p className="text-sm text-gray-400 py-8 text-center">No listeners active — add a port mapping to get started</p>
+              <p className="text-sm text-muted py-8 text-center">No listeners active — add a port mapping to get started</p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {listeners.map(l => <ListenerCard key={l.name} listener={l} />)}
@@ -306,7 +306,7 @@ export default function DmzProxy() {
           {/* Features */}
           {features.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">Active Features</h2>
+              <h2 className="text-lg font-semibold text-primary mb-3">Active Features</h2>
               <div className="flex flex-wrap gap-2">
                 {features.map(f => (
                   <span key={f} className="px-3 py-1.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
@@ -320,21 +320,21 @@ export default function DmzProxy() {
           {/* Quick Mapping Summary */}
           {mappings.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">Mapping Summary</h2>
+              <h2 className="text-lg font-semibold text-primary mb-3">Mapping Summary</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {mappings.map(m => (
-                  <div key={m.name} className="rounded-lg border border-gray-200 bg-white p-3 flex items-center justify-between">
+                  <div key={m.name} className="rounded-lg border border-border bg-surface p-3 flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">{m.name}</p>
-                      <p className="text-xs font-mono text-gray-500">:{m.listenPort} → {m.targetHost}:{m.targetPort}</p>
+                      <p className="text-sm font-medium text-primary">{m.name}</p>
+                      <p className="text-xs font-mono text-secondary">:{m.listenPort} → {m.targetHost}:{m.targetPort}</p>
                     </div>
                     <div className="text-right">
                       <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                        m.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                        m.active ? 'bg-green-100 text-green-700' : 'bg-hover text-secondary'
                       }`}>
                         {m.active ? 'Active' : 'Down'}
                       </span>
-                      <p className="text-xs text-gray-400 mt-0.5">{m.activeConnections || 0} conns</p>
+                      <p className="text-xs text-muted mt-0.5">{m.activeConnections || 0} conns</p>
                     </div>
                   </div>
                 ))}
@@ -350,7 +350,7 @@ export default function DmzProxy() {
       {activeTab === 'security' && (
         <div className="space-y-6">
           {!securityStats?.securityEnabled ? (
-            <div className="text-center py-12 text-gray-400">
+            <div className="text-center py-12 text-muted">
               <ShieldCheckIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               <p className="text-sm">Security layer is disabled on this proxy</p>
             </div>
@@ -369,51 +369,51 @@ export default function DmzProxy() {
               </div>
 
               {/* AI Engine Status */}
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <h3 className="text-sm font-semibold text-gray-900 mb-3">AI Engine</h3>
+              <div className="bg-surface rounded-xl border border-border p-5">
+                <h3 className="text-sm font-semibold text-primary mb-3">AI Engine</h3>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                   <div>
-                    <span className="text-gray-500 text-xs">Status</span>
+                    <span className="text-secondary text-xs">Status</span>
                     <p className={`font-medium ${securityStats?.aiEngine?.available ? 'text-green-600' : 'text-red-600'}`}>
                       {securityStats?.aiEngine?.available ? 'Available' : 'Unavailable'}
                     </p>
                   </div>
                   <div>
-                    <span className="text-gray-500 text-xs">Verdict Cache</span>
-                    <p className="font-medium text-gray-900">{securityStats?.aiEngine?.verdictCacheSize || 0}</p>
+                    <span className="text-secondary text-xs">Verdict Cache</span>
+                    <p className="font-medium text-primary">{securityStats?.aiEngine?.verdictCacheSize || 0}</p>
                   </div>
                   <div>
-                    <span className="text-gray-500 text-xs">Pending Events</span>
-                    <p className="font-medium text-gray-900">{securityStats?.aiEngine?.pendingEvents || 0}</p>
+                    <span className="text-secondary text-xs">Pending Events</span>
+                    <p className="font-medium text-primary">{securityStats?.aiEngine?.pendingEvents || 0}</p>
                   </div>
                   <div>
-                    <span className="text-gray-500 text-xs">Tracked IPs</span>
-                    <p className="font-medium text-gray-900">{securitySummary?.trackedIps || 0}</p>
+                    <span className="text-secondary text-xs">Tracked IPs</span>
+                    <p className="font-medium text-primary">{securitySummary?.trackedIps || 0}</p>
                   </div>
                 </div>
               </div>
 
               {/* Connection Stats */}
               {connectionStats && !connectionStats.securityEnabled === false && (
-                <div className="bg-white rounded-xl border border-gray-200 p-5">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Connection Tracker</h3>
+                <div className="bg-surface rounded-xl border border-border p-5">
+                  <h3 className="text-sm font-semibold text-primary mb-3">Connection Tracker</h3>
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                     {connectionStats.activeConnections !== undefined && (
                       <div>
-                        <span className="text-gray-500 text-xs">Active</span>
-                        <p className="font-bold text-gray-900">{connectionStats.activeConnections}</p>
+                        <span className="text-secondary text-xs">Active</span>
+                        <p className="font-bold text-primary">{connectionStats.activeConnections}</p>
                       </div>
                     )}
                     {connectionStats.totalConnections !== undefined && (
                       <div>
-                        <span className="text-gray-500 text-xs">Total</span>
-                        <p className="font-bold text-gray-900">{connectionStats.totalConnections}</p>
+                        <span className="text-secondary text-xs">Total</span>
+                        <p className="font-bold text-primary">{connectionStats.totalConnections}</p>
                       </div>
                     )}
                     {connectionStats.trackedIps !== undefined && (
                       <div>
-                        <span className="text-gray-500 text-xs">Tracked IPs</span>
-                        <p className="font-bold text-gray-900">{connectionStats.trackedIps}</p>
+                        <span className="text-secondary text-xs">Tracked IPs</span>
+                        <p className="font-bold text-primary">{connectionStats.trackedIps}</p>
                       </div>
                     )}
                   </div>
@@ -421,20 +421,20 @@ export default function DmzProxy() {
                   {/* Top IPs */}
                   {connectionStats.topIps && connectionStats.topIps.length > 0 && (
                     <div className="mt-4">
-                      <h4 className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider">Top Connected IPs</h4>
+                      <h4 className="text-xs font-semibold text-secondary mb-2 uppercase tracking-wider">Top Connected IPs</h4>
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left">
                           <thead>
-                            <tr className="border-b border-gray-100">
-                              <th className="py-2 text-xs font-medium text-gray-500">IP</th>
-                              <th className="py-2 text-xs font-medium text-gray-500">Connections</th>
-                              <th className="py-2 text-xs font-medium text-gray-500">Bytes</th>
-                              <th className="py-2 text-xs font-medium text-gray-500">Actions</th>
+                            <tr className="border-b border-border">
+                              <th className="py-2 text-xs font-medium text-secondary">IP</th>
+                              <th className="py-2 text-xs font-medium text-secondary">Connections</th>
+                              <th className="py-2 text-xs font-medium text-secondary">Bytes</th>
+                              <th className="py-2 text-xs font-medium text-secondary">Actions</th>
                             </tr>
                           </thead>
                           <tbody>
                             {connectionStats.topIps.map(ip => (
-                              <tr key={ip.ip} className="border-b border-gray-50 hover:bg-gray-50">
+                              <tr key={ip.ip} className="border-b border-gray-50 hover:bg-canvas">
                                 <td className="py-2 font-mono text-blue-700">{ip.ip}</td>
                                 <td className="py-2">{ip.connections}</td>
                                 <td className="py-2">{((ip.bytes || 0) / 1048576).toFixed(1)} MB</td>
@@ -456,13 +456,13 @@ export default function DmzProxy() {
 
               {/* Rate Limiter Stats */}
               {securityStats?.rateLimiter && (
-                <div className="bg-white rounded-xl border border-gray-200 p-5">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Rate Limiter</h3>
+                <div className="bg-surface rounded-xl border border-border p-5">
+                  <h3 className="text-sm font-semibold text-primary mb-3">Rate Limiter</h3>
                   <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
                     {Object.entries(securityStats.rateLimiter).map(([key, val]) => (
                       <div key={key}>
-                        <span className="text-gray-500 text-xs">{key}</span>
-                        <p className="font-medium text-gray-900">{typeof val === 'object' ? JSON.stringify(val) : String(val)}</p>
+                        <span className="text-secondary text-xs">{key}</span>
+                        <p className="font-medium text-primary">{typeof val === 'object' ? JSON.stringify(val) : String(val)}</p>
                       </div>
                     ))}
                   </div>
@@ -485,9 +485,9 @@ export default function DmzProxy() {
             </button>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="bg-surface rounded-xl shadow-sm border border-border overflow-hidden">
             {mappings.length === 0 ? (
-              <div className="text-center py-16 text-gray-400">
+              <div className="text-center py-16 text-muted">
                 <ArrowsRightLeftIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                 <p className="text-sm">No port mappings configured</p>
               </div>
@@ -495,32 +495,32 @@ export default function DmzProxy() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Name</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Listen</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Target</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Tier</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">QoS</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Connections</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Bytes</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                    <tr className="bg-canvas border-b border-border">
+                      <th className="px-4 py-3 text-xs font-semibold text-secondary uppercase">Name</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-secondary uppercase">Listen</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-secondary uppercase">Target</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-secondary uppercase">Tier</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-secondary uppercase">QoS</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-secondary uppercase">Connections</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-secondary uppercase">Bytes</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-secondary uppercase">Status</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-secondary uppercase">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {mappings.map(m => (
-                      <tr key={m.name} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{m.name}</td>
+                      <tr key={m.name} className="border-b border-border hover:bg-canvas">
+                        <td className="px-4 py-3 text-sm font-medium text-primary">{m.name}</td>
                         <td className="px-4 py-3">
                           <span className="px-2 py-0.5 rounded-md text-xs font-mono font-medium bg-blue-50 text-blue-700">:{m.listenPort}</span>
                         </td>
-                        <td className="px-4 py-3 text-sm font-mono text-gray-600">{m.targetHost}:{m.targetPort}</td>
+                        <td className="px-4 py-3 text-sm font-mono text-secondary">{m.targetHost}:{m.targetPort}</td>
                         <td className="px-4 py-3">
                           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                             m.securityTier === 'AI_LLM' ? 'bg-purple-100 text-purple-700'
                               : m.securityTier === 'AI' ? 'bg-blue-100 text-blue-700'
                               : m.securityTier === 'RULES' ? 'bg-green-100 text-green-700'
-                              : 'bg-gray-100 text-gray-500'
+                              : 'bg-hover text-secondary'
                           }`}>
                             {m.securityTier || 'NONE'}
                           </span>
@@ -529,16 +529,16 @@ export default function DmzProxy() {
                           {m.qosPolicy?.enabled ? (
                             <span className="text-xs text-blue-600">P{m.qosPolicy.priority || 5}</span>
                           ) : (
-                            <span className="text-xs text-gray-400">Off</span>
+                            <span className="text-xs text-muted">Off</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{m.activeConnections || 0}</td>
-                        <td className="px-4 py-3 text-sm font-mono text-gray-500">
+                        <td className="px-4 py-3 text-sm text-secondary">{m.activeConnections || 0}</td>
+                        <td className="px-4 py-3 text-sm font-mono text-secondary">
                           {((m.bytesForwarded || 0) / 1048576).toFixed(1)} MB
                         </td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                            m.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                            m.active ? 'bg-green-100 text-green-700' : 'bg-hover text-secondary'
                           }`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${m.active ? 'bg-green-500' : 'bg-gray-400'}`} />
                             {m.active ? 'Active' : 'Down'}
@@ -572,9 +572,9 @@ export default function DmzProxy() {
         <div className="space-y-6">
           {/* Mapping Selector */}
           <div className="flex items-center gap-3">
-            <label className="text-sm font-medium text-gray-700">Mapping:</label>
+            <label className="text-sm font-medium text-primary">Mapping:</label>
             <select value={selectedMapping} onChange={e => setSelectedMapping(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+              className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
               <option value="">Select a mapping</option>
               {mappings.map(m => <option key={m.name} value={m.name}>{m.name} (:{m.listenPort})</option>)}
             </select>
@@ -600,17 +600,17 @@ export default function DmzProxy() {
               />
             </div>
           ) : (
-            <p className="text-center py-8 text-sm text-gray-400">Select a mapping above to manage its IP rules</p>
+            <p className="text-center py-8 text-sm text-muted">Select a mapping above to manage its IP rules</p>
           )}
 
           {/* IP Search */}
           <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-900">IP Lookup</h3>
+            <h3 className="text-sm font-semibold text-primary">IP Lookup</h3>
             <div className="flex gap-2">
-              <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 mt-2" />
+              <MagnifyingGlassIcon className="w-5 h-5 text-muted mt-2" />
               <input type="text" value={ipSearch} onChange={e => setIpSearch(e.target.value)}
                 placeholder="Enter IP to lookup (e.g. 192.168.1.100)"
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                className="flex-1 px-3 py-2 border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400" />
             </div>
             {ipDetail && <IpDetailCard data={ipDetail} />}
           </div>
@@ -623,14 +623,14 @@ export default function DmzProxy() {
       {activeTab === 'health' && (
         <div className="space-y-6">
           {!backendHealth?.healthCheckEnabled ? (
-            <div className="text-center py-12 text-gray-400">
+            <div className="text-center py-12 text-muted">
               <ServerIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               <p className="text-sm">Backend health checks are disabled</p>
             </div>
           ) : (
             <>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-3">Backend Health</h2>
+                <h2 className="text-lg font-semibold text-primary mb-3">Backend Health</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {backendHealth?.backends && Object.entries(backendHealth.backends).map(([name, h]) => (
                     <BackendHealthCard key={name} name={name} health={h} />
@@ -641,7 +641,7 @@ export default function DmzProxy() {
               {/* QoS */}
               {qosStats && qosStats.qosEnabled !== false && (
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900 mb-3">QoS Utilization</h2>
+                  <h2 className="text-lg font-semibold text-primary mb-3">QoS Utilization</h2>
                   {qosStats.mappings ? (
                     <div className="space-y-3">
                       {Object.entries(qosStats.mappings).map(([name, stats]) => (
@@ -649,23 +649,23 @@ export default function DmzProxy() {
                       ))}
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm bg-white rounded-xl border border-gray-200 p-5">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm bg-surface rounded-xl border border-border p-5">
                       {qosStats.globalCurrentBps !== undefined && (
                         <div>
-                          <span className="text-gray-500 text-xs">Global BPS</span>
-                          <p className="font-mono font-bold text-gray-900">{(qosStats.globalCurrentBps / 1048576).toFixed(2)} MB/s</p>
+                          <span className="text-secondary text-xs">Global BPS</span>
+                          <p className="font-mono font-bold text-primary">{(qosStats.globalCurrentBps / 1048576).toFixed(2)} MB/s</p>
                         </div>
                       )}
                       {qosStats.globalLimitBps !== undefined && (
                         <div>
-                          <span className="text-gray-500 text-xs">Global Limit</span>
-                          <p className="font-mono font-bold text-gray-900">{(qosStats.globalLimitBps / 1048576).toFixed(2)} MB/s</p>
+                          <span className="text-secondary text-xs">Global Limit</span>
+                          <p className="font-mono font-bold text-primary">{(qosStats.globalLimitBps / 1048576).toFixed(2)} MB/s</p>
                         </div>
                       )}
                       {qosStats.activeConnections !== undefined && (
                         <div>
-                          <span className="text-gray-500 text-xs">Active Connections</span>
-                          <p className="font-bold text-gray-900">{qosStats.activeConnections}</p>
+                          <span className="text-secondary text-xs">Active Connections</span>
+                          <p className="font-bold text-primary">{qosStats.activeConnections}</p>
                         </div>
                       )}
                     </div>
@@ -683,9 +683,9 @@ export default function DmzProxy() {
       {activeTab === 'audit' && (
         <div className="space-y-6">
           {/* Audit Stats */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="bg-surface rounded-xl border border-border p-5">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-900">Audit Logger</h3>
+              <h3 className="text-sm font-semibold text-primary">Audit Logger</h3>
               <button onClick={() => flushAuditMut.mutate()} disabled={flushAuditMut.isPending}
                 className="px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-100 transition-colors disabled:opacity-50">
                 {flushAuditMut.isPending ? 'Flushing...' : 'Flush Now'}
@@ -695,46 +695,46 @@ export default function DmzProxy() {
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                 {Object.entries(auditStats).filter(([k]) => k !== 'auditEnabled').map(([key, val]) => (
                   <div key={key}>
-                    <span className="text-gray-500 text-xs">{key}</span>
-                    <p className="font-medium text-gray-900">{typeof val === 'object' ? JSON.stringify(val) : String(val)}</p>
+                    <span className="text-secondary text-xs">{key}</span>
+                    <p className="font-medium text-primary">{typeof val === 'object' ? JSON.stringify(val) : String(val)}</p>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-400">Audit logging disabled</p>
+              <p className="text-sm text-muted">Audit logging disabled</p>
             )}
           </div>
 
           {/* Egress Filter */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">Egress Filter</h3>
+          <div className="bg-surface rounded-xl border border-border p-5">
+            <h3 className="text-sm font-semibold text-primary mb-3">Egress Filter</h3>
             {egressStats && egressStats.egressFilterEnabled !== false ? (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                 {Object.entries(egressStats).filter(([k]) => k !== 'egressFilterEnabled').map(([key, val]) => (
                   <div key={key}>
-                    <span className="text-gray-500 text-xs">{key}</span>
-                    <p className="font-medium text-gray-900">{typeof val === 'object' ? JSON.stringify(val) : String(val)}</p>
+                    <span className="text-secondary text-xs">{key}</span>
+                    <p className="font-medium text-primary">{typeof val === 'object' ? JSON.stringify(val) : String(val)}</p>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-400">Egress filter disabled</p>
+              <p className="text-sm text-muted">Egress filter disabled</p>
             )}
           </div>
 
           {/* Zone Rules */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">Zone Enforcement</h3>
+          <div className="bg-surface rounded-xl border border-border p-5">
+            <h3 className="text-sm font-semibold text-primary mb-3">Zone Enforcement</h3>
             {zoneRules && zoneRules.zoneEnforcementEnabled ? (
               <>
                 {zoneRules.rules && (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
                       <thead>
-                        <tr className="border-b border-gray-200">
-                          <th className="py-2 text-xs font-medium text-gray-500">Source Zone</th>
-                          <th className="py-2 text-xs font-medium text-gray-500">Target Zone</th>
-                          <th className="py-2 text-xs font-medium text-gray-500">Allowed</th>
+                        <tr className="border-b border-border">
+                          <th className="py-2 text-xs font-medium text-secondary">Source Zone</th>
+                          <th className="py-2 text-xs font-medium text-secondary">Target Zone</th>
+                          <th className="py-2 text-xs font-medium text-secondary">Allowed</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -759,15 +759,15 @@ export default function DmzProxy() {
                   <div className="mt-3 grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                     {Object.entries(zoneRules.stats).map(([key, val]) => (
                       <div key={key}>
-                        <span className="text-gray-500 text-xs">{key}</span>
-                        <p className="font-medium text-gray-900">{String(val)}</p>
+                        <span className="text-secondary text-xs">{key}</span>
+                        <p className="font-medium text-primary">{String(val)}</p>
                       </div>
                     ))}
                   </div>
                 )}
               </>
             ) : (
-              <p className="text-sm text-gray-400">Zone enforcement disabled</p>
+              <p className="text-sm text-muted">Zone enforcement disabled</p>
             )}
           </div>
         </div>
@@ -795,25 +795,25 @@ export default function DmzProxy() {
         <Modal title="Add Port Mapping" onClose={() => setShowAddMapping(false)}>
           <form onSubmit={handleAddMapping} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <label className="block text-sm font-medium text-primary mb-1">Name</label>
               <input type="text" value={mappingForm.name} onChange={e => setMappingForm(p => ({ ...p, name: e.target.value }))}
-                placeholder="sftp-prod" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                placeholder="sftp-prod" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Listen Port</label>
+                <label className="block text-sm font-medium text-primary mb-1">Listen Port</label>
                 <input type="number" value={mappingForm.listenPort} onChange={e => setMappingForm(p => ({ ...p, listenPort: e.target.value }))}
-                  placeholder="2222" min="1" max="65535" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  placeholder="2222" min="1" max="65535" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Target Host</label>
+                <label className="block text-sm font-medium text-primary mb-1">Target Host</label>
                 <input type="text" value={mappingForm.targetHost} onChange={e => setMappingForm(p => ({ ...p, targetHost: e.target.value }))}
-                  placeholder="sftp-server" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  placeholder="sftp-server" className="w-full px-3 py-2 border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Target Port</label>
+                <label className="block text-sm font-medium text-primary mb-1">Target Port</label>
                 <input type="number" value={mappingForm.targetPort} onChange={e => setMappingForm(p => ({ ...p, targetPort: e.target.value }))}
-                  placeholder="22" min="1" max="65535" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  placeholder="22" min="1" max="65535" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
             </div>
 
@@ -822,34 +822,34 @@ export default function DmzProxy() {
               <div className="flex items-center gap-2 mb-2">
                 <input type="checkbox" id="qos" checked={mappingForm.qosEnabled}
                   onChange={e => setMappingForm(p => ({ ...p, qosEnabled: e.target.checked }))}
-                  className="w-4 h-4 text-blue-600 rounded border-gray-300" />
-                <label htmlFor="qos" className="text-sm font-medium text-gray-700">Enable QoS</label>
+                  className="w-4 h-4 text-blue-600 rounded border-border" />
+                <label htmlFor="qos" className="text-sm font-medium text-primary">Enable QoS</label>
               </div>
               {mappingForm.qosEnabled && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">Max MB/s</label>
+                    <label className="block text-xs text-secondary mb-1">Max MB/s</label>
                     <input type="number" min="0" value={mappingForm.qosMaxBytesPerSecond}
                       onChange={e => setMappingForm(p => ({ ...p, qosMaxBytesPerSecond: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">Per-Conn MB/s</label>
+                    <label className="block text-xs text-secondary mb-1">Per-Conn MB/s</label>
                     <input type="number" min="0" value={mappingForm.qosPerConnectionMaxBytesPerSecond}
                       onChange={e => setMappingForm(p => ({ ...p, qosPerConnectionMaxBytesPerSecond: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">Priority (1-10)</label>
+                    <label className="block text-xs text-secondary mb-1">Priority (1-10)</label>
                     <input type="number" min="1" max="10" value={mappingForm.qosPriority}
                       onChange={e => setMappingForm(p => ({ ...p, qosPriority: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">Burst %</label>
+                    <label className="block text-xs text-secondary mb-1">Burst %</label>
                     <input type="number" min="0" max="100" value={mappingForm.qosBurstAllowancePercent}
                       onChange={e => setMappingForm(p => ({ ...p, qosBurstAllowancePercent: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                 </div>
               )}
@@ -857,7 +857,7 @@ export default function DmzProxy() {
 
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={() => setShowAddMapping(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
+                className="flex-1 px-4 py-2 border border-border text-primary rounded-lg text-sm font-medium hover:bg-canvas">
                 Cancel
               </button>
               <button type="submit" disabled={addMappingMut.isPending}
@@ -874,9 +874,9 @@ export default function DmzProxy() {
         <Modal title={`Security Policy — ${showSecurityPolicy}`} onClose={() => setShowSecurityPolicy(null)}>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Security Tier</label>
+              <label className="block text-sm font-medium text-primary mb-1">Security Tier</label>
               <select value={policyForm.securityTier} onChange={e => setPolicyForm(p => ({ ...p, securityTier: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="NONE">NONE — Pass-through</option>
                 <option value="RULES">RULES — Manual rules only</option>
                 <option value="AI">AI — AI-powered verdicts</option>
@@ -885,21 +885,21 @@ export default function DmzProxy() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Rate Limit/min</label>
+                <label className="block text-xs text-secondary mb-1">Rate Limit/min</label>
                 <input type="number" value={policyForm.rateLimitPerMinute}
                   onChange={e => setPolicyForm(p => ({ ...p, rateLimitPerMinute: Number(e.target.value) }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Max Concurrent</label>
+                <label className="block text-xs text-secondary mb-1">Max Concurrent</label>
                 <input type="number" value={policyForm.maxConcurrent}
                   onChange={e => setPolicyForm(p => ({ ...p, maxConcurrent: Number(e.target.value) }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
             </div>
             <div className="flex gap-3 pt-2">
               <button onClick={() => setShowSecurityPolicy(null)}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
+                className="flex-1 px-4 py-2 border border-border text-primary rounded-lg text-sm font-medium hover:bg-canvas">
                 Cancel
               </button>
               <button onClick={() => updatePolicyMut.mutate({ name: showSecurityPolicy, policy: policyForm })}

@@ -55,8 +55,8 @@ export default function Partnerships() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">AS2/AS4 Partnerships</h1>
-          <p className="text-gray-500 text-sm">Manage B2B trading partner configurations for AS2 (RFC 4130) and AS4 (OASIS ebMS3)</p>
+          <h1 className="text-2xl font-bold text-primary">AS2/AS4 Partnerships</h1>
+          <p className="text-secondary text-sm">Manage B2B trading partner configurations for AS2 (RFC 4130) and AS4 (OASIS ebMS3)</p>
         </div>
         <button className="btn-primary" onClick={() => setShowCreate(true)}>
           <PlusIcon className="w-4 h-4" /> Add Partnership
@@ -71,8 +71,8 @@ export default function Partnerships() {
             <ArrowsRightLeftIcon className="w-5 h-5 text-blue-600" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900">{partnerships.length}</p>
-            <p className="text-xs text-gray-500">Total Partnerships</p>
+            <p className="text-2xl font-bold text-primary">{partnerships.length}</p>
+            <p className="text-xs text-secondary">Total Partnerships</p>
           </div>
         </button>
         <button onClick={() => setFilter('AS2')}
@@ -81,8 +81,8 @@ export default function Partnerships() {
             <SignalIcon className="w-5 h-5 text-green-600" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900">{as2Count}</p>
-            <p className="text-xs text-gray-500">AS2 Partners</p>
+            <p className="text-2xl font-bold text-primary">{as2Count}</p>
+            <p className="text-xs text-secondary">AS2 Partners</p>
           </div>
         </button>
         <button onClick={() => setFilter('AS4')}
@@ -91,8 +91,8 @@ export default function Partnerships() {
             <SignalIcon className="w-5 h-5 text-purple-600" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900">{as4Count}</p>
-            <p className="text-xs text-gray-500">AS4 Partners</p>
+            <p className="text-2xl font-bold text-primary">{as4Count}</p>
+            <p className="text-xs text-secondary">AS4 Partners</p>
           </div>
         </button>
       </div>
@@ -111,19 +111,19 @@ export default function Partnerships() {
           {filtered.map(p => (
             <div key={p.id} className="card flex items-center gap-4">
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${p.active ? 'bg-green-100' : 'bg-gray-100'}`}>
-                <ArrowsRightLeftIcon className={`w-5 h-5 ${p.active ? 'text-green-600' : 'text-gray-400'}`} />
+                <ArrowsRightLeftIcon className={`w-5 h-5 ${p.active ? 'text-green-600' : 'text-muted'}`} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-gray-900 truncate">{p.partnerName}</h3>
+                  <h3 className="font-semibold text-primary truncate">{p.partnerName}</h3>
                   <span className={`badge ${p.protocol === 'AS2' ? 'badge-green' : 'badge-blue'}`}>{p.protocol}</span>
                 </div>
-                <p className="text-xs text-gray-500 font-mono truncate mt-0.5">
+                <p className="text-xs text-secondary font-mono truncate mt-0.5">
                   {p.partnerAs2Id} &harr; {p.ourAs2Id}
                 </p>
-                <p className="text-xs text-gray-400 truncate">{p.endpointUrl}</p>
+                <p className="text-xs text-muted truncate">{p.endpointUrl}</p>
               </div>
-              <div className="flex items-center gap-2 text-xs text-gray-500 flex-shrink-0">
+              <div className="flex items-center gap-2 text-xs text-secondary flex-shrink-0">
                 {p.mdnRequired && <span className="badge badge-gray">MDN</span>}
                 {p.mdnAsync && <span className="badge badge-yellow">Async</span>}
                 <span className="badge badge-gray">{p.signingAlgorithm}</span>
@@ -131,7 +131,7 @@ export default function Partnerships() {
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
                 <button onClick={() => toggleMut.mutate(p.id)}
-                  className={`p-1.5 rounded transition-colors ${p.active ? 'hover:bg-yellow-50 text-green-500' : 'hover:bg-green-50 text-gray-400'}`}
+                  className={`p-1.5 rounded transition-colors ${p.active ? 'hover:bg-yellow-50 text-green-500' : 'hover:bg-green-50 text-muted'}`}
                   title={p.active ? 'Deactivate' : 'Activate'}>
                   {p.active ? <CheckCircleIcon className="w-5 h-5" /> : <XCircleIcon className="w-5 h-5" />}
                 </button>
@@ -151,7 +151,7 @@ export default function Partnerships() {
           <form onSubmit={e => { e.preventDefault(); createMut.mutate(form) }} className="space-y-5">
             {/* Partner Identity */}
             <div>
-              <h4 className="text-sm font-semibold text-gray-900 mb-3">Partner Identity</h4>
+              <h4 className="text-sm font-semibold text-primary mb-3">Partner Identity</h4>
               <div className="grid grid-cols-2 gap-3">
                 <div><label>Partner Name</label><input value={form.partnerName} onChange={e => setForm(f => ({...f, partnerName: e.target.value}))} required placeholder="Acme Corp" /></div>
                 <div><label>Protocol</label>
@@ -169,13 +169,13 @@ export default function Partnerships() {
 
             {/* Connection */}
             <div>
-              <h4 className="text-sm font-semibold text-gray-900 mb-3">Connection</h4>
+              <h4 className="text-sm font-semibold text-primary mb-3">Connection</h4>
               <div><label>Endpoint URL</label><input value={form.endpointUrl} onChange={e => setForm(f => ({...f, endpointUrl: e.target.value}))} required placeholder="https://partner.com/as2/receive" /></div>
             </div>
 
             {/* Security */}
             <div>
-              <h4 className="text-sm font-semibold text-gray-900 mb-3">Security</h4>
+              <h4 className="text-sm font-semibold text-primary mb-3">Security</h4>
               <div className="grid grid-cols-2 gap-3">
                 <div><label>Signing Algorithm</label>
                   <select value={form.signingAlgorithm} onChange={e => setForm(f => ({...f, signingAlgorithm: e.target.value}))}>
@@ -209,7 +209,7 @@ export default function Partnerships() {
                 {keystoreCerts.length === 0 && (
                   <p className="text-xs text-amber-500 mt-1">Keystore Manager unavailable — paste PEM manually below</p>
                 )}
-                <p className="text-xs text-gray-400 mt-2">Or paste PEM manually:</p>
+                <p className="text-xs text-muted mt-2">Or paste PEM manually:</p>
                 <textarea rows={3} value={form.partnerCertificate} onChange={e => setForm(f => ({...f, partnerCertificate: e.target.value}))}
                   placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
                   className="font-mono text-xs" />
@@ -218,7 +218,7 @@ export default function Partnerships() {
 
             {/* MDN Settings */}
             <div>
-              <h4 className="text-sm font-semibold text-gray-900 mb-3">MDN (Receipt) Settings</h4>
+              <h4 className="text-sm font-semibold text-primary mb-3">MDN (Receipt) Settings</h4>
               <div className="grid grid-cols-3 gap-3">
                 <div className="flex items-center gap-2">
                   <input type="checkbox" checked={form.mdnRequired} onChange={e => setForm(f => ({...f, mdnRequired: e.target.checked}))}

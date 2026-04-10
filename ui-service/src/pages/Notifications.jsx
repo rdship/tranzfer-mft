@@ -289,7 +289,7 @@ export default function Notifications() {
   const renderRules = () => (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-secondary">
           Rules define when to send notifications based on system events. Each rule matches an event pattern and dispatches to a channel.
         </p>
         <button onClick={openCreateRule} className="btn btn-primary flex items-center gap-1.5">
@@ -316,7 +316,7 @@ export default function Notifications() {
                 {rules.map(r => (
                   <tr key={r.id} className="table-row">
                     <td className="table-cell">
-                      <div className="font-medium text-gray-900">{r.name}</div>
+                      <div className="font-medium text-primary">{r.name}</div>
                     </td>
                     <td className="table-cell">
                       <span className="font-mono text-xs text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">{r.eventTypePattern}</span>
@@ -332,7 +332,7 @@ export default function Notifications() {
                     <td className="table-cell text-xs">
                       {r.conditions && Object.keys(r.conditions).length > 0
                         ? <span className="badge badge-gray">{Object.keys(r.conditions).length} condition(s)</span>
-                        : <span className="text-gray-400">None</span>}
+                        : <span className="text-muted">None</span>}
                     </td>
                     <td className="table-cell">
                       {r.enabled
@@ -341,11 +341,11 @@ export default function Notifications() {
                     </td>
                     <td className="table-cell">
                       <div className="flex gap-1">
-                        <button onClick={() => openEditRule(r)} className="p-1 rounded hover:bg-gray-100" title="Edit">
-                          <PencilSquareIcon className="w-4 h-4 text-gray-500" />
+                        <button onClick={() => openEditRule(r)} className="p-1 rounded hover:bg-hover" title="Edit">
+                          <PencilSquareIcon className="w-4 h-4 text-secondary" />
                         </button>
                         <button onClick={() => { if (confirm('Delete this notification rule?')) deleteRule.mutate(r.id) }}
-                          className="p-1 rounded hover:bg-gray-100" title="Delete">
+                          className="p-1 rounded hover:bg-hover" title="Delete">
                           <TrashIcon className="w-4 h-4 text-red-500" />
                         </button>
                       </div>
@@ -363,13 +363,13 @@ export default function Notifications() {
         <Modal title={editingRule ? 'Edit Notification Rule' : 'Create Notification Rule'} onClose={() => { setShowRuleModal(false); setEditingRule(null) }} size="lg">
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Name *</label>
               <input className="input w-full" value={ruleForm.name}
                 onChange={e => setRuleForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="Transfer Failure Alert" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Trigger Event Pattern *</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Trigger Event Pattern *</label>
               <div className="flex gap-2">
                 <select className="input w-full" value={ruleForm.eventTypePattern}
                   onChange={e => setRuleForm(f => ({ ...f, eventTypePattern: e.target.value }))}>
@@ -380,11 +380,11 @@ export default function Notifications() {
               <input className="input w-full mt-1" value={ruleForm.eventTypePattern}
                 onChange={e => setRuleForm(f => ({ ...f, eventTypePattern: e.target.value }))}
                 placeholder="transfer.failed or security.threat.*" />
-              <p className="text-xs text-gray-400 mt-1">Supports wildcards: transfer.*, security.threat.*, etc.</p>
+              <p className="text-xs text-muted mt-1">Supports wildcards: transfer.*, security.threat.*, etc.</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Channel *</label>
+                <label className="block text-xs font-medium text-secondary mb-1">Channel *</label>
                 <select className="input w-full" value={ruleForm.channel}
                   onChange={e => setRuleForm(f => ({ ...f, channel: e.target.value }))}>
                   {CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
@@ -394,25 +394,25 @@ export default function Notifications() {
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <div className={`w-9 h-5 rounded-full relative transition-colors ${ruleForm.enabled ? 'bg-indigo-600' : 'bg-gray-300'}`}
                     onClick={() => setRuleForm(f => ({ ...f, enabled: !f.enabled }))}>
-                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${ruleForm.enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-surface shadow transition-transform ${ruleForm.enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
                   </div>
-                  <span className="text-sm text-gray-700">Enabled</span>
+                  <span className="text-sm text-primary">Enabled</span>
                 </label>
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Recipients * (comma-separated)</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Recipients * (comma-separated)</label>
               <input className="input w-full" value={ruleForm.recipients}
                 onChange={e => setRuleForm(f => ({ ...f, recipients: e.target.value }))}
                 placeholder="admin@company.com, ops@company.com" />
-              <p className="text-xs text-gray-400 mt-1">Email addresses for EMAIL, webhook URLs for WEBHOOK, phone numbers for SMS</p>
+              <p className="text-xs text-muted mt-1">Email addresses for EMAIL, webhook URLs for WEBHOOK, phone numbers for SMS</p>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Conditions (optional JSON)</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Conditions (optional JSON)</label>
               <textarea className="input w-full font-mono text-xs" rows={3} value={ruleForm.conditions}
                 onChange={e => setRuleForm(f => ({ ...f, conditions: e.target.value }))}
                 placeholder='{"severity": "CRITICAL"}' />
-              <p className="text-xs text-gray-400 mt-1">Advanced: filter events by key-value conditions</p>
+              <p className="text-xs text-muted mt-1">Advanced: filter events by key-value conditions</p>
             </div>
           </div>
 
@@ -436,7 +436,7 @@ export default function Notifications() {
   const renderTemplates = () => (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-secondary">
           Templates define the notification message format. Use ${'${variable}'} syntax for dynamic values.
         </p>
         <button onClick={openCreateTemplate} className="btn btn-primary flex items-center gap-1.5">
@@ -462,7 +462,7 @@ export default function Notifications() {
                 {templates.map(t => (
                   <tr key={t.id} className="table-row">
                     <td className="table-cell">
-                      <div className="font-medium text-gray-900">{t.name}</div>
+                      <div className="font-medium text-primary">{t.name}</div>
                     </td>
                     <td className="table-cell">
                       <span className="font-mono text-xs text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">{t.eventType}</span>
@@ -478,11 +478,11 @@ export default function Notifications() {
                     </td>
                     <td className="table-cell">
                       <div className="flex gap-1">
-                        <button onClick={() => openEditTemplate(t)} className="p-1 rounded hover:bg-gray-100" title="Edit">
-                          <PencilSquareIcon className="w-4 h-4 text-gray-500" />
+                        <button onClick={() => openEditTemplate(t)} className="p-1 rounded hover:bg-hover" title="Edit">
+                          <PencilSquareIcon className="w-4 h-4 text-secondary" />
                         </button>
                         <button onClick={() => { if (confirm('Delete this notification template?')) deleteTemplate.mutate(t.id) }}
-                          className="p-1 rounded hover:bg-gray-100" title="Delete">
+                          className="p-1 rounded hover:bg-hover" title="Delete">
                           <TrashIcon className="w-4 h-4 text-red-500" />
                         </button>
                       </div>
@@ -501,13 +501,13 @@ export default function Notifications() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
+                <label className="block text-xs font-medium text-secondary mb-1">Name *</label>
                 <input className="input w-full" value={templateForm.name}
                   onChange={e => setTemplateForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="transfer-completed-email" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Channel *</label>
+                <label className="block text-xs font-medium text-secondary mb-1">Channel *</label>
                 <select className="input w-full" value={templateForm.channel}
                   onChange={e => setTemplateForm(f => ({ ...f, channel: e.target.value }))}>
                   {CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
@@ -516,7 +516,7 @@ export default function Notifications() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Event Type *</label>
+                <label className="block text-xs font-medium text-secondary mb-1">Event Type *</label>
                 <select className="input w-full" value={templateForm.eventType}
                   onChange={e => setTemplateForm(f => ({ ...f, eventType: e.target.value }))}>
                   <option value="">Select event type...</option>
@@ -530,26 +530,26 @@ export default function Notifications() {
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <div className={`w-9 h-5 rounded-full relative transition-colors ${templateForm.active ? 'bg-indigo-600' : 'bg-gray-300'}`}
                     onClick={() => setTemplateForm(f => ({ ...f, active: !f.active }))}>
-                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${templateForm.active ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-surface shadow transition-transform ${templateForm.active ? 'translate-x-4' : 'translate-x-0.5'}`} />
                   </div>
-                  <span className="text-sm text-gray-700">Active</span>
+                  <span className="text-sm text-primary">Active</span>
                 </label>
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Subject Line</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Subject Line</label>
               <input className="input w-full" value={templateForm.subjectTemplate}
                 onChange={e => setTemplateForm(f => ({ ...f, subjectTemplate: e.target.value }))}
                 placeholder="Transfer ${trackId} ${status}" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Body *</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Body *</label>
               <textarea className="input w-full font-mono text-xs" rows={6} value={templateForm.bodyTemplate}
                 onChange={e => setTemplateForm(f => ({ ...f, bodyTemplate: e.target.value }))}
                 placeholder="Transfer ${trackId} for file ${filename} has ${status} at ${timestamp}." />
             </div>
             <div className="flex flex-wrap gap-1.5">
-              <span className="text-xs text-gray-500">Available variables:</span>
+              <span className="text-xs text-secondary">Available variables:</span>
               {TEMPLATE_VARIABLES.map(v => (
                 <button key={v} onClick={() => setTemplateForm(f => ({ ...f, bodyTemplate: f.bodyTemplate + v }))}
                   className="text-xs font-mono bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded hover:bg-indigo-100 cursor-pointer">
@@ -560,8 +560,8 @@ export default function Notifications() {
 
             {/* Preview pane */}
             {templateForm.bodyTemplate && (
-              <div className="bg-gray-50 border rounded-lg p-3">
-                <p className="text-xs font-medium text-gray-600 mb-1">Preview (with sample data)</p>
+              <div className="bg-canvas border rounded-lg p-3">
+                <p className="text-xs font-medium text-secondary mb-1">Preview (with sample data)</p>
                 {templateForm.subjectTemplate && (
                   <p className="text-sm font-semibold text-gray-800 mb-1">
                     {templateForm.subjectTemplate
@@ -575,7 +575,7 @@ export default function Notifications() {
                       .replace(/\$\{eventType\}/g, 'transfer.completed')}
                   </p>
                 )}
-                <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                <p className="text-sm text-primary whitespace-pre-wrap">
                   {templateForm.bodyTemplate
                     .replace(/\$\{trackId\}/g, 'TRK-20260409-001')
                     .replace(/\$\{filename\}/g, 'invoice_q1.csv')
@@ -610,14 +610,14 @@ export default function Notifications() {
   const renderLogs = () => (
     <div className="space-y-4">
       <div className="flex justify-between items-center flex-wrap gap-3">
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-secondary">
           {searchTrackId
             ? `Showing logs for track ID: ${searchTrackId}`
             : 'Recent notification delivery attempts. Auto-refreshes every 15 seconds.'}
         </p>
         <div className="flex gap-2 items-center">
           <div className="relative">
-            <MagnifyingGlassIcon className="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5" />
+            <MagnifyingGlassIcon className="w-4 h-4 text-muted absolute left-2.5 top-2.5" />
             <input className="input pl-8 w-56" value={trackIdFilter}
               onChange={e => setTrackIdFilter(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') setSearchTrackId(trackIdFilter.trim()) }}
@@ -649,7 +649,7 @@ export default function Notifications() {
               <tbody>
                 {recentLogs.map(l => (
                   <tr key={l.id} className="table-row">
-                    <td className="table-cell text-xs text-gray-500 whitespace-nowrap">
+                    <td className="table-cell text-xs text-secondary whitespace-nowrap">
                       {l.sentAt ? format(new Date(l.sentAt), 'MMM dd HH:mm:ss') : ''}
                     </td>
                     <td className="table-cell">
@@ -667,7 +667,7 @@ export default function Notifications() {
                       )}
                     </td>
                     <td className="table-cell font-mono text-xs">{l.trackId || '-'}</td>
-                    <td className="table-cell text-xs text-gray-500">{l.retryCount || 0}</td>
+                    <td className="table-cell text-xs text-secondary">{l.retryCount || 0}</td>
                   </tr>
                 ))}
               </tbody>
@@ -684,37 +684,37 @@ export default function Notifications() {
 
   const renderTest = () => (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-secondary">
         Send a test notification to verify your channel configuration is working correctly.
       </p>
 
       <div className="card max-w-xl">
-        <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+        <h3 className="font-semibold text-primary mb-4 flex items-center gap-2">
           <BeakerIcon className="w-5 h-5 text-indigo-600" />
           Send Test Notification
         </h3>
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Channel *</label>
+            <label className="block text-xs font-medium text-secondary mb-1">Channel *</label>
             <select className="input w-full" value={testForm.channel}
               onChange={e => setTestForm(f => ({ ...f, channel: e.target.value }))}>
               {CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Recipient *</label>
+            <label className="block text-xs font-medium text-secondary mb-1">Recipient *</label>
             <input className="input w-full" value={testForm.recipient}
               onChange={e => setTestForm(f => ({ ...f, recipient: e.target.value }))}
               placeholder={testForm.channel === 'EMAIL' ? 'admin@company.com' : testForm.channel === 'WEBHOOK' ? 'https://hooks.example.com/...' : '+1234567890'} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Subject (optional)</label>
+            <label className="block text-xs font-medium text-secondary mb-1">Subject (optional)</label>
             <input className="input w-full" value={testForm.subject}
               onChange={e => setTestForm(f => ({ ...f, subject: e.target.value }))}
               placeholder="Test notification" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Body (optional)</label>
+            <label className="block text-xs font-medium text-secondary mb-1">Body (optional)</label>
             <textarea className="input w-full" rows={3} value={testForm.body}
               onChange={e => setTestForm(f => ({ ...f, body: e.target.value }))}
               placeholder="This is a test notification from TranzFer MFT." />
@@ -740,7 +740,7 @@ export default function Notifications() {
               <p className="text-sm text-red-700 mt-1">{testResult.errorMessage}</p>
             )}
             {testResult.id && (
-              <p className="text-xs text-gray-500 mt-1">Log ID: {testResult.id}</p>
+              <p className="text-xs text-secondary mt-1">Log ID: {testResult.id}</p>
             )}
           </div>
         )}
@@ -755,29 +755,29 @@ export default function Notifications() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
           <BellAlertIcon className="w-7 h-7 text-indigo-600" />
           Notification Management
         </h1>
-        <p className="text-gray-500 text-sm">Configure notification rules, templates, and delivery channels for system events</p>
+        <p className="text-secondary text-sm">Configure notification rules, templates, and delivery channels for system events</p>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 border-b">
         <button onClick={() => setTab('rules')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'rules' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'rules' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-secondary hover:text-primary'}`}>
           Rules
         </button>
         <button onClick={() => setTab('templates')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'templates' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'templates' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-secondary hover:text-primary'}`}>
           Templates
         </button>
         <button onClick={() => setTab('logs')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'logs' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'logs' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-secondary hover:text-primary'}`}>
           Delivery Log
         </button>
         <button onClick={() => setTab('test')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'test' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'test' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-secondary hover:text-primary'}`}>
           Test
         </button>
       </div>

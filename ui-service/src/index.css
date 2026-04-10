@@ -11,90 +11,26 @@
    bg-surface/80  →  background: rgb(var(--surface) / 0.8)
    ═══════════════════════════════════════════════════════════ */
 
-/* ── ELEVATED — Management, Configuration, Partners ── */
+/* ── SCANDINAVIAN DARK — Unified theme for all pages ── */
 :root,
-[data-theme="elevated"] {
-  --surface:        255 255 255;   /* white cards            */
-  --canvas:         248 250 252;   /* slate-50 page bg       */
-  --border:         226 232 240;   /* slate-200              */
-  --hover:          241 245 249;   /* slate-100              */
-  --tx-primary:      15  23  42;   /* slate-900              */
-  --tx-secondary:   100 116 139;   /* slate-500              */
-  --tx-muted:       148 163 184;   /* slate-400              */
-  --accent:          79  70 229;   /* indigo-600             */
-  --accent-soft:    238 242 255;   /* indigo-50              */
-  --chart-1:         79  70 229;   /* indigo                 */
-  --chart-2:         16 185 129;   /* emerald                */
-  --chart-3:        245 158  11;   /* amber                  */
-  --chart-4:        239  68  68;   /* red                    */
-}
-
-/* ── DARK OPS — Dashboard, Activity, Sentinel, Logs, Journey ── */
-[data-theme="dark-ops"] {
-  --surface:         24  24  27;   /* zinc-900 cards         */
-  --canvas:           9   9  11;   /* zinc-950 page bg       */
-  --border:          39  39  42;   /* zinc-800               */
-  --hover:           39  39  42;   /* zinc-800               */
-  --tx-primary:     250 250 250;   /* zinc-50                */
-  --tx-secondary:   161 161 170;   /* zinc-400               */
-  --tx-muted:       113 113 122;   /* zinc-500               */
-  --accent:         139  92 246;   /* violet-500             */
-  --accent-soft:     45  26  97;   /* violet-950             */
-  --chart-1:        139  92 246;   /* violet                 */
-  --chart-2:         34 211 238;   /* cyan-400               */
-  --chart-3:         52 211 153;   /* emerald-400            */
-  --chart-4:        248 113 113;   /* red-400                */
-}
-
-/* ── COMPLIANCE — Screening, SLA, Blockchain ── */
-[data-theme="compliance"] {
-  --surface:        255 255 255;
-  --canvas:         248 250 252;   /* slate-50               */
-  --border:         203 213 225;   /* slate-300              */
-  --hover:          241 245 249;   /* slate-100              */
-  --tx-primary:      15  23  42;   /* slate-900              */
-  --tx-secondary:   100 116 139;   /* slate-500              */
-  --tx-muted:       148 163 184;   /* slate-400              */
-  --accent:          15  23  42;   /* slate-900 monochrome   */
-  --accent-soft:    241 245 249;   /* slate-100              */
-  --chart-1:         15  23  42;
-  --chart-2:         71  85 105;
-  --chart-3:        100 116 139;
-  --chart-4:        148 163 184;
-}
-
-/* ── INFRA — Servers, Keystore, Storage, Gateway, Scheduler ── */
-[data-theme="infra"] {
-  --surface:         17  24  39;   /* gray-900 cards         */
-  --canvas:           9   9  11;   /* zinc-950 page bg       */
-  --border:          31  41  55;   /* gray-800               */
-  --hover:           31  41  55;   /* gray-800               */
-  --tx-primary:     243 244 246;   /* gray-100               */
-  --tx-secondary:   156 163 175;   /* gray-400               */
-  --tx-muted:       107 114 128;   /* gray-500               */
-  --accent:          20 184 166;   /* teal-500               */
-  --accent-soft:      6  78  59;   /* teal-950               */
-  --chart-1:         20 184 166;   /* teal                   */
-  --chart-2:         59 130 246;   /* blue                   */
-  --chart-3:        251 191  36;   /* amber                  */
-  --chart-4:        248 113 113;   /* red                    */
-}
-
-/* ── DEVELOPER — API Console, EDI, Terminal, Config ── */
+[data-theme="elevated"],
+[data-theme="dark-ops"],
+[data-theme="compliance"],
+[data-theme="infra"],
 [data-theme="developer"] {
-  --surface:         22  27  34;   /* github-dark cards      */
-  --canvas:          13  17  23;   /* github-darker bg       */
-  --border:          48  54  61;
-  --hover:           33  38  45;
-  --tx-primary:     230 237 243;
-  --tx-secondary:   125 135 145;
-  --tx-muted:        79  91 102;
-  --accent:          88 166 255;   /* github blue            */
-  --accent-soft:     13  25  48;
-  --chart-1:         88 166 255;
-  --chart-2:         63 185  80;   /* github green           */
-  --chart-3:        210 153  34;
-  --chart-4:        248  81  73;
+  --surface:         23  23  28;   /* warm charcoal cards    */
+  --canvas:          15  15  19;   /* deep warm black bg     */
+  --border:          40  40  48;   /* subtle warm border     */
+  --hover:           35  35  42;   /* gentle hover           */
+  --tx-primary:     230 232 236;   /* soft white text        */
+  --tx-secondary:   160 165 175;   /* muted gray text        */
+  --tx-muted:       110 115 125;   /* very muted             */
+  --accent:         100 140 255;   /* soft Nordic blue       */
+  --accent-soft:     25  30  50;   /* deep blue tint         */
+  --chart-1:        100 140 255;   /* soft blue              */
+  --chart-2:         72 199 174;   /* muted teal             */
+  --chart-3:        240 180  80;   /* warm amber             */
+  --chart-4:        220 100 100;   /* soft red               */
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -145,8 +81,8 @@ body {
 }
 
 .card-hover:hover {
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.08), 0 2px 8px -2px rgb(0 0 0 / 0.06);
-  border-color: rgb(var(--accent) / 0.25);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.25), 0 2px 8px -2px rgb(0 0 0 / 0.15);
+  border-color: rgb(var(--accent) / 0.20);
   transform: translateY(-1px);
 }
 
@@ -211,7 +147,7 @@ body {
   border-radius: 0.5rem;
   font-size: 0.8125rem;
   font-weight: 500;
-  color: #94a3b8;           /* slate-400 always */
+  color: rgb(130 135 145);    /* warm muted gray */
   transition: all 0.12s ease;
   cursor: pointer;
   position: relative;
@@ -221,8 +157,8 @@ body {
 }
 
 .sidebar-nav-item:hover:not(.active) {
-  background: rgba(255, 255, 255, 0.06);
-  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgb(200 205 215);
 }
 
 .sidebar-nav-item.active {
@@ -296,8 +232,8 @@ body {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1.125rem;
-  background: #ef4444;
-  color: white;
+  background: rgb(180 60 60);
+  color: rgb(255 230 230);
   font-size: 0.875rem;
   font-weight: 500;
   border-radius: 0.625rem;
@@ -305,7 +241,7 @@ body {
   cursor: pointer;
   transition: all 0.15s ease;
 }
-.btn-danger:hover:not(:disabled) { background: #dc2626; transform: translateY(-1px); }
+.btn-danger:hover:not(:disabled) { background: rgb(200 70 70); transform: translateY(-1px); }
 .btn-danger:active { transform: translateY(0); }
 .btn-danger:disabled { opacity: 0.45; cursor: not-allowed; }
 
@@ -344,34 +280,15 @@ body {
   white-space: nowrap;
 }
 
-/* Light theme badges */
-.badge-green  { background: #dcfce7; color: #15803d; }
-.badge-red    { background: #fee2e2; color: #b91c1c; }
-.badge-yellow { background: #fef9c3; color: #854d0e; }
-.badge-blue   { background: #dbeafe; color: #1d4ed8; }
+/* Muted Scandinavian badges — dark bg with soft text */
+.badge-green  { background: rgb(20 60 40);  color: rgb(120 220 160); }
+.badge-red    { background: rgb(60 20 20);  color: rgb(240 120 120); }
+.badge-yellow { background: rgb(60 50 20);  color: rgb(240 200 100); }
+.badge-blue   { background: rgb(20 30 60);  color: rgb(120 170 255); }
 .badge-gray   { background: rgb(var(--hover)); color: rgb(var(--tx-secondary)); border: 1px solid rgb(var(--border)); }
-.badge-purple { background: #f3e8ff; color: #7e22ce; }
-.badge-teal   { background: #ccfbf1; color: #0f766e; }
-.badge-orange { background: #ffedd5; color: #c2410c; }
-
-/* Dark theme badge overrides */
-[data-theme="dark-ops"]   .badge-green,
-[data-theme="infra"]      .badge-green,
-[data-theme="developer"]  .badge-green  { background: rgb(20 83 45  / 0.35); color: #4ade80; }
-[data-theme="dark-ops"]   .badge-red,
-[data-theme="infra"]      .badge-red,
-[data-theme="developer"]  .badge-red    { background: rgb(127 29 29 / 0.35); color: #f87171; }
-[data-theme="dark-ops"]   .badge-yellow,
-[data-theme="infra"]      .badge-yellow,
-[data-theme="developer"]  .badge-yellow { background: rgb(120 53 15 / 0.35); color: #fbbf24; }
-[data-theme="dark-ops"]   .badge-blue,
-[data-theme="infra"]      .badge-blue,
-[data-theme="developer"]  .badge-blue   { background: rgb(30 58 138 / 0.35); color: #60a5fa; }
-[data-theme="dark-ops"]   .badge-purple,
-[data-theme="infra"]      .badge-purple,
-[data-theme="developer"]  .badge-purple { background: rgb(76 29 149 / 0.35); color: #c084fc; }
-[data-theme="dark-ops"]   .badge-teal,
-[data-theme="infra"]      .badge-teal   { background: rgb(6 78 59   / 0.40); color: #2dd4bf; }
+.badge-purple { background: rgb(40 20 60);  color: rgb(190 140 255); }
+.badge-teal   { background: rgb(15 45 40);  color: rgb(100 210 190); }
+.badge-orange { background: rgb(60 35 15);  color: rgb(240 170 100); }
 
 /* ═══════════════════════════════════════════════════════════
    TABLES

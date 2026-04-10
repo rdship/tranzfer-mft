@@ -10,7 +10,7 @@ export default function FormField({ label, required, error, helper, children, cl
   return (
     <div className={className}>
       {label && (
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-primary mb-1">
           {label}
           {required && <span className="text-red-500 ml-0.5">*</span>}
         </label>
@@ -22,7 +22,7 @@ export default function FormField({ label, required, error, helper, children, cl
         <p className="mt-1 text-xs text-red-600">{error}</p>
       )}
       {!error && helper && (
-        <p className="mt-1 text-xs text-gray-400">{helper}</p>
+        <p className="mt-1 text-xs text-muted">{helper}</p>
       )}
     </div>
   )

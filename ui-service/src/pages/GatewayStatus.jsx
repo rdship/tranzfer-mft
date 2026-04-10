@@ -127,8 +127,8 @@ export default function GatewayStatus() {
       {/* ─── Header ─── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Network & Proxy</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Gateway routing, DMZ security, and transfer monitoring</p>
+          <h1 className="text-2xl font-bold text-primary">Network & Proxy</h1>
+          <p className="text-secondary text-sm mt-0.5">Gateway routing, DMZ security, and transfer monitoring</p>
         </div>
         <div className="flex items-center gap-3">
           {/* Service status pills */}
@@ -138,7 +138,7 @@ export default function GatewayStatus() {
             { label: 'Forwarder', up: fwdUp, port: 8087 },
           ].map(svc => (
             <div key={svc.label} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
-              svc.up ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'
+              svc.up ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-hover text-secondary border border-border'
             }`}>
               <span className={`w-2 h-2 rounded-full ${svc.up ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
               {svc.label} :{svc.port}
@@ -153,8 +153,8 @@ export default function GatewayStatus() {
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-blue-50"><GlobeAltIcon className="w-5 h-5 text-blue-600" /></div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{gwRoutes?.totalRoutes || 0}</p>
-              <p className="text-xs text-gray-500">Total Routes</p>
+              <p className="text-2xl font-bold text-primary">{gwRoutes?.totalRoutes || 0}</p>
+              <p className="text-xs text-secondary">Total Routes</p>
             </div>
           </div>
         </div>
@@ -162,8 +162,8 @@ export default function GatewayStatus() {
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-green-50"><ServerIcon className="w-5 h-5 text-green-600" /></div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{gwStats?.activeInstances || 0}</p>
-              <p className="text-xs text-gray-500">Server Instances</p>
+              <p className="text-2xl font-bold text-primary">{gwStats?.activeInstances || 0}</p>
+              <p className="text-xs text-secondary">Server Instances</p>
             </div>
           </div>
         </div>
@@ -171,8 +171,8 @@ export default function GatewayStatus() {
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-purple-50"><ArrowsRightLeftIcon className="w-5 h-5 text-purple-600" /></div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{Array.isArray(dmzMappings) ? dmzMappings.length : 0}</p>
-              <p className="text-xs text-gray-500">Port Mappings</p>
+              <p className="text-2xl font-bold text-primary">{Array.isArray(dmzMappings) ? dmzMappings.length : 0}</p>
+              <p className="text-xs text-secondary">Port Mappings</p>
             </div>
           </div>
         </div>
@@ -180,8 +180,8 @@ export default function GatewayStatus() {
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-amber-50"><BoltIcon className="w-5 h-5 text-amber-600" /></div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{transferData?.activeCount || 0}</p>
-              <p className="text-xs text-gray-500">Active Transfers</p>
+              <p className="text-2xl font-bold text-primary">{transferData?.activeCount || 0}</p>
+              <p className="text-xs text-secondary">Active Transfers</p>
             </div>
           </div>
         </div>
@@ -189,22 +189,22 @@ export default function GatewayStatus() {
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-red-50"><ShieldCheckIcon className="w-5 h-5 text-red-600" /></div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{connections?.blocked || 0}</p>
-              <p className="text-xs text-gray-500">Blocked Connections</p>
+              <p className="text-2xl font-bold text-primary">{connections?.blocked || 0}</p>
+              <p className="text-xs text-secondary">Blocked Connections</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* ─── Tabs ─── */}
-      <div className="border-b border-gray-200">
+      <div className="border-b border-border">
         <div className="flex gap-6">
           {TABS.map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
               className={`pb-3 text-sm font-medium border-b-2 flex items-center gap-2 transition-colors ${
                 activeTab === tab.key
                   ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  : 'border-transparent text-secondary hover:text-primary'
               }`}>
               <tab.icon className="w-4 h-4" />
               {tab.label}
@@ -220,48 +220,48 @@ export default function GatewayStatus() {
         <div className="space-y-6">
           {/* Architecture Diagram */}
           <div className="card">
-            <h3 className="font-semibold text-gray-900 mb-4">Network Architecture</h3>
+            <h3 className="font-semibold text-primary mb-4">Network Architecture</h3>
             <div className="flex items-center justify-center gap-3 text-sm overflow-x-auto py-2">
               <div className="flex flex-col items-center gap-1 min-w-[100px]">
-                <div className="p-3 bg-gray-100 rounded-xl"><GlobeAltIcon className="w-6 h-6 text-gray-600" /></div>
-                <span className="font-medium text-gray-700">External</span>
-                <span className="text-xs text-gray-400">Internet</span>
+                <div className="p-3 bg-hover rounded-xl"><GlobeAltIcon className="w-6 h-6 text-secondary" /></div>
+                <span className="font-medium text-primary">External</span>
+                <span className="text-xs text-muted">Internet</span>
               </div>
               <ArrowsRightLeftIcon className="w-5 h-5 text-gray-300 flex-shrink-0" />
               <div className={`flex flex-col items-center gap-1 min-w-[100px] ${dmzUp ? '' : 'opacity-40'}`}>
-                <div className={`p-3 rounded-xl ${dmzUp ? 'bg-red-50' : 'bg-gray-100'}`}>
-                  <ShieldCheckIcon className={`w-6 h-6 ${dmzUp ? 'text-red-600' : 'text-gray-400'}`} />
+                <div className={`p-3 rounded-xl ${dmzUp ? 'bg-red-50' : 'bg-hover'}`}>
+                  <ShieldCheckIcon className={`w-6 h-6 ${dmzUp ? 'text-red-600' : 'text-muted'}`} />
                 </div>
-                <span className="font-medium text-gray-700">DMZ Proxy</span>
-                <span className="text-xs text-gray-400">:8088</span>
+                <span className="font-medium text-primary">DMZ Proxy</span>
+                <span className="text-xs text-muted">:8088</span>
               </div>
               <ArrowsRightLeftIcon className="w-5 h-5 text-gray-300 flex-shrink-0" />
               <div className={`flex flex-col items-center gap-1 min-w-[100px] ${gwUp ? '' : 'opacity-40'}`}>
-                <div className={`p-3 rounded-xl ${gwUp ? 'bg-blue-50' : 'bg-gray-100'}`}>
-                  <BoltIcon className={`w-6 h-6 ${gwUp ? 'text-blue-600' : 'text-gray-400'}`} />
+                <div className={`p-3 rounded-xl ${gwUp ? 'bg-blue-50' : 'bg-hover'}`}>
+                  <BoltIcon className={`w-6 h-6 ${gwUp ? 'text-blue-600' : 'text-muted'}`} />
                 </div>
-                <span className="font-medium text-gray-700">Gateway</span>
-                <span className="text-xs text-gray-400">:8085</span>
+                <span className="font-medium text-primary">Gateway</span>
+                <span className="text-xs text-muted">:8085</span>
               </div>
               <ArrowsRightLeftIcon className="w-5 h-5 text-gray-300 flex-shrink-0" />
               <div className="flex flex-col items-center gap-1 min-w-[100px]">
                 <div className="p-3 bg-green-50 rounded-xl"><ServerIcon className="w-6 h-6 text-green-600" /></div>
-                <span className="font-medium text-gray-700">Protocol Services</span>
-                <span className="text-xs text-gray-400">SFTP/FTP</span>
+                <span className="font-medium text-primary">Protocol Services</span>
+                <span className="text-xs text-muted">SFTP/FTP</span>
               </div>
               <ArrowsRightLeftIcon className="w-5 h-5 text-gray-300 flex-shrink-0" />
               <div className={`flex flex-col items-center gap-1 min-w-[100px] ${fwdUp ? '' : 'opacity-40'}`}>
-                <div className={`p-3 rounded-xl ${fwdUp ? 'bg-amber-50' : 'bg-gray-100'}`}>
-                  <BoltIcon className={`w-6 h-6 ${fwdUp ? 'text-amber-600' : 'text-gray-400'}`} />
+                <div className={`p-3 rounded-xl ${fwdUp ? 'bg-amber-50' : 'bg-hover'}`}>
+                  <BoltIcon className={`w-6 h-6 ${fwdUp ? 'text-amber-600' : 'text-muted'}`} />
                 </div>
-                <span className="font-medium text-gray-700">Forwarder</span>
-                <span className="text-xs text-gray-400">:8087</span>
+                <span className="font-medium text-primary">Forwarder</span>
+                <span className="text-xs text-muted">:8087</span>
               </div>
               <ArrowsRightLeftIcon className="w-5 h-5 text-gray-300 flex-shrink-0" />
               <div className="flex flex-col items-center gap-1 min-w-[100px]">
                 <div className="p-3 bg-purple-50 rounded-xl"><GlobeAltIcon className="w-6 h-6 text-purple-600" /></div>
-                <span className="font-medium text-gray-700">External</span>
-                <span className="text-xs text-gray-400">Partners</span>
+                <span className="font-medium text-primary">External</span>
+                <span className="text-xs text-muted">Partners</span>
               </div>
             </div>
           </div>
@@ -269,11 +269,11 @@ export default function GatewayStatus() {
           {/* Route Table */}
           <div className="card">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-900">Route Table</h3>
-              <span className="text-xs text-gray-400">{allRoutes.length} routes</span>
+              <h3 className="font-semibold text-primary">Route Table</h3>
+              <span className="text-xs text-muted">{allRoutes.length} routes</span>
             </div>
             {allRoutes.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-6">No routes configured — gateway may be unreachable</p>
+              <p className="text-sm text-muted text-center py-6">No routes configured — gateway may be unreachable</p>
             ) : (
               <div className="space-y-2">
                 {allRoutes.map((route, i) => {
@@ -281,11 +281,11 @@ export default function GatewayStatus() {
                   return (
                     <div key={i} className={`flex items-center gap-3 p-3 rounded-lg border ${colors.bg} ${colors.border}`}>
                       <ShieldCheckIcon className={`w-5 h-5 ${colors.text} flex-shrink-0`} />
-                      <span className="font-medium text-sm text-gray-900 min-w-[140px]">{route.name}</span>
+                      <span className="font-medium text-sm text-primary min-w-[140px]">{route.name}</span>
                       <span className={`badge ${colors.badge}`}>{route.protocol}</span>
-                      <span className="text-gray-400 text-sm">→</span>
-                      <span className="font-mono text-xs text-gray-600">{route.targetHost}:{route.targetPort}</span>
-                      {route.instanceId && <span className="text-xs text-gray-400">({route.instanceId})</span>}
+                      <span className="text-muted text-sm">→</span>
+                      <span className="font-mono text-xs text-secondary">{route.targetHost}:{route.targetPort}</span>
+                      {route.instanceId && <span className="text-xs text-muted">({route.instanceId})</span>}
                       <span className={`ml-auto badge ${route.active ? 'badge-green' : 'badge-red'}`}>
                         {route.active ? 'Active' : 'Inactive'}
                       </span>
@@ -301,18 +301,18 @@ export default function GatewayStatus() {
           {Array.isArray(dmzMappings) && dmzMappings.length > 0 && (
             <div className="card">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">DMZ Port Mappings</h3>
+                <h3 className="font-semibold text-primary">DMZ Port Mappings</h3>
                 <button onClick={() => setActiveTab('mappings')} className="text-xs text-blue-600 hover:text-blue-800">
                   View All →
                 </button>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
                 {dmzMappings.slice(0, 6).map((m, i) => (
-                  <div key={m.name || i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                  <div key={m.name || i} className="flex items-center gap-3 p-3 bg-canvas rounded-lg">
                     <div className="p-2 bg-purple-100 rounded-lg"><ArrowsRightLeftIcon className="w-4 h-4 text-purple-600" /></div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{m.name}</p>
-                      <p className="text-xs text-gray-500 font-mono">:{m.listenPort} → {m.targetHost}:{m.targetPort}</p>
+                      <p className="text-sm font-medium text-primary truncate">{m.name}</p>
+                      <p className="text-xs text-secondary font-mono">:{m.listenPort} → {m.targetHost}:{m.targetPort}</p>
                     </div>
                     <span className={`w-2 h-2 rounded-full ${m.active !== false ? 'bg-green-500' : 'bg-gray-400'}`} />
                   </div>
@@ -331,8 +331,8 @@ export default function GatewayStatus() {
           {!securityStats ? (
             <div className="card text-center py-12">
               <ShieldCheckIcon className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500 text-sm">DMZ security stats unavailable</p>
-              <p className="text-gray-400 text-xs mt-1">Ensure dmz-proxy is running on port 8088</p>
+              <p className="text-secondary text-sm">DMZ security stats unavailable</p>
+              <p className="text-muted text-xs mt-1">Ensure dmz-proxy is running on port 8088</p>
             </div>
           ) : (
             <>
@@ -350,8 +350,8 @@ export default function GatewayStatus() {
                         <stat.icon className={`w-5 h-5 text-${stat.color}-600`} />
                       </div>
                       <div>
-                        <p className="text-2xl font-bold text-gray-900">{stat.value.toLocaleString()}</p>
-                        <p className="text-xs text-gray-500">{stat.label}</p>
+                        <p className="text-2xl font-bold text-primary">{stat.value.toLocaleString()}</p>
+                        <p className="text-xs text-secondary">{stat.label}</p>
                       </div>
                     </div>
                   </div>
@@ -362,7 +362,7 @@ export default function GatewayStatus() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Verdict Actions */}
                 <div className="card">
-                  <h3 className="font-semibold text-gray-900 mb-4">AI Verdict Summary</h3>
+                  <h3 className="font-semibold text-primary mb-4">AI Verdict Summary</h3>
                   <div className="space-y-3">
                     {[
                       { action: 'ALLOW', count: connections.allowed, color: 'green', icon: CheckCircleIcon },
@@ -376,12 +376,12 @@ export default function GatewayStatus() {
                       return (
                         <div key={item.action} className="flex items-center gap-3">
                           <item.icon className={`w-4 h-4 text-${item.color}-500 flex-shrink-0`} />
-                          <span className="text-sm text-gray-700 w-24">{item.action}</span>
-                          <div className="flex-1 bg-gray-100 rounded-full h-2">
+                          <span className="text-sm text-primary w-24">{item.action}</span>
+                          <div className="flex-1 bg-hover rounded-full h-2">
                             <div className={`bg-${item.color}-500 h-2 rounded-full`}
                               style={{ width: `${Math.min(parseFloat(pct), 100)}%` }} />
                           </div>
-                          <span className="text-xs text-gray-500 w-20 text-right">{(item.count || 0).toLocaleString()} ({pct}%)</span>
+                          <span className="text-xs text-secondary w-20 text-right">{(item.count || 0).toLocaleString()} ({pct}%)</span>
                         </div>
                       )
                     })}
@@ -390,24 +390,24 @@ export default function GatewayStatus() {
 
                 {/* AI Engine Cache */}
                 <div className="card">
-                  <h3 className="font-semibold text-gray-900 mb-4">AI Engine Performance</h3>
+                  <h3 className="font-semibold text-primary mb-4">AI Engine Performance</h3>
                   <div className="space-y-4">
                     <div className="grid grid-cols-3 gap-4">
                       <div className="text-center">
-                        <p className="text-2xl font-bold text-gray-900">{(aiEngine.verdictRequests || 0).toLocaleString()}</p>
-                        <p className="text-xs text-gray-500">Verdict Requests</p>
+                        <p className="text-2xl font-bold text-primary">{(aiEngine.verdictRequests || 0).toLocaleString()}</p>
+                        <p className="text-xs text-secondary">Verdict Requests</p>
                       </div>
                       <div className="text-center">
                         <p className="text-2xl font-bold text-green-600">{aiEngine.cacheHitRate || '0%'}</p>
-                        <p className="text-xs text-gray-500">Cache Hit Rate</p>
+                        <p className="text-xs text-secondary">Cache Hit Rate</p>
                       </div>
                       <div className="text-center">
                         <p className="text-2xl font-bold text-amber-600">{aiEngine.fallbacks || 0}</p>
-                        <p className="text-xs text-gray-500">Fallbacks</p>
+                        <p className="text-xs text-secondary">Fallbacks</p>
                       </div>
                     </div>
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <p className="text-xs text-gray-500 mb-1">DMZ Features</p>
+                    <div className="bg-canvas rounded-lg p-3">
+                      <p className="text-xs text-secondary mb-1">DMZ Features</p>
                       <div className="flex flex-wrap gap-1.5">
                         {(dmzHealth?.features || []).map(f => (
                           <span key={f} className="badge badge-blue">{f.replace(/_/g, ' ')}</span>
@@ -419,7 +419,7 @@ export default function GatewayStatus() {
 
                 {/* Throughput */}
                 <div className="card">
-                  <h3 className="font-semibold text-gray-900 mb-4">Throughput</h3>
+                  <h3 className="font-semibold text-primary mb-4">Throughput</h3>
                   <div className="grid grid-cols-3 gap-4">
                     <div className="text-center p-3 bg-blue-50 rounded-lg">
                       <p className="text-lg font-bold text-blue-700">
@@ -444,7 +444,7 @@ export default function GatewayStatus() {
 
                 {/* Protocol Distribution */}
                 <div className="card">
-                  <h3 className="font-semibold text-gray-900 mb-4">Protocol Distribution</h3>
+                  <h3 className="font-semibold text-primary mb-4">Protocol Distribution</h3>
                   {metrics.protocols && Object.keys(metrics.protocols).length > 0 ? (
                     <div className="space-y-2">
                       {Object.entries(metrics.protocols).map(([proto, count]) => {
@@ -452,17 +452,17 @@ export default function GatewayStatus() {
                         return (
                           <div key={proto} className="flex items-center gap-3">
                             <span className={`badge badge-${color} min-w-[60px] text-center`}>{proto}</span>
-                            <div className="flex-1 bg-gray-100 rounded-full h-2">
+                            <div className="flex-1 bg-hover rounded-full h-2">
                               <div className={`bg-${color}-500 h-2 rounded-full`}
                                 style={{ width: `${Math.min((count / (connections.total || 1)) * 100, 100)}%` }} />
                             </div>
-                            <span className="text-xs text-gray-500 w-16 text-right">{count.toLocaleString()}</span>
+                            <span className="text-xs text-secondary w-16 text-right">{count.toLocaleString()}</span>
                           </div>
                         )
                       })}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-400 text-center py-4">No protocol data available</p>
+                    <p className="text-sm text-muted text-center py-4">No protocol data available</p>
                   )}
                 </div>
               </div>
@@ -477,7 +477,7 @@ export default function GatewayStatus() {
       {activeTab === 'mappings' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">{Array.isArray(dmzMappings) ? dmzMappings.length : 0} active port mapping{dmzMappings?.length !== 1 ? 's' : ''} on DMZ proxy</p>
+            <p className="text-sm text-secondary">{Array.isArray(dmzMappings) ? dmzMappings.length : 0} active port mapping{dmzMappings?.length !== 1 ? 's' : ''} on DMZ proxy</p>
             <button className="btn-primary" onClick={() => setShowAddMapping(true)}>
               <PlusIcon className="w-4 h-4" /> Add Mapping
             </button>
@@ -502,7 +502,7 @@ export default function GatewayStatus() {
             <div className="card !p-0 overflow-hidden">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b bg-gray-50/50">
+                  <tr className="border-b bg-canvas/50">
                     <th className="table-header">Name</th>
                     <th className="table-header">Listen Port</th>
                     <th className="table-header">Target</th>
@@ -515,18 +515,18 @@ export default function GatewayStatus() {
                 <tbody>
                   {dmzMappings.map((m, i) => (
                     <tr key={m.name || i} className="table-row">
-                      <td className="table-cell font-medium text-gray-900">{m.name}</td>
+                      <td className="table-cell font-medium text-primary">{m.name}</td>
                       <td className="table-cell">
                         <span className="font-mono text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded-md">:{m.listenPort}</span>
                       </td>
-                      <td className="table-cell font-mono text-xs text-gray-600">{m.targetHost}:{m.targetPort}</td>
+                      <td className="table-cell font-mono text-xs text-secondary">{m.targetHost}:{m.targetPort}</td>
                       <td className="table-cell">
                         <span className="text-sm font-medium">{m.activeConnections ?? 0}</span>
                       </td>
-                      <td className="table-cell text-xs text-gray-500">{formatBytes(m.bytesForwarded || 0)}</td>
+                      <td className="table-cell text-xs text-secondary">{formatBytes(m.bytesForwarded || 0)}</td>
                       <td className="table-cell">
                         <span className={`flex items-center gap-1.5 text-xs font-medium ${
-                          m.active !== false ? 'text-green-700' : 'text-gray-500'
+                          m.active !== false ? 'text-green-700' : 'text-secondary'
                         }`}>
                           <span className={`w-2 h-2 rounded-full ${m.active !== false ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
                           {m.active !== false ? 'Active' : 'Inactive'}
@@ -535,7 +535,7 @@ export default function GatewayStatus() {
                       <td className="table-cell text-right">
                         <button onClick={() => {
                           if (confirm(`Remove mapping "${m.name}"?`)) removeMappingMut.mutate(m.name)
-                        }} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600" title="Remove">
+                        }} className="p-1.5 rounded-lg hover:bg-red-50 text-muted hover:text-red-600" title="Remove">
                           <TrashIcon className="w-4 h-4" />
                         </button>
                       </td>
@@ -559,28 +559,28 @@ export default function GatewayStatus() {
                 })
               }} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Mapping Name <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-primary mb-1">Mapping Name <span className="text-red-500">*</span></label>
                   <input value={mappingForm.name} onChange={e => setMappingForm(p => ({ ...p, name: e.target.value }))}
                     placeholder="sftp-partner-acme" required />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Listen Port <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-medium text-primary mb-1">Listen Port <span className="text-red-500">*</span></label>
                     <input type="number" value={mappingForm.listenPort} onChange={e => setMappingForm(p => ({ ...p, listenPort: e.target.value }))}
                       placeholder="2222" min="1" max="65535" required />
-                    <p className="text-xs text-gray-400 mt-1">External-facing port on DMZ</p>
+                    <p className="text-xs text-muted mt-1">External-facing port on DMZ</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Target Port <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-medium text-primary mb-1">Target Port <span className="text-red-500">*</span></label>
                     <input type="number" value={mappingForm.targetPort} onChange={e => setMappingForm(p => ({ ...p, targetPort: e.target.value }))}
                       placeholder="2220" min="1" max="65535" required />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Target Host <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-primary mb-1">Target Host <span className="text-red-500">*</span></label>
                   <input value={mappingForm.targetHost} onChange={e => setMappingForm(p => ({ ...p, targetHost: e.target.value }))}
                     placeholder="gateway-service" required />
-                  <p className="text-xs text-gray-400 mt-1">Internal hostname or IP</p>
+                  <p className="text-xs text-muted mt-1">Internal hostname or IP</p>
                 </div>
                 <div className="flex gap-3 justify-end pt-3 border-t">
                   <button type="button" className="btn-secondary" onClick={() => setShowAddMapping(false)}>Cancel</button>
@@ -600,7 +600,7 @@ export default function GatewayStatus() {
       {activeTab === 'transfers' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-secondary">
               {transferData?.activeCount || 0} active transfer{transferData?.activeCount !== 1 ? 's' : ''} — stall timeout: {transferData?.stallTimeoutSeconds || 30}s
             </p>
             <button className="btn-secondary" onClick={() => qc.invalidateQueries({ queryKey: ['active-transfers'] })}>
@@ -633,15 +633,15 @@ export default function GatewayStatus() {
                     <div className="flex items-start justify-between mb-3">
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-bold text-gray-900">{t.transferId}</span>
+                          <span className="font-mono text-xs font-bold text-primary">{t.transferId}</span>
                           {isStalled && <span className="badge badge-red">STALLED</span>}
                           {!isStalled && <span className="badge badge-blue">IN PROGRESS</span>}
                         </div>
-                        <p className="text-sm text-gray-600 mt-1">
+                        <p className="text-sm text-secondary mt-1">
                           <span className="font-medium">{t.filename}</span> → {t.endpoint}
                         </p>
                       </div>
-                      <div className="text-right text-xs text-gray-500">
+                      <div className="text-right text-xs text-secondary">
                         <p>{formatBytes(t.bytesTransferred)} / {formatBytes(t.totalBytes)}</p>
                         <p className="mt-0.5">Elapsed: {t.elapsedSeconds}s | Idle: {t.idleSeconds}s</p>
                       </div>
@@ -652,7 +652,7 @@ export default function GatewayStatus() {
                         isStalled ? 'bg-red-500' : pct >= 100 ? 'bg-green-500' : 'bg-blue-500'
                       }`} style={{ width: `${Math.min(pct, 100)}%` }} />
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">{pct}% complete</p>
+                    <p className="text-xs text-secondary mt-1">{pct}% complete</p>
                   </div>
                 )
               })}

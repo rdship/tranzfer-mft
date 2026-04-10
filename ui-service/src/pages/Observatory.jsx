@@ -79,7 +79,7 @@ const NetworkMap = memo(function NetworkMap({ serviceGraph, services }) {
     <div className="card">
       <div className="flex items-center justify-between mb-2">
         <h3 className="font-semibold text-gray-900">Service Network</h3>
-        <div className="flex gap-4 text-xs text-gray-400">
+        <div className="flex gap-4 text-xs text-muted">
           {[['#10b981','Active'],['#f59e0b','Degraded'],['#94a3b8','Unknown']].map(([c,l]) => (
             <span key={l} className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full inline-block" style={{background:c}} />{l}
@@ -89,7 +89,7 @@ const NetworkMap = memo(function NetworkMap({ serviceGraph, services }) {
       </div>
 
       {/* Column labels */}
-      <div className="grid grid-cols-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 px-4">
+      <div className="grid grid-cols-4 text-xs font-semibold text-muted uppercase tracking-wider mb-1 px-4">
         {['Ingress','Processing','Delivery','Platform'].map(l => (
           <span key={l} className="text-center">{l}</span>
         ))}
@@ -225,7 +225,7 @@ const ActivityHeatmap = memo(function ActivityHeatmap({ heatmapData }) {
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-1.5 mt-3 text-xs text-gray-400">
+        <div className="flex items-center gap-1.5 mt-3 text-xs text-muted">
           <span>Less</span>
           {[0,0.2,0.4,0.6,0.8,1].map(v => (
             <div key={v} style={{width:10,height:10,borderRadius:1,
@@ -275,13 +275,13 @@ const DomainGroups = memo(function DomainGroups({ domainGroups }) {
     return (
       <div className="card">
         <h3 className="font-semibold text-gray-900 mb-3">Flow Domains</h3>
-        <p className="text-sm text-gray-400">No flow activity in the last 7 days.</p>
+        <p className="text-sm text-muted">No flow activity in the last 7 days.</p>
       </div>
     )
 
   return (
     <div className="card">
-      <h3 className="font-semibold text-gray-900 mb-3">Flow Domains <span className="text-xs text-gray-400 font-normal ml-1">last 7 days</span></h3>
+      <h3 className="font-semibold text-gray-900 mb-3">Flow Domains <span className="text-xs text-muted font-normal ml-1">last 7 days</span></h3>
       <div className="space-y-1.5">
         {groups.map(g => {
           const open = expanded === g.domainName
@@ -289,32 +289,32 @@ const DomainGroups = memo(function DomainGroups({ domainGroups }) {
             <div key={g.domainName} className="rounded-lg border border-gray-100 overflow-hidden">
               <button
                 onClick={() => setExpanded(open ? null : g.domainName)}
-                className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 transition-colors text-left"
+                className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-canvas transition-colors text-left"
               >
                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${healthDot(g.successRate)}`} />
                 <span className="font-medium text-gray-900 text-sm flex-1 truncate">{g.domainName}</span>
                 <span className={`text-xs font-semibold px-1.5 py-0.5 rounded flex-shrink-0 ${healthBadge(g.successRate)}`}>
                   {Math.round(g.successRate * 100)}%
                 </span>
-                <span className="text-xs text-gray-400 flex-shrink-0 w-20 text-right">{g.totalCount} flows</span>
+                <span className="text-xs text-muted flex-shrink-0 w-20 text-right">{g.totalCount} flows</span>
                 <span className="text-xs text-gray-300 flex-shrink-0 w-16 text-right">{timeAgo(g.lastActivityAt)}</span>
-                <ChevronDownIcon className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
+                <ChevronDownIcon className={`w-3.5 h-3.5 text-muted flex-shrink-0 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
               </button>
 
               {open && (
-                <div className="px-3 pb-3 pt-2 border-t border-gray-100 bg-gray-50">
+                <div className="px-3 pb-3 pt-2 border-t border-gray-100 bg-canvas">
                   <div className="grid grid-cols-3 gap-3 mb-2">
                     <div className="text-center">
                       <p className="text-xl font-bold text-emerald-600">{g.completedCount}</p>
-                      <p className="text-xs text-gray-400">Completed</p>
+                      <p className="text-xs text-muted">Completed</p>
                     </div>
                     <div className="text-center">
                       <p className="text-xl font-bold text-red-500">{g.failedCount}</p>
-                      <p className="text-xs text-gray-400">Failed</p>
+                      <p className="text-xs text-muted">Failed</p>
                     </div>
                     <div className="text-center">
                       <p className="text-xl font-bold text-blue-500">{g.processingCount}</p>
-                      <p className="text-xs text-gray-400">In-flight</p>
+                      <p className="text-xs text-muted">In-flight</p>
                     </div>
                   </div>
                   {g.topError && (
@@ -570,11 +570,11 @@ export default function Observatory() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Observatory</h1>
-          <p className="text-gray-500 text-sm">Platform health at a glance</p>
+          <p className="text-secondary text-sm">Platform health at a glance</p>
         </div>
         <div className="flex items-center gap-3">
           {dataUpdatedAt > 0 && (
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-muted">
               Updated {format(new Date(dataUpdatedAt), 'HH:mm:ss')}
             </span>
           )}

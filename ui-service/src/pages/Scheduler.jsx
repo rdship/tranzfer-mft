@@ -80,7 +80,7 @@ export default function Scheduler() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-bold text-gray-900">Scheduler</h1>
-          <p className="text-gray-500 text-sm">Cron-based task scheduling — {tasks.length} tasks</p></div>
+          <p className="text-secondary text-sm">Cron-based task scheduling — {tasks.length} tasks</p></div>
         <button className="btn-primary" onClick={openCreate}><PlusIcon className="w-4 h-4" /> Create Task</button>
       </div>
       <div className="card">
@@ -89,19 +89,19 @@ export default function Scheduler() {
           <th className="table-header">Last Run</th><th className="table-header">Status</th><th className="table-header">Runs</th><th className="table-header">Actions</th>
         </tr></thead><tbody>
           {tasks.length === 0 ? (
-            <tr><td colSpan={7} className="text-center py-8 text-gray-500 text-sm">No scheduled tasks yet. Create your first schedule to automate recurring jobs.</td></tr>
+            <tr><td colSpan={7} className="text-center py-8 text-secondary text-sm">No scheduled tasks yet. Create your first schedule to automate recurring jobs.</td></tr>
           ) : tasks.map(t => (
             <tr key={t.id} className="table-row">
               <td className="table-cell font-medium">{t.name}</td>
               <td className="table-cell font-mono text-xs">{t.cronExpression}</td>
               <td className="table-cell"><span className="badge badge-blue">{t.taskType}</span></td>
-              <td className="table-cell text-xs text-gray-500">{t.lastRun ? new Date(t.lastRun).toLocaleString() : 'Never'}</td>
+              <td className="table-cell text-xs text-secondary">{t.lastRun ? new Date(t.lastRun).toLocaleString() : 'Never'}</td>
               <td className="table-cell"><span className={`badge ${t.lastStatus === 'SUCCESS' ? 'badge-green' : t.lastStatus === 'FAILED' ? 'badge-red' : 'badge-gray'}`}>{t.lastStatus || 'PENDING'}</span></td>
               <td className="table-cell text-xs">{t.totalRuns} ({t.failedRuns} failed)</td>
               <td className="table-cell">
                 <div className="flex items-center gap-1">
                   <button onClick={() => openEdit(t)} className="p-1 rounded hover:bg-gray-100" title="Edit task">
-                    <PencilSquareIcon className="w-4 h-4 text-gray-500" />
+                    <PencilSquareIcon className="w-4 h-4 text-secondary" />
                   </button>
                   <button onClick={() => toggleMut.mutate(t.id)} className={`text-xs px-2 py-0.5 rounded ${t.enabled ? 'text-red-600 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}>
                     {t.enabled ? 'Disable' : 'Enable'}
@@ -120,20 +120,20 @@ export default function Scheduler() {
         <Modal title={editingTask ? 'Edit Scheduled Task' : 'Create Scheduled Task'} onClose={closeModal}>
           <form onSubmit={e => { e.preventDefault(); handleSave() }} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Task Name *</label>
+              <label className="block text-sm font-medium text-primary mb-1">Task Name *</label>
               <input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} required placeholder="daily-partner-flow" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cron Expression</label>
+                <label className="block text-sm font-medium text-primary mb-1">Cron Expression</label>
                 <input value={form.cronExpression} onChange={e => setForm(f => ({...f, cronExpression: e.target.value}))} className="font-mono" placeholder="0 0 2 * * *" />
                 <div className="mt-2">
-                  <label className="block text-xs text-gray-500 mb-1">Quick presets:</label>
+                  <label className="block text-xs text-secondary mb-1">Quick presets:</label>
                   <div className="flex flex-wrap gap-1">
                     {CRON_PRESETS.map(p => (
                       <button key={p.cron} type="button"
                         onClick={() => setForm(f => ({...f, cronExpression: p.cron}))}
-                        className={`text-xs px-2 py-0.5 rounded border transition-colors ${form.cronExpression === p.cron ? 'bg-blue-100 border-blue-300 text-blue-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+                        className={`text-xs px-2 py-0.5 rounded border transition-colors ${form.cronExpression === p.cron ? 'bg-blue-100 border-blue-300 text-blue-700' : 'border-border text-secondary hover:bg-gray-50'}`}>
                         {p.label}
                       </button>
                     ))}
@@ -141,7 +141,7 @@ export default function Scheduler() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Task Type</label>
+                <label className="block text-sm font-medium text-primary mb-1">Task Type</label>
                 <select value={form.taskType} onChange={e => setForm(f => ({...f, taskType: e.target.value}))}>
                   {TASK_TYPES.map(t => <option key={t}>{t}</option>)}
                 </select>
@@ -151,7 +151,7 @@ export default function Scheduler() {
             {/* Flow selection (shown when task type is RUN_FLOW) */}
             {form.taskType === 'RUN_FLOW' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Flow to Execute</label>
+                <label className="block text-sm font-medium text-primary mb-1">Flow to Execute</label>
                 <select value={form.flowId} onChange={e => setForm(f => ({...f, flowId: e.target.value}))}>
                   <option value="">-- Select a flow --</option>
                   {flows.filter(f => f.active !== false).map(f => (
@@ -171,7 +171,7 @@ export default function Scheduler() {
                   onClick={() => setForm(f => ({...f, active: !f.active}))}>
                   <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${form.active ? 'translate-x-4' : 'translate-x-0.5'}`} />
                 </div>
-                <span className="text-sm text-gray-700">Active</span>
+                <span className="text-sm text-primary">Active</span>
               </label>
             </div>
 

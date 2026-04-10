@@ -30,7 +30,7 @@ export default function Storage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-bold text-gray-900">Storage Manager</h1>
-          <p className="text-gray-500 text-sm">GPFS-style tiered storage with parallel I/O and AI lifecycle</p></div>
+          <p className="text-secondary text-sm">GPFS-style tiered storage with parallel I/O and AI lifecycle</p></div>
         <div className="flex gap-2">
           <button className="btn-secondary text-xs" onClick={() => tierMut.mutate()} disabled={tierMut.isPending}>
             <ArrowPathIcon className="w-3.5 h-3.5" /> {tierMut.isPending ? 'Running...' : 'Run Tiering'}
@@ -50,9 +50,9 @@ export default function Storage() {
           <div key={t.tier} className="card text-center">
             <div className="text-3xl mb-2">{t.icon}</div>
             <h3 className="font-bold text-gray-900">{t.tier} Tier</h3>
-            <p className="text-xs text-gray-500 mb-3">{t.desc}</p>
+            <p className="text-xs text-secondary mb-3">{t.desc}</p>
             <p className="text-2xl font-bold text-gray-900">{t.count.toLocaleString()}</p>
-            <p className="text-sm text-gray-500">files</p>
+            <p className="text-sm text-secondary">files</p>
             <p className="text-lg font-semibold text-gray-700 mt-1">{t.size} GB</p>
           </div>
         ))}
@@ -80,8 +80,8 @@ export default function Storage() {
                 <td className="table-cell"><span className={`badge ${tierColors[o.tier] || 'badge-gray'}`}>{o.tier}</span></td>
                 <td className="table-cell text-xs">{(o.sizeBytes / 1024).toFixed(1)} KB</td>
                 <td className="table-cell text-xs">{o.accessCount}</td>
-                <td className="table-cell font-mono text-xs text-gray-400">{o.sha256?.substring(0,12)}...</td>
-                <td className="table-cell text-xs text-gray-500">{o.createdAt ? format(new Date(o.createdAt), 'MMM d HH:mm') : ''}</td>
+                <td className="table-cell font-mono text-xs text-muted">{o.sha256?.substring(0,12)}...</td>
+                <td className="table-cell text-xs text-secondary">{o.createdAt ? format(new Date(o.createdAt), 'MMM d HH:mm') : ''}</td>
               </tr>
             ))}
           </tbody></table>
@@ -96,8 +96,8 @@ export default function Storage() {
             <div key={i} className="flex items-center gap-3 text-sm py-1">
               <span className="badge badge-blue text-xs">{a.action}</span>
               <span className="font-medium">{a.filename}</span>
-              <span className="text-gray-400 text-xs">{(a.sizeBytes / 1024).toFixed(0)} KB</span>
-              <span className="text-gray-400 text-xs ml-auto">{a.timestamp ? format(new Date(a.timestamp), 'HH:mm:ss') : ''}</span>
+              <span className="text-muted text-xs">{(a.sizeBytes / 1024).toFixed(0)} KB</span>
+              <span className="text-muted text-xs ml-auto">{a.timestamp ? format(new Date(a.timestamp), 'HH:mm:ss') : ''}</span>
             </div>
           ))}</div>
         </div>
@@ -107,12 +107,12 @@ export default function Storage() {
       {drpStats && (
         <div className="card">
           <h3 className="font-semibold text-gray-900 mb-1">DRP Engine Stats</h3>
-          <p className="text-gray-500 text-xs mb-4">Data Replication & Protection engine status and I/O lane metrics</p>
+          <p className="text-secondary text-xs mb-4">Data Replication & Protection engine status and I/O lane metrics</p>
           {drpStats.ioLanes && Object.keys(drpStats.ioLanes).length > 0 ? (
             <div className="grid grid-cols-3 gap-4">
               {Object.entries(drpStats.ioLanes).map(([key, val]) => (
-                <div key={key} className="border rounded-lg p-3 bg-gray-50 text-center">
-                  <span className="text-sm text-gray-500 block">{key}</span>
+                <div key={key} className="border rounded-lg p-3 bg-canvas text-center">
+                  <span className="text-sm text-secondary block">{key}</span>
                   <span className="text-lg font-bold text-gray-900">{typeof val === 'number' ? val.toLocaleString() : String(val)}</span>
                 </div>
               ))}
@@ -120,8 +120,8 @@ export default function Storage() {
           ) : (
             <div className="grid grid-cols-3 gap-4">
               {Object.entries(drpStats).filter(([k]) => k !== 'ioLanes').map(([key, val]) => (
-                <div key={key} className="border rounded-lg p-3 bg-gray-50 text-center">
-                  <span className="text-sm text-gray-500 block">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                <div key={key} className="border rounded-lg p-3 bg-canvas text-center">
+                  <span className="text-sm text-secondary block">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
                   <span className="text-lg font-bold text-gray-900">{typeof val === 'number' ? val.toLocaleString() : typeof val === 'boolean' ? (val ? 'Yes' : 'No') : String(val)}</span>
                 </div>
               ))}

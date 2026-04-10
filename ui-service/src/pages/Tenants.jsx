@@ -51,7 +51,7 @@ export default function Tenants() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-bold text-gray-900">Multi-Tenant Management</h1>
-          <p className="text-gray-500 text-sm">SaaS tenants — each gets their own namespace</p></div>
+          <p className="text-secondary text-sm">SaaS tenants — each gets their own namespace</p></div>
         <button className="btn-primary" onClick={openCreate}><PlusIcon className="w-4 h-4" /> New Tenant</button>
       </div>
 
@@ -61,10 +61,10 @@ export default function Tenants() {
             <BuildingOffice2Icon className="w-8 h-8 text-blue-500" />
             <div className="flex-1">
               <h3 className="font-semibold text-gray-900">{t.companyName}</h3>
-              <p className="text-xs text-gray-500">{t.slug}.tranzfer.io — {t.contactEmail}</p>
+              <p className="text-xs text-secondary">{t.slug}.tranzfer.io — {t.contactEmail}</p>
             </div>
             <span className={`badge ${t.plan === 'TRIAL' ? 'badge-yellow' : 'badge-green'}`}>{t.plan}</span>
-            <div className="text-right text-xs text-gray-500">
+            <div className="text-right text-xs text-secondary">
               <p>{t.transfersUsed || 0} transfers</p>
               {t.trialEndsAt && <p>Trial ends: {format(new Date(t.trialEndsAt), 'MMM d')}</p>}
             </div>
@@ -74,7 +74,7 @@ export default function Tenants() {
               className="p-1.5 rounded hover:bg-red-50 text-red-500 transition-colors"><TrashIcon className="w-4 h-4" /></button>
           </div>
         ))}
-        {tenants.length === 0 && <div className="card text-center py-8 text-gray-500">No tenants yet</div>}
+        {tenants.length === 0 && <div className="card text-center py-8 text-secondary">No tenants yet</div>}
       </div>
 
       {showCreate && (
@@ -82,7 +82,7 @@ export default function Tenants() {
           <form onSubmit={e => { e.preventDefault(); createMut.mutate(form) }} className="space-y-4">
             <div><label>Company Name</label><input value={form.companyName} onChange={e => setForm(f => ({...f, companyName: e.target.value}))} required placeholder="ACME Corporation" /></div>
             <div><label>Slug (URL-safe)</label><input value={form.slug} onChange={e => setForm(f => ({...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')}))} required placeholder="acme-corp" />
-              <p className="text-xs text-gray-400 mt-1">{form.slug || 'slug'}.tranzfer.io</p></div>
+              <p className="text-xs text-muted mt-1">{form.slug || 'slug'}.tranzfer.io</p></div>
             <div><label>Contact Email</label><input type="email" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))} required placeholder="admin@acme.com" /></div>
             <div className="flex gap-3 justify-end"><button type="button" className="btn-secondary" onClick={() => setShowCreate(false)}>Cancel</button>
               <button type="submit" className="btn-primary" disabled={createMut.isPending}>{createMut.isPending ? 'Creating...' : 'Create Tenant'}</button></div>
@@ -95,7 +95,7 @@ export default function Tenants() {
           <form onSubmit={e => { e.preventDefault(); updateMut.mutate({ id: editingTenant.id, data: form }) }} className="space-y-4">
             <div><label>Company Name</label><input value={form.companyName} onChange={e => setForm(f => ({...f, companyName: e.target.value}))} required placeholder="ACME Corporation" /></div>
             <div><label>Slug (URL-safe)</label><input value={form.slug} onChange={e => setForm(f => ({...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')}))} required placeholder="acme-corp" />
-              <p className="text-xs text-gray-400 mt-1">{form.slug || 'slug'}.tranzfer.io</p></div>
+              <p className="text-xs text-muted mt-1">{form.slug || 'slug'}.tranzfer.io</p></div>
             <div><label>Contact Email</label><input type="email" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))} required placeholder="admin@acme.com" /></div>
             <div className="flex gap-3 justify-end"><button type="button" className="btn-secondary" onClick={() => setEditingTenant(null)}>Cancel</button>
               <button type="submit" className="btn-primary" disabled={updateMut.isPending}>{updateMut.isPending ? 'Saving...' : 'Save Changes'}</button></div>

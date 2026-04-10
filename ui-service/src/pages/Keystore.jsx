@@ -222,8 +222,8 @@ export default function Keystore() {
       {/* ─── Header ─── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Keystore Manager</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
+          <h1 className="text-2xl font-bold text-primary">Keystore Manager</h1>
+          <p className="text-secondary text-sm mt-0.5">
             Central key & certificate management — {keys.length} active key{keys.length !== 1 ? 's' : ''}
           </p>
         </div>
@@ -243,8 +243,8 @@ export default function Keystore() {
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-blue-50"><KeyIcon className="w-5 h-5 text-blue-600" /></div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{stats?.totalActive || keys.length}</p>
-              <p className="text-xs text-gray-500">Total Active</p>
+              <p className="text-2xl font-bold text-primary">{stats?.totalActive || keys.length}</p>
+              <p className="text-xs text-secondary">Total Active</p>
             </div>
           </div>
         </div>
@@ -260,8 +260,8 @@ export default function Keystore() {
               <div className="flex items-center gap-3">
                 <div className={`p-2 rounded-lg bg-${cat.color}-50`}><cat.icon className={`w-5 h-5 text-${cat.color}-600`} /></div>
                 <div>
-                  <p className="text-2xl font-bold text-gray-900">{count}</p>
-                  <p className="text-xs text-gray-500">{cat.type}</p>
+                  <p className="text-2xl font-bold text-primary">{count}</p>
+                  <p className="text-xs text-secondary">{cat.type}</p>
                 </div>
               </div>
             </div>
@@ -299,7 +299,7 @@ export default function Keystore() {
               className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
                 activeTab === tab.key
                   ? 'bg-blue-100 text-blue-700'
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                  : 'text-secondary hover:text-primary hover:bg-hover'
               }`}>
               {tab.label}
               {tab.key !== 'all' && (
@@ -311,7 +311,7 @@ export default function Keystore() {
           ))}
         </div>
         <div className="relative">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted pointer-events-none" />
           <input
             value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search keys..."
@@ -333,7 +333,7 @@ export default function Keystore() {
         <div className="card !p-0 overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="border-b bg-gray-50/50">
+              <tr className="border-b bg-canvas/50">
                 <th className="table-header">Key</th>
                 <th className="table-header">Type</th>
                 <th className="table-header">Algorithm</th>
@@ -356,56 +356,56 @@ export default function Keystore() {
                           <meta.icon className={`w-4 h-4 text-${meta.color}-600`} />
                         </div>
                         <div>
-                          <p className="font-mono text-xs font-bold text-gray-900">{k.alias}</p>
-                          {k.description && <p className="text-xs text-gray-400 truncate max-w-[200px]">{k.description}</p>}
+                          <p className="font-mono text-xs font-bold text-primary">{k.alias}</p>
+                          {k.description && <p className="text-xs text-muted truncate max-w-[200px]">{k.description}</p>}
                         </div>
                       </div>
                     </td>
                     <td className="table-cell">
                       <span className={`badge badge-${meta.color}`}>{meta.label}</span>
                     </td>
-                    <td className="table-cell text-xs text-gray-500 font-mono">{k.algorithm || '—'}</td>
+                    <td className="table-cell text-xs text-secondary font-mono">{k.algorithm || '—'}</td>
                     <td className="table-cell text-xs">
                       {k.ownerService && <span className="badge badge-gray">{k.ownerService}</span>}
                       {k.partnerAccount && <span className="badge badge-blue ml-1">{k.partnerAccount}</span>}
-                      {!k.ownerService && !k.partnerAccount && <span className="text-gray-400">—</span>}
+                      {!k.ownerService && !k.partnerAccount && <span className="text-muted">—</span>}
                     </td>
                     <td className="table-cell">
-                      <span className="font-mono text-xs text-gray-400">{k.fingerprint?.substring(0, 16)}...</span>
+                      <span className="font-mono text-xs text-muted">{k.fingerprint?.substring(0, 16)}...</span>
                     </td>
                     <td className="table-cell text-xs">
                       {k.expiresAt ? (
-                        <span className={isExpiring ? 'text-amber-600 font-semibold' : 'text-gray-500'}>
+                        <span className={isExpiring ? 'text-amber-600 font-semibold' : 'text-secondary'}>
                           {isExpiring && <ExclamationTriangleIcon className="w-3.5 h-3.5 inline mr-1" />}
                           {format(new Date(k.expiresAt), 'MMM d, yyyy')}
                         </span>
                       ) : (
-                        <span className="text-gray-400">No expiry</span>
+                        <span className="text-muted">No expiry</span>
                       )}
                     </td>
-                    <td className="table-cell text-xs text-gray-500">
+                    <td className="table-cell text-xs text-secondary">
                       {format(new Date(k.createdAt), 'MMM d, yyyy')}
                     </td>
                     <td className="table-cell text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
                         {k.publicKeyMaterial && (
                           <button onClick={() => viewPublicKey(k.alias)}
-                            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-blue-600" title="View Public Key">
+                            className="p-1.5 rounded-lg hover:bg-hover text-muted hover:text-blue-600" title="View Public Key">
                             <EyeIcon className="w-4 h-4" />
                           </button>
                         )}
                         <a href={getDownloadUrl(k.alias, 'public')} download
-                          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-green-600" title="Download">
+                          className="p-1.5 rounded-lg hover:bg-hover text-muted hover:text-green-600" title="Download">
                           <ArrowDownTrayIcon className="w-4 h-4" />
                         </a>
                         {['AES_SYMMETRIC', 'SSH_HOST_KEY', 'HMAC_SECRET'].includes(k.keyType) && (
                           <button onClick={() => setShowRotateConfirm(k)}
-                            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-amber-600" title="Rotate">
+                            className="p-1.5 rounded-lg hover:bg-hover text-muted hover:text-amber-600" title="Rotate">
                             <ArrowPathIcon className="w-4 h-4" />
                           </button>
                         )}
                         <button onClick={() => setShowDeactivateConfirm(k)}
-                          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-red-600" title="Deactivate">
+                          className="p-1.5 rounded-lg hover:bg-hover text-muted hover:text-red-600" title="Deactivate">
                           <TrashIcon className="w-4 h-4" />
                         </button>
                       </div>
@@ -426,18 +426,18 @@ export default function Keystore() {
           {!genType ? (
             /* Step 1: Choose key type */
             <div className="space-y-4">
-              <p className="text-sm text-gray-500">Select the type of key to generate:</p>
+              <p className="text-sm text-secondary">Select the type of key to generate:</p>
               <div className="grid grid-cols-2 gap-3">
                 {GEN_TYPES.map(t => (
                   <button key={t.id} onClick={() => setGenType(t.id)}
-                    className={`p-4 rounded-xl border-2 border-gray-200 hover:border-${t.color}-400 hover:bg-${t.color}-50/50 text-left transition-all group`}>
+                    className={`p-4 rounded-xl border-2 border-border hover:border-${t.color}-400 hover:bg-${t.color}-50/50 text-left transition-all group`}>
                     <div className="flex items-center gap-3">
                       <div className={`p-2 rounded-lg bg-${t.color}-100 text-${t.color}-600`}>
                         <t.icon className="w-5 h-5" />
                       </div>
                       <div>
-                        <p className="font-semibold text-gray-900 text-sm">{t.label}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{t.description}</p>
+                        <p className="font-semibold text-primary text-sm">{t.label}</p>
+                        <p className="text-xs text-secondary mt-0.5">{t.description}</p>
                       </div>
                     </div>
                   </button>
@@ -452,7 +452,7 @@ export default function Keystore() {
               </button>
               {GEN_TYPES.find(t => t.id === genType)?.fields.map(f => (
                 <div key={f.name}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-primary mb-1">
                     {f.label} {f.required && <span className="text-red-500">*</span>}
                   </label>
                   {f.type === 'select' ? (
@@ -494,12 +494,12 @@ export default function Keystore() {
           <form onSubmit={e => { e.preventDefault(); importMut.mutate(importForm) }} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Key Alias <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-primary mb-1">Key Alias <span className="text-red-500">*</span></label>
                 <input value={importForm.alias} onChange={e => setImportForm(p => ({ ...p, alias: e.target.value }))}
                   placeholder="partner-acme-pgp-pub" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Key Type <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-primary mb-1">Key Type <span className="text-red-500">*</span></label>
                 <select value={importForm.keyType} onChange={e => setImportForm(p => ({ ...p, keyType: e.target.value }))}>
                   {IMPORT_TYPES.map(t => (
                     <option key={t} value={t}>{KEY_TYPE_META[t]?.label || t}</option>
@@ -508,10 +508,10 @@ export default function Keystore() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-primary mb-1">
                 Key Material <span className="text-red-500">*</span>
               </label>
-              <p className="text-xs text-gray-400 mb-2">Paste PEM-encoded key, certificate, or Base64 material</p>
+              <p className="text-xs text-muted mb-2">Paste PEM-encoded key, certificate, or Base64 material</p>
               <textarea
                 value={importForm.keyMaterial}
                 onChange={e => setImportForm(p => ({ ...p, keyMaterial: e.target.value }))}
@@ -540,18 +540,18 @@ export default function Keystore() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <label className="block text-sm font-medium text-primary mb-1">Description</label>
               <input value={importForm.description} onChange={e => setImportForm(p => ({ ...p, description: e.target.value }))}
                 placeholder="PGP public key from ACME Corp" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Owner Service</label>
+                <label className="block text-sm font-medium text-primary mb-1">Owner Service</label>
                 <input value={importForm.ownerService} onChange={e => setImportForm(p => ({ ...p, ownerService: e.target.value }))}
                   placeholder="sftp-service" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Partner Account</label>
+                <label className="block text-sm font-medium text-primary mb-1">Partner Account</label>
                 <input value={importForm.partnerAccount} onChange={e => setImportForm(p => ({ ...p, partnerAccount: e.target.value }))}
                   placeholder="acme-corp" />
               </div>
@@ -587,17 +587,17 @@ export default function Keystore() {
                     <meta.icon className={`w-6 h-6 text-${meta.color}-600`} />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-mono font-bold text-lg text-gray-900">{k.alias}</h3>
+                    <h3 className="font-mono font-bold text-lg text-primary">{k.alias}</h3>
                     <div className="flex items-center gap-2 mt-1">
                       <span className={`badge badge-${meta.color}`}>{meta.label}</span>
                       {k.algorithm && <span className="badge badge-gray">{k.algorithm}</span>}
-                      {k.keySizeBits && <span className="text-xs text-gray-400">{k.keySizeBits}-bit</span>}
+                      {k.keySizeBits && <span className="text-xs text-muted">{k.keySizeBits}-bit</span>}
                     </div>
                   </div>
                 </div>
 
                 {/* Info Grid */}
-                <div className="grid grid-cols-2 gap-4 bg-gray-50 rounded-xl p-4">
+                <div className="grid grid-cols-2 gap-4 bg-canvas rounded-xl p-4">
                   {[
                     { label: 'Owner Service', value: k.ownerService },
                     { label: 'Partner Account', value: k.partnerAccount },
@@ -609,8 +609,8 @@ export default function Keystore() {
                     { label: 'Issuer DN', value: k.issuerDn },
                   ].filter(f => f.value).map(f => (
                     <div key={f.label}>
-                      <p className="text-xs text-gray-500">{f.label}</p>
-                      <p className={`text-sm font-medium ${f.warn ? 'text-amber-600' : 'text-gray-900'}`}>
+                      <p className="text-xs text-secondary">{f.label}</p>
+                      <p className={`text-sm font-medium ${f.warn ? 'text-amber-600' : 'text-primary'}`}>
                         {f.warn && <ExclamationTriangleIcon className="w-3.5 h-3.5 inline mr-1" />}
                         {f.value}
                       </p>
@@ -621,20 +621,20 @@ export default function Keystore() {
                 {/* Description */}
                 {k.description && (
                   <div>
-                    <p className="text-xs text-gray-500 mb-1">Description</p>
-                    <p className="text-sm text-gray-700">{k.description}</p>
+                    <p className="text-xs text-secondary mb-1">Description</p>
+                    <p className="text-sm text-primary">{k.description}</p>
                   </div>
                 )}
 
                 {/* Fingerprint */}
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">SHA-256 Fingerprint</p>
+                  <p className="text-xs text-secondary mb-1">SHA-256 Fingerprint</p>
                   <div className="flex items-center gap-2">
-                    <code className="text-xs bg-gray-100 px-3 py-2 rounded-lg font-mono text-gray-700 flex-1 break-all">
+                    <code className="text-xs bg-hover px-3 py-2 rounded-lg font-mono text-primary flex-1 break-all">
                       {k.fingerprint}
                     </code>
                     <button onClick={() => copyToClipboard(k.fingerprint)}
-                      className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-blue-600" title="Copy">
+                      className="p-2 rounded-lg hover:bg-hover text-muted hover:text-blue-600" title="Copy">
                       <ClipboardDocumentIcon className="w-4 h-4" />
                     </button>
                   </div>
@@ -644,13 +644,13 @@ export default function Keystore() {
                 {k.publicKeyMaterial && (
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <p className="text-xs text-gray-500">Public Key</p>
+                      <p className="text-xs text-secondary">Public Key</p>
                       <button onClick={() => copyToClipboard(k.publicKeyMaterial)}
                         className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1">
                         <ClipboardDocumentIcon className="w-3.5 h-3.5" /> Copy
                       </button>
                     </div>
-                    <pre className="text-xs bg-gray-100 px-3 py-2 rounded-lg font-mono text-gray-600 max-h-32 overflow-auto whitespace-pre-wrap break-all">
+                    <pre className="text-xs bg-hover px-3 py-2 rounded-lg font-mono text-secondary max-h-32 overflow-auto whitespace-pre-wrap break-all">
                       {k.publicKeyMaterial}
                     </pre>
                   </div>
@@ -687,7 +687,7 @@ export default function Keystore() {
       {showPublicKey && (
         <Modal title={`Public Key — ${showPublicKey.alias}`} onClose={() => setShowPublicKey(null)}>
           <div className="space-y-4">
-            <pre className="text-xs bg-gray-50 border px-4 py-3 rounded-lg font-mono text-gray-700 max-h-64 overflow-auto whitespace-pre-wrap break-all">
+            <pre className="text-xs bg-canvas border px-4 py-3 rounded-lg font-mono text-primary max-h-64 overflow-auto whitespace-pre-wrap break-all">
               {showPublicKey.material}
             </pre>
             <div className="flex gap-3 justify-end">

@@ -341,8 +341,8 @@ export default function ServerInstances() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Server Instances</h1>
-          <p className="text-gray-500 text-sm">Manage server instances across all protocols and assign users to specific servers</p>
+          <h1 className="text-2xl font-bold text-primary">Server Instances</h1>
+          <p className="text-secondary text-sm">Manage server instances across all protocols and assign users to specific servers</p>
         </div>
         <button className="btn-primary" onClick={() => { setForm(emptyForm); setShowCreate(true) }}>
           <PlusIcon className="w-4 h-4" /> Add Server
@@ -352,23 +352,23 @@ export default function ServerInstances() {
       {/* Summary cards */}
       <div className="grid grid-cols-5 gap-4">
         <div className="card p-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wider">Total Servers</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{servers.length}</p>
+          <p className="text-xs text-secondary uppercase tracking-wider">Total Servers</p>
+          <p className="text-2xl font-bold text-primary mt-1">{servers.length}</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wider">Active</p>
+          <p className="text-xs text-secondary uppercase tracking-wider">Active</p>
           <p className="text-2xl font-bold text-green-600 mt-1">{servers.filter(s => s.active).length}</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wider">Physical Storage</p>
+          <p className="text-xs text-secondary uppercase tracking-wider">Physical Storage</p>
           <p className="text-2xl font-bold text-blue-600 mt-1">{servers.filter(s => !s.defaultStorageMode || s.defaultStorageMode === 'PHYSICAL').length}</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wider">VFS (Virtual)</p>
+          <p className="text-xs text-secondary uppercase tracking-wider">VFS (Virtual)</p>
           <p className="text-2xl font-bold text-purple-600 mt-1">{servers.filter(s => s.defaultStorageMode === 'VIRTUAL').length}</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wider">With Proxy</p>
+          <p className="text-xs text-secondary uppercase tracking-wider">With Proxy</p>
           <p className="text-2xl font-bold text-amber-600 mt-1">{servers.filter(s => s.useProxy).length}</p>
         </div>
       </div>
@@ -378,7 +378,7 @@ export default function ServerInstances() {
         <button
           onClick={() => setProtocolFilter('ALL')}
           className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-            protocolFilter === 'ALL' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            protocolFilter === 'ALL' ? 'bg-gray-900 text-white' : 'bg-hover text-secondary hover:bg-gray-200'
           }`}>
           All ({servers.length})
         </button>
@@ -387,7 +387,7 @@ export default function ServerInstances() {
             <button key={p}
               onClick={() => setProtocolFilter(p)}
               className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                protocolFilter === p ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                protocolFilter === p ? 'bg-gray-900 text-white' : 'bg-hover text-secondary hover:bg-gray-200'
               }`}>
               {PROTOCOL_LABELS[p]} ({protocolCounts[p] || 0})
             </button>
@@ -402,7 +402,7 @@ export default function ServerInstances() {
         <div className="card">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-100">
+              <tr className="border-b border-border">
                 <th className="table-header">Instance</th>
                 <th className="table-header">Protocol</th>
                 <th className="table-header">Name</th>
@@ -438,8 +438,8 @@ export default function ServerInstances() {
                     </td>
                     <td className="table-cell">
                       <div>
-                        <p className="font-medium text-gray-900">{s.name}</p>
-                        {s.description && <p className="text-xs text-gray-400">{s.description}</p>}
+                        <p className="font-medium text-primary">{s.name}</p>
+                        {s.description && <p className="text-xs text-muted">{s.description}</p>}
                       </div>
                     </td>
                     <td className="table-cell">
@@ -449,8 +449,8 @@ export default function ServerInstances() {
                         {isVFS ? <><CircleStackIcon className="w-3 h-3" /> VFS</> : <><FolderIcon className="w-3 h-3" /> Physical</>}
                       </span>
                     </td>
-                    <td className="table-cell font-mono text-xs text-gray-500">{s.internalHost}:{s.internalPort}</td>
-                    <td className="table-cell font-mono text-xs text-gray-700">
+                    <td className="table-cell font-mono text-xs text-secondary">{s.internalHost}:{s.internalPort}</td>
+                    <td className="table-cell font-mono text-xs text-primary">
                       {s.clientHost}:{s.clientPort}
                       {s.useProxy && (
                         <span className="ml-1 text-[10px] text-blue-500">(proxy)</span>
@@ -608,7 +608,7 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
           <select value={form.protocol} onChange={e => handleProtocolChange(e.target.value)}>
             {PROTOCOLS.map(p => <option key={p} value={p}>{PROTOCOL_LABELS[p]}</option>)}
           </select>
-          <p className="text-xs text-gray-400 mt-1">Determines the file transfer protocol this server instance handles</p>
+          <p className="text-xs text-muted mt-1">Determines the file transfer protocol this server instance handles</p>
         </div>
 
         {showInstanceId && (
@@ -616,7 +616,7 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
             <label>Instance ID *</label>
             <input value={form.instanceId} onChange={e => f('instanceId', e.target.value)} required
               placeholder={`${form.protocol.toLowerCase()}-3`} pattern="[a-z0-9\-]+" title="Lowercase letters, numbers, hyphens" />
-            <p className="text-xs text-gray-400 mt-1">Unique identifier (e.g., sftp-3, ftp-eu-west, ftpweb-2)</p>
+            <p className="text-xs text-muted mt-1">Unique identifier (e.g., sftp-3, ftp-eu-west, ftpweb-2)</p>
           </div>
         )}
 
@@ -624,7 +624,7 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
           <div>
             <label>Name *</label>
             <input value={form.name} onChange={e => f('name', e.target.value)} required placeholder="EU West Server" />
-            <p className="text-xs text-gray-400 mt-1">Human-readable name for this server</p>
+            <p className="text-xs text-muted mt-1">Human-readable name for this server</p>
           </div>
           <div>
             <label>Description</label>
@@ -635,16 +635,16 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
         <div className="flex items-center gap-3">
           <input type="checkbox" id="activeToggle" checked={form.active !== false} onChange={e => f('active', e.target.checked)}
             className="w-4 h-4 text-blue-600 rounded border-gray-300" />
-          <label htmlFor="activeToggle" className="text-sm font-medium text-gray-700 mb-0">Active</label>
-          <p className="text-xs text-gray-400">Inactive servers will not accept connections</p>
+          <label htmlFor="activeToggle" className="text-sm font-medium text-primary mb-0">Active</label>
+          <p className="text-xs text-muted">Inactive servers will not accept connections</p>
         </div>
       </FormSection>
 
       {/* ═══════ Section 2: Network Configuration ═══════ */}
       <FormSection title="Network Configuration" subtitle="Internal and external connection endpoints">
         <div>
-          <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">Internal Connection (Docker / Host)</p>
-          <p className="text-xs text-gray-400 mb-3">Where the platform connects to this server internally</p>
+          <p className="text-xs text-secondary uppercase tracking-wider font-semibold mb-2">Internal Connection (Docker / Host)</p>
+          <p className="text-xs text-muted mb-3">Where the platform connects to this server internally</p>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label>Internal Host *</label>
@@ -658,8 +658,8 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
         </div>
 
         <div>
-          <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">External Connection (Client-Facing)</p>
-          <p className="text-xs text-gray-400 mb-3">What partners/clients use to connect. Leave blank if same as internal.</p>
+          <p className="text-xs text-secondary uppercase tracking-wider font-semibold mb-2">External Connection (Client-Facing)</p>
+          <p className="text-xs text-muted mb-3">What partners/clients use to connect. Leave blank if same as internal.</p>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label>External Host</label>
@@ -684,7 +684,7 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
               <option key={p.id} value={p.id}>{p.name}{p.description ? ` -- ${p.description}` : ''}</option>
             ))}
           </select>
-          <p className="text-xs text-gray-400 mt-1">Assign a compliance profile to enforce data rules on transfers through this server</p>
+          <p className="text-xs text-muted mt-1">Assign a compliance profile to enforce data rules on transfers through this server</p>
         </div>
 
         {/* Security Tier */}
@@ -695,7 +695,7 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
             showAiTiers={true}
             llmEnabled={llmEnabled}
           />
-          <p className="text-xs text-gray-400 mt-1">RULES = pattern matching only, AI = machine-learning threat detection, AI+LLM = deep content analysis</p>
+          <p className="text-xs text-muted mt-1">RULES = pattern matching only, AI = machine-learning threat detection, AI+LLM = deep content analysis</p>
         </div>
 
         {/* Max Auth Attempts */}
@@ -703,7 +703,7 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
           <label>Max Authentication Attempts</label>
           <input type="number" min={1} max={10} value={form.maxAuthAttempts}
             onChange={e => setForm(prev => ({ ...prev, maxAuthAttempts: Number(e.target.value) }))} />
-          <p className="text-xs text-gray-400 mt-1">Disconnect after this many failed login attempts (1-10)</p>
+          <p className="text-xs text-muted mt-1">Disconnect after this many failed login attempts (1-10)</p>
         </div>
 
         {/* SSH-specific fields */}
@@ -713,7 +713,7 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
               <label>SSH Banner Message</label>
               <textarea rows={2} value={form.sshBannerMessage || ''} placeholder="Authorized access only. Connections are monitored."
                 onChange={e => setForm(prev => ({ ...prev, sshBannerMessage: e.target.value }))} />
-              <p className="text-xs text-gray-400 mt-1">Shown to SSH clients immediately after connecting (SFTP only)</p>
+              <p className="text-xs text-muted mt-1">Shown to SSH clients immediately after connecting (SFTP only)</p>
             </div>
 
             {/* SSH Crypto Accordion */}
@@ -721,7 +721,7 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
               <button
                 type="button"
                 onClick={() => setShowSshCrypto(o => !o)}
-                className="w-full flex items-center justify-between px-3 py-2 text-left text-xs font-medium text-gray-600"
+                className="w-full flex items-center justify-between px-3 py-2 text-left text-xs font-medium text-secondary"
                 style={{ background: 'rgb(var(--hover, 249 250 251))', borderRadius: '0.5rem' }}
               >
                 <span>SSH Cipher / Algorithm Allowlists (Advanced)</span>
@@ -735,7 +735,7 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
                 style={{ maxHeight: showSshCrypto ? '500px' : '0', opacity: showSshCrypto ? 1 : 0, overflow: 'hidden' }}
               >
                 <div className="px-3 py-3 space-y-3" style={{ borderTop: '1px solid rgb(var(--border, 229 231 235))' }}>
-                  <p className="text-xs text-gray-400">Comma-separated allowlists. Leave blank to use server defaults.</p>
+                  <p className="text-xs text-muted">Comma-separated allowlists. Leave blank to use server defaults.</p>
                   <div className="grid grid-cols-3 gap-2">
                     <div>
                       <label className="text-xs">Ciphers</label>
@@ -766,26 +766,26 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
           <div>
             <label>Max Connections</label>
             <input type="number" value={form.maxConnections} onChange={e => f('maxConnections', parseInt(e.target.value))} />
-            <p className="text-xs text-gray-400 mt-1">Maximum simultaneous connections</p>
+            <p className="text-xs text-muted mt-1">Maximum simultaneous connections</p>
           </div>
           <div>
             <label>Idle Timeout (seconds)</label>
             <input type="number" min={0} value={form.idleTimeoutSeconds}
               onChange={e => setForm(prev => ({ ...prev, idleTimeoutSeconds: Number(e.target.value) }))} />
-            <p className="text-xs text-gray-400 mt-1">0 = no timeout</p>
+            <p className="text-xs text-muted mt-1">0 = no timeout</p>
           </div>
           <div>
             <label>Max Session Duration (seconds)</label>
             <input type="number" min={0} value={form.sessionMaxDurationSeconds}
               onChange={e => setForm(prev => ({ ...prev, sessionMaxDurationSeconds: Number(e.target.value) }))} />
-            <p className="text-xs text-gray-400 mt-1">0 = unlimited</p>
+            <p className="text-xs text-muted mt-1">0 = unlimited</p>
           </div>
         </div>
 
         {/* Storage Mode */}
         <div>
-          <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">Default Storage Mode</p>
-          <p className="text-xs text-gray-400 mb-3">How files are stored for accounts on this server</p>
+          <p className="text-xs text-secondary uppercase tracking-wider font-semibold mb-2">Default Storage Mode</p>
+          <p className="text-xs text-muted mb-3">How files are stored for accounts on this server</p>
           <div className="grid grid-cols-2 gap-3">
             {STORAGE_MODES.map(mode => {
               const Icon = mode.icon
@@ -796,15 +796,15 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
                   className={`p-4 rounded-xl border-2 text-left transition-all ${
                     selected
                       ? mode.color === 'purple' ? 'border-purple-500 bg-purple-50' : 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
+                      : 'border-border hover:border-gray-300'
                   }`}>
                   <div className="flex items-center gap-2 mb-1">
-                    <Icon className={`w-5 h-5 ${selected ? (mode.color === 'purple' ? 'text-purple-600' : 'text-blue-600') : 'text-gray-400'}`} />
-                    <span className={`font-semibold text-sm ${selected ? (mode.color === 'purple' ? 'text-purple-700' : 'text-blue-700') : 'text-gray-700'}`}>
+                    <Icon className={`w-5 h-5 ${selected ? (mode.color === 'purple' ? 'text-purple-600' : 'text-blue-600') : 'text-muted'}`} />
+                    <span className={`font-semibold text-sm ${selected ? (mode.color === 'purple' ? 'text-purple-700' : 'text-blue-700') : 'text-primary'}`}>
                       {mode.label}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500">{mode.desc}</p>
+                  <p className="text-xs text-secondary">{mode.desc}</p>
                 </button>
               )
             })}
@@ -827,8 +827,8 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
         <div className="flex items-center gap-3">
           <input type="checkbox" id="useProxy" checked={form.useProxy} onChange={e => f('useProxy', e.target.checked)}
             className="w-4 h-4 text-blue-600 rounded border-gray-300" />
-          <label htmlFor="useProxy" className="text-sm font-medium text-gray-700 mb-0">Use Reverse Proxy</label>
-          <p className="text-xs text-gray-400">Route connections through the DMZ proxy for security</p>
+          <label htmlFor="useProxy" className="text-sm font-medium text-primary mb-0">Use Reverse Proxy</label>
+          <p className="text-xs text-muted">Route connections through the DMZ proxy for security</p>
         </div>
 
         <div
@@ -870,7 +870,7 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
                   <option key={g.name} value={g.name}>{g.name} ({g.type})</option>
                 ))}
               </select>
-              <p className="text-xs text-gray-400 mt-1">Route inbound connections through a specific proxy group (internal / external / partner)</p>
+              <p className="text-xs text-muted mt-1">Route inbound connections through a specific proxy group (internal / external / partner)</p>
             </div>
 
             {/* Proxy QoS Policy */}
@@ -879,8 +879,8 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
                 <input type="checkbox" id="proxyQosEnabled" checked={form.proxyQos?.enabled || false}
                   onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, enabled: e.target.checked } }))}
                   className="w-4 h-4 text-blue-600 rounded border-gray-300" />
-                <label htmlFor="proxyQosEnabled" className="text-sm font-medium text-gray-700 mb-0">Enable Proxy QoS</label>
-                <p className="text-xs text-gray-400">Bandwidth throttling and priority control</p>
+                <label htmlFor="proxyQosEnabled" className="text-sm font-medium text-primary mb-0">Enable Proxy QoS</label>
+                <p className="text-xs text-muted">Bandwidth throttling and priority control</p>
               </div>
               <div
                 className="transition-all duration-200 ease-in-out"
@@ -888,28 +888,28 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
               >
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-gray-500">Max Bandwidth (MB/s)</label>
+                    <label className="text-xs text-secondary">Max Bandwidth (MB/s)</label>
                     <input type="number" min="0"
                       value={form.proxyQos.maxBytesPerSecond ? Math.round(form.proxyQos.maxBytesPerSecond / 1048576) : ''}
                       onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, maxBytesPerSecond: e.target.value ? Number(e.target.value) * 1048576 : 0 } }))}
                       placeholder="0 = unlimited" />
-                    <p className="text-xs text-gray-400 mt-0.5">Aggregate for all connections through this mapping</p>
+                    <p className="text-xs text-muted mt-0.5">Aggregate for all connections through this mapping</p>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500">Per-Connection Limit (MB/s)</label>
+                    <label className="text-xs text-secondary">Per-Connection Limit (MB/s)</label>
                     <input type="number" min="0"
                       value={form.proxyQos.perConnectionMaxBytesPerSecond ? Math.round(form.proxyQos.perConnectionMaxBytesPerSecond / 1048576) : ''}
                       onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, perConnectionMaxBytesPerSecond: e.target.value ? Number(e.target.value) * 1048576 : 0 } }))}
                       placeholder="0 = unlimited" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500">Priority (1=Highest, 10=Lowest)</label>
+                    <label className="text-xs text-secondary">Priority (1=Highest, 10=Lowest)</label>
                     <input type="number" min="1" max="10"
                       value={form.proxyQos.priority || 5}
                       onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, priority: Number(e.target.value) } }))} />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500">Burst Allowance (%)</label>
+                    <label className="text-xs text-secondary">Burst Allowance (%)</label>
                     <input type="number" min="0" max="100"
                       value={form.proxyQos.burstAllowancePercent || 20}
                       onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, burstAllowancePercent: Number(e.target.value) } }))} />
@@ -925,8 +925,8 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
       <FormSection title="Templates & Maintenance" subtitle="Folder structure and maintenance mode" defaultOpen={true}>
         {/* Folder Template */}
         <div>
-          <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Folder Template</p>
-          <p className="text-xs text-gray-400 mb-3">
+          <p className="text-xs text-secondary uppercase tracking-wider font-semibold mb-1">Folder Template</p>
+          <p className="text-xs text-muted mb-3">
             Directory structure users see when connecting -- inbox, outbox, archive, etc.
           </p>
 
@@ -936,12 +936,12 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
               <button type="button"
                 onClick={() => { f('folderTemplateId', null); f('clearFolderTemplate', true) }}
                 className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
-                  !form.folderTemplateId ? 'border-gray-400 bg-gray-50' : 'border-gray-200 hover:border-gray-300'
+                  !form.folderTemplateId ? 'border-gray-400 bg-canvas' : 'border-border hover:border-gray-300'
                 }`}>
-                <p className={`text-sm font-medium ${!form.folderTemplateId ? 'text-gray-900' : 'text-gray-500'}`}>
+                <p className={`text-sm font-medium ${!form.folderTemplateId ? 'text-primary' : 'text-secondary'}`}>
                   No folder template
                 </p>
-                <p className="text-xs text-gray-400">Accounts use a flat home directory with no predefined structure</p>
+                <p className="text-xs text-muted">Accounts use a flat home directory with no predefined structure</p>
               </button>
 
               {/* Template cards */}
@@ -951,22 +951,22 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
                   <button key={t.id} type="button"
                     onClick={() => { f('folderTemplateId', t.id); f('clearFolderTemplate', false) }}
                     className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
-                      isSelected ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-200' : 'border-gray-200 hover:border-gray-300'
+                      isSelected ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-200' : 'border-border hover:border-gray-300'
                     }`}>
                     <div className="flex items-center gap-2 mb-1">
-                      <p className={`text-sm font-medium ${isSelected ? 'text-blue-900' : 'text-gray-900'}`}>{t.name}</p>
+                      <p className={`text-sm font-medium ${isSelected ? 'text-blue-900' : 'text-primary'}`}>{t.name}</p>
                       {t.builtIn && (
                         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-600">
                           <LockClosedIcon className="w-2.5 h-2.5" /> Built-in
                         </span>
                       )}
-                      <span className="text-[10px] text-gray-400 ml-auto">{t.folders.length} folder{t.folders.length !== 1 ? 's' : ''}</span>
+                      <span className="text-[10px] text-muted ml-auto">{t.folders.length} folder{t.folders.length !== 1 ? 's' : ''}</span>
                     </div>
-                    {t.description && <p className="text-xs text-gray-500 mb-1.5">{t.description}</p>}
+                    {t.description && <p className="text-xs text-secondary mb-1.5">{t.description}</p>}
                     <div className="flex flex-wrap gap-1">
                       {t.folders.map((fd, i) => (
                         <span key={i} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono ${
-                          isSelected ? 'bg-blue-100/70 text-blue-700' : 'bg-gray-100 text-gray-600'
+                          isSelected ? 'bg-blue-100/70 text-blue-700' : 'bg-hover text-secondary'
                         }`}>
                           <FolderIcon className="w-3 h-3 text-yellow-500" /> {fd.path}
                         </span>
@@ -977,7 +977,7 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
               })}
             </div>
           ) : (
-            <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-500 border border-gray-200">
+            <div className="bg-canvas rounded-lg p-3 text-xs text-secondary border border-border">
               No folder templates available. Create templates on the <span className="font-medium">Folder Templates</span> page first.
             </div>
           )}
@@ -991,7 +991,7 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
             <label htmlFor="maintenanceMode" className="text-sm font-medium text-yellow-700 mb-0">
               Maintenance Mode
             </label>
-            <p className="text-xs text-gray-400">New connections will be rejected while enabled</p>
+            <p className="text-xs text-muted">New connections will be rejected while enabled</p>
           </div>
           <div
             className="transition-all duration-200 ease-in-out"
@@ -1001,7 +1001,7 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
               <label>Maintenance Message</label>
               <input value={form.maintenanceMessage || ''} placeholder="Server under maintenance, back in 30 min"
                 onChange={e => setForm(prev => ({ ...prev, maintenanceMessage: e.target.value }))} />
-              <p className="text-xs text-gray-400 mt-1">Shown to clients attempting to connect during maintenance</p>
+              <p className="text-xs text-muted mt-1">Shown to clients attempting to connect during maintenance</p>
             </div>
           </div>
         </div>

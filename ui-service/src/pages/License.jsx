@@ -39,7 +39,7 @@ export default function License() {
   return (
     <div className="space-y-6">
       <div><h1 className="text-2xl font-bold text-gray-900">License Management</h1>
-        <p className="text-gray-500 text-sm">Manage your TranzFer MFT platform license</p></div>
+        <p className="text-secondary text-sm">Manage your TranzFer MFT platform license</p></div>
 
       <div className="card">
         <div className="flex items-start gap-4">
@@ -53,15 +53,15 @@ export default function License() {
             {status && (
               <div className="mt-2 space-y-1 text-sm">
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500">Mode:</span>
+                  <span className="text-secondary">Mode:</span>
                   <span className={`badge ${modeColors[status.mode] || 'badge-gray'}`}>{status.mode || '—'}</span>
                 </div>
-                {status.edition && <div><span className="text-gray-500">Edition: </span><strong>{status.edition}</strong></div>}
-                {status.expiresAt && <div><span className="text-gray-500">Expires: </span><strong>{format(new Date(status.expiresAt), 'MMMM d, yyyy')}</strong></div>}
+                {status.edition && <div><span className="text-secondary">Edition: </span><strong>{status.edition}</strong></div>}
+                {status.expiresAt && <div><span className="text-secondary">Expires: </span><strong>{format(new Date(status.expiresAt), 'MMMM d, yyyy')}</strong></div>}
                 {status.trialDaysRemaining != null && (
                   <div className="text-amber-700 font-medium">{status.trialDaysRemaining} trial days remaining</div>
                 )}
-                {status.maxInstances > 0 && <div><span className="text-gray-500">Max instances per service: </span><strong>{status.maxInstances}</strong></div>}
+                {status.maxInstances > 0 && <div><span className="text-secondary">Max instances per service: </span><strong>{status.maxInstances}</strong></div>}
                 <p className="text-gray-600 mt-2">{status.message}</p>
               </div>
             )}

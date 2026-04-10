@@ -34,7 +34,7 @@ const FOLDER_PURPOSES = [
   { value: 'SENT', label: 'Sent', hint: 'Delivered files archived', color: 'text-indigo-600' },
   { value: 'ERROR', label: 'Error', hint: 'Failed transfers quarantined', color: 'text-red-600' },
   { value: 'ARCHIVE', label: 'Archive', hint: 'Long-term storage', color: 'text-amber-600' },
-  { value: 'CUSTOM', label: 'Custom', hint: 'Custom folder', color: 'text-gray-600' },
+  { value: 'CUSTOM', label: 'Custom', hint: 'Custom folder', color: 'text-secondary' },
 ]
 
 const purposeFromPath = (path) => {
@@ -50,7 +50,7 @@ const purposeFromPath = (path) => {
 const purposeColor = (path) => {
   const purpose = purposeFromPath(path)
   const found = FOLDER_PURPOSES.find(fp => fp.value === purpose)
-  return found?.color || 'text-gray-600'
+  return found?.color || 'text-secondary'
 }
 
 const purposeHint = (path) => {
@@ -196,19 +196,19 @@ export default function FolderTemplates() {
       {/* Summary stats */}
       <div className="grid grid-cols-4 gap-4">
         <div className="card p-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wider">Total Templates</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{templates.length}</p>
+          <p className="text-xs text-secondary uppercase tracking-wider">Total Templates</p>
+          <p className="text-2xl font-bold text-primary mt-1">{templates.length}</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wider">Built-in</p>
+          <p className="text-xs text-secondary uppercase tracking-wider">Built-in</p>
           <p className="text-2xl font-bold text-blue-600 mt-1">{builtIn.length}</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wider">Custom</p>
+          <p className="text-xs text-secondary uppercase tracking-wider">Custom</p>
           <p className="text-2xl font-bold text-green-600 mt-1">{custom.length}</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wider">In Use</p>
+          <p className="text-xs text-secondary uppercase tracking-wider">In Use</p>
           <p className="text-2xl font-bold text-purple-600 mt-1">{usedTemplateCount}</p>
         </div>
       </div>
@@ -228,7 +228,7 @@ export default function FolderTemplates() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-semibold text-gray-900">{t.name}</h3>
+                        <h3 className="font-semibold text-primary">{t.name}</h3>
                         {t.builtIn && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
                             <LockClosedIcon className="w-3 h-3" /> Built-in
@@ -237,21 +237,21 @@ export default function FolderTemplates() {
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
                           linkedServers.length > 0
                             ? 'bg-green-50 text-green-700'
-                            : 'bg-gray-100 text-gray-500'
+                            : 'bg-hover text-secondary'
                         }`}>
                           <ServerStackIcon className="w-3 h-3" />
                           {linkedServers.length} server{linkedServers.length !== 1 ? 's' : ''}
                         </span>
                       </div>
-                      {t.description && <p className="text-sm text-gray-500 mt-1">{t.description}</p>}
+                      {t.description && <p className="text-sm text-secondary mt-1">{t.description}</p>}
                     </div>
                     {!t.builtIn && (
                       <div className="flex gap-1 ml-2 flex-shrink-0">
-                        <button className="p-1.5 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors"
+                        <button className="p-1.5 rounded hover:bg-blue-50 text-muted hover:text-blue-600 transition-colors"
                           onClick={() => openEdit(t)} title="Edit template">
                           <PencilIcon className="w-4 h-4" />
                         </button>
-                        <button className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
+                        <button className="p-1.5 rounded hover:bg-red-50 text-muted hover:text-red-600 transition-colors"
                           onClick={() => { if (confirm('Delete this template? Servers using it will lose their folder structure assignment.')) deleteMut.mutate(t.id) }}
                           title="Delete template">
                           <TrashIcon className="w-4 h-4" />
@@ -263,8 +263,8 @@ export default function FolderTemplates() {
 
                 {/* Folder tree visualization */}
                 <div className="px-4 pb-3">
-                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                    <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-2">Folder Structure</p>
+                  <div className="bg-canvas rounded-lg p-3 border border-border">
+                    <p className="text-[10px] text-muted uppercase tracking-wider font-semibold mb-2">Folder Structure</p>
                     <div className="space-y-1">
                       {t.folders.map((f, i) => {
                         const hint = f.description || purposeHint(f.path)
@@ -273,7 +273,7 @@ export default function FolderTemplates() {
                             <span className="text-gray-300 text-xs font-mono select-none w-4 text-right">{i === t.folders.length - 1 ? '\u2514' : '\u251C'}</span>
                             <FolderIcon className={`w-4 h-4 flex-shrink-0 text-yellow-500`} />
                             <span className={`text-sm font-mono font-medium ${purposeColor(f.path)}`}>/{f.path}</span>
-                            {hint && <span className="text-xs text-gray-400 hidden sm:inline">&larr; {hint}</span>}
+                            {hint && <span className="text-xs text-muted hidden sm:inline">&larr; {hint}</span>}
                           </div>
                         )
                       })}
@@ -283,10 +283,10 @@ export default function FolderTemplates() {
 
                 {/* Linked servers (collapsible) */}
                 {linkedServers.length > 0 && (
-                  <div className="border-t border-gray-100">
+                  <div className="border-t border-border">
                     <button
                       onClick={() => toggleCard(t.id)}
-                      className="w-full px-4 py-2.5 flex items-center justify-between text-xs text-gray-500 hover:bg-gray-50 transition-colors"
+                      className="w-full px-4 py-2.5 flex items-center justify-between text-xs text-secondary hover:bg-canvas transition-colors"
                     >
                       <span className="font-medium">Servers using this template</span>
                       {isExpanded
@@ -297,10 +297,10 @@ export default function FolderTemplates() {
                     {isExpanded && (
                       <div className="px-4 pb-3 space-y-1.5">
                         {linkedServers.map(s => (
-                          <div key={s.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded bg-gray-50 border border-gray-100">
-                            <ServerStackIcon className="w-3.5 h-3.5 text-gray-400" />
-                            <span className="text-sm font-medium text-gray-700">{s.name}</span>
-                            <span className="font-mono text-[10px] text-gray-400">{s.instanceId}</span>
+                          <div key={s.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded bg-canvas border border-border">
+                            <ServerStackIcon className="w-3.5 h-3.5 text-muted" />
+                            <span className="text-sm font-medium text-primary">{s.name}</span>
+                            <span className="font-mono text-[10px] text-muted">{s.instanceId}</span>
                             <span className={`badge ${protocolBadgeClass(s.protocol)} text-[10px]`}>
                               {PROTOCOL_LABELS[s.protocol] || s.protocol}
                             </span>
@@ -316,10 +316,10 @@ export default function FolderTemplates() {
                 )}
 
                 {/* Footer: folder count */}
-                <div className="px-4 py-2 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-                  <span className="text-xs text-gray-400">{t.folders.length} folder{t.folders.length !== 1 ? 's' : ''} defined</span>
+                <div className="px-4 py-2 bg-canvas border-t border-border flex items-center justify-between">
+                  <span className="text-xs text-muted">{t.folders.length} folder{t.folders.length !== 1 ? 's' : ''} defined</span>
                   {linkedServers.length === 0 && (
-                    <span className="text-[10px] text-gray-400 italic">Not assigned to any server</span>
+                    <span className="text-[10px] text-muted italic">Not assigned to any server</span>
                   )}
                 </div>
               </div>
@@ -365,8 +365,8 @@ export default function FolderTemplates() {
                       <div className="flex items-center gap-2">
                         <ServerStackIcon className="w-4 h-4 text-blue-500" />
                         <div>
-                          <p className="font-medium text-gray-900">{s.name}</p>
-                          <p className="text-xs text-gray-400 font-mono">{s.instanceId}</p>
+                          <p className="font-medium text-primary">{s.name}</p>
+                          <p className="text-xs text-muted font-mono">{s.instanceId}</p>
                         </div>
                       </div>
                     </td>
@@ -400,13 +400,13 @@ export default function FolderTemplates() {
                       {currentTemplate ? (
                         <div className="flex flex-wrap gap-1">
                           {currentTemplate.folders.map((f, i) => (
-                            <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono bg-gray-100 text-gray-600">
+                            <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono bg-hover text-secondary">
                               <FolderIcon className="w-3 h-3 text-yellow-500" /> {f.path}
                             </span>
                           ))}
                         </div>
                       ) : (
-                        <span className="text-xs text-gray-400 italic">Flat home directory (no structure)</span>
+                        <span className="text-xs text-muted italic">Flat home directory (no structure)</span>
                       )}
                     </td>
                   </tr>
@@ -430,7 +430,7 @@ export default function FolderTemplates() {
       <div className="space-y-6">
         {/* Step-by-step flow */}
         <div className="card p-6">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">Automatic Folder Provisioning Flow</h3>
+          <h3 className="text-sm font-semibold text-primary mb-4">Automatic Folder Provisioning Flow</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Step 1: Template */}
             <div className="rounded-xl border-2 border-blue-200 bg-blue-50 p-4">
@@ -438,17 +438,17 @@ export default function FolderTemplates() {
                 <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">1</span>
                 <span className="text-sm font-semibold text-blue-900">Define Template</span>
               </div>
-              <div className="bg-white rounded-lg p-3 border border-blue-100">
-                <p className="text-xs font-semibold text-gray-700 mb-2">"{exampleTemplate.name}"</p>
+              <div className="bg-surface rounded-lg p-3 border border-blue-100">
+                <p className="text-xs font-semibold text-primary mb-2">"{exampleTemplate.name}"</p>
                 <div className="space-y-1">
                   {exampleTemplate.folders.slice(0, 4).map((f, i) => (
                     <div key={i} className="flex items-center gap-1.5">
                       <FolderIcon className="w-3.5 h-3.5 text-yellow-500" />
-                      <span className="text-xs font-mono text-gray-600">/{f.path}</span>
+                      <span className="text-xs font-mono text-secondary">/{f.path}</span>
                     </div>
                   ))}
                   {exampleTemplate.folders.length > 4 && (
-                    <p className="text-[10px] text-gray-400">+{exampleTemplate.folders.length - 4} more...</p>
+                    <p className="text-[10px] text-muted">+{exampleTemplate.folders.length - 4} more...</p>
                   )}
                 </div>
               </div>
@@ -459,9 +459,9 @@ export default function FolderTemplates() {
               <div className="flex flex-col items-center gap-2">
                 <div className="flex items-center gap-1">
                   <div className="h-0.5 w-12 bg-gray-300"></div>
-                  <ArrowRightIcon className="w-5 h-5 text-gray-400" />
+                  <ArrowRightIcon className="w-5 h-5 text-muted" />
                 </div>
-                <span className="text-[10px] text-gray-400 font-medium">Assigned to</span>
+                <span className="text-[10px] text-muted font-medium">Assigned to</span>
               </div>
             </div>
             {/* Mobile arrow */}
@@ -475,15 +475,15 @@ export default function FolderTemplates() {
                 <span className="w-6 h-6 rounded-full bg-purple-600 text-white text-xs font-bold flex items-center justify-center">2</span>
                 <span className="text-sm font-semibold text-purple-900">Assign to Server</span>
               </div>
-              <div className="bg-white rounded-lg p-3 border border-purple-100">
+              <div className="bg-surface rounded-lg p-3 border border-purple-100">
                 <div className="flex items-center gap-2 mb-2">
                   <ServerStackIcon className="w-4 h-4 text-purple-500" />
-                  <span className="text-xs font-semibold text-gray-700">{exampleServer.name}</span>
+                  <span className="text-xs font-semibold text-primary">{exampleServer.name}</span>
                   <span className={`badge ${protocolBadgeClass(exampleServer.protocol)} text-[10px]`}>
                     {PROTOCOL_LABELS[exampleServer.protocol] || exampleServer.protocol}
                   </span>
                 </div>
-                <p className="text-[10px] text-gray-400">All new accounts on this server get the template folders</p>
+                <p className="text-[10px] text-muted">All new accounts on this server get the template folders</p>
               </div>
             </div>
           </div>
@@ -498,9 +498,9 @@ export default function FolderTemplates() {
               <span className="text-sm font-semibold text-green-900">New Account Created</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-white rounded-lg p-3 border border-green-100">
-                <p className="text-xs font-semibold text-gray-700 mb-2">Account: "acme-sftp"</p>
-                <p className="text-[10px] text-gray-400 mb-2">Folders auto-provisioned at home directory:</p>
+              <div className="bg-surface rounded-lg p-3 border border-green-100">
+                <p className="text-xs font-semibold text-primary mb-2">Account: "acme-sftp"</p>
+                <p className="text-[10px] text-muted mb-2">Folders auto-provisioned at home directory:</p>
                 <div className="space-y-1 font-mono text-xs">
                   {exampleTemplate.folders.slice(0, 5).map((f, i) => (
                     <div key={i} className="flex items-center gap-1.5 text-green-700">
@@ -510,9 +510,9 @@ export default function FolderTemplates() {
                   ))}
                 </div>
               </div>
-              <div className="bg-white rounded-lg p-3 border border-green-100">
-                <p className="text-xs font-semibold text-gray-700 mb-2">Account: "globex-sftp"</p>
-                <p className="text-[10px] text-gray-400 mb-2">Same template, different partner:</p>
+              <div className="bg-surface rounded-lg p-3 border border-green-100">
+                <p className="text-xs font-semibold text-primary mb-2">Account: "globex-sftp"</p>
+                <p className="text-[10px] text-muted mb-2">Same template, different partner:</p>
                 <div className="space-y-1 font-mono text-xs">
                   {exampleTemplate.folders.slice(0, 5).map((f, i) => (
                     <div key={i} className="flex items-center gap-1.5 text-green-700">
@@ -529,16 +529,16 @@ export default function FolderTemplates() {
         {/* Key concepts */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="card p-4">
-            <h4 className="text-sm font-semibold text-gray-900 mb-2">Consistent Structure</h4>
-            <p className="text-xs text-gray-500">Every partner gets identical folder layouts. No manual setup, no drift between accounts.</p>
+            <h4 className="text-sm font-semibold text-primary mb-2">Consistent Structure</h4>
+            <p className="text-xs text-secondary">Every partner gets identical folder layouts. No manual setup, no drift between accounts.</p>
           </div>
           <div className="card p-4">
-            <h4 className="text-sm font-semibold text-gray-900 mb-2">Per-Server Control</h4>
-            <p className="text-xs text-gray-500">Different servers can use different templates. Your EDI server may need different folders than your general SFTP server.</p>
+            <h4 className="text-sm font-semibold text-primary mb-2">Per-Server Control</h4>
+            <p className="text-xs text-secondary">Different servers can use different templates. Your EDI server may need different folders than your general SFTP server.</p>
           </div>
           <div className="card p-4">
-            <h4 className="text-sm font-semibold text-gray-900 mb-2">Non-Destructive Changes</h4>
-            <p className="text-xs text-gray-500">Changing a server's template only affects future accounts. Existing accounts keep their current folders intact.</p>
+            <h4 className="text-sm font-semibold text-primary mb-2">Non-Destructive Changes</h4>
+            <p className="text-xs text-secondary">Changing a server's template only affects future accounts. Existing accounts keep their current folders intact.</p>
           </div>
         </div>
       </div>
@@ -552,11 +552,11 @@ export default function FolderTemplates() {
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
             <FolderIcon className="w-7 h-7 text-indigo-600" />
             Folder Templates
           </h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <p className="text-secondary text-sm mt-1">
             Define reusable folder structures that auto-provision when new partner accounts are created.
             Assign a template to a server — every account on that server gets these folders automatically.
           </p>
@@ -580,25 +580,25 @@ export default function FolderTemplates() {
         <button
           onClick={() => setTab('templates')}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            tab === 'templates' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            tab === 'templates' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-secondary hover:text-primary'
           }`}
         >
           Templates
-          <span className="ml-1.5 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">{templates.length}</span>
+          <span className="ml-1.5 text-xs bg-hover text-secondary px-1.5 py-0.5 rounded-full">{templates.length}</span>
         </button>
         <button
           onClick={() => setTab('servers')}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            tab === 'servers' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            tab === 'servers' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-secondary hover:text-primary'
           }`}
         >
           Server Assignment
-          <span className="ml-1.5 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">{servers.length}</span>
+          <span className="ml-1.5 text-xs bg-hover text-secondary px-1.5 py-0.5 rounded-full">{servers.length}</span>
         </button>
         <button
           onClick={() => setTab('how')}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
-            tab === 'how' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            tab === 'how' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-secondary hover:text-primary'
           }`}
         >
           <InformationCircleIcon className="w-4 h-4" />
@@ -643,15 +643,15 @@ function TemplateForm({ form, setForm, onSubmit, addFolder, removeFolder, update
     <form onSubmit={onSubmit} className="space-y-5">
       {/* Basic info */}
       <div>
-        <h4 className="text-sm font-semibold text-gray-900 mb-2 border-b pb-1">Basic Information</h4>
+        <h4 className="text-sm font-semibold text-primary mb-2 border-b pb-1">Basic Information</h4>
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Template Name *</label>
+            <label className="block text-xs font-medium text-secondary mb-1">Template Name *</label>
             <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required
               placeholder="e.g. Standard Partner Layout" className="w-full" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+            <label className="block text-xs font-medium text-secondary mb-1">Description</label>
             <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
               placeholder="What is this template for?" className="w-full" />
           </div>
@@ -661,7 +661,7 @@ function TemplateForm({ form, setForm, onSubmit, addFolder, removeFolder, update
       {/* Folder builder */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <h4 className="text-sm font-semibold text-gray-900 border-b pb-1">Folder Structure</h4>
+          <h4 className="text-sm font-semibold text-primary border-b pb-1">Folder Structure</h4>
           <button type="button" className="text-xs text-blue-600 hover:text-blue-800 font-medium" onClick={addFolder}>
             + Add Folder
           </button>
@@ -669,16 +669,16 @@ function TemplateForm({ form, setForm, onSubmit, addFolder, removeFolder, update
 
         <div className="space-y-2">
           {form.folders.map((f, i) => (
-            <div key={i} className="flex gap-2 items-start p-2.5 rounded-lg bg-gray-50 border border-gray-100">
+            <div key={i} className="flex gap-2 items-start p-2.5 rounded-lg bg-canvas border border-border">
               {/* Reorder buttons */}
               <div className="flex flex-col gap-0.5 pt-1">
                 <button type="button"
-                  className="p-0.5 text-gray-300 hover:text-gray-600 transition-colors disabled:opacity-30"
+                  className="p-0.5 text-gray-300 hover:text-secondary transition-colors disabled:opacity-30"
                   onClick={() => moveFolder(i, -1)} disabled={i === 0}>
                   <ChevronUpIcon className="w-3.5 h-3.5" />
                 </button>
                 <button type="button"
-                  className="p-0.5 text-gray-300 hover:text-gray-600 transition-colors disabled:opacity-30"
+                  className="p-0.5 text-gray-300 hover:text-secondary transition-colors disabled:opacity-30"
                   onClick={() => moveFolder(i, 1)} disabled={i === form.folders.length - 1}>
                   <ChevronDownIcon className="w-3.5 h-3.5" />
                 </button>
@@ -714,15 +714,15 @@ function TemplateForm({ form, setForm, onSubmit, addFolder, removeFolder, update
       {/* Live preview */}
       {form.folders.some(f => f.path.trim()) && (
         <div>
-          <h4 className="text-sm font-semibold text-gray-900 mb-2 border-b pb-1">Preview</h4>
+          <h4 className="text-sm font-semibold text-primary mb-2 border-b pb-1">Preview</h4>
           <div className="bg-gray-900 rounded-lg p-3">
-            <p className="text-[10px] text-gray-500 font-mono mb-2">$ tree /data/partners/acme/</p>
+            <p className="text-[10px] text-secondary font-mono mb-2">$ tree /data/partners/acme/</p>
             {form.folders.filter(f => f.path.trim()).map((f, i, arr) => (
               <div key={i} className="flex items-center gap-2 font-mono text-sm">
-                <span className="text-gray-600 select-none">{i === arr.length - 1 ? '\u2514\u2500\u2500' : '\u251C\u2500\u2500'}</span>
+                <span className="text-secondary select-none">{i === arr.length - 1 ? '\u2514\u2500\u2500' : '\u251C\u2500\u2500'}</span>
                 <FolderIcon className="w-3.5 h-3.5 text-yellow-400" />
                 <span className="text-green-400">{f.path}</span>
-                {f.description && <span className="text-gray-600 text-xs ml-2"># {f.description}</span>}
+                {f.description && <span className="text-secondary text-xs ml-2"># {f.description}</span>}
               </div>
             ))}
           </div>

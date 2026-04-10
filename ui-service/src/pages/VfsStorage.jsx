@@ -69,8 +69,8 @@ export default function VfsStorage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Virtual Filesystem Storage</h1>
-        <p className="text-gray-500 text-sm">WAIP-protected storage with smart bucket routing across SFTP, FTP, and FTP-Web</p>
+        <h1 className="text-2xl font-bold text-primary">Virtual Filesystem Storage</h1>
+        <p className="text-secondary text-sm">WAIP-protected storage with smart bucket routing across SFTP, FTP, and FTP-Web</p>
       </div>
 
       {/* Health banner */}
@@ -99,7 +99,7 @@ export default function VfsStorage() {
 
       {/* Bucket distribution */}
       <div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-3">Storage Bucket Distribution</h2>
+        <h2 className="text-lg font-semibold text-primary mb-3">Storage Bucket Distribution</h2>
         <div className="grid grid-cols-3 gap-4">
           {['inline', 'standard', 'chunked'].map(key => {
             const b = buckets[key] || {}
@@ -109,11 +109,11 @@ export default function VfsStorage() {
             return (
               <div key={key} className="card text-center">
                 <div className="text-3xl mb-2">{meta.icon}</div>
-                <h3 className="font-bold text-gray-900">{b.label || key.toUpperCase()}</h3>
-                <p className="text-xs text-gray-500 mb-3">{meta.desc}</p>
-                <p className="text-2xl font-bold text-gray-900">{(b.count || 0).toLocaleString()}</p>
-                <p className="text-sm text-gray-500">files ({pct}%)</p>
-                <p className="text-lg font-semibold text-gray-700 mt-1">{formatSize(b.sizeBytes || 0)}</p>
+                <h3 className="font-bold text-primary">{b.label || key.toUpperCase()}</h3>
+                <p className="text-xs text-secondary mb-3">{meta.desc}</p>
+                <p className="text-2xl font-bold text-primary">{(b.count || 0).toLocaleString()}</p>
+                <p className="text-sm text-secondary">files ({pct}%)</p>
+                <p className="text-lg font-semibold text-primary mt-1">{formatSize(b.sizeBytes || 0)}</p>
                 {/* Progress bar */}
                 <div className="mt-3 w-full bg-gray-200 rounded-full h-2">
                   <div className={`h-2 rounded-full ${key === 'inline' ? 'bg-emerald-500' : key === 'standard' ? 'bg-blue-500' : 'bg-purple-500'}`}
@@ -135,7 +135,7 @@ export default function VfsStorage() {
 
       {/* Intent health breakdown */}
       <div className="card">
-        <h3 className="font-semibold text-gray-900 mb-3">Write-Ahead Intent Protocol</h3>
+        <h3 className="font-semibold text-primary mb-3">Write-Ahead Intent Protocol</h3>
         <div className="grid grid-cols-4 gap-3">
           {[
             { label: 'PENDING', count: intents.pending || 0, color: 'border-yellow-400 bg-yellow-50', desc: 'In-flight operations' },
@@ -144,9 +144,9 @@ export default function VfsStorage() {
             { label: 'RECOVERING', count: intents.recovering || 0, color: 'border-orange-400 bg-orange-50', desc: 'Crash recovery in progress' }
           ].map(s => (
             <div key={s.label} className={`rounded-lg border-l-4 p-3 ${s.color}`}>
-              <p className="text-2xl font-bold text-gray-900">{s.count.toLocaleString()}</p>
-              <p className="text-sm font-medium text-gray-700">{s.label}</p>
-              <p className="text-xs text-gray-500">{s.desc}</p>
+              <p className="text-2xl font-bold text-primary">{s.count.toLocaleString()}</p>
+              <p className="text-sm font-medium text-primary">{s.label}</p>
+              <p className="text-xs text-secondary">{s.desc}</p>
             </div>
           ))}
         </div>
@@ -155,8 +155,8 @@ export default function VfsStorage() {
       {/* Per-Account VFS Usage */}
       <div className="card">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-            <UsersIcon className="w-5 h-5 text-gray-500" />
+          <h3 className="font-semibold text-primary flex items-center gap-2">
+            <UsersIcon className="w-5 h-5 text-secondary" />
             Per-Account VFS Usage
           </h3>
           <select
@@ -171,26 +171,26 @@ export default function VfsStorage() {
           </select>
         </div>
         {!selectedAccountId && (
-          <p className="text-gray-400 text-sm text-center py-6">
+          <p className="text-muted text-sm text-center py-6">
             Select a virtual-mode account to view its VFS usage breakdown
           </p>
         )}
         {selectedAccountId && accountUsage && (
           <div className="grid grid-cols-4 gap-4">
             <div className="rounded-lg bg-blue-50 border border-blue-200 p-4 text-center">
-              <p className="text-2xl font-bold text-gray-900">{(accountUsage.fileCount || 0).toLocaleString()}</p>
+              <p className="text-2xl font-bold text-primary">{(accountUsage.fileCount || 0).toLocaleString()}</p>
               <p className="text-sm text-gray-600">Files</p>
             </div>
-            <div className="rounded-lg bg-gray-50 border border-gray-200 p-4 text-center">
-              <p className="text-2xl font-bold text-gray-900">{(accountUsage.dirCount || 0).toLocaleString()}</p>
+            <div className="rounded-lg bg-canvas border border-border p-4 text-center">
+              <p className="text-2xl font-bold text-primary">{(accountUsage.dirCount || 0).toLocaleString()}</p>
               <p className="text-sm text-gray-600">Directories</p>
             </div>
             <div className="rounded-lg bg-purple-50 border border-purple-200 p-4 text-center">
-              <p className="text-2xl font-bold text-gray-900">{formatSize(accountUsage.totalSizeBytes || 0)}</p>
+              <p className="text-2xl font-bold text-primary">{formatSize(accountUsage.totalSizeBytes || 0)}</p>
               <p className="text-sm text-gray-600">Total Size</p>
             </div>
             <div className="rounded-lg bg-amber-50 border border-amber-200 p-4">
-              <p className="text-sm font-semibold text-gray-700 mb-1">Bucket Breakdown</p>
+              <p className="text-sm font-semibold text-primary mb-1">Bucket Breakdown</p>
               {accountUsage.bucketBreakdown && (
                 <div className="space-y-1 text-xs">
                   <div className="flex justify-between"><span className="text-emerald-700">INLINE</span><span className="font-mono">{accountUsage.bucketBreakdown.inline || 0}</span></div>
@@ -206,7 +206,7 @@ export default function VfsStorage() {
       {/* Recent intents table */}
       {recentIntents.length > 0 && (
         <div className="card">
-          <h3 className="font-semibold text-gray-900 mb-3">Recent Intents ({recentIntents.length})</h3>
+          <h3 className="font-semibold text-primary mb-3">Recent Intents ({recentIntents.length})</h3>
           <div className="overflow-x-auto">
             <table className="w-full"><thead><tr className="border-b">
               <th className="table-header">Op</th>
@@ -223,20 +223,20 @@ export default function VfsStorage() {
                   <td className="table-cell text-center">{opIcons[i.op] || i.op} <span className="text-xs">{i.op}</span></td>
                   <td className="table-cell font-mono text-xs max-w-xs truncate" title={i.destPath ? `${i.path} → ${i.destPath}` : i.path}>
                     {i.path}
-                    {i.destPath && <span className="text-gray-400"> → {i.destPath}</span>}
+                    {i.destPath && <span className="text-muted"> → {i.destPath}</span>}
                   </td>
                   <td className="table-cell">
                     <span className={`badge ${statusColors[i.status] || 'badge-gray'}`}>{i.status}</span>
                   </td>
                   <td className="table-cell text-xs">{i.storageBucket}</td>
                   <td className="table-cell text-xs">{i.sizeBytes > 0 ? formatSize(i.sizeBytes) : '\u2014'}</td>
-                  <td className="table-cell font-mono text-xs text-gray-500" title={i.podId}>
+                  <td className="table-cell font-mono text-xs text-secondary" title={i.podId}>
                     {i.podId?.length > 15 ? i.podId.substring(0, 15) + '...' : i.podId}
                   </td>
-                  <td className="table-cell text-xs text-gray-500">
+                  <td className="table-cell text-xs text-secondary">
                     {i.createdAt ? format(new Date(i.createdAt), 'MMM d HH:mm:ss') : ''}
                   </td>
-                  <td className="table-cell text-xs text-gray-500">
+                  <td className="table-cell text-xs text-secondary">
                     {i.resolvedAt ? format(new Date(i.resolvedAt), 'MMM d HH:mm:ss') : '\u2014'}
                   </td>
                 </tr>

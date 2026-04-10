@@ -81,7 +81,7 @@ const STATUS_STYLES = {
   COMPLETED:  { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500' },
   FAILED:     { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200',     dot: 'bg-red-500' },
   PROCESSING: { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',   dot: 'bg-amber-500' },
-  PENDING:    { bg: 'bg-gray-50',    text: 'text-gray-600',    border: 'border-gray-200',    dot: 'bg-gray-400' },
+  PENDING:    { bg: 'bg-canvas',    text: 'text-secondary',    border: 'border-border',    dot: 'bg-gray-400' },
   PAUSED:     { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200',    dot: 'bg-blue-500' },
   UNMATCHED:  { bg: 'bg-slate-50',  text: 'text-slate-600',   border: 'border-slate-200',   dot: 'bg-slate-400' },
 }
@@ -96,7 +96,7 @@ const defaultForm = {
 
 // ─── Mini pipeline visualization ───
 function MiniPipeline({ steps }) {
-  if (!steps || steps.length === 0) return <span className="text-xs text-gray-400 italic">No steps</span>
+  if (!steps || steps.length === 0) return <span className="text-xs text-muted italic">No steps</span>
   return (
     <div className="flex items-center gap-1 flex-wrap">
       {steps.map((step, i) => {
@@ -104,7 +104,7 @@ function MiniPipeline({ steps }) {
         return (
           <div key={i} className="flex items-center gap-1">
             {i > 0 && <ChevronRightIcon className="w-3 h-3 text-gray-300 flex-shrink-0" />}
-            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${meta?.color || 'text-gray-600 bg-gray-100'}`}>
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${meta?.color || 'text-secondary bg-hover'}`}>
               <span>{meta?.icon || '?'}</span>
               <span>{meta?.label || step.type}</span>
             </span>
@@ -118,42 +118,42 @@ function MiniPipeline({ steps }) {
 // ─── Step card in the builder ───
 function StepCard({ step, index, total, onRemove, onMoveUp, onMoveDown, onConfigChange }) {
   const [expanded, setExpanded] = useState(false)
-  const meta = STEP_TYPE_CATALOG[step.type] || { label: step.type, icon: '?', color: 'text-gray-600 bg-gray-100', configFields: [] }
+  const meta = STEP_TYPE_CATALOG[step.type] || { label: step.type, icon: '?', color: 'text-secondary bg-hover', configFields: [] }
 
   return (
-    <div className={`border rounded-lg transition-all ${expanded ? 'border-blue-300 shadow-sm' : 'border-gray-200'}`}>
+    <div className={`border rounded-lg transition-all ${expanded ? 'border-blue-300 shadow-sm' : 'border-border'}`}>
       <div className="flex items-center gap-2 p-3">
-        <span className="text-xs font-bold text-gray-400 w-6 text-center flex-shrink-0">{index + 1}</span>
+        <span className="text-xs font-bold text-muted w-6 text-center flex-shrink-0">{index + 1}</span>
         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold flex-shrink-0 ${meta.color}`}>
           <span>{meta.icon}</span> {meta.label}
         </span>
         <div className="flex-1" />
         {meta.configFields.length > 0 && (
           <button type="button" onClick={() => setExpanded(!expanded)}
-            className="text-xs text-gray-400 hover:text-blue-600 transition-colors px-1">
+            className="text-xs text-muted hover:text-blue-600 transition-colors px-1">
             {expanded ? 'Collapse' : 'Configure'}
           </button>
         )}
         <div className="flex items-center gap-0.5 flex-shrink-0">
           <button type="button" onClick={onMoveUp} disabled={index === 0}
-            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+            className="p-1 text-muted hover:text-secondary disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
             <ChevronUpIcon className="w-4 h-4" />
           </button>
           <button type="button" onClick={onMoveDown} disabled={index === total - 1}
-            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+            className="p-1 text-muted hover:text-secondary disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
             <ChevronDownIcon className="w-4 h-4" />
           </button>
           <button type="button" onClick={onRemove}
-            className="p-1 text-gray-400 hover:text-red-600 transition-colors">
+            className="p-1 text-muted hover:text-red-600 transition-colors">
             <TrashIcon className="w-4 h-4" />
           </button>
         </div>
       </div>
       {expanded && meta.configFields.length > 0 && (
-        <div className="px-3 pb-3 pt-1 border-t border-gray-100 space-y-2">
+        <div className="px-3 pb-3 pt-1 border-t border-border space-y-2">
           {meta.configFields.map(field => (
             <div key={field.key}>
-              <label className="text-xs font-medium text-gray-600">{field.label}</label>
+              <label className="text-xs font-medium text-secondary">{field.label}</label>
               {field.type === 'select' ? (
                 <select
                   value={step.config?.[field.key] || ''}
@@ -171,7 +171,7 @@ function StepCard({ step, index, total, onRemove, onMoveUp, onMoveDown, onConfig
                   className="mt-0.5 text-sm font-mono"
                 />
               )}
-              {field.helper && <p className="text-xs text-gray-400 mt-0.5">{field.helper}</p>}
+              {field.helper && <p className="text-xs text-muted mt-0.5">{field.helper}</p>}
             </div>
           ))}
         </div>
@@ -183,18 +183,18 @@ function StepCard({ step, index, total, onRemove, onMoveUp, onMoveDown, onConfig
 // ─── Add Step Dropdown ───
 function AddStepDropdown({ onAdd, onClose }) {
   return (
-    <div className="absolute z-30 mt-1 w-80 bg-white rounded-xl shadow-xl border border-gray-200 p-3 space-y-3 max-h-96 overflow-y-auto">
+    <div className="absolute z-30 mt-1 w-80 bg-surface rounded-xl shadow-xl border border-border p-3 space-y-3 max-h-96 overflow-y-auto">
       {STEP_CATEGORIES.map(cat => (
         <div key={cat.name}>
-          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{cat.name}</h4>
+          <h4 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-1">{cat.name}</h4>
           <div className="grid grid-cols-1 gap-1">
             {cat.types.map(type => {
               const meta = STEP_TYPE_CATALOG[type]
               return (
                 <button key={type} type="button" onClick={() => { onAdd(type); onClose() }}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-left hover:bg-gray-50 transition-colors">
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-left hover:bg-canvas transition-colors">
                   <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg text-sm ${meta.color}`}>{meta.icon}</span>
-                  <span className="text-sm font-medium text-gray-700">{meta.label}</span>
+                  <span className="text-sm font-medium text-primary">{meta.label}</span>
                 </button>
               )
             })}
@@ -333,7 +333,7 @@ function ExecutionRow({ ex, selected, onToggle, onSkipStep, skipPending, onSched
   return (
     <>
       <tr
-        className={`table-row cursor-pointer hover:bg-gray-50 transition-colors ${selected ? 'bg-red-50' : ''}`}
+        className={`table-row cursor-pointer hover:bg-canvas transition-colors ${selected ? 'bg-red-50' : ''}`}
         onClick={() => setExpanded(!expanded)}
       >
         {/* Checkbox — stop propagation so row expand doesn't fire */}
@@ -343,7 +343,7 @@ function ExecutionRow({ ex, selected, onToggle, onSkipStep, skipPending, onSched
               type="checkbox"
               checked={!!selected}
               onChange={() => onToggle(ex.trackId)}
-              className="rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer"
+              className="rounded border-border text-red-600 focus:ring-red-500 cursor-pointer"
             />
           ) : (
             <span className="block w-4" />
@@ -351,12 +351,12 @@ function ExecutionRow({ ex, selected, onToggle, onSkipStep, skipPending, onSched
         </td>
         <td className="table-cell">
           <div className="flex items-center gap-1">
-            <ChevronRightIcon className={`w-3.5 h-3.5 text-gray-400 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+            <ChevronRightIcon className={`w-3.5 h-3.5 text-muted transition-transform ${expanded ? 'rotate-90' : ''}`} />
             <span className="font-mono text-xs font-bold text-blue-600">{ex.trackId}</span>
           </div>
         </td>
-        <td className="table-cell text-sm text-gray-700">{ex.flow?.name || '—'}</td>
-        <td className="table-cell text-xs text-gray-500 truncate max-w-40 font-mono">{ex.originalFilename}</td>
+        <td className="table-cell text-sm text-primary">{ex.flow?.name || '—'}</td>
+        <td className="table-cell text-xs text-secondary truncate max-w-40 font-mono">{ex.originalFilename}</td>
         <td className="table-cell">
           <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${style.bg} ${style.text} ${style.border}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
@@ -365,15 +365,15 @@ function ExecutionRow({ ex, selected, onToggle, onSkipStep, skipPending, onSched
         </td>
         <td className="table-cell">
           <div className="flex items-center gap-1.5">
-            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden max-w-16">
+            <div className="flex-1 h-1.5 bg-hover rounded-full overflow-hidden max-w-16">
               <div className="h-full bg-blue-500 rounded-full transition-all"
                 style={{ width: `${totalSteps !== '?' ? (ex.currentStep / totalSteps) * 100 : 0}%` }} />
             </div>
-            <span className="text-xs text-gray-500">{ex.currentStep}/{totalSteps}</span>
+            <span className="text-xs text-secondary">{ex.currentStep}/{totalSteps}</span>
           </div>
         </td>
-        <td className="table-cell text-xs text-gray-500">{duration}</td>
-        <td className="table-cell text-xs text-gray-500">
+        <td className="table-cell text-xs text-secondary">{duration}</td>
+        <td className="table-cell text-xs text-secondary">
           {ex.startedAt ? new Date(ex.startedAt).toLocaleString() : '—'}
         </td>
         {/* Scheduled retry / actions */}
@@ -387,7 +387,7 @@ function ExecutionRow({ ex, selected, onToggle, onSkipStep, skipPending, onSched
               <button
                 onClick={() => onCancelSchedule()}
                 disabled={schedulePending}
-                className="p-0.5 text-gray-400 hover:text-red-500 transition-colors"
+                className="p-0.5 text-muted hover:text-red-500 transition-colors"
                 title="Cancel scheduled retry"
               >
                 <XCircleIcon className="w-3.5 h-3.5" />
@@ -396,7 +396,7 @@ function ExecutionRow({ ex, selected, onToggle, onSkipStep, skipPending, onSched
           ) : selectable && !showScheduler ? (
             <button
               onClick={() => { setShowScheduler(true); setScheduleInput('') }}
-              className="text-[10px] text-gray-400 hover:text-blue-600 px-1.5 py-0.5 rounded hover:bg-blue-50 transition-colors whitespace-nowrap"
+              className="text-[10px] text-muted hover:text-blue-600 px-1.5 py-0.5 rounded hover:bg-blue-50 transition-colors whitespace-nowrap"
               title="Schedule retry at a specific time"
             >
               + Schedule
@@ -407,7 +407,7 @@ function ExecutionRow({ ex, selected, onToggle, onSkipStep, skipPending, onSched
                 type="datetime-local"
                 value={scheduleInput}
                 onChange={e => setScheduleInput(e.target.value)}
-                className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                className="text-[10px] border border-border rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
                 min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
               />
               <button
@@ -423,7 +423,7 @@ function ExecutionRow({ ex, selected, onToggle, onSkipStep, skipPending, onSched
               </button>
               <button
                 onClick={() => setShowScheduler(false)}
-                className="text-[10px] text-gray-400 hover:text-gray-600"
+                className="text-[10px] text-muted hover:text-secondary"
               >
                 ✕
               </button>
@@ -434,8 +434,8 @@ function ExecutionRow({ ex, selected, onToggle, onSkipStep, skipPending, onSched
       {expanded && ex.stepResults?.length > 0 && (
         <tr>
           <td colSpan={9} className="px-4 pb-4 pt-0">
-            <div className="ml-6 bg-gray-50 rounded-lg p-3">
-              <h4 className="text-xs font-semibold text-gray-500 mb-2">Step Results</h4>
+            <div className="ml-6 bg-canvas rounded-lg p-3">
+              <h4 className="text-xs font-semibold text-secondary mb-2">Step Results</h4>
               <div className="space-y-1.5">
                 {ex.stepResults.map((sr, i) => {
                   const stepMeta  = STEP_TYPE_CATALOG[sr.stepType]
@@ -445,16 +445,16 @@ function ExecutionRow({ ex, selected, onToggle, onSkipStep, skipPending, onSched
                   const isLast    = i === (typeof totalSteps === 'number' ? totalSteps - 1 : Infinity)
                   const showSkip  = canSkip && isFailed && !isLast
                   return (
-                    <div key={i} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs ${isFailed ? 'bg-red-50' : isOk ? 'bg-white' : isSkipped ? 'bg-amber-50' : 'bg-gray-100'}`}>
+                    <div key={i} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs ${isFailed ? 'bg-red-50' : isOk ? 'bg-surface' : isSkipped ? 'bg-amber-50' : 'bg-hover'}`}>
                       {isOk      && <CheckCircleIcon className="w-4 h-4 text-emerald-500 flex-shrink-0" />}
                       {isFailed  && <XCircleIcon     className="w-4 h-4 text-red-500 flex-shrink-0" />}
                       {isSkipped && <ArrowPathIcon   className="w-4 h-4 text-amber-500 flex-shrink-0" />}
-                      {!isOk && !isFailed && !isSkipped && <ClockIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />}
-                      <span className="font-medium text-gray-700">{stepMeta?.icon} {stepMeta?.label || sr.stepType}</span>
-                      <span className="text-gray-400">({sr.durationMs}ms)</span>
+                      {!isOk && !isFailed && !isSkipped && <ClockIcon className="w-4 h-4 text-muted flex-shrink-0" />}
+                      <span className="font-medium text-primary">{stepMeta?.icon} {stepMeta?.label || sr.stepType}</span>
+                      <span className="text-muted">({sr.durationMs}ms)</span>
                       {sr.error && <span className="text-red-600 truncate max-w-52">{sr.error}</span>}
                       <div className="flex-1" />
-                      <span className={`font-semibold ${isOk ? 'text-emerald-600' : isFailed ? 'text-red-600' : isSkipped ? 'text-amber-600' : 'text-gray-500'}`}>
+                      <span className={`font-semibold ${isOk ? 'text-emerald-600' : isFailed ? 'text-red-600' : isSkipped ? 'text-amber-600' : 'text-secondary'}`}>
                         {sr.status}
                       </span>
                       {showSkip && (
@@ -497,9 +497,9 @@ function ApprovalRow({ ap, onApprove, onReject, busy }) {
               {ap.trackId}
             </span>
             <span className="text-sm font-medium text-gray-800">{ap.flowName || '—'}</span>
-            <span className="text-xs text-gray-500 truncate max-w-48">{ap.originalFilename}</span>
+            <span className="text-xs text-secondary truncate max-w-48">{ap.originalFilename}</span>
           </div>
-          <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
+          <div className="mt-1 flex items-center gap-3 text-xs text-secondary">
             <span>Step {ap.stepIndex + 1}</span>
             <span>Paused {paused}</span>
             {ap.requiredApprovers && (
@@ -530,7 +530,7 @@ function ApprovalRow({ ap, onApprove, onReject, busy }) {
             value={approveNote}
             onChange={e => setApproveNote(e.target.value)}
             placeholder="Optional note for audit trail…"
-            className="flex-1 text-xs px-3 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400"
+            className="flex-1 text-xs px-3 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400"
           />
           <button
             onClick={() => { onApprove(approveNote); setShowApproveNote(false) }}
@@ -603,7 +603,7 @@ export default function Flows() {
                 label: fn.label || fn.type,
                 icon: fn.icon || '?',
                 category: fn.category || 'Custom',
-                color: fn.color || 'text-gray-600 bg-gray-100',
+                color: fn.color || 'text-secondary bg-hover',
                 configFields: fn.configFields || fn.configSchema ?
                   (fn.configFields || [{ key: 'config', label: 'Configuration', placeholder: fn.configSchema || '' }]) : [],
               }
@@ -947,8 +947,8 @@ export default function Flows() {
       {/* ─── Header ─── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">File Processing Flows</h1>
-          <p className="text-gray-500 text-sm">
+          <h1 className="text-2xl font-bold text-primary">File Processing Flows</h1>
+          <p className="text-secondary text-sm">
             {flows.length} flow{flows.length !== 1 ? 's' : ''} configured
             {activeCount > 0 && <span className="text-emerald-600 ml-1">({activeCount} active)</span>}
           </p>
@@ -959,7 +959,7 @@ export default function Flows() {
       </div>
 
       {/* ─── Main Tabs ─── */}
-      <div className="flex items-center gap-2 border-b border-gray-200 pb-2">
+      <div className="flex items-center gap-2 border-b border-border pb-2">
         {[
           { key: 'flows', label: 'Flows' },
           { key: 'catalog', label: 'Function Catalog' },
@@ -967,8 +967,8 @@ export default function Flows() {
           <button key={t.key} onClick={() => setActiveTab(t.key)}
             className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
               activeTab === t.key
-                ? 'bg-white text-blue-700 border border-gray-200 border-b-white -mb-[1px]'
-                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                ? 'bg-surface text-blue-700 border border-border border-b-white -mb-[1px]'
+                : 'text-secondary hover:text-primary hover:bg-canvas'
             }`}>
             {t.label}
           </button>
@@ -978,7 +978,7 @@ export default function Flows() {
       {/* ─── Filter bar (flows tab only) ─── */}
       {activeTab === 'flows' && (
       <div className="flex items-center gap-2">
-        <FunnelIcon className="w-4 h-4 text-gray-400" />
+        <FunnelIcon className="w-4 h-4 text-muted" />
         {[
           { key: 'all', label: `All (${flows.length})` },
           { key: 'active', label: `Active (${activeCount})` },
@@ -986,7 +986,7 @@ export default function Flows() {
         ].map(f => (
           <button key={f.key} onClick={() => setFilter(f.key)}
             className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-              filter === f.key ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              filter === f.key ? 'bg-blue-100 text-blue-700' : 'bg-hover text-secondary hover:bg-gray-200'
             }`}>
             {f.label}
           </button>
@@ -998,14 +998,14 @@ export default function Flows() {
       {activeTab === 'catalog' && (
         <>
           <div className="card">
-            <h3 className="font-semibold text-gray-900 mb-1">Function Catalog</h3>
-            <p className="text-sm text-gray-500 mb-4">All registered flow functions — built-in + imported</p>
+            <h3 className="font-semibold text-primary mb-1">Function Catalog</h3>
+            <p className="text-sm text-secondary mb-4">All registered flow functions — built-in + imported</p>
             {functionCatalog.length === 0 ? (
-              <div className="text-center py-8 text-gray-400 text-sm">
+              <div className="text-center py-8 text-muted text-sm">
                 <p>No catalog data from backend. Showing built-in functions only.</p>
                 <div className="overflow-x-auto mt-4">
                   <table className="w-full">
-                    <thead><tr className="border-b border-gray-100">
+                    <thead><tr className="border-b border-border">
                       <th className="table-header">Type</th>
                       <th className="table-header">Label</th>
                       <th className="table-header">Category</th>
@@ -1014,10 +1014,10 @@ export default function Flows() {
                     <tbody>
                       {Object.entries(STEP_TYPE_CATALOG).map(([type, meta]) => (
                         <tr key={type} className="table-row">
-                          <td className="table-cell"><code className="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded">{type}</code></td>
+                          <td className="table-cell"><code className="text-xs font-mono bg-hover px-1.5 py-0.5 rounded">{type}</code></td>
                           <td className="table-cell text-sm"><span className={`inline-flex items-center gap-1 ${meta.color} px-2 py-0.5 rounded-full text-xs font-medium`}>{meta.icon} {meta.label}</span></td>
-                          <td className="table-cell text-xs text-gray-500">{meta.category}</td>
-                          <td className="table-cell text-xs text-gray-400">{meta.configFields?.length > 0 ? meta.configFields.map(f => f.key).join(', ') : '—'}</td>
+                          <td className="table-cell text-xs text-secondary">{meta.category}</td>
+                          <td className="table-cell text-xs text-muted">{meta.configFields?.length > 0 ? meta.configFields.map(f => f.key).join(', ') : '—'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1027,7 +1027,7 @@ export default function Flows() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead><tr className="border-b border-gray-100">
+                  <thead><tr className="border-b border-border">
                     <th className="table-header">Type</th>
                     <th className="table-header">I/O Mode</th>
                     <th className="table-header">Description</th>
@@ -1036,14 +1036,14 @@ export default function Flows() {
                   <tbody>
                     {functionCatalog.map(fn => (
                       <tr key={fn.type} className="table-row">
-                        <td className="table-cell"><code className="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded">{fn.type}</code></td>
+                        <td className="table-cell"><code className="text-xs font-mono bg-hover px-1.5 py-0.5 rounded">{fn.type}</code></td>
                         <td className="table-cell">
                           <span className={`badge ${fn.ioMode === 'STREAMING' ? 'bg-emerald-100 text-emerald-700' : fn.ioMode === 'METADATA_ONLY' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
                             {fn.ioMode || 'STANDARD'}
                           </span>
                         </td>
-                        <td className="table-cell text-sm text-gray-600">{fn.description || '—'}</td>
-                        <td className="table-cell text-xs text-gray-400 font-mono">{fn.configSchema || '—'}</td>
+                        <td className="table-cell text-sm text-secondary">{fn.description || '—'}</td>
+                        <td className="table-cell text-xs text-muted font-mono">{fn.configSchema || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1054,26 +1054,26 @@ export default function Flows() {
 
           {/* Function Import */}
           <div className="card">
-            <h3 className="font-semibold text-gray-900 mb-1">Import External Function</h3>
-            <p className="text-sm text-gray-500 mb-4">Register a gRPC service or WASM module as a flow function</p>
+            <h3 className="font-semibold text-primary mb-1">Import External Function</h3>
+            <p className="text-sm text-secondary mb-4">Register a gRPC service or WASM module as a flow function</p>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-xs font-medium text-gray-600">Function Name</label>
+                <label className="text-xs font-medium text-secondary">Function Name</label>
                 <input placeholder="e.g. custom-transform" value={importName} onChange={e => setImportName(e.target.value)} />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600">Runtime</label>
+                <label className="text-xs font-medium text-secondary">Runtime</label>
                 <select value={importRuntime} onChange={e => setImportRuntime(e.target.value)}>
                   <option value="GRPC">gRPC Service</option>
                   <option value="WASM">WASM Module</option>
                 </select>
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600">Endpoint URL (for gRPC)</label>
+                <label className="text-xs font-medium text-secondary">Endpoint URL (for gRPC)</label>
                 <input placeholder="grpc://localhost:50051" value={importEndpoint} onChange={e => setImportEndpoint(e.target.value)} />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600">Description</label>
+                <label className="text-xs font-medium text-secondary">Description</label>
                 <input placeholder="What this function does" value={importDesc} onChange={e => setImportDesc(e.target.value)} />
               </div>
             </div>
@@ -1104,7 +1104,7 @@ export default function Flows() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-semibold text-gray-900">{flow.name}</h3>
+                    <h3 className="font-semibold text-primary">{flow.name}</h3>
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
                       flow.active
                         ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -1121,15 +1121,15 @@ export default function Flows() {
                     </span>
                   </div>
                   {flow.description && (
-                    <p className="text-sm text-gray-500 mt-1">{flow.description}</p>
+                    <p className="text-sm text-secondary mt-1">{flow.description}</p>
                   )}
                   <div className="mt-1">
                     {flow.matchCriteria ? (
                       <MatchSummaryBadges criteria={flow.matchCriteria} />
                     ) : (
-                      <div className="flex items-center gap-4 text-xs text-gray-400">
+                      <div className="flex items-center gap-4 text-xs text-muted">
                         {flow.sourceAccount && (
-                          <span>Source: <span className="font-medium text-gray-500">{flow.sourceAccount.username}</span></span>
+                          <span>Source: <span className="font-medium text-secondary">{flow.sourceAccount.username}</span></span>
                         )}
                         {flow.filenamePattern && (
                           <span className="font-mono">Pattern: {flow.filenamePattern}</span>
@@ -1152,7 +1152,7 @@ export default function Flows() {
                     Dry Run
                   </button>
                   <button onClick={() => openEdit(flow)}
-                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    className="p-2 text-muted hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     title="Edit flow">
                     <PencilSquareIcon className="w-4 h-4" />
                   </button>
@@ -1168,14 +1168,14 @@ export default function Flows() {
                     if (window.confirm(`Delete flow "${flow.name}"? This will deactivate it.`))
                       deleteMut.mutate(flow.id)
                   }}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    className="p-2 text-muted hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                     title="Delete flow">
                     <TrashIcon className="w-4 h-4" />
                   </button>
                 </div>
               </div>
               {/* Pipeline visualization */}
-              <div className="mt-3 pt-3 border-t border-gray-100">
+              <div className="mt-3 pt-3 border-t border-border">
                 <MiniPipeline steps={flow.steps || []} />
               </div>
             </div>
@@ -1188,11 +1188,11 @@ export default function Flows() {
         <div className="card border-l-4 border-purple-500">
           <div className="flex items-center gap-2 mb-4">
             <HandRaisedIcon className="w-5 h-5 text-purple-500" />
-            <h3 className="font-semibold text-gray-900">Pending Approvals</h3>
+            <h3 className="font-semibold text-primary">Pending Approvals</h3>
             <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
               {pendingApprovals.length}
             </span>
-            <span className="text-xs text-gray-400 ml-auto">(auto-refresh 15s)</span>
+            <span className="text-xs text-muted ml-auto">(auto-refresh 15s)</span>
           </div>
           <div className="space-y-2">
             {pendingApprovals.map(ap => (
@@ -1219,19 +1219,19 @@ export default function Flows() {
           </div>
           <div className="space-y-2">
             {scheduledRetries.map(r => (
-              <div key={r.trackId} className="flex items-center gap-3 text-xs bg-white rounded-lg px-3 py-2 border border-blue-100">
+              <div key={r.trackId} className="flex items-center gap-3 text-xs bg-surface rounded-lg px-3 py-2 border border-blue-100">
                 <span className="font-mono font-bold text-blue-600">{r.trackId}</span>
-                <span className="text-gray-600 truncate max-w-40">{r.originalFilename}</span>
-                <span className="text-gray-400">{r.flowName || '—'}</span>
+                <span className="text-secondary truncate max-w-40">{r.originalFilename}</span>
+                <span className="text-muted">{r.flowName || '—'}</span>
                 <div className="flex-1" />
-                <span className="text-gray-500">by {r.scheduledBy}</span>
+                <span className="text-secondary">by {r.scheduledBy}</span>
                 <span className="font-semibold text-blue-700">
                   {new Date(r.scheduledAt).toLocaleString()}
                 </span>
                 <button
                   onClick={() => cancelScheduleMut.mutate(r.trackId)}
                   disabled={cancelScheduleMut.isPending}
-                  className="text-gray-400 hover:text-red-500 transition-colors"
+                  className="text-muted hover:text-red-500 transition-colors"
                   title="Cancel scheduled retry"
                 >
                   <XCircleIcon className="w-4 h-4" />
@@ -1246,9 +1246,9 @@ export default function Flows() {
       {activeTab === 'flows' && <div className="card">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <ClockIcon className="w-5 h-5 text-gray-400" />
-            <h3 className="font-semibold text-gray-900">Execution History</h3>
-            <span className="text-xs text-gray-400">(auto-refresh 10s)</span>
+            <ClockIcon className="w-5 h-5 text-muted" />
+            <h3 className="font-semibold text-primary">Execution History</h3>
+            <span className="text-xs text-muted">(auto-refresh 10s)</span>
           </div>
           <div className="flex items-center gap-2">
             {/* Bulk restart toolbar — visible when rows are selected */}
@@ -1280,27 +1280,27 @@ export default function Flows() {
                   const failedIds = executions.filter(ex => RESTARTABLE.has(ex.status)).map(ex => ex.trackId)
                   setSelectedIds(new Set(failedIds))
                 }}
-                className="text-xs text-gray-500 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                className="text-xs text-secondary hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 transition-colors"
               >
                 Select all failed
               </button>
             )}
             <button onClick={() => qc.invalidateQueries(['flow-executions'])}
-              className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+              className="p-1.5 text-muted hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
               title="Refresh now">
               <ArrowPathIcon className="w-4 h-4" />
             </button>
           </div>
         </div>
         {executions.length === 0 ? (
-          <div className="text-center py-8 text-gray-400 text-sm">
+          <div className="text-center py-8 text-muted text-sm">
             No flow executions yet. Executions will appear here when files are processed.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-100">
+                <tr className="border-b border-border">
                   <th className="table-header w-8"></th>
                   <th className="table-header">Track ID</th>
                   <th className="table-header">Flow</th>
@@ -1349,15 +1349,15 @@ export default function Flows() {
             {/* ─── Templates (create only) ─── */}
             {!editingId && (
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Quick Start Templates</label>
+                <label className="text-xs font-semibold text-secondary uppercase tracking-wider">Quick Start Templates</label>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   {FLOW_TEMPLATES.map(tpl => (
                     <button key={tpl.name} type="button" onClick={() => applyTemplate(tpl)}
-                      className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 text-left transition-all group">
+                      className="flex items-start gap-3 p-3 rounded-lg border border-border hover:border-blue-300 hover:bg-blue-50/50 text-left transition-all group">
                       <SparklesIcon className="w-5 h-5 text-blue-400 group-hover:text-blue-600 flex-shrink-0 mt-0.5" />
                       <div>
-                        <div className="text-sm font-medium text-gray-700 group-hover:text-blue-700">{tpl.name}</div>
-                        <div className="text-xs text-gray-400 mt-0.5">{tpl.desc}</div>
+                        <div className="text-sm font-medium text-primary group-hover:text-blue-700">{tpl.name}</div>
+                        <div className="text-xs text-muted mt-0.5">{tpl.desc}</div>
                       </div>
                     </button>
                   ))}
@@ -1367,7 +1367,7 @@ export default function Flows() {
 
             {/* ─── Basic Info ─── */}
             <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Flow Details</label>
+              <label className="text-xs font-semibold text-secondary uppercase tracking-wider">Flow Details</label>
               <div className="mt-2 grid grid-cols-2 gap-4">
                 <div>
                   <label>Flow Name</label>
@@ -1404,7 +1404,7 @@ export default function Flows() {
             {/* Direction filter */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-xs text-gray-500">Direction</label>
+                <label className="text-xs text-secondary">Direction</label>
                 <select value={form.direction || ''} onChange={e => setForm(f => ({ ...f, direction: e.target.value || null }))}>
                   <option value="">Any Direction</option>
                   <option value="INBOUND">Inbound</option>
@@ -1412,7 +1412,7 @@ export default function Flows() {
                 </select>
               </div>
               <div>
-                <label className="text-xs text-gray-500">Legacy: Source Path</label>
+                <label className="text-xs text-secondary">Legacy: Source Path</label>
                 <input value={form.sourcePath}
                   onChange={e => setForm(f => ({ ...f, sourcePath: e.target.value }))}
                   placeholder="/inbox" className="font-mono text-sm" />
@@ -1422,7 +1422,7 @@ export default function Flows() {
             {/* ─── Processing Pipeline ─── */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <label className="text-xs font-semibold text-secondary uppercase tracking-wider">
                   Processing Pipeline ({form.steps.length} step{form.steps.length !== 1 ? 's' : ''})
                 </label>
                 {form.steps.length > 0 && (
@@ -1443,9 +1443,9 @@ export default function Flows() {
                   />
                 ))}
                 {form.steps.length === 0 && (
-                  <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-lg">
+                  <div className="text-center py-6 border-2 border-dashed border-border rounded-lg">
                     <ArrowsUpDownIcon className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                    <p className="text-sm text-gray-400">No steps added yet</p>
+                    <p className="text-sm text-muted">No steps added yet</p>
                     <p className="text-xs text-gray-300 mt-1">Use a template above or add steps manually below</p>
                   </div>
                 )}
@@ -1489,18 +1489,18 @@ export default function Flows() {
                       <SparklesIcon className="w-3.5 h-3.5" /> AI-Suggested Steps
                     </span>
                     <button type="button" onClick={() => setAiSuggestions(null)}
-                      className="text-xs text-gray-400 hover:text-gray-600">Dismiss</button>
+                      className="text-xs text-muted hover:text-secondary">Dismiss</button>
                   </div>
                   <div className="space-y-1.5">
                     {aiSuggestions.steps.map((step, i) => {
-                      const meta = STEP_TYPE_CATALOG[step.type] || { label: step.type, icon: '?', color: 'text-gray-600 bg-gray-100' }
+                      const meta = STEP_TYPE_CATALOG[step.type] || { label: step.type, icon: '?', color: 'text-secondary bg-hover' }
                       return (
                         <div key={i} className="flex items-center gap-2 text-sm">
-                          <span className="text-xs font-bold text-gray-400 w-5 text-center">{i + 1}</span>
+                          <span className="text-xs font-bold text-muted w-5 text-center">{i + 1}</span>
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${meta.color}`}>
                             {meta.icon} {meta.label}
                           </span>
-                          {step.reason && <span className="text-xs text-gray-500 italic">{step.reason}</span>}
+                          {step.reason && <span className="text-xs text-secondary italic">{step.reason}</span>}
                         </div>
                       )
                     })}
@@ -1540,7 +1540,7 @@ export default function Flows() {
 
             {/* ─── Delivery Configuration ─── */}
             <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Delivery Configuration</label>
+              <label className="text-xs font-semibold text-secondary uppercase tracking-wider">Delivery Configuration</label>
               <div className="mt-2">
                 <label>Delivery Mode</label>
                 <div className="grid grid-cols-4 gap-2 mt-1">
@@ -1554,11 +1554,11 @@ export default function Flows() {
                       className={`flex flex-col items-center gap-1 p-3 rounded-lg border text-center transition-all ${
                         form.deliveryMode === mode.key
                           ? 'border-blue-300 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50'
+                          : 'border-border text-secondary hover:border-border hover:bg-canvas'
                       }`}>
                       <mode.icon className="w-5 h-5" />
                       <span className="text-xs font-medium">{mode.label}</span>
-                      <span className="text-[10px] text-gray-400">{mode.desc}</span>
+                      <span className="text-[10px] text-muted">{mode.desc}</span>
                     </button>
                   ))}
                 </div>
@@ -1601,12 +1601,12 @@ export default function Flows() {
             </div>
 
             {/* ─── Actions ─── */}
-            <div className="flex items-center gap-3 justify-between pt-4 border-t border-gray-200">
+            <div className="flex items-center gap-3 justify-between pt-4 border-t border-border">
               <div className="flex items-center gap-2">
                 <label className="flex items-center gap-2 cursor-pointer mb-0">
                   <input type="checkbox" checked={form.active} className="w-auto"
                     onChange={e => setForm(f => ({ ...f, active: e.target.checked }))} />
-                  <span className="text-sm text-gray-600">Active on save</span>
+                  <span className="text-sm text-secondary">Active on save</span>
                 </label>
               </div>
               <div className="flex gap-3">

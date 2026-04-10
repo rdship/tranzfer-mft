@@ -150,8 +150,8 @@ export default function Users() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-          <p className="text-gray-500 text-sm">{users.length} registered users ({activeCount} active, {disabledCount} disabled)</p>
+          <h1 className="text-2xl font-bold text-primary">User Management</h1>
+          <p className="text-secondary text-sm">{users.length} registered users ({activeCount} active, {disabledCount} disabled)</p>
         </div>
         <button className="btn-primary" onClick={() => { setCreateForm({ ...EMPTY_CREATE_FORM }); setCreateErrors({}); setShowCreate(true) }}>
           <PlusIcon className="w-4 h-4" /> Create User
@@ -161,39 +161,39 @@ export default function Users() {
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4">
         <div className="card !p-4 flex items-center gap-4">
-          <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-            <UserCircleIcon className="w-5 h-5 text-blue-600" />
+          <div className="w-10 h-10 bg-accent-soft rounded-xl flex items-center justify-center">
+            <UserCircleIcon className="w-5 h-5 text-accent" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900">{users.length}</p>
-            <p className="text-xs text-gray-500">Total Users</p>
+            <p className="text-2xl font-bold text-primary">{users.length}</p>
+            <p className="text-xs text-secondary">Total Users</p>
           </div>
         </div>
         <div className="card !p-4 flex items-center gap-4">
-          <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
-            <ShieldCheckIcon className="w-5 h-5 text-green-600" />
+          <div className="w-10 h-10 bg-[rgb(20,60,40)] rounded-xl flex items-center justify-center">
+            <ShieldCheckIcon className="w-5 h-5 text-[rgb(120,220,160)]" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900">{activeCount}</p>
-            <p className="text-xs text-gray-500">Active</p>
+            <p className="text-2xl font-bold text-primary">{activeCount}</p>
+            <p className="text-xs text-secondary">Active</p>
           </div>
         </div>
         <div className="card !p-4 flex items-center gap-4">
-          <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
-            <ExclamationTriangleIcon className="w-5 h-5 text-red-600" />
+          <div className="w-10 h-10 bg-[rgb(60,20,20)] rounded-xl flex items-center justify-center">
+            <ExclamationTriangleIcon className="w-5 h-5 text-[rgb(240,120,120)]" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900">{adminCount}</p>
-            <p className="text-xs text-gray-500">Admins</p>
+            <p className="text-2xl font-bold text-primary">{adminCount}</p>
+            <p className="text-xs text-secondary">Admins</p>
           </div>
         </div>
         <div className="card !p-4 flex items-center gap-4">
-          <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
-            <XMarkIcon className="w-5 h-5 text-gray-600" />
+          <div className="w-10 h-10 bg-hover rounded-xl flex items-center justify-center">
+            <XMarkIcon className="w-5 h-5 text-secondary" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900">{disabledCount}</p>
-            <p className="text-xs text-gray-500">Disabled</p>
+            <p className="text-2xl font-bold text-primary">{disabledCount}</p>
+            <p className="text-xs text-secondary">Disabled</p>
           </div>
         </div>
       </div>
@@ -201,13 +201,13 @@ export default function Users() {
       {/* Search and Filters */}
       <div className="card !p-4">
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5 text-gray-400">
+          <div className="flex items-center gap-1.5 text-muted">
             <FunnelIcon className="w-4 h-4" />
             <span className="text-xs font-medium uppercase tracking-wide">Filters</span>
           </div>
 
           <div className="relative">
-            <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+            <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted pointer-events-none" />
             <input
               className="!w-56 !py-1.5 !pl-8 !pr-3 !text-xs"
               placeholder="Search by email..."
@@ -238,7 +238,7 @@ export default function Users() {
           {hasFilters && (
             <button
               onClick={() => { setSearch(''); setRoleFilter(''); setStatusFilter('') }}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-[rgb(240,120,120)] hover:text-[rgb(240,120,120)] hover:bg-[rgb(60,20,20)] rounded-lg transition-colors"
             >
               <XMarkIcon className="w-3.5 h-3.5" /> Clear
             </button>
@@ -264,7 +264,7 @@ export default function Users() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-100">
+                <tr className="border-b border-border">
                   <th className="table-header">Email</th>
                   <th className="table-header">Role</th>
                   <th className="table-header">Status</th>
@@ -277,8 +277,8 @@ export default function Users() {
                   <tr key={u.id} className="table-row">
                     <td className="table-cell">
                       <div>
-                        <p className="font-medium text-gray-900">{u.email}</p>
-                        <p className="text-xs text-gray-400 font-mono">{u.id?.substring(0, 8)}...</p>
+                        <p className="font-medium text-primary">{u.email}</p>
+                        <p className="text-xs text-muted font-mono">{u.id?.substring(0, 8)}...</p>
                       </div>
                     </td>
                     <td className="table-cell">
@@ -289,7 +289,7 @@ export default function Users() {
                       >
                         {ALL_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                       </select>
-                      <p className="text-xs text-gray-400 mt-0.5 max-w-[200px] truncate">{ROLE_DESCRIPTIONS[u.role]}</p>
+                      <p className="text-xs text-muted mt-0.5 max-w-[200px] truncate">{ROLE_DESCRIPTIONS[u.role]}</p>
                     </td>
                     <td className="table-cell">
                       <button
@@ -299,28 +299,28 @@ export default function Users() {
                         {u.enabled !== false ? 'Active' : 'Disabled'}
                       </button>
                     </td>
-                    <td className="table-cell text-gray-500 text-xs">
+                    <td className="table-cell text-secondary text-xs">
                       {u.createdAt ? format(new Date(u.createdAt), 'MMM d, yyyy') : '--'}
                     </td>
                     <td className="table-cell">
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => setDetailUser(u)}
-                          className="p-1.5 rounded hover:bg-blue-50 text-blue-500 hover:text-blue-700 transition-colors"
+                          className="p-1.5 rounded hover:bg-accent-soft text-accent hover:text-accent transition-colors"
                           title="View details"
                         >
                           <EyeIcon className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => { setResetPasswordUser(u); setNewPassword('') }}
-                          className="p-1.5 rounded hover:bg-yellow-50 text-yellow-600 hover:text-yellow-700 transition-colors"
+                          className="p-1.5 rounded hover:bg-[rgb(60,50,20)] text-[rgb(240,200,100)] hover:text-[rgb(255,220,120)] transition-colors"
                           title="Reset password"
                         >
                           <KeyIcon className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => setDeleteConfirm(u)}
-                          className="p-1.5 rounded hover:bg-red-50 text-red-500 hover:text-red-700 transition-colors"
+                          className="p-1.5 rounded hover:bg-[rgb(60,20,20)] text-[rgb(240,120,120)] hover:text-[rgb(255,140,140)] transition-colors"
                           title="Delete user"
                         >
                           <TrashIcon className="w-4 h-4" />
@@ -380,7 +380,7 @@ export default function Users() {
               </select>
             </FormField>
 
-            <div className="flex gap-3 justify-end pt-4 border-t border-gray-100">
+            <div className="flex gap-3 justify-end pt-4 border-t border-border">
               <button type="button" className="btn-secondary" onClick={() => { setShowCreate(false); setCreateErrors({}) }}>Cancel</button>
               <button type="submit" className="btn-primary" disabled={createMut.isPending}>
                 {createMut.isPending ? 'Creating...' : 'Create User'}
@@ -395,19 +395,19 @@ export default function Users() {
         <Modal title="Confirm Role Change" onClose={() => setPendingRoleChange(null)}>
           <div className="space-y-4">
             <div className="flex items-start gap-3">
-              <div className="p-2 rounded-full bg-amber-50">
-                <ExclamationTriangleIcon className="w-6 h-6 text-amber-600" />
+              <div className="p-2 rounded-full bg-[rgb(60,50,20)]">
+                <ExclamationTriangleIcon className="w-6 h-6 text-[rgb(240,200,100)]" />
               </div>
               <div>
-                <p className="font-medium text-gray-900">Change role for {pendingRoleChange.user.email}?</p>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="font-medium text-primary">Change role for {pendingRoleChange.user.email}?</p>
+                <p className="text-sm text-secondary mt-1">
                   This will change the role from <span className={`badge ${ROLE_COLORS[pendingRoleChange.user.role]}`}>{pendingRoleChange.user.role}</span> to <span className={`badge ${ROLE_COLORS[pendingRoleChange.newRole]}`}>{pendingRoleChange.newRole}</span>.
                 </p>
-                <p className="text-xs text-gray-400 mt-2">
+                <p className="text-xs text-muted mt-2">
                   {ROLE_DESCRIPTIONS[pendingRoleChange.newRole]}
                 </p>
                 {pendingRoleChange.newRole === 'ADMIN' && (
-                  <p className="text-xs text-amber-600 mt-2 font-medium">Warning: This grants full administrative access to the platform.</p>
+                  <p className="text-xs text-[rgb(240,200,100)] mt-2 font-medium">Warning: This grants full administrative access to the platform.</p>
                 )}
               </div>
             </div>
@@ -426,15 +426,15 @@ export default function Users() {
         <Modal title="Delete User" onClose={() => setDeleteConfirm(null)}>
           <div className="space-y-4">
             <div className="flex items-start gap-3">
-              <div className="p-2 rounded-full bg-red-50">
-                <TrashIcon className="w-6 h-6 text-red-600" />
+              <div className="p-2 rounded-full bg-[rgb(60,20,20)]">
+                <TrashIcon className="w-6 h-6 text-[rgb(240,120,120)]" />
               </div>
               <div>
-                <p className="font-medium text-gray-900">Permanently delete {deleteConfirm.email}?</p>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="font-medium text-primary">Permanently delete {deleteConfirm.email}?</p>
+                <p className="text-sm text-secondary mt-1">
                   This action is irreversible and will erase all user data in compliance with GDPR Article 17 (Right to Erasure).
                 </p>
-                <div className="mt-3 bg-red-50 border border-red-100 rounded-lg p-3 text-xs text-red-700">
+                <div className="mt-3 bg-[rgb(60,20,20)] border border-[rgb(80,30,30)] rounded-lg p-3 text-xs text-[rgb(240,120,120)]">
                   <p className="font-medium">This will permanently delete:</p>
                   <ul className="list-disc ml-4 mt-1 space-y-0.5">
                     <li>User account and credentials</li>
@@ -447,7 +447,7 @@ export default function Users() {
             <div className="flex gap-3 justify-end">
               <button className="btn-secondary" onClick={() => setDeleteConfirm(null)}>Cancel</button>
               <button
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-[rgb(180,60,60)] text-white hover:bg-[rgb(200,70,70)] transition-colors disabled:opacity-50"
                 onClick={() => deleteMut.mutate(deleteConfirm.id)}
                 disabled={deleteMut.isPending}
               >
@@ -466,8 +466,8 @@ export default function Users() {
             if (newPassword.length < 8) { toast.error('Password must be at least 8 characters'); return }
             resetMut.mutate({ id: resetPasswordUser.id, password: newPassword })
           }} className="space-y-4">
-            <p className="text-sm text-gray-600">
-              Set a new password for <span className="font-medium text-gray-900">{resetPasswordUser.email}</span>
+            <p className="text-sm text-secondary">
+              Set a new password for <span className="font-medium text-primary">{resetPasswordUser.email}</span>
             </p>
             <FormField label="New Password" required helper="Minimum 8 characters.">
               <input
@@ -479,7 +479,7 @@ export default function Users() {
               />
             </FormField>
             {newPassword && newPassword.length < 8 && (
-              <p className="text-xs text-red-600">Password must be at least 8 characters</p>
+              <p className="text-xs text-[rgb(240,120,120)]">Password must be at least 8 characters</p>
             )}
             <div className="flex gap-3 justify-end pt-2 border-t">
               <button type="button" className="btn-secondary" onClick={() => { setResetPasswordUser(null); setNewPassword('') }}>Cancel</button>
@@ -497,37 +497,37 @@ export default function Users() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-xs text-gray-500 mb-1">Email</p>
-                <p className="text-sm font-medium text-gray-900">{detailUser.email}</p>
+                <p className="text-xs text-secondary mb-1">Email</p>
+                <p className="text-sm font-medium text-primary">{detailUser.email}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 mb-1">User ID</p>
-                <p className="text-sm font-mono text-gray-900">{detailUser.id}</p>
+                <p className="text-xs text-secondary mb-1">User ID</p>
+                <p className="text-sm font-mono text-primary">{detailUser.id}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 mb-1">Role</p>
+                <p className="text-xs text-secondary mb-1">Role</p>
                 <span className={`badge ${ROLE_COLORS[detailUser.role]}`}>{detailUser.role || 'USER'}</span>
-                <p className="text-xs text-gray-400 mt-1">{ROLE_DESCRIPTIONS[detailUser.role]}</p>
+                <p className="text-xs text-muted mt-1">{ROLE_DESCRIPTIONS[detailUser.role]}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 mb-1">Status</p>
+                <p className="text-xs text-secondary mb-1">Status</p>
                 <span className={`badge ${detailUser.enabled !== false ? 'badge-green' : 'badge-red'}`}>
                   {detailUser.enabled !== false ? 'Active' : 'Disabled'}
                 </span>
               </div>
               <div>
-                <p className="text-xs text-gray-500 mb-1">Created</p>
-                <p className="text-sm text-gray-900">{detailUser.createdAt ? format(new Date(detailUser.createdAt), 'MMM d, yyyy h:mm a') : '--'}</p>
+                <p className="text-xs text-secondary mb-1">Created</p>
+                <p className="text-sm text-primary">{detailUser.createdAt ? format(new Date(detailUser.createdAt), 'MMM d, yyyy h:mm a') : '--'}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 mb-1">2FA Status</p>
+                <p className="text-xs text-secondary mb-1">2FA Status</p>
                 <span className={`badge ${detailUser.twoFactorEnabled ? 'badge-green' : 'badge-gray'}`}>
                   {detailUser.twoFactorEnabled ? 'Enabled' : 'Not configured'}
                 </span>
               </div>
             </div>
 
-            <div className="flex gap-2 pt-4 border-t border-gray-100">
+            <div className="flex gap-2 pt-4 border-t border-border">
               <button
                 className="btn-secondary flex-1"
                 onClick={() => { setDetailUser(null); setResetPasswordUser(detailUser); setNewPassword('') }}

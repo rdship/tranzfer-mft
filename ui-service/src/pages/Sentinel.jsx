@@ -15,14 +15,14 @@ const TABS = [
 ]
 
 const SEV_COLORS = {
-  CRITICAL: 'bg-red-600', HIGH: 'bg-orange-500', MEDIUM: 'bg-yellow-500', LOW: 'bg-blue-500', INFO: 'bg-gray-500'
+  CRITICAL: 'bg-red-600', HIGH: 'bg-orange-500', MEDIUM: 'bg-yellow-500', LOW: 'bg-blue-500', INFO: 'bg-canvas0'
 }
 const SEV_TEXT = {
-  CRITICAL: 'text-red-400', HIGH: 'text-orange-400', MEDIUM: 'text-yellow-400', LOW: 'text-blue-400', INFO: 'text-gray-400'
+  CRITICAL: 'text-red-400', HIGH: 'text-orange-400', MEDIUM: 'text-yellow-400', LOW: 'text-blue-400', INFO: 'text-muted'
 }
 const STATUS_COLORS = {
   OPEN: 'bg-red-500/20 text-red-400', ACKNOWLEDGED: 'bg-yellow-500/20 text-yellow-400',
-  DISMISSED: 'bg-gray-500/20 text-gray-400', RESOLVED: 'bg-green-500/20 text-green-400',
+  DISMISSED: 'bg-canvas0/20 text-muted', RESOLVED: 'bg-green-500/20 text-green-400',
   REPORTED: 'bg-blue-500/20 text-blue-400'
 }
 
@@ -32,7 +32,7 @@ function HealthGauge({ score }) {
   return (
     <div className="flex flex-col items-center">
       <div className={`text-5xl font-bold ${color}`}>{score}</div>
-      <div className="text-gray-400 text-sm mt-1">Platform Health</div>
+      <div className="text-muted text-sm mt-1">Platform Health</div>
       <div className="w-full bg-gray-700 rounded-full h-2 mt-2">
         <div className={`${bgColor} h-2 rounded-full transition-all`} style={{ width: `${score}%` }} />
       </div>
@@ -44,7 +44,7 @@ function StatCard({ label, value, color = 'text-white' }) {
   return (
     <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
       <div className={`text-2xl font-bold ${color}`}>{value}</div>
-      <div className="text-gray-400 text-xs mt-1">{label}</div>
+      <div className="text-muted text-xs mt-1">{label}</div>
     </div>
   )
 }
@@ -87,7 +87,7 @@ function OverviewTab() {
           ].map(({ label, score, icon: Icon }) => (
             <div key={label} className="bg-gray-800 rounded-lg p-4 border border-gray-700">
               <div className="flex items-center gap-2 mb-2">
-                <Icon className="w-4 h-4 text-gray-400" />
+                <Icon className="w-4 h-4 text-muted" />
                 <span className="text-gray-300 text-sm">{label}</span>
               </div>
               <div className="text-xl font-bold text-white">{score}/100</div>
@@ -127,12 +127,12 @@ function OverviewTab() {
               <span className={`w-2 h-2 rounded-full ${SEV_COLORS[f.severity]}`} />
               <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${STATUS_COLORS[f.status] || ''}`}>{f.status}</span>
               <span className="text-gray-300 text-sm flex-1 truncate">{f.title}</span>
-              <span className="text-gray-500 text-xs">{f.analyzer}</span>
-              <span className="text-gray-500 text-xs">{new Date(f.createdAt).toLocaleString()}</span>
+              <span className="text-secondary text-xs">{f.analyzer}</span>
+              <span className="text-secondary text-xs">{new Date(f.createdAt).toLocaleString()}</span>
             </div>
           ))}
           {(!dashboard?.recentFindings?.length) && (
-            <div className="px-4 py-8 text-center text-gray-500">
+            <div className="px-4 py-8 text-center text-secondary">
               <CheckCircleIcon className="w-8 h-8 mx-auto mb-2 text-green-500" />
               <div>All clear — no findings detected</div>
             </div>
@@ -184,7 +184,7 @@ function FindingsTab() {
         <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-700 text-gray-400 text-xs">
+              <tr className="border-b border-gray-700 text-muted text-xs">
                 <th className="px-4 py-2 text-left">Sev</th>
                 <th className="px-4 py-2 text-left">Status</th>
                 <th className="px-4 py-2 text-left">Title</th>
@@ -202,21 +202,21 @@ function FindingsTab() {
                   <td className="px-4 py-2 text-gray-300 max-w-md truncate">{f.title}
                     {f.githubIssueUrl && <a href={f.githubIssueUrl} target="_blank" rel="noreferrer" className="ml-2 text-blue-400 text-xs hover:underline">GitHub</a>}
                   </td>
-                  <td className="px-4 py-2 text-gray-400">{f.analyzer}</td>
-                  <td className="px-4 py-2 text-gray-400">{f.affectedService || '—'}</td>
-                  <td className="px-4 py-2 text-gray-500 text-xs">{new Date(f.createdAt).toLocaleString()}</td>
+                  <td className="px-4 py-2 text-muted">{f.analyzer}</td>
+                  <td className="px-4 py-2 text-muted">{f.affectedService || '—'}</td>
+                  <td className="px-4 py-2 text-secondary text-xs">{new Date(f.createdAt).toLocaleString()}</td>
                   <td className="px-4 py-2 flex gap-1">
                     {f.status === 'OPEN' && (
                       <>
                         <button onClick={() => ack.mutate(f.id)} className="text-xs px-2 py-0.5 bg-yellow-600/20 text-yellow-400 rounded hover:bg-yellow-600/30">Ack</button>
-                        <button onClick={() => dismiss.mutate(f.id)} className="text-xs px-2 py-0.5 bg-gray-600/20 text-gray-400 rounded hover:bg-gray-600/30">Dismiss</button>
+                        <button onClick={() => dismiss.mutate(f.id)} className="text-xs px-2 py-0.5 bg-gray-600/20 text-muted rounded hover:bg-gray-600/30">Dismiss</button>
                       </>
                     )}
                   </td>
                 </tr>
               ))}
               {!findings.length && (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">No findings match filters</td></tr>
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-secondary">No findings match filters</td></tr>
               )}
             </tbody>
           </table>
@@ -225,7 +225,7 @@ function FindingsTab() {
             <div className="flex justify-center gap-2 py-3 border-t border-gray-700">
               <button disabled={filters.page === 0} onClick={() => setFilters(f => ({ ...f, page: f.page - 1 }))}
                       className="text-xs px-3 py-1 bg-gray-700 text-gray-300 rounded disabled:opacity-50">Prev</button>
-              <span className="text-gray-400 text-xs py-1">Page {filters.page + 1} of {totalPages}</span>
+              <span className="text-muted text-xs py-1">Page {filters.page + 1} of {totalPages}</span>
               <button disabled={filters.page >= totalPages - 1} onClick={() => setFilters(f => ({ ...f, page: f.page + 1 }))}
                       className="text-xs px-3 py-1 bg-gray-700 text-gray-300 rounded disabled:opacity-50">Next</button>
             </div>
@@ -247,9 +247,9 @@ function CorrelationsTab() {
   if (!correlations?.length) {
     return (
       <div className="bg-gray-800 rounded-lg border border-gray-700 p-8 text-center">
-        <LinkIcon className="w-8 h-8 mx-auto mb-2 text-gray-500" />
-        <div className="text-gray-400">No correlated events detected</div>
-        <div className="text-gray-500 text-sm mt-1">Correlations appear when multiple findings occur within the same time window</div>
+        <LinkIcon className="w-8 h-8 mx-auto mb-2 text-secondary" />
+        <div className="text-muted">No correlated events detected</div>
+        <div className="text-secondary text-sm mt-1">Correlations appear when multiple findings occur within the same time window</div>
       </div>
     )
   }
@@ -263,15 +263,15 @@ function CorrelationsTab() {
               <h3 className="text-gray-200 font-medium">{c.group?.title || 'Correlation Group'}</h3>
               {c.group?.rootCause && <p className="text-orange-400 text-sm mt-1">Root cause: {c.group.rootCause}</p>}
             </div>
-            <span className="text-gray-500 text-xs">{c.group?.findingCount} findings</span>
+            <span className="text-secondary text-xs">{c.group?.findingCount} findings</span>
           </div>
           <div className="space-y-2">
             {(c.findings || []).map(f => (
               <div key={f.id} className="flex items-center gap-2 text-sm pl-4 border-l-2 border-gray-600">
                 <span className={`w-2 h-2 rounded-full ${SEV_COLORS[f.severity]}`} />
-                <span className="text-gray-400">{f.analyzer}</span>
+                <span className="text-muted">{f.analyzer}</span>
                 <span className="text-gray-300 flex-1">{f.title}</span>
-                <span className="text-gray-500 text-xs">{new Date(f.createdAt).toLocaleTimeString()}</span>
+                <span className="text-secondary text-xs">{new Date(f.createdAt).toLocaleTimeString()}</span>
               </div>
             ))}
           </div>
@@ -335,7 +335,7 @@ function RulesTab() {
     <div className="space-y-6">
       {/* Header row with Add Rule button */}
       <div className="flex items-center justify-between">
-        <p className="text-gray-400 text-sm">{rules?.length ?? 0} rules · {rules?.filter(r => r.enabled).length ?? 0} enabled</p>
+        <p className="text-muted text-sm">{rules?.length ?? 0} rules · {rules?.filter(r => r.enabled).length ?? 0} enabled</p>
         <button onClick={() => { setShowAdd(true); setFormError('') }}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition-colors">
           <PlusIcon className="w-4 h-4" /> Add Rule
@@ -348,12 +348,12 @@ function RulesTab() {
           <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-white font-semibold">Add Custom Rule</h2>
-              <button onClick={() => setShowAdd(false)} className="text-gray-400 hover:text-white"><XMarkIcon className="w-5 h-5" /></button>
+              <button onClick={() => setShowAdd(false)} className="text-muted hover:text-white"><XMarkIcon className="w-5 h-5" /></button>
             </div>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-gray-400 text-xs mb-1 block">Analyzer *</label>
+                  <label className="text-muted text-xs mb-1 block">Analyzer *</label>
                   <select value={form.analyzer} onChange={e => setForm(f => ({ ...f, analyzer: e.target.value }))}
                           className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white">
                     <option>SECURITY</option>
@@ -363,7 +363,7 @@ function RulesTab() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-gray-400 text-xs mb-1 block">Severity *</label>
+                  <label className="text-muted text-xs mb-1 block">Severity *</label>
                   <select value={form.severity} onChange={e => setForm(f => ({ ...f, severity: e.target.value }))}
                           className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white">
                     <option>CRITICAL</option>
@@ -375,30 +375,30 @@ function RulesTab() {
                 </div>
               </div>
               <div>
-                <label className="text-gray-400 text-xs mb-1 block">Rule Name * (unique, e.g. partner_abc_failure)</label>
+                <label className="text-muted text-xs mb-1 block">Rule Name * (unique, e.g. partner_abc_failure)</label>
                 <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                        placeholder="rule_name_snake_case"
                        className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white placeholder-gray-500" />
               </div>
               <div>
-                <label className="text-gray-400 text-xs mb-1 block">Description</label>
+                <label className="text-muted text-xs mb-1 block">Description</label>
                 <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                        placeholder="What this rule detects"
                        className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white placeholder-gray-500" />
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-gray-400 text-xs mb-1 block">Threshold</label>
+                  <label className="text-muted text-xs mb-1 block">Threshold</label>
                   <input type="number" value={form.thresholdValue} onChange={e => setForm(f => ({ ...f, thresholdValue: e.target.value }))}
                          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white" />
                 </div>
                 <div>
-                  <label className="text-gray-400 text-xs mb-1 block">Window (min)</label>
+                  <label className="text-muted text-xs mb-1 block">Window (min)</label>
                   <input type="number" value={form.windowMinutes} onChange={e => setForm(f => ({ ...f, windowMinutes: +e.target.value }))}
                          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white" />
                 </div>
                 <div>
-                  <label className="text-gray-400 text-xs mb-1 block">Cooldown (min)</label>
+                  <label className="text-muted text-xs mb-1 block">Cooldown (min)</label>
                   <input type="number" value={form.cooldownMinutes} onChange={e => setForm(f => ({ ...f, cooldownMinutes: +e.target.value }))}
                          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white" />
                 </div>
@@ -426,7 +426,7 @@ function RulesTab() {
           <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-700 text-gray-400 text-xs">
+                <tr className="border-b border-gray-700 text-muted text-xs">
                   <th className="px-4 py-2 text-left">On</th>
                   <th className="px-4 py-2 text-left">Rule</th>
                   <th className="px-4 py-2 text-left">Description</th>
@@ -444,19 +444,19 @@ function RulesTab() {
                     <td className="px-4 py-2">
                       <button onClick={() => update.mutate({ id: rule.id, data: { enabled: !rule.enabled } })}
                               className={`w-8 h-4 rounded-full flex items-center transition-colors ${rule.enabled ? 'bg-green-600 justify-end' : 'bg-gray-600 justify-start'}`}>
-                        <span className="w-3 h-3 bg-white rounded-full mx-0.5" />
+                        <span className="w-3 h-3 bg-surface rounded-full mx-0.5" />
                       </button>
                     </td>
                     <td className="px-4 py-2 text-gray-200 font-mono text-xs">
                       {rule.name}
-                      {rule.builtin && <span className="ml-1.5 text-gray-600 text-xs">[builtin]</span>}
+                      {rule.builtin && <span className="ml-1.5 text-secondary text-xs">[builtin]</span>}
                     </td>
-                    <td className="px-4 py-2 text-gray-400 max-w-xs truncate">{rule.description}</td>
+                    <td className="px-4 py-2 text-muted max-w-xs truncate">{rule.description}</td>
                     <td className="px-4 py-2"><span className={`text-xs ${SEV_TEXT[rule.severity]}`}>{rule.severity}</span></td>
                     <td className="px-4 py-2 text-gray-300">{rule.thresholdValue ?? '—'}</td>
-                    <td className="px-4 py-2 text-gray-400">{rule.windowMinutes}m</td>
-                    <td className="px-4 py-2 text-gray-400">{rule.cooldownMinutes}m</td>
-                    <td className="px-4 py-2 text-gray-500 text-xs">
+                    <td className="px-4 py-2 text-muted">{rule.windowMinutes}m</td>
+                    <td className="px-4 py-2 text-muted">{rule.cooldownMinutes}m</td>
+                    <td className="px-4 py-2 text-secondary text-xs">
                       {rule.lastTriggered ? new Date(rule.lastTriggered).toLocaleString() : '—'}
                     </td>
                     <td className="px-4 py-2">
@@ -465,13 +465,13 @@ function RulesTab() {
                           <div className="flex items-center gap-1">
                             <button onClick={() => remove.mutate(rule.id)}
                                     className="text-xs text-red-400 hover:text-red-300">Yes</button>
-                            <span className="text-gray-600">/</span>
+                            <span className="text-secondary">/</span>
                             <button onClick={() => setConfirmDelete(null)}
-                                    className="text-xs text-gray-400 hover:text-gray-300">No</button>
+                                    className="text-xs text-muted hover:text-gray-300">No</button>
                           </div>
                         ) : (
                           <button onClick={() => setConfirmDelete(rule.id)}
-                                  className="text-gray-600 hover:text-red-400 transition-colors">
+                                  className="text-secondary hover:text-red-400 transition-colors">
                             <TrashIcon className="w-4 h-4" />
                           </button>
                         )
@@ -516,14 +516,14 @@ export default function Sentinel() {
           <BoltIcon className="w-6 h-6 text-purple-400" />
           <div>
             <h1 className="text-xl font-bold text-white">Platform Sentinel</h1>
-            <p className="text-gray-400 text-sm">Autonomous observer — security, performance, and health monitoring</p>
+            <p className="text-muted text-sm">Autonomous observer — security, performance, and health monitoring</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
           <span className={`px-2 py-1 rounded text-xs font-medium ${health?.status === 'UP' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
             {health?.status || 'OFFLINE'}
           </span>
-          {health && <span className="text-gray-500 text-xs">{health.totalRules} rules · {health.openFindings} open</span>}
+          {health && <span className="text-secondary text-xs">{health.totalRules} rules · {health.openFindings} open</span>}
           <button onClick={() => trigger.mutate()}
                   disabled={trigger.isPending}
                   className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 disabled:opacity-50">
@@ -540,7 +540,7 @@ export default function Sentinel() {
                   className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                     activeTab === tab.key
                       ? 'border-purple-500 text-purple-400'
-                      : 'border-transparent text-gray-400 hover:text-gray-300'
+                      : 'border-transparent text-muted hover:text-gray-300'
                   }`}>
             <tab.icon className="w-4 h-4" />
             {tab.label}

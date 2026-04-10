@@ -130,12 +130,12 @@ export default function ServiceManagement() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Service Management</h1>
-          <p className="text-gray-500 text-sm">Monitor and manage all platform microservices</p>
+          <h1 className="text-2xl font-bold text-primary">Service Management</h1>
+          <p className="text-secondary text-sm">Monitor and manage all platform microservices</p>
         </div>
         <div className="flex items-center gap-3">
           {dataUpdatedAt && (
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-muted">
               Last checked: {format(new Date(dataUpdatedAt), 'HH:mm:ss')}
             </span>
           )}
@@ -153,8 +153,8 @@ export default function ServiceManagement() {
             <Square3Stack3DIcon className="h-6 w-6 text-blue-600" />
           </div>
           <div>
-            <p className="text-sm text-gray-500">Total Services</p>
-            <p className="text-2xl font-bold text-gray-900">{SERVICES.length}</p>
+            <p className="text-sm text-secondary">Total Services</p>
+            <p className="text-2xl font-bold text-primary">{SERVICES.length}</p>
           </div>
         </div>
         <div className="card flex items-center gap-3">
@@ -162,7 +162,7 @@ export default function ServiceManagement() {
             <SignalIcon className="h-6 w-6 text-green-600" />
           </div>
           <div>
-            <p className="text-sm text-gray-500">Healthy</p>
+            <p className="text-sm text-secondary">Healthy</p>
             <p className="text-2xl font-bold text-green-600">{healthyCount}</p>
           </div>
         </div>
@@ -171,7 +171,7 @@ export default function ServiceManagement() {
             <ExclamationTriangleIcon className="h-6 w-6 text-red-600" />
           </div>
           <div>
-            <p className="text-sm text-gray-500">Unreachable</p>
+            <p className="text-sm text-secondary">Unreachable</p>
             <p className="text-2xl font-bold text-red-600">{unreachableCount}</p>
           </div>
         </div>
@@ -180,8 +180,8 @@ export default function ServiceManagement() {
             <TagIcon className="h-6 w-6 text-purple-600" />
           </div>
           <div>
-            <p className="text-sm text-gray-500">Categories</p>
-            <p className="text-2xl font-bold text-gray-900">{uniqueCategories}</p>
+            <p className="text-sm text-secondary">Categories</p>
+            <p className="text-2xl font-bold text-primary">{uniqueCategories}</p>
           </div>
         </div>
       </div>
@@ -195,7 +195,7 @@ export default function ServiceManagement() {
             className={`px-3 py-1.5 text-sm font-medium rounded-full transition-colors ${
               categoryFilter === cat
                 ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                : 'bg-hover text-secondary hover:bg-gray-200'
             }`}
           >
             {cat}
@@ -221,8 +221,8 @@ export default function ServiceManagement() {
                     <IconComponent className={`h-5 w-5 ${isHealthy ? 'text-green-600' : 'text-red-500'}`} />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900">{svc.name}</h3>
-                    <p className="text-sm text-gray-500">{svc.description}</p>
+                    <h3 className="font-semibold text-primary">{svc.name}</h3>
+                    <p className="text-sm text-secondary">{svc.description}</p>
                   </div>
                 </div>
                 <span className="relative flex h-3 w-3 mt-1 flex-shrink-0">
@@ -288,24 +288,24 @@ export default function ServiceManagement() {
 
       {filteredServices.length === 0 && (
         <div className="card text-center py-12">
-          <p className="text-gray-500">No services found in the "{categoryFilter}" category.</p>
+          <p className="text-secondary">No services found in the "{categoryFilter}" category.</p>
         </div>
       )}
 
       {/* Architecture Overview */}
       <div className="card">
-        <h3 className="font-semibold text-gray-900 mb-4">Architecture Overview</h3>
-        <p className="text-sm text-gray-500 mb-6">
+        <h3 className="font-semibold text-primary mb-4">Architecture Overview</h3>
+        <p className="text-sm text-secondary mb-6">
           High-level service dependency topology showing how data flows through the platform.
         </p>
         <div className="overflow-x-auto">
           <div className="flex items-center justify-center gap-0 min-w-[900px] py-4">
             {/* External */}
             <div className="flex flex-col items-center">
-              <div className="bg-gray-100 border-2 border-gray-300 rounded-lg px-4 py-3 text-center min-w-[120px]">
-                <GlobeAltIcon className="h-5 w-5 text-gray-500 mx-auto mb-1" />
-                <p className="text-xs font-semibold text-gray-700">External</p>
-                <p className="text-[10px] text-gray-400">Partners / Clients</p>
+              <div className="bg-hover border-2 border-gray-300 rounded-lg px-4 py-3 text-center min-w-[120px]">
+                <GlobeAltIcon className="h-5 w-5 text-secondary mx-auto mb-1" />
+                <p className="text-xs font-semibold text-primary">External</p>
+                <p className="text-[10px] text-muted">Partners / Clients</p>
               </div>
             </div>
 
@@ -388,35 +388,35 @@ export default function ServiceManagement() {
           </div>
 
           {/* Supporting services row */}
-          <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-gray-100">
-            <span className="text-xs text-gray-400 mr-2">Supporting:</span>
-            <div className="flex items-center gap-1 bg-gray-50 rounded px-2 py-1">
-              <KeyIcon className="h-3 w-3 text-gray-400" />
-              <span className="text-[10px] text-gray-500">Encryption :8086</span>
+          <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-border">
+            <span className="text-xs text-muted mr-2">Supporting:</span>
+            <div className="flex items-center gap-1 bg-canvas rounded px-2 py-1">
+              <KeyIcon className="h-3 w-3 text-muted" />
+              <span className="text-[10px] text-secondary">Encryption :8086</span>
             </div>
-            <div className="flex items-center gap-1 bg-gray-50 rounded px-2 py-1">
-              <KeyIcon className="h-3 w-3 text-gray-400" />
-              <span className="text-[10px] text-gray-500">Keystore :8093</span>
+            <div className="flex items-center gap-1 bg-canvas rounded px-2 py-1">
+              <KeyIcon className="h-3 w-3 text-muted" />
+              <span className="text-[10px] text-secondary">Keystore :8093</span>
             </div>
-            <div className="flex items-center gap-1 bg-gray-50 rounded px-2 py-1">
-              <CpuChipIcon className="h-3 w-3 text-gray-400" />
-              <span className="text-[10px] text-gray-500">AI Engine :8091</span>
+            <div className="flex items-center gap-1 bg-canvas rounded px-2 py-1">
+              <CpuChipIcon className="h-3 w-3 text-muted" />
+              <span className="text-[10px] text-secondary">AI Engine :8091</span>
             </div>
-            <div className="flex items-center gap-1 bg-gray-50 rounded px-2 py-1">
-              <ShieldCheckIcon className="h-3 w-3 text-gray-400" />
-              <span className="text-[10px] text-gray-500">Screening :8092</span>
+            <div className="flex items-center gap-1 bg-canvas rounded px-2 py-1">
+              <ShieldCheckIcon className="h-3 w-3 text-muted" />
+              <span className="text-[10px] text-secondary">Screening :8092</span>
             </div>
-            <div className="flex items-center gap-1 bg-gray-50 rounded px-2 py-1">
-              <ChartBarIcon className="h-3 w-3 text-gray-400" />
-              <span className="text-[10px] text-gray-500">Analytics :8090</span>
+            <div className="flex items-center gap-1 bg-canvas rounded px-2 py-1">
+              <ChartBarIcon className="h-3 w-3 text-muted" />
+              <span className="text-[10px] text-secondary">Analytics :8090</span>
             </div>
-            <div className="flex items-center gap-1 bg-gray-50 rounded px-2 py-1">
-              <DocumentTextIcon className="h-3 w-3 text-gray-400" />
-              <span className="text-[10px] text-gray-500">EDI :8095</span>
+            <div className="flex items-center gap-1 bg-canvas rounded px-2 py-1">
+              <DocumentTextIcon className="h-3 w-3 text-muted" />
+              <span className="text-[10px] text-secondary">EDI :8095</span>
             </div>
-            <div className="flex items-center gap-1 bg-gray-50 rounded px-2 py-1">
-              <KeyIcon className="h-3 w-3 text-gray-400" />
-              <span className="text-[10px] text-gray-500">License :8089</span>
+            <div className="flex items-center gap-1 bg-canvas rounded px-2 py-1">
+              <KeyIcon className="h-3 w-3 text-muted" />
+              <span className="text-[10px] text-secondary">License :8089</span>
             </div>
           </div>
         </div>
@@ -425,18 +425,18 @@ export default function ServiceManagement() {
       {/* Health Detail Modal */}
       {detailModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDetailModal(null)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-surface rounded-xl shadow-2xl w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <div>
-                <h3 className="font-semibold text-gray-900">{detailModal.name}</h3>
-                <p className="text-sm text-gray-500">Health Details</p>
+                <h3 className="font-semibold text-primary">{detailModal.name}</h3>
+                <p className="text-sm text-secondary">Health Details</p>
               </div>
               <button
                 onClick={() => setDetailModal(null)}
-                className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
+                className="p-1 rounded-lg hover:bg-hover transition-colors"
               >
-                <XMarkIcon className="h-5 w-5 text-gray-400" />
+                <XMarkIcon className="h-5 w-5 text-muted" />
               </button>
             </div>
 
@@ -444,19 +444,19 @@ export default function ServiceManagement() {
             <div className="px-6 py-4 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wider">Service ID</p>
-                  <p className="text-sm font-mono text-gray-700">{detailModal.id}</p>
+                  <p className="text-xs text-muted uppercase tracking-wider">Service ID</p>
+                  <p className="text-sm font-mono text-primary">{detailModal.id}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wider">Port</p>
-                  <p className="text-sm font-mono text-gray-700">{detailModal.port}</p>
+                  <p className="text-xs text-muted uppercase tracking-wider">Port</p>
+                  <p className="text-sm font-mono text-primary">{detailModal.port}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wider">Category</p>
-                  <p className="text-sm text-gray-700">{detailModal.category}</p>
+                  <p className="text-xs text-muted uppercase tracking-wider">Category</p>
+                  <p className="text-sm text-primary">{detailModal.category}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wider">Status</p>
+                  <p className="text-xs text-muted uppercase tracking-wider">Status</p>
                   <span className={`badge ${healthMap[detailModal.id]?.status === 'healthy' ? 'badge-green' : 'badge-red'}`}>
                     {healthMap[detailModal.id]?.status === 'healthy' ? 'Healthy' : 'Unreachable'}
                   </span>
@@ -464,24 +464,24 @@ export default function ServiceManagement() {
               </div>
 
               <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Health Endpoint</p>
-                <p className="text-sm font-mono text-gray-500 bg-gray-50 rounded px-2 py-1">
+                <p className="text-xs text-muted uppercase tracking-wider mb-1">Health Endpoint</p>
+                <p className="text-sm font-mono text-secondary bg-canvas rounded px-2 py-1">
                   http://localhost:{detailModal.port}/actuator/health
                 </p>
               </div>
 
               {dataUpdatedAt && (
                 <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Last Checked</p>
-                  <p className="text-sm text-gray-700">
+                  <p className="text-xs text-muted uppercase tracking-wider mb-1">Last Checked</p>
+                  <p className="text-sm text-primary">
                     {format(new Date(dataUpdatedAt), 'yyyy-MM-dd HH:mm:ss')}
                   </p>
                 </div>
               )}
 
               <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Raw Response</p>
-                <pre className="text-xs bg-gray-50 rounded-lg p-3 overflow-auto max-h-60 text-gray-600 border border-gray-100">
+                <p className="text-xs text-muted uppercase tracking-wider mb-1">Raw Response</p>
+                <pre className="text-xs bg-canvas rounded-lg p-3 overflow-auto max-h-60 text-secondary border border-border">
                   {healthMap[detailModal.id]?.details
                     ? JSON.stringify(healthMap[detailModal.id].details, null, 2)
                     : 'No response — service is unreachable.'}
@@ -490,7 +490,7 @@ export default function ServiceManagement() {
             </div>
 
             {/* Modal Footer */}
-            <div className="flex justify-end px-6 py-4 border-t border-gray-100">
+            <div className="flex justify-end px-6 py-4 border-t border-border">
               <button className="btn-secondary" onClick={() => setDetailModal(null)}>
                 Close
               </button>
