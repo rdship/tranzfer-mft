@@ -382,7 +382,7 @@ function fmtMs(ms) {
   return `${(ms / 1000).toFixed(1)}s`
 }
 
-const HOURS = Array.from({ length: 24 }, (_, i) => i)
+// HOURS already defined at module scope (line 158) — reused here for the latency heatmap
 
 function StepLatencyHeatmap({ data, hours, onHoursChange }) {
   const summary  = data?.summary  || []

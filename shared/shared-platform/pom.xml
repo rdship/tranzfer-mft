@@ -24,13 +24,13 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
-        <!-- Redis: cluster registry, pub/sub events, shared connection counters.
-             Optional=true so services can opt in by adding it to their own pom.
-             Beans activate via @ConditionalOnBean(RedisConnectionFactory.class). -->
+        <!-- Redis: cluster registry, pub/sub events, distributed VFS locks.
+             Must NOT be optional — classes with @ConditionalOnBean(RedisConnectionFactory.class)
+             import the Redis class directly, so it must be on the classpath for class loading.
+             Beans still only activate when a RedisConnectionFactory bean is configured. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
-            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
