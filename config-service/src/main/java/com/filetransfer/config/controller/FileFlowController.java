@@ -4,6 +4,7 @@ import com.filetransfer.config.messaging.FlowRuleEventPublisher;
 import com.filetransfer.config.service.MatchCriteriaService;
 import com.filetransfer.shared.entity.FileFlow;
 import com.filetransfer.shared.entity.FlowExecution;
+import com.filetransfer.shared.flow.FlowFunctionRegistry;
 import com.filetransfer.shared.matching.MatchCriteria;
 import com.filetransfer.shared.repository.FileFlowRepository;
 import com.filetransfer.shared.repository.FlowExecutionRepository;
@@ -19,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -33,6 +35,7 @@ public class FileFlowController {
     private final FlowExecutionRepository executionRepository;
     private final MatchCriteriaService matchCriteriaService;
     private final FlowRuleEventPublisher flowRuleEventPublisher;
+    private final FlowFunctionRegistry flowFunctionRegistry;
 
     // --- Flow CRUD ---
 
@@ -121,6 +124,19 @@ public class FileFlowController {
         types.put("routing", List.of("ROUTE"));
         types.put("conversion", List.of("CONVERT_EDI"));
         return types;
+    }
+
+    @GetMapping("/functions/catalog")
+    public List<Map<String, Object>> functionCatalog() {
+        return flowFunctionRegistry.getAll().entrySet().stream()
+            .map(e -> Map.<String, Object>of(
+                "type", e.getKey(),
+                "ioMode", e.getValue().ioMode().name(),
+                "description", e.getValue().description(),
+                "configSchema", e.getValue().configSchema() != null ? e.getValue().configSchema() : ""
+            ))
+            .sorted(Comparator.comparing(m -> (String) m.get("type")))
+            .toList();
     }
 
     // --- Match Criteria ---
