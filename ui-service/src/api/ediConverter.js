@@ -33,3 +33,13 @@ export const deactivateMap = (mapId) =>
 
 export const deleteMap = (mapId) =>
   aiApi.delete(`/api/v1/edi/maps/${mapId}`)
+
+// ── Conversational Map Builder (ai-engine :8091) ────────────────────────────
+export const buildMapFromSamples = (samples, partnerId, name) =>
+  aiApi.post('/api/v1/edi/maps/build-from-samples', { samples, partnerId, name }).then(r => r.data)
+
+export const chatWithMap = (mapId, message, context) =>
+  aiApi.post('/api/v1/edi/maps/chat', { mapId, message, context }).then(r => r.data)
+
+export const submitMapFeedback = (mapId, approved, comments, corrections) =>
+  aiApi.post(`/api/v1/edi/maps/${mapId}/feedback`, { approved, comments, corrections }).then(r => r.data)

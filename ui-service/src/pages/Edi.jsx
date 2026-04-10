@@ -4,9 +4,16 @@ import { ediApi as api } from '../api/client'
 import {
   convertWithMap, getAvailableMaps, getMapDetail, detectDocumentType,
   cloneMap, getPartnerMaps, updateMap, activateMap, deactivateMap, deleteMap,
+  submitMapFeedback,
 } from '../api/ediConverter'
+import {
+  SparklesIcon, XMarkIcon,
+} from '@heroicons/react/24/outline'
 import MapEditor from '../components/MapEditor'
 import MapTestPanel from '../components/MapTestPanel'
+import SampleUploader from '../components/SampleUploader'
+import MapAssistant from '../components/MapAssistant'
+import MapPreview from '../components/MapPreview'
 
 const TABS = [
   { id: 'convert', label: 'Convert' },
@@ -97,6 +104,12 @@ export default function Edi() {
   const [clonePartnerName, setClonePartnerName] = useState('')
   const [cloneMapName, setCloneMapName] = useState('')
   const [cloning, setCloning] = useState(false)
+
+  // Build Map flow state
+  const [buildMapOpen, setBuildMapOpen] = useState(false)
+  const [buildMapStep, setBuildMapStep] = useState('upload') // 'upload' | 'preview' | 'refine'
+  const [buildMapResult, setBuildMapResult] = useState(null)
+  const [buildMapPreview, setBuildMapPreview] = useState(null)
 
   // Load maps when Maps tab is selected
   useEffect(() => {
@@ -237,6 +250,61 @@ export default function Edi() {
     }
   }
 
+  // ── Build Map flow handlers ─────────────────────────────────────────────────
+  const handleBuildMapComplete = (result) => {
+    setBuildMapResult(result)
+    setBuildMapStep('preview')
+    // If result includes preview data, use it
+    if (result.preview || result.output) {
+      setBuildMapPreview(result.preview || result.output)
+    }
+  }
+
+  const handleBuildMapApprove = async () => {
+    if (!buildMapResult) return
+    const mapId = buildMapResult.mapId || buildMapResult.id
+    if (mapId) {
+      try {
+        await submitMapFeedback(mapId, true, 'Approved from UI', null)
+        toast.success('Map approved and saved')
+      } catch (e) {
+        // Non-critical — the map was already built
+        toast.success('Map saved')
+      }
+    }
+    setBuildMapOpen(false)
+    setBuildMapStep('upload')
+    setBuildMapResult(null)
+    setBuildMapPreview(null)
+    // Refresh maps list
+    setMapsLoading(true)
+    getAvailableMaps()
+      .then(data => setMaps(Array.isArray(data) ? data : data?.maps || []))
+      .catch(() => {})
+      .finally(() => setMapsLoading(false))
+  }
+
+  const handleBuildMapRefine = () => {
+    setBuildMapStep('refine')
+  }
+
+  const handleBuildMapUpdated = (updatedMappings) => {
+    if (buildMapResult) {
+      setBuildMapResult(prev => ({
+        ...prev,
+        fieldMappings: updatedMappings,
+        mappings: updatedMappings,
+      }))
+    }
+  }
+
+  const handleCloseBuildMap = () => {
+    setBuildMapOpen(false)
+    setBuildMapStep('upload')
+    setBuildMapResult(null)
+    setBuildMapPreview(null)
+  }
+
   // Delete partner map
   const handleDeleteMap = async (map) => {
     const mapId = map.mapId || map.id
@@ -270,9 +338,23 @@ export default function Edi() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-primary">EDI Converter v3.0</h1>
-        <p className="text-secondary text-sm">11 formats, 66 conversion paths, AI-powered — convert, explain, heal, diff, score, map, create</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-primary">EDI Converter v3.0</h1>
+          <p className="text-secondary text-sm">11 formats, 66 conversion paths, AI-powered -- convert, explain, heal, diff, score, map, create</p>
+        </div>
+        <button
+          onClick={() => { setBuildMapOpen(true); setBuildMapStep('upload'); setBuildMapResult(null) }}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all"
+          style={{
+            background: 'linear-gradient(135deg, rgb(var(--accent)), #8b5cf6)',
+            color: '#fff',
+            boxShadow: '0 2px 12px rgb(var(--accent) / 0.3)',
+          }}
+        >
+          <SparklesIcon className="w-4 h-4" />
+          Build Map
+        </button>
       </div>
 
       {/* Tabs */}
@@ -691,6 +773,161 @@ export default function Edi() {
         </div>
       )}
 
+      {/* Build Map full-screen modal */}
+      {buildMapOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: 'rgb(var(--canvas))' }}>
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 flex-shrink-0"
+            style={{ background: 'rgb(var(--surface))', borderBottom: '1px solid rgb(var(--border))' }}>
+            <div className="flex items-center gap-3">
+              <SparklesIcon className="w-5 h-5" style={{ color: 'rgb(var(--accent))' }} />
+              <h2 className="text-lg font-bold" style={{ color: 'rgb(var(--tx-primary))' }}>
+                Build Map from Samples
+              </h2>
+              {/* Step indicator */}
+              <div className="flex items-center gap-1 ml-4">
+                {['upload', 'preview', 'refine'].map((step, i) => (
+                  <div key={step} className="flex items-center gap-1">
+                    {i > 0 && <div className="w-6 h-px" style={{ background: 'rgb(var(--border))' }} />}
+                    <div
+                      className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full"
+                      style={{
+                        background: buildMapStep === step ? 'rgb(var(--accent) / 0.15)' : 'transparent',
+                        color: buildMapStep === step ? 'rgb(var(--accent))' : 'rgb(var(--tx-muted))',
+                        border: `1px solid ${buildMapStep === step ? 'rgb(var(--accent) / 0.3)' : 'rgb(var(--border))'}`,
+                      }}
+                    >
+                      {step === 'upload' ? '1. Upload' : step === 'preview' ? '2. Review' : '3. Refine'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <button onClick={handleCloseBuildMap}
+              className="flex items-center gap-1.5 p-2 rounded-lg transition-colors"
+              style={{ color: 'rgb(var(--tx-secondary))' }}>
+              <XMarkIcon className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Body */}
+          <div className="flex-1 overflow-auto">
+            {/* Step 1: Upload */}
+            {buildMapStep === 'upload' && (
+              <div className="max-w-4xl mx-auto px-6 py-8">
+                <SampleUploader
+                  onBuildComplete={handleBuildMapComplete}
+                  partnerId={convertPartnerId || undefined}
+                />
+              </div>
+            )}
+
+            {/* Step 2: Preview / Approve */}
+            {buildMapStep === 'preview' && buildMapResult && (
+              <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Left: Map info + stats */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold uppercase tracking-wider" style={{ color: 'rgb(var(--tx-muted))' }}>
+                      Map Summary
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        ['Name', buildMapResult.name || buildMapResult.mapId || 'Untitled'],
+                        ['Source', buildMapResult.sourceType || buildMapResult.sourceStandard || 'Auto'],
+                        ['Target', buildMapResult.targetType || buildMapResult.targetStandard || 'Auto'],
+                        ['Fields', (buildMapResult.fieldMappings || buildMapResult.mappings || []).length],
+                        ['Loops', buildMapResult.loopMappings?.length || 0],
+                        ['Confidence', (buildMapResult.confidence || buildMapResult.overallConfidence || 0) + '%'],
+                      ].map(([label, val]) => (
+                        <div key={label} className="rounded-lg p-3"
+                          style={{ background: 'rgb(var(--canvas))', border: '1px solid rgb(var(--border))' }}>
+                          <div className="text-[10px] uppercase tracking-wider" style={{ color: 'rgb(var(--tx-muted))' }}>
+                            {label}
+                          </div>
+                          <div className="text-sm font-semibold mt-0.5" style={{ color: 'rgb(var(--tx-primary))' }}>
+                            {val}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-3 pt-4">
+                      <button onClick={handleBuildMapApprove}
+                        className="btn-primary flex-1 py-2.5 text-sm font-semibold">
+                        Approve & Save
+                      </button>
+                      <button onClick={handleBuildMapRefine}
+                        className="flex-1 py-2.5 text-sm font-medium rounded-lg transition-colors"
+                        style={{ background: 'rgb(var(--canvas))', color: 'rgb(var(--accent))', border: '1px solid rgb(var(--accent) / 0.3)' }}>
+                        Refine with Assistant
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Right: Preview */}
+                  <div>
+                    <h3 className="text-sm font-bold uppercase tracking-wider mb-4" style={{ color: 'rgb(var(--tx-muted))' }}>
+                      Output Preview
+                    </h3>
+                    <MapPreview
+                      preview={buildMapPreview || buildMapResult.preview || buildMapResult.output || buildMapResult}
+                      lowConfidenceFields={
+                        (buildMapResult.fieldMappings || buildMapResult.mappings || [])
+                          .filter(m => (m.confidence ?? 100) < 70)
+                          .map(m => m.targetPath || m.target)
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Refine with chat */}
+            {buildMapStep === 'refine' && buildMapResult && (
+              <div className="flex h-full" style={{ minHeight: 'calc(100vh - 72px)' }}>
+                {/* Left: Map preview / editor */}
+                <div className="flex-1 overflow-auto p-6">
+                  <h3 className="text-sm font-bold uppercase tracking-wider mb-4" style={{ color: 'rgb(var(--tx-muted))' }}>
+                    Map Preview
+                  </h3>
+                  <MapPreview
+                    preview={buildMapPreview || buildMapResult.preview || buildMapResult.output || buildMapResult}
+                    lowConfidenceFields={
+                      (buildMapResult.fieldMappings || buildMapResult.mappings || [])
+                        .filter(m => (m.confidence ?? 100) < 70)
+                        .map(m => m.targetPath || m.target)
+                    }
+                  />
+                  <div className="mt-6 flex items-center gap-3">
+                    <button onClick={handleBuildMapApprove}
+                      className="btn-primary px-6 py-2.5 text-sm font-semibold">
+                      Approve & Save
+                    </button>
+                    <button onClick={() => setBuildMapStep('preview')}
+                      className="text-sm px-4 py-2.5 rounded-lg transition-colors"
+                      style={{ color: 'rgb(var(--tx-secondary))' }}>
+                      Back to Review
+                    </button>
+                  </div>
+                </div>
+                {/* Right: Chat panel */}
+                <div className="w-[420px] flex-shrink-0 flex flex-col"
+                  style={{ borderLeft: '1px solid rgb(var(--border))' }}>
+                  <MapAssistant
+                    mapId={buildMapResult.mapId || buildMapResult.id || 'draft'}
+                    currentMappings={buildMapResult.fieldMappings || buildMapResult.mappings || []}
+                    onMapUpdated={handleBuildMapUpdated}
+                    sampleInput={null}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Map Editor full-screen modal */}
       {mapEditorOpen && (
         <div className="fixed inset-0 z-50 flex flex-col" style={{ background: 'rgb(var(--canvas))' }}>
@@ -732,14 +969,28 @@ export default function Edi() {
                 readOnly={mapEditorReadOnly}
               />
             </div>
-            {/* Side test panel */}
-            <div className="w-96 flex-shrink-0 overflow-y-auto p-4"
+            {/* Side panels: Test + Assistant */}
+            <div className="w-96 flex-shrink-0 flex flex-col overflow-hidden"
               style={{ borderLeft: '1px solid rgb(var(--border))', background: 'rgb(var(--surface))' }}>
-              <MapTestPanel
-                mapId={mapEditorDef?.mapId || mapEditorDef?.id}
-                sourceType={mapEditorDef?.sourceType || mapEditorDef?.sourceStandard}
-                targetType={mapEditorDef?.targetType || mapEditorDef?.targetStandard}
-              />
+              {/* Test panel */}
+              <div className="overflow-y-auto p-4" style={{ borderBottom: '1px solid rgb(var(--border))' }}>
+                <MapTestPanel
+                  mapId={mapEditorDef?.mapId || mapEditorDef?.id}
+                  sourceType={mapEditorDef?.sourceType || mapEditorDef?.sourceStandard}
+                  targetType={mapEditorDef?.targetType || mapEditorDef?.targetStandard}
+                />
+              </div>
+              {/* Assistant chat panel */}
+              <div className="flex-1 min-h-0">
+                <MapAssistant
+                  mapId={mapEditorDef?.mapId || mapEditorDef?.id || 'draft'}
+                  currentMappings={mapEditorDef?.fieldMappings || mapEditorDef?.mappings || []}
+                  onMapUpdated={(updatedMappings) => {
+                    setMapEditorDef(prev => prev ? { ...prev, fieldMappings: updatedMappings, mappings: updatedMappings } : prev)
+                  }}
+                  sampleInput={null}
+                />
+              </div>
             </div>
           </div>
         </div>
