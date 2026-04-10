@@ -117,12 +117,15 @@ const navGroups = [
       { to: '/predictions',      icon: BeakerIcon,      label: 'Predictions' },
       { to: '/circuit-breakers', icon: ArrowPathIcon,   label: 'Circuit Breakers',     role: 'ADMIN' },
       { to: '/auto-onboarding', icon: SparklesIcon,    label: 'Auto-Onboarding',      role: 'ADMIN' },
+      { to: '/threat-intelligence', icon: ShieldCheckIcon, label: 'Threat Intel',    role: 'ADMIN' },
+      { to: '/proxy-intelligence',  icon: GlobeAltIcon,    label: 'Proxy Intel',     role: 'ADMIN' },
     ],
   },
   {
     label: 'Expert',
     items: [
-      { to: '/migration',  icon: ArrowPathIcon,    label: 'Migration Center',  role: 'ADMIN' },
+      { to: '/migration',     icon: ArrowPathIcon,    label: 'Migration Center',  role: 'ADMIN' },
+      { to: '/edi-training',  icon: SparklesIcon,     label: 'EDI AI Training',   role: 'ADMIN' },
     ],
   },
   {

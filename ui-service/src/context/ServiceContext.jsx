@@ -102,6 +102,9 @@ const PAGE_SERVICE_MAP = {
   '/cluster': ['core'],
   '/auto-onboarding': ['aiEngine'],
   '/migration': ['config'],
+  '/threat-intelligence': ['aiEngine'],
+  '/edi-training': ['aiEngine'],
+  '/proxy-intelligence': ['aiEngine'],
 }
 
 const ServiceContext = createContext(null)
