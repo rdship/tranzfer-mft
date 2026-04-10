@@ -27,6 +27,7 @@ x-common-env: &common-env
   RABBITMQ_PORT: 5672
   REDIS_HOST: redis
   REDIS_PORT: 6379
+  SPRING_FLYWAY_LOCK_RETRY_COUNT: 200
   JWT_SECRET: ${JWT_SECRET:-change_me_in_production_256bit_secret_key!!}
   CONTROL_API_KEY: ${CONTROL_API_KEY:-internal_control_secret}  # HMAC secret for PCI audit log signing — NOT inter-service auth
   CLUSTER_ID: ${CLUSTER_ID:-cluster-1}
@@ -1013,6 +1014,10 @@ services:
       - onboarding-api
       - config-service
       - ui-service
+
+networks:
+  mft-network:
+    driver: bridge
 
 volumes:
   # SPIRE volumes — always created; persist bootstrap state across restarts

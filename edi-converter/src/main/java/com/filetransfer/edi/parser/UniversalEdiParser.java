@@ -26,6 +26,7 @@ public class UniversalEdiParser {
     private final FormatDetector detector;
     private final X12LoopDefinitions loopDefinitions;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public UniversalEdiParser(FormatDetector detector, X12LoopDefinitions loopDefinitions) {
         this.detector = detector;
         this.loopDefinitions = loopDefinitions;
