@@ -52,6 +52,16 @@ import CircuitBreakers from './pages/CircuitBreakers'
 import CasDedup from './pages/CasDedup'
 import Compliance from './pages/Compliance'
 import Notifications from './pages/Notifications'
+import DlqManager from './pages/DlqManager'
+import Quarantine from './pages/Quarantine'
+import FileManager from './pages/FileManager'
+import ClusterDashboard from './pages/ClusterDashboard'
+import AutoOnboarding from './pages/AutoOnboarding'
+import PartnerPortalLogin from './pages/PartnerPortalLogin'
+import PartnerPortalLayout from './components/PartnerPortalLayout'
+import PartnerPortalDashboard from './pages/PartnerPortalDashboard'
+import PartnerPortalTransfers from './pages/PartnerPortalTransfers'
+import PartnerPortalSettings from './pages/PartnerPortalSettings'
 
 export default function App() {
   return (
@@ -61,6 +71,13 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
+          {/* Partner Portal — separate login + layout for external partners */}
+          <Route path="/portal/login" element={<PartnerPortalLogin />} />
+          <Route path="/portal" element={<PartnerPortalLayout />}>
+            <Route index element={<PartnerPortalDashboard />} />
+            <Route path="transfers" element={<PartnerPortalTransfers />} />
+            <Route path="settings" element={<PartnerPortalSettings />} />
+          </Route>
           <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
@@ -109,6 +126,11 @@ export default function App() {
             <Route path="p2p" element={<PeerTransfers />} />
             <Route path="terminal" element={<Terminal />} />
             <Route path="license" element={<License />} />
+            <Route path="dlq" element={<DlqManager />} />
+            <Route path="quarantine" element={<Quarantine />} />
+            <Route path="file-manager" element={<FileManager />} />
+            <Route path="cluster" element={<ClusterDashboard />} />
+            <Route path="auto-onboarding" element={<AutoOnboarding />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

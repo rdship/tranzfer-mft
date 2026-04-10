@@ -578,6 +578,8 @@ export default function Flows() {
   const [filter, setFilter] = useState('all') // 'all' | 'active' | 'inactive'
   const [selectedIds, setSelectedIds] = useState(new Set()) // trackIds selected for bulk restart
   const [dryRunResult, setDryRunResult] = useState(null)   // non-null = show dry run modal
+  const [dryRunPrompt, setDryRunPrompt] = useState(null)   // { flowId, flowName } → prompt for filename
+  const [dryRunFilename, setDryRunFilename] = useState('')
   const [activeTab, setActiveTab] = useState('flows')      // 'flows' | 'catalog'
   const [functionCatalog, setFunctionCatalog] = useState([])
   const [importName, setImportName] = useState('')
@@ -1143,7 +1145,7 @@ export default function Flows() {
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <button
-                    onClick={() => dryRunMut.mutate({ flowId: flow.id, filename: 'test-file.xml' })}
+                    onClick={() => { setDryRunPrompt({ flowId: flow.id, flowName: flow.name }); setDryRunFilename('') }}
                     disabled={dryRunMut.isPending}
                     className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-violet-600 hover:bg-violet-50 hover:text-violet-700 disabled:opacity-50"
                     title="Simulate this flow without writing to storage or delivering to partners"
@@ -1335,6 +1337,47 @@ export default function Flows() {
           </div>
         )}
       </div>}
+
+      {/* ═══ Dry Run Filename Prompt ═══ */}
+      {dryRunPrompt && (
+        <Modal title={`Dry Run: ${dryRunPrompt.flowName}`} onClose={() => setDryRunPrompt(null)}>
+          <div className="space-y-4">
+            <p className="text-sm text-secondary">
+              Simulate this flow without writing to storage or delivering to partners.
+              Optionally provide a sample filename to test pattern matching.
+            </p>
+            <div>
+              <label className="text-xs font-medium text-secondary">Sample Filename (optional)</label>
+              <input
+                value={dryRunFilename}
+                onChange={e => setDryRunFilename(e.target.value)}
+                placeholder="e.g. invoice-2024.xml"
+                className="mt-1 font-mono text-sm"
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    dryRunMut.mutate({ flowId: dryRunPrompt.flowId, filename: dryRunFilename || 'test-file.xml' })
+                    setDryRunPrompt(null)
+                  }
+                }}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDryRunPrompt(null)} className="btn-secondary">Cancel</button>
+              <button
+                onClick={() => {
+                  dryRunMut.mutate({ flowId: dryRunPrompt.flowId, filename: dryRunFilename || 'test-file.xml' })
+                  setDryRunPrompt(null)
+                }}
+                disabled={dryRunMut.isPending}
+                className="btn-primary flex items-center gap-1.5"
+              >
+                <BeakerIcon className="w-4 h-4" />
+                {dryRunMut.isPending ? 'Running...' : 'Run Simulation'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* ═══ Dry Run Results Modal ═══ */}
       {dryRunResult && (

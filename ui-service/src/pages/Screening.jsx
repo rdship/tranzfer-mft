@@ -82,6 +82,11 @@ export default function Screening() {
   const [showPolicyModal, setShowPolicyModal] = useState(false)
   const [editingPolicy, setEditingPolicy] = useState(null)
   const [policyForm, setPolicyForm] = useState({ ...defaultPolicyForm })
+
+  // ── DLP Rules state ──
+  const [showRuleModal, setShowRuleModal] = useState(false)
+  const [editingRule, setEditingRule] = useState(null)
+  const [ruleForm, setRuleForm] = useState({ name: '', pattern: '', category: 'CUSTOM', severity: 'MEDIUM', description: '', enabled: true })
   const [showScanModal, setShowScanModal] = useState(false)
   const [scanContent, setScanContent] = useState('')
   const [scanFile, setScanFile] = useState(null)
@@ -193,6 +198,103 @@ export default function Screening() {
     },
     onError: err => toast.error(err.response?.data?.message || 'Failed to delete policy')
   })
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Queries — DLP Rules
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const { data: dlpRules = [], isLoading: loadingRules } = useQuery({
+    queryKey: ['dlp-rules'],
+    queryFn: () => screeningApi.get('/api/v1/screening/dlp/rules').then(r => r.data).catch(() => [])
+  })
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Queries — Screening Quarantine (paginated)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const { data: screeningQuarantine = [], isLoading: loadingScreeningQ } = useQuery({
+    queryKey: ['screening-quarantine'],
+    queryFn: () => screeningApi.get('/api/v1/screening/quarantine', { params: { page: 0, size: 10 } })
+      .then(r => r.data?.content || r.data || []).catch(() => []),
+    refetchInterval: 30000
+  })
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Mutations — DLP Rules
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const createRule = useMutation({
+    mutationFn: (data) => screeningApi.post('/api/v1/screening/dlp/rules', data).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries(['dlp-rules'])
+      setShowRuleModal(false)
+      setRuleForm({ name: '', pattern: '', category: 'CUSTOM', severity: 'MEDIUM', description: '', enabled: true })
+      toast.success('DLP rule created')
+    },
+    onError: err => toast.error(err.response?.data?.message || 'Failed to create rule')
+  })
+
+  const updateRule = useMutation({
+    mutationFn: ({ id, data }) => screeningApi.put(`/api/v1/screening/dlp/rules/${id}`, data).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries(['dlp-rules'])
+      setShowRuleModal(false)
+      setEditingRule(null)
+      setRuleForm({ name: '', pattern: '', category: 'CUSTOM', severity: 'MEDIUM', description: '', enabled: true })
+      toast.success('DLP rule updated')
+    },
+    onError: err => toast.error(err.response?.data?.message || 'Failed to update rule')
+  })
+
+  const deleteRule = useMutation({
+    mutationFn: (id) => screeningApi.delete(`/api/v1/screening/dlp/rules/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries(['dlp-rules'])
+      toast.success('DLP rule deleted')
+    },
+    onError: err => toast.error(err.response?.data?.message || 'Failed to delete rule')
+  })
+
+  const toggleRuleEnabled = useMutation({
+    mutationFn: ({ id, enabled }) => screeningApi.put(`/api/v1/screening/dlp/rules/${id}`, { enabled }).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries(['dlp-rules'])
+      toast.success('Rule toggled')
+    },
+    onError: err => toast.error(err.response?.data?.message || 'Failed to toggle rule')
+  })
+
+  // ── DLP Rule Handlers ──
+
+  const openCreateRule = () => {
+    setEditingRule(null)
+    setRuleForm({ name: '', pattern: '', category: 'CUSTOM', severity: 'MEDIUM', description: '', enabled: true })
+    setShowRuleModal(true)
+  }
+
+  const openEditRule = (rule) => {
+    setEditingRule(rule)
+    setRuleForm({
+      name: rule.name || '',
+      pattern: rule.pattern || '',
+      category: rule.category || 'CUSTOM',
+      severity: rule.severity || 'MEDIUM',
+      description: rule.description || '',
+      enabled: rule.enabled !== false
+    })
+    setShowRuleModal(true)
+  }
+
+  const handleSaveRule = () => {
+    if (editingRule) {
+      updateRule.mutate({ id: editingRule.id, data: ruleForm })
+    } else {
+      createRule.mutate(ruleForm)
+    }
+  }
+
+  const DLP_CATEGORIES = ['PII', 'PHI', 'PCI', 'CUSTOM']
+  const DLP_SEVERITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
 
   // ── DLP Handlers ──
 
@@ -728,6 +830,242 @@ export default function Screening() {
   )
 
   // ═══════════════════════════════════════════════════════════════════════
+  // Render: DLP Rules Tab
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const renderDlpRules = () => (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <p className="text-sm text-secondary">
+          Individual DLP detection rules with regex patterns. Rules are grouped by category and severity.
+        </p>
+        <button onClick={openCreateRule} className="btn btn-primary flex items-center gap-1.5">
+          <PlusIcon className="w-4 h-4" /> New Rule
+        </button>
+      </div>
+
+      {loadingRules ? <LoadingSpinner /> : dlpRules.length === 0 ? (
+        <EmptyState title="No DLP rules" description="Create DLP rules to detect sensitive data patterns in file transfers." />
+      ) : (
+        <div className="card overflow-hidden p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="border-b">
+                <th className="table-header">Rule Name</th>
+                <th className="table-header">Pattern / Regex</th>
+                <th className="table-header">Category</th>
+                <th className="table-header">Severity</th>
+                <th className="table-header">Enabled</th>
+                <th className="table-header w-24">Actions</th>
+              </tr></thead>
+              <tbody>
+                {dlpRules.map(rule => (
+                  <tr key={rule.id} className="table-row">
+                    <td className="table-cell">
+                      <div className="font-medium text-primary">{rule.name}</div>
+                      {rule.description && <div className="text-xs text-secondary mt-0.5 max-w-xs truncate">{rule.description}</div>}
+                    </td>
+                    <td className="table-cell">
+                      <code className="text-xs font-mono bg-hover px-1.5 py-0.5 rounded break-all max-w-[200px] block truncate" title={rule.pattern}>
+                        {rule.pattern}
+                      </code>
+                    </td>
+                    <td className="table-cell">
+                      <span className={`badge ${rule.category === 'PCI' ? 'badge-red' : rule.category === 'PHI' ? 'badge-orange' : rule.category === 'PII' ? 'badge-yellow' : 'badge-blue'}`}>
+                        {rule.category}
+                      </span>
+                    </td>
+                    <td className="table-cell">
+                      <span className={`badge ${severityColor(rule.severity)}`}>{rule.severity}</span>
+                    </td>
+                    <td className="table-cell">
+                      <div
+                        className={`w-9 h-5 rounded-full relative transition-colors cursor-pointer ${rule.enabled ? 'bg-indigo-600' : 'bg-gray-300'}`}
+                        onClick={() => toggleRuleEnabled.mutate({ id: rule.id, enabled: !rule.enabled })}
+                      >
+                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-surface shadow transition-transform ${rule.enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                      </div>
+                    </td>
+                    <td className="table-cell">
+                      <div className="flex gap-1">
+                        <button onClick={() => openEditRule(rule)} className="p-1 rounded hover:bg-hover" title="Edit">
+                          <PencilSquareIcon className="w-4 h-4 text-secondary" />
+                        </button>
+                        <button onClick={() => { if (confirm('Delete this DLP rule?')) deleteRule.mutate(rule.id) }}
+                          className="p-1 rounded hover:bg-hover" title="Delete">
+                          <TrashIcon className="w-4 h-4 text-red-500" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* DLP Rule Create/Edit Modal */}
+      {showRuleModal && (
+        <Modal title={editingRule ? 'Edit DLP Rule' : 'Create DLP Rule'} onClose={() => { setShowRuleModal(false); setEditingRule(null) }}>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-secondary mb-1">Rule Name *</label>
+              <input className="input w-full" value={ruleForm.name}
+                onChange={e => setRuleForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="Credit Card Number Detection" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-secondary mb-1">Pattern / Regex *</label>
+              <input className="input w-full font-mono text-sm" value={ruleForm.pattern}
+                onChange={e => setRuleForm(f => ({ ...f, pattern: e.target.value }))}
+                placeholder="\\d{4}[- ]?\\d{4}[- ]?\\d{4}[- ]?\\d{4}" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-secondary mb-1">Category</label>
+                <select className="input w-full" value={ruleForm.category}
+                  onChange={e => setRuleForm(f => ({ ...f, category: e.target.value }))}>
+                  {DLP_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-secondary mb-1">Severity</label>
+                <select className="input w-full" value={ruleForm.severity}
+                  onChange={e => setRuleForm(f => ({ ...f, severity: e.target.value }))}>
+                  {DLP_SEVERITIES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-secondary mb-1">Description</label>
+              <textarea className="input w-full" rows={2} value={ruleForm.description}
+                onChange={e => setRuleForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Detects credit card numbers in transferred files" />
+            </div>
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-9 h-5 rounded-full relative transition-colors cursor-pointer ${ruleForm.enabled ? 'bg-indigo-600' : 'bg-gray-300'}`}
+                onClick={() => setRuleForm(f => ({ ...f, enabled: !f.enabled }))}
+              >
+                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-surface shadow transition-transform ${ruleForm.enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              </div>
+              <span className="text-sm text-primary">Enabled</span>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-4 pt-3 border-t">
+            <button onClick={() => { setShowRuleModal(false); setEditingRule(null) }} className="btn btn-secondary">Cancel</button>
+            <button onClick={handleSaveRule}
+              disabled={!ruleForm.name.trim() || !ruleForm.pattern.trim()}
+              className="btn btn-primary">
+              {editingRule ? 'Update' : 'Create'} Rule
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Render: Quarantine Summary Tab
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const renderQuarantineSummary = () => (
+    <div className="space-y-4">
+      {/* Stats cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="card text-center">
+          <p className="text-2xl font-bold text-primary">{quarantineStats.total || 0}</p>
+          <p className="text-sm text-secondary">Total Quarantined</p>
+        </div>
+        <div className="card text-center border-red-200 bg-red-50">
+          <p className="text-2xl font-bold text-red-700">{quarantineStats.quarantined || 0}</p>
+          <p className="text-sm text-red-600">Malware</p>
+        </div>
+        <div className="card text-center border-orange-200 bg-orange-50">
+          <p className="text-2xl font-bold text-orange-700">{quarantineStats.dlp || 0}</p>
+          <p className="text-sm text-orange-600">DLP Violations</p>
+        </div>
+        <div className="card text-center border-yellow-200 bg-yellow-50">
+          <p className="text-2xl font-bold text-yellow-700">{quarantineStats.sanctions || 0}</p>
+          <p className="text-sm text-yellow-600">Sanctions</p>
+        </div>
+      </div>
+
+      {/* Link to full Quarantine Manager */}
+      <div className="card bg-blue-50 border border-blue-100">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-blue-900 mb-1">Full Quarantine Manager</h3>
+            <p className="text-sm text-blue-700">
+              View all quarantined files with detailed review, release, and delete capabilities.
+            </p>
+          </div>
+          <a href="/quarantine" className="btn btn-primary flex items-center gap-1.5 text-sm whitespace-nowrap">
+            Open Quarantine Manager
+          </a>
+        </div>
+      </div>
+
+      {/* Recent quarantined files */}
+      <div className="card">
+        <h3 className="font-semibold text-primary mb-3">Recent Quarantined Files (Last 10)</h3>
+        {loadingScreeningQ ? <LoadingSpinner /> : screeningQuarantine.length === 0 ? (
+          <EmptyState title="No recent quarantined files" description="Files flagged by screening will appear here." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="border-b">
+                <th className="table-header">Time</th>
+                <th className="table-header">Filename</th>
+                <th className="table-header">Reason</th>
+                <th className="table-header">Source</th>
+                <th className="table-header">Status</th>
+                <th className="table-header w-24">Actions</th>
+              </tr></thead>
+              <tbody>
+                {screeningQuarantine.map(q => (
+                  <tr key={q.id} className="table-row">
+                    <td className="table-cell text-xs text-secondary whitespace-nowrap">
+                      {q.quarantinedAt ? format(new Date(q.quarantinedAt), 'MMM dd HH:mm:ss') : ''}
+                    </td>
+                    <td className="table-cell">
+                      <span className="font-medium text-sm text-primary max-w-[200px] truncate block" title={q.filename}>{q.filename}</span>
+                    </td>
+                    <td className="table-cell text-xs max-w-[200px]">
+                      <span className="text-red-700" title={q.reason}>{q.reason?.length > 50 ? q.reason.slice(0, 50) + '...' : q.reason}</span>
+                    </td>
+                    <td className="table-cell"><span className={`badge ${sourceColor(q.detectionSource)}`}>{q.detectionSource || 'AV'}</span></td>
+                    <td className="table-cell"><span className={`badge ${statusColor(q.status)}`}>{q.status}</span></td>
+                    <td className="table-cell">
+                      <div className="flex gap-1">
+                        {q.status === 'QUARANTINED' && (
+                          <>
+                            <button onClick={() => releaseFile.mutate(q.id)}
+                              disabled={releaseFile.isPending}
+                              className="p-1 rounded hover:bg-green-50" title="Release">
+                              <CheckCircleIcon className="w-4 h-4 text-green-600" />
+                            </button>
+                            <button onClick={() => deleteFile.mutate(q.id)}
+                              disabled={deleteFile.isPending}
+                              className="p-1 rounded hover:bg-red-50" title="Delete permanently">
+                              <TrashIcon className="w-4 h-4 text-red-500" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  // ═══════════════════════════════════════════════════════════════════════
   // Main Render
   // ═══════════════════════════════════════════════════════════════════════
 
@@ -762,12 +1100,22 @@ export default function Screening() {
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'dlp' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-secondary hover:text-primary'}`}>
           DLP Policies
         </button>
+        <button onClick={() => setTab('dlpRules')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'dlpRules' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-secondary hover:text-primary'}`}>
+          DLP Rules
+        </button>
+        <button onClick={() => setTab('quarantineSummary')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'quarantineSummary' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-secondary hover:text-primary'}`}>
+          Quarantine Summary
+        </button>
       </div>
 
       {/* Tab Content */}
       {tab === 'screening' && renderScreening()}
       {tab === 'quarantine' && renderQuarantine()}
       {tab === 'dlp' && renderDlp()}
+      {tab === 'dlpRules' && renderDlpRules()}
+      {tab === 'quarantineSummary' && renderQuarantineSummary()}
     </div>
   )
 }

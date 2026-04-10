@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { useQuery, keepPreviousData } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { onboardingApi, configApi } from '../api/client'
+import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
+import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import {
   MagnifyingGlassIcon, ArrowDownTrayIcon, ChevronLeftIcon, ChevronRightIcon,
@@ -382,6 +384,7 @@ function TransferDetailPanel({ row, flowExec, events, navigate }) {
 // ── Main Component ──────────────────────────────────────────────────────
 export default function ActivityMonitor() {
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const { visibleKeys, visibleColumns, toggle, resetToDefaults } = useColumnPreferences()
 
   // Pagination & sort state
@@ -401,6 +404,15 @@ export default function ActivityMonitor() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [expandedTrackId, setExpandedTrackId] = useState(null)
+  const [activeTab, setActiveTab] = useState('transfers') // 'transfers' | 'scheduled'
+
+  // Bulk restart state
+  const [selectedTrackIds, setSelectedTrackIds] = useState(new Set())
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false)
+
+  // Schedule retry state
+  const [scheduleModal, setScheduleModal] = useState(null) // { trackId, filename }
+  const [scheduleInput, setScheduleInput] = useState('')
 
   // Debounced text filters
   const debouncedFilename = useDebounce(filenameFilter, 300)
@@ -474,6 +486,71 @@ export default function ActivityMonitor() {
     enabled: !!expandedTrackId,
     staleTime: 10000,
   })
+
+  // ── Scheduled Retries ─────────────────────────────────────────────────
+  const { data: scheduledRetries = [], isLoading: loadingRetries } = useQuery({
+    queryKey: ['activity-scheduled-retries'],
+    queryFn: () => onboardingApi.get('/api/flow-executions/scheduled-retries').then(r => r.data).catch(() => []),
+    refetchInterval: 60000
+  })
+
+  // ── Mutations ──────────────────────────────────────────────────────────
+  const bulkRestartMut = useMutation({
+    mutationFn: (trackIds) =>
+      onboardingApi.post('/api/flow-executions/bulk-restart', { trackIds }).then(r => r.data),
+    onSuccess: (data) => {
+      setSelectedTrackIds(new Set())
+      setShowBulkConfirm(false)
+      qc.invalidateQueries(['activity-monitor'])
+      qc.invalidateQueries(['activity-scheduled-retries'])
+      const msg = data.queued === 0
+        ? `No transfers restarted (${data.skipped} skipped)`
+        : `${data.queued} transfer${data.queued !== 1 ? 's' : ''} queued for restart` +
+          (data.skipped > 0 ? ` (${data.skipped} skipped)` : '')
+      data.queued > 0 ? toast.success(msg) : toast.error(msg)
+    },
+    onError: err => toast.error(err.response?.data?.error || 'Bulk restart failed')
+  })
+
+  const scheduleRetryMut = useMutation({
+    mutationFn: ({ trackId, scheduledAt }) =>
+      onboardingApi.post(`/api/flow-executions/${trackId}/schedule-retry`, { scheduledAt }).then(r => r.data),
+    onSuccess: (data) => {
+      setScheduleModal(null)
+      qc.invalidateQueries(['activity-monitor'])
+      qc.invalidateQueries(['activity-scheduled-retries'])
+      toast.success(`Retry scheduled for ${new Date(data.scheduledAt).toLocaleString()}`)
+    },
+    onError: err => toast.error(err.response?.data?.message || 'Failed to schedule retry')
+  })
+
+  const cancelScheduleMut = useMutation({
+    mutationFn: (trackId) =>
+      onboardingApi.delete(`/api/flow-executions/${trackId}/schedule-retry`).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries(['activity-monitor'])
+      qc.invalidateQueries(['activity-scheduled-retries'])
+      toast.success('Scheduled retry cancelled')
+    },
+    onError: err => toast.error(err.response?.data?.message || 'Failed to cancel')
+  })
+
+  // ── Checkbox helpers ───────────────────────────────────────────────────
+  const RESTARTABLE_STATUSES = new Set(['FAILED'])
+  const isRowSelectable = (row) => RESTARTABLE_STATUSES.has(row.status)
+
+  const toggleRow = useCallback((trackId) => {
+    setSelectedTrackIds(prev => {
+      const next = new Set(prev)
+      next.has(trackId) ? next.delete(trackId) : next.add(trackId)
+      return next
+    })
+  }, [])
+
+  const selectAllFailed = useCallback(() => {
+    const failedIds = rows.filter(r => isRowSelectable(r)).map(r => r.trackId)
+    setSelectedTrackIds(new Set(failedIds))
+  }, [rows])
 
   // Clear all filters
   const clearFilters = () => {
@@ -572,8 +649,135 @@ export default function ActivityMonitor() {
         </div>
       </div>
 
+      {/* ── Tab bar ─────────────────────────────────────────────── */}
+      <div className="flex items-center gap-2 border-b border-border pb-2">
+        {[
+          { key: 'transfers', label: 'Transfers' },
+          { key: 'scheduled', label: `Scheduled Retries${scheduledRetries.length > 0 ? ` (${scheduledRetries.length})` : ''}` },
+        ].map(t => (
+          <button key={t.key} onClick={() => setActiveTab(t.key)}
+            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+              activeTab === t.key
+                ? 'bg-surface text-blue-700 border border-border border-b-white -mb-[1px]'
+                : 'text-secondary hover:text-primary hover:bg-canvas'
+            }`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Bulk Restart Toolbar ────────────────────────────────── */}
+      {activeTab === 'transfers' && selectedTrackIds.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-red-50 border border-red-200">
+          <span className="text-sm font-medium text-red-700">
+            {selectedTrackIds.size} transfer{selectedTrackIds.size !== 1 ? 's' : ''} selected
+          </span>
+          <button
+            onClick={() => setShowBulkConfirm(true)}
+            disabled={bulkRestartMut.isPending}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 transition-colors"
+          >
+            <ArrowPathIcon className={`w-3.5 h-3.5 ${bulkRestartMut.isPending ? 'animate-spin' : ''}`} />
+            {bulkRestartMut.isPending ? 'Restarting...' : 'Bulk Restart'}
+          </button>
+          <button
+            onClick={() => setSelectedTrackIds(new Set())}
+            className="text-xs text-red-500 hover:text-red-700 transition-colors"
+          >
+            Clear Selection
+          </button>
+          <div className="flex-1" />
+          {rows.some(r => isRowSelectable(r)) && (
+            <button
+              onClick={selectAllFailed}
+              className="text-xs text-secondary hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 transition-colors"
+            >
+              Select all failed on page
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ═══ Scheduled Retries Tab ═══ */}
+      {activeTab === 'scheduled' && (
+        <div className="space-y-4">
+          <div className="card">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <ClockIcon className="w-5 h-5 text-blue-500" />
+                <h3 className="font-semibold text-primary">Pending Scheduled Retries</h3>
+                <span className="text-xs text-muted">(auto-refresh 60s)</span>
+              </div>
+              <button onClick={() => qc.invalidateQueries(['activity-scheduled-retries'])}
+                className="p-1.5 text-muted hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                title="Refresh now">
+                <ArrowPathIcon className="w-4 h-4" />
+              </button>
+            </div>
+            {loadingRetries ? (
+              <LoadingSpinner text="Loading scheduled retries..." />
+            ) : scheduledRetries.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <ClockIcon className="w-10 h-10 text-muted mb-3" />
+                <p className="text-sm text-secondary">No scheduled retries pending</p>
+                <p className="text-xs text-muted mt-1">Schedule retries from the Transfers tab by clicking the row action menu on failed transfers.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="table-header">Track ID</th>
+                      <th className="table-header">Filename</th>
+                      <th className="table-header">Flow</th>
+                      <th className="table-header">Original Error</th>
+                      <th className="table-header">Scheduled For</th>
+                      <th className="table-header">Scheduled By</th>
+                      <th className="table-header w-24">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scheduledRetries.map(r => (
+                      <tr key={r.trackId} className="table-row">
+                        <td className="table-cell">
+                          <span className="font-mono text-xs font-bold text-blue-600">{r.trackId}</span>
+                        </td>
+                        <td className="table-cell text-sm text-primary truncate max-w-[200px]">{r.originalFilename || '--'}</td>
+                        <td className="table-cell text-sm text-secondary">{r.flowName || '--'}</td>
+                        <td className="table-cell">
+                          <span className="text-xs text-red-600 truncate block max-w-[250px]" title={r.errorMessage}>
+                            {r.errorMessage || '--'}
+                          </span>
+                        </td>
+                        <td className="table-cell">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-xs font-semibold">
+                            <ClockIcon className="w-3 h-3" />
+                            {new Date(r.scheduledAt).toLocaleString()}
+                          </span>
+                        </td>
+                        <td className="table-cell text-xs text-secondary">{r.scheduledBy || '--'}</td>
+                        <td className="table-cell">
+                          <button
+                            onClick={() => cancelScheduleMut.mutate(r.trackId)}
+                            disabled={cancelScheduleMut.isPending}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            <XCircleIcon className="w-3.5 h-3.5" />
+                            Cancel
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Filter Bar ───────────────────────────────────────────── */}
-      <div className="card !p-4">
+      {activeTab === 'transfers' && <div className="card !p-4">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-1.5 text-muted">
             <FunnelIcon className="w-4 h-4" />
@@ -646,10 +850,10 @@ export default function ActivityMonitor() {
             </button>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* ── Table ────────────────────────────────────────────────── */}
-      <div className="card !p-0 overflow-hidden">
+      {activeTab === 'transfers' && <div className="card !p-0 overflow-hidden">
         {isLoading ? (
           <div className="p-12">
             <LoadingSpinner text="Loading transfers..." />
@@ -679,6 +883,9 @@ export default function ActivityMonitor() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border bg-canvas/80">
+                    <th className="table-header w-10">
+                      <span className="sr-only">Select</span>
+                    </th>
                     {visibleColumns.map(col => (
                       <th
                         key={col.key}
@@ -697,17 +904,32 @@ export default function ActivityMonitor() {
                         </div>
                       </th>
                     ))}
+                    <th className="table-header w-24">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((row, i) => {
                     const isExpanded = expandedTrackId === row.trackId
+                    const selectable = isRowSelectable(row)
+                    const isSelected = selectedTrackIds.has(row.trackId)
                     return (
                       <React.Fragment key={row.trackId || i}>
                         <tr
-                          className={`table-row cursor-pointer group ${isExpanded ? 'bg-blue-50/70' : ''}`}
+                          className={`table-row cursor-pointer group ${isExpanded ? 'bg-blue-50/70' : ''} ${isSelected ? 'bg-red-50/50' : ''}`}
                           onClick={() => handleRowClick(row)}
                         >
+                          <td className="table-cell w-10" onClick={e => e.stopPropagation()}>
+                            {selectable ? (
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleRow(row.trackId)}
+                                className="rounded border-border text-red-600 focus:ring-red-500 cursor-pointer"
+                              />
+                            ) : (
+                              <span className="block w-4" />
+                            )}
+                          </td>
                           {visibleColumns.map(col => (
                             <td
                               key={col.key}
@@ -718,10 +940,22 @@ export default function ActivityMonitor() {
                               {col.render(row[col.key], row)}
                             </td>
                           ))}
+                          <td className="table-cell w-24" onClick={e => e.stopPropagation()}>
+                            {row.status === 'FAILED' && (
+                              <button
+                                onClick={() => { setScheduleModal({ trackId: row.trackId, filename: row.filename }); setScheduleInput('') }}
+                                className="text-[10px] text-muted hover:text-blue-600 px-1.5 py-0.5 rounded hover:bg-blue-50 transition-colors whitespace-nowrap"
+                                title="Schedule retry at a specific time"
+                              >
+                                <ClockIcon className="w-3.5 h-3.5 inline mr-0.5" />
+                                Schedule
+                              </button>
+                            )}
+                          </td>
                         </tr>
                         {isExpanded && (
                           <tr>
-                            <td colSpan={visibleColumns.length} className="p-0 border-b border-blue-200">
+                            <td colSpan={visibleColumns.length + 2} className="p-0 border-b border-blue-200">
                               <TransferDetailPanel row={row} flowExec={flowExecDetail} events={flowEvents} navigate={navigate} />
                             </td>
                           </tr>
@@ -805,7 +1039,81 @@ export default function ActivityMonitor() {
             </div>
           </>
         )}
-      </div>
+      </div>}
+
+      {/* ── Bulk Restart Confirmation Modal ──────────────────────── */}
+      {showBulkConfirm && (
+        <Modal title="Confirm Bulk Restart" onClose={() => setShowBulkConfirm(false)}>
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <ArrowPathIcon className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-yellow-800">
+                  Restart {selectedTrackIds.size} failed transfer{selectedTrackIds.size !== 1 ? 's' : ''}?
+                </p>
+                <p className="text-sm text-yellow-700 mt-1">
+                  This will re-queue the selected transfers for processing. They will be retried from the beginning of their flow pipeline.
+                </p>
+              </div>
+            </div>
+            <div className="max-h-40 overflow-y-auto bg-canvas rounded-lg p-3">
+              <p className="text-xs font-medium text-secondary mb-1">Selected Track IDs:</p>
+              <div className="flex flex-wrap gap-1">
+                {[...selectedTrackIds].map(id => (
+                  <span key={id} className="font-mono text-xs bg-red-50 text-red-700 px-2 py-0.5 rounded border border-red-200">{id}</span>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowBulkConfirm(false)} className="btn-secondary">Cancel</button>
+              <button
+                onClick={() => bulkRestartMut.mutate([...selectedTrackIds])}
+                disabled={bulkRestartMut.isPending}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 transition-colors"
+              >
+                <ArrowPathIcon className={`w-4 h-4 ${bulkRestartMut.isPending ? 'animate-spin' : ''}`} />
+                {bulkRestartMut.isPending ? 'Restarting...' : `Restart ${selectedTrackIds.size} Transfer${selectedTrackIds.size !== 1 ? 's' : ''}`}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Schedule Retry Modal ─────────────────────────────────── */}
+      {scheduleModal && (
+        <Modal title="Schedule Retry" onClose={() => setScheduleModal(null)}>
+          <div className="space-y-4">
+            <p className="text-sm text-secondary">
+              Schedule a retry for transfer <span className="font-mono font-bold text-blue-600">{scheduleModal.trackId}</span>
+              {scheduleModal.filename && <> ({scheduleModal.filename})</>}
+            </p>
+            <div>
+              <label className="text-xs font-medium text-secondary">Retry Date & Time</label>
+              <input
+                type="datetime-local"
+                value={scheduleInput}
+                onChange={e => setScheduleInput(e.target.value)}
+                className="mt-1 text-sm"
+                min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setScheduleModal(null)} className="btn-secondary">Cancel</button>
+              <button
+                onClick={() => {
+                  if (!scheduleInput) return
+                  scheduleRetryMut.mutate({ trackId: scheduleModal.trackId, scheduledAt: new Date(scheduleInput).toISOString() })
+                }}
+                disabled={!scheduleInput || scheduleRetryMut.isPending}
+                className="btn-primary flex items-center gap-1.5"
+              >
+                <ClockIcon className="w-4 h-4" />
+                {scheduleRetryMut.isPending ? 'Scheduling...' : 'Schedule Retry'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* ── Column Settings Panel (Slide-out) ────────────────────── */}
       {settingsOpen && (

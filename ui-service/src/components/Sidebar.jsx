@@ -35,6 +35,11 @@ import {
   AdjustmentsHorizontalIcon,
   ArrowRightOnRectangleIcon,
   BellAlertIcon,
+  InboxStackIcon,
+  ExclamationTriangleIcon,
+  FolderOpenIcon,
+  ShareIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline'
 
 const navGroups = [
@@ -65,6 +70,7 @@ const navGroups = [
       { to: '/external-destinations', icon: GlobeAltIcon,        label: 'External Destinations' },
       { to: '/as2-partnerships',      icon: LinkIcon,            label: 'AS2/AS4 Partnerships' },
       { to: '/p2p',                   icon: ArrowPathIcon,       label: 'P2P Transfers' },
+      { to: '/file-manager',           icon: FolderOpenIcon,      label: 'File Manager',     role: 'ADMIN' },
     ],
   },
   {
@@ -77,6 +83,7 @@ const navGroups = [
       { to: '/storage',           icon: ServerStackIcon,    label: 'Storage Manager',   role: 'ADMIN' },
       { to: '/vfs-storage',       icon: CircleStackIcon,    label: 'VFS Storage',       role: 'ADMIN' },
       { to: '/cas-dedup',         icon: CircleStackIcon,    label: 'CAS Dedup',         role: 'ADMIN' },
+      { to: '/cluster',           icon: ShareIcon,          label: 'Cluster',           role: 'ADMIN' },
     ],
   },
   {
@@ -86,6 +93,7 @@ const navGroups = [
       { to: '/security-profiles', icon: ShieldCheckIcon,     label: 'Security Profiles',   role: 'ADMIN' },
       { to: '/keystore',          icon: KeyIcon,             label: 'Keystore Manager',    role: 'ADMIN' },
       { to: '/screening',         icon: MagnifyingGlassIcon, label: 'Screening & DLP' },
+      { to: '/quarantine',        icon: ExclamationTriangleIcon, label: 'Quarantine',    role: 'ADMIN' },
       { to: '/2fa',               icon: ShieldCheckIcon,     label: 'Two-Factor Auth' },
       { to: '/blockchain',        icon: FingerPrintIcon,     label: 'Blockchain Proof' },
     ],
@@ -108,6 +116,7 @@ const navGroups = [
       { to: '/analytics',        icon: ChartBarIcon,    label: 'Analytics' },
       { to: '/predictions',      icon: BeakerIcon,      label: 'Predictions' },
       { to: '/circuit-breakers', icon: ArrowPathIcon,   label: 'Circuit Breakers',     role: 'ADMIN' },
+      { to: '/auto-onboarding', icon: SparklesIcon,    label: 'Auto-Onboarding',      role: 'ADMIN' },
     ],
   },
   {
@@ -126,6 +135,7 @@ const navGroups = [
       { to: '/license',          icon: KeyIcon,                   label: 'License',         role: 'ADMIN' },
       { to: '/services',         icon: CircleStackIcon,           label: 'Service Health',  role: 'ADMIN' },
       { to: '/logs',             icon: DocumentTextIcon,          label: 'Logs' },
+      { to: '/dlq',              icon: InboxStackIcon,            label: 'Dead Letter Queue', role: 'ADMIN' },
     ],
   },
 ]

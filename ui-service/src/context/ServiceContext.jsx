@@ -94,6 +94,13 @@ const PAGE_SERVICE_MAP = {
   '/sentinel': ['sentinel'],
   '/circuit-breakers': ['sentinel'],
   '/recommendations': ['aiEngine'],
+
+  // New admin pages
+  '/dlq': ['core'],
+  '/quarantine': ['screening'],
+  '/file-manager': ['ftpWeb'],
+  '/cluster': ['core'],
+  '/auto-onboarding': ['aiEngine'],
 }
 
 const ServiceContext = createContext(null)
