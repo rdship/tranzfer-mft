@@ -3184,4 +3184,212 @@ converter available. This is achievable because:
 
 ---
 
+## Appendix F: Professional-Grade UI Requirements
+
+The EDI UI must be the best mapping experience in the MFT industry — faster, more intuitive,
+and more powerful than Sterling Map Editor, Axway Mapping Services, or Cleo Clarify.
+
+### F.1 Visual Map Editor (Core Differentiator)
+
+The map editor is where partners and admins spend 80% of their EDI time. It must be exceptional.
+
+**Split-pane drag-and-drop editor:**
+```
+┌─────────────────────┬──────────────────────┐
+│   SOURCE SCHEMA     │   TARGET SCHEMA      │
+│                     │                      │
+│ ▸ ISA (Envelope)    │ ▸ documentType       │
+│ ▸ GS (Group)        │ ▸ documentNumber ◄───┤── drag line from BEG.03
+│ ▾ ST (Transaction)  │ ▸ documentDate       │
+│   ▸ BEG             │ ▸ buyer              │
+│     .01 Purpose     │   ▸ id               │
+│     .02 Type        │   ▸ name             │
+│     .03 PO Number ──┤──►                   │
+│     .05 Date     ───┤──►  documentDate     │
+│   ▸ N1 (Loop)       │ ▸ seller             │
+│     .01 Entity ID   │   ▸ id               │
+│     .02 Name     ───┤──►  name             │
+│   ▸ PO1 (Loop)      │ ▸ lineItems[]        │
+│     .02 Quantity ───┤──►  quantity          │
+│     .04 Unit Price──┤──►  unitPrice         │
+│                     │                      │
+├─────────────────────┼──────────────────────┤
+│ TRANSFORM PANEL     │ TEST PANEL           │
+│ Selected: BEG.03→   │ Input:  [paste EDI]  │
+│ documentNumber      │ Output: [live JSON]  │
+│ Transform: TRIM     │ Errors: 0            │
+│ Default: ""         │ Coverage: 27/32      │
+│ Condition: always   │ [Run Test]           │
+└─────────────────────┴──────────────────────┘
+```
+
+**Requirements:**
+- Left pane: source document schema tree (expandable segments/fields)
+- Right pane: target document schema tree
+- Drag from source field → drop on target field → creates mapping line
+- SVG connection lines between mapped fields (Bezier curves, color-coded by confidence)
+- Transform panel below: when a mapping line is selected, shows transform config
+  (TRIM, PAD, DATE_FORMAT, CODE_TABLE, SUBSTRING, CONCAT, CONDITIONAL, LOOKUP)
+- Live test panel: paste sample input → see output in real-time as you map
+- Coverage indicator: X of Y target fields mapped (progress bar)
+- Unmapped fields highlighted in red/yellow
+- Undo/redo stack (Ctrl+Z/Ctrl+Y)
+- Keyboard shortcuts: Tab to next unmapped field, Enter to confirm, Escape to cancel
+- Zoom in/out on large schemas
+- Search within schema tree (filter fields by name)
+- Collapse/expand all segments
+- Copy mapping from another map (import mapping lines)
+
+**Tech stack for map editor:**
+- React + SVG for connection lines
+- react-dnd or native drag-and-drop
+- Monaco Editor for raw JSON map editing (advanced mode)
+- Split view: visual editor (default) / JSON editor (advanced) toggle
+
+### F.2 Map Testing & Validation UI
+
+**Integrated test harness (not a separate page — lives inside the map editor):**
+- Paste sample EDI input (or upload file)
+- Click "Test" → shows converted output side-by-side
+- Field-level highlighting: green (mapped correctly), yellow (mapped but needs review), red (unmapped)
+- Diff view: expected vs actual output
+- Validation errors inline with fix suggestions
+- "Auto-fix" button for common issues
+- Test history: save test cases, run regression suite before publishing map
+- Coverage report: which source fields were used, which target fields were populated
+
+### F.3 Map Marketplace / Library Browser
+
+**Professional map browser (like a package manager for EDI maps):**
+- Card layout with search + filter by standard/industry/document type
+- Each card: map name, source→target, version, confidence score, usage count, last updated
+- "Install" button for standard maps (instant — from classpath)
+- "Clone & Customize" button → creates partner-specific copy
+- Version history with diff between versions
+- Star/favorite maps for quick access
+- Categories: Standard, Partner Custom, AI-Trained, Community
+- Import/export maps (JSON download/upload)
+
+### F.4 AI Assistant Panel
+
+**Contextual AI help integrated into the editor:**
+- "Suggest mappings" button → AI analyzes source/target schemas and suggests field mappings
+- Confidence indicator per suggestion (green/yellow/red)
+- "Explain this field" → AI describes what the field is and common mapping patterns
+- "Generate from description" → type "Map Walmart's 850 to our internal PO format" → AI creates draft
+- Training feedback: "This mapping is wrong" → AI learns and improves
+- Natural language search: "Show me all maps that handle purchase orders"
+
+### F.5 Partner Onboarding Flow (EDI-specific)
+
+**Guided wizard for EDI partner setup:**
+1. Partner selects their EDI standard (X12/EDIFACT/TRADACOMS/SWIFT/etc.)
+2. Partner selects document types they send/receive
+3. System shows matching standard maps
+4. Partner uploads sample documents
+5. AI validates samples against standard maps
+6. If gaps → AI suggests custom mappings
+7. Partner reviews/approves in visual editor
+8. Test with sample data → review output
+9. Publish map → activate for production
+
+### F.6 Monitoring & Analytics
+
+**EDI-specific operational dashboard:**
+- Conversion volume (per map, per partner, per standard)
+- Success/failure rate per map
+- Average conversion latency
+- Field coverage statistics (how many target fields populated vs total)
+- Error distribution (which fields fail most often)
+- Map health: maps with >5% error rate flagged
+- Cost tracking (conversions per day → infrastructure cost)
+- Trend charts (daily/weekly/monthly conversion volume)
+- Top 10 most-used maps
+- Top 10 highest-error maps
+- Partner activity heatmap
+
+### F.7 Comparison & Migration Tools
+
+**Side-by-side migration validator:**
+- Upload legacy converter output + TranzFer output for same input
+- Field-by-field comparison with semantic normalization
+- Accuracy score (0-100%)
+- Mismatch report with root cause analysis
+- "These N fields are semantically equivalent but formatted differently" — auto-accept
+- "These M fields are genuinely different — manual review needed" — flag
+- Batch comparison: upload directory of test pairs
+- Exportable comparison report (PDF/CSV) for migration sign-off
+- Progress tracker: "142 of 200 test cases passing (71%)" with trend
+
+### F.8 Code Table Management
+
+**Visual code table editor:**
+- Code tables map values between standards (e.g., X12 unit "EA" → EDIFACT "PCE")
+- Table: Source Code, Source Description, Target Code, Target Description
+- Import from CSV/Excel
+- Standard code tables ship with product (unit codes, country codes, currency codes, etc.)
+- Partner-specific overrides
+- Wildcard/default mappings ("if no match, use X")
+- Search within code table
+- Used-by analysis: "This code table is used by 5 maps"
+
+### F.9 Loop & Repeating Segment Editor
+
+**Visual loop mapping (the hardest part of EDI mapping):**
+- Show source loops (e.g., PO1 line items) as collapsible groups
+- Show target arrays (e.g., lineItems[]) as collapsible groups  
+- Drag source loop → target array to establish loop mapping
+- Inside the loop: individual field mappings
+- Nested loop support (loop within loop)
+- Loop filtering: "Only include PO1 segments where qualifier = 'EA'"
+- Loop counting: "Must have at least 1 line item" validation rule
+- Visual indicator: loop icon with count
+
+### F.10 Accessibility & Internationalization
+
+- All form fields with proper labels and aria attributes
+- Keyboard-navigable map editor (Tab between fields, Enter to link)
+- Screen reader support for schema trees
+- RTL language support for EDIFACT partners in Middle East
+- Date/number format localization
+- UTF-8 throughout (CJK partner names, accented characters)
+
+### F.11 Professional Features Competitors Lack
+
+Things Sterling/Axway/Cleo do NOT have that we should:
+
+1. **AI-generated first draft** — competitors require manual field-by-field mapping from scratch
+2. **Live preview** — competitors require compile→test→review cycle (minutes per iteration)
+3. **Version control with diff** — competitors overwrite maps with no history
+4. **Cross-standard mapping** — competitors silo X12/EDIFACT/SWIFT into separate tools
+5. **Natural language map creation** — "Map this 850 to our ORDERS format" → done
+6. **Incremental learning** — maps improve automatically from production traffic
+7. **Semantic comparison** — migration validation that understands date/number equivalence
+8. **Browser-based** — competitors require desktop installation (Sterling Map Editor is a Java Swing app)
+9. **Real-time collaboration** — two admins editing the same map (future: WebSocket cursors)
+10. **Map health monitoring** — error rate alerts, field coverage degradation detection
+
+---
+
+## Appendix G: Implementation Note — 360-Degree Approach
+
+This plan MUST be implemented with zero gaps. Every feature mentioned requires:
+
+1. **Backend API** — REST endpoint with proper auth, validation, error messages
+2. **UI page/component** — professional dark-theme React component in Edi.jsx or EdiTraining.jsx
+3. **Flow integration** — CONVERT_EDI step in FileFlow uses the map system
+4. **Tests** — unit tests for converters, integration tests for AI training, regression tests for maps
+5. **Documentation** — FEATURE-GUIDE.md and INTEGRATION-GUIDE.md updated
+6. **Seed data** — PlatformBootstrapService seeds demo maps for all standard types
+7. **Docker** — edi-converter in docker-compose with proper health checks
+8. **CLI support** — admin CLI commands for map management
+9. **Partner Portal** — partners can view their active maps and test conversions
+10. **Sentinel integration** — conversion failures create sentinel findings
+11. **Analytics** — conversion metrics feed into analytics dashboard
+12. **Notifications** — map errors trigger notification rules
+
+No feature ships without all 12 touchpoints verified.
+
+---
+
 *End of EDI Converter Maturity Plan*
