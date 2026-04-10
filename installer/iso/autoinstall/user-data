@@ -1,0 +1,78 @@
+#cloud-config
+autoinstall:
+  version: 1
+  locale: en_US.UTF-8
+  keyboard:
+    layout: us
+
+  identity:
+    hostname: tranzfer-mft
+    username: tranzfer
+    # Default password: tranzfer (CHANGE ON FIRST LOGIN)
+    # Generate new hash: mkpasswd --method=SHA-512 --rounds=4096
+    password: "$6$rounds=4096$tranzferSalt$V8kBqGH5v2rKQ4jZ1mN3pY7wX0cD6eF8gH2iJ4kL6mN8oP0qR2sT4uV6wX8yZ0aB2cD4eF6gH8iJ0kL2mN4o"
+
+  storage:
+    layout:
+      name: direct
+
+  network:
+    network:
+      version: 2
+      ethernets:
+        enp0s3:
+          dhcp4: true
+
+  # System packages installed during OS setup
+  packages:
+    - curl
+    - ca-certificates
+    - gnupg
+    - lsb-release
+    - net-tools
+    - htop
+    - jq
+    - unzip
+    - ufw
+
+  # Post-install commands (run in chroot of installed system)
+  late-commands:
+    # Copy TranzFer MFT files to installed system
+    - mkdir -p /target/opt/tranzfer-mft
+    - cp -r /cdrom/tranzfer-mft/* /target/opt/tranzfer-mft/
+    - cp -r /cdrom/docker-images /target/opt/tranzfer-mft/
+    - chmod +x /target/opt/tranzfer-mft/first-boot-setup.sh
+    - chmod +x /target/opt/tranzfer-mft/scripts/*.sh 2>/dev/null || true
+
+    # Install first-boot systemd service
+    - |
+      cat > /target/etc/systemd/system/tranzfer-first-boot.service << 'UNIT'
+      [Unit]
+      Description=TranzFer MFT First Boot Setup
+      After=network-online.target
+      Wants=network-online.target
+      ConditionPathExists=!/opt/tranzfer-mft/.installed
+
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/tranzfer-mft/first-boot-setup.sh
+      RemainAfterExit=yes
+      TimeoutStartSec=600
+
+      [Install]
+      WantedBy=multi-user.target
+      UNIT
+    - curtin in-target -- systemctl enable tranzfer-first-boot.service
+
+    # Configure firewall defaults
+    - curtin in-target -- ufw default deny incoming
+    - curtin in-target -- ufw default allow outgoing
+    - curtin in-target -- ufw allow 22/tcp     # SSH
+    - curtin in-target -- ufw allow 8080/tcp   # UI / API
+    - curtin in-target -- ufw allow 2222/tcp   # SFTP
+    - curtin in-target -- ufw allow 21/tcp     # FTP
+    - curtin in-target -- ufw allow 990/tcp    # FTPS
+    - curtin in-target -- ufw --force enable
+
+  # TranzFer MFT version baked into this image
+  # %%VERSION%% is replaced at ISO build time

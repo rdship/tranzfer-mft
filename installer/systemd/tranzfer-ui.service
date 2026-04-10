@@ -1,0 +1,28 @@
+[Unit]
+Description=TranzFer MFT — ui-service
+After=network-online.target tranzfer-onboarding.service
+Wants=network-online.target
+Documentation=https://docs.tranzfer.io
+
+[Service]
+User=tranzfer
+Group=tranzfer
+WorkingDirectory=/opt/tranzfer-mft/ui
+ExecStart=/usr/bin/node server.js
+Environment=PORT=3000
+Environment=API_URL=http://localhost:8080
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tranzfer-ui
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/tmp
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
