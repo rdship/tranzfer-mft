@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { storageApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import StatCard from '../components/StatCard'
@@ -9,6 +9,7 @@ import { format } from 'date-fns'
 const tierColors = { HOT: 'bg-red-100 text-red-800', WARM: 'bg-amber-100 text-amber-800', COLD: 'bg-blue-100 text-blue-800' }
 
 export default function Storage() {
+  const qc = useQueryClient()
   const { data: metrics = {}, isLoading } = useQuery({ queryKey: ['storage-metrics'],
     queryFn: () => storageApi.get('/api/v1/storage/metrics').then(r => r.data).catch(() => ({})), refetchInterval: 30000 })
   const { data: objects = [] } = useQuery({ queryKey: ['storage-objects'],
@@ -21,9 +22,9 @@ export default function Storage() {
     refetchInterval: 30000 })
 
   const tierMut = useMutation({ mutationFn: () => storageApi.post('/api/v1/storage/lifecycle/tier'),
-    onSuccess: () => toast.success('Tiering cycle completed') })
+    onSuccess: () => { toast.success('Tiering cycle completed'); qc.invalidateQueries({ queryKey: ['storage'] }); qc.invalidateQueries({ queryKey: ['storage-metrics'] }); qc.invalidateQueries({ queryKey: ['storage-objects'] }); qc.invalidateQueries({ queryKey: ['storage-actions'] }) } })
   const backupMut = useMutation({ mutationFn: () => storageApi.post('/api/v1/storage/lifecycle/backup'),
-    onSuccess: () => toast.success('Backup completed') })
+    onSuccess: () => { toast.success('Backup completed'); qc.invalidateQueries({ queryKey: ['storage'] }); qc.invalidateQueries({ queryKey: ['storage-metrics'] }); qc.invalidateQueries({ queryKey: ['storage-objects'] }); qc.invalidateQueries({ queryKey: ['storage-actions'] }) } })
 
   if (isLoading) return <LoadingSpinner />
   return (

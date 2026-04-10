@@ -421,7 +421,7 @@ export default function ServerInstances() {
                   : SECURITY_BADGES.RULES
                 const isVFS = s.defaultStorageMode === 'VIRTUAL'
                 return (
-                  <tr key={s.id} className="table-row">
+                  <tr key={s.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => openEdit(s)}>
                     <td className="table-cell">
                       <div className="flex items-center gap-2">
                         <ServerStackIcon className="w-4 h-4 text-blue-500" />
@@ -461,7 +461,7 @@ export default function ServerInstances() {
                     </td>
                     <td className="table-cell">
                       <div className="flex items-center gap-1 flex-wrap">
-                        <button onClick={() => toggleMut.mutate({ id: s.id, active: !s.active })}
+                        <button onClick={(e) => { e.stopPropagation(); toggleMut.mutate({ id: s.id, active: !s.active }) }}
                           className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
                             s.active ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-red-50 text-red-700 hover:bg-red-100'
                           }`}>
@@ -478,7 +478,7 @@ export default function ServerInstances() {
                       <div className="flex gap-1">
                         {/* Accounts button */}
                         <button
-                          onClick={() => setAccountsServer(s)}
+                          onClick={(e) => { e.stopPropagation(); setAccountsServer(s) }}
                           title="Manage accounts on this server"
                           className="p-1.5 rounded hover:bg-purple-50 text-purple-400 hover:text-purple-600 transition-colors relative">
                           <UsersIcon className="w-4 h-4" />
@@ -490,15 +490,15 @@ export default function ServerInstances() {
                         </button>
                         {/* Maintenance toggle */}
                         <button
-                          onClick={() => maintenanceMut.mutate({ id: s.id, enable: !s.maintenanceMode })}
+                          onClick={(e) => { e.stopPropagation(); maintenanceMut.mutate({ id: s.id, enable: !s.maintenanceMode }) }}
                           title={s.maintenanceMode ? 'Disable maintenance mode' : 'Enable maintenance mode'}
                           className={`p-1.5 rounded transition-colors ${s.maintenanceMode ? 'text-yellow-500 hover:bg-yellow-50' : 'text-gray-300 hover:bg-yellow-50 hover:text-yellow-500'}`}>
                           <WrenchScrewdriverIcon className="w-4 h-4" />
                         </button>
-                        <button onClick={() => openEdit(s)} title="Edit server" className="p-1.5 rounded hover:bg-blue-50 text-blue-500">
+                        <button onClick={(e) => { e.stopPropagation(); openEdit(s) }} title="Edit server" className="p-1.5 rounded hover:bg-blue-50 text-blue-500">
                           <PencilIcon className="w-4 h-4" />
                         </button>
-                        <button onClick={() => { if(confirm('Deactivate this server?')) deleteMut.mutate(s.id) }} title="Deactivate server"
+                        <button onClick={(e) => { e.stopPropagation(); if(confirm('Deactivate this server?')) deleteMut.mutate(s.id) }} title="Deactivate server"
                           className="p-1.5 rounded hover:bg-red-50 text-red-500">
                           <TrashIcon className="w-4 h-4" />
                         </button>

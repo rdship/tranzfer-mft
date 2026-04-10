@@ -13,11 +13,11 @@ export default function TwoFactor() {
 
   const enableMut = useMutation({
     mutationFn: (username) => onboardingApi.post('/api/2fa/enable', { username, method: 'TOTP_APP' }).then(r => r.data),
-    onSuccess: (data) => { setSelected(data); toast.success('2FA enabled — share QR with partner') }
+    onSuccess: (data) => { setSelected(data); toast.success('2FA enabled — share QR with partner'); qc.invalidateQueries({ queryKey: ['2fa-status'] }) }
   })
   const disableMut = useMutation({
     mutationFn: (username) => onboardingApi.post('/api/2fa/disable', { username }).then(r => r.data),
-    onSuccess: () => { setSelected(null); toast.success('2FA disabled') }
+    onSuccess: () => { setSelected(null); toast.success('2FA disabled'); qc.invalidateQueries({ queryKey: ['2fa-status'] }) }
   })
   const checkMut = useMutation({
     mutationFn: (username) => onboardingApi.get(`/api/2fa/status/${username}`).then(r => r.data)

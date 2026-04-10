@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
@@ -46,6 +46,7 @@ export default function GatewayStatus() {
   const [mappingForm, setMappingForm] = useState({ name: '', listenPort: '', targetHost: '', targetPort: '' })
   const [showIpDetail, setShowIpDetail] = useState(null)
   const [ipSearch, setIpSearch] = useState('')
+  const [expandedMapping, setExpandedMapping] = useState(null)
 
   // ─── Queries ───
   const { data: gwStatus } = useQuery({
@@ -514,32 +515,71 @@ export default function GatewayStatus() {
                 </thead>
                 <tbody>
                   {dmzMappings.map((m, i) => (
-                    <tr key={m.name || i} className="table-row">
-                      <td className="table-cell font-medium text-primary">{m.name}</td>
-                      <td className="table-cell">
-                        <span className="font-mono text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded-md">:{m.listenPort}</span>
-                      </td>
-                      <td className="table-cell font-mono text-xs text-secondary">{m.targetHost}:{m.targetPort}</td>
-                      <td className="table-cell">
-                        <span className="text-sm font-medium">{m.activeConnections ?? 0}</span>
-                      </td>
-                      <td className="table-cell text-xs text-secondary">{formatBytes(m.bytesForwarded || 0)}</td>
-                      <td className="table-cell">
-                        <span className={`flex items-center gap-1.5 text-xs font-medium ${
-                          m.active !== false ? 'text-green-700' : 'text-secondary'
-                        }`}>
-                          <span className={`w-2 h-2 rounded-full ${m.active !== false ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
-                          {m.active !== false ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="table-cell text-right">
-                        <button onClick={() => {
-                          if (confirm(`Remove mapping "${m.name}"?`)) removeMappingMut.mutate(m.name)
-                        }} className="p-1.5 rounded-lg hover:bg-red-50 text-muted hover:text-red-600" title="Remove">
-                          <TrashIcon className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
+                    <React.Fragment key={m.name || i}>
+                      <tr
+                        className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]"
+                        onClick={() => setExpandedMapping(expandedMapping === (m.name || i) ? null : (m.name || i))}
+                      >
+                        <td className="table-cell font-medium text-primary">{m.name}</td>
+                        <td className="table-cell">
+                          <span className="font-mono text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded-md">:{m.listenPort}</span>
+                        </td>
+                        <td className="table-cell font-mono text-xs text-secondary">{m.targetHost}:{m.targetPort}</td>
+                        <td className="table-cell">
+                          <span className="text-sm font-medium">{m.activeConnections ?? 0}</span>
+                        </td>
+                        <td className="table-cell text-xs text-secondary">{formatBytes(m.bytesForwarded || 0)}</td>
+                        <td className="table-cell">
+                          <span className={`flex items-center gap-1.5 text-xs font-medium ${
+                            m.active !== false ? 'text-green-700' : 'text-secondary'
+                          }`}>
+                            <span className={`w-2 h-2 rounded-full ${m.active !== false ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                            {m.active !== false ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="table-cell text-right" onClick={(e) => e.stopPropagation()}>
+                          <button onClick={() => {
+                            if (confirm(`Remove mapping "${m.name}"?`)) removeMappingMut.mutate(m.name)
+                          }} className="p-1.5 rounded-lg hover:bg-red-50 text-muted hover:text-red-600" title="Remove">
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                      {expandedMapping === (m.name || i) && (
+                        <tr>
+                          <td colSpan={7} className="px-4 py-3 bg-canvas/50 border-b border-border">
+                            <div className="grid grid-cols-3 gap-4 text-sm">
+                              <div>
+                                <span className="text-xs text-muted">Mapping Name</span>
+                                <p className="font-medium text-primary">{m.name}</p>
+                              </div>
+                              <div>
+                                <span className="text-xs text-muted">Listen Port</span>
+                                <p className="font-mono text-primary">:{m.listenPort}</p>
+                              </div>
+                              <div>
+                                <span className="text-xs text-muted">Target</span>
+                                <p className="font-mono text-primary">{m.targetHost}:{m.targetPort}</p>
+                              </div>
+                              <div>
+                                <span className="text-xs text-muted">Active Connections</span>
+                                <p className="font-semibold text-primary">{m.activeConnections ?? 0}</p>
+                              </div>
+                              <div>
+                                <span className="text-xs text-muted">Bytes Forwarded</span>
+                                <p className="text-primary">{formatBytes(m.bytesForwarded || 0)}</p>
+                              </div>
+                              <div>
+                                <span className="text-xs text-muted">Status</span>
+                                <p className={m.active !== false ? 'text-green-700 font-medium' : 'text-secondary'}>
+                                  {m.active !== false ? 'Active' : 'Inactive'}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>

@@ -274,7 +274,7 @@ export default function Users() {
               </thead>
               <tbody>
                 {filtered.map(u => (
-                  <tr key={u.id} className="table-row">
+                  <tr key={u.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => setDetailUser(u)}>
                     <td className="table-cell">
                       <div>
                         <p className="font-medium text-primary">{u.email}</p>
@@ -285,6 +285,7 @@ export default function Users() {
                       <select
                         value={u.role || 'USER'}
                         onChange={e => handleRoleChange(u, e.target.value)}
+                        onClick={e => e.stopPropagation()}
                         className="text-xs px-2 py-1 border rounded-lg w-auto"
                       >
                         {ALL_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
@@ -293,7 +294,7 @@ export default function Users() {
                     </td>
                     <td className="table-cell">
                       <button
-                        onClick={() => updateMut.mutate({ id: u.id, data: { enabled: !u.enabled } })}
+                        onClick={(e) => { e.stopPropagation(); updateMut.mutate({ id: u.id, data: { enabled: !u.enabled } }) }}
                         className={`badge cursor-pointer ${u.enabled !== false ? 'badge-green' : 'badge-red'}`}
                       >
                         {u.enabled !== false ? 'Active' : 'Disabled'}
@@ -305,21 +306,21 @@ export default function Users() {
                     <td className="table-cell">
                       <div className="flex items-center gap-1">
                         <button
-                          onClick={() => setDetailUser(u)}
+                          onClick={(e) => { e.stopPropagation(); setDetailUser(u) }}
                           className="p-1.5 rounded hover:bg-accent-soft text-accent hover:text-accent transition-colors"
                           title="View details"
                         >
                           <EyeIcon className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => { setResetPasswordUser(u); setNewPassword('') }}
+                          onClick={(e) => { e.stopPropagation(); setResetPasswordUser(u); setNewPassword('') }}
                           className="p-1.5 rounded hover:bg-[rgb(60,50,20)] text-[rgb(240,200,100)] hover:text-[rgb(255,220,120)] transition-colors"
                           title="Reset password"
                         >
                           <KeyIcon className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => setDeleteConfirm(u)}
+                          onClick={(e) => { e.stopPropagation(); setDeleteConfirm(u) }}
                           className="p-1.5 rounded hover:bg-[rgb(60,20,20)] text-[rgb(240,120,120)] hover:text-[rgb(255,140,140)] transition-colors"
                           title="Delete user"
                         >

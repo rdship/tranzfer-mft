@@ -1102,7 +1102,7 @@ export default function Flows() {
       ) : (
         <div className="grid gap-3">
           {filteredFlows.map(flow => (
-            <div key={flow.id} className="card hover:shadow-md transition-shadow">
+            <div key={flow.id} className="card hover:shadow-md transition-shadow cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => openEdit(flow)}>
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1145,7 +1145,7 @@ export default function Flows() {
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <button
-                    onClick={() => { setDryRunPrompt({ flowId: flow.id, flowName: flow.name }); setDryRunFilename('') }}
+                    onClick={(e) => { e.stopPropagation(); setDryRunPrompt({ flowId: flow.id, flowName: flow.name }); setDryRunFilename('') }}
                     disabled={dryRunMut.isPending}
                     className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-violet-600 hover:bg-violet-50 hover:text-violet-700 disabled:opacity-50"
                     title="Simulate this flow without writing to storage or delivering to partners"
@@ -1153,12 +1153,12 @@ export default function Flows() {
                     <BeakerIcon className="w-3.5 h-3.5" />
                     Dry Run
                   </button>
-                  <button onClick={() => openEdit(flow)}
+                  <button onClick={(e) => { e.stopPropagation(); openEdit(flow) }}
                     className="p-2 text-muted hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     title="Edit flow">
                     <PencilSquareIcon className="w-4 h-4" />
                   </button>
-                  <button onClick={() => toggleMut.mutate(flow.id)}
+                  <button onClick={(e) => { e.stopPropagation(); toggleMut.mutate(flow.id) }}
                     className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
                       flow.active
                         ? 'text-red-600 hover:bg-red-50'
@@ -1166,7 +1166,8 @@ export default function Flows() {
                     }`}>
                     {flow.active ? 'Disable' : 'Enable'}
                   </button>
-                  <button onClick={() => {
+                  <button onClick={(e) => {
+                    e.stopPropagation()
                     if (window.confirm(`Delete flow "${flow.name}"? This will deactivate it.`))
                       deleteMut.mutate(flow.id)
                   }}

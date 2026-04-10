@@ -222,7 +222,7 @@ export default function FolderTemplates() {
             const linkedServers = serversByTemplate[t.id] || []
             const isExpanded = expandedCards[t.id]
             return (
-              <div key={t.id} className="card p-0 overflow-hidden">
+              <div key={t.id} className="card p-0 overflow-hidden cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => !t.builtIn && openEdit(t)}>
                 {/* Card header */}
                 <div className="p-4 pb-3">
                   <div className="flex items-start justify-between">
@@ -248,11 +248,11 @@ export default function FolderTemplates() {
                     {!t.builtIn && (
                       <div className="flex gap-1 ml-2 flex-shrink-0">
                         <button className="p-1.5 rounded hover:bg-blue-50 text-muted hover:text-blue-600 transition-colors"
-                          onClick={() => openEdit(t)} title="Edit template">
+                          onClick={(e) => { e.stopPropagation(); openEdit(t) }} title="Edit template">
                           <PencilIcon className="w-4 h-4" />
                         </button>
                         <button className="p-1.5 rounded hover:bg-red-50 text-muted hover:text-red-600 transition-colors"
-                          onClick={() => { if (confirm('Delete this template? Servers using it will lose their folder structure assignment.')) deleteMut.mutate(t.id) }}
+                          onClick={(e) => { e.stopPropagation(); if (confirm('Delete this template? Servers using it will lose their folder structure assignment.')) deleteMut.mutate(t.id) }}
                           title="Delete template">
                           <TrashIcon className="w-4 h-4" />
                         </button>

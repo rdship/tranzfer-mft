@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
@@ -98,6 +98,9 @@ export default function PartnerDetail() {
   const [editingWebhook, setEditingWebhook] = useState(null)
   const [webhookForm, setWebhookForm] = useState({ ...EMPTY_WEBHOOK })
   const [deleteWebhookConfirm, setDeleteWebhookConfirm] = useState(null)
+  const [expandedAccount, setExpandedAccount] = useState(null)
+  const [expandedEndpoint, setExpandedEndpoint] = useState(null)
+  const [expandedWebhook, setExpandedWebhook] = useState(null)
 
   // Main partner detail
   const { data: detail, isLoading, isError, error } = useQuery({
@@ -585,21 +588,62 @@ export default function PartnerDetail() {
                 </thead>
                 <tbody>
                   {accounts.map((acct) => (
-                    <tr key={acct.id} className="table-row">
-                      <td className="table-cell font-mono text-sm">{acct.username}</td>
-                      <td className="table-cell">
-                        <span className="badge badge-blue">{acct.protocol}</span>
-                      </td>
-                      <td className="table-cell font-mono text-xs text-secondary">{acct.homeDir || '-'}</td>
-                      <td className="table-cell">
-                        <span className={`badge ${acct.active ? 'badge-green' : 'badge-red'}`}>
-                          {acct.active ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="table-cell text-secondary text-sm">
-                        {acct.createdAt ? format(new Date(acct.createdAt), 'MMM d, yyyy') : '-'}
-                      </td>
-                    </tr>
+                    <React.Fragment key={acct.id}>
+                      <tr
+                        className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]"
+                        onClick={() => setExpandedAccount(expandedAccount === acct.id ? null : acct.id)}
+                      >
+                        <td className="table-cell font-mono text-sm">{acct.username}</td>
+                        <td className="table-cell">
+                          <span className="badge badge-blue">{acct.protocol}</span>
+                        </td>
+                        <td className="table-cell font-mono text-xs text-secondary">{acct.homeDir || '-'}</td>
+                        <td className="table-cell">
+                          <span className={`badge ${acct.active ? 'badge-green' : 'badge-red'}`}>
+                            {acct.active ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="table-cell text-secondary text-sm">
+                          {acct.createdAt ? format(new Date(acct.createdAt), 'MMM d, yyyy') : '-'}
+                        </td>
+                      </tr>
+                      {expandedAccount === acct.id && (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-3 bg-canvas/50 border-b border-border">
+                            <div className="grid grid-cols-3 gap-4 text-sm">
+                              <div>
+                                <span className="text-xs text-muted">Username</span>
+                                <p className="font-mono text-primary">{acct.username}</p>
+                              </div>
+                              <div>
+                                <span className="text-xs text-muted">Protocol</span>
+                                <p className="text-primary">{acct.protocol}</p>
+                              </div>
+                              <div>
+                                <span className="text-xs text-muted">Status</span>
+                                <span className={`badge ${acct.active ? 'badge-green' : 'badge-red'}`}>
+                                  {acct.active ? 'Active' : 'Inactive'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-xs text-muted">Home Directory</span>
+                                <p className="font-mono text-xs text-primary">{acct.homeDir || '-'}</p>
+                              </div>
+                              <div>
+                                <span className="text-xs text-muted">Created</span>
+                                <p className="text-primary">{acct.createdAt ? format(new Date(acct.createdAt), 'MMM d, yyyy HH:mm') : '-'}</p>
+                              </div>
+                              {acct.lastLoginAt && (
+                                <div>
+                                  <span className="text-xs text-muted">Last Login</span>
+                                  <p className="text-primary">{format(new Date(acct.lastLoginAt), 'MMM d, yyyy HH:mm')}</p>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
@@ -767,19 +811,66 @@ export default function PartnerDetail() {
                 </thead>
                 <tbody>
                   {endpoints.map((ep) => (
-                    <tr key={ep.id} className="table-row">
-                      <td className="table-cell font-medium text-primary">{ep.name}</td>
-                      <td className="table-cell">
-                        <span className="badge badge-blue">{ep.protocol}</span>
-                      </td>
-                      <td className="table-cell font-mono text-xs text-secondary">{ep.host || '-'}</td>
-                      <td className="table-cell text-sm text-secondary">{ep.authType || '-'}</td>
-                      <td className="table-cell">
-                        <span className={`badge ${ep.active || ep.status === 'ACTIVE' ? 'badge-green' : 'badge-red'}`}>
-                          {ep.active || ep.status === 'ACTIVE' ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                    </tr>
+                    <React.Fragment key={ep.id}>
+                      <tr
+                        className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]"
+                        onClick={() => setExpandedEndpoint(expandedEndpoint === ep.id ? null : ep.id)}
+                      >
+                        <td className="table-cell font-medium text-primary">{ep.name}</td>
+                        <td className="table-cell">
+                          <span className="badge badge-blue">{ep.protocol}</span>
+                        </td>
+                        <td className="table-cell font-mono text-xs text-secondary">{ep.host || '-'}</td>
+                        <td className="table-cell text-sm text-secondary">{ep.authType || '-'}</td>
+                        <td className="table-cell">
+                          <span className={`badge ${ep.active || ep.status === 'ACTIVE' ? 'badge-green' : 'badge-red'}`}>
+                            {ep.active || ep.status === 'ACTIVE' ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                      </tr>
+                      {expandedEndpoint === ep.id && (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-3 bg-canvas/50 border-b border-border">
+                            <div className="grid grid-cols-3 gap-4 text-sm">
+                              <div>
+                                <span className="text-xs text-muted">Name</span>
+                                <p className="font-medium text-primary">{ep.name}</p>
+                              </div>
+                              <div>
+                                <span className="text-xs text-muted">Protocol</span>
+                                <p className="text-primary">{ep.protocol}</p>
+                              </div>
+                              <div>
+                                <span className="text-xs text-muted">Host</span>
+                                <p className="font-mono text-xs text-primary">{ep.host || '-'}</p>
+                              </div>
+                              {ep.port && (
+                                <div>
+                                  <span className="text-xs text-muted">Port</span>
+                                  <p className="font-mono text-primary">{ep.port}</p>
+                                </div>
+                              )}
+                              <div>
+                                <span className="text-xs text-muted">Auth Type</span>
+                                <p className="text-primary">{ep.authType || '-'}</p>
+                              </div>
+                              <div>
+                                <span className="text-xs text-muted">Status</span>
+                                <span className={`badge ${ep.active || ep.status === 'ACTIVE' ? 'badge-green' : 'badge-red'}`}>
+                                  {ep.active || ep.status === 'ACTIVE' ? 'Active' : 'Inactive'}
+                                </span>
+                              </div>
+                              {ep.basePath && (
+                                <div className="col-span-3">
+                                  <span className="text-xs text-muted">Base Path</span>
+                                  <p className="font-mono text-xs text-primary">{ep.basePath}</p>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
@@ -830,46 +921,79 @@ export default function PartnerDetail() {
                 </thead>
                 <tbody>
                   {webhooks.map((wh) => (
-                    <tr key={wh.id} className="table-row">
-                      <td className="table-cell">
-                        <span className="font-mono text-xs text-primary truncate max-w-[300px] block" title={wh.url}>{wh.url}</span>
-                      </td>
-                      <td className="table-cell">
-                        <div className="flex flex-wrap gap-1">
-                          {(wh.events || []).map(ev => (
-                            <span key={ev} className="badge badge-blue text-xs">{ev}</span>
-                          ))}
-                          {(!wh.events || wh.events.length === 0) && <span className="text-xs text-muted">All events</span>}
-                        </div>
-                      </td>
-                      <td className="table-cell">
-                        {wh.active ? (
-                          <span className="inline-flex items-center gap-1 badge badge-green"><CheckCircleIcon className="w-3 h-3" /> Active</span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 badge badge-gray"><XCircleIcon className="w-3 h-3" /> Inactive</span>
-                        )}
-                      </td>
-                      <td className="table-cell text-xs text-secondary">
-                        {wh.lastTriggeredAt ? format(new Date(wh.lastTriggeredAt), 'MMM d, yyyy HH:mm') : 'Never'}
-                      </td>
-                      <td className="table-cell">
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => {
-                              setEditingWebhook(wh)
-                              setWebhookForm({ url: wh.url || '', events: wh.events || [], active: wh.active !== false })
-                              setShowWebhookModal(true)
-                            }}
-                            className="p-1 rounded hover:bg-hover" title="Edit webhook"
-                          >
-                            <PencilSquareIcon className="w-4 h-4 text-secondary" />
-                          </button>
-                          <button onClick={() => setDeleteWebhookConfirm(wh)} className="p-1 rounded hover:bg-hover" title="Delete webhook">
-                            <TrashIcon className="w-4 h-4 text-red-500" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                    <React.Fragment key={wh.id}>
+                      <tr
+                        className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]"
+                        onClick={() => setExpandedWebhook(expandedWebhook === wh.id ? null : wh.id)}
+                      >
+                        <td className="table-cell">
+                          <span className="font-mono text-xs text-primary truncate max-w-[300px] block" title={wh.url}>{wh.url}</span>
+                        </td>
+                        <td className="table-cell">
+                          <div className="flex flex-wrap gap-1">
+                            {(wh.events || []).map(ev => (
+                              <span key={ev} className="badge badge-blue text-xs">{ev}</span>
+                            ))}
+                            {(!wh.events || wh.events.length === 0) && <span className="text-xs text-muted">All events</span>}
+                          </div>
+                        </td>
+                        <td className="table-cell">
+                          {wh.active ? (
+                            <span className="inline-flex items-center gap-1 badge badge-green"><CheckCircleIcon className="w-3 h-3" /> Active</span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 badge badge-gray"><XCircleIcon className="w-3 h-3" /> Inactive</span>
+                          )}
+                        </td>
+                        <td className="table-cell text-xs text-secondary">
+                          {wh.lastTriggeredAt ? format(new Date(wh.lastTriggeredAt), 'MMM d, yyyy HH:mm') : 'Never'}
+                        </td>
+                        <td className="table-cell" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => {
+                                setEditingWebhook(wh)
+                                setWebhookForm({ url: wh.url || '', events: wh.events || [], active: wh.active !== false })
+                                setShowWebhookModal(true)
+                              }}
+                              className="p-1 rounded hover:bg-hover" title="Edit webhook"
+                            >
+                              <PencilSquareIcon className="w-4 h-4 text-secondary" />
+                            </button>
+                            <button onClick={() => setDeleteWebhookConfirm(wh)} className="p-1 rounded hover:bg-hover" title="Delete webhook">
+                              <TrashIcon className="w-4 h-4 text-red-500" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {expandedWebhook === wh.id && (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-3 bg-canvas/50 border-b border-border">
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                              <div className="col-span-2">
+                                <span className="text-xs text-muted">Webhook URL</span>
+                                <p className="font-mono text-xs text-primary break-all">{wh.url}</p>
+                              </div>
+                              <div>
+                                <span className="text-xs text-muted">Active</span>
+                                <p className={wh.active ? 'text-green-700 font-medium' : 'text-secondary'}>{wh.active ? 'Yes' : 'No'}</p>
+                              </div>
+                              <div>
+                                <span className="text-xs text-muted">Last Triggered</span>
+                                <p className="text-primary">{wh.lastTriggeredAt ? format(new Date(wh.lastTriggeredAt), 'MMM d, yyyy HH:mm:ss') : 'Never'}</p>
+                              </div>
+                              <div className="col-span-2">
+                                <span className="text-xs text-muted">Subscribed Events</span>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {(wh.events || []).length > 0
+                                    ? wh.events.map(ev => <span key={ev} className="badge badge-blue text-xs">{ev}</span>)
+                                    : <span className="text-xs text-muted">All events</span>}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>

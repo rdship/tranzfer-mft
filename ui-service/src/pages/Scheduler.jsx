@@ -91,7 +91,7 @@ export default function Scheduler() {
           {tasks.length === 0 ? (
             <tr><td colSpan={7} className="text-center py-8 text-secondary text-sm">No scheduled tasks yet. Create your first schedule to automate recurring jobs.</td></tr>
           ) : tasks.map(t => (
-            <tr key={t.id} className="table-row">
+            <tr key={t.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => openEdit(t)}>
               <td className="table-cell font-medium">{t.name}</td>
               <td className="table-cell font-mono text-xs">{t.cronExpression}</td>
               <td className="table-cell"><span className="badge badge-blue">{t.taskType}</span></td>
@@ -100,13 +100,13 @@ export default function Scheduler() {
               <td className="table-cell text-xs">{t.totalRuns} ({t.failedRuns} failed)</td>
               <td className="table-cell">
                 <div className="flex items-center gap-1">
-                  <button onClick={() => openEdit(t)} className="p-1 rounded hover:bg-gray-100" title="Edit task">
+                  <button onClick={(e) => { e.stopPropagation(); openEdit(t) }} className="p-1 rounded hover:bg-gray-100" title="Edit task">
                     <PencilSquareIcon className="w-4 h-4 text-secondary" />
                   </button>
-                  <button onClick={() => toggleMut.mutate(t.id)} className={`text-xs px-2 py-0.5 rounded ${t.enabled ? 'text-red-600 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}>
+                  <button onClick={(e) => { e.stopPropagation(); toggleMut.mutate(t.id) }} className={`text-xs px-2 py-0.5 rounded ${t.enabled ? 'text-red-600 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}>
                     {t.enabled ? 'Disable' : 'Enable'}
                   </button>
-                  <button onClick={() => setDeleteConfirm(t)} className="p-1 rounded hover:bg-gray-100" title="Delete task">
+                  <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(t) }} className="p-1 rounded hover:bg-gray-100" title="Delete task">
                     <TrashIcon className="w-4 h-4 text-red-500" />
                   </button>
                 </div>

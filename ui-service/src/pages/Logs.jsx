@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { onboardingApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -14,6 +14,7 @@ export default function Logs() {
   const [service, setService] = useState('ALL')
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(50)
+  const [expandedRow, setExpandedRow] = useState(null)
 
   const { data: logs = [], isLoading } = useQuery({
     queryKey: ['audit-logs', search, level, service],
@@ -74,13 +75,46 @@ export default function Logs() {
                 {paginatedLogs.length === 0 ? (
                   <tr><td colSpan={5} className="text-center py-8 text-secondary text-sm">No logs found</td></tr>
                 ) : paginatedLogs.map((log, i) => (
-                  <tr key={i} className="table-row">
-                    <td className="table-cell text-xs text-secondary font-mono">{log.createdAt ? format(new Date(log.createdAt), 'MM/dd HH:mm:ss') : '--'}</td>
-                    <td className="table-cell text-sm font-medium">{log.account?.username || '--'}</td>
-                    <td className="table-cell text-xs font-mono">{log.action}</td>
-                    <td className="table-cell text-xs text-secondary truncate max-w-48">{log.filename || '--'}</td>
-                    <td className="table-cell"><span className={`badge ${log.success ? 'badge-green' : 'badge-red'}`}>{log.success ? 'OK' : 'FAIL'}</span></td>
-                  </tr>
+                  <React.Fragment key={i}>
+                    <tr
+                      className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]"
+                      onClick={() => setExpandedRow(expandedRow === i ? null : i)}
+                    >
+                      <td className="table-cell text-xs text-secondary font-mono">{log.createdAt ? format(new Date(log.createdAt), 'MM/dd HH:mm:ss') : '--'}</td>
+                      <td className="table-cell text-sm font-medium">{log.account?.username || '--'}</td>
+                      <td className="table-cell text-xs font-mono">{log.action}</td>
+                      <td className="table-cell text-xs text-secondary truncate max-w-48">{log.filename || '--'}</td>
+                      <td className="table-cell"><span className={`badge ${log.success ? 'badge-green' : 'badge-red'}`}>{log.success ? 'OK' : 'FAIL'}</span></td>
+                    </tr>
+                    {expandedRow === i && (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-3 bg-canvas/50 border-b border-border">
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="text-xs text-muted">Service</span>
+                              <p className="font-mono text-xs text-primary">{log.serviceType || '--'}</p>
+                            </div>
+                            <div>
+                              <span className="text-xs text-muted">Full Timestamp</span>
+                              <p className="font-mono text-xs text-primary">{log.createdAt ? format(new Date(log.createdAt), 'yyyy-MM-dd HH:mm:ss.SSS') : '--'}</p>
+                            </div>
+                            {log.message && (
+                              <div className="col-span-2">
+                                <span className="text-xs text-muted">Message</span>
+                                <p className="text-sm text-primary mt-0.5">{log.message}</p>
+                              </div>
+                            )}
+                            {log.filename && (
+                              <div className="col-span-2">
+                                <span className="text-xs text-muted">Filename</span>
+                                <p className="font-mono text-xs text-primary">{log.filename}</p>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>

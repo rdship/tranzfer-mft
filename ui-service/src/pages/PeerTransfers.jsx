@@ -1,3 +1,4 @@
+import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { onboardingApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -5,6 +6,7 @@ import { ArrowsRightLeftIcon, UserIcon } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
 
 export default function PeerTransfers() {
+  const [expandedTicket, setExpandedTicket] = useState(null)
   const { data: peers = [] } = useQuery({ queryKey: ['p2p-peers'], queryFn: () => onboardingApi.get('/api/p2p/presence').then(r => r.data).catch(() => []), refetchInterval: 15000 })
   const { data: tickets = [], isLoading } = useQuery({ queryKey: ['p2p-tickets'], queryFn: () => onboardingApi.get('/api/p2p/tickets').then(r => r.data).catch(() => []), refetchInterval: 10000 })
 
@@ -43,15 +45,64 @@ export default function PeerTransfers() {
           {tickets.length === 0 ? (
             <tr><td colSpan={7} className="text-center py-8 text-secondary text-sm">No peer-to-peer transfers yet. Transfers will appear here as clients exchange files.</td></tr>
           ) : tickets.map(t => (
-            <tr key={t.ticketId} className="table-row">
-              <td className="table-cell font-mono text-xs font-bold text-blue-600">{t.trackId}</td>
-              <td className="table-cell text-sm">{t.senderAccount?.username || '?'}</td>
-              <td className="table-cell text-center"><ArrowsRightLeftIcon className="w-4 h-4 text-muted inline" /></td>
-              <td className="table-cell text-sm">{t.receiverAccount?.username || '?'}</td>
-              <td className="table-cell text-xs text-secondary">{t.filename}</td>
-              <td className="table-cell"><span className={`badge ${statusColor[t.status] || 'badge-gray'}`}>{t.status}</span></td>
-              <td className="table-cell text-xs text-secondary">{t.createdAt ? format(new Date(t.createdAt), 'MMM d HH:mm') : ''}</td>
-            </tr>
+            <React.Fragment key={t.ticketId}>
+              <tr
+                className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]"
+                onClick={() => setExpandedTicket(expandedTicket === t.ticketId ? null : t.ticketId)}
+              >
+                <td className="table-cell font-mono text-xs font-bold text-blue-600">{t.trackId}</td>
+                <td className="table-cell text-sm">{t.senderAccount?.username || '?'}</td>
+                <td className="table-cell text-center"><ArrowsRightLeftIcon className="w-4 h-4 text-muted inline" /></td>
+                <td className="table-cell text-sm">{t.receiverAccount?.username || '?'}</td>
+                <td className="table-cell text-xs text-secondary">{t.filename}</td>
+                <td className="table-cell"><span className={`badge ${statusColor[t.status] || 'badge-gray'}`}>{t.status}</span></td>
+                <td className="table-cell text-xs text-secondary">{t.createdAt ? format(new Date(t.createdAt), 'MMM d HH:mm') : ''}</td>
+              </tr>
+              {expandedTicket === t.ticketId && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-3 bg-canvas/50 border-b border-border">
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <span className="text-xs text-muted">Ticket ID</span>
+                        <p className="font-mono text-xs text-primary">{t.ticketId}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs text-muted">Track ID</span>
+                        <p className="font-mono text-xs text-primary">{t.trackId}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs text-muted">Filename</span>
+                        <p className="text-primary">{t.filename}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs text-muted">Sender</span>
+                        <p className="text-primary">{t.senderAccount?.username || '?'}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs text-muted">Receiver</span>
+                        <p className="text-primary">{t.receiverAccount?.username || '?'}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs text-muted">Status</span>
+                        <span className={`badge ${statusColor[t.status] || 'badge-gray'}`}>{t.status}</span>
+                      </div>
+                      {t.fileSize != null && (
+                        <div>
+                          <span className="text-xs text-muted">File Size</span>
+                          <p className="text-primary">{t.fileSize}</p>
+                        </div>
+                      )}
+                      {t.errorMessage && (
+                        <div className="col-span-3">
+                          <span className="text-xs text-muted">Error</span>
+                          <p className="text-sm text-red-600">{t.errorMessage}</p>
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </React.Fragment>
           ))}
         </tbody></table>
       </div>

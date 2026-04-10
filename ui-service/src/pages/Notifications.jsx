@@ -314,7 +314,7 @@ export default function Notifications() {
               </tr></thead>
               <tbody>
                 {rules.map(r => (
-                  <tr key={r.id} className="table-row">
+                  <tr key={r.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => openEditRule(r)}>
                     <td className="table-cell">
                       <div className="font-medium text-primary">{r.name}</div>
                     </td>
@@ -341,10 +341,10 @@ export default function Notifications() {
                     </td>
                     <td className="table-cell">
                       <div className="flex gap-1">
-                        <button onClick={() => openEditRule(r)} className="p-1 rounded hover:bg-hover" title="Edit">
+                        <button onClick={(e) => { e.stopPropagation(); openEditRule(r) }} className="p-1 rounded hover:bg-hover" title="Edit">
                           <PencilSquareIcon className="w-4 h-4 text-secondary" />
                         </button>
-                        <button onClick={() => { if (confirm('Delete this notification rule?')) deleteRule.mutate(r.id) }}
+                        <button onClick={(e) => { e.stopPropagation(); if (confirm('Delete this notification rule?')) deleteRule.mutate(r.id) }}
                           className="p-1 rounded hover:bg-hover" title="Delete">
                           <TrashIcon className="w-4 h-4 text-red-500" />
                         </button>
@@ -460,7 +460,7 @@ export default function Notifications() {
               </tr></thead>
               <tbody>
                 {templates.map(t => (
-                  <tr key={t.id} className="table-row">
+                  <tr key={t.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => openEditTemplate(t)}>
                     <td className="table-cell">
                       <div className="font-medium text-primary">{t.name}</div>
                     </td>
@@ -478,10 +478,10 @@ export default function Notifications() {
                     </td>
                     <td className="table-cell">
                       <div className="flex gap-1">
-                        <button onClick={() => openEditTemplate(t)} className="p-1 rounded hover:bg-hover" title="Edit">
+                        <button onClick={(e) => { e.stopPropagation(); openEditTemplate(t) }} className="p-1 rounded hover:bg-hover" title="Edit">
                           <PencilSquareIcon className="w-4 h-4 text-secondary" />
                         </button>
-                        <button onClick={() => { if (confirm('Delete this notification template?')) deleteTemplate.mutate(t.id) }}
+                        <button onClick={(e) => { e.stopPropagation(); if (confirm('Delete this notification template?')) deleteTemplate.mutate(t.id) }}
                           className="p-1 rounded hover:bg-hover" title="Delete">
                           <TrashIcon className="w-4 h-4 text-red-500" />
                         </button>
@@ -648,7 +648,7 @@ export default function Notifications() {
               </tr></thead>
               <tbody>
                 {recentLogs.map(l => (
-                  <tr key={l.id} className="table-row">
+                  <tr key={l.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]">
                     <td className="table-cell text-xs text-secondary whitespace-nowrap">
                       {l.sentAt ? format(new Date(l.sentAt), 'MMM dd HH:mm:ss') : ''}
                     </td>

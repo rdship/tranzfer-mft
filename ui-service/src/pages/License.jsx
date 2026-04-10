@@ -22,6 +22,8 @@ export default function License() {
     }).then(r => r.data)
   })
 
+  const qc = useQueryClient()
+
   const activateMut = useMutation({
     mutationFn: (key) => licenseApi.post('/api/v1/licenses/validate', {
       licenseKey: key, serviceType: 'ADMIN_UI', hostId: window.location.hostname, installationFingerprint: fingerprint
@@ -30,6 +32,7 @@ export default function License() {
       if (data.valid) {
         localStorage.setItem('license-key', licenseKey)
         toast.success('License activated successfully!')
+        qc.invalidateQueries({ queryKey: ['license-status'] })
       } else {
         toast.error('License invalid: ' + data.message)
       }
@@ -49,8 +52,6 @@ export default function License() {
     queryFn: () => licenseApi.get('/api/v1/licenses').then(r => r.data).catch(() => [])
   })
 
-  const qc = useQueryClient()
-
   // ── Admin state ──
   const [showIssueModal, setShowIssueModal] = useState(false)
   const [issueForm, setIssueForm] = useState({ licenseKey: '', edition: 'STANDARD', expiry: '', maxInstances: 1 })
@@ -61,7 +62,10 @@ export default function License() {
   const issueMut = useMutation({
     mutationFn: (data) => licenseApi.post('/api/v1/licenses/issue', data).then(r => r.data),
     onSuccess: () => {
-      qc.invalidateQueries(['all-licenses'])
+      qc.invalidateQueries({ queryKey: ['all-licenses'] })
+      qc.invalidateQueries({ queryKey: ['license-status'] })
+      qc.invalidateQueries({ queryKey: ['licenses'] })
+      qc.invalidateQueries({ queryKey: ['license-catalog'] })
       setShowIssueModal(false)
       setIssueForm({ licenseKey: '', edition: 'STANDARD', expiry: '', maxInstances: 1 })
       toast.success('License issued successfully')
@@ -72,7 +76,10 @@ export default function License() {
   const revokeMut = useMutation({
     mutationFn: (id) => licenseApi.delete(`/api/v1/licenses/${id}/revoke`).then(r => r.data),
     onSuccess: () => {
-      qc.invalidateQueries(['all-licenses'])
+      qc.invalidateQueries({ queryKey: ['all-licenses'] })
+      qc.invalidateQueries({ queryKey: ['license-status'] })
+      qc.invalidateQueries({ queryKey: ['licenses'] })
+      qc.invalidateQueries({ queryKey: ['license-catalog'] })
       setShowRevokeConfirm(null)
       toast.success('License revoked')
     },

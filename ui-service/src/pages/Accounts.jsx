@@ -132,7 +132,7 @@ export default function Accounts() {
               {filtered.map(acc => {
                 const tier = getQosTier(acc)
                 return (
-                <tr key={acc.id} className="table-row">
+                <tr key={acc.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => openEdit(acc)}>
                   <td className="table-cell font-medium">{acc.username}</td>
                   <td className="table-cell"><span className="badge badge-blue">{acc.protocol}</span></td>
                   <td className="table-cell text-xs text-secondary">{acc.serverInstance || <span className="text-muted">Any</span>}</td>
@@ -146,7 +146,7 @@ export default function Accounts() {
                     {acc.qosMaxConcurrentSessions || '-'}
                   </td>
                   <td className="table-cell">
-                    <button onClick={() => toggleMut.mutate({ id: acc.id, active: !acc.active })}
+                    <button onClick={(e) => { e.stopPropagation(); toggleMut.mutate({ id: acc.id, active: !acc.active }) }}
                       className={`badge cursor-pointer ${acc.active ? 'badge-green' : 'badge-red'}`}>
                       {acc.active ? 'Active' : 'Disabled'}
                     </button>
@@ -154,11 +154,11 @@ export default function Accounts() {
                   <td className="table-cell text-secondary text-xs">{acc.createdAt ? format(new Date(acc.createdAt), 'MMM d, yyyy') : '-'}</td>
                   <td className="table-cell">
                     <div className="flex gap-1">
-                      <button onClick={() => openEdit(acc)} title="Edit account"
+                      <button onClick={(e) => { e.stopPropagation(); openEdit(acc) }} title="Edit account"
                         className="p-1.5 rounded hover:bg-accent-soft text-accent hover:text-accent transition-colors">
                         <PencilSquareIcon className="w-4 h-4" />
                       </button>
-                      <button onClick={() => { if (confirm('Delete account?')) deleteMut.mutate(acc.id) }} title="Delete account"
+                      <button onClick={(e) => { e.stopPropagation(); if (confirm('Delete account?')) deleteMut.mutate(acc.id) }} title="Delete account"
                         className="p-1.5 rounded hover:bg-[rgb(60,20,20)] text-[rgb(240,120,120)] hover:text-[rgb(255,140,140)] transition-colors">
                         <TrashIcon className="w-4 h-4" />
                       </button>

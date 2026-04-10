@@ -203,7 +203,7 @@ export default function Compliance() {
             </tr></thead>
             <tbody>
               {profiles.map(p => (
-                <tr key={p.id} className="table-row">
+                <tr key={p.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => openEdit(p)}>
                   <td className="table-cell">
                     <div className="font-medium text-primary">{p.name}</div>
                     {p.description && <div className="text-xs text-secondary mt-0.5 max-w-xs truncate">{p.description}</div>}
@@ -226,10 +226,10 @@ export default function Compliance() {
                   </td>
                   <td className="table-cell">
                     <div className="flex gap-1">
-                      <button onClick={() => openEdit(p)} className="p-1 rounded hover:bg-hover" title="Edit">
+                      <button onClick={(e) => { e.stopPropagation(); openEdit(p) }} className="p-1 rounded hover:bg-hover" title="Edit">
                         <PencilSquareIcon className="w-4 h-4 text-secondary" />
                       </button>
-                      <button onClick={() => { if (confirm('Deactivate this profile?')) deleteProfile.mutate(p.id) }} className="p-1 rounded hover:bg-hover" title="Deactivate">
+                      <button onClick={(e) => { e.stopPropagation(); if (confirm('Deactivate this profile?')) deleteProfile.mutate(p.id) }} className="p-1 rounded hover:bg-hover" title="Deactivate">
                         <TrashIcon className="w-4 h-4 text-red-500" />
                       </button>
                     </div>
@@ -295,7 +295,7 @@ export default function Compliance() {
               </tr></thead>
               <tbody>
                 {violations.map(v => (
-                  <tr key={v.id} className="table-row">
+                  <tr key={v.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => { if (!v.resolved) { setResolveId(v.id); setResolveNote('') } }}>
                     <td className="table-cell text-xs text-secondary whitespace-nowrap">
                       {v.createdAt ? format(new Date(v.createdAt), 'MMM dd HH:mm:ss') : ''}
                     </td>
@@ -313,7 +313,7 @@ export default function Compliance() {
                     </td>
                     <td className="table-cell">
                       {!v.resolved && (
-                        <button onClick={() => { setResolveId(v.id); setResolveNote('') }}
+                        <button onClick={(e) => { e.stopPropagation(); setResolveId(v.id); setResolveNote('') }}
                           className="text-xs text-indigo-600 hover:underline">Resolve</button>
                       )}
                     </td>

@@ -615,9 +615,9 @@ export default function PlatformConfig() {
                 </thead>
                 <tbody>
                   {items.map(s => (
-                    <tr key={s.id} className="table-row">
+                    <tr key={s.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => setEditSetting(s)}>
                       <td className="table-cell font-mono text-xs font-medium text-primary">{s.settingKey}</td>
-                      <td className="table-cell">
+                      <td className="table-cell" onClick={(e) => e.stopPropagation()}>
                         <InlineValueEditor setting={s} onSave={handleInlineUpdate} />
                       </td>
                       <td className="table-cell"><span className="text-xs text-secondary">{s.dataType}</span></td>
@@ -625,11 +625,11 @@ export default function PlatformConfig() {
                       <td className="table-cell text-xs text-secondary max-w-xs truncate" title={s.description}>{s.description || '—'}</td>
                       <td className="table-cell">
                         <div className="flex gap-1">
-                          <button onClick={() => setEditSetting(s)}
+                          <button onClick={(e) => { e.stopPropagation(); setEditSetting(s) }}
                             className="p-1 rounded hover:bg-blue-50 text-blue-500 hover:text-blue-700">
                             <PencilIcon className="w-3.5 h-3.5" />
                           </button>
-                          <button onClick={() => { if (confirm(`Delete ${s.settingKey}?`)) deleteMut.mutate(s.id) }}
+                          <button onClick={(e) => { e.stopPropagation(); if (confirm(`Delete ${s.settingKey}?`)) deleteMut.mutate(s.id) }}
                             className="p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-700">
                             <TrashIcon className="w-3.5 h-3.5" />
                           </button>

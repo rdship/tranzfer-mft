@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
   CheckIcon,
@@ -94,6 +94,7 @@ const slugify = (str) => str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/
 
 export default function PartnerSetup() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [step, setStep] = useState(1)
   const [form, setForm] = useState({
     companyName: '',
@@ -128,6 +129,7 @@ export default function PartnerSetup() {
     },
     onSuccess: (partner) => {
       toast.success('Partner onboarded successfully!')
+      queryClient.invalidateQueries({ queryKey: ['partners'] })
       navigate(`/partners/${partner.id}`)
     },
     onError: (err) => toast.error(friendlyError(err))

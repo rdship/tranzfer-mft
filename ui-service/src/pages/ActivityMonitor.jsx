@@ -738,7 +738,11 @@ export default function ActivityMonitor() {
                   </thead>
                   <tbody>
                     {scheduledRetries.map(r => (
-                      <tr key={r.trackId} className="table-row">
+                      <tr
+                        key={r.trackId}
+                        className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]"
+                        onClick={() => navigate(`/journey?trackId=${encodeURIComponent(r.trackId)}`)}
+                      >
                         <td className="table-cell">
                           <span className="font-mono text-xs font-bold text-blue-600">{r.trackId}</span>
                         </td>
@@ -756,7 +760,7 @@ export default function ActivityMonitor() {
                           </span>
                         </td>
                         <td className="table-cell text-xs text-secondary">{r.scheduledBy || '--'}</td>
-                        <td className="table-cell">
+                        <td className="table-cell" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => cancelScheduleMut.mutate(r.trackId)}
                             disabled={cancelScheduleMut.isPending}
@@ -915,7 +919,7 @@ export default function ActivityMonitor() {
                     return (
                       <React.Fragment key={row.trackId || i}>
                         <tr
-                          className={`table-row cursor-pointer group ${isExpanded ? 'bg-blue-50/70' : ''} ${isSelected ? 'bg-red-50/50' : ''}`}
+                          className={`table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)] group ${isExpanded ? 'bg-blue-50/70' : ''} ${isSelected ? 'bg-red-50/50' : ''}`}
                           onClick={() => handleRowClick(row)}
                         >
                           <td className="table-cell w-10" onClick={e => e.stopPropagation()}>

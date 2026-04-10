@@ -392,7 +392,7 @@ export default function Screening() {
             <th className="table-header">Track ID</th><th className="table-header">File</th><th className="table-header">Outcome</th><th className="table-header">Hits</th><th className="table-header">Action</th>
           </tr></thead><tbody>
             {hits.map(h => (
-              <tr key={h.id} className="border-b border-red-100">
+              <tr key={h.id} className="border-b border-red-100 cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]">
                 <td className="table-cell font-mono text-xs font-bold text-red-700">{h.trackId}</td>
                 <td className="table-cell text-sm">{h.filename}</td>
                 <td className="table-cell"><span className="badge badge-red">{h.outcome}</span></td>
@@ -413,7 +413,7 @@ export default function Screening() {
           {results.length === 0 ? (
             <tr><td colSpan={6} className="text-center py-8 text-secondary text-sm">No screening results yet. Results appear as files are screened during transfer.</td></tr>
           ) : results.map(r => (
-            <tr key={r.id} className="table-row">
+            <tr key={r.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]">
               <td className="table-cell font-mono text-xs">{r.trackId}</td>
               <td className="table-cell text-sm">{r.filename}</td>
               <td className="table-cell text-xs">{r.recordsScanned}</td>
@@ -477,7 +477,7 @@ export default function Screening() {
               <tbody>
                 {quarantineItems.map(q => (
                   <>
-                    <tr key={q.id} className="table-row">
+                    <tr key={q.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => setExpandedRow(expandedRow === q.id ? null : q.id)}>
                       <td className="table-cell text-xs text-secondary whitespace-nowrap">
                         {q.quarantinedAt ? format(new Date(q.quarantinedAt), 'MMM dd HH:mm:ss') : ''}
                       </td>
@@ -494,17 +494,17 @@ export default function Screening() {
                       <td className="table-cell"><span className={`badge ${statusColor(q.status)}`}>{q.status}</span></td>
                       <td className="table-cell">
                         <div className="flex gap-1">
-                          <button onClick={() => setExpandedRow(expandedRow === q.id ? null : q.id)}
+                          <button onClick={(e) => { e.stopPropagation(); setExpandedRow(expandedRow === q.id ? null : q.id) }}
                             className="p-1 rounded hover:bg-hover" title="Details">
                             <EyeIcon className="w-4 h-4 text-secondary" />
                           </button>
                           {q.status === 'QUARANTINED' && (
                             <>
-                              <button onClick={() => setConfirmAction({ id: q.id, type: 'release', filename: q.filename })}
+                              <button onClick={(e) => { e.stopPropagation(); setConfirmAction({ id: q.id, type: 'release', filename: q.filename }) }}
                                 className="p-1 rounded hover:bg-green-50" title="Release">
                                 <CheckCircleIcon className="w-4 h-4 text-green-600" />
                               </button>
-                              <button onClick={() => setConfirmAction({ id: q.id, type: 'delete', filename: q.filename })}
+                              <button onClick={(e) => { e.stopPropagation(); setConfirmAction({ id: q.id, type: 'delete', filename: q.filename }) }}
                                 className="p-1 rounded hover:bg-red-50" title="Delete permanently">
                                 <TrashIcon className="w-4 h-4 text-red-500" />
                               </button>
@@ -630,7 +630,7 @@ export default function Screening() {
               </tr></thead>
               <tbody>
                 {dlpPolicies.map(p => (
-                  <tr key={p.id} className="table-row">
+                  <tr key={p.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => openEditPolicy(p)}>
                     <td className="table-cell">
                       <div className="font-medium text-primary">{p.name}</div>
                       {p.description && <div className="text-xs text-secondary mt-0.5 max-w-xs truncate">{p.description}</div>}
@@ -656,10 +656,10 @@ export default function Screening() {
                     </td>
                     <td className="table-cell">
                       <div className="flex gap-1">
-                        <button onClick={() => openEditPolicy(p)} className="p-1 rounded hover:bg-hover" title="Edit">
+                        <button onClick={(e) => { e.stopPropagation(); openEditPolicy(p) }} className="p-1 rounded hover:bg-hover" title="Edit">
                           <PencilSquareIcon className="w-4 h-4 text-secondary" />
                         </button>
-                        <button onClick={() => { if (confirm('Delete this DLP policy?')) deletePolicy.mutate(p.id) }}
+                        <button onClick={(e) => { e.stopPropagation(); if (confirm('Delete this DLP policy?')) deletePolicy.mutate(p.id) }}
                           className="p-1 rounded hover:bg-hover" title="Delete">
                           <TrashIcon className="w-4 h-4 text-red-500" />
                         </button>
@@ -860,7 +860,7 @@ export default function Screening() {
               </tr></thead>
               <tbody>
                 {dlpRules.map(rule => (
-                  <tr key={rule.id} className="table-row">
+                  <tr key={rule.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => openEditRule(rule)}>
                     <td className="table-cell">
                       <div className="font-medium text-primary">{rule.name}</div>
                       {rule.description && <div className="text-xs text-secondary mt-0.5 max-w-xs truncate">{rule.description}</div>}
@@ -881,17 +881,17 @@ export default function Screening() {
                     <td className="table-cell">
                       <div
                         className={`w-9 h-5 rounded-full relative transition-colors cursor-pointer ${rule.enabled ? 'bg-indigo-600' : 'bg-gray-300'}`}
-                        onClick={() => toggleRuleEnabled.mutate({ id: rule.id, enabled: !rule.enabled })}
+                        onClick={(e) => { e.stopPropagation(); toggleRuleEnabled.mutate({ id: rule.id, enabled: !rule.enabled }) }}
                       >
                         <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-surface shadow transition-transform ${rule.enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
                       </div>
                     </td>
                     <td className="table-cell">
                       <div className="flex gap-1">
-                        <button onClick={() => openEditRule(rule)} className="p-1 rounded hover:bg-hover" title="Edit">
+                        <button onClick={(e) => { e.stopPropagation(); openEditRule(rule) }} className="p-1 rounded hover:bg-hover" title="Edit">
                           <PencilSquareIcon className="w-4 h-4 text-secondary" />
                         </button>
-                        <button onClick={() => { if (confirm('Delete this DLP rule?')) deleteRule.mutate(rule.id) }}
+                        <button onClick={(e) => { e.stopPropagation(); if (confirm('Delete this DLP rule?')) deleteRule.mutate(rule.id) }}
                           className="p-1 rounded hover:bg-hover" title="Delete">
                           <TrashIcon className="w-4 h-4 text-red-500" />
                         </button>
@@ -1025,7 +1025,7 @@ export default function Screening() {
               </tr></thead>
               <tbody>
                 {screeningQuarantine.map(q => (
-                  <tr key={q.id} className="table-row">
+                  <tr key={q.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => setTab('quarantine')}>
                     <td className="table-cell text-xs text-secondary whitespace-nowrap">
                       {q.quarantinedAt ? format(new Date(q.quarantinedAt), 'MMM dd HH:mm:ss') : ''}
                     </td>
@@ -1041,12 +1041,12 @@ export default function Screening() {
                       <div className="flex gap-1">
                         {q.status === 'QUARANTINED' && (
                           <>
-                            <button onClick={() => releaseFile.mutate(q.id)}
+                            <button onClick={(e) => { e.stopPropagation(); releaseFile.mutate(q.id) }}
                               disabled={releaseFile.isPending}
                               className="p-1 rounded hover:bg-green-50" title="Release">
                               <CheckCircleIcon className="w-4 h-4 text-green-600" />
                             </button>
-                            <button onClick={() => deleteFile.mutate(q.id)}
+                            <button onClick={(e) => { e.stopPropagation(); deleteFile.mutate(q.id) }}
                               disabled={deleteFile.isPending}
                               className="p-1 rounded hover:bg-red-50" title="Delete permanently">
                               <TrashIcon className="w-4 h-4 text-red-500" />

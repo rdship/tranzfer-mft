@@ -273,7 +273,7 @@ function MessageRow({
   return (
     <>
       <tr
-        className="hover:bg-hover cursor-pointer transition-colors"
+        className="cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]"
         onClick={onToggle}
       >
         <td className="px-4 py-3">
