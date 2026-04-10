@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { getDashboard, getPredictions, getFlowLiveStats } from '../api/analytics'
 import { getAgentsDashboard } from '../api/ai'
 import { useAuth } from '../context/AuthContext'
@@ -12,6 +13,7 @@ import {
   ExclamationTriangleIcon, ArrowTrendingUpIcon, BoltIcon,
   BuildingOfficeIcon, ArrowsRightLeftIcon, CpuChipIcon,
   ClockIcon, ArrowPathIcon, ShieldCheckIcon,
+  ArrowTopRightOnSquareIcon,
 } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
 import { NavLink } from 'react-router-dom'
@@ -54,20 +56,22 @@ function DarkTooltip({ active, payload, label }) {
   )
 }
 
-/* KPI tile */
-function KpiTile({ label, value, icon: Icon, color, sub }) {
+/* KPI tile — supports optional `to` prop for clickable navigation */
+function KpiTile({ label, value, icon: Icon, color, sub, to, navigate }) {
+  const handleClick = () => { if (to && navigate) navigate(to) }
   return (
     <div
-      className="flex items-center gap-3 p-4 rounded-xl transition-all duration-200 cursor-default group"
+      className={`flex items-center gap-3 p-4 rounded-xl transition-all duration-200 group ${to ? 'cursor-pointer' : 'cursor-default'}`}
       style={{ background: 'rgb(var(--surface))', border: '1px solid rgb(var(--border))' }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = `${color}44`; e.currentTarget.style.boxShadow = `0 0 20px ${color}18` }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgb(var(--border))'; e.currentTarget.style.boxShadow = 'none' }}
+      onClick={handleClick}
     >
       <div className="p-2 rounded-lg flex-shrink-0 transition-transform duration-200 group-hover:scale-110"
         style={{ background: `${color}18` }}>
         <Icon className="w-4 h-4" style={{ color }} />
       </div>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'rgb(var(--tx-muted))' }}>
           {label}
         </p>
@@ -76,6 +80,9 @@ function KpiTile({ label, value, icon: Icon, color, sub }) {
         </p>
         {sub && <p className="text-[10px] mt-0.5" style={{ color: 'rgb(var(--tx-muted))' }}>{sub}</p>}
       </div>
+      {to && (
+        <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5 opacity-0 group-hover:opacity-60 transition-opacity flex-shrink-0" style={{ color }} />
+      )}
     </div>
   )
 }
@@ -187,6 +194,7 @@ function LiveActivityStrip({ agentsData, flowStats, agentsLoading, flowsLoading,
 
 export default function Dashboard() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const { data: dashboard, isLoading } = useQuery({
     queryKey: ['dashboard'],
     queryFn: getDashboard,
@@ -267,6 +275,8 @@ export default function Dashboard() {
           value={(dashboard?.totalTransfersToday || 0).toLocaleString()}
           icon={ArrowUpTrayIcon}
           color="#8b5cf6"
+          to="/activity-monitor"
+          navigate={navigate}
         />
         <KpiTile
           label="Success Rate"
@@ -274,18 +284,24 @@ export default function Dashboard() {
           icon={CheckCircleIcon}
           color="#22c55e"
           sub={dashboard?.totalTransfersToday ? `${Math.round(dashboard.totalTransfersToday * (dashboard.successRateToday || 1))} succeeded` : undefined}
+          to="/activity-monitor?status=FAILED"
+          navigate={navigate}
         />
         <KpiTile
           label="Data Moved"
           value={`${(dashboard?.totalGbToday || 0).toFixed(2)} GB`}
           icon={ServerIcon}
           color="#22d3ee"
+          to="/activity-monitor"
+          navigate={navigate}
         />
         <KpiTile
           label="Last Hour"
           value={(dashboard?.totalTransfersLastHour || 0).toLocaleString()}
           icon={ChartBarIcon}
           color="#fbbf24"
+          to="/activity-monitor"
+          navigate={navigate}
         />
         <KpiTile
           label="Protocols Active"
@@ -293,6 +309,8 @@ export default function Dashboard() {
           icon={BoltIcon}
           color="#f87171"
           sub={protocolData.map(p => p.name).join(' · ') || 'None yet'}
+          to="/flows"
+          navigate={navigate}
         />
       </div>
 
@@ -315,16 +333,29 @@ export default function Dashboard() {
             border: '1px solid rgb(127 29 29 / 0.5)',
           }}
         >
-          <h3 className="font-semibold text-sm flex items-center gap-2" style={{ color: '#f87171' }}>
-            <ExclamationTriangleIcon className="w-4 h-4" />
-            Active Alerts ({dashboard.alerts.length})
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-sm flex items-center gap-2" style={{ color: '#f87171' }}>
+              <ExclamationTriangleIcon className="w-4 h-4" />
+              Active Alerts ({dashboard.alerts.length})
+            </h3>
+            <NavLink to="/sentinel" className="text-xs font-medium hover:underline" style={{ color: '#fca5a5' }}>
+              View All in Sentinel
+            </NavLink>
+          </div>
           <div className="mt-2 space-y-1">
             {dashboard.alerts.map((alert, i) => (
-              <p key={i} className="text-xs" style={{ color: '#fca5a5' }}>
+              <div key={i} className="flex items-center gap-2 text-xs" style={{ color: '#fca5a5' }}>
                 <span className="font-mono font-semibold">{alert.ruleName}</span>
-                {' — '}{alert.serviceType}: {alert.metric} = {alert.currentValue?.toFixed(3)} (threshold: {alert.threshold})
-              </p>
+                <span>{' — '}{alert.serviceType}: {alert.metric} = {alert.currentValue?.toFixed(3)} (threshold: {alert.threshold})</span>
+                {alert.trackId && (
+                  <button
+                    onClick={() => navigate(`/journey?trackId=${encodeURIComponent(alert.trackId)}`)}
+                    className="font-mono text-blue-400 hover:text-blue-300 hover:underline flex-shrink-0"
+                  >
+                    {alert.trackId.substring(0, 8)}...
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         </div>
@@ -337,10 +368,15 @@ export default function Dashboard() {
         <div className="card lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <p className="section-title">Transfer Volume</p>
-            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
-              style={{ background: 'rgb(var(--accent) / 0.12)', color: 'rgb(var(--accent))' }}>
-              Last 24 hours
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+                style={{ background: 'rgb(var(--accent) / 0.12)', color: 'rgb(var(--accent))' }}>
+                Last 24 hours
+              </span>
+              <NavLink to="/activity-monitor" className="text-[10px] font-medium hover:underline" style={{ color: 'rgb(var(--accent))' }}>
+                View All
+              </NavLink>
+            </div>
           </div>
 
           {transferData.length > 0 ? (
@@ -428,7 +464,12 @@ export default function Dashboard() {
 
         {/* Protocol Breakdown */}
         <div className="card">
-          <p className="section-title mb-3">By Protocol</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="section-title">By Protocol</p>
+            <NavLink to="/analytics" className="text-[10px] font-medium hover:underline" style={{ color: 'rgb(var(--accent))' }}>
+              View All
+            </NavLink>
+          </div>
           {protocolData.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={150}>

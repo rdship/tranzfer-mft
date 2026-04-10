@@ -5,6 +5,8 @@ import { getPendingApprovals, approveStep, rejectStep } from '../api/approvals'
 import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
+import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer'
+import FileDownloadButton from '../components/FileDownloadButton'
 import MatchCriteriaBuilder, { MatchSummaryBadges, buildCriteriaFromLegacy } from '../components/MatchCriteriaBuilder'
 import toast from 'react-hot-toast'
 import {
@@ -317,7 +319,7 @@ function DryRunModal({ result, onClose }) {
 
 const RESTARTABLE = new Set(['FAILED', 'CANCELLED', 'UNMATCHED'])
 
-function ExecutionRow({ ex, selected, onToggle, onSkipStep, skipPending, onScheduleRetry, onCancelSchedule, schedulePending }) {
+function ExecutionRow({ ex, selected, onToggle, onSkipStep, skipPending, onScheduleRetry, onCancelSchedule, schedulePending, onOpenDrawer }) {
   const [expanded, setExpanded] = useState(false)
   const [showScheduler, setShowScheduler] = useState(false)
   const [scheduleInput, setScheduleInput] = useState('')
@@ -335,6 +337,7 @@ function ExecutionRow({ ex, selected, onToggle, onSkipStep, skipPending, onSched
       <tr
         className={`table-row cursor-pointer hover:bg-canvas transition-colors ${selected ? 'bg-red-50' : ''}`}
         onClick={() => setExpanded(!expanded)}
+        onDoubleClick={() => ex.trackId && onOpenDrawer && onOpenDrawer(ex.trackId)}
       >
         {/* Checkbox — stop propagation so row expand doesn't fire */}
         <td className="table-cell w-8" onClick={e => e.stopPropagation()}>
@@ -356,7 +359,17 @@ function ExecutionRow({ ex, selected, onToggle, onSkipStep, skipPending, onSched
           </div>
         </td>
         <td className="table-cell text-sm text-primary">{ex.flow?.name || '—'}</td>
-        <td className="table-cell text-xs text-secondary truncate max-w-40 font-mono">{ex.originalFilename}</td>
+        <td className="table-cell text-xs text-secondary truncate max-w-40 font-mono">
+          <div className="flex items-center gap-1.5">
+            <span className="truncate">{ex.originalFilename}</span>
+            <span onClick={e => e.stopPropagation()}>
+              <FileDownloadButton
+                trackId={ex.trackId}
+                filename={ex.originalFilename}
+              />
+            </span>
+          </div>
+        </td>
         <td className="table-cell">
           <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${style.bg} ${style.text} ${style.border}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
@@ -588,6 +601,7 @@ export default function Flows() {
   const [importDesc, setImportDesc] = useState('')
   const [aiSuggestions, setAiSuggestions] = useState(null)      // { steps: [...] } or null
   const [aiAvailable, setAiAvailable] = useState(true)
+  const [drawerTrackId, setDrawerTrackId] = useState(null)     // execution detail drawer
 
   // ─── Dynamic function catalog fetch ───
   const loadCatalog = useCallback(() => {
@@ -1331,6 +1345,7 @@ export default function Flows() {
                     onScheduleRetry={(scheduledAt) => scheduleRetryMut.mutate({ trackId: ex.trackId, scheduledAt })}
                     onCancelSchedule={() => cancelScheduleMut.mutate(ex.trackId)}
                     schedulePending={scheduleRetryMut.isPending || cancelScheduleMut.isPending}
+                    onOpenDrawer={setDrawerTrackId}
                   />
                 ))}
               </tbody>
@@ -1384,6 +1399,14 @@ export default function Flows() {
       {dryRunResult && (
         <DryRunModal result={dryRunResult} onClose={() => setDryRunResult(null)} />
       )}
+
+      {/* Execution Detail Drawer — triggered by double-clicking an execution row */}
+      <ExecutionDetailDrawer
+        trackId={drawerTrackId}
+        open={!!drawerTrackId}
+        onClose={() => setDrawerTrackId(null)}
+        showActions
+      />
 
       {/* ═══ Flow Builder Modal ═══ */}
       {showEditor && (

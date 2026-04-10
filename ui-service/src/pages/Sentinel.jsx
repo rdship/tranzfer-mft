@@ -1,10 +1,14 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import * as sentinelApi from '../api/sentinel'
+import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer'
+import FileDownloadButton from '../components/FileDownloadButton'
 import {
   ShieldCheckIcon, ExclamationTriangleIcon, ChartBarIcon,
   AdjustmentsHorizontalIcon, ArrowPathIcon, CheckCircleIcon,
-  LinkIcon, BoltIcon, CpuChipIcon, PlusIcon, TrashIcon, XMarkIcon
+  LinkIcon, BoltIcon, CpuChipIcon, PlusIcon, TrashIcon, XMarkIcon,
+  ArrowTopRightOnSquareIcon
 } from '@heroicons/react/24/outline'
 
 const TABS = [
@@ -51,6 +55,7 @@ function StatCard({ label, value, color = 'text-white' }) {
 
 // --- Overview Tab ---
 function OverviewTab() {
+  const navigate = useNavigate()
   const { data: dashboard, isLoading } = useQuery({
     queryKey: ['sentinel-dashboard'], queryFn: sentinelApi.getDashboard, refetchInterval: 30000
   })
@@ -127,6 +132,15 @@ function OverviewTab() {
               <span className={`w-2 h-2 rounded-full ${SEV_COLORS[f.severity]}`} />
               <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${STATUS_COLORS[f.status] || ''}`}>{f.status}</span>
               <span className="text-gray-300 text-sm flex-1 truncate">{f.title}</span>
+              {f.trackId && (
+                <button
+                  onClick={() => navigate(`/journey?trackId=${encodeURIComponent(f.trackId)}`)}
+                  className="text-blue-400 hover:text-blue-300 hover:underline font-mono text-xs flex-shrink-0"
+                  title={`View journey: ${f.trackId}`}
+                >
+                  {f.trackId.substring(0, 8)}...
+                </button>
+              )}
               <span className="text-secondary text-xs">{f.analyzer}</span>
               <span className="text-secondary text-xs">{new Date(f.createdAt).toLocaleString()}</span>
             </div>
@@ -145,7 +159,9 @@ function OverviewTab() {
 
 // --- Findings Tab ---
 function FindingsTab() {
+  const navigate = useNavigate()
   const [filters, setFilters] = useState({ status: '', severity: '', analyzer: '', page: 0 })
+  const [drawerTrackId, setDrawerTrackId] = useState(null)
   const queryClient = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -188,6 +204,7 @@ function FindingsTab() {
                 <th className="px-4 py-2 text-left">Sev</th>
                 <th className="px-4 py-2 text-left">Status</th>
                 <th className="px-4 py-2 text-left">Title</th>
+                <th className="px-4 py-2 text-left">Track ID</th>
                 <th className="px-4 py-2 text-left">Analyzer</th>
                 <th className="px-4 py-2 text-left">Service</th>
                 <th className="px-4 py-2 text-left">Time</th>
@@ -196,16 +213,40 @@ function FindingsTab() {
             </thead>
             <tbody className="divide-y divide-gray-700">
               {findings.map(f => (
-                <tr key={f.id} className="hover:bg-gray-750">
+                <tr key={f.id} className="hover:bg-gray-750 cursor-pointer"
+                    onDoubleClick={() => { if (f.trackId) setDrawerTrackId(f.trackId) }}>
                   <td className="px-4 py-2"><span className={`inline-block w-2 h-2 rounded-full ${SEV_COLORS[f.severity]}`} title={f.severity} /></td>
                   <td className="px-4 py-2"><span className={`text-xs px-1.5 py-0.5 rounded ${STATUS_COLORS[f.status] || ''}`}>{f.status}</span></td>
                   <td className="px-4 py-2 text-gray-300 max-w-md truncate">{f.title}
                     {f.githubIssueUrl && <a href={f.githubIssueUrl} target="_blank" rel="noreferrer" className="ml-2 text-blue-400 text-xs hover:underline">GitHub</a>}
                   </td>
+                  <td className="px-4 py-2">
+                    {f.trackId ? (
+                      <button
+                        onClick={() => navigate(`/journey?trackId=${encodeURIComponent(f.trackId)}`)}
+                        className="text-blue-400 hover:text-blue-300 hover:underline font-mono text-xs truncate max-w-[100px] block"
+                        title={f.trackId}
+                      >
+                        {f.trackId.length > 12 ? f.trackId.substring(0, 12) + '...' : f.trackId}
+                      </button>
+                    ) : <span className="text-muted text-xs">--</span>}
+                  </td>
                   <td className="px-4 py-2 text-muted">{f.analyzer}</td>
                   <td className="px-4 py-2 text-muted">{f.affectedService || '—'}</td>
                   <td className="px-4 py-2 text-secondary text-xs">{new Date(f.createdAt).toLocaleString()}</td>
-                  <td className="px-4 py-2 flex gap-1">
+                  <td className="px-4 py-2 flex gap-1 items-center">
+                    {f.trackId && (
+                      <FileDownloadButton trackId={f.trackId} filename={f.filename} />
+                    )}
+                    {f.trackId && (
+                      <button
+                        onClick={() => navigate(`/journey?trackId=${encodeURIComponent(f.trackId)}`)}
+                        title="View Transfer"
+                        className="text-xs px-2 py-0.5 bg-blue-600/20 text-blue-400 rounded hover:bg-blue-600/30"
+                      >
+                        <ArrowTopRightOnSquareIcon className="w-3 h-3 inline" />
+                      </button>
+                    )}
                     {f.status === 'OPEN' && (
                       <>
                         <button onClick={() => ack.mutate(f.id)} className="text-xs px-2 py-0.5 bg-yellow-600/20 text-yellow-400 rounded hover:bg-yellow-600/30">Ack</button>
@@ -216,7 +257,7 @@ function FindingsTab() {
                 </tr>
               ))}
               {!findings.length && (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-secondary">No findings match filters</td></tr>
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-secondary">No findings match filters</td></tr>
               )}
             </tbody>
           </table>
@@ -232,6 +273,8 @@ function FindingsTab() {
           )}
         </div>
       )}
+
+      <ExecutionDetailDrawer trackId={drawerTrackId} open={!!drawerTrackId} onClose={() => setDrawerTrackId(null)} />
     </div>
   )
 }

@@ -5,6 +5,7 @@ import { onboardingApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EvidenceReport from '../components/EvidenceReport'
 import DataLineageGraph from '../components/DataLineageGraph'
+import FileDownloadButton from '../components/FileDownloadButton'
 import {
   MagnifyingGlassIcon, CheckCircleIcon, XCircleIcon, ClockIcon,
   ArrowRightIcon, ShieldCheckIcon, ArrowDownTrayIcon, EyeIcon,
@@ -331,8 +332,8 @@ function FlowStepsPanel({ trackId }) {
                 {snap.durationMs != null ? `${snap.durationMs}ms` : '—'}
               </span>
 
-              {/* Input file preview */}
-              <span>
+              {/* Input file preview + download */}
+              <span className="flex items-center gap-1 flex-wrap">
                 <FilePreviewButton
                   trackId={trackId}
                   stepIndex={snap.stepIndex}
@@ -341,6 +342,13 @@ function FlowStepsPanel({ trackId }) {
                   storageKey={snap.inputStorageKey}
                   virtualPath={snap.inputVirtualPath}
                 />
+                {snap.inputStorageKey && (
+                  <FileDownloadButton
+                    trackId={trackId}
+                    stepInfo={{ trackId, stepIndex: snap.stepIndex, direction: 'input' }}
+                    filename={snap.inputVirtualPath?.substring(snap.inputVirtualPath.lastIndexOf('/') + 1) || `step${snap.stepIndex}-input`}
+                  />
+                )}
                 {snap.inputSizeBytes != null && (
                   <span className="ml-1 text-xs text-muted">
                     ({(snap.inputSizeBytes / 1024).toFixed(1)} KB)
@@ -351,8 +359,8 @@ function FlowStepsPanel({ trackId }) {
               {/* Arrow */}
               <ArrowRightIcon className="w-3 h-3 text-gray-300 mx-auto" />
 
-              {/* Output file preview */}
-              <span>
+              {/* Output file preview + download */}
+              <span className="flex items-center gap-1 flex-wrap">
                 {snap.stepStatus === 'FAILED' && snap.errorMessage ? (
                   <span
                     className="text-xs text-red-500 truncate block"
@@ -372,6 +380,13 @@ function FlowStepsPanel({ trackId }) {
                       storageKey={snap.outputStorageKey}
                       virtualPath={snap.outputVirtualPath}
                     />
+                    {snap.outputStorageKey && (
+                      <FileDownloadButton
+                        trackId={trackId}
+                        stepInfo={{ trackId, stepIndex: snap.stepIndex, direction: 'output' }}
+                        filename={snap.outputVirtualPath?.substring(snap.outputVirtualPath.lastIndexOf('/') + 1) || `step${snap.stepIndex}-output`}
+                      />
+                    )}
                     {snap.outputSizeBytes != null && snap.outputSizeBytes > 0 && (
                       <span className="ml-1 text-xs text-muted">
                         ({(snap.outputSizeBytes / 1024).toFixed(1)} KB)
@@ -544,6 +559,11 @@ export default function Journey() {
                 )}
               </div>
               <div className="flex items-start gap-3 flex-shrink-0">
+                <FileDownloadButton
+                  trackId={journey.trackId}
+                  filename={journey.filename}
+                  label="Download Original"
+                />
                 <button
                   onClick={() => {
                     const prev = document.title
@@ -587,6 +607,14 @@ export default function Journey() {
               <ShieldCheckIcon className="w-4 h-4" />
               <span className="font-medium">Integrity: {journey.integrityStatus}</span>
               {journey.sourceChecksum && <span className="font-mono text-xs ml-2">SHA-256: {journey.sourceChecksum?.substring(0,16)}...</span>}
+              {journey.sourceChecksum && (
+                <FileDownloadButton
+                  trackId={journey.trackId}
+                  sha256={journey.sourceChecksum}
+                  filename={journey.filename}
+                  label="Download"
+                />
+              )}
             </div>
 
             {/* Pipeline stages */}

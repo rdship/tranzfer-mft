@@ -1,12 +1,16 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { getAccounts, createAccount, updateAccount, deleteAccount, toggleAccount, getServerInstancesActive } from '../api/accounts'
+import { onboardingApi } from '../api/client'
 import Modal from '../components/Modal'
 import FormField, { friendlyError } from '../components/FormField'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
+import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer'
+import FileDownloadButton from '../components/FileDownloadButton'
 import toast from 'react-hot-toast'
-import { PlusIcon, TrashIcon, PencilSquareIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, TrashIcon, PencilSquareIcon, MagnifyingGlassIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
 
 const PROTOCOLS = ['SFTP', 'FTP', 'FTP_WEB']
@@ -36,9 +40,12 @@ const defaultForm = { protocol: 'SFTP', username: '', password: '', confirmPassw
 const defaultEditQos = { uploadBytesPerSecond: '', downloadBytesPerSecond: '', maxConcurrentSessions: '', priority: '', burstAllowancePercent: '' }
 
 export default function Accounts() {
+  const navigate = useNavigate()
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
   const [editAccount, setEditAccount] = useState(null)
+  const [detailAccount, setDetailAccount] = useState(null)
+  const [drawerTrackId, setDrawerTrackId] = useState(null)
   const [search, setSearch] = useState('')
   const [form, setForm] = useState({ ...defaultForm })
   const [editQos, setEditQos] = useState({ ...defaultEditQos })
@@ -132,7 +139,7 @@ export default function Accounts() {
               {filtered.map(acc => {
                 const tier = getQosTier(acc)
                 return (
-                <tr key={acc.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => openEdit(acc)}>
+                <tr key={acc.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => openEdit(acc)} onDoubleClick={(e) => { e.stopPropagation(); setDetailAccount(acc) }}>
                   <td className="table-cell font-medium">{acc.username}</td>
                   <td className="table-cell"><span className="badge badge-blue">{acc.protocol}</span></td>
                   <td className="table-cell text-xs text-secondary">{acc.serverInstance || <span className="text-muted">Any</span>}</td>
@@ -329,6 +336,118 @@ export default function Accounts() {
           </form>
         </Modal>
       )}
+
+      {/* Account Detail Modal with Recent Transfers */}
+      {detailAccount && (
+        <Modal title={`Account: ${detailAccount.username}`} size="xl" onClose={() => setDetailAccount(null)}>
+          <div className="space-y-5">
+            {/* Account Info */}
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-xs text-secondary">Username</span>
+                <p className="font-medium text-primary">{detailAccount.username}</p>
+              </div>
+              <div>
+                <span className="text-xs text-secondary">Protocol</span>
+                <p className="font-medium text-primary"><span className="badge badge-blue">{detailAccount.protocol}</span></p>
+              </div>
+              <div>
+                <span className="text-xs text-secondary">Status</span>
+                <p><span className={`badge ${detailAccount.active ? 'badge-green' : 'badge-red'}`}>{detailAccount.active ? 'Active' : 'Disabled'}</span></p>
+              </div>
+              <div>
+                <span className="text-xs text-secondary">QoS Tier</span>
+                <p><span className={`badge ${getQosTier(detailAccount).color}`}>{getQosTier(detailAccount).label}</span></p>
+              </div>
+              <div>
+                <span className="text-xs text-secondary">Bandwidth</span>
+                <p className="text-xs text-primary">&uarr;{formatBps(detailAccount.qosUploadBytesPerSecond)} / &darr;{formatBps(detailAccount.qosDownloadBytesPerSecond)}</p>
+              </div>
+              <div>
+                <span className="text-xs text-secondary">Created</span>
+                <p className="text-xs text-primary">{detailAccount.createdAt ? format(new Date(detailAccount.createdAt), 'MMM d, yyyy HH:mm') : '-'}</p>
+              </div>
+            </div>
+
+            {/* Recent Transfers */}
+            <div className="border-t border-border pt-4">
+              <h4 className="text-sm font-semibold text-primary mb-3">Recent Transfers</h4>
+              <AccountTransfers username={detailAccount.username} navigate={navigate} onTrackClick={setDrawerTrackId} />
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      <ExecutionDetailDrawer trackId={drawerTrackId} open={!!drawerTrackId} onClose={() => setDrawerTrackId(null)} />
+    </div>
+  )
+}
+
+/* Sub-component: fetches and displays recent transfers for an account */
+function AccountTransfers({ username, navigate, onTrackClick }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['account-transfers', username],
+    queryFn: () => onboardingApi.get('/api/activity-monitor', {
+      params: { sourceUsername: username, size: 10 }
+    }).then(r => r.data).catch(() => ({ content: [] })),
+    enabled: !!username,
+    staleTime: 10_000,
+  })
+
+  const transfers = data?.content || []
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-6">
+        <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (transfers.length === 0) {
+    return <p className="text-sm text-secondary text-center py-4">No recent transfers for this account.</p>
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border">
+            <th className="table-header">Filename</th>
+            <th className="table-header">Status</th>
+            <th className="table-header">Date</th>
+            <th className="table-header">Track ID</th>
+            <th className="table-header">File</th>
+          </tr>
+        </thead>
+        <tbody>
+          {transfers.map((t, i) => (
+            <tr key={t.trackId || i} className="table-row hover:bg-[rgba(100,140,255,0.06)]">
+              <td className="table-cell text-xs truncate max-w-[160px]" title={t.filename}>{t.filename || '--'}</td>
+              <td className="table-cell">
+                <span className={`badge ${t.status === 'MOVED_TO_SENT' ? 'badge-green' : t.status === 'FAILED' ? 'badge-red' : t.status === 'PENDING' ? 'badge-yellow' : 'badge-blue'}`}>
+                  {t.status?.replace(/_/g, ' ') || '--'}
+                </span>
+              </td>
+              <td className="table-cell text-xs text-secondary font-mono">{t.uploadedAt ? format(new Date(t.uploadedAt), 'MM/dd HH:mm') : '--'}</td>
+              <td className="table-cell">
+                {t.trackId ? (
+                  <button
+                    onClick={() => navigate(`/journey?trackId=${encodeURIComponent(t.trackId)}`)}
+                    className="text-blue-600 hover:text-blue-800 hover:underline font-mono text-xs truncate max-w-[100px] block"
+                    title={t.trackId}
+                  >
+                    {t.trackId.length > 10 ? t.trackId.substring(0, 10) + '...' : t.trackId}
+                  </button>
+                ) : <span className="text-muted text-xs">--</span>}
+              </td>
+              <td className="table-cell">
+                {t.trackId && <FileDownloadButton trackId={t.trackId} filename={t.filename} size={t.fileSizeBytes} />}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }

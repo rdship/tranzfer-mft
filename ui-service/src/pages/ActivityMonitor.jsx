@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom'
 import { onboardingApi, configApi } from '../api/client'
 import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
+import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer'
+import FileDownloadButton from '../components/FileDownloadButton'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import {
@@ -413,6 +415,9 @@ export default function ActivityMonitor() {
   // Schedule retry state
   const [scheduleModal, setScheduleModal] = useState(null) // { trackId, filename }
   const [scheduleInput, setScheduleInput] = useState('')
+
+  // Execution detail drawer state (double-click)
+  const [drawerTrackId, setDrawerTrackId] = useState(null)
 
   // Debounced text filters
   const debouncedFilename = useDebounce(filenameFilter, 300)
@@ -921,6 +926,7 @@ export default function ActivityMonitor() {
                         <tr
                           className={`table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)] group ${isExpanded ? 'bg-blue-50/70' : ''} ${isSelected ? 'bg-red-50/50' : ''}`}
                           onClick={() => handleRowClick(row)}
+                          onDoubleClick={() => row.trackId && setDrawerTrackId(row.trackId)}
                         >
                           <td className="table-cell w-10" onClick={e => e.stopPropagation()}>
                             {selectable ? (
@@ -945,16 +951,22 @@ export default function ActivityMonitor() {
                             </td>
                           ))}
                           <td className="table-cell w-24" onClick={e => e.stopPropagation()}>
-                            {row.status === 'FAILED' && (
-                              <button
-                                onClick={() => { setScheduleModal({ trackId: row.trackId, filename: row.filename }); setScheduleInput('') }}
-                                className="text-[10px] text-muted hover:text-blue-600 px-1.5 py-0.5 rounded hover:bg-blue-50 transition-colors whitespace-nowrap"
-                                title="Schedule retry at a specific time"
-                              >
-                                <ClockIcon className="w-3.5 h-3.5 inline mr-0.5" />
-                                Schedule
-                              </button>
-                            )}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <FileDownloadButton
+                                trackId={row.trackId}
+                                filename={row.filename}
+                              />
+                              {row.status === 'FAILED' && (
+                                <button
+                                  onClick={() => { setScheduleModal({ trackId: row.trackId, filename: row.filename }); setScheduleInput('') }}
+                                  className="text-[10px] text-muted hover:text-blue-600 px-1.5 py-0.5 rounded hover:bg-blue-50 transition-colors whitespace-nowrap"
+                                  title="Schedule retry at a specific time"
+                                >
+                                  <ClockIcon className="w-3.5 h-3.5 inline mr-0.5" />
+                                  Schedule
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                         {isExpanded && (
@@ -1178,6 +1190,14 @@ export default function ActivityMonitor() {
           </div>
         </>
       )}
+
+      {/* Execution Detail Drawer — triggered by double-clicking a row */}
+      <ExecutionDetailDrawer
+        trackId={drawerTrackId}
+        open={!!drawerTrackId}
+        onClose={() => setDrawerTrackId(null)}
+        showActions
+      />
 
       {/* Slide-in animation via inline style tag */}
       <style>{`
