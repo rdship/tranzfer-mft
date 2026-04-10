@@ -795,7 +795,14 @@ export default function Flows() {
       closeEditor()
       toast.success(editingId ? 'Flow updated' : 'Flow created')
     },
-    onError: err => toast.error(err.response?.data?.error || err.response?.data?.message || 'Failed to save flow')
+    onError: err => {
+      const status = err?.response?.status
+      const serverMsg = err?.response?.data?.error || err?.response?.data?.message
+      if (status === 409) toast.error(serverMsg || 'A flow with this name already exists. Try a different name.')
+      else if (status === 400) toast.error(serverMsg || 'Invalid flow configuration. Please check your inputs.')
+      else if (status >= 500) toast.error('Something went wrong on the server. Please try again or contact support.')
+      else toast.error(serverMsg || 'Failed to save flow')
+    }
   })
 
   const toggleMut = useMutation({

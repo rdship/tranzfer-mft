@@ -6,6 +6,7 @@ import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import toast from 'react-hot-toast'
+import FormField, { friendlyError } from '../components/FormField'
 import {
   PlusIcon,
   TrashIcon,
@@ -107,6 +108,7 @@ export default function Partners() {
   const [search, setSearch] = useState('')
   const [form, setForm] = useState(EMPTY_FORM)
   const [openActions, setOpenActions] = useState(null)
+  const [formErrors, setFormErrors] = useState({})
 
   const { data: partners = [], isLoading } = useQuery({
     queryKey: ['partners', statusFilter],
@@ -125,9 +127,10 @@ export default function Partners() {
       qc.invalidateQueries(['partner-stats'])
       setShowCreate(false)
       setForm(EMPTY_FORM)
+      setFormErrors({})
       toast.success('Partner created')
     },
-    onError: err => toast.error(err.response?.data?.error || 'Failed to create partner'),
+    onError: err => toast.error(friendlyError(err)),
   })
 
   const deleteMut = useMutation({
@@ -137,7 +140,7 @@ export default function Partners() {
       qc.invalidateQueries(['partner-stats'])
       toast.success('Partner deleted')
     },
-    onError: err => toast.error(err.response?.data?.error || 'Failed to delete partner'),
+    onError: err => toast.error(friendlyError(err)),
   })
 
   const activateMut = useMutation({
@@ -147,7 +150,7 @@ export default function Partners() {
       qc.invalidateQueries(['partner-stats'])
       toast.success('Partner activated')
     },
-    onError: err => toast.error(err.response?.data?.error || 'Failed to activate partner'),
+    onError: err => toast.error(friendlyError(err)),
   })
 
   const suspendMut = useMutation({
@@ -157,7 +160,7 @@ export default function Partners() {
       qc.invalidateQueries(['partner-stats'])
       toast.success('Partner suspended')
     },
-    onError: err => toast.error(err.response?.data?.error || 'Failed to suspend partner'),
+    onError: err => toast.error(friendlyError(err)),
   })
 
   const totalPartners = (stats.ACTIVE || 0) + (stats.PENDING || 0) + (stats.SUSPENDED || 0) + (stats.OFFBOARDED || 0)
@@ -179,10 +182,16 @@ export default function Partners() {
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    if (!form.companyName.trim()) {
-      toast.error('Company name is required')
-      return
+    const errs = {}
+    if (!form.companyName.trim()) errs.companyName = 'Company name is required'
+    if (form.primaryContactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.primaryContactEmail)) {
+      errs.primaryContactEmail = 'Please enter a valid email address'
     }
+    if (form.website && form.website.trim()) {
+      try { new URL(form.website) } catch { errs.website = 'Please enter a valid URL' }
+    }
+    setFormErrors(errs)
+    if (Object.keys(errs).length > 0) return
     createMut.mutate({
       ...form,
       protocolsEnabled: JSON.stringify(form.protocolsEnabled),
@@ -426,47 +435,44 @@ export default function Partners() {
 
       {/* Create Partner Modal */}
       {showCreate && (
-        <Modal title="New Trading Partner" onClose={() => { setShowCreate(false); setForm(EMPTY_FORM) }} size="lg">
+        <Modal title="New Trading Partner" onClose={() => { setShowCreate(false); setForm(EMPTY_FORM); setFormErrors({}) }} size="lg">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Company Information */}
             <div>
               <h3 className="text-sm font-semibold text-gray-900 mb-3">Company Information</h3>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label>Company Name *</label>
+                <FormField label="Company Name" required error={formErrors.companyName} helper="Legal entity name used in reports and compliance.">
                   <input
-                    required
                     placeholder="Acme Corporation"
                     value={form.companyName}
-                    onChange={e => setForm({ ...form, companyName: e.target.value })}
+                    onChange={e => { setForm({ ...form, companyName: e.target.value }); setFormErrors(prev => { const n = {...prev}; delete n.companyName; return n }) }}
+                    className={formErrors.companyName ? 'border-red-300 focus:ring-red-500' : ''}
                   />
-                </div>
-                <div>
-                  <label>Display Name</label>
+                </FormField>
+                <FormField label="Display Name" helper="Short name shown in dashboards. Defaults to company name.">
                   <input
                     placeholder="Acme Corp"
                     value={form.displayName}
                     onChange={e => setForm({ ...form, displayName: e.target.value })}
                   />
-                </div>
-                <div>
-                  <label>Industry</label>
+                </FormField>
+                <FormField label="Industry" helper="Helps configure compliance rules.">
                   <select value={form.industry} onChange={e => setForm({ ...form, industry: e.target.value })}>
                     <option value="">Select industry...</option>
                     {INDUSTRIES.map(ind => (
                       <option key={ind} value={ind}>{ind}</option>
                     ))}
                   </select>
-                </div>
-                <div>
-                  <label>Website</label>
+                </FormField>
+                <FormField label="Website" error={formErrors.website}>
                   <input
                     type="url"
                     placeholder="https://example.com"
                     value={form.website}
-                    onChange={e => setForm({ ...form, website: e.target.value })}
+                    onChange={e => { setForm({ ...form, website: e.target.value }); setFormErrors(prev => { const n = {...prev}; delete n.website; return n }) }}
+                    className={formErrors.website ? 'border-red-300 focus:ring-red-500' : ''}
                   />
-                </div>
+                </FormField>
               </div>
             </div>
 
@@ -474,25 +480,23 @@ export default function Partners() {
             <div>
               <h3 className="text-sm font-semibold text-gray-900 mb-3">Partner Configuration</h3>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label>Partner Type</label>
+                <FormField label="Partner Type" helper="Defines how this partner is categorized in reports.">
                   <select value={form.partnerType} onChange={e => setForm({ ...form, partnerType: e.target.value })}>
                     {PARTNER_TYPES.map(type => (
                       <option key={type} value={type}>{type}</option>
                     ))}
                   </select>
-                </div>
-                <div>
-                  <label>SLA Tier</label>
+                </FormField>
+                <FormField label="SLA Tier" helper="Determines transfer limits and retention.">
                   <select value={form.slaTier} onChange={e => setForm({ ...form, slaTier: e.target.value })}>
                     {SLA_TIERS.map(tier => (
                       <option key={tier} value={tier}>{tier}</option>
                     ))}
                   </select>
-                </div>
+                </FormField>
               </div>
               <div className="mt-4">
-                <label>Protocols</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Protocols</label>
                 <div className="flex flex-wrap gap-3 mt-1">
                   {PROTOCOLS.map(proto => (
                     <label key={proto} className="flex items-center gap-2 cursor-pointer">
@@ -506,6 +510,7 @@ export default function Partners() {
                     </label>
                   ))}
                 </div>
+                <p className="mt-1 text-xs text-gray-400">Select which file transfer protocols this partner will use.</p>
               </div>
             </div>
 
@@ -513,52 +518,49 @@ export default function Partners() {
             <div>
               <h3 className="text-sm font-semibold text-gray-900 mb-3">Primary Contact</h3>
               <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label>Contact Name</label>
+                <FormField label="Contact Name" helper="Primary point of contact for this partner.">
                   <input
                     placeholder="Jane Smith"
                     value={form.primaryContactName}
                     onChange={e => setForm({ ...form, primaryContactName: e.target.value })}
                   />
-                </div>
-                <div>
-                  <label>Email</label>
+                </FormField>
+                <FormField label="Email" error={formErrors.primaryContactEmail} helper="Receives transfer notifications.">
                   <input
                     type="email"
                     placeholder="jane@example.com"
                     value={form.primaryContactEmail}
-                    onChange={e => setForm({ ...form, primaryContactEmail: e.target.value })}
+                    onChange={e => { setForm({ ...form, primaryContactEmail: e.target.value }); setFormErrors(prev => { const n = {...prev}; delete n.primaryContactEmail; return n }) }}
+                    className={formErrors.primaryContactEmail ? 'border-red-300 focus:ring-red-500' : ''}
                   />
-                </div>
-                <div>
-                  <label>Phone</label>
+                </FormField>
+                <FormField label="Phone">
                   <input
                     type="tel"
                     placeholder="+1 (555) 000-0000"
                     value={form.primaryContactPhone}
                     onChange={e => setForm({ ...form, primaryContactPhone: e.target.value })}
                   />
-                </div>
+                </FormField>
               </div>
             </div>
 
             {/* Notes */}
-            <div>
-              <label>Notes</label>
+            <FormField label="Notes" helper="Internal notes visible only to platform administrators.">
               <textarea
                 rows={3}
                 placeholder="Additional notes about this partner..."
                 value={form.notes}
                 onChange={e => setForm({ ...form, notes: e.target.value })}
               />
-            </div>
+            </FormField>
 
             {/* Actions */}
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
               <button
                 type="button"
                 className="btn-secondary"
-                onClick={() => { setShowCreate(false); setForm(EMPTY_FORM) }}
+                onClick={() => { setShowCreate(false); setForm(EMPTY_FORM); setFormErrors({}) }}
               >
                 Cancel
               </button>

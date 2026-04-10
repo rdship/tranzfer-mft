@@ -20,6 +20,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { createPartner } from '../api/partners'
 import { createAccount } from '../api/accounts'
+import { friendlyError } from '../components/FormField'
 import LoadingSpinner from '../components/LoadingSpinner'
 
 const STEPS = [
@@ -113,6 +114,7 @@ export default function PartnerSetup() {
   const [skipAccounts, setSkipAccounts] = useState(false)
   const [expandedProtocols, setExpandedProtocols] = useState({})
   const [showPasswords, setShowPasswords] = useState({})
+  const [stepErrors, setStepErrors] = useState({})
 
   const updateForm = (fields) => setForm((prev) => ({ ...prev, ...fields }))
 
@@ -128,44 +130,40 @@ export default function PartnerSetup() {
       toast.success('Partner onboarded successfully!')
       navigate(`/partners/${partner.id}`)
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Failed to create partner')
+    onError: (err) => toast.error(friendlyError(err))
   })
 
-  // Validation per step
+  // Validation per step — sets inline errors and returns boolean
   const validateStep = (s) => {
+    const errs = {}
     switch (s) {
       case 1:
-        if (!form.companyName.trim()) {
-          toast.error('Company name is required')
-          return false
-        }
-        return true
+        if (!form.companyName.trim()) errs.companyName = 'Company name is required'
+        break
       case 2:
-        if (form.protocolsEnabled.length === 0) {
-          toast.error('Select at least one protocol')
-          return false
-        }
-        return true
+        if (form.protocolsEnabled.length === 0) errs.protocols = 'Select at least one protocol'
+        break
       case 3:
         if (form.contacts.length === 0) {
-          toast.error('At least one contact is required')
-          return false
-        }
-        for (let i = 0; i < form.contacts.length; i++) {
-          const c = form.contacts[i]
-          if (!c.name.trim() || !c.email.trim()) {
-            toast.error(`Contact ${i + 1}: Name and email are required`)
-            return false
+          errs.contacts = 'At least one contact is required'
+        } else {
+          for (let i = 0; i < form.contacts.length; i++) {
+            const c = form.contacts[i]
+            if (!c.name.trim()) errs[`contact_${i}_name`] = 'Name is required'
+            if (!c.email.trim()) errs[`contact_${i}_email`] = 'Email is required'
+            else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email)) errs[`contact_${i}_email`] = 'Enter a valid email address'
           }
         }
-        return true
-      case 4:
-        return true
-      case 5:
-        return true
+        break
       default:
-        return true
+        break
     }
+    setStepErrors(errs)
+    if (Object.keys(errs).length > 0) {
+      toast.error('Please fix the highlighted fields before continuing')
+      return false
+    }
+    return true
   }
 
   const handleNext = () => {
@@ -193,7 +191,7 @@ export default function PartnerSetup() {
     }
   }
 
-  const handleBack = () => setStep((prev) => Math.max(prev - 1, 1))
+  const handleBack = () => { setStepErrors({}); setStep((prev) => Math.max(prev - 1, 1)) }
 
   const handleSubmit = () => {
     const payload = {
@@ -319,7 +317,8 @@ export default function PartnerSetup() {
   const renderStep1 = () => (
     <div className="card">
       <h2 className="text-xl font-bold text-gray-900">Company Information</h2>
-      <p className="text-sm text-gray-500 mb-6">Tell us about the partner organization</p>
+      <p className="text-sm text-gray-500 mb-2">Tell us about the partner organization</p>
+      <p className="text-xs text-gray-400 mb-6">This information identifies the partner across the platform and appears in compliance reports.</p>
 
       <div className="grid grid-cols-2 gap-6">
         <div>
@@ -331,7 +330,10 @@ export default function PartnerSetup() {
             value={form.companyName}
             onChange={(e) => updateForm({ companyName: e.target.value })}
             placeholder="Acme Corporation"
+            className={stepErrors.companyName ? 'border-red-300 focus:ring-red-500' : ''}
           />
+          {stepErrors.companyName && <p className="mt-1 text-xs text-red-600">{stepErrors.companyName}</p>}
+          {!stepErrors.companyName && <p className="mt-1 text-xs text-gray-400">The legal entity name. Used to generate the partner slug for API references.</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Display Name</label>
@@ -341,6 +343,7 @@ export default function PartnerSetup() {
             onChange={(e) => updateForm({ displayName: e.target.value })}
             placeholder="Acme (optional)"
           />
+          <p className="mt-1 text-xs text-gray-400">Short name shown in dashboards. Defaults to Company Name if empty.</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Industry</label>
@@ -352,6 +355,7 @@ export default function PartnerSetup() {
               </option>
             ))}
           </select>
+          <p className="mt-1 text-xs text-gray-400">Helps configure compliance rules and reporting categories.</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
@@ -361,6 +365,7 @@ export default function PartnerSetup() {
             onChange={(e) => updateForm({ website: e.target.value })}
             placeholder="https://www.example.com"
           />
+          <p className="mt-1 text-xs text-gray-400">Partner's corporate website for reference.</p>
         </div>
       </div>
 
@@ -420,9 +425,11 @@ export default function PartnerSetup() {
   const renderStep2 = () => (
     <div className="card">
       <h2 className="text-xl font-bold text-gray-900">Protocol Selection</h2>
-      <p className="text-sm text-gray-500 mb-6">
-        Choose which file transfer protocols this partner will use
+      <p className="text-sm text-gray-500 mb-2">
+        Choose which file transfer protocols this partner will use <span className="text-red-500">*</span>
       </p>
+      <p className="text-xs text-gray-400 mb-6">Each protocol creates a dedicated transfer account in the next step. You can add more later.</p>
+      {stepErrors.protocols && <p className="mb-4 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{stepErrors.protocols}</p>}
 
       <div className="grid grid-cols-1 gap-4">
         {PROTOCOLS.map((proto) => {
@@ -477,7 +484,9 @@ export default function PartnerSetup() {
   const renderStep3 = () => (
     <div className="card">
       <h2 className="text-xl font-bold text-gray-900">Contact Information</h2>
-      <p className="text-sm text-gray-500 mb-6">Add contacts for this partner</p>
+      <p className="text-sm text-gray-500 mb-2">Add contacts for this partner</p>
+      <p className="text-xs text-gray-400 mb-6">Contacts receive notifications about transfer events and are used for emergency escalation.</p>
+      {stepErrors.contacts && <p className="mb-4 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{stepErrors.contacts}</p>}
 
       <div className="space-y-4">
         {form.contacts.map((contact, idx) => (
@@ -518,9 +527,11 @@ export default function PartnerSetup() {
                 <input
                   type="text"
                   value={contact.name}
-                  onChange={(e) => updateContact(idx, { name: e.target.value })}
+                  onChange={(e) => { updateContact(idx, { name: e.target.value }); setStepErrors(prev => { const n = {...prev}; delete n[`contact_${idx}_name`]; return n }) }}
                   placeholder="John Doe"
+                  className={stepErrors[`contact_${idx}_name`] ? 'border-red-300 focus:ring-red-500' : ''}
                 />
+                {stepErrors[`contact_${idx}_name`] && <p className="mt-1 text-xs text-red-600">{stepErrors[`contact_${idx}_name`]}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -529,9 +540,11 @@ export default function PartnerSetup() {
                 <input
                   type="email"
                   value={contact.email}
-                  onChange={(e) => updateContact(idx, { email: e.target.value })}
+                  onChange={(e) => { updateContact(idx, { email: e.target.value }); setStepErrors(prev => { const n = {...prev}; delete n[`contact_${idx}_email`]; return n }) }}
                   placeholder="john@example.com"
+                  className={stepErrors[`contact_${idx}_email`] ? 'border-red-300 focus:ring-red-500' : ''}
                 />
+                {stepErrors[`contact_${idx}_email`] && <p className="mt-1 text-xs text-red-600">{stepErrors[`contact_${idx}_email`]}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
@@ -541,6 +554,7 @@ export default function PartnerSetup() {
                   onChange={(e) => updateContact(idx, { phone: e.target.value })}
                   placeholder="+1 (555) 123-4567"
                 />
+                <p className="mt-1 text-xs text-gray-400">Include country code for international partners.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
@@ -554,6 +568,7 @@ export default function PartnerSetup() {
                     </option>
                   ))}
                 </select>
+                <p className="mt-1 text-xs text-gray-400">Determines notification preferences and escalation path.</p>
               </div>
             </div>
           </div>
@@ -575,7 +590,8 @@ export default function PartnerSetup() {
   const renderStep4 = () => (
     <div className="card">
       <h2 className="text-xl font-bold text-gray-900">Transfer Accounts</h2>
-      <p className="text-sm text-gray-500 mb-6">Create accounts for each selected protocol</p>
+      <p className="text-sm text-gray-500 mb-2">Create accounts for each selected protocol</p>
+      <p className="text-xs text-gray-400 mb-6">Each account gives the partner credentials to connect via the selected protocol. Usernames are auto-generated but editable.</p>
 
       <div className="flex items-center gap-3 mb-6">
         <input
@@ -696,7 +712,8 @@ export default function PartnerSetup() {
   const renderStep5 = () => (
     <div className="card">
       <h2 className="text-xl font-bold text-gray-900">Service Level Agreement</h2>
-      <p className="text-sm text-gray-500 mb-6">Configure performance and retention settings</p>
+      <p className="text-sm text-gray-500 mb-2">Configure performance and retention settings</p>
+      <p className="text-xs text-gray-400 mb-6">The SLA tier determines transfer limits, file retention, and maximum file sizes. You can override individual values below.</p>
 
       <div className="grid grid-cols-2 gap-4 mb-8">
         {SLA_TIERS.map((tier) => {
@@ -946,10 +963,27 @@ export default function PartnerSetup() {
         </div>
       </div>
 
-      {/* AI tip */}
-      <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700">
-        <span className="font-medium">Tip:</span> Enable AI-powered features like smart EDI mapping and natural language commands in{' '}
-        <a href="/settings" className="underline font-medium">Settings → AI</a>.
+      {/* What happens next */}
+      <div className="card border-2 border-blue-100 bg-blue-50/50">
+        <h3 className="text-sm font-semibold text-blue-900 mb-3">What happens when you click "Create Partner"?</h3>
+        <ol className="space-y-2 text-sm text-blue-800">
+          <li className="flex items-start gap-2">
+            <span className="flex-shrink-0 w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold mt-0.5">1</span>
+            <span>A new partner record is created with status <strong>PENDING</strong> and a unique slug for API references.</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="flex-shrink-0 w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold mt-0.5">2</span>
+            <span>Transfer accounts are provisioned for each selected protocol with home directories created automatically.</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="flex-shrink-0 w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold mt-0.5">3</span>
+            <span>Contacts are saved and the primary contact will receive onboarding notifications (if configured).</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="flex-shrink-0 w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold mt-0.5">4</span>
+            <span>You'll be redirected to the Partner Detail page where you can <strong>activate</strong> the partner, configure flows, and set up webhooks.</span>
+          </li>
+        </ol>
       </div>
     </div>
   )
@@ -976,11 +1010,18 @@ export default function PartnerSetup() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Partner Onboarding</h1>
-        <p className="text-gray-500 text-sm">
-          Set up a new trading partner step by step
+      {/* Hero Header */}
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-6 text-white">
+        <h1 className="text-2xl font-bold">Onboard New Partner</h1>
+        <p className="text-blue-100 mt-1 text-sm">
+          This wizard will guide you through setting up a new trading partner in {STEPS.length} steps:
+          company details, protocol selection, contacts, transfer accounts, SLA configuration, and final review.
         </p>
+        <div className="flex items-center gap-4 mt-3 text-xs text-blue-200">
+          <span>Step {step} of {STEPS.length}: <strong className="text-white">{STEPS[step - 1].label}</strong></span>
+          <span className="text-blue-300">|</span>
+          <span>Estimated time: 3-5 minutes</span>
+        </div>
       </div>
 
       {renderStepIndicator()}

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getAccounts, createAccount, updateAccount, deleteAccount, toggleAccount, getServerInstancesActive } from '../api/accounts'
 import Modal from '../components/Modal'
+import FormField, { friendlyError } from '../components/FormField'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import toast from 'react-hot-toast'
@@ -44,12 +45,13 @@ export default function Accounts() {
 
   const { data: accounts = [], isLoading } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts })
   const { data: serverInstances = [] } = useQuery({ queryKey: ['server-instances-active'], queryFn: getServerInstancesActive })
+  const [createErrors, setCreateErrors] = useState({})
   const createMut = useMutation({ mutationFn: createAccount,
-    onSuccess: () => { qc.invalidateQueries(['accounts']); setShowCreate(false); setForm({ ...defaultForm }); toast.success('Account created') },
-    onError: err => toast.error(err.response?.data?.error || 'Failed') })
+    onSuccess: () => { qc.invalidateQueries(['accounts']); setShowCreate(false); setForm({ ...defaultForm }); setCreateErrors({}); toast.success('Account created') },
+    onError: err => toast.error(friendlyError(err)) })
   const updateMut = useMutation({ mutationFn: ({ id, data }) => updateAccount(id, data),
     onSuccess: () => { qc.invalidateQueries(['accounts']); setEditAccount(null); toast.success('Account updated') },
-    onError: err => toast.error(err.response?.data?.error || 'Update failed') })
+    onError: err => toast.error(friendlyError(err)) })
   const deleteMut = useMutation({ mutationFn: deleteAccount,
     onSuccess: () => { qc.invalidateQueries(['accounts']); toast.success('Account deleted') } })
   const toggleMut = useMutation({ mutationFn: ({ id, active }) => toggleAccount(id, active),
@@ -171,33 +173,39 @@ export default function Accounts() {
 
       {/* Create Account Modal */}
       {showCreate && (
-        <Modal title="Create Transfer Account" onClose={() => setShowCreate(false)}>
-          <form onSubmit={e => { e.preventDefault(); if (form.password !== form.confirmPassword) { toast.error('Passwords do not match'); return }; const { confirmPassword, ...payload } = form; createMut.mutate(payload) }} className="space-y-4">
-            <div>
-              <label>Protocol</label>
+        <Modal title="Create Transfer Account" onClose={() => { setShowCreate(false); setCreateErrors({}) }}>
+          <form onSubmit={e => {
+            e.preventDefault()
+            const errs = {}
+            if (!form.username.trim()) errs.username = 'Username is required'
+            if (!form.password) errs.password = 'Password is required'
+            else if (form.password.length < 8) errs.password = 'Password must be at least 8 characters'
+            if (form.password !== form.confirmPassword) errs.confirmPassword = 'Passwords do not match'
+            setCreateErrors(errs)
+            if (Object.keys(errs).length > 0) return
+            const { confirmPassword, ...payload } = form
+            createMut.mutate(payload)
+          }} className="space-y-4">
+            <FormField label="Protocol" helper="The file transfer protocol for this account.">
               <select value={form.protocol} onChange={e => setForm(f => ({ ...f, protocol: e.target.value, serverInstance: '' }))}>
                 {PROTOCOLS.map(p => <option key={p}>{p}</option>)}
               </select>
-            </div>
-            <div>
-              <label>Username</label>
-              <input value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} required placeholder="e.g. partner_acme" />
-            </div>
-            <div>
-              <label>Password</label>
-              <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required />
-            </div>
-            <div>
-              <label>Confirm Password</label>
-              <input type="password" value={form.confirmPassword} onChange={e => setForm(f => ({ ...f, confirmPassword: e.target.value }))} required />
-              {form.confirmPassword && form.password !== form.confirmPassword && (
-                <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
-              )}
-            </div>
-            <div>
-              <label>Home Directory</label>
+            </FormField>
+            <FormField label="Username" required error={createErrors.username} helper="Unique login name for this transfer account.">
+              <input value={form.username} onChange={e => { setForm(f => ({ ...f, username: e.target.value })); setCreateErrors(prev => { const n = {...prev}; delete n.username; return n }) }} placeholder="e.g. partner_acme"
+                className={createErrors.username ? 'border-red-300 focus:ring-red-500' : ''} />
+            </FormField>
+            <FormField label="Password" required error={createErrors.password} helper="Minimum 8 characters. Used for protocol authentication.">
+              <input type="password" value={form.password} onChange={e => { setForm(f => ({ ...f, password: e.target.value })); setCreateErrors(prev => { const n = {...prev}; delete n.password; return n }) }}
+                className={createErrors.password ? 'border-red-300 focus:ring-red-500' : ''} />
+            </FormField>
+            <FormField label="Confirm Password" required error={createErrors.confirmPassword}>
+              <input type="password" value={form.confirmPassword} onChange={e => { setForm(f => ({ ...f, confirmPassword: e.target.value })); setCreateErrors(prev => { const n = {...prev}; delete n.confirmPassword; return n }) }}
+                className={createErrors.confirmPassword ? 'border-red-300 focus:ring-red-500' : ''} />
+            </FormField>
+            <FormField label="Home Directory" helper="Root directory for this account's files (e.g., /data/sftp/partner).">
               <input value={form.homeDir} onChange={e => setForm(f => ({ ...f, homeDir: e.target.value }))} placeholder="/data/sftp/partner_acme" />
-            </div>
+            </FormField>
             {filteredInstances.length > 0 && (
               <div>
                 <label>Server Instance</label>
@@ -256,8 +264,8 @@ export default function Accounts() {
             </div>
 
             <div className="flex gap-3 justify-end pt-2">
-              <button type="button" className="btn-secondary" onClick={() => setShowCreate(false)}>Cancel</button>
-              <button type="submit" className="btn-primary" disabled={createMut.isPending || (form.confirmPassword && form.password !== form.confirmPassword)}>
+              <button type="button" className="btn-secondary" onClick={() => { setShowCreate(false); setCreateErrors({}) }}>Cancel</button>
+              <button type="submit" className="btn-primary" disabled={createMut.isPending}>
                 {createMut.isPending ? 'Creating...' : 'Create Account'}
               </button>
             </div>

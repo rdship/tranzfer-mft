@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
+import { friendlyError } from '../components/FormField'
 import { format } from 'date-fns'
 import {
   ArrowLeftIcon,
@@ -99,9 +100,10 @@ export default function PartnerDetail() {
   const [deleteWebhookConfirm, setDeleteWebhookConfirm] = useState(null)
 
   // Main partner detail
-  const { data: detail, isLoading } = useQuery({
+  const { data: detail, isLoading, isError, error } = useQuery({
     queryKey: ['partner', id],
     queryFn: () => getPartner(id),
+    retry: 1,
   })
 
   // Conditional sub-resource queries
@@ -148,6 +150,7 @@ export default function PartnerDetail() {
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to suspend partner'),
   })
 
+  const [accountErrors, setAccountErrors] = useState({})
   const createAccountMut = useMutation({
     mutationFn: (data) => createAccount(data),
     onSuccess: () => {
@@ -155,9 +158,10 @@ export default function PartnerDetail() {
       qc.invalidateQueries(['partner', id])
       setShowAccountModal(false)
       setAccountForm(EMPTY_ACCOUNT)
+      setAccountErrors({})
       toast.success('Account created')
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Failed to create account'),
+    onError: (err) => toast.error(friendlyError(err)),
   })
 
   const updateMut = useMutation({
@@ -176,7 +180,7 @@ export default function PartnerDetail() {
       setShowWebhookModal(false); setEditingWebhook(null); setWebhookForm({ ...EMPTY_WEBHOOK })
       toast.success('Webhook created')
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Failed to create webhook'),
+    onError: (err) => toast.error(friendlyError(err)),
   })
 
   const updateWebhookMut = useMutation({
@@ -186,7 +190,7 @@ export default function PartnerDetail() {
       setShowWebhookModal(false); setEditingWebhook(null); setWebhookForm({ ...EMPTY_WEBHOOK })
       toast.success('Webhook updated')
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Failed to update webhook'),
+    onError: (err) => toast.error(friendlyError(err)),
   })
 
   const deleteWebhookMut = useMutation({
@@ -200,6 +204,40 @@ export default function PartnerDetail() {
   })
 
   if (isLoading) return <LoadingSpinner text="Loading partner details..." />
+
+  if (isError) {
+    const status = error?.response?.status
+    return (
+      <div className="space-y-6">
+        <button onClick={() => navigate('/partners')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+          <ArrowLeftIcon className="w-4 h-4" /> Back to Partners
+        </button>
+        <div className="card text-center py-12">
+          <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <XCircleIcon className="w-8 h-8 text-red-400" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            {status === 404 ? 'Partner Not Found' : 'Failed to Load Partner'}
+          </h3>
+          <p className="text-sm text-gray-500 max-w-sm mx-auto mb-6">
+            {status === 404
+              ? 'This partner does not exist or has been removed. It may have been deleted by another user.'
+              : `An error occurred while loading this partner (${status || 'network error'}). Please try again.`}
+          </p>
+          <div className="flex gap-3 justify-center">
+            <button onClick={() => navigate('/partners')} className="btn-secondary">
+              <ArrowLeftIcon className="w-4 h-4" /> Back to Partners
+            </button>
+            {status !== 404 && (
+              <button onClick={() => qc.invalidateQueries(['partner', id])} className="btn-primary">
+                Retry
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (!detail || !detail.partner) {
     return (
@@ -570,51 +608,61 @@ export default function PartnerDetail() {
 
           {/* Create Account Modal */}
           {showAccountModal && (
-            <Modal title="Add Transfer Account" onClose={() => setShowAccountModal(false)}>
+            <Modal title="Add Transfer Account" onClose={() => { setShowAccountModal(false); setAccountErrors({}) }}>
               <form
                 onSubmit={(e) => {
                   e.preventDefault()
+                  const errs = {}
+                  if (!accountForm.username.trim()) errs.username = 'Username is required'
+                  if (!accountForm.password) errs.password = 'Password is required'
+                  else if (accountForm.password.length < 8) errs.password = 'Password must be at least 8 characters'
+                  setAccountErrors(errs)
+                  if (Object.keys(errs).length > 0) return
                   createAccountMut.mutate({ ...accountForm, partnerId: id })
                 }}
                 className="space-y-4"
               >
                 <div>
-                  <label>Protocol</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Protocol</label>
                   <select value={accountForm.protocol} onChange={(e) => setAccountForm((f) => ({ ...f, protocol: e.target.value }))}>
                     <option value="SFTP">SFTP</option>
                     <option value="FTP">FTP</option>
                     <option value="FTP_WEB">FTP Web</option>
                   </select>
+                  <p className="mt-1 text-xs text-gray-400">Transfer protocol for this account.</p>
                 </div>
                 <div>
-                  <label>Username</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Username <span className="text-red-500">*</span></label>
                   <input
                     value={accountForm.username}
-                    onChange={(e) => setAccountForm((f) => ({ ...f, username: e.target.value }))}
-                    required
+                    onChange={(e) => { setAccountForm((f) => ({ ...f, username: e.target.value })); setAccountErrors(prev => { const n = {...prev}; delete n.username; return n }) }}
                     placeholder="e.g. acme-sftp-user"
+                    className={accountErrors.username ? 'border-red-300 focus:ring-red-500' : ''}
                   />
+                  {accountErrors.username ? <p className="mt-1 text-xs text-red-600">{accountErrors.username}</p> : <p className="mt-1 text-xs text-gray-400">Unique login name for this partner's account.</p>}
                 </div>
                 <div>
-                  <label>Password</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Password <span className="text-red-500">*</span></label>
                   <input
                     type="password"
                     value={accountForm.password}
-                    onChange={(e) => setAccountForm((f) => ({ ...f, password: e.target.value }))}
-                    required
-                    placeholder="Enter password"
+                    onChange={(e) => { setAccountForm((f) => ({ ...f, password: e.target.value })); setAccountErrors(prev => { const n = {...prev}; delete n.password; return n }) }}
+                    placeholder="Enter password (min 8 characters)"
+                    className={accountErrors.password ? 'border-red-300 focus:ring-red-500' : ''}
                   />
+                  {accountErrors.password ? <p className="mt-1 text-xs text-red-600">{accountErrors.password}</p> : <p className="mt-1 text-xs text-gray-400">Used for protocol authentication. Minimum 8 characters.</p>}
                 </div>
                 <div>
-                  <label>Home Directory</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Home Directory</label>
                   <input
                     value={accountForm.homeDir}
                     onChange={(e) => setAccountForm((f) => ({ ...f, homeDir: e.target.value }))}
                     placeholder="/data/partners/acme"
                   />
+                  <p className="mt-1 text-xs text-gray-400">Root directory for this account. Defaults to auto-generated path.</p>
                 </div>
                 <div className="flex gap-3 justify-end pt-2 border-t">
-                  <button type="button" className="btn-secondary" onClick={() => setShowAccountModal(false)}>
+                  <button type="button" className="btn-secondary" onClick={() => { setShowAccountModal(false); setAccountErrors({}) }}>
                     Cancel
                   </button>
                   <button type="submit" className="btn-primary" disabled={createAccountMut.isPending}>

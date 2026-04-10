@@ -7,6 +7,7 @@ import ProtocolSecurityConfig from '../components/ProtocolSecurityConfig'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
+import { friendlyError } from '../components/FormField'
 import toast from 'react-hot-toast'
 import { PlusIcon, TrashIcon, SignalIcon } from '@heroicons/react/24/outline'
 import { useState } from 'react'
@@ -43,9 +44,10 @@ export default function ExternalDestinations() {
   }
 
   const { data: dests = [], isLoading } = useQuery({ queryKey: ['ext-dests'], queryFn: getExternalDestinations })
+  const [createErrors, setCreateErrors] = useState({})
   const createMut = useMutation({ mutationFn: createExternalDestination,
-    onSuccess: () => { qc.invalidateQueries(['ext-dests']); setShowCreate(false); toast.success('Destination created') },
-    onError: err => toast.error(err.response?.data?.error || 'Failed') })
+    onSuccess: () => { qc.invalidateQueries(['ext-dests']); setShowCreate(false); setCreateErrors({}); toast.success('Destination created') },
+    onError: err => toast.error(friendlyError(err)) })
   const deleteMut = useMutation({ mutationFn: deleteExternalDestination,
     onSuccess: () => { qc.invalidateQueries(['ext-dests']); toast.success('Deleted') } })
 
@@ -84,19 +86,55 @@ export default function ExternalDestinations() {
       )}
       {showCreate && (
         <Modal title="Add External Destination" onClose={() => setShowCreate(false)} size="lg">
-          <form onSubmit={e => { e.preventDefault(); createMut.mutate(form) }} className="space-y-4">
+          <form onSubmit={e => {
+            e.preventDefault()
+            const errs = {}
+            if (!form.name.trim()) errs.name = 'Destination name is required'
+            if (!form.host.trim()) errs.host = 'Host is required'
+            if (!form.username.trim()) errs.username = 'Username is required'
+            if (!form.encryptedPassword.trim()) errs.password = 'Password is required'
+            setCreateErrors(errs)
+            if (Object.keys(errs).length > 0) return
+            createMut.mutate(form)
+          }} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <div><label>Name</label><input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} required placeholder="partner-acme-sftp" /></div>
-              <div><label>Type</label><select value={form.type} onChange={e => setForm(f => ({...f, type: e.target.value, port: {SFTP:22,FTP:21,FTPS:990,HTTP:80,HTTPS:443,API:443}[e.target.value]||22}))}><option>SFTP</option><option>FTP</option><option>FTPS</option><option>HTTP</option><option>HTTPS</option><option>API</option></select></div>
+              <div>
+                <label>Name <span className="text-red-500">*</span></label>
+                <input value={form.name} onChange={e => { setForm(f => ({...f, name: e.target.value})); setCreateErrors(prev => { const n = {...prev}; delete n.name; return n }) }}
+                  placeholder="partner-acme-sftp" className={createErrors.name ? 'border-red-300 focus:ring-red-500' : ''} />
+                {createErrors.name ? <p className="mt-1 text-xs text-red-600">{createErrors.name}</p> : <p className="mt-1 text-xs text-gray-400">Unique identifier for this destination.</p>}
+              </div>
+              <div>
+                <label>Type</label>
+                <select value={form.type} onChange={e => setForm(f => ({...f, type: e.target.value, port: {SFTP:22,FTP:21,FTPS:990,HTTP:80,HTTPS:443,API:443}[e.target.value]||22}))}>
+                  <option>SFTP</option><option>FTP</option><option>FTPS</option><option>HTTP</option><option>HTTPS</option><option>API</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-400">Protocol used to connect to the external system.</p>
+              </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <div><label>Host</label><input value={form.host} onChange={e => setForm(f => ({...f, host: e.target.value}))} required placeholder="sftp.partner.com" /></div>
+              <div>
+                <label>Host <span className="text-red-500">*</span></label>
+                <input value={form.host} onChange={e => { setForm(f => ({...f, host: e.target.value})); setCreateErrors(prev => { const n = {...prev}; delete n.host; return n }) }}
+                  placeholder="sftp.partner.com" className={createErrors.host ? 'border-red-300 focus:ring-red-500' : ''} />
+                {createErrors.host && <p className="mt-1 text-xs text-red-600">{createErrors.host}</p>}
+              </div>
               <div><label>Port</label><input type="number" value={form.port} onChange={e => setForm(f => ({...f, port: parseInt(e.target.value)}))} /></div>
               <div><label>Remote Path</label><input value={form.remotePath} onChange={e => setForm(f => ({...f, remotePath: e.target.value}))} placeholder="/incoming" /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><label>Username</label><input value={form.username} onChange={e => setForm(f => ({...f, username: e.target.value}))} required /></div>
-              <div><label>Password</label><input type="password" value={form.encryptedPassword} onChange={e => setForm(f => ({...f, encryptedPassword: e.target.value}))} required /></div>
+              <div>
+                <label>Username <span className="text-red-500">*</span></label>
+                <input value={form.username} onChange={e => { setForm(f => ({...f, username: e.target.value})); setCreateErrors(prev => { const n = {...prev}; delete n.username; return n }) }}
+                  className={createErrors.username ? 'border-red-300 focus:ring-red-500' : ''} />
+                {createErrors.username && <p className="mt-1 text-xs text-red-600">{createErrors.username}</p>}
+              </div>
+              <div>
+                <label>Password <span className="text-red-500">*</span></label>
+                <input type="password" value={form.encryptedPassword} onChange={e => { setForm(f => ({...f, encryptedPassword: e.target.value})); setCreateErrors(prev => { const n = {...prev}; delete n.password; return n }) }}
+                  className={createErrors.password ? 'border-red-300 focus:ring-red-500' : ''} />
+                {createErrors.password && <p className="mt-1 text-xs text-red-600">{createErrors.password}</p>}
+              </div>
             </div>
 
             {/* Protocol Security — TLS/SSH certificates & keys */}

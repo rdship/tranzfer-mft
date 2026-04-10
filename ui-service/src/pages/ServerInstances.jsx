@@ -13,6 +13,7 @@ import ProtocolSecurityConfig from '../components/ProtocolSecurityConfig'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
+import { friendlyError } from '../components/FormField'
 import toast from 'react-hot-toast'
 import {
   PlusIcon, TrashIcon, PencilIcon, ServerStackIcon, SignalIcon, SignalSlashIcon,
@@ -214,13 +215,13 @@ export default function ServerInstances() {
   const createMut = useMutation({
     mutationFn: createServerInstance,
     onSuccess: () => { qc.invalidateQueries(['server-instances']); setShowCreate(false); setForm(emptyForm); toast.success('Server instance created') },
-    onError: err => toast.error(err.response?.data?.message || 'Failed to create server')
+    onError: err => toast.error(friendlyError(err))
   })
 
   const updateMut = useMutation({
     mutationFn: ({ id, data }) => updateServerInstance(id, data),
     onSuccess: () => { qc.invalidateQueries(['server-instances']); setEditServer(null); toast.success('Server updated') },
-    onError: err => toast.error(err.response?.data?.message || 'Failed to update server')
+    onError: err => toast.error(friendlyError(err))
   })
 
   const deleteMut = useMutation({

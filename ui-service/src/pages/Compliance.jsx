@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { configApi } from '../api/client'
 import Modal from '../components/Modal'
+import { friendlyError } from '../components/FormField'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import toast from 'react-hot-toast'
@@ -106,13 +107,13 @@ export default function Compliance() {
   const createProfile = useMutation({
     mutationFn: (data) => configApi.post('/api/compliance/profiles', data).then(r => r.data),
     onSuccess: () => { qc.invalidateQueries(['compliance-profiles']); qc.invalidateQueries(['compliance-profiles-all']); setShowModal(false); setForm({ ...defaultProfileForm }); toast.success('Compliance profile created') },
-    onError: err => toast.error(err.response?.data?.message || 'Failed to create profile')
+    onError: err => toast.error(friendlyError(err))
   })
 
   const updateProfile = useMutation({
     mutationFn: ({ id, data }) => configApi.put(`/api/compliance/profiles/${id}`, data).then(r => r.data),
     onSuccess: () => { qc.invalidateQueries(['compliance-profiles']); qc.invalidateQueries(['compliance-profiles-all']); setShowModal(false); setEditingProfile(null); setForm({ ...defaultProfileForm }); toast.success('Profile updated') },
-    onError: err => toast.error(err.response?.data?.message || 'Failed to update profile')
+    onError: err => toast.error(friendlyError(err))
   })
 
   const deleteProfile = useMutation({

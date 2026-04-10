@@ -1,13 +1,14 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { onboardingApi } from '../api/client'
+import { onboardingApi, configApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { format } from 'date-fns'
 import {
   MagnifyingGlassIcon, ArrowDownTrayIcon, ChevronLeftIcon, ChevronRightIcon,
   Cog6ToothIcon, XMarkIcon, ArrowPathIcon, ChevronUpIcon, ChevronDownIcon,
-  FunnelIcon, TableCellsIcon
+  FunnelIcon, TableCellsIcon, CheckCircleIcon, XCircleIcon, ClockIcon,
+  DocumentTextIcon, ShieldCheckIcon, TruckIcon, ArrowRightIcon,
 } from '@heroicons/react/24/outline'
 
 // ── Column Definitions ──────────────────────────────────────────────────
@@ -120,6 +121,264 @@ function useDebounce(value, delay) {
   return debounced
 }
 
+// ── Transfer Detail Panel (inline expansion) ───────────────────────────
+function TransferDetailPanel({ row, flowExec, events, navigate }) {
+  const stepStatusIcon = (status) => {
+    if (!status) return <ClockIcon className="w-4 h-4 text-gray-400" />
+    if (status === 'FAILED') return <XCircleIcon className="w-4 h-4 text-red-500" />
+    if (status.startsWith('OK')) return <CheckCircleIcon className="w-4 h-4 text-green-500" />
+    return <ClockIcon className="w-4 h-4 text-yellow-500" />
+  }
+
+  return (
+    <div className="bg-gradient-to-b from-blue-50/80 to-white px-6 py-5 space-y-5 animate-slideDown">
+      {/* Top row: Transfer Summary + File Details */}
+      <div className="grid grid-cols-3 gap-5">
+        {/* Transfer Summary */}
+        <div className="space-y-3">
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+            <DocumentTextIcon className="w-3.5 h-3.5" /> Transfer Summary
+          </h4>
+          <div className="bg-white rounded-lg border border-gray-100 p-3 space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Track ID</span>
+              <span className="font-mono text-xs font-bold text-blue-600">{row.trackId || '--'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Filename</span>
+              <span className="font-medium text-gray-900 truncate max-w-[180px]" title={row.filename}>{row.filename || '--'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Size</span>
+              <span className="text-gray-700">{row.fileSizeBytes != null ? formatBytes(row.fileSizeBytes) : '--'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Protocol</span>
+              <span className="text-gray-700">{row.sourceProtocol || '--'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Source</span>
+              <span className="text-gray-700">{row.sourceUsername || '--'} {row.sourcePartnerName ? `(${row.sourcePartnerName})` : ''}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Destination</span>
+              <span className="text-gray-700">{row.destUsername || row.destPartnerName || row.externalDestName || '--'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Status</span>
+              {statusBadge(row.status)}
+            </div>
+          </div>
+        </div>
+
+        {/* File Details & Integrity */}
+        <div className="space-y-3">
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+            <ShieldCheckIcon className="w-3.5 h-3.5" /> File Details & Integrity
+          </h4>
+          <div className="bg-white rounded-lg border border-gray-100 p-3 space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Source Checksum</span>
+              <span className="font-mono text-xs text-gray-600 truncate max-w-[140px]" title={row.sourceChecksum}>
+                {row.sourceChecksum ? row.sourceChecksum.substring(0, 16) + '...' : '--'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Dest Checksum</span>
+              <span className="font-mono text-xs text-gray-600 truncate max-w-[140px]" title={row.destinationChecksum}>
+                {row.destinationChecksum ? row.destinationChecksum.substring(0, 16) + '...' : '--'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Integrity</span>
+              {row.integrityStatus === 'VERIFIED' ? (
+                <span className="badge badge-green text-xs">VERIFIED</span>
+              ) : row.integrityStatus === 'MISMATCH' ? (
+                <span className="badge badge-red text-xs">MISMATCH</span>
+              ) : (
+                <span className="text-gray-400 text-xs">{row.integrityStatus || '--'}</span>
+              )}
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Encryption</span>
+              <span className="text-gray-700">{row.encryptionOption || 'None'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Source Path</span>
+              <span className="font-mono text-xs text-gray-600 truncate max-w-[160px]" title={row.sourcePath}>{row.sourcePath || '--'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Dest Path</span>
+              <span className="font-mono text-xs text-gray-600 truncate max-w-[160px]" title={row.destPath}>{row.destPath || '--'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Retries</span>
+              <span className="text-gray-700">{row.retryCount ?? 0}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Timestamps & Delivery */}
+        <div className="space-y-3">
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+            <TruckIcon className="w-3.5 h-3.5" /> Timeline & Delivery
+          </h4>
+          <div className="bg-white rounded-lg border border-gray-100 p-3 space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Uploaded</span>
+              <span className="text-xs text-gray-700 font-mono">{row.uploadedAt ? format(new Date(row.uploadedAt), 'MMM dd HH:mm:ss') : '--'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Routed</span>
+              <span className="text-xs text-gray-700 font-mono">{row.routedAt ? format(new Date(row.routedAt), 'MMM dd HH:mm:ss') : '--'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Downloaded</span>
+              <span className="text-xs text-gray-700 font-mono">{row.downloadedAt ? format(new Date(row.downloadedAt), 'MMM dd HH:mm:ss') : '--'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Completed</span>
+              <span className="text-xs text-gray-700 font-mono">{row.completedAt ? format(new Date(row.completedAt), 'MMM dd HH:mm:ss') : '--'}</span>
+            </div>
+            {row.uploadedAt && row.completedAt && (
+              <div className="flex justify-between pt-1 border-t border-gray-100">
+                <span className="text-gray-500 font-medium">Total Duration</span>
+                <span className="text-xs font-semibold text-blue-600">
+                  {((new Date(row.completedAt) - new Date(row.uploadedAt)) / 1000).toFixed(1)}s
+                </span>
+              </div>
+            )}
+            {row.flowName && (
+              <div className="flex justify-between pt-1 border-t border-gray-100">
+                <span className="text-gray-500">Flow</span>
+                <span className="text-gray-700">{row.flowName}</span>
+              </div>
+            )}
+            {row.flowStatus && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">Flow Status</span>
+                <span className="text-gray-700">{row.flowStatus}</span>
+              </div>
+            )}
+            {row.externalDestName && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">External Dest</span>
+                <span className="text-gray-700">{row.externalDestName}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Flow Execution Steps Timeline */}
+      {flowExec && flowExec.steps && flowExec.steps.length > 0 && (
+        <div>
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <ArrowRightIcon className="w-3.5 h-3.5" /> Flow Execution Steps
+          </h4>
+          <div className="bg-white rounded-lg border border-gray-100 p-4">
+            <div className="flex items-center gap-2 overflow-x-auto pb-2">
+              {flowExec.steps.map((step, idx) => (
+                <React.Fragment key={idx}>
+                  <div className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg border text-xs ${
+                    step.status === 'FAILED' ? 'bg-red-50 border-red-200' :
+                    step.status?.startsWith('OK') ? 'bg-green-50 border-green-200' :
+                    'bg-gray-50 border-gray-200'
+                  }`}>
+                    {stepStatusIcon(step.status)}
+                    <div>
+                      <p className="font-medium text-gray-800">{step.type || step.name || `Step ${idx + 1}`}</p>
+                      {step.durationMs != null && (
+                        <p className="text-gray-400">{step.durationMs}ms</p>
+                      )}
+                    </div>
+                  </div>
+                  {idx < flowExec.steps.length - 1 && (
+                    <ArrowRightIcon className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" />
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Event Journal (from flow-events) */}
+      {events && events.length > 0 && (
+        <div>
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+            Event Journal ({events.length} events)
+          </h4>
+          <div className="bg-white rounded-lg border border-gray-100 overflow-hidden">
+            <div className="max-h-48 overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="text-left px-3 py-2 text-gray-500 font-medium">Time</th>
+                    <th className="text-left px-3 py-2 text-gray-500 font-medium">Event</th>
+                    <th className="text-left px-3 py-2 text-gray-500 font-medium">Status</th>
+                    <th className="text-left px-3 py-2 text-gray-500 font-medium">Detail</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {events.map((evt, idx) => (
+                    <tr key={idx} className="border-t border-gray-50 hover:bg-gray-50/50">
+                      <td className="px-3 py-1.5 font-mono text-gray-500 whitespace-nowrap">
+                        {evt.timestamp ? format(new Date(evt.timestamp), 'HH:mm:ss.SSS') : '--'}
+                      </td>
+                      <td className="px-3 py-1.5 font-medium text-gray-800">{evt.event || evt.type || '--'}</td>
+                      <td className="px-3 py-1.5">
+                        {evt.status === 'COMPLETED' || evt.status === 'PASSED' ? (
+                          <span className="badge badge-green text-xs">{evt.status}</span>
+                        ) : evt.status === 'FAILED' ? (
+                          <span className="badge badge-red text-xs">{evt.status}</span>
+                        ) : (
+                          <span className="text-gray-500">{evt.status || '--'}</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-1.5 text-gray-500 truncate max-w-[300px]" title={evt.detail || evt.message}>
+                        {evt.detail || evt.message || '--'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error message if present */}
+      {row.errorMessage && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+          <p className="text-xs font-semibold text-red-700 mb-1">Error</p>
+          <p className="text-sm text-red-600">{row.errorMessage}</p>
+        </div>
+      )}
+
+      {/* Quick actions */}
+      <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+        <button
+          onClick={(e) => { e.stopPropagation(); navigate(`/journey?trackId=${encodeURIComponent(row.trackId)}`) }}
+          className="btn-secondary text-xs"
+        >
+          Open Full Journey View
+        </button>
+      </div>
+
+      <style>{`
+        @keyframes slideDown {
+          from { opacity: 0; max-height: 0; }
+          to { opacity: 1; max-height: 1000px; }
+        }
+        .animate-slideDown {
+          animation: slideDown 0.25s ease-out;
+        }
+      `}</style>
+    </div>
+  )
+}
+
 // ── Main Component ──────────────────────────────────────────────────────
 export default function ActivityMonitor() {
   const navigate = useNavigate()
@@ -141,6 +400,7 @@ export default function ActivityMonitor() {
   // UI state
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(true)
+  const [expandedTrackId, setExpandedTrackId] = useState(null)
 
   // Debounced text filters
   const debouncedFilename = useDebounce(filenameFilter, 300)
@@ -193,12 +453,27 @@ export default function ActivityMonitor() {
     setPage(0)
   }
 
-  // Row click → Journey
+  // Row click → expand inline detail panel (toggle)
   const handleRowClick = (row) => {
     if (row.trackId) {
-      navigate(`/journey?trackId=${encodeURIComponent(row.trackId)}`)
+      setExpandedTrackId(prev => prev === row.trackId ? null : row.trackId)
     }
   }
+
+  // Fetch flow execution detail for expanded row
+  const { data: flowExecDetail } = useQuery({
+    queryKey: ['flow-execution-detail', expandedTrackId],
+    queryFn: () => configApi.get(`/api/flow-executions/${expandedTrackId}`).then(r => r.data).catch(() => null),
+    enabled: !!expandedTrackId,
+    staleTime: 10000,
+  })
+
+  const { data: flowEvents = [] } = useQuery({
+    queryKey: ['flow-events', expandedTrackId],
+    queryFn: () => configApi.get(`/api/flow-executions/flow-events/${expandedTrackId}`).then(r => r.data).catch(() => []),
+    enabled: !!expandedTrackId,
+    staleTime: 10000,
+  })
 
   // Clear all filters
   const clearFilters = () => {
@@ -425,24 +700,35 @@ export default function ActivityMonitor() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row, i) => (
-                    <tr
-                      key={row.trackId || i}
-                      className="table-row cursor-pointer group"
-                      onClick={() => handleRowClick(row)}
-                    >
-                      {visibleColumns.map(col => (
-                        <td
-                          key={col.key}
-                          className={`table-cell text-sm whitespace-nowrap ${col.width} ${
-                            i % 2 === 1 ? 'bg-gray-50/40' : ''
-                          } group-hover:bg-blue-50/50 transition-colors`}
+                  {rows.map((row, i) => {
+                    const isExpanded = expandedTrackId === row.trackId
+                    return (
+                      <React.Fragment key={row.trackId || i}>
+                        <tr
+                          className={`table-row cursor-pointer group ${isExpanded ? 'bg-blue-50/70' : ''}`}
+                          onClick={() => handleRowClick(row)}
                         >
-                          {col.render(row[col.key], row)}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
+                          {visibleColumns.map(col => (
+                            <td
+                              key={col.key}
+                              className={`table-cell text-sm whitespace-nowrap ${col.width} ${
+                                isExpanded ? 'bg-blue-50/70' : i % 2 === 1 ? 'bg-gray-50/40' : ''
+                              } group-hover:bg-blue-50/50 transition-colors`}
+                            >
+                              {col.render(row[col.key], row)}
+                            </td>
+                          ))}
+                        </tr>
+                        {isExpanded && (
+                          <tr>
+                            <td colSpan={visibleColumns.length} className="p-0 border-b border-blue-200">
+                              <TransferDetailPanel row={row} flowExec={flowExecDetail} events={flowEvents} navigate={navigate} />
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
