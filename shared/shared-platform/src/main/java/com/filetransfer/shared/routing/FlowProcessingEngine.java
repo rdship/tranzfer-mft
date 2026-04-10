@@ -78,6 +78,11 @@ public class FlowProcessingEngine {
     @Nullable
     private PartnerWebhookDispatcher partnerWebhookDispatcher;
 
+    /** Append-only event journal for flow execution audit trail and actor recovery. */
+    @Autowired(required = false)
+    @Nullable
+    private FlowEventJournal flowEventJournal;
+
     /**
      * Execute a specific flow for a file. Creates execution record and processes each step.
      */
@@ -103,6 +108,11 @@ public class FlowProcessingEngine {
                 .build();
         exec = executionRepository.save(exec);
 
+        // ── Journal: record execution start ──
+        if (flowEventJournal != null) {
+            flowEventJournal.recordExecutionStarted(trackId, exec.getId(), null, flow.getSteps().size());
+        }
+
         String currentFile = inputPath;
         List<FlowExecution.StepResult> results = new ArrayList<>();
 
@@ -125,6 +135,9 @@ public class FlowProcessingEngine {
                 exec.setCurrentStep(i);
                 exec.setStepResults(results);
                 executionRepository.save(exec);
+                if (flowEventJournal != null) {
+                    flowEventJournal.recordExecutionPaused(trackId, exec.getId(), i, "awaiting admin approval");
+                }
                 log.info("[{}] Flow PAUSED at APPROVE step {} — awaiting admin sign-off", trackId, i);
                 return exec;
             }
@@ -143,6 +156,9 @@ public class FlowProcessingEngine {
                                 attempt, maxStepRetries, backoff);
                         Thread.sleep(Math.min(backoff, 30000));
                     }
+                    if (flowEventJournal != null) {
+                        flowEventJournal.recordStepStarted(trackId, exec.getId(), i, step.getType(), null, attempt + 1);
+                    }
                     String outputFile = processStep(step, currentFile, trackId, i);
                     long duration = System.currentTimeMillis() - start;
                     results.add(FlowExecution.StepResult.builder()
@@ -150,6 +166,9 @@ public class FlowProcessingEngine {
                             .status(attempt > 0 ? "OK_AFTER_RETRY_" + attempt : "OK")
                             .inputFile(currentFile).outputFile(outputFile)
                             .durationMs(duration).build());
+                    if (flowEventJournal != null) {
+                        flowEventJournal.recordStepCompleted(trackId, exec.getId(), i, step.getType(), null, 0, duration);
+                    }
                     currentFile = outputFile;
                     exec.setCurrentStep(i + 1);
                     exec.setCurrentFilePath(currentFile);
@@ -161,6 +180,10 @@ public class FlowProcessingEngine {
                 } catch (Exception e) {
                     long duration = System.currentTimeMillis() - start;
                     if (attempt < maxStepRetries && isRetryableStepError(e)) {
+                        if (flowEventJournal != null) {
+                            long backoff = 2000L * (1L << attempt);
+                            flowEventJournal.recordStepRetrying(trackId, exec.getId(), i, step.getType(), attempt + 2, Math.min(backoff, 30000));
+                        }
                         log.warn("[{}] Step {}/{} ({}) attempt {} failed (retryable): {}",
                                 trackId, i + 1, flow.getSteps().size(), step.getType(), attempt + 1, e.getMessage());
                         continue;
@@ -177,6 +200,10 @@ public class FlowProcessingEngine {
                     exec.setStepResults(results);
                     exec.setCompletedAt(Instant.now());
                     executionRepository.save(exec);
+                    if (flowEventJournal != null) {
+                        flowEventJournal.recordStepFailed(trackId, exec.getId(), i, step.getType(), e.getMessage(), attempt + 1);
+                        flowEventJournal.recordExecutionFailed(trackId, exec.getId(), exec.getErrorMessage());
+                    }
                     dispatchFlowEvent("FLOW_FAILED", exec, flow);
                     log.error("[{}] Step {}/{} ({}) FAILED: {}", trackId, i + 1, flow.getSteps().size(),
                             step.getType(), e.getMessage());
@@ -198,6 +225,11 @@ public class FlowProcessingEngine {
         exec.setStepResults(results);
         exec.setCompletedAt(Instant.now());
         executionRepository.save(exec);
+        if (flowEventJournal != null) {
+            long totalDuration = exec.getStartedAt() != null
+                    ? Instant.now().toEpochMilli() - exec.getStartedAt().toEpochMilli() : 0;
+            flowEventJournal.recordExecutionCompleted(trackId, exec.getId(), totalDuration, results.size());
+        }
         dispatchFlowEvent("FLOW_COMPLETED", exec, flow);
         log.info("[{}] Flow '{}' completed successfully for '{}'", trackId, flow.getName(), filename);
         return exec;
