@@ -120,6 +120,12 @@ const navGroups = [
     ],
   },
   {
+    label: 'Expert',
+    items: [
+      { to: '/migration',  icon: ArrowPathIcon,    label: 'Migration Center',  role: 'ADMIN' },
+    ],
+  },
+  {
     label: 'Tools',
     items: [
       { to: '/edi',         icon: DocumentTextIcon, label: 'EDI Translation' },

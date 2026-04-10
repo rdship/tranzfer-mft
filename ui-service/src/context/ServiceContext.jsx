@@ -101,6 +101,7 @@ const PAGE_SERVICE_MAP = {
   '/file-manager': ['ftpWeb'],
   '/cluster': ['core'],
   '/auto-onboarding': ['aiEngine'],
+  '/migration': ['config'],
 }
 
 const ServiceContext = createContext(null)

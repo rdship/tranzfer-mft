@@ -57,6 +57,7 @@ import Quarantine from './pages/Quarantine'
 import FileManager from './pages/FileManager'
 import ClusterDashboard from './pages/ClusterDashboard'
 import AutoOnboarding from './pages/AutoOnboarding'
+import Migration from './pages/Migration'
 import PartnerPortalLogin from './pages/PartnerPortalLogin'
 import PartnerPortalLayout from './components/PartnerPortalLayout'
 import PartnerPortalDashboard from './pages/PartnerPortalDashboard'
@@ -131,6 +132,7 @@ export default function App() {
             <Route path="file-manager" element={<FileManager />} />
             <Route path="cluster" element={<ClusterDashboard />} />
             <Route path="auto-onboarding" element={<AutoOnboarding />} />
+            <Route path="migration" element={<Migration />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
