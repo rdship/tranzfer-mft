@@ -36,15 +36,13 @@ public class AnomalyDetectionService {
     @Scheduled(fixedDelay = 300000) // every 5 min
     @SchedulerLock(name = "ai_anomalyDetection_detectAnomalies", lockAtLeastFor = "PT4M", lockAtMostFor = "PT14M")
     public void detectAnomalies() {
-        List<FileTransferRecord> records = transferRecordRepository.findAll();
         Instant cutoff = Instant.now().minus(lookbackDays, ChronoUnit.DAYS);
         Instant recentCutoff = Instant.now().minus(1, ChronoUnit.HOURS);
 
-        List<FileTransferRecord> historical = records.stream()
-                .filter(r -> r.getUploadedAt() != null && r.getUploadedAt().isAfter(cutoff))
-                .collect(Collectors.toList());
+        // Only fetch records within the lookback window — never findAll()
+        List<FileTransferRecord> historical = transferRecordRepository.findByUploadedAtAfter(cutoff);
 
-        List<FileTransferRecord> recent = records.stream()
+        List<FileTransferRecord> recent = historical.stream()
                 .filter(r -> r.getUploadedAt() != null && r.getUploadedAt().isAfter(recentCutoff))
                 .collect(Collectors.toList());
 

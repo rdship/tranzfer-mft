@@ -34,10 +34,9 @@ public class MetricsAggregationService {
 
         log.info("Aggregating metrics for window: {} - {}", hourStart, hourEnd);
 
-        // Group transfers by protocol/service type
-        List<FileTransferRecord> records = transferRecordRepository.findAll().stream()
+        // Only fetch records within the aggregation window — never findAll()
+        List<FileTransferRecord> records = transferRecordRepository.findByUploadedAtAfter(hourStart).stream()
                 .filter(r -> r.getUploadedAt() != null
-                        && r.getUploadedAt().isAfter(hourStart)
                         && r.getUploadedAt().isBefore(hourEnd))
                 .collect(Collectors.toList());
 
@@ -70,12 +69,17 @@ public class MetricsAggregationService {
             double p95 = percentile(latencies, 95);
             double p99 = percentile(latencies, 99);
 
+            long totalBytes = svcRecords.stream()
+                    .mapToLong(r -> r.getFileSizeBytes() != null ? r.getFileSizeBytes() : 0L)
+                    .sum();
+
             MetricSnapshot snapshot = MetricSnapshot.builder()
                     .snapshotTime(hourStart)
                     .serviceType(serviceType)
                     .totalTransfers(total)
                     .successfulTransfers(success)
                     .failedTransfers(failed)
+                    .totalBytesTransferred(totalBytes)
                     .avgLatencyMs(avgLatency)
                     .p95LatencyMs(p95)
                     .p99LatencyMs(p99)

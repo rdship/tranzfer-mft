@@ -217,7 +217,17 @@ public class MigrationService {
             .partnerName(p.getCompanyName())
             .eventType(type)
             .details(details)
-            .actor("admin")  // TODO: extract from SecurityContext
+            .actor(currentActor())
             .build());
+    }
+
+    private String currentActor() {
+        try {
+            var auth = org.springframework.security.core.context.SecurityContextHolder
+                    .getContext().getAuthentication();
+            return auth != null && auth.getName() != null ? auth.getName() : "system";
+        } catch (Exception e) {
+            return "system";
+        }
     }
 }

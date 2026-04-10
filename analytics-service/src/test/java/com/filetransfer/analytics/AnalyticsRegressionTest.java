@@ -50,7 +50,7 @@ class AnalyticsRegressionTest {
 
     @Test
     void metricsAggregation_emptyData_shouldReturnZeros() {
-        when(transferRecordRepository.findAll()).thenReturn(Collections.emptyList());
+        when(transferRecordRepository.findByUploadedAtAfter(any(Instant.class))).thenReturn(Collections.emptyList());
         when(snapshotRepository.save(any(MetricSnapshot.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.aggregateLastHour();
@@ -73,7 +73,7 @@ class AnalyticsRegressionTest {
         records.add(buildRecord(Protocol.SFTP, FileTransferStatus.DOWNLOADED, 200));
         records.add(buildRecord(Protocol.SFTP, FileTransferStatus.FAILED, 0));
 
-        when(transferRecordRepository.findAll()).thenReturn(records);
+        when(transferRecordRepository.findByUploadedAtAfter(any(Instant.class))).thenReturn(records);
         when(snapshotRepository.save(any(MetricSnapshot.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.aggregateLastHour();
@@ -93,7 +93,7 @@ class AnalyticsRegressionTest {
     @Test
     void metricsAggregation_nullInput_shouldNotCrash() {
         // If findAll returns empty (simulating null-like input), should not throw
-        when(transferRecordRepository.findAll()).thenReturn(Collections.emptyList());
+        when(transferRecordRepository.findByUploadedAtAfter(any(Instant.class))).thenReturn(Collections.emptyList());
         when(snapshotRepository.save(any(MetricSnapshot.class))).thenAnswer(inv -> inv.getArgument(0));
 
         assertDoesNotThrow(() -> service.aggregateLastHour(),
@@ -110,7 +110,7 @@ class AnalyticsRegressionTest {
             records.add(buildRecord(Protocol.SFTP, FileTransferStatus.DOWNLOADED, 50 + (i % 200)));
         }
 
-        when(transferRecordRepository.findAll()).thenReturn(records);
+        when(transferRecordRepository.findByUploadedAtAfter(any(Instant.class))).thenReturn(records);
         when(snapshotRepository.save(any(MetricSnapshot.class))).thenAnswer(inv -> inv.getArgument(0));
 
         // Warm up

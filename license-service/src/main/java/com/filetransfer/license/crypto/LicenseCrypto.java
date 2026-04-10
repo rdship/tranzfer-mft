@@ -3,6 +3,9 @@ package com.filetransfer.license.crypto;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.filetransfer.license.dto.LicensePayload;
+import com.filetransfer.license.entity.CryptoKeyPair;
+import com.filetransfer.license.repository.CryptoKeyPairRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -19,17 +22,66 @@ public class LicenseCrypto {
     private static final String ALGORITHM = "RSA";
     private static final String SIGNATURE_ALGORITHM = "SHA256withRSA";
     private static final String DELIMITER = ".";
+    private static final String LICENSE_KEY_NAME = "license-signing-key";
 
     private final ObjectMapper objectMapper;
+    private final CryptoKeyPairRepository cryptoKeyPairRepository;
     private KeyPair keyPair;
 
-    public LicenseCrypto() {
+    public LicenseCrypto(CryptoKeyPairRepository cryptoKeyPairRepository) {
+        this.cryptoKeyPairRepository = cryptoKeyPairRepository;
         this.objectMapper = new ObjectMapper();
         this.objectMapper.registerModule(new JavaTimeModule());
-        this.keyPair = generateOrLoadKeyPair();
     }
 
-    private KeyPair generateOrLoadKeyPair() {
+    /** Test-friendly constructor — generates in-memory keys without DB persistence */
+    public LicenseCrypto() {
+        this.cryptoKeyPairRepository = null;
+        this.objectMapper = new ObjectMapper();
+        this.objectMapper.registerModule(new JavaTimeModule());
+        this.keyPair = generateKeyPair();
+    }
+
+    @PostConstruct
+    void init() {
+        this.keyPair = loadOrGenerateKeyPair();
+    }
+
+    private KeyPair loadOrGenerateKeyPair() {
+        try {
+            if (cryptoKeyPairRepository == null) return generateKeyPair();
+            // Try to load persisted key pair from database
+            var existing = cryptoKeyPairRepository.findByKeyName(LICENSE_KEY_NAME);
+            if (existing.isPresent()) {
+                CryptoKeyPair stored = existing.get();
+                KeyFactory kf = KeyFactory.getInstance(ALGORITHM);
+                byte[] pubBytes = Base64.getDecoder().decode(stored.getPublicKey());
+                byte[] privBytes = Base64.getDecoder().decode(stored.getPrivateKey());
+                PublicKey publicKey = kf.generatePublic(new X509EncodedKeySpec(pubBytes));
+                PrivateKey privateKey = kf.generatePrivate(new PKCS8EncodedKeySpec(privBytes));
+                log.info("Loaded persisted RSA key pair from database");
+                return new KeyPair(publicKey, privateKey);
+            }
+
+            // Generate new key pair and persist it
+            KeyPairGenerator generator = KeyPairGenerator.getInstance(ALGORITHM);
+            generator.initialize(2048);
+            KeyPair generated = generator.generateKeyPair();
+
+            CryptoKeyPair entity = CryptoKeyPair.builder()
+                    .keyName(LICENSE_KEY_NAME)
+                    .publicKey(Base64.getEncoder().encodeToString(generated.getPublic().getEncoded()))
+                    .privateKey(Base64.getEncoder().encodeToString(generated.getPrivate().getEncoded()))
+                    .build();
+            cryptoKeyPairRepository.save(entity);
+            log.info("Generated and persisted new RSA key pair to database");
+            return generated;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to load or generate RSA key pair", e);
+        }
+    }
+
+    private KeyPair generateKeyPair() {
         try {
             KeyPairGenerator generator = KeyPairGenerator.getInstance(ALGORITHM);
             generator.initialize(2048);

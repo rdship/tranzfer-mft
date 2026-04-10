@@ -42,8 +42,22 @@ public class EncryptionController {
 
     private String masterKeyBase64;
 
+    @Value("${spring.profiles.active:default}")
+    private String activeProfile;
+
+    private static final String INSECURE_MASTER_KEY = "0000000000000000000000000000000000000000000000000000000000000000";
+
     @PostConstruct
     void initMasterKey() {
+        // Fail-fast: refuse to start with default master key in production
+        if (INSECURE_MASTER_KEY.equals(masterKeyHex)) {
+            String msg = "Encryption master key is using the default insecure value! Set ENCRYPTION_MASTER_KEY environment variable.";
+            if (activeProfile.contains("prod")) {
+                throw new IllegalStateException(msg);
+            }
+            log.warn("SECURITY: {} (acceptable in dev, FATAL in production)", msg);
+        }
+
         byte[] keyBytes = new byte[masterKeyHex.length() / 2];
         for (int i = 0; i < keyBytes.length; i++) {
             keyBytes[i] = (byte) Integer.parseInt(masterKeyHex.substring(i * 2, i * 2 + 2), 16);
@@ -65,9 +79,10 @@ public class EncryptionController {
 
     @PostMapping(value = "/decrypt", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<byte[]> decryptFile(@RequestParam UUID keyId,
+                                               @RequestParam(required = false) String passphrase,
                                                @RequestPart("file") MultipartFile file) throws Exception {
         EncryptionKey key = findKey(keyId);
-        byte[] result = performDecrypt(file.getBytes(), key);
+        byte[] result = performDecrypt(file.getBytes(), key, passphrase);
         String filename = file.getOriginalFilename();
         if (filename != null && filename.endsWith(".enc")) filename = filename.substring(0, filename.length() - 4);
         return ResponseEntity.ok()
@@ -85,10 +100,12 @@ public class EncryptionController {
     }
 
     @PostMapping("/decrypt/base64")
-    public String decryptBase64(@RequestParam UUID keyId, @RequestBody String base64Input) throws Exception {
+    public String decryptBase64(@RequestParam UUID keyId,
+                                @RequestParam(required = false) String passphrase,
+                                @RequestBody String base64Input) throws Exception {
         EncryptionKey key = findKey(keyId);
         byte[] cipher = Base64.getDecoder().decode(base64Input);
-        byte[] plain = performDecrypt(cipher, key);
+        byte[] plain = performDecrypt(cipher, key, passphrase);
         return Base64.getEncoder().encodeToString(plain);
     }
 
@@ -121,19 +138,46 @@ public class EncryptionController {
             return pgpService.encrypt(data, key.getPublicKey());
         } else {
             if (key.getEncryptedSymmetricKey() == null) throw new IllegalArgumentException("No symmetric key for AES encryption");
-            // NOTE: In production, unwrap the symmetric key from the master key first
-            return aesService.encrypt(data, key.getEncryptedSymmetricKey());
+            String unwrappedKey = unwrapSymmetricKey(key.getEncryptedSymmetricKey());
+            return aesService.encrypt(data, unwrappedKey);
         }
     }
 
-    private byte[] performDecrypt(byte[] data, EncryptionKey key) throws Exception {
+    private byte[] performDecrypt(byte[] data, EncryptionKey key, String passphrase) throws Exception {
         if (key.getAlgorithm() == EncryptionAlgorithm.PGP) {
             if (key.getEncryptedPrivateKey() == null) throw new IllegalArgumentException("No private key for PGP decryption");
-            // passphrase would come from a secure vault in production
-            return pgpService.decrypt(data, key.getEncryptedPrivateKey(), new char[0]);
+            char[] pass;
+            if (passphrase != null && !passphrase.isEmpty()) {
+                pass = passphrase.toCharArray();
+            } else {
+                log.warn("PGP decrypt for key '{}': no passphrase provided, using empty passphrase", key.getKeyName());
+                pass = new char[0];
+            }
+            return pgpService.decrypt(data, key.getEncryptedPrivateKey(), pass);
         } else {
             if (key.getEncryptedSymmetricKey() == null) throw new IllegalArgumentException("No symmetric key for AES decryption");
-            return aesService.decrypt(data, key.getEncryptedSymmetricKey());
+            String unwrappedKey = unwrapSymmetricKey(key.getEncryptedSymmetricKey());
+            return aesService.decrypt(data, unwrappedKey);
+        }
+    }
+
+    /**
+     * Unwrap an AES symmetric key that was wrapped (AES-KW) with the master key.
+     * If unwrapping fails (e.g. key was stored as raw Base64 in dev mode),
+     * falls back to using the key as-is for backwards compatibility.
+     */
+    private String unwrapSymmetricKey(String wrappedKeyBase64) {
+        try {
+            byte[] masterBytes = Base64.getDecoder().decode(masterKeyBase64);
+            javax.crypto.SecretKey masterKey = new javax.crypto.spec.SecretKeySpec(masterBytes, "AES");
+            javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance("AESWrap");
+            cipher.init(javax.crypto.Cipher.UNWRAP_MODE, masterKey);
+            java.security.Key unwrapped = cipher.unwrap(
+                    Base64.getDecoder().decode(wrappedKeyBase64), "AES", javax.crypto.Cipher.SECRET_KEY);
+            return Base64.getEncoder().encodeToString(unwrapped.getEncoded());
+        } catch (Exception e) {
+            log.debug("AES key unwrap skipped (key may be stored as raw Base64): {}", e.getMessage());
+            return wrappedKeyBase64;
         }
     }
 

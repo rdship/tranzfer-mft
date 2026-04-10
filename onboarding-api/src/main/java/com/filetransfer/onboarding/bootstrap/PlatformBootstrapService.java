@@ -6,6 +6,7 @@ import com.filetransfer.shared.enums.*;
 import com.filetransfer.shared.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -54,6 +55,9 @@ public class PlatformBootstrapService {
     private final MigrationEventRepository migrationEventRepository;
     private final PasswordEncoder passwordEncoder;
 
+    @Value("${platform.bootstrap.seed-demo-data:true}")
+    private boolean seedDemoData;
+
     @EventListener(ApplicationReadyEvent.class)
     @Order(Ordered.LOWEST_PRECEDENCE)
     @Transactional
@@ -63,6 +67,14 @@ public class PlatformBootstrapService {
                 log.info("[Bootstrap] Users table is not empty — skipping seed data");
                 return;
             }
+
+            if (!seedDemoData) {
+                log.info("[Bootstrap] Fresh install detected but platform.bootstrap.seed-demo-data=false — skipping demo data");
+                // Still create the super-admin user so the platform is usable
+                seedSuperAdmin();
+                return;
+            }
+
             log.info("[Bootstrap] Fresh install detected — seeding platform with demo data...");
 
             User admin = seedSuperAdmin();
@@ -86,6 +98,7 @@ public class PlatformBootstrapService {
             seedTenants();
             seedComplianceProfiles(servers);
 
+            log.warn("[Bootstrap] Demo data seeded with placeholder credentials — NOT for production use");
             log.info("[Bootstrap] ===== Platform bootstrap complete =====");
             log.info("[Bootstrap]   1 super-admin user");
             log.info("[Bootstrap]   {} server instances", servers.size());

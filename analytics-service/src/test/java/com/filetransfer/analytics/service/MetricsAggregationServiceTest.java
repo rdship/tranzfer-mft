@@ -70,7 +70,7 @@ class MetricsAggregationServiceTest {
         records.add(buildRecord(Protocol.SFTP, FileTransferStatus.FAILED, 0));
         records.add(buildRecord(Protocol.SFTP, FileTransferStatus.FAILED, 0));
 
-        when(transferRecordRepository.findAll()).thenReturn(records);
+        when(transferRecordRepository.findByUploadedAtAfter(any(Instant.class))).thenReturn(records);
         when(snapshotRepository.save(any(MetricSnapshot.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.aggregateLastHour();
@@ -94,7 +94,7 @@ class MetricsAggregationServiceTest {
             records.add(buildRecord(Protocol.SFTP, FileTransferStatus.DOWNLOADED, i * 10));
         }
 
-        when(transferRecordRepository.findAll()).thenReturn(records);
+        when(transferRecordRepository.findByUploadedAtAfter(any(Instant.class))).thenReturn(records);
         when(snapshotRepository.save(any(MetricSnapshot.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.aggregateLastHour();
@@ -142,7 +142,7 @@ class MetricsAggregationServiceTest {
 
     @Test
     void aggregateLastHour_emptyRecords_savesZeroSnapshot() {
-        when(transferRecordRepository.findAll()).thenReturn(Collections.emptyList());
+        when(transferRecordRepository.findByUploadedAtAfter(any(Instant.class))).thenReturn(Collections.emptyList());
         when(snapshotRepository.save(any(MetricSnapshot.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.aggregateLastHour();
@@ -158,7 +158,7 @@ class MetricsAggregationServiceTest {
 
     @Test
     void aggregateLastHour_emptyRecords_noDivisionByZero() {
-        when(transferRecordRepository.findAll()).thenReturn(Collections.emptyList());
+        when(transferRecordRepository.findByUploadedAtAfter(any(Instant.class))).thenReturn(Collections.emptyList());
         when(snapshotRepository.save(any(MetricSnapshot.class))).thenAnswer(inv -> inv.getArgument(0));
 
         // Should not throw ArithmeticException or any other exception
@@ -167,7 +167,7 @@ class MetricsAggregationServiceTest {
 
     @Test
     void aggregateLastHour_emptyRecordsSaveFailure_doesNotPropagate() {
-        when(transferRecordRepository.findAll()).thenReturn(Collections.emptyList());
+        when(transferRecordRepository.findByUploadedAtAfter(any(Instant.class))).thenReturn(Collections.emptyList());
         when(snapshotRepository.save(any(MetricSnapshot.class)))
                 .thenThrow(new RuntimeException("DB constraint violation"));
 
@@ -188,7 +188,7 @@ class MetricsAggregationServiceTest {
         records.add(buildRecord(Protocol.FTP, FileTransferStatus.FAILED, 0));
         records.add(buildRecord(Protocol.FTP, FileTransferStatus.DOWNLOADED, 75));
 
-        when(transferRecordRepository.findAll()).thenReturn(records);
+        when(transferRecordRepository.findByUploadedAtAfter(any(Instant.class))).thenReturn(records);
         when(snapshotRepository.save(any(MetricSnapshot.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.aggregateLastHour();
@@ -225,7 +225,7 @@ class MetricsAggregationServiceTest {
                 .destinationFilePath("/out/test.dat")
                 .build();
 
-        when(transferRecordRepository.findAll()).thenReturn(List.of(record));
+        when(transferRecordRepository.findByUploadedAtAfter(any(Instant.class))).thenReturn(List.of(record));
         when(snapshotRepository.save(any(MetricSnapshot.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.aggregateLastHour();
@@ -246,7 +246,7 @@ class MetricsAggregationServiceTest {
         failedRecord.setDownloadedAt(null); // explicitly null
         records.add(failedRecord);
 
-        when(transferRecordRepository.findAll()).thenReturn(records);
+        when(transferRecordRepository.findByUploadedAtAfter(any(Instant.class))).thenReturn(records);
         when(snapshotRepository.save(any(MetricSnapshot.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.aggregateLastHour();

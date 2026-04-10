@@ -2,6 +2,7 @@ package com.filetransfer.ai.service;
 
 import com.filetransfer.shared.entity.AuditLog;
 import com.filetransfer.shared.repository.AuditLogRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * AI Phase 2: Real-time security threat scoring per operation.
@@ -23,8 +25,29 @@ public class ThreatScoringService {
 
     private final AuditLogRepository auditLogRepository;
 
-    // Track known IPs per account
-    private final Map<String, Set<String>> knownIps = new HashMap<>();
+    // Track known IPs per account — ConcurrentHashMap survives concurrent access;
+    // warmed from recent audit logs on startup so IPs survive restarts
+    private final Map<String, Set<String>> knownIps = new ConcurrentHashMap<>();
+
+    @PostConstruct
+    void warmIpCache() {
+        try {
+            List<AuditLog> recent = auditLogRepository.findAll(
+                    PageRequest.of(0, 500, Sort.by(Sort.Direction.DESC, "timestamp"))).getContent();
+            for (AuditLog entry : recent) {
+                if (entry.getPrincipal() != null && entry.getIpAddress() != null) {
+                    knownIps.computeIfAbsent(entry.getPrincipal(),
+                            k -> Collections.synchronizedSet(new HashSet<>()))
+                            .add(entry.getIpAddress());
+                }
+            }
+            log.info("Warmed IP cache from audit logs: {} users, {} total IP entries",
+                    knownIps.size(),
+                    knownIps.values().stream().mapToInt(Set::size).sum());
+        } catch (Exception e) {
+            log.debug("Could not warm IP cache from audit logs: {}", e.getMessage());
+        }
+    }
 
     public ThreatScore score(String username, String ipAddress, String action,
                              String filename, Long fileSizeBytes, Instant timestamp) {
@@ -32,7 +55,7 @@ public class ThreatScoringService {
         List<String> factors = new ArrayList<>();
 
         // 1. New IP detection
-        Set<String> ips = knownIps.computeIfAbsent(username, k -> new HashSet<>());
+        Set<String> ips = knownIps.computeIfAbsent(username, k -> Collections.synchronizedSet(new HashSet<>()));
         if (ipAddress != null && !ips.contains(ipAddress)) {
             score += 25;
             factors.add("First-time IP address: " + ipAddress + " (+25)");

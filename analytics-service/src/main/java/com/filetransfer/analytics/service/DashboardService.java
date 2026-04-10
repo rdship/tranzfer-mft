@@ -65,6 +65,12 @@ public class DashboardService {
                 .max(Map.Entry.comparingByValue())
                 .map(Map.Entry::getKey).orElse("N/A");
 
+        // Active connections: sum activeSessions from the most recent hour's snapshots
+        int activeConnections = last24h.stream()
+                .filter(s -> s.getSnapshotTime().isAfter(hourStart))
+                .mapToInt(s -> s.getActiveSessions() != null ? s.getActiveSessions() : 0)
+                .sum();
+
         List<DashboardSummary.ActiveAlert> alerts = evaluateAlerts(last24h);
         List<ScalingRecommendation> recommendations = predictionService.predictAll();
 
@@ -73,7 +79,7 @@ public class DashboardService {
                 .totalTransfersLastHour(totalLastHour)
                 .successRateToday(successRate)
                 .totalGbToday(gbToday)
-                .activeConnections(0)
+                .activeConnections(activeConnections)
                 .topProtocol(topProtocol)
                 .alerts(alerts)
                 .scalingRecommendations(recommendations)
