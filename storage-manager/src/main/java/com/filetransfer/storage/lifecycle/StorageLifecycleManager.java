@@ -6,6 +6,8 @@ import com.filetransfer.storage.repository.StorageObjectRepository;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
@@ -102,6 +104,23 @@ public class StorageLifecycleManager {
         if (moved > 0) log.info("Storage lifecycle: moved {} files between tiers", moved);
     }
 
+    /** Recovery: find any objects stuck in MOVING state and resume or rollback. */
+    @EventListener(ApplicationReadyEvent.class)
+    public void recoverStuckMoves() {
+        var stuckObjects = objectRepo.findByTierAndDeletedFalse("MOVING");
+        for (StorageObject obj : stuckObjects) {
+            log.warn("WAIL: Found stuck tier move: {} → {}", obj.getFilename(), obj.getMovingTo());
+            // Rollback: we don't know if copy completed, so just reset to source tier
+            // The file is still at its original physicalPath
+            obj.setTier(obj.getMovingTo() != null ?
+                (obj.getMovingTo().equals("WARM") ? "HOT" : "WARM") : "HOT");
+            obj.setMovingTo(null);
+            obj.setMoveStartedAt(null);
+            objectRepo.save(obj);
+            log.info("WAIL: Rolled back stuck move for {}", obj.getFilename());
+        }
+    }
+
     private int tierDown(String fromTier, String toTier, String fromBase, String toBase,
                           int age, ChronoUnit unit) {
         Instant cutoff = Instant.now().minus(age, unit);
@@ -132,19 +151,35 @@ public class StorageLifecycleManager {
                 validateStoragePath(dest, "tierDown-dest");
 
                 if (Files.exists(source)) {
+                    // Step 1: Mark in-flight
+                    obj.setTier("MOVING");
+                    obj.setMovingTo(toTier);
+                    obj.setMoveStartedAt(Instant.now());
+                    objectRepo.save(obj);
+
+                    // Step 2: Copy
                     String checksum = ioEngine.tierCopy(source, dest);
-                    // Verify integrity
+
+                    // Step 3: Integrity gate
                     if (obj.getSha256() != null && !obj.getSha256().equals(checksum)) {
                         log.error("INTEGRITY FAILURE during tier move: {} expected {} got {}",
                                 obj.getFilename(), obj.getSha256(), checksum);
-                        continue; // Don't delete source!
+                        obj.setTier(fromTier);  // rollback
+                        obj.setMovingTo(null);
+                        obj.setMoveStartedAt(null);
+                        objectRepo.save(obj);
+                        continue;
                     }
-                    Files.delete(source); // Only after verified copy
 
+                    // Step 4: Atomic commit — DB points to new location, THEN delete source
                     obj.setPhysicalPath(dest.toString());
                     obj.setTier(toTier);
                     obj.setTierChangedAt(Instant.now());
+                    obj.setMovingTo(null);
+                    obj.setMoveStartedAt(null);
                     objectRepo.save(obj);
+
+                    Files.delete(source);  // Safe: DB already points to dest
                     moved++;
 
                     recentActions.add(LifecycleAction.builder()
@@ -176,13 +211,36 @@ public class StorageLifecycleManager {
                         obj.getFilename()).normalize();
                 validateStoragePath(dest, "forceEvict-dest");
                 if (Files.exists(source)) {
-                    ioEngine.tierCopy(source, dest);
-                    Files.delete(source);
-                    currentSize -= obj.getSizeBytes();
+                    // Step 1: Mark in-flight
+                    obj.setTier("MOVING");
+                    obj.setMovingTo(toTier);
+                    obj.setMoveStartedAt(Instant.now());
+                    objectRepo.save(obj);
+
+                    // Step 2: Copy
+                    String checksum = ioEngine.tierCopy(source, dest);
+
+                    // Step 3: Integrity gate
+                    if (obj.getSha256() != null && !obj.getSha256().equals(checksum)) {
+                        log.error("INTEGRITY FAILURE during force evict: {} expected {} got {}",
+                                obj.getFilename(), obj.getSha256(), checksum);
+                        obj.setTier(fromTier);  // rollback
+                        obj.setMovingTo(null);
+                        obj.setMoveStartedAt(null);
+                        objectRepo.save(obj);
+                        continue;
+                    }
+
+                    // Step 4: Atomic commit — DB points to new location, THEN delete source
                     obj.setPhysicalPath(dest.toString());
                     obj.setTier(toTier);
                     obj.setTierChangedAt(Instant.now());
+                    obj.setMovingTo(null);
+                    obj.setMoveStartedAt(null);
                     objectRepo.save(obj);
+
+                    Files.delete(source);  // Safe: DB already points to dest
+                    currentSize -= obj.getSizeBytes();
                     moved++;
                 }
             } catch (Exception ignored) {}

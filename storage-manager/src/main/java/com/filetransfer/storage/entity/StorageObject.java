@@ -54,4 +54,10 @@ public class StorageObject {
     private Double compressionRatio;
     /** Marked for deletion (soft delete — never hard delete) */
     @Builder.Default private boolean deleted = false;
+
+    /** Target tier during an in-flight move. Null when not moving. */
+    private String movingTo;
+
+    /** Timestamp when the tier move started. Null when not moving. */
+    private Instant moveStartedAt;
 }
