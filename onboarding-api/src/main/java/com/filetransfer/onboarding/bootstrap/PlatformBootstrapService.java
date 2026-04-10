@@ -539,7 +539,8 @@ public class PlatformBootstrapService {
                                 .build(),
                         FileFlow.FlowStep.builder()
                                 .type("CONVERT_EDI")
-                                .config(Map.of("targetFormat", "JSON"))
+                                .config(Map.of("targetFormat", "JSON",
+                                        "partnerId", partners.get(0).getId().toString()))
                                 .order(1)
                                 .build(),
                         FileFlow.FlowStep.builder()
@@ -699,6 +700,49 @@ public class PlatformBootstrapService {
                                 .type("RENAME")
                                 .config(Map.of("pattern", "${basename}_archived.gz"))
                                 .order(2)
+                                .build()
+                ))
+                .active(true)
+                .build());
+
+        // Flow 6: EDI-to-XML Conversion (showcases trained map with partner profile)
+        flows.add(FileFlow.builder()
+                .name("EDI X12 to XML Conversion")
+                .description("Converts X12 EDI 850/810/856 documents to XML format using partner-specific " +
+                        "trained maps from MedTech Solutions. Screens, converts, encrypts, and delivers.")
+                .filenamePattern(".*\\.(x12|850|810|856)")
+                .sourceAccount(accounts.get("medtech-as2"))
+                .sourcePath("/inbox")
+                .partnerId(partners.get(2).getId())
+                .direction("INBOUND")
+                .priority(12)
+                .steps(List.of(
+                        FileFlow.FlowStep.builder()
+                                .type("SCREEN")
+                                .config(Map.of())
+                                .order(0)
+                                .build(),
+                        FileFlow.FlowStep.builder()
+                                .type("CONVERT_EDI")
+                                .config(Map.of("targetFormat", "XML",
+                                        "partnerId", partners.get(2).getId().toString()))
+                                .order(1)
+                                .build(),
+                        FileFlow.FlowStep.builder()
+                                .type("CHECKSUM_VERIFY")
+                                .config(Map.of())
+                                .order(2)
+                                .build(),
+                        FileFlow.FlowStep.builder()
+                                .type("ENCRYPT_AES")
+                                .config(Map.of("keyId", "demo-aes-key"))
+                                .order(3)
+                                .build(),
+                        FileFlow.FlowStep.builder()
+                                .type("FILE_DELIVERY")
+                                .config(Map.of("deliveryEndpointIds",
+                                        endpoints.size() > 3 ? endpoints.get(3).getId().toString() : ""))
+                                .order(4)
                                 .build()
                 ))
                 .active(true)
