@@ -30,7 +30,7 @@ class ForwarderRegressionTest {
         // ForwarderController with null dependencies — only testing isRetryableDeliveryError
         forwarderController = new ForwarderController(
                 null, null, null,
-                null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null);
 
         // Real TransferWatchdog for stall detection tests
         transferWatchdog = new TransferWatchdog();

@@ -17,6 +17,8 @@ public class NotificationProperties {
 
     private RetryConfig retry = new RetryConfig();
     private WebhookConfig webhook = new WebhookConfig();
+    private SlackConfig slack = new SlackConfig();
+    private TeamsConfig teams = new TeamsConfig();
 
     @Getter @Setter
     public static class RetryConfig {
@@ -26,6 +28,20 @@ public class NotificationProperties {
 
     @Getter @Setter
     public static class WebhookConfig {
+        private int connectTimeoutMs = 5000;
+        private int readTimeoutMs = 10000;
+    }
+
+    @Getter @Setter
+    public static class SlackConfig {
+        private String defaultWebhookUrl;
+        private int connectTimeoutMs = 5000;
+        private int readTimeoutMs = 10000;
+    }
+
+    @Getter @Setter
+    public static class TeamsConfig {
+        private String defaultWebhookUrl;
         private int connectTimeoutMs = 5000;
         private int readTimeoutMs = 10000;
     }

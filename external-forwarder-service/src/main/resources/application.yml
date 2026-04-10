@@ -72,6 +72,11 @@ forwarder:
     # These are ON TOP of the endpoint's configured retry count.
     # Stall retries use shorter (linear) backoff since the connection was working.
     stall-extra-retries: ${FORWARDER_STALL_EXTRA_RETRIES:2}
+  as4:
+    signing-enabled: ${AS4_SIGNING_ENABLED:true}
+    signing-secret: ${AS4_SIGNING_SECRET:platform-default-signing-key}
+  kafka:
+    enabled: ${FORWARDER_KAFKA_ENABLED:false}
 
 cluster:
   id: ${CLUSTER_ID:default-cluster}

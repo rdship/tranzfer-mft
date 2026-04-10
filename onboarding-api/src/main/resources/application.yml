@@ -89,6 +89,13 @@ file-transfer:
   ftp-home-base: ${FTP_HOME_BASE:/data/ftp}
   ftpweb-home-base: ${FTPWEB_HOME_BASE:/data/ftpweb}
 
+blockchain:
+  anchor-mode: ${BLOCKCHAIN_ANCHOR_MODE:INTERNAL}  # INTERNAL (local DB), DOCUMENT (RFC 3161), ETHEREUM (future)
+  ethereum:
+    rpc-url: ${ETHEREUM_RPC_URL:}
+    contract-address: ${ETHEREUM_CONTRACT_ADDRESS:}
+  timestamp-service-url: ${TIMESTAMP_SERVICE_URL:}
+
 cluster:
   id: ${CLUSTER_ID:default-cluster}
   host: ${CLUSTER_HOST:localhost}

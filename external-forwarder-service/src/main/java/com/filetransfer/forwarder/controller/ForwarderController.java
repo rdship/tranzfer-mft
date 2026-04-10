@@ -67,10 +67,13 @@ public class ForwarderController {
     private final FtpForwarderService ftpForwarder;
     private final FtpsForwarderService ftpsForwarder;
     private final HttpForwarderService httpForwarder;
-    private final KafkaForwarderService kafkaForwarder;
     private final As2ForwarderService as2Forwarder;
     private final As4ForwarderService as4Forwarder;
     private final TransferWatchdog transferWatchdog;
+
+    @Autowired(required = false)
+    @Nullable
+    private KafkaForwarderService kafkaForwarder;
 
     @Autowired(required = false)
     @Nullable
@@ -558,6 +561,9 @@ public class ForwarderController {
         } else if (dest.getType() == ExternalDestinationType.FTP) {
             ftpForwarder.forward(dest, filename, bytes);
         } else if (dest.getType() == ExternalDestinationType.KAFKA) {
+            if (kafkaForwarder == null) {
+                throw new IllegalStateException("Kafka forwarding is not enabled (set forwarder.kafka.enabled=true)");
+            }
             kafkaForwarder.forward(dest, filename, bytes);
         } else {
             throw new IllegalArgumentException("Unknown destination type: " + dest.getType());

@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Service;
@@ -14,10 +15,12 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Forwards file bytes to a Kafka topic.
  * Key = filename, Value = raw file bytes.
+ * Only loaded when forwarder.kafka.enabled=true — avoids requiring Kafka dependencies at runtime.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "forwarder.kafka.enabled", havingValue = "true", matchIfMissing = false)
 public class KafkaForwarderService {
 
     private final KafkaTemplate<String, byte[]> kafkaTemplate;

@@ -31,7 +31,7 @@ class ForwarderControllerPartnershipTest {
     private Object invokeResolvePartnership(DeliveryEndpoint ep, String protocol) throws Exception {
         ForwarderController controller = new ForwarderController(
                 null, null, partnershipRepo,
-                null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null);
 
         Method method = ForwarderController.class.getDeclaredMethod(
                 "resolvePartnership", DeliveryEndpoint.class, String.class);

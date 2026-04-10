@@ -84,6 +84,14 @@ notification:
   webhook:
     connect-timeout-ms: ${WEBHOOK_CONNECT_TIMEOUT:5000}
     read-timeout-ms: ${WEBHOOK_READ_TIMEOUT:10000}
+  slack:
+    default-webhook-url: ${SLACK_WEBHOOK_URL:}
+    connect-timeout-ms: ${SLACK_CONNECT_TIMEOUT:5000}
+    read-timeout-ms: ${SLACK_READ_TIMEOUT:10000}
+  teams:
+    default-webhook-url: ${TEAMS_WEBHOOK_URL:}
+    connect-timeout-ms: ${TEAMS_CONNECT_TIMEOUT:5000}
+    read-timeout-ms: ${TEAMS_READ_TIMEOUT:10000}
 
 rabbitmq:
   exchange: ${RABBITMQ_EXCHANGE:file-transfer.events}

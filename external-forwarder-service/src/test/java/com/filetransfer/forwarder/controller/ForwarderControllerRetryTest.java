@@ -15,7 +15,7 @@ class ForwarderControllerRetryTest {
         // Only testing isRetryableDeliveryError — no dependencies needed
         controller = new ForwarderController(
                 null, null, null,
-                null, null, null, null, null, null, null, null
+                null, null, null, null, null, null, null
         );
     }
 

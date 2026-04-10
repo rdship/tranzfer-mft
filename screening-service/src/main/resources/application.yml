@@ -75,9 +75,12 @@ screening:
     enabled: true
   eu:
     enabled: ${EU_SANCTIONS_ENABLED:true}
-    url: https://webgate.ec.europa.eu/fsd/fsf/public/files/csvFullSanctionsList/content
+    url: ${SANCTIONS_EU_URL:https://webgate.ec.europa.eu/fsd/fsf/public/files/csvFullSanctionsList/content?token=dG9rZW4tMjAxNw}
+    fallback-to-builtin: true
   un:
     enabled: ${UN_SANCTIONS_ENABLED:true}
+    url: ${SANCTIONS_UN_URL:https://scsanctions.un.org/resources/xml/en/consolidated.xml}
+    fallback-to-builtin: true
   match-threshold: ${SCREENING_THRESHOLD:0.82}
   default-action: ${SCREENING_DEFAULT_ACTION:BLOCK}
 

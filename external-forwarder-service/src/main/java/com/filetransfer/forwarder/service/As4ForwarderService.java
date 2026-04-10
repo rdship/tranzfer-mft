@@ -12,8 +12,12 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.UUID;
 
 /**
@@ -46,6 +50,12 @@ public class As4ForwarderService {
     @org.springframework.beans.factory.annotation.Value("${forwarder.as4.read-timeout-ms:60000}")
     private int readTimeoutMs = 60_000;
 
+    @org.springframework.beans.factory.annotation.Value("${forwarder.as4.signing-enabled:true}")
+    private boolean signingEnabled;
+
+    @org.springframework.beans.factory.annotation.Value("${forwarder.as4.signing-secret:${AS4_SIGNING_SECRET:platform-default-signing-key}}")
+    private String signingSecret;
+
     /**
      * Send a file to a trading partner via AS4 (ebMS3).
      */
@@ -66,6 +76,11 @@ public class As4ForwarderService {
         try {
             // Build SOAP envelope with ebMS3 headers
             String soapEnvelope = buildEbms3Envelope(partnership, messageId, filename, fileBytes);
+
+            // Apply WS-Security signing if enabled
+            if (signingEnabled) {
+                soapEnvelope = addSecurityHeader(soapEnvelope, fileBytes);
+            }
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.TEXT_XML);
@@ -182,6 +197,50 @@ public class As4ForwarderService {
                 """.formatted(timestamp, messageId,
                 partnership.getOurAs2Id(), partnership.getPartnerAs2Id(),
                 conversationId, filename, base64Payload);
+    }
+
+    /**
+     * Add WS-Security header with HMAC-SHA256 signature to the SOAP envelope.
+     * Computes a digest of the payload and signs it using the configured secret.
+     * Falls back to unsigned envelope if signing fails (graceful degradation).
+     */
+    private String addSecurityHeader(String soapEnvelope, byte[] payload) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            SecretKeySpec key = new SecretKeySpec(
+                    signingSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+            mac.init(key);
+            byte[] sig = mac.doFinal(payload);
+            String signatureValue = Base64.getEncoder().encodeToString(sig);
+            String digestValue = Base64.getEncoder().encodeToString(
+                    MessageDigest.getInstance("SHA-256").digest(payload));
+
+            String securityHeader = """
+                    <wsse:Security xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">
+                        <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+                            <ds:SignedInfo>
+                                <ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+                                <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#hmac-sha256"/>
+                                <ds:Reference URI="#body">
+                                    <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+                                    <ds:DigestValue>%s</ds:DigestValue>
+                                </ds:Reference>
+                            </ds:SignedInfo>
+                            <ds:SignatureValue>%s</ds:SignatureValue>
+                        </ds:Signature>
+                    </wsse:Security>""".formatted(digestValue, signatureValue);
+
+            // Insert security header into the SOAP Header element
+            if (soapEnvelope.contains("<soap:Header>")) {
+                return soapEnvelope.replace("<soap:Header>", "<soap:Header>" + securityHeader);
+            }
+            // Should not happen with our envelope, but handle defensively
+            log.warn("SOAP envelope has no <soap:Header> element, cannot insert WS-Security header");
+            return soapEnvelope;
+        } catch (Exception e) {
+            log.warn("WS-Security signing failed, sending unsigned: {}", e.getMessage());
+            return soapEnvelope;
+        }
     }
 
     /**
