@@ -32,7 +32,7 @@ fi
 info "Waiting for SPIRE Server..."
 MAX_WAIT=120
 WAITED=0
-until wget -qO- http://spire-server:8080/ready >/dev/null 2>&1; do
+until /opt/spire/bin/spire-server healthcheck -socketPath "$SERVER_SOCK" >/dev/null 2>&1; do
     sleep 2
     WAITED=$((WAITED + 2))
     if [ "$WAITED" -ge "$MAX_WAIT" ]; then

@@ -72,7 +72,7 @@ services:
       - spire-server-sock:/tmp/spire-server
     command: ["-config", "/opt/spire/conf/server/server.conf"]
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ready || exit 1"]
+      test: ["CMD", "/opt/spire/bin/spire-server", "healthcheck", "-socketPath", "/tmp/spire-server/private/api.sock"]
       interval: 10s
       timeout: 5s
       retries: 8
@@ -122,7 +122,7 @@ services:
           -config /opt/spire/conf/agent/agent.conf \
           -joinToken "$$TOKEN"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ready || exit 1"]
+      test: ["CMD", "/opt/spire/bin/spire-agent", "healthcheck", "-socketPath", "/run/spire/sockets/agent.sock"]
       interval: 10s
       timeout: 5s
       retries: 8
