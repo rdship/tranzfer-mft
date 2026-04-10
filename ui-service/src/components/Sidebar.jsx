@@ -42,80 +42,90 @@ const navGroups = [
     label: 'Overview',
     items: [
       { to: '/dashboard',        icon: HomeIcon,             label: 'Dashboard' },
-      { to: '/partners',         icon: BuildingOfficeIcon,   label: 'Partner Management' },
-      { to: '/partner-setup',    icon: RocketLaunchIcon,     label: 'Onboard Partner',    role: 'ADMIN' },
-      { to: '/services',         icon: CircleStackIcon,      label: 'Services',            role: 'ADMIN' },
-      { to: '/journey',          icon: MagnifyingGlassIcon,  label: 'Transfer Journey' },
-      { to: '/activity',         icon: WifiIcon,             label: 'Live Activity' },
-      { to: '/activity-monitor', icon: ChartBarIcon,         label: 'Activity Monitor' },
+      { to: '/activity-monitor',  icon: ChartBarIcon,         label: 'Activity Monitor' },
+      { to: '/activity',          icon: WifiIcon,             label: 'Live Activity' },
+      { to: '/journey',           icon: MagnifyingGlassIcon,  label: 'Transfer Journey' },
     ],
   },
   {
-    label: 'File Transfer',
+    label: 'Partners & Accounts',
     items: [
-      { to: '/accounts',              icon: UsersIcon,           label: 'Transfer Accounts' },
-      { to: '/users',                 icon: UsersIcon,           label: 'Users',                role: 'ADMIN' },
-      { to: '/folder-mappings',       icon: ArrowsRightLeftIcon, label: 'Folder Mappings' },
+      { to: '/partners',          icon: BuildingOfficeIcon,   label: 'Partner Management' },
+      { to: '/partner-setup',     icon: RocketLaunchIcon,     label: 'Onboard Partner',    role: 'ADMIN' },
+      { to: '/accounts',          icon: UsersIcon,            label: 'Transfer Accounts' },
+      { to: '/users',             icon: UsersIcon,            label: 'Users',              role: 'ADMIN' },
+    ],
+  },
+  {
+    label: 'File Processing',
+    items: [
       { to: '/flows',                 icon: CpuChipIcon,         label: 'Processing Flows' },
-      { to: '/p2p',                   icon: ArrowPathIcon,       label: 'P2P Transfers' },
+      { to: '/folder-mappings',       icon: ArrowsRightLeftIcon, label: 'Folder Mappings' },
+      { to: '/folder-templates',      icon: FolderIcon,          label: 'Folder Templates',  role: 'ADMIN' },
       { to: '/external-destinations', icon: GlobeAltIcon,        label: 'External Destinations' },
       { to: '/as2-partnerships',      icon: LinkIcon,            label: 'AS2/AS4 Partnerships' },
+      { to: '/p2p',                   icon: ArrowPathIcon,       label: 'P2P Transfers' },
     ],
   },
   {
-    label: 'Infrastructure',
+    label: 'Servers & Infrastructure',
     items: [
-      { to: '/server-instances',  icon: ServerStackIcon,    label: 'Servers',           role: 'ADMIN' },
-      { to: '/folder-templates',  icon: FolderIcon,         label: 'Folder Templates',  role: 'ADMIN' },
-      { to: '/security-profiles', icon: ShieldCheckIcon,    label: 'Security Profiles', role: 'ADMIN' },
-      { to: '/keystore',          icon: KeyIcon,            label: 'Keystore Manager',  role: 'ADMIN' },
-      { to: '/2fa',               icon: ShieldCheckIcon,    label: 'Two-Factor Auth' },
-      { to: '/storage',           icon: ServerStackIcon,    label: 'Storage Manager',   role: 'ADMIN' },
-      { to: '/cas-dedup',         icon: CircleStackIcon,    label: 'CAS Dedup Savings', role: 'ADMIN' },
-      { to: '/vfs-storage',       icon: CircleStackIcon,    label: 'VFS Storage',       role: 'ADMIN' },
+      { to: '/server-instances',  icon: ServerStackIcon,    label: 'Server Instances',  role: 'ADMIN' },
       { to: '/gateway',           icon: BoltIcon,           label: 'Gateway & DMZ',     role: 'ADMIN' },
       { to: '/dmz-proxy',         icon: ShieldCheckIcon,    label: 'DMZ Proxy',         role: 'ADMIN' },
-      { to: '/proxy-groups',      icon: ArrowsRightLeftIcon,label: 'Proxy Groups',       role: 'ADMIN' },
-      { to: '/scheduler',         icon: ClockIcon,          label: 'Scheduler',         role: 'ADMIN' },
+      { to: '/proxy-groups',      icon: ArrowsRightLeftIcon,label: 'Proxy Groups',      role: 'ADMIN' },
+      { to: '/storage',           icon: ServerStackIcon,    label: 'Storage Manager',   role: 'ADMIN' },
+      { to: '/vfs-storage',       icon: CircleStackIcon,    label: 'VFS Storage',       role: 'ADMIN' },
+      { to: '/cas-dedup',         icon: CircleStackIcon,    label: 'CAS Dedup',         role: 'ADMIN' },
     ],
   },
   {
-    label: 'Compliance',
+    label: 'Security & Compliance',
     items: [
-      { to: '/compliance', icon: ShieldCheckIcon,     label: 'Compliance',      role: 'ADMIN', badge: 'compliance' },
-      { to: '/screening',  icon: MagnifyingGlassIcon, label: 'Screening & DLP' },
-      { to: '/sla',        icon: DocumentCheckIcon,   label: 'SLA Agreements' },
-      { to: '/blockchain', icon: FingerPrintIcon,     label: 'Blockchain Proof' },
-      { to: '/connectors', icon: BoltIcon,            label: 'Connectors',  role: 'ADMIN' },
-      { to: '/notifications', icon: BellAlertIcon,   label: 'Notifications', role: 'ADMIN' },
+      { to: '/compliance',        icon: ShieldCheckIcon,     label: 'Compliance Profiles', role: 'ADMIN', badge: 'compliance' },
+      { to: '/security-profiles', icon: ShieldCheckIcon,     label: 'Security Profiles',   role: 'ADMIN' },
+      { to: '/keystore',          icon: KeyIcon,             label: 'Keystore Manager',    role: 'ADMIN' },
+      { to: '/screening',         icon: MagnifyingGlassIcon, label: 'Screening & DLP' },
+      { to: '/2fa',               icon: ShieldCheckIcon,     label: 'Two-Factor Auth' },
+      { to: '/blockchain',        icon: FingerPrintIcon,     label: 'Blockchain Proof' },
     ],
   },
   {
-    label: 'Developer',
+    label: 'Notifications & Integrations',
     items: [
-      { to: '/api-console', icon: CodeBracketIcon,  label: 'Transfer API v2' },
-      { to: '/edi',         icon: DocumentTextIcon, label: 'EDI Translation' },
-      { to: '/tenants',     icon: ServerStackIcon,  label: 'Multi-Tenant',   role: 'ADMIN' },
+      { to: '/notifications',     icon: BellAlertIcon,     label: 'Notifications',     role: 'ADMIN' },
+      { to: '/connectors',        icon: BoltIcon,          label: 'Connectors',        role: 'ADMIN' },
+      { to: '/sla',               icon: DocumentCheckIcon, label: 'SLA Agreements' },
+      { to: '/scheduler',         icon: ClockIcon,         label: 'Scheduler',         role: 'ADMIN' },
     ],
   },
   {
-    label: 'Observability',
+    label: 'Intelligence',
     items: [
       { to: '/observatory',      icon: EyeIcon,         label: 'Observatory',          role: 'ADMIN' },
+      { to: '/sentinel',         icon: CpuChipIcon,     label: 'Platform Sentinel',    role: 'ADMIN' },
       { to: '/recommendations',  icon: LightBulbIcon,   label: 'AI Recommendations' },
       { to: '/analytics',        icon: ChartBarIcon,    label: 'Analytics' },
       { to: '/predictions',      icon: BeakerIcon,      label: 'Predictions' },
-      { to: '/sentinel',         icon: CpuChipIcon,     label: 'Platform Sentinel',    role: 'ADMIN' },
       { to: '/circuit-breakers', icon: ArrowPathIcon,   label: 'Circuit Breakers',     role: 'ADMIN' },
-      { to: '/logs',             icon: DocumentTextIcon,label: 'Logs' },
+    ],
+  },
+  {
+    label: 'Tools',
+    items: [
+      { to: '/edi',         icon: DocumentTextIcon, label: 'EDI Translation' },
+      { to: '/api-console', icon: CodeBracketIcon,  label: 'API Console' },
+      { to: '/terminal',    icon: CommandLineIcon,   label: 'Terminal',        role: 'ADMIN' },
     ],
   },
   {
     label: 'Administration',
     items: [
       { to: '/platform-config', icon: AdjustmentsHorizontalIcon, label: 'Platform Config', role: 'ADMIN' },
-      { to: '/terminal',        icon: CommandLineIcon,            label: 'Terminal',        role: 'ADMIN' },
-      { to: '/license',         icon: KeyIcon,                   label: 'License',         role: 'ADMIN' },
+      { to: '/tenants',          icon: ServerStackIcon,           label: 'Multi-Tenant',    role: 'ADMIN' },
+      { to: '/license',          icon: KeyIcon,                   label: 'License',         role: 'ADMIN' },
+      { to: '/services',         icon: CircleStackIcon,           label: 'Service Health',  role: 'ADMIN' },
+      { to: '/logs',             icon: DocumentTextIcon,          label: 'Logs' },
     ],
   },
 ]
@@ -149,7 +159,7 @@ export default function Sidebar() {
       className="w-56 flex flex-col overflow-hidden flex-shrink-0"
       style={{ background: '#09090b' }}
     >
-      {/* ── Brand ── */}
+      {/* Brand */}
       <div className="px-4 py-4 flex items-center gap-2.5" style={{ borderBottom: '1px solid #18181b' }}>
         {branding.logoUrl ? (
           <img src={branding.logoUrl} alt={branding.companyName} className="h-7 object-contain" />
@@ -169,7 +179,7 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* ── Nav ── */}
+      {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-5">
         {loading ? (
           <div className="flex items-center justify-center py-10">
@@ -219,7 +229,7 @@ export default function Sidebar() {
         )}
       </nav>
 
-      {/* ── User Footer ── */}
+      {/* User Footer */}
       <div className="px-3 py-3 flex items-center gap-2.5 flex-shrink-0" style={{ borderTop: '1px solid #18181b' }}>
         {/* Avatar */}
         <div

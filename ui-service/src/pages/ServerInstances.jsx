@@ -1,15 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getServerInstances, createServerInstance, updateServerInstance, deleteServerInstance } from '../api/accounts'
 import {
-  getServerAccounts, assignAccountToServer, revokeServerAccess,
+  getServerAccounts, revokeServerAccess,
   updateServerAssignment, toggleMaintenance,
 } from '../api/servers'
 import { getFolderTemplates } from '../api/config'
 import { getPlatformSettings } from '../api/platformSettings'
 import { getProxyGroups } from '../api/proxyGroups'
+import { configApi } from '../api/client'
 import { useServices } from '../context/ServiceContext'
 import SecurityTierSelector from '../components/SecurityTierSelector'
-import ProtocolSecurityConfig from '../components/ProtocolSecurityConfig'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
@@ -17,25 +17,30 @@ import { friendlyError } from '../components/FormField'
 import toast from 'react-hot-toast'
 import {
   PlusIcon, TrashIcon, PencilIcon, ServerStackIcon, SignalIcon, SignalSlashIcon,
-  FolderIcon, CircleStackIcon, LockClosedIcon, UsersIcon, ShieldExclamationIcon,
+  FolderIcon, CircleStackIcon, LockClosedIcon, UsersIcon,
   WrenchScrewdriverIcon, ArrowPathIcon, XMarkIcon, CheckIcon,
+  ChevronDownIcon, ChevronUpIcon,
 } from '@heroicons/react/24/outline'
 import { useState, useEffect } from 'react'
 
-const PROTOCOLS = ['SFTP', 'FTP', 'FTP_WEB', 'HTTPS']
+const PROTOCOLS = ['SFTP', 'FTP', 'FTP_WEB', 'HTTPS', 'AS2', 'AS4']
 
 const DEFAULT_PORTS = {
   SFTP: 2222,
   FTP: 21,
   FTP_WEB: 8083,
-  HTTPS: 443
+  HTTPS: 443,
+  AS2: 8094,
+  AS4: 8094,
 }
 
 const PROTOCOL_LABELS = {
   SFTP: 'SFTP',
   FTP: 'FTP',
   FTP_WEB: 'FTP-Web (HTTP/S)',
-  HTTPS: 'HTTPS'
+  HTTPS: 'HTTPS',
+  AS2: 'AS2',
+  AS4: 'AS4',
 }
 
 const SECURITY_BADGES = {
@@ -45,9 +50,11 @@ const SECURITY_BADGES = {
 }
 
 const STORAGE_MODES = [
-  { value: 'PHYSICAL', label: 'Physical Storage', desc: 'Traditional filesystem — files stored directly on disk at home directory paths', icon: FolderIcon, color: 'blue' },
-  { value: 'VIRTUAL', label: 'Virtual File System (VFS)', desc: 'Phantom folders — zero-cost provisioning, content-addressed storage, inline small files', icon: CircleStackIcon, color: 'purple' },
+  { value: 'PHYSICAL', label: 'Physical Storage', desc: 'Traditional filesystem -- files stored directly on disk at home directory paths', icon: FolderIcon, color: 'blue' },
+  { value: 'VIRTUAL', label: 'Virtual File System (VFS)', desc: 'Phantom folders -- zero-cost provisioning, content-addressed storage, inline small files', icon: CircleStackIcon, color: 'purple' },
 ]
+
+const isSshProtocol = (p) => p === 'SFTP'
 
 const emptyForm = {
   instanceId: '', protocol: 'SFTP', name: '', description: '',
@@ -59,10 +66,9 @@ const emptyForm = {
   folderTemplateId: '',
   clearFolderTemplate: false,
   defaultStorageMode: 'PHYSICAL',
-  securityTier: 'AI', securityPolicy: {},
-  protocolCredentials: {},
-  // ── Advanced per-server config (V44) ──
-  proxyGroupName: '',
+  complianceProfileId: '',
+  securityTier: 'RULES',
+  // SSH / session
   sshBannerMessage: '',
   maxAuthAttempts: 3,
   idleTimeoutSeconds: 300,
@@ -70,8 +76,49 @@ const emptyForm = {
   allowedCiphers: '',
   allowedMacs: '',
   allowedKex: '',
+  // Proxy
+  proxyGroupName: '',
+  // Maintenance
   maintenanceMode: false,
   maintenanceMessage: '',
+  active: true,
+}
+
+// ── Section wrapper ──────────────────────────────────────────────────────────
+
+function FormSection({ title, subtitle, children, defaultOpen = true }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div style={{ border: '1px solid rgb(var(--border, 229 231 235))', borderRadius: '0.75rem', overflow: 'hidden' }}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left transition-colors"
+        style={{ background: 'rgb(var(--hover, 249 250 251))' }}
+      >
+        <div>
+          <p className="text-sm font-semibold" style={{ color: 'rgb(var(--tx-primary, 17 24 39))' }}>{title}</p>
+          {subtitle && <p className="text-xs mt-0.5" style={{ color: 'rgb(var(--tx-muted, 156 163 175))' }}>{subtitle}</p>}
+        </div>
+        {open
+          ? <ChevronUpIcon className="w-4 h-4 flex-shrink-0" style={{ color: 'rgb(var(--tx-muted, 156 163 175))' }} />
+          : <ChevronDownIcon className="w-4 h-4 flex-shrink-0" style={{ color: 'rgb(var(--tx-muted, 156 163 175))' }} />
+        }
+      </button>
+      <div
+        className="transition-all duration-200 ease-in-out"
+        style={{
+          maxHeight: open ? '2000px' : '0',
+          opacity: open ? 1 : 0,
+          overflow: 'hidden',
+        }}
+      >
+        <div className="px-4 py-4 space-y-4" style={{ borderTop: '1px solid rgb(var(--border, 229 231 235))' }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ── AccountsPanel ──────────────────────────────────────────────────────────────
@@ -112,13 +159,13 @@ function AccountsPanel({ server, onClose }) {
           <span>
             <strong>{server.instanceId}</strong> · {server.clientHost}:{server.clientPort}
             {server.proxyGroupName && <> · Group: <strong>{server.proxyGroupName}</strong></>}
-            {server.maintenanceMode && <span className="ml-2 font-bold text-yellow-600">⚠ MAINTENANCE</span>}
+            {server.maintenanceMode && <span className="ml-2 font-bold text-yellow-600">MAINTENANCE</span>}
           </span>
         </div>
 
         {/* Assigned accounts */}
         {isLoading ? (
-          <div className="py-6 text-center text-sm" style={{ color: 'rgb(var(--tx-muted))' }}>Loading…</div>
+          <div className="py-6 text-center text-sm" style={{ color: 'rgb(var(--tx-muted))' }}>Loading...</div>
         ) : assignments.length === 0 ? (
           <div className="py-8 text-center">
             <UsersIcon className="w-10 h-10 mx-auto mb-2" style={{ color: 'rgb(var(--tx-muted))' }} />
@@ -145,14 +192,14 @@ function AccountsPanel({ server, onClose }) {
                     {!a.enabled && <span className="badge badge-yellow text-[10px]">Disabled</span>}
                     {a.homeFolderOverride && (
                       <span className="text-[10px] font-mono" style={{ color: 'rgb(var(--tx-muted))' }}>
-                        📁 {a.homeFolderOverride}
+                        {a.homeFolderOverride}
                       </span>
                     )}
                   </div>
                   <div className="flex gap-2 mt-0.5 text-[10px]" style={{ color: 'rgb(var(--tx-muted))' }}>
                     {[['R', a.canRead], ['W', a.canWrite], ['D', a.canDelete]].map(([l, v]) =>
                       v != null ? (
-                        <span key={l} style={{ color: v ? '#22c55e' : '#ef4444' }}>{v ? '✓' : '✗'}{l}</span>
+                        <span key={l} style={{ color: v ? '#22c55e' : '#ef4444' }}>{v ? 'Y' : 'N'} {l}</span>
                       ) : null
                     )}
                     {a.maxConcurrentSessions != null && <span>max {a.maxConcurrentSessions} sess</span>}
@@ -188,7 +235,7 @@ function AccountsPanel({ server, onClose }) {
 
         {/* Note about assigning via account page */}
         <div className="text-xs px-3 py-2 rounded-lg" style={{ background: 'rgb(var(--hover))', color: 'rgb(var(--tx-muted))' }}>
-          To assign an account to this server, use the <strong>Transfer Accounts</strong> page → select an account → Servers tab,
+          To assign an account to this server, use the <strong>Transfer Accounts</strong> page, select an account, then use the Servers tab,
           or call <code className="px-1 py-0.5 rounded" style={{ background: 'rgb(var(--surface))' }}>
             POST /api/servers/{server.id}/accounts/{'{accountId}'}
           </code>
@@ -238,7 +285,7 @@ export default function ServerInstances() {
     mutationFn: ({ id, enable }) => toggleMaintenance(id, enable, enable ? 'Server under maintenance' : ''),
     onSuccess: (_, { enable }) => {
       qc.invalidateQueries(['server-instances'])
-      toast.success(enable ? 'Maintenance mode ON — new connections blocked' : 'Maintenance mode OFF')
+      toast.success(enable ? 'Maintenance mode ON -- new connections blocked' : 'Maintenance mode OFF')
     },
     onError: () => toast.error('Failed to toggle maintenance mode'),
   })
@@ -260,11 +307,9 @@ export default function ServerInstances() {
       maxConnections: s.maxConnections,
       folderTemplateId: s.folderTemplateId || '',
       defaultStorageMode: s.defaultStorageMode || 'PHYSICAL',
-      securityTier: s.securityTier || 'AI',
-      securityPolicy: s.securityPolicy || {},
-      protocolCredentials: s.protocolCredentials || {},
-      // V44 advanced fields
-      proxyGroupName: s.proxyGroupName || '',
+      complianceProfileId: s.complianceProfileId || '',
+      securityTier: s.securityTier || 'RULES',
+      // SSH / session
       sshBannerMessage: s.sshBannerMessage || '',
       maxAuthAttempts: s.maxAuthAttempts ?? 3,
       idleTimeoutSeconds: s.idleTimeoutSeconds ?? 300,
@@ -272,8 +317,12 @@ export default function ServerInstances() {
       allowedCiphers: s.allowedCiphers || '',
       allowedMacs: s.allowedMacs || '',
       allowedKex: s.allowedKex || '',
+      // Proxy
+      proxyGroupName: s.proxyGroupName || '',
+      // Maintenance
       maintenanceMode: s.maintenanceMode || false,
       maintenanceMessage: s.maintenanceMessage || '',
+      active: s.active ?? true,
     })
   }
 
@@ -325,7 +374,7 @@ export default function ServerInstances() {
       </div>
 
       {/* Protocol filter tabs */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <button
           onClick={() => setProtocolFilter('ALL')}
           className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
@@ -383,7 +432,8 @@ export default function ServerInstances() {
                       <span className={`badge ${
                         s.protocol === 'SFTP' ? 'badge-blue' :
                         s.protocol === 'FTP' ? 'badge-green' :
-                        s.protocol === 'FTP_WEB' ? 'badge-purple' : 'badge-yellow'
+                        s.protocol === 'FTP_WEB' ? 'badge-purple' :
+                        s.protocol === 'AS2' || s.protocol === 'AS4' ? 'badge-blue' : 'badge-yellow'
                       }`}>{PROTOCOL_LABELS[s.protocol] || s.protocol}</span>
                     </td>
                     <td className="table-cell">
@@ -495,9 +545,13 @@ export default function ServerInstances() {
   )
 }
 
+// ── ServerForm ──────────────────────────────────────────────────────────────────
+
 function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel, showInstanceId }) {
   const { services } = useServices() || { services: {} }
   const dmzRunning = services?.dmz !== false
+  const [showSshCrypto, setShowSshCrypto] = useState(false)
+
   const { data: proxyGroups = [] } = useQuery({
     queryKey: ['proxy-groups-simple'],
     queryFn: getProxyGroups,
@@ -515,6 +569,12 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
   const { data: folderTemplates = [] } = useQuery({
     queryKey: ['folder-templates-picker'],
     queryFn: getFolderTemplates,
+    staleTime: 300_000
+  })
+
+  const { data: complianceProfiles = [] } = useQuery({
+    queryKey: ['compliance-profiles-picker'],
+    queryFn: () => configApi.get('/api/compliance/profiles').then(r => r.data).catch(() => []),
     staleTime: 300_000
   })
 
@@ -536,320 +596,418 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
     }
   }, [form.useProxy, dmzRunning])
 
+  const isSSH = isSshProtocol(form.protocol)
+
   return (
     <form onSubmit={e => { e.preventDefault(); onSubmit() }} className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
-      {/* Protocol selector */}
-      <div>
-        <label>Protocol</label>
-        <select value={form.protocol} onChange={e => handleProtocolChange(e.target.value)}>
-          {PROTOCOLS.map(p => <option key={p} value={p}>{PROTOCOL_LABELS[p]}</option>)}
-        </select>
-      </div>
 
-      {showInstanceId && (
+      {/* ═══════ Section 1: Basic Information ═══════ */}
+      <FormSection title="Basic Information" subtitle="Server identity and protocol">
         <div>
-          <label>Instance ID</label>
-          <input value={form.instanceId} onChange={e => f('instanceId', e.target.value)} required
-            placeholder={`${form.protocol.toLowerCase()}-3`} pattern="[a-z0-9\-]+" title="Lowercase letters, numbers, hyphens" />
-          <p className="text-xs text-gray-400 mt-1">Unique identifier (e.g., sftp-3, ftp-eu-west, ftpweb-2)</p>
+          <label>Protocol *</label>
+          <select value={form.protocol} onChange={e => handleProtocolChange(e.target.value)}>
+            {PROTOCOLS.map(p => <option key={p} value={p}>{PROTOCOL_LABELS[p]}</option>)}
+          </select>
+          <p className="text-xs text-gray-400 mt-1">Determines the file transfer protocol this server instance handles</p>
         </div>
-      )}
-      <div className="grid grid-cols-2 gap-4">
-        <div><label>Name</label><input value={form.name} onChange={e => f('name', e.target.value)} required placeholder="EU West Server" /></div>
-        <div><label>Max Connections</label><input type="number" value={form.maxConnections} onChange={e => f('maxConnections', parseInt(e.target.value))} /></div>
-      </div>
-      <div><label>Description</label><input value={form.description} onChange={e => f('description', e.target.value)} placeholder="Production server for EU region" /></div>
 
-      {/* ============ Storage Mode ============ */}
-      <div className="pt-2">
-        <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">Storage Mode</p>
-        <div className="grid grid-cols-2 gap-3">
-          {STORAGE_MODES.map(mode => {
-            const Icon = mode.icon
-            const selected = form.defaultStorageMode === mode.value
-            return (
-              <button key={mode.value} type="button"
-                onClick={() => f('defaultStorageMode', mode.value)}
-                className={`p-4 rounded-xl border-2 text-left transition-all ${
-                  selected
-                    ? mode.color === 'purple' ? 'border-purple-500 bg-purple-50' : 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}>
-                <div className="flex items-center gap-2 mb-1">
-                  <Icon className={`w-5 h-5 ${selected ? (mode.color === 'purple' ? 'text-purple-600' : 'text-blue-600') : 'text-gray-400'}`} />
-                  <span className={`font-semibold text-sm ${selected ? (mode.color === 'purple' ? 'text-purple-700' : 'text-blue-700') : 'text-gray-700'}`}>
-                    {mode.label}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500">{mode.desc}</p>
-              </button>
-            )
-          })}
-        </div>
-        {form.defaultStorageMode === 'VIRTUAL' && (
-          <div className="mt-2 bg-purple-50 border border-purple-100 rounded-lg p-2.5 text-xs text-purple-700">
-            <span className="font-medium">VFS Mode:</span> Accounts on this server will use phantom folders with content-addressed storage.
-            Small files (&lt;64KB) stored inline in DB for sub-millisecond access. No physical disk provisioning needed.
+        {showInstanceId && (
+          <div>
+            <label>Instance ID *</label>
+            <input value={form.instanceId} onChange={e => f('instanceId', e.target.value)} required
+              placeholder={`${form.protocol.toLowerCase()}-3`} pattern="[a-z0-9\-]+" title="Lowercase letters, numbers, hyphens" />
+            <p className="text-xs text-gray-400 mt-1">Unique identifier (e.g., sftp-3, ftp-eu-west, ftpweb-2)</p>
           </div>
         )}
-      </div>
 
-      {/* ============ Folder Template ============ */}
-      <div className="pt-2">
-        <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Folder Template</p>
-        <p className="text-xs text-gray-400 mb-3">
-          Directory structure users see when connecting — inbox, outbox, archive, etc.
-        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label>Name *</label>
+            <input value={form.name} onChange={e => f('name', e.target.value)} required placeholder="EU West Server" />
+            <p className="text-xs text-gray-400 mt-1">Human-readable name for this server</p>
+          </div>
+          <div>
+            <label>Description</label>
+            <input value={form.description} onChange={e => f('description', e.target.value)} placeholder="Production server for EU region" />
+          </div>
+        </div>
 
-        {folderTemplates.length > 0 ? (
-          <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-            {/* None option */}
-            <button type="button"
-              onClick={() => { f('folderTemplateId', null); f('clearFolderTemplate', true) }}
-              className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
-                !form.folderTemplateId ? 'border-gray-400 bg-gray-50' : 'border-gray-200 hover:border-gray-300'
-              }`}>
-              <p className={`text-sm font-medium ${!form.folderTemplateId ? 'text-gray-900' : 'text-gray-500'}`}>
-                No folder template
-              </p>
-              <p className="text-xs text-gray-400">Accounts use a flat home directory with no predefined structure</p>
-            </button>
+        <div className="flex items-center gap-3">
+          <input type="checkbox" id="activeToggle" checked={form.active !== false} onChange={e => f('active', e.target.checked)}
+            className="w-4 h-4 text-blue-600 rounded border-gray-300" />
+          <label htmlFor="activeToggle" className="text-sm font-medium text-gray-700 mb-0">Active</label>
+          <p className="text-xs text-gray-400">Inactive servers will not accept connections</p>
+        </div>
+      </FormSection>
 
-            {/* Template cards */}
-            {folderTemplates.map(t => {
-              const isSelected = form.folderTemplateId === t.id
+      {/* ═══════ Section 2: Network Configuration ═══════ */}
+      <FormSection title="Network Configuration" subtitle="Internal and external connection endpoints">
+        <div>
+          <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">Internal Connection (Docker / Host)</p>
+          <p className="text-xs text-gray-400 mb-3">Where the platform connects to this server internally</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label>Internal Host *</label>
+              <input value={form.internalHost} onChange={e => f('internalHost', e.target.value)} required placeholder={`${form.protocol.toLowerCase()}-service-3`} />
+            </div>
+            <div>
+              <label>Internal Port *</label>
+              <input type="number" value={form.internalPort} onChange={e => f('internalPort', parseInt(e.target.value))} required />
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">External Connection (Client-Facing)</p>
+          <p className="text-xs text-gray-400 mb-3">What partners/clients use to connect. Leave blank if same as internal.</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label>External Host</label>
+              <input value={form.externalHost} onChange={e => f('externalHost', e.target.value)} placeholder="files.example.com" />
+            </div>
+            <div>
+              <label>External Port</label>
+              <input type="number" value={form.externalPort} onChange={e => f('externalPort', e.target.value ? parseInt(e.target.value) : '')} placeholder={String(DEFAULT_PORTS[form.protocol])} />
+            </div>
+          </div>
+        </div>
+      </FormSection>
+
+      {/* ═══════ Section 3: Security ═══════ */}
+      <FormSection title="Security" subtitle="Compliance, security tier, and authentication settings">
+        {/* Compliance Profile dropdown */}
+        <div>
+          <label>Compliance Profile</label>
+          <select value={form.complianceProfileId || ''} onChange={e => f('complianceProfileId', e.target.value || '')}>
+            <option value="">-- No compliance enforcement --</option>
+            {complianceProfiles.map(p => (
+              <option key={p.id} value={p.id}>{p.name}{p.description ? ` -- ${p.description}` : ''}</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-400 mt-1">Assign a compliance profile to enforce data rules on transfers through this server</p>
+        </div>
+
+        {/* Security Tier */}
+        <div>
+          <SecurityTierSelector
+            tier={form.securityTier}
+            onTierChange={tier => f('securityTier', tier)}
+            showAiTiers={true}
+            llmEnabled={llmEnabled}
+          />
+          <p className="text-xs text-gray-400 mt-1">RULES = pattern matching only, AI = machine-learning threat detection, AI+LLM = deep content analysis</p>
+        </div>
+
+        {/* Max Auth Attempts */}
+        <div>
+          <label>Max Authentication Attempts</label>
+          <input type="number" min={1} max={10} value={form.maxAuthAttempts}
+            onChange={e => setForm(prev => ({ ...prev, maxAuthAttempts: Number(e.target.value) }))} />
+          <p className="text-xs text-gray-400 mt-1">Disconnect after this many failed login attempts (1-10)</p>
+        </div>
+
+        {/* SSH-specific fields */}
+        {isSSH && (
+          <>
+            <div>
+              <label>SSH Banner Message</label>
+              <textarea rows={2} value={form.sshBannerMessage || ''} placeholder="Authorized access only. Connections are monitored."
+                onChange={e => setForm(prev => ({ ...prev, sshBannerMessage: e.target.value }))} />
+              <p className="text-xs text-gray-400 mt-1">Shown to SSH clients immediately after connecting (SFTP only)</p>
+            </div>
+
+            {/* SSH Crypto Accordion */}
+            <div style={{ border: '1px solid rgb(var(--border, 229 231 235))', borderRadius: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => setShowSshCrypto(o => !o)}
+                className="w-full flex items-center justify-between px-3 py-2 text-left text-xs font-medium text-gray-600"
+                style={{ background: 'rgb(var(--hover, 249 250 251))', borderRadius: '0.5rem' }}
+              >
+                <span>SSH Cipher / Algorithm Allowlists (Advanced)</span>
+                {showSshCrypto
+                  ? <ChevronUpIcon className="w-3.5 h-3.5" />
+                  : <ChevronDownIcon className="w-3.5 h-3.5" />
+                }
+              </button>
+              <div
+                className="transition-all duration-200 ease-in-out"
+                style={{ maxHeight: showSshCrypto ? '500px' : '0', opacity: showSshCrypto ? 1 : 0, overflow: 'hidden' }}
+              >
+                <div className="px-3 py-3 space-y-3" style={{ borderTop: '1px solid rgb(var(--border, 229 231 235))' }}>
+                  <p className="text-xs text-gray-400">Comma-separated allowlists. Leave blank to use server defaults.</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-xs">Ciphers</label>
+                      <input value={form.allowedCiphers || ''} placeholder="aes256-gcm@openssh.com,..."
+                        onChange={e => setForm(prev => ({ ...prev, allowedCiphers: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="text-xs">MACs</label>
+                      <input value={form.allowedMacs || ''} placeholder="hmac-sha2-256-etm@openssh.com,..."
+                        onChange={e => setForm(prev => ({ ...prev, allowedMacs: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="text-xs">KEX</label>
+                      <input value={form.allowedKex || ''} placeholder="curve25519-sha256,..."
+                        onChange={e => setForm(prev => ({ ...prev, allowedKex: e.target.value }))} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </FormSection>
+
+      {/* ═══════ Section 4: Session & Limits ═══════ */}
+      <FormSection title="Session & Limits" subtitle="Connection limits, timeouts, and storage mode">
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label>Max Connections</label>
+            <input type="number" value={form.maxConnections} onChange={e => f('maxConnections', parseInt(e.target.value))} />
+            <p className="text-xs text-gray-400 mt-1">Maximum simultaneous connections</p>
+          </div>
+          <div>
+            <label>Idle Timeout (seconds)</label>
+            <input type="number" min={0} value={form.idleTimeoutSeconds}
+              onChange={e => setForm(prev => ({ ...prev, idleTimeoutSeconds: Number(e.target.value) }))} />
+            <p className="text-xs text-gray-400 mt-1">0 = no timeout</p>
+          </div>
+          <div>
+            <label>Max Session Duration (seconds)</label>
+            <input type="number" min={0} value={form.sessionMaxDurationSeconds}
+              onChange={e => setForm(prev => ({ ...prev, sessionMaxDurationSeconds: Number(e.target.value) }))} />
+            <p className="text-xs text-gray-400 mt-1">0 = unlimited</p>
+          </div>
+        </div>
+
+        {/* Storage Mode */}
+        <div>
+          <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">Default Storage Mode</p>
+          <p className="text-xs text-gray-400 mb-3">How files are stored for accounts on this server</p>
+          <div className="grid grid-cols-2 gap-3">
+            {STORAGE_MODES.map(mode => {
+              const Icon = mode.icon
+              const selected = form.defaultStorageMode === mode.value
               return (
-                <button key={t.id} type="button"
-                  onClick={() => { f('folderTemplateId', t.id); f('clearFolderTemplate', false) }}
-                  className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
-                    isSelected ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-200' : 'border-gray-200 hover:border-gray-300'
+                <button key={mode.value} type="button"
+                  onClick={() => f('defaultStorageMode', mode.value)}
+                  className={`p-4 rounded-xl border-2 text-left transition-all ${
+                    selected
+                      ? mode.color === 'purple' ? 'border-purple-500 bg-purple-50' : 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
                   }`}>
                   <div className="flex items-center gap-2 mb-1">
-                    <p className={`text-sm font-medium ${isSelected ? 'text-blue-900' : 'text-gray-900'}`}>{t.name}</p>
-                    {t.builtIn && (
-                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-600">
-                        <LockClosedIcon className="w-2.5 h-2.5" /> Built-in
-                      </span>
-                    )}
-                    <span className="text-[10px] text-gray-400 ml-auto">{t.folders.length} folder{t.folders.length !== 1 ? 's' : ''}</span>
+                    <Icon className={`w-5 h-5 ${selected ? (mode.color === 'purple' ? 'text-purple-600' : 'text-blue-600') : 'text-gray-400'}`} />
+                    <span className={`font-semibold text-sm ${selected ? (mode.color === 'purple' ? 'text-purple-700' : 'text-blue-700') : 'text-gray-700'}`}>
+                      {mode.label}
+                    </span>
                   </div>
-                  {t.description && <p className="text-xs text-gray-500 mb-1.5">{t.description}</p>}
-                  <div className="flex flex-wrap gap-1">
-                    {t.folders.map((fd, i) => (
-                      <span key={i} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono ${
-                        isSelected ? 'bg-blue-100/70 text-blue-700' : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        <FolderIcon className="w-3 h-3 text-yellow-500" /> {fd.path}
-                      </span>
-                    ))}
-                  </div>
+                  <p className="text-xs text-gray-500">{mode.desc}</p>
                 </button>
               )
             })}
           </div>
-        ) : (
-          <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-500 border border-gray-200">
-            No folder templates available. Create templates on the <span className="font-medium">Folder Templates</span> page first.
-          </div>
-        )}
-      </div>
-
-      {/* Internal connection */}
-      <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold pt-2">Internal Connection (Docker/Host)</p>
-      <div className="grid grid-cols-2 gap-4">
-        <div><label>Host</label><input value={form.internalHost} onChange={e => f('internalHost', e.target.value)} required placeholder={`${form.protocol.toLowerCase()}-service-3`} /></div>
-        <div><label>Port</label><input type="number" value={form.internalPort} onChange={e => f('internalPort', parseInt(e.target.value))} /></div>
-      </div>
-
-      {/* External connection */}
-      <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold pt-2">External Connection (Client-Facing)</p>
-      <div className="grid grid-cols-2 gap-4">
-        <div><label>External Host</label><input value={form.externalHost} onChange={e => f('externalHost', e.target.value)} placeholder="files.example.com" /></div>
-        <div><label>External Port</label><input type="number" value={form.externalPort} onChange={e => f('externalPort', e.target.value ? parseInt(e.target.value) : '')} placeholder={String(DEFAULT_PORTS[form.protocol])} /></div>
-      </div>
-
-      {/* Protocol Security — TLS/SSH certificates & keys */}
-      <ProtocolSecurityConfig
-        protocol={form.protocol}
-        credentials={form.protocolCredentials}
-        onCredentialsChange={creds => f('protocolCredentials', creds)}
-        context="server"
-      />
-
-      {/* Reverse proxy */}
-      <div className="flex items-center gap-3 pt-2">
-        <input type="checkbox" id="useProxy" checked={form.useProxy} onChange={e => f('useProxy', e.target.checked)}
-          className="w-4 h-4 text-blue-600 rounded border-gray-300" />
-        <label htmlFor="useProxy" className="text-sm font-medium text-gray-700">Use Reverse Proxy</label>
-      </div>
-      {form.useProxy && (
-        <>
-          <div className="grid grid-cols-2 gap-4 pl-7">
-            <div>
-              <label>Proxy Host</label>
-              <input value={form.proxyHost} onChange={e => f('proxyHost', e.target.value)} placeholder="proxy.example.com" />
+          {form.defaultStorageMode === 'VIRTUAL' && (
+            <div className="mt-2 bg-purple-50 border border-purple-100 rounded-lg p-2.5 text-xs text-purple-700">
+              <span className="font-medium">VFS Mode:</span> Accounts on this server will use phantom folders with content-addressed storage.
+              Small files (&lt;64KB) stored inline in DB for sub-millisecond access. No physical disk provisioning needed.
             </div>
-            <div>
-              <label>Proxy Port</label>
-              <input type="number" value={form.proxyPort} onChange={e => f('proxyPort', e.target.value ? parseInt(e.target.value) : '')} placeholder="2222" />
-            </div>
-          </div>
+          )}
+        </div>
+      </FormSection>
 
-          {/* Dynamic proxy detection */}
-          {dmzRunning && form.proxyHost === 'dmz-proxy' && (
-            <div className="pl-7">
+      {/* ═══════ Section 5: Proxy Configuration ═══════ */}
+      <FormSection
+        title="Proxy Configuration"
+        subtitle="Reverse proxy and QoS settings"
+        defaultOpen={form.useProxy}
+      >
+        <div className="flex items-center gap-3">
+          <input type="checkbox" id="useProxy" checked={form.useProxy} onChange={e => f('useProxy', e.target.checked)}
+            className="w-4 h-4 text-blue-600 rounded border-gray-300" />
+          <label htmlFor="useProxy" className="text-sm font-medium text-gray-700 mb-0">Use Reverse Proxy</label>
+          <p className="text-xs text-gray-400">Route connections through the DMZ proxy for security</p>
+        </div>
+
+        <div
+          className="transition-all duration-200 ease-in-out"
+          style={{ maxHeight: form.useProxy ? '1500px' : '0', opacity: form.useProxy ? 1 : 0, overflow: 'hidden' }}
+        >
+          <div className="space-y-4 pt-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label>Proxy Host</label>
+                <input value={form.proxyHost} onChange={e => f('proxyHost', e.target.value)} placeholder="proxy.example.com" />
+              </div>
+              <div>
+                <label>Proxy Port</label>
+                <input type="number" value={form.proxyPort} onChange={e => f('proxyPort', e.target.value ? parseInt(e.target.value) : '')} placeholder="2222" />
+              </div>
+            </div>
+
+            {/* Dynamic proxy detection */}
+            {dmzRunning && form.proxyHost === 'dmz-proxy' && (
               <p className="text-xs text-green-600 flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />
                 DMZ Proxy detected and running on port 8088
               </p>
-            </div>
-          )}
-          {!dmzRunning && form.proxyHost === 'dmz-proxy' && (
-            <div className="pl-7">
+            )}
+            {!dmzRunning && form.proxyHost === 'dmz-proxy' && (
               <p className="text-xs text-amber-600 flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
-                DMZ Proxy is not running — proxy routing may fail
+                DMZ Proxy is not running -- proxy routing may fail
               </p>
-            </div>
-          )}
+            )}
 
-          {/* Proxy QoS Policy */}
-          <div className="pl-7 border-t border-gray-100 pt-3 mt-2">
-            <div className="flex items-center gap-3 mb-3">
-              <input type="checkbox" id="proxyQosEnabled" checked={form.proxyQos?.enabled || false}
-                onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, enabled: e.target.checked } }))}
-                className="w-4 h-4 text-blue-600 rounded border-gray-300" />
-              <label htmlFor="proxyQosEnabled" className="text-sm font-medium text-gray-700">Enable Proxy QoS</label>
+            {/* Proxy Group */}
+            <div>
+              <label>Proxy Group</label>
+              <select value={form.proxyGroupName || ''} onChange={e => setForm(prev => ({ ...prev, proxyGroupName: e.target.value }))}>
+                <option value="">-- Default routing (no specific group) --</option>
+                {proxyGroups.filter(g => g.active !== false).map(g => (
+                  <option key={g.name} value={g.name}>{g.name} ({g.type})</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">Route inbound connections through a specific proxy group (internal / external / partner)</p>
             </div>
-            {form.proxyQos?.enabled && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-gray-500">Max Bandwidth (MB/s)</label>
-                  <input type="number" min="0"
-                    value={form.proxyQos.maxBytesPerSecond ? Math.round(form.proxyQos.maxBytesPerSecond / 1048576) : ''}
-                    onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, maxBytesPerSecond: e.target.value ? Number(e.target.value) * 1048576 : 0 } }))}
-                    placeholder="0 = unlimited" />
-                  <p className="text-xs text-gray-400 mt-0.5">Aggregate for all connections through this mapping</p>
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500">Per-Connection Limit (MB/s)</label>
-                  <input type="number" min="0"
-                    value={form.proxyQos.perConnectionMaxBytesPerSecond ? Math.round(form.proxyQos.perConnectionMaxBytesPerSecond / 1048576) : ''}
-                    onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, perConnectionMaxBytesPerSecond: e.target.value ? Number(e.target.value) * 1048576 : 0 } }))}
-                    placeholder="0 = unlimited" />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500">Priority (1=Highest, 10=Lowest)</label>
-                  <input type="number" min="1" max="10"
-                    value={form.proxyQos.priority || 5}
-                    onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, priority: Number(e.target.value) } }))} />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500">Burst Allowance (%)</label>
-                  <input type="number" min="0" max="100"
-                    value={form.proxyQos.burstAllowancePercent || 20}
-                    onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, burstAllowancePercent: Number(e.target.value) } }))} />
+
+            {/* Proxy QoS Policy */}
+            <div style={{ borderTop: '1px solid rgb(var(--border, 229 231 235))', paddingTop: '0.75rem' }}>
+              <div className="flex items-center gap-3 mb-3">
+                <input type="checkbox" id="proxyQosEnabled" checked={form.proxyQos?.enabled || false}
+                  onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, enabled: e.target.checked } }))}
+                  className="w-4 h-4 text-blue-600 rounded border-gray-300" />
+                <label htmlFor="proxyQosEnabled" className="text-sm font-medium text-gray-700 mb-0">Enable Proxy QoS</label>
+                <p className="text-xs text-gray-400">Bandwidth throttling and priority control</p>
+              </div>
+              <div
+                className="transition-all duration-200 ease-in-out"
+                style={{ maxHeight: form.proxyQos?.enabled ? '500px' : '0', opacity: form.proxyQos?.enabled ? 1 : 0, overflow: 'hidden' }}
+              >
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-500">Max Bandwidth (MB/s)</label>
+                    <input type="number" min="0"
+                      value={form.proxyQos.maxBytesPerSecond ? Math.round(form.proxyQos.maxBytesPerSecond / 1048576) : ''}
+                      onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, maxBytesPerSecond: e.target.value ? Number(e.target.value) * 1048576 : 0 } }))}
+                      placeholder="0 = unlimited" />
+                    <p className="text-xs text-gray-400 mt-0.5">Aggregate for all connections through this mapping</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Per-Connection Limit (MB/s)</label>
+                    <input type="number" min="0"
+                      value={form.proxyQos.perConnectionMaxBytesPerSecond ? Math.round(form.proxyQos.perConnectionMaxBytesPerSecond / 1048576) : ''}
+                      onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, perConnectionMaxBytesPerSecond: e.target.value ? Number(e.target.value) * 1048576 : 0 } }))}
+                      placeholder="0 = unlimited" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Priority (1=Highest, 10=Lowest)</label>
+                    <input type="number" min="1" max="10"
+                      value={form.proxyQos.priority || 5}
+                      onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, priority: Number(e.target.value) } }))} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Burst Allowance (%)</label>
+                    <input type="number" min="0" max="100"
+                      value={form.proxyQos.burstAllowancePercent || 20}
+                      onChange={e => setForm(prev => ({ ...prev, proxyQos: { ...prev.proxyQos, burstAllowancePercent: Number(e.target.value) } }))} />
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
-
-        </>
-      )}
-
-      {/* Security Tier — always visible, applies to all server instances */}
-      <div className="pt-2">
-        <SecurityTierSelector
-          tier={form.securityTier}
-          onTierChange={tier => f('securityTier', tier)}
-          showAiTiers={true}
-          policy={form.securityPolicy}
-          onPolicyChange={policy => f('securityPolicy', policy)}
-          llmEnabled={llmEnabled}
-        />
-      </div>
-
-      {/* ════════════════ Advanced Server Config (V44) ════════════════ */}
-      <div className="pt-2">
-        <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-3 flex items-center gap-2">
-          <WrenchScrewdriverIcon className="w-3.5 h-3.5" />
-          Advanced Server Configuration
-        </p>
-
-        {/* Proxy Group */}
-        <div className="mb-3">
-          <label>Proxy Group</label>
-          <select value={form.proxyGroupName || ''} onChange={e => setForm(f => ({ ...f, proxyGroupName: e.target.value }))}>
-            <option value="">— Default routing (no specific group) —</option>
-            {proxyGroups.filter(g => g.active !== false).map(g => (
-              <option key={g.name} value={g.name}>{g.name} ({g.type})</option>
-            ))}
-          </select>
-          <p className="text-xs text-gray-400 mt-1">Route inbound connections through a specific proxy group (internal / external / partner).</p>
-        </div>
-
-        <div className="grid grid-cols-3 gap-3 mb-3">
-          <div>
-            <label>Max Auth Attempts</label>
-            <input type="number" min={1} max={10} value={form.maxAuthAttempts}
-              onChange={e => setForm(f => ({ ...f, maxAuthAttempts: Number(e.target.value) }))} />
-          </div>
-          <div>
-            <label>Idle Timeout (s)</label>
-            <input type="number" min={0} value={form.idleTimeoutSeconds}
-              onChange={e => setForm(f => ({ ...f, idleTimeoutSeconds: Number(e.target.value) }))} />
-            <p className="text-xs text-gray-400 mt-0.5">0 = no timeout</p>
-          </div>
-          <div>
-            <label>Max Session (s)</label>
-            <input type="number" min={0} value={form.sessionMaxDurationSeconds}
-              onChange={e => setForm(f => ({ ...f, sessionMaxDurationSeconds: Number(e.target.value) }))} />
-            <p className="text-xs text-gray-400 mt-0.5">0 = unlimited</p>
-          </div>
-        </div>
-
-        <div className="mb-3">
-          <label>SSH Banner Message <span className="text-xs font-normal text-gray-400">(shown to clients on connect)</span></label>
-          <textarea rows={2} value={form.sshBannerMessage || ''} placeholder="Authorized access only. Connections are monitored."
-            onChange={e => setForm(f => ({ ...f, sshBannerMessage: e.target.value }))} />
-        </div>
-
-        <div className="mb-3">
-          <p className="text-xs text-gray-500 font-semibold mb-1">Cipher / Algorithm Allowlists <span className="font-normal">(comma-separated, blank = server defaults)</span></p>
-          <div className="grid grid-cols-3 gap-2">
-            <div>
-              <label className="text-xs">Ciphers</label>
-              <input value={form.allowedCiphers || ''} placeholder="aes256-gcm@openssh.com,…"
-                onChange={e => setForm(f => ({ ...f, allowedCiphers: e.target.value }))} />
-            </div>
-            <div>
-              <label className="text-xs">MACs</label>
-              <input value={form.allowedMacs || ''} placeholder="hmac-sha2-256-etm@openssh.com,…"
-                onChange={e => setForm(f => ({ ...f, allowedMacs: e.target.value }))} />
-            </div>
-            <div>
-              <label className="text-xs">KEX</label>
-              <input value={form.allowedKex || ''} placeholder="curve25519-sha256,…"
-                onChange={e => setForm(f => ({ ...f, allowedKex: e.target.value }))} />
             </div>
           </div>
         </div>
+      </FormSection>
 
-        <div className="flex items-center gap-2">
-          <input type="checkbox" id="maintenanceMode" checked={form.maintenanceMode}
-            onChange={e => setForm(f => ({ ...f, maintenanceMode: e.target.checked }))} className="w-auto" />
-          <label htmlFor="maintenanceMode" className="text-sm font-medium text-yellow-700 mb-0">
-            Maintenance Mode — new connections will be rejected
-          </label>
+      {/* ═══════ Section 6: Templates & Maintenance ═══════ */}
+      <FormSection title="Templates & Maintenance" subtitle="Folder structure and maintenance mode" defaultOpen={true}>
+        {/* Folder Template */}
+        <div>
+          <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Folder Template</p>
+          <p className="text-xs text-gray-400 mb-3">
+            Directory structure users see when connecting -- inbox, outbox, archive, etc.
+          </p>
+
+          {folderTemplates.length > 0 ? (
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+              {/* None option */}
+              <button type="button"
+                onClick={() => { f('folderTemplateId', null); f('clearFolderTemplate', true) }}
+                className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
+                  !form.folderTemplateId ? 'border-gray-400 bg-gray-50' : 'border-gray-200 hover:border-gray-300'
+                }`}>
+                <p className={`text-sm font-medium ${!form.folderTemplateId ? 'text-gray-900' : 'text-gray-500'}`}>
+                  No folder template
+                </p>
+                <p className="text-xs text-gray-400">Accounts use a flat home directory with no predefined structure</p>
+              </button>
+
+              {/* Template cards */}
+              {folderTemplates.map(t => {
+                const isSelected = form.folderTemplateId === t.id
+                return (
+                  <button key={t.id} type="button"
+                    onClick={() => { f('folderTemplateId', t.id); f('clearFolderTemplate', false) }}
+                    className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
+                      isSelected ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-200' : 'border-gray-200 hover:border-gray-300'
+                    }`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className={`text-sm font-medium ${isSelected ? 'text-blue-900' : 'text-gray-900'}`}>{t.name}</p>
+                      {t.builtIn && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-600">
+                          <LockClosedIcon className="w-2.5 h-2.5" /> Built-in
+                        </span>
+                      )}
+                      <span className="text-[10px] text-gray-400 ml-auto">{t.folders.length} folder{t.folders.length !== 1 ? 's' : ''}</span>
+                    </div>
+                    {t.description && <p className="text-xs text-gray-500 mb-1.5">{t.description}</p>}
+                    <div className="flex flex-wrap gap-1">
+                      {t.folders.map((fd, i) => (
+                        <span key={i} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono ${
+                          isSelected ? 'bg-blue-100/70 text-blue-700' : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          <FolderIcon className="w-3 h-3 text-yellow-500" /> {fd.path}
+                        </span>
+                      ))}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-500 border border-gray-200">
+              No folder templates available. Create templates on the <span className="font-medium">Folder Templates</span> page first.
+            </div>
+          )}
         </div>
-        {form.maintenanceMode && (
-          <div className="mt-2">
-            <input value={form.maintenanceMessage || ''} placeholder="Server under maintenance, back in 30 min"
-              onChange={e => setForm(f => ({ ...f, maintenanceMessage: e.target.value }))} />
-          </div>
-        )}
-      </div>
 
+        {/* Maintenance Mode */}
+        <div style={{ borderTop: '1px solid rgb(var(--border, 229 231 235))', paddingTop: '0.75rem' }}>
+          <div className="flex items-center gap-2">
+            <input type="checkbox" id="maintenanceMode" checked={form.maintenanceMode}
+              onChange={e => setForm(prev => ({ ...prev, maintenanceMode: e.target.checked }))} className="w-4 h-4 text-yellow-600 rounded border-gray-300" />
+            <label htmlFor="maintenanceMode" className="text-sm font-medium text-yellow-700 mb-0">
+              Maintenance Mode
+            </label>
+            <p className="text-xs text-gray-400">New connections will be rejected while enabled</p>
+          </div>
+          <div
+            className="transition-all duration-200 ease-in-out"
+            style={{ maxHeight: form.maintenanceMode ? '200px' : '0', opacity: form.maintenanceMode ? 1 : 0, overflow: 'hidden' }}
+          >
+            <div className="mt-3">
+              <label>Maintenance Message</label>
+              <input value={form.maintenanceMessage || ''} placeholder="Server under maintenance, back in 30 min"
+                onChange={e => setForm(prev => ({ ...prev, maintenanceMessage: e.target.value }))} />
+              <p className="text-xs text-gray-400 mt-1">Shown to clients attempting to connect during maintenance</p>
+            </div>
+          </div>
+        </div>
+      </FormSection>
+
+      {/* Submit */}
       <div className="flex gap-3 justify-end pt-4 border-t">
         <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>
         <button type="submit" className="btn-primary" disabled={isPending}>{submitLabel}</button>
