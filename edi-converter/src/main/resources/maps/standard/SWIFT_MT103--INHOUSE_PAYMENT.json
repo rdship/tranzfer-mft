@@ -1,0 +1,229 @@
+{
+  "mapId": "SWIFT_MT103--INHOUSE_PAYMENT",
+  "name": "SWIFT MT103 Single Customer Credit Transfer to Internal Payment",
+  "version": "1.0.0",
+  "sourceType": "SWIFT_MT103",
+  "targetType": "PAYMENT_INH",
+  "sourceStandard": "SWIFT",
+  "targetStandard": "INHOUSE",
+  "bidirectional": false,
+  "description": "Standard map for converting SWIFT MT103 Single Customer Credit Transfer to TranzFer internal payment format",
+  "status": "ACTIVE",
+  "confidence": 1.0,
+  "fieldMappings": [
+    {
+      "sourcePath": "20.01",
+      "targetPath": "transactionReference",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "23B.01",
+      "targetPath": "bankOperationCode",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "bankOperationCodes"
+      },
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "32A.01",
+      "targetPath": "valueDate",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyMMdd",
+        "targetFormat": "yyyy-MM-dd"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "32A.02",
+      "targetPath": "currency",
+      "transform": "COPY",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "32A.03",
+      "targetPath": "amount",
+      "transform": "COPY",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "33B.01",
+      "targetPath": "instructedCurrency",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "33B.02",
+      "targetPath": "instructedAmount",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "50K.01",
+      "targetPath": "orderingCustomer.account",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "50K.02",
+      "targetPath": "orderingCustomer.name",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "50K.03",
+      "targetPath": "orderingCustomer.addressLine1",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "50K.04",
+      "targetPath": "orderingCustomer.addressLine2",
+      "transform": "TRIM",
+      "confidence": 0.8
+    },
+    {
+      "sourcePath": "52A.01",
+      "targetPath": "orderingInstitution.bic",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "53A.01",
+      "targetPath": "sendersCorrespondent.bic",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "56A.01",
+      "targetPath": "intermediaryInstitution.bic",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "57A.01",
+      "targetPath": "accountWithInstitution.bic",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "59.01",
+      "targetPath": "beneficiary.account",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "59.02",
+      "targetPath": "beneficiary.name",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "59.03",
+      "targetPath": "beneficiary.addressLine1",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "59.04",
+      "targetPath": "beneficiary.addressLine2",
+      "transform": "TRIM",
+      "confidence": 0.8
+    },
+    {
+      "sourcePath": "70.01",
+      "targetPath": "remittanceInfo",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "71A.01",
+      "targetPath": "chargesCode",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "chargesCodes"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "71F.01",
+      "targetPath": "sendersChargesAmount",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "71G.01",
+      "targetPath": "receiversChargesAmount",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "72.01",
+      "targetPath": "senderToReceiverInfo",
+      "transform": "TRIM",
+      "confidence": 0.8
+    },
+    {
+      "sourcePath": "77B.01",
+      "targetPath": "regulatoryReporting",
+      "transform": "TRIM",
+      "confidence": 0.7
+    }
+  ],
+  "loopMappings": [],
+  "codeTables": {
+    "bankOperationCodes": [
+      {
+        "sourceCode": "CRED",
+        "targetCode": "CREDIT_TRANSFER",
+        "description": "Customer credit transfer"
+      },
+      {
+        "sourceCode": "CRTS",
+        "targetCode": "CREDIT_TRANSFER_TESTING",
+        "description": "Credit transfer for testing"
+      },
+      {
+        "sourceCode": "SPAY",
+        "targetCode": "SPECIAL_PAYMENT",
+        "description": "Special payment"
+      },
+      {
+        "sourceCode": "SPRI",
+        "targetCode": "PRIORITY_PAYMENT",
+        "description": "Priority payment"
+      },
+      {
+        "sourceCode": "SSTD",
+        "targetCode": "STANDARD_PAYMENT",
+        "description": "Standard payment"
+      }
+    ],
+    "chargesCodes": [
+      {
+        "sourceCode": "BEN",
+        "targetCode": "BENEFICIARY",
+        "description": "All charges borne by beneficiary"
+      },
+      {
+        "sourceCode": "OUR",
+        "targetCode": "SENDER",
+        "description": "All charges borne by ordering customer"
+      },
+      {
+        "sourceCode": "SHA",
+        "targetCode": "SHARED",
+        "description": "Each party pays own charges"
+      }
+    ]
+  }
+}

@@ -1,0 +1,500 @@
+{
+  "mapId": "X12_850--EDIFACT_ORDERS--BIDI",
+  "name": "X12 850 to EDIFACT ORDERS Cross-Standard Purchase Order",
+  "version": "1.0.0",
+  "sourceType": "X12_850",
+  "targetType": "EDIFACT_ORDERS",
+  "sourceStandard": "X12",
+  "targetStandard": "EDIFACT",
+  "bidirectional": true,
+  "description": "Cross-standard bidirectional map for converting between ANSI X12 850 Purchase Order and UN/EDIFACT ORDERS. Maps BEG<->BGM, DTM<->DTM, N1<->NAD, PO1<->LIN with code table translations for units, party qualifiers, and date qualifiers.",
+  "status": "ACTIVE",
+  "confidence": 1.0,
+  "fieldMappings": [
+    {
+      "sourcePath": "BEG.03",
+      "targetPath": "BGM.C106.1004",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BEG.01",
+      "targetPath": "BGM.1225",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "purposeToFunctionCodes"
+      },
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BEG.02",
+      "targetPath": "BGM.C002.1001",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "orderTypeToDocTypeCodes"
+      },
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BEG.05",
+      "targetPath": "DTM.C507.2380",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyyMMdd",
+        "targetFormat": "yyyyMMdd"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "CUR.02",
+      "targetPath": "CUX.C504.6345",
+      "transform": "COPY",
+      "defaultValue": "USD",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "REF.02",
+      "targetPath": "RFF.C506.1154",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "PER.02",
+      "targetPath": "CTA.C056.3413",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "PER.04",
+      "targetPath": "COM.C076.3148",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "ITD.12",
+      "targetPath": "PAT.C112.2152",
+      "transform": "TRIM",
+      "confidence": 0.8
+    },
+    {
+      "sourcePath": "FOB.02",
+      "targetPath": "TOD.C100.4053",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "fobToIncoterms"
+      },
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "TD5.04",
+      "targetPath": "TDT.C220.8067",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "x12ToEdifactTransportMode"
+      },
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "TD5.05",
+      "targetPath": "TDT.C040.3128",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "CTT.01",
+      "targetPath": "CNT.C270.6066",
+      "transform": "COPY",
+      "confidence": 1.0
+    }
+  ],
+  "loopMappings": [
+    {
+      "sourceLoop": "N1",
+      "targetArray": "NAD",
+      "fieldMappings": [
+        {
+          "sourcePath": "N1.01",
+          "targetPath": "NAD.3035",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "x12ToEdifactEntityCodes"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N1.02",
+          "targetPath": "NAD.C080.3036",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N1.03",
+          "targetPath": "NAD.C082.1131",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "N1.04",
+          "targetPath": "NAD.C082.3039",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N3.01",
+          "targetPath": "NAD.C059.3042",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N3.02",
+          "targetPath": "NAD.C059.3042_2",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "N4.01",
+          "targetPath": "NAD.3164",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N4.02",
+          "targetPath": "NAD.3229",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N4.03",
+          "targetPath": "NAD.3251",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N4.04",
+          "targetPath": "NAD.3207",
+          "transform": "COPY",
+          "confidence": 1.0
+        }
+      ]
+    },
+    {
+      "sourceLoop": "PO1",
+      "targetArray": "LIN",
+      "fieldMappings": [
+        {
+          "sourcePath": "PO1.01",
+          "targetPath": "LIN.1082",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "PO1.02",
+          "targetPath": "QTY.C186.6060",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "PO1.03",
+          "targetPath": "QTY.C186.6411",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "x12ToEdifactUnitCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "PO1.04",
+          "targetPath": "PRI.C509.5118",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "PO1.06",
+          "targetPath": "LIN.C212.7143",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "x12ToEdifactProductIdQualifiers"
+          },
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "PO1.07",
+          "targetPath": "LIN.C212.7140",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "PO1.09",
+          "targetPath": "PIA.C212.7140",
+          "transform": "TRIM",
+          "confidence": 0.8
+        },
+        {
+          "sourcePath": "PID.05",
+          "targetPath": "IMD.C273.7008",
+          "transform": "TRIM",
+          "confidence": 0.9
+        }
+      ]
+    }
+  ],
+  "codeTables": {
+    "purposeToFunctionCodes": [
+      {
+        "sourceCode": "00",
+        "targetCode": "9",
+        "description": "Original -> Original"
+      },
+      {
+        "sourceCode": "01",
+        "targetCode": "1",
+        "description": "Cancel -> Cancellation"
+      },
+      {
+        "sourceCode": "04",
+        "targetCode": "4",
+        "description": "Change -> Change"
+      },
+      {
+        "sourceCode": "05",
+        "targetCode": "5",
+        "description": "Replace -> Replace"
+      },
+      {
+        "sourceCode": "07",
+        "targetCode": "43",
+        "description": "Duplicate -> Duplicate"
+      }
+    ],
+    "orderTypeToDocTypeCodes": [
+      {
+        "sourceCode": "NE",
+        "targetCode": "220",
+        "description": "New order -> Order"
+      },
+      {
+        "sourceCode": "DS",
+        "targetCode": "220",
+        "description": "Drop ship -> Order"
+      },
+      {
+        "sourceCode": "SA",
+        "targetCode": "221",
+        "description": "Standing order -> Blanket order"
+      },
+      {
+        "sourceCode": "BK",
+        "targetCode": "221",
+        "description": "Blanket order -> Blanket order"
+      },
+      {
+        "sourceCode": "RL",
+        "targetCode": "245",
+        "description": "Release -> Release order"
+      }
+    ],
+    "x12ToEdifactEntityCodes": [
+      {
+        "sourceCode": "BY",
+        "targetCode": "BY",
+        "description": "Buyer -> Buyer"
+      },
+      {
+        "sourceCode": "SE",
+        "targetCode": "SE",
+        "description": "Seller -> Seller"
+      },
+      {
+        "sourceCode": "ST",
+        "targetCode": "DP",
+        "description": "Ship to -> Delivery party"
+      },
+      {
+        "sourceCode": "BT",
+        "targetCode": "IV",
+        "description": "Bill to -> Invoicee"
+      },
+      {
+        "sourceCode": "RI",
+        "targetCode": "PE",
+        "description": "Remit to -> Payee"
+      },
+      {
+        "sourceCode": "SF",
+        "targetCode": "CZ",
+        "description": "Ship from -> Consignor"
+      }
+    ],
+    "x12ToEdifactUnitCodes": [
+      {
+        "sourceCode": "EA",
+        "targetCode": "PCE",
+        "description": "Each -> Piece"
+      },
+      {
+        "sourceCode": "CS",
+        "targetCode": "CT",
+        "description": "Case -> Carton"
+      },
+      {
+        "sourceCode": "BX",
+        "targetCode": "BX",
+        "description": "Box -> Box"
+      },
+      {
+        "sourceCode": "PK",
+        "targetCode": "PK",
+        "description": "Pack -> Pack"
+      },
+      {
+        "sourceCode": "LB",
+        "targetCode": "LBR",
+        "description": "Pound -> Pound"
+      },
+      {
+        "sourceCode": "KG",
+        "targetCode": "KGM",
+        "description": "Kilogram -> Kilogram"
+      },
+      {
+        "sourceCode": "LT",
+        "targetCode": "LTR",
+        "description": "Liter -> Liter"
+      },
+      {
+        "sourceCode": "GA",
+        "targetCode": "GLL",
+        "description": "Gallon -> Gallon"
+      },
+      {
+        "sourceCode": "FT",
+        "targetCode": "FOT",
+        "description": "Foot -> Foot"
+      },
+      {
+        "sourceCode": "MT",
+        "targetCode": "MTR",
+        "description": "Meter -> Meter"
+      }
+    ],
+    "x12ToEdifactProductIdQualifiers": [
+      {
+        "sourceCode": "UP",
+        "targetCode": "UP",
+        "description": "UPC -> UPC"
+      },
+      {
+        "sourceCode": "EN",
+        "targetCode": "EN",
+        "description": "EAN -> EAN"
+      },
+      {
+        "sourceCode": "VN",
+        "targetCode": "SA",
+        "description": "Vendor part -> Supplier article"
+      },
+      {
+        "sourceCode": "BP",
+        "targetCode": "BP",
+        "description": "Buyer part -> Buyer part"
+      },
+      {
+        "sourceCode": "SK",
+        "targetCode": "SRV",
+        "description": "SKU -> GTIN"
+      }
+    ],
+    "x12ToEdifactDateQualifiers": [
+      {
+        "sourceCode": "002",
+        "targetCode": "2",
+        "description": "Delivery requested -> Delivery date/time requested"
+      },
+      {
+        "sourceCode": "010",
+        "targetCode": "137",
+        "description": "Requested ship date -> Document/message date"
+      },
+      {
+        "sourceCode": "011",
+        "targetCode": "11",
+        "description": "Shipped -> Despatch date"
+      },
+      {
+        "sourceCode": "017",
+        "targetCode": "17",
+        "description": "Estimated delivery -> Estimated delivery date"
+      }
+    ],
+    "fobToIncoterms": [
+      {
+        "sourceCode": "OR",
+        "targetCode": "EXW",
+        "description": "Origin -> Ex Works"
+      },
+      {
+        "sourceCode": "DE",
+        "targetCode": "DAP",
+        "description": "Destination -> Delivered at Place"
+      },
+      {
+        "sourceCode": "PP",
+        "targetCode": "CPT",
+        "description": "Prepaid -> Carriage Paid To"
+      },
+      {
+        "sourceCode": "CC",
+        "targetCode": "CFR",
+        "description": "Collect -> Cost and Freight"
+      },
+      {
+        "sourceCode": "FO",
+        "targetCode": "FOB",
+        "description": "FOB -> Free On Board"
+      }
+    ],
+    "x12ToEdifactTransportMode": [
+      {
+        "sourceCode": "A",
+        "targetCode": "4",
+        "description": "Air -> Air transport"
+      },
+      {
+        "sourceCode": "J",
+        "targetCode": "3",
+        "description": "Motor -> Road transport"
+      },
+      {
+        "sourceCode": "R",
+        "targetCode": "2",
+        "description": "Rail -> Rail transport"
+      },
+      {
+        "sourceCode": "S",
+        "targetCode": "1",
+        "description": "Ocean -> Maritime transport"
+      },
+      {
+        "sourceCode": "U",
+        "targetCode": "6",
+        "description": "Intermodal -> Multimodal"
+      },
+      {
+        "sourceCode": "M",
+        "targetCode": "5",
+        "description": "Mail -> Mail"
+      },
+      {
+        "sourceCode": "P",
+        "targetCode": "3",
+        "description": "Parcel -> Road transport"
+      }
+    ]
+  }
+}

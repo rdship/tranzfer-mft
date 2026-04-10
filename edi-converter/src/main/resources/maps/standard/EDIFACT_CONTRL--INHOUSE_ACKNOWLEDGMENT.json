@@ -1,0 +1,376 @@
+{
+  "mapId": "EDIFACT_CONTRL--INHOUSE_ACKNOWLEDGMENT",
+  "name": "EDIFACT CONTRL Acknowledgment to Internal Acknowledgment",
+  "version": "1.0.0",
+  "sourceType": "EDIFACT_CONTRL",
+  "targetType": "ACKNOWLEDGMENT_INH",
+  "sourceStandard": "EDIFACT",
+  "targetStandard": "INHOUSE",
+  "bidirectional": false,
+  "description": "Standard map for converting UN/EDIFACT CONTRL (Syntax and Service Report) to TranzFer internal acknowledgment format. Maps UCI interchange response, UCM message response, UCS/UCD segment and data element error details.",
+  "status": "ACTIVE",
+  "confidence": 1.0,
+  "fieldMappings": [
+    {
+      "sourcePath": "UNH.0062",
+      "targetPath": "messageReferenceNumber",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "UCI.0020",
+      "targetPath": "interchangeControlReference",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "UCI.S002.0004",
+      "targetPath": "interchangeSenderId",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "UCI.S003.0010",
+      "targetPath": "interchangeReceiverId",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "UCI.0083",
+      "targetPath": "interchangeActionCode",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "actionCodes"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "UCI.0085",
+      "targetPath": "interchangeSyntaxErrorCode",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "syntaxErrorCodes"
+      },
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "UCI.0135",
+      "targetPath": "interchangeServiceSegmentTag",
+      "transform": "COPY",
+      "confidence": 0.8
+    },
+    {
+      "sourcePath": "UCI.S011.0098",
+      "targetPath": "interchangeDataElementPosition",
+      "transform": "COPY",
+      "confidence": 0.8
+    },
+    {
+      "sourcePath": "UNT.0074",
+      "targetPath": "segmentCount",
+      "transform": "COPY",
+      "confidence": 1.0
+    }
+  ],
+  "loopMappings": [
+    {
+      "sourceLoop": "UCM",
+      "targetArray": "messageResponses",
+      "fieldMappings": [
+        {
+          "sourcePath": "UCM.0062",
+          "targetPath": "messageReferenceNumber",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "UCM.S009.0065",
+          "targetPath": "messageType",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "UCM.S009.0052",
+          "targetPath": "messageVersion",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "UCM.S009.0054",
+          "targetPath": "messageRelease",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "UCM.0083",
+          "targetPath": "messageActionCode",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "actionCodes"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "UCM.0085",
+          "targetPath": "messageSyntaxErrorCode",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "syntaxErrorCodes"
+          },
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "sourceLoop": "UCS",
+      "targetArray": "segmentErrors",
+      "fieldMappings": [
+        {
+          "sourcePath": "UCS.0096",
+          "targetPath": "segmentPosition",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "UCS.0085",
+          "targetPath": "segmentSyntaxErrorCode",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "syntaxErrorCodes"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "UCD.0104",
+          "targetPath": "dataElementErrorType",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "dataElementErrorCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "UCD.S011.0098",
+          "targetPath": "dataElementPosition",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "UCD.S011.0104_1",
+          "targetPath": "componentDataElementPosition",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "UCD.S011.0136",
+          "targetPath": "dataElementOccurrence",
+          "transform": "COPY",
+          "confidence": 0.8
+        }
+      ]
+    }
+  ],
+  "codeTables": {
+    "actionCodes": [
+      {
+        "sourceCode": "4",
+        "targetCode": "REJECTED",
+        "description": "This level and all lower levels rejected"
+      },
+      {
+        "sourceCode": "7",
+        "targetCode": "ACKNOWLEDGED",
+        "description": "Acknowledged \u2014 this level and all lower levels acknowledged"
+      },
+      {
+        "sourceCode": "8",
+        "targetCode": "INTERCHANGED_RECEIVED",
+        "description": "Interchange received (informational)"
+      }
+    ],
+    "syntaxErrorCodes": [
+      {
+        "sourceCode": "2",
+        "targetCode": "SYNTAX_VERSION_NOT_SUPPORTED",
+        "description": "Syntax version/level not supported"
+      },
+      {
+        "sourceCode": "7",
+        "targetCode": "RECIPIENT_NOT_ACTUAL",
+        "description": "Interchange recipient not actual recipient"
+      },
+      {
+        "sourceCode": "12",
+        "targetCode": "INVALID_VALUE",
+        "description": "Invalid value"
+      },
+      {
+        "sourceCode": "13",
+        "targetCode": "MISSING",
+        "description": "Missing"
+      },
+      {
+        "sourceCode": "14",
+        "targetCode": "NOT_SUPPORTED_IN_POSITION",
+        "description": "Value not supported in this position"
+      },
+      {
+        "sourceCode": "15",
+        "targetCode": "NOT_SUPPORTED",
+        "description": "Not supported"
+      },
+      {
+        "sourceCode": "16",
+        "targetCode": "TOO_MANY_CONSTITUENTS",
+        "description": "Too many constituents"
+      },
+      {
+        "sourceCode": "17",
+        "targetCode": "NO_AGREEMENT",
+        "description": "No agreement"
+      },
+      {
+        "sourceCode": "18",
+        "targetCode": "UNSPECIFIED_ERROR",
+        "description": "Unspecified error"
+      },
+      {
+        "sourceCode": "19",
+        "targetCode": "INVALID_DECIMAL_NOTATION",
+        "description": "Invalid decimal notation"
+      },
+      {
+        "sourceCode": "21",
+        "targetCode": "INVALID_CHARACTER",
+        "description": "Invalid character(s)"
+      },
+      {
+        "sourceCode": "22",
+        "targetCode": "INVALID_SERVICE_CHARACTER",
+        "description": "Invalid service character(s)"
+      },
+      {
+        "sourceCode": "23",
+        "targetCode": "UNKNOWN_INTERCHANGE_SENDER",
+        "description": "Unknown interchange sender"
+      },
+      {
+        "sourceCode": "24",
+        "targetCode": "TOO_OLD",
+        "description": "Date/time period too old"
+      },
+      {
+        "sourceCode": "25",
+        "targetCode": "DUPLICATE_INTERCHANGE",
+        "description": "Duplicate interchange detected"
+      },
+      {
+        "sourceCode": "26",
+        "targetCode": "FUNCTION_NOT_AGREED",
+        "description": "Function not agreed"
+      },
+      {
+        "sourceCode": "27",
+        "targetCode": "DUPLICATE_DETECTED",
+        "description": "Duplicate detected at message/group/segment level"
+      },
+      {
+        "sourceCode": "28",
+        "targetCode": "LOWER_LEVEL_ERROR",
+        "description": "Lower level error reported"
+      },
+      {
+        "sourceCode": "29",
+        "targetCode": "SECURITY_CHECK_FAILED",
+        "description": "Security check failed"
+      },
+      {
+        "sourceCode": "30",
+        "targetCode": "CANNOT_PROCESS_BEYOND_NOTE",
+        "description": "Beyond start of processing, can only report received"
+      },
+      {
+        "sourceCode": "31",
+        "targetCode": "DUPLICATE_REFERENCE",
+        "description": "Duplicate message reference detected"
+      },
+      {
+        "sourceCode": "32",
+        "targetCode": "COUNT_NOT_MATCHING",
+        "description": "Count does not match number of instances received"
+      },
+      {
+        "sourceCode": "33",
+        "targetCode": "INVALID_OCCURRENCE",
+        "description": "Invalid occurrence outside message/package"
+      },
+      {
+        "sourceCode": "35",
+        "targetCode": "MANDATORY_SEGMENT_MISSING",
+        "description": "Mandatory service segment or data element missing"
+      },
+      {
+        "sourceCode": "36",
+        "targetCode": "CONTROL_COUNT_MISMATCH",
+        "description": "Control count does not tally with number of instances received"
+      },
+      {
+        "sourceCode": "39",
+        "targetCode": "MESSAGE_TYPE_UNKNOWN",
+        "description": "Unknown message type"
+      },
+      {
+        "sourceCode": "40",
+        "targetCode": "MESSAGE_VERSION_UNKNOWN",
+        "description": "Unknown message version/release"
+      }
+    ],
+    "dataElementErrorCodes": [
+      {
+        "sourceCode": "12",
+        "targetCode": "INVALID_VALUE",
+        "description": "Invalid value"
+      },
+      {
+        "sourceCode": "13",
+        "targetCode": "MISSING",
+        "description": "Missing required data element"
+      },
+      {
+        "sourceCode": "14",
+        "targetCode": "NOT_SUPPORTED_IN_POSITION",
+        "description": "Value not supported in this position"
+      },
+      {
+        "sourceCode": "15",
+        "targetCode": "NOT_SUPPORTED",
+        "description": "Not supported"
+      },
+      {
+        "sourceCode": "21",
+        "targetCode": "INVALID_CHARACTER",
+        "description": "Invalid character(s)"
+      },
+      {
+        "sourceCode": "35",
+        "targetCode": "TOO_MANY_OCCURRENCES",
+        "description": "Too many occurrences of data element"
+      },
+      {
+        "sourceCode": "36",
+        "targetCode": "TOO_MANY_SEGMENT_REPETITIONS",
+        "description": "Too many segment repetitions"
+      }
+    ]
+  }
+}

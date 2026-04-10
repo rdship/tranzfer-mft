@@ -1,0 +1,422 @@
+{
+  "mapId": "X12_810--EDIFACT_INVOIC--BIDI",
+  "name": "X12 810 to EDIFACT INVOIC Cross-Standard Invoice",
+  "version": "1.0.0",
+  "sourceType": "X12_810",
+  "targetType": "EDIFACT_INVOIC",
+  "sourceStandard": "X12",
+  "targetStandard": "EDIFACT",
+  "bidirectional": true,
+  "description": "Cross-standard bidirectional map for converting between ANSI X12 810 Invoice and UN/EDIFACT INVOIC. Maps BIG<->BGM, IT1<->LIN, N1<->NAD, TDS<->MOA, TXI<->TAX, SAC<->ALC with code table translations.",
+  "status": "ACTIVE",
+  "confidence": 1.0,
+  "fieldMappings": [
+    {
+      "sourcePath": "BIG.02",
+      "targetPath": "BGM.C106.1004",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BIG.07",
+      "targetPath": "BGM.C002.1001",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "x12ToEdifactInvoiceTypeCodes"
+      },
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BIG.01",
+      "targetPath": "DTM.C507.2380",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyyMMdd",
+        "targetFormat": "yyyyMMdd"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BIG.04",
+      "targetPath": "RFF.C506.1154",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "CUR.02",
+      "targetPath": "CUX.C504.6345",
+      "transform": "COPY",
+      "defaultValue": "USD",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "REF.02",
+      "targetPath": "RFF.C506.1154",
+      "transform": "TRIM",
+      "condition": "REF.01 == 'VR'",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "ITD.01",
+      "targetPath": "PAT.4279",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "x12ToEdifactPaymentTermsCodes"
+      },
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "ITD.07",
+      "targetPath": "PAT.C112.2152",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "ITD.12",
+      "targetPath": "FTX.4440",
+      "transform": "TRIM",
+      "confidence": 0.8
+    },
+    {
+      "sourcePath": "TDS.01",
+      "targetPath": "MOA.C516.5004",
+      "transform": "COPY",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "TXI.02",
+      "targetPath": "TAX.MOA.C516.5004",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "TXI.01",
+      "targetPath": "TAX.C241.5153",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "x12ToEdifactTaxTypeCodes"
+      },
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "SAC.05",
+      "targetPath": "ALC.MOA.C516.5004",
+      "transform": "COPY",
+      "confidence": 0.8
+    },
+    {
+      "sourcePath": "CTT.01",
+      "targetPath": "CNT.C270.6066",
+      "transform": "COPY",
+      "confidence": 1.0
+    }
+  ],
+  "loopMappings": [
+    {
+      "sourceLoop": "N1",
+      "targetArray": "NAD",
+      "fieldMappings": [
+        {
+          "sourcePath": "N1.01",
+          "targetPath": "NAD.3035",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "x12ToEdifactEntityCodes"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N1.02",
+          "targetPath": "NAD.C080.3036",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N1.03",
+          "targetPath": "NAD.C082.1131",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "N1.04",
+          "targetPath": "NAD.C082.3039",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N3.01",
+          "targetPath": "NAD.C059.3042",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N3.02",
+          "targetPath": "NAD.C059.3042_2",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "N4.01",
+          "targetPath": "NAD.3164",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N4.02",
+          "targetPath": "NAD.3229",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N4.03",
+          "targetPath": "NAD.3251",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N4.04",
+          "targetPath": "NAD.3207",
+          "transform": "COPY",
+          "confidence": 1.0
+        }
+      ]
+    },
+    {
+      "sourceLoop": "IT1",
+      "targetArray": "LIN",
+      "fieldMappings": [
+        {
+          "sourcePath": "IT1.01",
+          "targetPath": "LIN.1082",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "IT1.02",
+          "targetPath": "QTY.C186.6060",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "IT1.03",
+          "targetPath": "QTY.C186.6411",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "x12ToEdifactUnitCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "IT1.04",
+          "targetPath": "PRI.C509.5118",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "IT1.06",
+          "targetPath": "LIN.C212.7143",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "x12ToEdifactProductIdQualifiers"
+          },
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "IT1.07",
+          "targetPath": "LIN.C212.7140",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "IT1.09",
+          "targetPath": "PIA.C212.7140",
+          "transform": "TRIM",
+          "confidence": 0.8
+        },
+        {
+          "sourcePath": "PID.05",
+          "targetPath": "IMD.C273.7008",
+          "transform": "TRIM",
+          "confidence": 0.9
+        }
+      ]
+    }
+  ],
+  "codeTables": {
+    "x12ToEdifactInvoiceTypeCodes": [
+      {
+        "sourceCode": "DI",
+        "targetCode": "380",
+        "description": "Debit invoice -> Commercial invoice"
+      },
+      {
+        "sourceCode": "CR",
+        "targetCode": "381",
+        "description": "Credit memo -> Credit note"
+      },
+      {
+        "sourceCode": "DR",
+        "targetCode": "383",
+        "description": "Debit memo -> Debit note"
+      },
+      {
+        "sourceCode": "CN",
+        "targetCode": "381",
+        "description": "Credit note -> Credit note"
+      }
+    ],
+    "x12ToEdifactEntityCodes": [
+      {
+        "sourceCode": "BY",
+        "targetCode": "BY",
+        "description": "Buyer -> Buyer"
+      },
+      {
+        "sourceCode": "SE",
+        "targetCode": "SE",
+        "description": "Seller -> Seller"
+      },
+      {
+        "sourceCode": "ST",
+        "targetCode": "DP",
+        "description": "Ship to -> Delivery party"
+      },
+      {
+        "sourceCode": "BT",
+        "targetCode": "IV",
+        "description": "Bill to -> Invoicee"
+      },
+      {
+        "sourceCode": "RI",
+        "targetCode": "PE",
+        "description": "Remit to -> Payee"
+      },
+      {
+        "sourceCode": "II",
+        "targetCode": "SE",
+        "description": "Issuer of invoice -> Seller"
+      }
+    ],
+    "x12ToEdifactUnitCodes": [
+      {
+        "sourceCode": "EA",
+        "targetCode": "PCE",
+        "description": "Each -> Piece"
+      },
+      {
+        "sourceCode": "CS",
+        "targetCode": "CT",
+        "description": "Case -> Carton"
+      },
+      {
+        "sourceCode": "BX",
+        "targetCode": "BX",
+        "description": "Box -> Box"
+      },
+      {
+        "sourceCode": "PK",
+        "targetCode": "PK",
+        "description": "Pack -> Pack"
+      },
+      {
+        "sourceCode": "LB",
+        "targetCode": "LBR",
+        "description": "Pound -> Pound"
+      },
+      {
+        "sourceCode": "KG",
+        "targetCode": "KGM",
+        "description": "Kilogram -> Kilogram"
+      }
+    ],
+    "x12ToEdifactProductIdQualifiers": [
+      {
+        "sourceCode": "UP",
+        "targetCode": "UP",
+        "description": "UPC -> UPC"
+      },
+      {
+        "sourceCode": "EN",
+        "targetCode": "EN",
+        "description": "EAN -> EAN"
+      },
+      {
+        "sourceCode": "VN",
+        "targetCode": "SA",
+        "description": "Vendor part -> Supplier article"
+      },
+      {
+        "sourceCode": "BP",
+        "targetCode": "BP",
+        "description": "Buyer part -> Buyer part"
+      }
+    ],
+    "x12ToEdifactPaymentTermsCodes": [
+      {
+        "sourceCode": "01",
+        "targetCode": "1",
+        "description": "Basic -> Basic"
+      },
+      {
+        "sourceCode": "02",
+        "targetCode": "20",
+        "description": "End of month -> Penalty"
+      },
+      {
+        "sourceCode": "05",
+        "targetCode": "1",
+        "description": "Discount not applicable -> Basic"
+      },
+      {
+        "sourceCode": "08",
+        "targetCode": "22",
+        "description": "Basic discount -> Discount"
+      },
+      {
+        "sourceCode": "12",
+        "targetCode": "1",
+        "description": "Net -> Basic"
+      },
+      {
+        "sourceCode": "14",
+        "targetCode": "1",
+        "description": "Previously agreed -> Basic"
+      }
+    ],
+    "x12ToEdifactTaxTypeCodes": [
+      {
+        "sourceCode": "ST",
+        "targetCode": "VAT",
+        "description": "State tax -> VAT"
+      },
+      {
+        "sourceCode": "CT",
+        "targetCode": "VAT",
+        "description": "City tax -> VAT"
+      },
+      {
+        "sourceCode": "FD",
+        "targetCode": "EXC",
+        "description": "Federal tax -> Excise"
+      },
+      {
+        "sourceCode": "VA",
+        "targetCode": "VAT",
+        "description": "VAT -> VAT"
+      },
+      {
+        "sourceCode": "GS",
+        "targetCode": "GST",
+        "description": "GST -> GST"
+      }
+    ]
+  }
+}

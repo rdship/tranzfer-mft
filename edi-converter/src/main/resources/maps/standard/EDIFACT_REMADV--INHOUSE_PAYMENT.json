@@ -1,0 +1,414 @@
+{
+  "mapId": "EDIFACT_REMADV--INHOUSE_PAYMENT",
+  "name": "EDIFACT REMADV Remittance Advice to Internal Payment",
+  "version": "1.0.0",
+  "sourceType": "EDIFACT_REMADV",
+  "targetType": "PAYMENT_INH",
+  "sourceStandard": "EDIFACT",
+  "targetStandard": "INHOUSE",
+  "bidirectional": false,
+  "description": "Standard map for converting UN/EDIFACT REMADV (Remittance Advice) to TranzFer internal payment format. Maps BGM, DTM, NAD, DOC remittance detail, MOA monetary amounts, and FII financial institution info.",
+  "status": "ACTIVE",
+  "confidence": 1.0,
+  "fieldMappings": [
+    {
+      "sourcePath": "UNH.0062",
+      "targetPath": "messageReferenceNumber",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BGM.C002.1001",
+      "targetPath": "documentType",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "documentTypeCodes"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BGM.C106.1004",
+      "targetPath": "remittanceNumber",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BGM.1225",
+      "targetPath": "messageFunctionCode",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "messageFunctionCodes"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "DTM.C507.2380",
+      "targetPath": "remittanceDate",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyyMMdd",
+        "targetFormat": "yyyy-MM-dd"
+      },
+      "condition": "DTM.C507.2005 == '137'",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "DTM.C507.2380",
+      "targetPath": "paymentDate",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyyMMdd",
+        "targetFormat": "yyyy-MM-dd"
+      },
+      "condition": "DTM.C507.2005 == '9'",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "RFF.C506.1154",
+      "targetPath": "paymentReference",
+      "transform": "TRIM",
+      "condition": "RFF.C506.1153 == 'PQ'",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "FII.C078.3194",
+      "targetPath": "payerAccountNumber",
+      "transform": "TRIM",
+      "condition": "FII.3035 == 'RB'",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "FII.C078.3192",
+      "targetPath": "payerBankId",
+      "transform": "TRIM",
+      "condition": "FII.3035 == 'RB'",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "FII.C078.3194",
+      "targetPath": "payeeAccountNumber",
+      "transform": "TRIM",
+      "condition": "FII.3035 == 'BF'",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "FII.C078.3192",
+      "targetPath": "payeeBankId",
+      "transform": "TRIM",
+      "condition": "FII.3035 == 'BF'",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "MOA.C516.5004",
+      "targetPath": "totalAmount",
+      "transform": "COPY",
+      "condition": "MOA.C516.5025 == '9'",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "MOA.C516.5004",
+      "targetPath": "totalTaxAmount",
+      "transform": "COPY",
+      "condition": "MOA.C516.5025 == '176'",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "CUX.C504.6345",
+      "targetPath": "currency",
+      "transform": "COPY",
+      "defaultValue": "EUR",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "PAT.4279",
+      "targetPath": "paymentTermsType",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "FTX.4440",
+      "targetPath": "freeTextNote",
+      "transform": "TRIM",
+      "confidence": 0.8
+    },
+    {
+      "sourcePath": "GIS.C529.7365",
+      "targetPath": "processingIndicator",
+      "transform": "COPY",
+      "confidence": 0.8
+    },
+    {
+      "sourcePath": "CNT.C270.6066",
+      "targetPath": "controlValue",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "UNT.0074",
+      "targetPath": "segmentCount",
+      "transform": "COPY",
+      "confidence": 1.0
+    }
+  ],
+  "loopMappings": [
+    {
+      "sourceLoop": "NAD",
+      "targetArray": "parties",
+      "fieldMappings": [
+        {
+          "sourcePath": "NAD.3035",
+          "targetPath": "role",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "nadPartyQualifiers"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "NAD.C082.3039",
+          "targetPath": "id",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "NAD.C080.3036",
+          "targetPath": "name",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "NAD.C059.3042",
+          "targetPath": "address.line1",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "NAD.3164",
+          "targetPath": "address.city",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "NAD.3229",
+          "targetPath": "address.state",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "NAD.3251",
+          "targetPath": "address.postalCode",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "NAD.3207",
+          "targetPath": "address.countryCode",
+          "transform": "COPY",
+          "confidence": 1.0
+        }
+      ]
+    },
+    {
+      "sourceLoop": "DOC",
+      "targetArray": "remittanceDetails",
+      "fieldMappings": [
+        {
+          "sourcePath": "DOC.C002.1001",
+          "targetPath": "documentType",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "remittanceDocTypeCodes"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "DOC.C503.1004",
+          "targetPath": "documentNumber",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "DOC.C503.1373",
+          "targetPath": "documentStatusCode",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "MOA.C516.5004",
+          "targetPath": "amountPaid",
+          "transform": "COPY",
+          "condition": "MOA.C516.5025 == '9'",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "MOA.C516.5004",
+          "targetPath": "amountOwed",
+          "transform": "COPY",
+          "condition": "MOA.C516.5025 == '86'",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "MOA.C516.5004",
+          "targetPath": "discountAmount",
+          "transform": "COPY",
+          "condition": "MOA.C516.5025 == '52'",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "RFF.C506.1154",
+          "targetPath": "invoiceNumber",
+          "transform": "TRIM",
+          "condition": "RFF.C506.1153 == 'IV'",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "DTM.C507.2380",
+          "targetPath": "invoiceDate",
+          "transform": "DATE_FORMAT",
+          "transformConfig": {
+            "sourceFormat": "yyyyMMdd",
+            "targetFormat": "yyyy-MM-dd"
+          },
+          "condition": "DTM.C507.2005 == '137'",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "AJT.4465",
+          "targetPath": "adjustmentReasonCode",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "adjustmentReasonCodes"
+          },
+          "confidence": 0.8
+        }
+      ]
+    }
+  ],
+  "codeTables": {
+    "documentTypeCodes": [
+      {
+        "sourceCode": "481",
+        "targetCode": "REMITTANCE_ADVICE",
+        "description": "Remittance advice"
+      },
+      {
+        "sourceCode": "482",
+        "targetCode": "REMITTANCE_ADVICE_SEPARATE",
+        "description": "Remittance advice (separate from payment)"
+      }
+    ],
+    "messageFunctionCodes": [
+      {
+        "sourceCode": "9",
+        "targetCode": "ORIGINAL",
+        "description": "Original"
+      },
+      {
+        "sourceCode": "1",
+        "targetCode": "CANCEL",
+        "description": "Cancellation"
+      },
+      {
+        "sourceCode": "5",
+        "targetCode": "REPLACE",
+        "description": "Replace"
+      }
+    ],
+    "nadPartyQualifiers": [
+      {
+        "sourceCode": "PR",
+        "targetCode": "PAYER",
+        "description": "Payer"
+      },
+      {
+        "sourceCode": "PE",
+        "targetCode": "PAYEE",
+        "description": "Payee"
+      },
+      {
+        "sourceCode": "BY",
+        "targetCode": "BUYER",
+        "description": "Buyer"
+      },
+      {
+        "sourceCode": "SE",
+        "targetCode": "SELLER",
+        "description": "Seller"
+      },
+      {
+        "sourceCode": "IV",
+        "targetCode": "INVOICEE",
+        "description": "Invoicee"
+      }
+    ],
+    "remittanceDocTypeCodes": [
+      {
+        "sourceCode": "380",
+        "targetCode": "INVOICE",
+        "description": "Commercial invoice"
+      },
+      {
+        "sourceCode": "381",
+        "targetCode": "CREDIT_NOTE",
+        "description": "Credit note"
+      },
+      {
+        "sourceCode": "383",
+        "targetCode": "DEBIT_NOTE",
+        "description": "Debit note"
+      },
+      {
+        "sourceCode": "386",
+        "targetCode": "PREPAYMENT_INVOICE",
+        "description": "Prepayment invoice"
+      }
+    ],
+    "adjustmentReasonCodes": [
+      {
+        "sourceCode": "1",
+        "targetCode": "PRICING_ERROR",
+        "description": "Pricing error"
+      },
+      {
+        "sourceCode": "2",
+        "targetCode": "QUANTITY_ERROR",
+        "description": "Quantity contested"
+      },
+      {
+        "sourceCode": "3",
+        "targetCode": "QUALITY_DISPUTE",
+        "description": "Quality deficiency"
+      },
+      {
+        "sourceCode": "4",
+        "targetCode": "DELIVERY_ISSUE",
+        "description": "Delivery date/time dispute"
+      },
+      {
+        "sourceCode": "5",
+        "targetCode": "RETURNS",
+        "description": "Returns/merchandise returned"
+      },
+      {
+        "sourceCode": "11",
+        "targetCode": "CREDIT_TAKEN",
+        "description": "Credit as agreed"
+      },
+      {
+        "sourceCode": "12",
+        "targetCode": "DISCOUNT_TAKEN",
+        "description": "Discount taken"
+      }
+    ]
+  }
+}

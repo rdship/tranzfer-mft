@@ -1,0 +1,425 @@
+{
+  "mapId": "TRADACOMS_ORDER--INHOUSE_PURCHASE_ORDER",
+  "name": "TRADACOMS ORDHDR/ORDDET Order to Internal Purchase Order",
+  "version": "1.0.0",
+  "sourceType": "TRADACOMS_ORDER",
+  "targetType": "PURCHASE_ORDER_INH",
+  "sourceStandard": "TRADACOMS",
+  "targetStandard": "INHOUSE",
+  "bidirectional": false,
+  "description": "Standard map for converting TRADACOMS ORDHDR (Order Header) and ORDDET (Order Detail) to TranzFer internal purchase order format. TRADACOMS is the UK retail EDI standard used primarily by grocery and FMCG suppliers. Maps STX/BAT/MHD envelope, OFH order file header, ORD order header, and OLD order line detail.",
+  "status": "ACTIVE",
+  "confidence": 1.0,
+  "fieldMappings": [
+    {
+      "sourcePath": "STX.STDS",
+      "targetPath": "standardsCode",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "STX.SNRF",
+      "targetPath": "senderTransmissionReference",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "STX.UNTO",
+      "targetPath": "receiverId",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "STX.FROM",
+      "targetPath": "senderId",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "STX.TRDT",
+      "targetPath": "transmissionDate",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyMMdd",
+        "targetFormat": "yyyy-MM-dd"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "MHD.MSRF",
+      "targetPath": "messageReferenceNumber",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "MHD.TYPE",
+      "targetPath": "messageType",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "messageTypeCodes"
+      },
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "CLO.CLOC",
+      "targetPath": "customerLocationCode",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "CLO.CNAM",
+      "targetPath": "customerName",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "CLO.CADD",
+      "targetPath": "customerAddress",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "ORD.RONE",
+      "targetPath": "documentNumber",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "ORD.RONE2",
+      "targetPath": "orderGenerationNumber",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "ORD.RTWO",
+      "targetPath": "alternateOrderNumber",
+      "transform": "TRIM",
+      "confidence": 0.8
+    },
+    {
+      "sourcePath": "DIN.DATEFROM",
+      "targetPath": "deliveryDateFrom",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyMMdd",
+        "targetFormat": "yyyy-MM-dd"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "DIN.DATETO",
+      "targetPath": "deliveryDateTo",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyMMdd",
+        "targetFormat": "yyyy-MM-dd"
+      },
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "DIN.DTEFROM",
+      "targetPath": "deliveryTimeFrom",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "DIN.DTETO",
+      "targetPath": "deliveryTimeTo",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "DNA.ADDR",
+      "targetPath": "deliveryAddress",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "DNA.LOCC",
+      "targetPath": "deliveryLocationCode",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "FIL.FLGN",
+      "targetPath": "fileGenerationNumber",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "FIL.FLVN",
+      "targetPath": "fileVersionNumber",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "OFT.OFDE",
+      "targetPath": "orderFileTrailerRecordCount",
+      "transform": "COPY",
+      "confidence": 0.9
+    }
+  ],
+  "loopMappings": [
+    {
+      "sourceLoop": "OLD",
+      "targetArray": "lineItems",
+      "fieldMappings": [
+        {
+          "sourcePath": "OLD.SEQA",
+          "targetPath": "lineNumber",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "OLD.CPRO",
+          "targetPath": "productId",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "OLD.SPRO",
+          "targetPath": "supplierProductCode",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "OLD.TPTS",
+          "targetPath": "tradeProductCode",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "OLD.CPTS",
+          "targetPath": "consumerProductCode",
+          "transform": "TRIM",
+          "confidence": 0.8
+        },
+        {
+          "sourcePath": "OLD.QORD",
+          "targetPath": "quantity",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "OLD.QTYP",
+          "targetPath": "quantityType",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "quantityTypeCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "OLD.OUOM",
+          "targetPath": "unitOfMeasure",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "unitCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "OLD.OPRC",
+          "targetPath": "unitPrice",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "OLD.OAMT",
+          "targetPath": "lineAmount",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "OLD.VPRC",
+          "targetPath": "vatRate",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "OLD.ORSP",
+          "targetPath": "specialInstructions",
+          "transform": "TRIM",
+          "confidence": 0.7
+        },
+        {
+          "sourcePath": "DNB.DNAA",
+          "targetPath": "lineDeliveryAddress",
+          "transform": "TRIM",
+          "confidence": 0.8
+        },
+        {
+          "sourcePath": "DNB.DTEFROM",
+          "targetPath": "lineDeliveryDateFrom",
+          "transform": "DATE_FORMAT",
+          "transformConfig": {
+            "sourceFormat": "yyMMdd",
+            "targetFormat": "yyyy-MM-dd"
+          },
+          "confidence": 0.8
+        }
+      ]
+    },
+    {
+      "sourceLoop": "SDT",
+      "targetArray": "parties",
+      "fieldMappings": [
+        {
+          "sourcePath": "SDT.SIDN",
+          "targetPath": "id",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "SDT.SNAM",
+          "targetPath": "name",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "SDT.SADD",
+          "targetPath": "address.line1",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "SDT.SREF",
+          "targetPath": "supplierReference",
+          "transform": "TRIM",
+          "confidence": 0.9
+        }
+      ]
+    }
+  ],
+  "codeTables": {
+    "messageTypeCodes": [
+      {
+        "sourceCode": "ORDHDR",
+        "targetCode": "ORDER_HEADER",
+        "description": "Order header message"
+      },
+      {
+        "sourceCode": "ORDDET",
+        "targetCode": "ORDER_DETAIL",
+        "description": "Order detail message"
+      },
+      {
+        "sourceCode": "ORDERS",
+        "targetCode": "ORDER",
+        "description": "Combined order message"
+      },
+      {
+        "sourceCode": "INVOIC",
+        "targetCode": "INVOICE",
+        "description": "Invoice message"
+      },
+      {
+        "sourceCode": "DELIVR",
+        "targetCode": "DELIVERY",
+        "description": "Delivery notification message"
+      },
+      {
+        "sourceCode": "CREDIT",
+        "targetCode": "CREDIT_NOTE",
+        "description": "Credit note message"
+      }
+    ],
+    "quantityTypeCodes": [
+      {
+        "sourceCode": "1",
+        "targetCode": "CONSUMER_UNITS",
+        "description": "Consumer units (eaches)"
+      },
+      {
+        "sourceCode": "2",
+        "targetCode": "TRADED_UNITS",
+        "description": "Traded units (inners/cases)"
+      },
+      {
+        "sourceCode": "3",
+        "targetCode": "OUTER_UNITS",
+        "description": "Outer units (outers/pallets)"
+      },
+      {
+        "sourceCode": "4",
+        "targetCode": "DELIVERY_UNITS",
+        "description": "Delivery units"
+      },
+      {
+        "sourceCode": "9",
+        "targetCode": "VARIABLE_MEASURE",
+        "description": "Variable measure (weight/volume)"
+      }
+    ],
+    "unitCodes": [
+      {
+        "sourceCode": "EA",
+        "targetCode": "EACH",
+        "description": "Each"
+      },
+      {
+        "sourceCode": "CS",
+        "targetCode": "CASE",
+        "description": "Case"
+      },
+      {
+        "sourceCode": "PK",
+        "targetCode": "PACK",
+        "description": "Pack"
+      },
+      {
+        "sourceCode": "KG",
+        "targetCode": "KILOGRAM",
+        "description": "Kilogram"
+      },
+      {
+        "sourceCode": "LT",
+        "targetCode": "LITER",
+        "description": "Liter"
+      },
+      {
+        "sourceCode": "MT",
+        "targetCode": "METER",
+        "description": "Meter"
+      },
+      {
+        "sourceCode": "GR",
+        "targetCode": "GRAM",
+        "description": "Gram"
+      },
+      {
+        "sourceCode": "TN",
+        "targetCode": "TONNE",
+        "description": "Metric tonne"
+      },
+      {
+        "sourceCode": "RL",
+        "targetCode": "ROLL",
+        "description": "Roll"
+      },
+      {
+        "sourceCode": "DZ",
+        "targetCode": "DOZEN",
+        "description": "Dozen"
+      },
+      {
+        "sourceCode": "PL",
+        "targetCode": "PALLET",
+        "description": "Pallet"
+      }
+    ]
+  }
+}

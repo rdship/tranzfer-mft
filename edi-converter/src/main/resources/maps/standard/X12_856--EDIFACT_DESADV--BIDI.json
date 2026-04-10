@@ -1,0 +1,512 @@
+{
+  "mapId": "X12_856--EDIFACT_DESADV--BIDI",
+  "name": "X12 856 to EDIFACT DESADV Cross-Standard Ship Notice",
+  "version": "1.0.0",
+  "sourceType": "X12_856",
+  "targetType": "EDIFACT_DESADV",
+  "sourceStandard": "X12",
+  "targetStandard": "EDIFACT",
+  "bidirectional": true,
+  "description": "Cross-standard bidirectional map for converting between ANSI X12 856 ASN and UN/EDIFACT DESADV. Maps BSN<->BGM, HL<->CPS, SN1<->LIN+QTY, N1<->NAD, TD5<->TDT with code table translations.",
+  "status": "ACTIVE",
+  "confidence": 1.0,
+  "fieldMappings": [
+    {
+      "sourcePath": "BSN.02",
+      "targetPath": "BGM.C106.1004",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BSN.01",
+      "targetPath": "BGM.1225",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "purposeToFunctionCodes"
+      },
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BSN.03",
+      "targetPath": "DTM.C507.2380",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyyMMdd",
+        "targetFormat": "yyyyMMdd"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BSN.04",
+      "targetPath": "DTM.C507.2379",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "TD5.03",
+      "targetPath": "TDT.C040.3127",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "TD5.04",
+      "targetPath": "TDT.C220.8067",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "x12ToEdifactTransportMode"
+      },
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "TD5.05",
+      "targetPath": "TDT.C040.3128",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "TD3.01",
+      "targetPath": "EQD.8053",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "x12ToEdifactEquipmentCodes"
+      },
+      "confidence": 0.8
+    },
+    {
+      "sourcePath": "TD3.03",
+      "targetPath": "EQD.C237.8260",
+      "transform": "TRIM",
+      "confidence": 0.8
+    },
+    {
+      "sourcePath": "TD1.01",
+      "targetPath": "PAC.C202.7065",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "x12ToEdifactPackagingCodes"
+      },
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "TD1.02",
+      "targetPath": "PAC.7224",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "TD1.06",
+      "targetPath": "MEA.C174.6314",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "TD1.07",
+      "targetPath": "MEA.C174.6411",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "x12ToEdifactWeightUnits"
+      },
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "REF.02",
+      "targetPath": "RFF.C506.1154",
+      "transform": "TRIM",
+      "condition": "REF.01 == 'BM'",
+      "confidence": 1.0
+    }
+  ],
+  "loopMappings": [
+    {
+      "sourceLoop": "N1",
+      "targetArray": "NAD",
+      "fieldMappings": [
+        {
+          "sourcePath": "N1.01",
+          "targetPath": "NAD.3035",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "x12ToEdifactEntityCodes"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N1.02",
+          "targetPath": "NAD.C080.3036",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N1.04",
+          "targetPath": "NAD.C082.3039",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N3.01",
+          "targetPath": "NAD.C059.3042",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N3.02",
+          "targetPath": "NAD.C059.3042_2",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "N4.01",
+          "targetPath": "NAD.3164",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N4.02",
+          "targetPath": "NAD.3229",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N4.03",
+          "targetPath": "NAD.3251",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N4.04",
+          "targetPath": "NAD.3207",
+          "transform": "COPY",
+          "confidence": 1.0
+        }
+      ]
+    },
+    {
+      "sourceLoop": "HL",
+      "targetArray": "CPS",
+      "fieldMappings": [
+        {
+          "sourcePath": "HL.01",
+          "targetPath": "CPS.7164",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "HL.02",
+          "targetPath": "CPS.7166",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "HL.03",
+          "targetPath": "CPS.7075",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "x12ToEdifactHlLevelCodes"
+          },
+          "confidence": 1.0
+        }
+      ]
+    },
+    {
+      "sourceLoop": "SN1",
+      "targetArray": "LIN",
+      "fieldMappings": [
+        {
+          "sourcePath": "SN1.01",
+          "targetPath": "LIN.1082",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "SN1.02",
+          "targetPath": "QTY.C186.6060",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "SN1.03",
+          "targetPath": "QTY.C186.6411",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "x12ToEdifactUnitCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "SN1.04",
+          "targetPath": "QTY.C186.6060_ordered",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "LIN.03",
+          "targetPath": "LIN.C212.7140",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "LIN.02",
+          "targetPath": "LIN.C212.7143",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "x12ToEdifactProductIdQualifiers"
+          },
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "PID.05",
+          "targetPath": "IMD.C273.7008",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "MAN.02",
+          "targetPath": "PCI.C210.7102",
+          "transform": "TRIM",
+          "confidence": 0.8
+        }
+      ]
+    }
+  ],
+  "codeTables": {
+    "purposeToFunctionCodes": [
+      {
+        "sourceCode": "00",
+        "targetCode": "9",
+        "description": "Original -> Original"
+      },
+      {
+        "sourceCode": "01",
+        "targetCode": "1",
+        "description": "Cancel -> Cancellation"
+      },
+      {
+        "sourceCode": "05",
+        "targetCode": "5",
+        "description": "Replace -> Replace"
+      },
+      {
+        "sourceCode": "07",
+        "targetCode": "43",
+        "description": "Duplicate -> Duplicate"
+      }
+    ],
+    "x12ToEdifactEntityCodes": [
+      {
+        "sourceCode": "SF",
+        "targetCode": "CZ",
+        "description": "Ship from -> Consignor"
+      },
+      {
+        "sourceCode": "ST",
+        "targetCode": "CN",
+        "description": "Ship to -> Consignee"
+      },
+      {
+        "sourceCode": "BY",
+        "targetCode": "BY",
+        "description": "Buyer -> Buyer"
+      },
+      {
+        "sourceCode": "SE",
+        "targetCode": "SE",
+        "description": "Seller -> Seller"
+      },
+      {
+        "sourceCode": "CA",
+        "targetCode": "CA",
+        "description": "Carrier -> Carrier"
+      }
+    ],
+    "x12ToEdifactTransportMode": [
+      {
+        "sourceCode": "A",
+        "targetCode": "4",
+        "description": "Air -> Air transport"
+      },
+      {
+        "sourceCode": "J",
+        "targetCode": "3",
+        "description": "Motor -> Road transport"
+      },
+      {
+        "sourceCode": "R",
+        "targetCode": "2",
+        "description": "Rail -> Rail transport"
+      },
+      {
+        "sourceCode": "S",
+        "targetCode": "1",
+        "description": "Ocean -> Maritime transport"
+      },
+      {
+        "sourceCode": "U",
+        "targetCode": "6",
+        "description": "Intermodal -> Multimodal"
+      },
+      {
+        "sourceCode": "LT",
+        "targetCode": "3",
+        "description": "LTL -> Road transport"
+      },
+      {
+        "sourceCode": "M",
+        "targetCode": "5",
+        "description": "Mail -> Mail"
+      },
+      {
+        "sourceCode": "P",
+        "targetCode": "3",
+        "description": "Parcel -> Road transport"
+      }
+    ],
+    "x12ToEdifactHlLevelCodes": [
+      {
+        "sourceCode": "S",
+        "targetCode": "1",
+        "description": "Shipment -> Outer"
+      },
+      {
+        "sourceCode": "O",
+        "targetCode": "2",
+        "description": "Order -> Intermediate"
+      },
+      {
+        "sourceCode": "P",
+        "targetCode": "3",
+        "description": "Pack -> Inner"
+      },
+      {
+        "sourceCode": "I",
+        "targetCode": "4",
+        "description": "Item -> No packaging"
+      }
+    ],
+    "x12ToEdifactUnitCodes": [
+      {
+        "sourceCode": "EA",
+        "targetCode": "PCE",
+        "description": "Each -> Piece"
+      },
+      {
+        "sourceCode": "CS",
+        "targetCode": "CT",
+        "description": "Case -> Carton"
+      },
+      {
+        "sourceCode": "BX",
+        "targetCode": "BX",
+        "description": "Box -> Box"
+      },
+      {
+        "sourceCode": "PK",
+        "targetCode": "PK",
+        "description": "Pack -> Pack"
+      },
+      {
+        "sourceCode": "LB",
+        "targetCode": "LBR",
+        "description": "Pound -> Pound"
+      },
+      {
+        "sourceCode": "KG",
+        "targetCode": "KGM",
+        "description": "Kilogram -> Kilogram"
+      }
+    ],
+    "x12ToEdifactProductIdQualifiers": [
+      {
+        "sourceCode": "UP",
+        "targetCode": "UP",
+        "description": "UPC -> UPC"
+      },
+      {
+        "sourceCode": "EN",
+        "targetCode": "EN",
+        "description": "EAN -> EAN"
+      },
+      {
+        "sourceCode": "VN",
+        "targetCode": "SA",
+        "description": "Vendor part -> Supplier article"
+      },
+      {
+        "sourceCode": "BP",
+        "targetCode": "BP",
+        "description": "Buyer part -> Buyer part"
+      }
+    ],
+    "x12ToEdifactPackagingCodes": [
+      {
+        "sourceCode": "CTN",
+        "targetCode": "CT",
+        "description": "Carton -> Carton"
+      },
+      {
+        "sourceCode": "PLT",
+        "targetCode": "PX",
+        "description": "Pallet -> Pallet"
+      },
+      {
+        "sourceCode": "BOX",
+        "targetCode": "BX",
+        "description": "Box -> Box"
+      },
+      {
+        "sourceCode": "CAS",
+        "targetCode": "CS",
+        "description": "Case -> Case"
+      },
+      {
+        "sourceCode": "BAG",
+        "targetCode": "BG",
+        "description": "Bag -> Bag"
+      },
+      {
+        "sourceCode": "BDL",
+        "targetCode": "BE",
+        "description": "Bundle -> Bundle"
+      }
+    ],
+    "x12ToEdifactWeightUnits": [
+      {
+        "sourceCode": "L",
+        "targetCode": "LBR",
+        "description": "Pounds -> Pounds"
+      },
+      {
+        "sourceCode": "K",
+        "targetCode": "KGM",
+        "description": "Kilograms -> Kilograms"
+      },
+      {
+        "sourceCode": "G",
+        "targetCode": "GRM",
+        "description": "Grams -> Grams"
+      }
+    ],
+    "x12ToEdifactEquipmentCodes": [
+      {
+        "sourceCode": "TL",
+        "targetCode": "TL",
+        "description": "Trailer -> Trailer"
+      },
+      {
+        "sourceCode": "CN",
+        "targetCode": "CN",
+        "description": "Container -> Container"
+      },
+      {
+        "sourceCode": "FF",
+        "targetCode": "PL",
+        "description": "Flat rack -> Platform"
+      }
+    ]
+  }
+}

@@ -1,0 +1,537 @@
+{
+  "mapId": "X12_999--INHOUSE_ACKNOWLEDGMENT",
+  "name": "X12 999 Implementation Acknowledgment to Internal Acknowledgment",
+  "version": "1.0.0",
+  "sourceType": "X12_999",
+  "targetType": "ACKNOWLEDGMENT_INH",
+  "sourceStandard": "X12",
+  "targetStandard": "INHOUSE",
+  "bidirectional": false,
+  "description": "Standard map for converting ANSI X12 999 Implementation Acknowledgment to TranzFer internal acknowledgment format. The 999 is the HIPAA-mandated replacement for the 997, adding IK3/IK4 implementation-level error reporting alongside AK2/AK5 functional-level status.",
+  "status": "ACTIVE",
+  "confidence": 1.0,
+  "fieldMappings": [
+    {
+      "sourcePath": "AK1.01",
+      "targetPath": "functionalIdCode",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "functionalIdCodes"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "AK1.02",
+      "targetPath": "groupControlNumber",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "AK1.03",
+      "targetPath": "versionId",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "AK9.01",
+      "targetPath": "groupAcknowledgeCode",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "acknowledgmentCodes"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "AK9.02",
+      "targetPath": "numberOfTransactionSetsIncluded",
+      "transform": "COPY",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "AK9.03",
+      "targetPath": "numberOfTransactionSetsReceived",
+      "transform": "COPY",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "AK9.04",
+      "targetPath": "numberOfTransactionSetsAccepted",
+      "transform": "COPY",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "AK9.05",
+      "targetPath": "errorCode1",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "groupErrorCodes"
+      },
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "AK9.06",
+      "targetPath": "errorCode2",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "groupErrorCodes"
+      },
+      "confidence": 0.8
+    }
+  ],
+  "loopMappings": [
+    {
+      "sourceLoop": "AK2",
+      "targetArray": "transactionSetResponses",
+      "fieldMappings": [
+        {
+          "sourcePath": "AK2.01",
+          "targetPath": "transactionSetIdCode",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "AK2.02",
+          "targetPath": "transactionSetControlNumber",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "AK2.03",
+          "targetPath": "implementationConventionReference",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "IK5.01",
+          "targetPath": "transactionSetAcknowledgeCode",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "transactionSetAckCodes"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "IK5.02",
+          "targetPath": "implementationErrorCode1",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "implementationErrorCodes"
+          },
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "IK5.03",
+          "targetPath": "implementationErrorCode2",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "implementationErrorCodes"
+          },
+          "confidence": 0.8
+        },
+        {
+          "sourcePath": "IK5.04",
+          "targetPath": "implementationErrorCode3",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "implementationErrorCodes"
+          },
+          "confidence": 0.8
+        }
+      ]
+    },
+    {
+      "sourceLoop": "IK3",
+      "targetArray": "implementationSegmentErrors",
+      "fieldMappings": [
+        {
+          "sourcePath": "IK3.01",
+          "targetPath": "segmentIdCode",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "IK3.02",
+          "targetPath": "segmentPositionInTransactionSet",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "IK3.03",
+          "targetPath": "loopIdentifierCode",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "IK3.04",
+          "targetPath": "implementationSegmentSyntaxErrorCode",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "segmentSyntaxErrorCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "IK4.01",
+          "targetPath": "elementPositionInSegment",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "IK4.02",
+          "targetPath": "elementReferenceNumber",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "IK4.03",
+          "targetPath": "implementationElementSyntaxErrorCode",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "elementSyntaxErrorCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "IK4.04",
+          "targetPath": "copyOfBadDataElement",
+          "transform": "TRIM",
+          "confidence": 0.8
+        },
+        {
+          "sourcePath": "CTX.01",
+          "targetPath": "contextSegmentIdCode",
+          "transform": "COPY",
+          "confidence": 0.8
+        },
+        {
+          "sourcePath": "CTX.02",
+          "targetPath": "contextSegmentPosition",
+          "transform": "COPY",
+          "confidence": 0.8
+        }
+      ]
+    }
+  ],
+  "codeTables": {
+    "functionalIdCodes": [
+      {
+        "sourceCode": "HP",
+        "targetCode": "HEALTHCARE_CLAIM",
+        "description": "Healthcare claim (837)"
+      },
+      {
+        "sourceCode": "HC",
+        "targetCode": "HEALTHCARE_ELIGIBILITY",
+        "description": "Healthcare eligibility (270/271)"
+      },
+      {
+        "sourceCode": "HN",
+        "targetCode": "HEALTHCARE_NOTIFICATION",
+        "description": "Healthcare claim status notification (277)"
+      },
+      {
+        "sourceCode": "HB",
+        "targetCode": "HEALTHCARE_BENEFIT",
+        "description": "Healthcare eligibility benefit (271)"
+      },
+      {
+        "sourceCode": "HS",
+        "targetCode": "HEALTHCARE_STATUS_REQUEST",
+        "description": "Healthcare claim status request (276)"
+      },
+      {
+        "sourceCode": "FA",
+        "targetCode": "ACKNOWLEDGMENT",
+        "description": "Functional acknowledgment (999)"
+      }
+    ],
+    "acknowledgmentCodes": [
+      {
+        "sourceCode": "A",
+        "targetCode": "ACCEPTED",
+        "description": "Accepted"
+      },
+      {
+        "sourceCode": "E",
+        "targetCode": "ACCEPTED_WITH_ERRORS",
+        "description": "Accepted but errors were noted"
+      },
+      {
+        "sourceCode": "M",
+        "targetCode": "REJECTED_AUTH",
+        "description": "Rejected, message authentication code failed"
+      },
+      {
+        "sourceCode": "P",
+        "targetCode": "PARTIALLY_ACCEPTED",
+        "description": "Partially accepted"
+      },
+      {
+        "sourceCode": "R",
+        "targetCode": "REJECTED",
+        "description": "Rejected"
+      },
+      {
+        "sourceCode": "W",
+        "targetCode": "REJECTED_ASSURANCE",
+        "description": "Rejected, assurance failed"
+      },
+      {
+        "sourceCode": "X",
+        "targetCode": "REJECTED_AFTER_DECRYPT",
+        "description": "Cannot be accepted after decryption"
+      }
+    ],
+    "transactionSetAckCodes": [
+      {
+        "sourceCode": "A",
+        "targetCode": "ACCEPTED",
+        "description": "Accepted"
+      },
+      {
+        "sourceCode": "E",
+        "targetCode": "ACCEPTED_WITH_ERRORS",
+        "description": "Accepted but errors were noted"
+      },
+      {
+        "sourceCode": "M",
+        "targetCode": "REJECTED_AUTH",
+        "description": "Rejected, message authentication code failed"
+      },
+      {
+        "sourceCode": "R",
+        "targetCode": "REJECTED",
+        "description": "Rejected"
+      },
+      {
+        "sourceCode": "W",
+        "targetCode": "REJECTED_ASSURANCE",
+        "description": "Rejected, assurance failed"
+      },
+      {
+        "sourceCode": "X",
+        "targetCode": "REJECTED_CONTENT",
+        "description": "Cannot be accepted after decryption"
+      }
+    ],
+    "groupErrorCodes": [
+      {
+        "sourceCode": "1",
+        "targetCode": "FUNC_GROUP_NOT_SUPPORTED",
+        "description": "Functional group not supported"
+      },
+      {
+        "sourceCode": "2",
+        "targetCode": "FUNC_GROUP_VERSION_NOT_SUPPORTED",
+        "description": "Functional group version not supported"
+      },
+      {
+        "sourceCode": "3",
+        "targetCode": "FUNC_GROUP_TRAILER_MISSING",
+        "description": "Functional group trailer missing"
+      },
+      {
+        "sourceCode": "4",
+        "targetCode": "GROUP_CONTROL_NUMBER_MISMATCH",
+        "description": "Group control number mismatch"
+      },
+      {
+        "sourceCode": "5",
+        "targetCode": "TS_COUNT_MISMATCH",
+        "description": "Transaction set count mismatch"
+      },
+      {
+        "sourceCode": "6",
+        "targetCode": "GROUP_CONTROL_NUMBER_VIOLATION",
+        "description": "Group control number violates syntax"
+      }
+    ],
+    "implementationErrorCodes": [
+      {
+        "sourceCode": "1",
+        "targetCode": "TS_NOT_SUPPORTED",
+        "description": "Transaction set not supported"
+      },
+      {
+        "sourceCode": "2",
+        "targetCode": "TS_TRAILER_MISSING",
+        "description": "Transaction set trailer missing"
+      },
+      {
+        "sourceCode": "3",
+        "targetCode": "TS_CONTROL_NUMBER_MISMATCH",
+        "description": "Transaction set control number mismatch"
+      },
+      {
+        "sourceCode": "4",
+        "targetCode": "SEGMENT_COUNT_MISMATCH",
+        "description": "Segment count mismatch"
+      },
+      {
+        "sourceCode": "5",
+        "targetCode": "SEGMENTS_IN_ERROR",
+        "description": "One or more segments in error"
+      },
+      {
+        "sourceCode": "6",
+        "targetCode": "INVALID_TS_ID",
+        "description": "Missing or invalid transaction set identifier"
+      },
+      {
+        "sourceCode": "7",
+        "targetCode": "INVALID_TS_CONTROL_NUMBER",
+        "description": "Missing or invalid transaction set control number"
+      },
+      {
+        "sourceCode": "I5",
+        "targetCode": "IMPLEMENTATION_NOT_SUPPORTED",
+        "description": "Implementation convention not supported"
+      },
+      {
+        "sourceCode": "I6",
+        "targetCode": "IMPLEMENTATION_GUIDE_NOT_SUPPORTED",
+        "description": "Implementation guide not supported"
+      }
+    ],
+    "segmentSyntaxErrorCodes": [
+      {
+        "sourceCode": "1",
+        "targetCode": "UNRECOGNIZED_SEGMENT",
+        "description": "Unrecognized segment ID"
+      },
+      {
+        "sourceCode": "2",
+        "targetCode": "UNEXPECTED_SEGMENT",
+        "description": "Unexpected segment"
+      },
+      {
+        "sourceCode": "3",
+        "targetCode": "MANDATORY_SEGMENT_MISSING",
+        "description": "Mandatory segment missing"
+      },
+      {
+        "sourceCode": "4",
+        "targetCode": "LOOP_OVER_MAX",
+        "description": "Loop occurs over maximum times"
+      },
+      {
+        "sourceCode": "5",
+        "targetCode": "SEGMENT_EXCEEDS_MAX",
+        "description": "Segment exceeds maximum use"
+      },
+      {
+        "sourceCode": "6",
+        "targetCode": "SEGMENT_NOT_IN_TS",
+        "description": "Segment not in defined transaction set"
+      },
+      {
+        "sourceCode": "7",
+        "targetCode": "SEGMENT_OUT_OF_SEQUENCE",
+        "description": "Segment not in proper sequence"
+      },
+      {
+        "sourceCode": "8",
+        "targetCode": "SEGMENT_DATA_ELEMENT_ERRORS",
+        "description": "Segment has data element errors"
+      },
+      {
+        "sourceCode": "I4",
+        "targetCode": "IMPLEMENTATION_SEGMENT_NOT_USED",
+        "description": "Implementation segment below minimum use"
+      },
+      {
+        "sourceCode": "I6",
+        "targetCode": "IMPLEMENTATION_LOOP_OVER_MAX",
+        "description": "Implementation loop occurs over maximum times"
+      },
+      {
+        "sourceCode": "I7",
+        "targetCode": "IMPLEMENTATION_SEGMENT_OVER_MAX",
+        "description": "Implementation segment exceeds maximum use"
+      },
+      {
+        "sourceCode": "I8",
+        "targetCode": "IMPLEMENTATION_SEGMENT_NOT_IN_ORDER",
+        "description": "Implementation segment not in proper order"
+      }
+    ],
+    "elementSyntaxErrorCodes": [
+      {
+        "sourceCode": "1",
+        "targetCode": "MANDATORY_ELEMENT_MISSING",
+        "description": "Mandatory data element missing"
+      },
+      {
+        "sourceCode": "2",
+        "targetCode": "CONDITIONAL_REQUIRED_MISSING",
+        "description": "Conditional required data element missing"
+      },
+      {
+        "sourceCode": "3",
+        "targetCode": "TOO_MANY_DATA_ELEMENTS",
+        "description": "Too many data elements"
+      },
+      {
+        "sourceCode": "4",
+        "targetCode": "DATA_ELEMENT_TOO_SHORT",
+        "description": "Data element too short"
+      },
+      {
+        "sourceCode": "5",
+        "targetCode": "DATA_ELEMENT_TOO_LONG",
+        "description": "Data element too long"
+      },
+      {
+        "sourceCode": "6",
+        "targetCode": "INVALID_CHARACTER",
+        "description": "Invalid character in data element"
+      },
+      {
+        "sourceCode": "7",
+        "targetCode": "INVALID_CODE_VALUE",
+        "description": "Invalid code value"
+      },
+      {
+        "sourceCode": "8",
+        "targetCode": "INVALID_DATE",
+        "description": "Invalid date"
+      },
+      {
+        "sourceCode": "9",
+        "targetCode": "INVALID_TIME",
+        "description": "Invalid time"
+      },
+      {
+        "sourceCode": "10",
+        "targetCode": "EXCLUSION_CONDITION_VIOLATED",
+        "description": "Exclusion condition violated"
+      },
+      {
+        "sourceCode": "I10",
+        "targetCode": "IMPLEMENTATION_NOT_USED",
+        "description": "Implementation data element too long"
+      },
+      {
+        "sourceCode": "I12",
+        "targetCode": "IMPLEMENTATION_PATTERN_MISMATCH",
+        "description": "Implementation pattern match failure"
+      },
+      {
+        "sourceCode": "I13",
+        "targetCode": "IMPLEMENTATION_CODE_NOT_IN_LIST",
+        "description": "Implementation code value not in set"
+      }
+    ]
+  }
+}

@@ -1,0 +1,587 @@
+{
+  "mapId": "INHOUSE_SHIP_NOTICE--EDIFACT_DESADV",
+  "name": "Internal Ship Notice to EDIFACT DESADV",
+  "version": "1.0.0",
+  "sourceType": "SHIP_NOTICE_INH",
+  "targetType": "EDIFACT_DESADV",
+  "sourceStandard": "INHOUSE",
+  "targetStandard": "EDIFACT",
+  "bidirectional": false,
+  "description": "Outbound map for generating UN/EDIFACT DESADV from TranzFer internal format. Builds UNB/UNH envelope, BGM, DTM, NAD, CPS, LIN, QTY, PCI segments from INHOUSE fields.",
+  "status": "ACTIVE",
+  "confidence": 1.0,
+  "fieldMappings": [
+    {
+      "sourcePath": "senderId",
+      "targetPath": "UNB.S002.0004",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "receiverId",
+      "targetPath": "UNB.S003.0010",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "controlNumber",
+      "targetPath": "UNB.0020",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "messageReferenceNumber",
+      "targetPath": "UNH.0062",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "documentType",
+      "targetPath": "BGM.C002.1001",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "documentTypeCodes"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "shipmentId",
+      "targetPath": "BGM.C106.1004",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "messageFunctionCode",
+      "targetPath": "BGM.1225",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "messageFunctionCodes"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "despatchDate",
+      "targetPath": "DTM.C507.2380",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyy-MM-dd",
+        "targetFormat": "yyyyMMdd"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "estimatedDeliveryDate",
+      "targetPath": "DTM.C507.2380_delivery",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyy-MM-dd",
+        "targetFormat": "yyyyMMdd"
+      },
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "shipDate",
+      "targetPath": "DTM.C507.2380_ship",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyy-MM-dd",
+        "targetFormat": "yyyyMMdd"
+      },
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "purchaseOrderNumber",
+      "targetPath": "RFF.C506.1154",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "bolNumber",
+      "targetPath": "RFF.C506.1154_bol",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "transportMode",
+      "targetPath": "TDT.C220.8067",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "transportModeCodes"
+      },
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "carrierId",
+      "targetPath": "TDT.C040.3127",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "carrierName",
+      "targetPath": "TDT.C040.3128",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "equipmentType",
+      "targetPath": "EQD.8053",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "equipmentTypeCodes"
+      },
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "equipmentNumber",
+      "targetPath": "EQD.C237.8260",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "grossWeight",
+      "targetPath": "MEA.C174.6314",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "grossWeightUnit",
+      "targetPath": "MEA.C174.6411",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "measurementUnitCodes"
+      },
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "freeTextNote",
+      "targetPath": "FTX.4440",
+      "transform": "TRIM",
+      "confidence": 0.8
+    }
+  ],
+  "loopMappings": [
+    {
+      "sourceLoop": "parties",
+      "targetArray": "NAD",
+      "fieldMappings": [
+        {
+          "sourcePath": "role",
+          "targetPath": "NAD.3035",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "partyQualifierCodes"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "id",
+          "targetPath": "NAD.C082.3039",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "name",
+          "targetPath": "NAD.C080.3036",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "address.line1",
+          "targetPath": "NAD.C059.3042",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "address.line2",
+          "targetPath": "NAD.C059.3042_2",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "address.city",
+          "targetPath": "NAD.3164",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "address.state",
+          "targetPath": "NAD.3229",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "address.postalCode",
+          "targetPath": "NAD.3251",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "address.countryCode",
+          "targetPath": "NAD.3207",
+          "transform": "COPY",
+          "confidence": 1.0
+        }
+      ]
+    },
+    {
+      "sourceLoop": "consignmentPackingSequences",
+      "targetArray": "CPS",
+      "fieldMappings": [
+        {
+          "sourcePath": "hierarchicalId",
+          "targetPath": "CPS.7164",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "parentId",
+          "targetPath": "CPS.7166",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "packagingLevelCode",
+          "targetPath": "CPS.7075",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "packagingLevelCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "packageType",
+          "targetPath": "PAC.C202.7065",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "packageTypeCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "numberOfPackages",
+          "targetPath": "PAC.7224",
+          "transform": "COPY",
+          "confidence": 1.0
+        }
+      ]
+    },
+    {
+      "sourceLoop": "shipmentItems",
+      "targetArray": "LIN",
+      "fieldMappings": [
+        {
+          "sourcePath": "lineNumber",
+          "targetPath": "LIN.1082",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "productId",
+          "targetPath": "LIN.C212.7140",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "productIdQualifier",
+          "targetPath": "LIN.C212.7143",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "productIdQualifierCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "description",
+          "targetPath": "IMD.C273.7008",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "quantityDespatched",
+          "targetPath": "QTY.C186.6060",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "unitOfMeasure",
+          "targetPath": "QTY.C186.6411",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "measurementUnitCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "serialNumber",
+          "targetPath": "GIN.7402",
+          "transform": "TRIM",
+          "confidence": 0.8
+        },
+        {
+          "sourcePath": "itemWeight",
+          "targetPath": "MEA.C174.6314",
+          "transform": "COPY",
+          "confidence": 0.8
+        }
+      ]
+    }
+  ],
+  "codeTables": {
+    "documentTypeCodes": [
+      {
+        "sourceCode": "DESPATCH_ADVICE",
+        "targetCode": "351",
+        "description": "Despatch advice"
+      },
+      {
+        "sourceCode": "DELIVERY_NOTE",
+        "targetCode": "352",
+        "description": "Delivery note"
+      }
+    ],
+    "messageFunctionCodes": [
+      {
+        "sourceCode": "ORIGINAL",
+        "targetCode": "9",
+        "description": "Original"
+      },
+      {
+        "sourceCode": "CANCEL",
+        "targetCode": "1",
+        "description": "Cancellation"
+      },
+      {
+        "sourceCode": "CHANGE",
+        "targetCode": "4",
+        "description": "Change"
+      },
+      {
+        "sourceCode": "REPLACE",
+        "targetCode": "5",
+        "description": "Replace"
+      }
+    ],
+    "partyQualifierCodes": [
+      {
+        "sourceCode": "CONSIGNOR",
+        "targetCode": "CZ",
+        "description": "Consignor"
+      },
+      {
+        "sourceCode": "CONSIGNEE",
+        "targetCode": "CN",
+        "description": "Consignee"
+      },
+      {
+        "sourceCode": "BUYER",
+        "targetCode": "BY",
+        "description": "Buyer"
+      },
+      {
+        "sourceCode": "SELLER",
+        "targetCode": "SE",
+        "description": "Seller"
+      },
+      {
+        "sourceCode": "DELIVERY_PARTY",
+        "targetCode": "DP",
+        "description": "Delivery party"
+      },
+      {
+        "sourceCode": "CARRIER",
+        "targetCode": "CA",
+        "description": "Carrier"
+      },
+      {
+        "sourceCode": "SHIP_FROM",
+        "targetCode": "CZ",
+        "description": "Ship from -> Consignor"
+      },
+      {
+        "sourceCode": "SHIP_TO",
+        "targetCode": "CN",
+        "description": "Ship to -> Consignee"
+      }
+    ],
+    "transportModeCodes": [
+      {
+        "sourceCode": "MARITIME",
+        "targetCode": "1",
+        "description": "Maritime"
+      },
+      {
+        "sourceCode": "RAIL",
+        "targetCode": "2",
+        "description": "Rail"
+      },
+      {
+        "sourceCode": "ROAD",
+        "targetCode": "3",
+        "description": "Road"
+      },
+      {
+        "sourceCode": "AIR",
+        "targetCode": "4",
+        "description": "Air"
+      },
+      {
+        "sourceCode": "MAIL",
+        "targetCode": "5",
+        "description": "Mail"
+      },
+      {
+        "sourceCode": "MULTIMODAL",
+        "targetCode": "6",
+        "description": "Multimodal"
+      },
+      {
+        "sourceCode": "MOTOR",
+        "targetCode": "3",
+        "description": "Motor -> Road"
+      },
+      {
+        "sourceCode": "OCEAN",
+        "targetCode": "1",
+        "description": "Ocean -> Maritime"
+      }
+    ],
+    "equipmentTypeCodes": [
+      {
+        "sourceCode": "CONTAINER",
+        "targetCode": "CN",
+        "description": "Container"
+      },
+      {
+        "sourceCode": "TRAILER",
+        "targetCode": "TL",
+        "description": "Trailer"
+      },
+      {
+        "sourceCode": "PLATFORM",
+        "targetCode": "PL",
+        "description": "Platform"
+      }
+    ],
+    "packagingLevelCodes": [
+      {
+        "sourceCode": "INNER",
+        "targetCode": "1",
+        "description": "Inner"
+      },
+      {
+        "sourceCode": "INTERMEDIATE",
+        "targetCode": "2",
+        "description": "Intermediate"
+      },
+      {
+        "sourceCode": "OUTER",
+        "targetCode": "3",
+        "description": "Outer"
+      },
+      {
+        "sourceCode": "NO_PACKAGING",
+        "targetCode": "4",
+        "description": "No packaging"
+      }
+    ],
+    "packageTypeCodes": [
+      {
+        "sourceCode": "CARTON",
+        "targetCode": "CT",
+        "description": "Carton"
+      },
+      {
+        "sourceCode": "PACKAGE",
+        "targetCode": "PK",
+        "description": "Package"
+      },
+      {
+        "sourceCode": "PALLET",
+        "targetCode": "PX",
+        "description": "Pallet"
+      },
+      {
+        "sourceCode": "CASE",
+        "targetCode": "CS",
+        "description": "Case"
+      },
+      {
+        "sourceCode": "BAG",
+        "targetCode": "BG",
+        "description": "Bag"
+      },
+      {
+        "sourceCode": "DRUM",
+        "targetCode": "DR",
+        "description": "Drum"
+      }
+    ],
+    "productIdQualifierCodes": [
+      {
+        "sourceCode": "GTIN",
+        "targetCode": "SRV",
+        "description": "GTIN"
+      },
+      {
+        "sourceCode": "EAN",
+        "targetCode": "EN",
+        "description": "EAN"
+      },
+      {
+        "sourceCode": "SUPPLIER_PART",
+        "targetCode": "SA",
+        "description": "Supplier article"
+      },
+      {
+        "sourceCode": "BUYER_PART",
+        "targetCode": "BP",
+        "description": "Buyer part"
+      }
+    ],
+    "measurementUnitCodes": [
+      {
+        "sourceCode": "EACH",
+        "targetCode": "PCE",
+        "description": "Each/piece"
+      },
+      {
+        "sourceCode": "KILOGRAM",
+        "targetCode": "KGM",
+        "description": "Kilogram"
+      },
+      {
+        "sourceCode": "POUND",
+        "targetCode": "LBR",
+        "description": "Pound"
+      },
+      {
+        "sourceCode": "LITER",
+        "targetCode": "LTR",
+        "description": "Liter"
+      },
+      {
+        "sourceCode": "GRAM",
+        "targetCode": "GRM",
+        "description": "Gram"
+      },
+      {
+        "sourceCode": "CARTON",
+        "targetCode": "CT",
+        "description": "Carton"
+      }
+    ]
+  }
+}

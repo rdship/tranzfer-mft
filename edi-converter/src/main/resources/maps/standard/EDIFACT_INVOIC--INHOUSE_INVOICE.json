@@ -1,0 +1,728 @@
+{
+  "mapId": "EDIFACT_INVOIC--INHOUSE_INVOICE",
+  "name": "EDIFACT INVOIC Invoice to Internal Invoice",
+  "version": "1.0.0",
+  "sourceType": "EDIFACT_INVOIC",
+  "targetType": "INVOICE_INH",
+  "sourceStandard": "EDIFACT",
+  "targetStandard": "INHOUSE",
+  "bidirectional": false,
+  "description": "Standard map for converting UN/EDIFACT INVOIC (Invoice) to TranzFer internal format. Maps BGM, DTM, NAD, LIN, MOA monetary amounts, TAX tax details, and ALC allowances/charges.",
+  "status": "ACTIVE",
+  "confidence": 1.0,
+  "fieldMappings": [
+    {
+      "sourcePath": "UNH.0062",
+      "targetPath": "messageReferenceNumber",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BGM.C002.1001",
+      "targetPath": "invoiceType",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "invoiceTypeCodes"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BGM.C106.1004",
+      "targetPath": "invoiceNumber",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BGM.1225",
+      "targetPath": "messageFunctionCode",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "messageFunctionCodes"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "DTM.C507.2380",
+      "targetPath": "invoiceDate",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyyMMdd",
+        "targetFormat": "yyyy-MM-dd"
+      },
+      "condition": "DTM.C507.2005 == '137'",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "DTM.C507.2380",
+      "targetPath": "taxPointDate",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyyMMdd",
+        "targetFormat": "yyyy-MM-dd"
+      },
+      "condition": "DTM.C507.2005 == '131'",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "DTM.C507.2380",
+      "targetPath": "deliveryDate",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyyMMdd",
+        "targetFormat": "yyyy-MM-dd"
+      },
+      "condition": "DTM.C507.2005 == '35'",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "DTM.C507.2380",
+      "targetPath": "dueDate",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyyMMdd",
+        "targetFormat": "yyyy-MM-dd"
+      },
+      "condition": "DTM.C507.2005 == '13'",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "RFF.C506.1154",
+      "targetPath": "purchaseOrderNumber",
+      "transform": "TRIM",
+      "condition": "RFF.C506.1153 == 'ON'",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "RFF.C506.1154",
+      "targetPath": "contractNumber",
+      "transform": "TRIM",
+      "condition": "RFF.C506.1153 == 'CT'",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "RFF.C506.1154",
+      "targetPath": "deliveryNoteNumber",
+      "transform": "TRIM",
+      "condition": "RFF.C506.1153 == 'DQ'",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "CUX.C504.6345",
+      "targetPath": "currency",
+      "transform": "COPY",
+      "defaultValue": "EUR",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "PAT.4279",
+      "targetPath": "paymentTermsType",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "paymentTermsCodes"
+      },
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "PAT.C112.2152",
+      "targetPath": "paymentTermsDays",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "FTX.4440",
+      "targetPath": "freeTextNote",
+      "transform": "TRIM",
+      "confidence": 0.8
+    },
+    {
+      "sourcePath": "MOA.C516.5004",
+      "targetPath": "totalAmount",
+      "transform": "COPY",
+      "condition": "MOA.C516.5025 == '86'",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "MOA.C516.5004",
+      "targetPath": "totalTaxAmount",
+      "transform": "COPY",
+      "condition": "MOA.C516.5025 == '176'",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "MOA.C516.5004",
+      "targetPath": "totalLineItemsAmount",
+      "transform": "COPY",
+      "condition": "MOA.C516.5025 == '79'",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "MOA.C516.5004",
+      "targetPath": "prepaidAmount",
+      "transform": "COPY",
+      "condition": "MOA.C516.5025 == '113'",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "MOA.C516.5004",
+      "targetPath": "payableAmount",
+      "transform": "COPY",
+      "condition": "MOA.C516.5025 == '9'",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "CNT.C270.6066",
+      "targetPath": "controlValue",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "UNT.0074",
+      "targetPath": "segmentCount",
+      "transform": "COPY",
+      "confidence": 1.0
+    }
+  ],
+  "loopMappings": [
+    {
+      "sourceLoop": "NAD",
+      "targetArray": "parties",
+      "fieldMappings": [
+        {
+          "sourcePath": "NAD.3035",
+          "targetPath": "role",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "nadPartyQualifiers"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "NAD.C082.3039",
+          "targetPath": "id",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "NAD.C082.1131",
+          "targetPath": "idCodeListAgency",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "NAD.C080.3036",
+          "targetPath": "name",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "NAD.C059.3042",
+          "targetPath": "address.line1",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "NAD.C059.3042_2",
+          "targetPath": "address.line2",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "NAD.3164",
+          "targetPath": "address.city",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "NAD.3229",
+          "targetPath": "address.state",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "NAD.3251",
+          "targetPath": "address.postalCode",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "NAD.3207",
+          "targetPath": "address.countryCode",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "RFF.C506.1154",
+          "targetPath": "taxRegistrationNumber",
+          "transform": "TRIM",
+          "condition": "RFF.C506.1153 == 'VA'",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "sourceLoop": "LIN",
+      "targetArray": "lineItems",
+      "fieldMappings": [
+        {
+          "sourcePath": "LIN.1082",
+          "targetPath": "lineNumber",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "LIN.C212.7140",
+          "targetPath": "productId",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "LIN.C212.7143",
+          "targetPath": "productIdQualifier",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "productIdQualifiers"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "IMD.C273.7008",
+          "targetPath": "description",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "QTY.C186.6060",
+          "targetPath": "quantityInvoiced",
+          "transform": "COPY",
+          "condition": "QTY.C186.6063 == '47'",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "QTY.C186.6411",
+          "targetPath": "unitOfMeasure",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "unitCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "PRI.C509.5118",
+          "targetPath": "unitPrice",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "MOA.C516.5004",
+          "targetPath": "lineAmount",
+          "transform": "COPY",
+          "condition": "MOA.C516.5025 == '203'",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "TAX.5283",
+          "targetPath": "taxCategory",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "taxCategoryCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "TAX.C243.5278",
+          "targetPath": "taxRate",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "MOA.C516.5004",
+          "targetPath": "taxAmount",
+          "transform": "COPY",
+          "condition": "MOA.C516.5025 == '124'",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "sourceLoop": "ALC",
+      "targetArray": "allowancesCharges",
+      "fieldMappings": [
+        {
+          "sourcePath": "ALC.5463",
+          "targetPath": "type",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "alcIndicatorCodes"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "ALC.C552.1230",
+          "targetPath": "allowanceChargeId",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "ALC.C214.7161",
+          "targetPath": "specialServiceCode",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "specialServiceCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "MOA.C516.5004",
+          "targetPath": "amount",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "PCD.C501.5482",
+          "targetPath": "percentage",
+          "transform": "COPY",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "sourceLoop": "TAX",
+      "targetArray": "taxSummary",
+      "fieldMappings": [
+        {
+          "sourcePath": "TAX.5283",
+          "targetPath": "taxFunction",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "taxCategoryCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "TAX.C241.5153",
+          "targetPath": "taxType",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "taxTypeCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "TAX.C243.5278",
+          "targetPath": "taxRate",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "MOA.C516.5004",
+          "targetPath": "taxableAmount",
+          "transform": "COPY",
+          "condition": "MOA.C516.5025 == '125'",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "MOA.C516.5004",
+          "targetPath": "taxAmount",
+          "transform": "COPY",
+          "condition": "MOA.C516.5025 == '124'",
+          "confidence": 1.0
+        }
+      ]
+    }
+  ],
+  "codeTables": {
+    "invoiceTypeCodes": [
+      {
+        "sourceCode": "380",
+        "targetCode": "COMMERCIAL_INVOICE",
+        "description": "Commercial invoice"
+      },
+      {
+        "sourceCode": "381",
+        "targetCode": "CREDIT_NOTE",
+        "description": "Credit note"
+      },
+      {
+        "sourceCode": "383",
+        "targetCode": "DEBIT_NOTE",
+        "description": "Debit note"
+      },
+      {
+        "sourceCode": "384",
+        "targetCode": "CORRECTED_INVOICE",
+        "description": "Corrected invoice"
+      },
+      {
+        "sourceCode": "385",
+        "targetCode": "CONSOLIDATED_INVOICE",
+        "description": "Consolidated invoice"
+      },
+      {
+        "sourceCode": "386",
+        "targetCode": "PREPAYMENT_INVOICE",
+        "description": "Prepayment invoice"
+      },
+      {
+        "sourceCode": "389",
+        "targetCode": "SELF_BILLED_INVOICE",
+        "description": "Self-billed invoice"
+      },
+      {
+        "sourceCode": "393",
+        "targetCode": "FACTORED_INVOICE",
+        "description": "Factored invoice"
+      }
+    ],
+    "messageFunctionCodes": [
+      {
+        "sourceCode": "9",
+        "targetCode": "ORIGINAL",
+        "description": "Original"
+      },
+      {
+        "sourceCode": "1",
+        "targetCode": "CANCEL",
+        "description": "Cancellation"
+      },
+      {
+        "sourceCode": "4",
+        "targetCode": "CHANGE",
+        "description": "Change"
+      },
+      {
+        "sourceCode": "5",
+        "targetCode": "REPLACE",
+        "description": "Replace"
+      },
+      {
+        "sourceCode": "7",
+        "targetCode": "DUPLICATE",
+        "description": "Duplicate"
+      },
+      {
+        "sourceCode": "31",
+        "targetCode": "COPY",
+        "description": "Copy"
+      }
+    ],
+    "nadPartyQualifiers": [
+      {
+        "sourceCode": "BY",
+        "targetCode": "BUYER",
+        "description": "Buyer"
+      },
+      {
+        "sourceCode": "SE",
+        "targetCode": "SELLER",
+        "description": "Seller/supplier"
+      },
+      {
+        "sourceCode": "IV",
+        "targetCode": "INVOICEE",
+        "description": "Invoicee"
+      },
+      {
+        "sourceCode": "DP",
+        "targetCode": "DELIVERY_PARTY",
+        "description": "Delivery party"
+      },
+      {
+        "sourceCode": "PE",
+        "targetCode": "PAYEE",
+        "description": "Payee"
+      },
+      {
+        "sourceCode": "PR",
+        "targetCode": "PAYER",
+        "description": "Payer"
+      }
+    ],
+    "productIdQualifiers": [
+      {
+        "sourceCode": "SRV",
+        "targetCode": "GTIN",
+        "description": "GS1 Global Trade Item Number"
+      },
+      {
+        "sourceCode": "EN",
+        "targetCode": "EAN",
+        "description": "EAN article number"
+      },
+      {
+        "sourceCode": "SA",
+        "targetCode": "SUPPLIER_PART",
+        "description": "Supplier article number"
+      },
+      {
+        "sourceCode": "BP",
+        "targetCode": "BUYER_PART",
+        "description": "Buyer article number"
+      }
+    ],
+    "unitCodes": [
+      {
+        "sourceCode": "PCE",
+        "targetCode": "EACH",
+        "description": "Piece/each"
+      },
+      {
+        "sourceCode": "KGM",
+        "targetCode": "KILOGRAM",
+        "description": "Kilogram"
+      },
+      {
+        "sourceCode": "LTR",
+        "targetCode": "LITER",
+        "description": "Liter"
+      },
+      {
+        "sourceCode": "MTR",
+        "targetCode": "METER",
+        "description": "Meter"
+      },
+      {
+        "sourceCode": "CT",
+        "targetCode": "CARTON",
+        "description": "Carton"
+      },
+      {
+        "sourceCode": "SET",
+        "targetCode": "SET",
+        "description": "Set"
+      },
+      {
+        "sourceCode": "HUR",
+        "targetCode": "HOUR",
+        "description": "Hour"
+      }
+    ],
+    "taxCategoryCodes": [
+      {
+        "sourceCode": "7",
+        "targetCode": "TAX",
+        "description": "Tax"
+      },
+      {
+        "sourceCode": "5",
+        "targetCode": "CUSTOMS_DUTY",
+        "description": "Customs duty"
+      },
+      {
+        "sourceCode": "9",
+        "targetCode": "FEE",
+        "description": "Fee"
+      }
+    ],
+    "taxTypeCodes": [
+      {
+        "sourceCode": "VAT",
+        "targetCode": "VAT",
+        "description": "Value added tax"
+      },
+      {
+        "sourceCode": "GST",
+        "targetCode": "GST",
+        "description": "Goods and services tax"
+      },
+      {
+        "sourceCode": "EXC",
+        "targetCode": "EXCISE",
+        "description": "Excise duty"
+      },
+      {
+        "sourceCode": "CUS",
+        "targetCode": "CUSTOMS",
+        "description": "Customs duty"
+      },
+      {
+        "sourceCode": "FRE",
+        "targetCode": "TAX_FREE",
+        "description": "Free of tax"
+      }
+    ],
+    "alcIndicatorCodes": [
+      {
+        "sourceCode": "A",
+        "targetCode": "ALLOWANCE",
+        "description": "Allowance (discount/rebate)"
+      },
+      {
+        "sourceCode": "C",
+        "targetCode": "CHARGE",
+        "description": "Charge (surcharge/fee)"
+      }
+    ],
+    "specialServiceCodes": [
+      {
+        "sourceCode": "ABG",
+        "targetCode": "PACKING",
+        "description": "Packing charge"
+      },
+      {
+        "sourceCode": "AEO",
+        "targetCode": "FREIGHT",
+        "description": "Freight charge"
+      },
+      {
+        "sourceCode": "DI",
+        "targetCode": "DISCOUNT",
+        "description": "Discount"
+      },
+      {
+        "sourceCode": "FC",
+        "targetCode": "FREIGHT_COLLECT",
+        "description": "Freight charge collect"
+      },
+      {
+        "sourceCode": "FI",
+        "targetCode": "FINANCE_CHARGE",
+        "description": "Finance charge"
+      },
+      {
+        "sourceCode": "HD",
+        "targetCode": "HANDLING",
+        "description": "Handling charge"
+      },
+      {
+        "sourceCode": "IN",
+        "targetCode": "INSURANCE",
+        "description": "Insurance"
+      },
+      {
+        "sourceCode": "RAA",
+        "targetCode": "REBATE",
+        "description": "Rebate"
+      }
+    ],
+    "paymentTermsCodes": [
+      {
+        "sourceCode": "1",
+        "targetCode": "BASIC",
+        "description": "Basic terms"
+      },
+      {
+        "sourceCode": "20",
+        "targetCode": "PENALTY",
+        "description": "Penalty terms"
+      },
+      {
+        "sourceCode": "22",
+        "targetCode": "DISCOUNT",
+        "description": "Discount terms"
+      }
+    ]
+  }
+}

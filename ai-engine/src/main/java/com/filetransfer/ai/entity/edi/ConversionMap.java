@@ -47,6 +47,14 @@ public class ConversionMap {
     @Column(length = 100)
     private String partnerId;
 
+    /** ID of the standard map this was cloned from (null for trained maps) */
+    @Column(length = 100)
+    private String parentMapId;
+
+    /** Map lifecycle status: DRAFT, ACTIVE, INACTIVE, DEPRECATED */
+    @Column(length = 20)
+    private String status;
+
     /** Map version — increments with each training run */
     private int version;
 

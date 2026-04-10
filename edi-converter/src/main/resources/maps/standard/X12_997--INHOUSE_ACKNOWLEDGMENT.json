@@ -1,0 +1,529 @@
+{
+  "mapId": "X12_997--INHOUSE_ACKNOWLEDGMENT",
+  "name": "X12 997 Functional Acknowledgment to Internal Acknowledgment",
+  "version": "1.0.0",
+  "sourceType": "X12_997",
+  "targetType": "ACKNOWLEDGMENT_INH",
+  "sourceStandard": "X12",
+  "targetStandard": "INHOUSE",
+  "bidirectional": false,
+  "description": "Standard map for converting ANSI X12 997 Functional Acknowledgment to TranzFer internal acknowledgment format. Maps AK1 functional group response, AK2 transaction set response, AK3/AK4 segment/element error details, and AK5/AK9 status codes.",
+  "status": "ACTIVE",
+  "confidence": 1.0,
+  "fieldMappings": [
+    {
+      "sourcePath": "AK1.01",
+      "targetPath": "functionalIdCode",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "functionalIdCodes"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "AK1.02",
+      "targetPath": "groupControlNumber",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "AK1.03",
+      "targetPath": "versionId",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "AK9.01",
+      "targetPath": "groupAcknowledgeCode",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "acknowledgmentCodes"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "AK9.02",
+      "targetPath": "numberOfTransactionSetsIncluded",
+      "transform": "COPY",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "AK9.03",
+      "targetPath": "numberOfTransactionSetsReceived",
+      "transform": "COPY",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "AK9.04",
+      "targetPath": "numberOfTransactionSetsAccepted",
+      "transform": "COPY",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "AK9.05",
+      "targetPath": "errorCode1",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "groupErrorCodes"
+      },
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "AK9.06",
+      "targetPath": "errorCode2",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "groupErrorCodes"
+      },
+      "confidence": 0.8
+    },
+    {
+      "sourcePath": "AK9.07",
+      "targetPath": "errorCode3",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "groupErrorCodes"
+      },
+      "confidence": 0.8
+    },
+    {
+      "sourcePath": "AK9.08",
+      "targetPath": "errorCode4",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "groupErrorCodes"
+      },
+      "confidence": 0.7
+    },
+    {
+      "sourcePath": "AK9.09",
+      "targetPath": "errorCode5",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "groupErrorCodes"
+      },
+      "confidence": 0.7
+    }
+  ],
+  "loopMappings": [
+    {
+      "sourceLoop": "AK2",
+      "targetArray": "transactionSetResponses",
+      "fieldMappings": [
+        {
+          "sourcePath": "AK2.01",
+          "targetPath": "transactionSetIdCode",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "AK2.02",
+          "targetPath": "transactionSetControlNumber",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "AK5.01",
+          "targetPath": "transactionSetAcknowledgeCode",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "transactionSetAckCodes"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "AK5.02",
+          "targetPath": "tsErrorCode1",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "transactionSetErrorCodes"
+          },
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "AK5.03",
+          "targetPath": "tsErrorCode2",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "transactionSetErrorCodes"
+          },
+          "confidence": 0.8
+        },
+        {
+          "sourcePath": "AK5.04",
+          "targetPath": "tsErrorCode3",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "transactionSetErrorCodes"
+          },
+          "confidence": 0.8
+        },
+        {
+          "sourcePath": "AK5.05",
+          "targetPath": "tsErrorCode4",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "transactionSetErrorCodes"
+          },
+          "confidence": 0.7
+        },
+        {
+          "sourcePath": "AK5.06",
+          "targetPath": "tsErrorCode5",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "transactionSetErrorCodes"
+          },
+          "confidence": 0.7
+        }
+      ]
+    },
+    {
+      "sourceLoop": "AK3",
+      "targetArray": "segmentErrors",
+      "fieldMappings": [
+        {
+          "sourcePath": "AK3.01",
+          "targetPath": "segmentIdCode",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "AK3.02",
+          "targetPath": "segmentPositionInTransactionSet",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "AK3.03",
+          "targetPath": "loopIdentifierCode",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "AK3.04",
+          "targetPath": "segmentSyntaxErrorCode",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "segmentSyntaxErrorCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "AK4.01",
+          "targetPath": "elementPositionInSegment",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "AK4.02",
+          "targetPath": "elementReferenceNumber",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "AK4.03",
+          "targetPath": "elementSyntaxErrorCode",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "elementSyntaxErrorCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "AK4.04",
+          "targetPath": "copyOfBadDataElement",
+          "transform": "TRIM",
+          "confidence": 0.8
+        }
+      ]
+    }
+  ],
+  "codeTables": {
+    "functionalIdCodes": [
+      {
+        "sourceCode": "PO",
+        "targetCode": "PURCHASE_ORDER",
+        "description": "Purchase order (850)"
+      },
+      {
+        "sourceCode": "IN",
+        "targetCode": "INVOICE",
+        "description": "Invoice (810)"
+      },
+      {
+        "sourceCode": "SH",
+        "targetCode": "SHIP_NOTICE",
+        "description": "Ship notice (856)"
+      },
+      {
+        "sourceCode": "RA",
+        "targetCode": "PAYMENT",
+        "description": "Payment/remittance (820)"
+      },
+      {
+        "sourceCode": "FA",
+        "targetCode": "ACKNOWLEDGMENT",
+        "description": "Functional acknowledgment (997)"
+      },
+      {
+        "sourceCode": "HP",
+        "targetCode": "HEALTHCARE",
+        "description": "Healthcare (837)"
+      },
+      {
+        "sourceCode": "HC",
+        "targetCode": "HEALTHCARE_CLAIM",
+        "description": "Healthcare claim (837)"
+      }
+    ],
+    "acknowledgmentCodes": [
+      {
+        "sourceCode": "A",
+        "targetCode": "ACCEPTED",
+        "description": "Accepted"
+      },
+      {
+        "sourceCode": "E",
+        "targetCode": "ACCEPTED_WITH_ERRORS",
+        "description": "Accepted but errors were noted"
+      },
+      {
+        "sourceCode": "M",
+        "targetCode": "REJECTED_CONTENT",
+        "description": "Rejected, message authentication code failed"
+      },
+      {
+        "sourceCode": "P",
+        "targetCode": "PARTIALLY_ACCEPTED",
+        "description": "Partially accepted"
+      },
+      {
+        "sourceCode": "R",
+        "targetCode": "REJECTED",
+        "description": "Rejected"
+      },
+      {
+        "sourceCode": "W",
+        "targetCode": "REJECTED_ASSURANCE",
+        "description": "Rejected, assurance failed"
+      },
+      {
+        "sourceCode": "X",
+        "targetCode": "REJECTED_CONTENT_AFTER_DECRYPT",
+        "description": "Cannot be accepted after decryption"
+      }
+    ],
+    "transactionSetAckCodes": [
+      {
+        "sourceCode": "A",
+        "targetCode": "ACCEPTED",
+        "description": "Accepted"
+      },
+      {
+        "sourceCode": "E",
+        "targetCode": "ACCEPTED_WITH_ERRORS",
+        "description": "Accepted but errors were noted"
+      },
+      {
+        "sourceCode": "M",
+        "targetCode": "REJECTED_AUTH",
+        "description": "Rejected, message authentication code failed"
+      },
+      {
+        "sourceCode": "R",
+        "targetCode": "REJECTED",
+        "description": "Rejected"
+      },
+      {
+        "sourceCode": "W",
+        "targetCode": "REJECTED_ASSURANCE",
+        "description": "Rejected, assurance failed"
+      },
+      {
+        "sourceCode": "X",
+        "targetCode": "REJECTED_CONTENT",
+        "description": "Cannot be accepted after decryption"
+      }
+    ],
+    "groupErrorCodes": [
+      {
+        "sourceCode": "1",
+        "targetCode": "FUNC_GROUP_NOT_SUPPORTED",
+        "description": "Functional group not supported"
+      },
+      {
+        "sourceCode": "2",
+        "targetCode": "FUNC_GROUP_VERSION_NOT_SUPPORTED",
+        "description": "Functional group version not supported"
+      },
+      {
+        "sourceCode": "3",
+        "targetCode": "FUNC_GROUP_TRAILER_MISSING",
+        "description": "Functional group trailer missing"
+      },
+      {
+        "sourceCode": "4",
+        "targetCode": "GROUP_CONTROL_NUMBER_MISMATCH",
+        "description": "Group control number mismatch"
+      },
+      {
+        "sourceCode": "5",
+        "targetCode": "TS_COUNT_MISMATCH",
+        "description": "Number of included transaction sets does not match actual count"
+      },
+      {
+        "sourceCode": "6",
+        "targetCode": "GROUP_CONTROL_NUMBER_VIOLATION",
+        "description": "Group control number violates syntax"
+      }
+    ],
+    "transactionSetErrorCodes": [
+      {
+        "sourceCode": "1",
+        "targetCode": "TS_NOT_SUPPORTED",
+        "description": "Transaction set not supported"
+      },
+      {
+        "sourceCode": "2",
+        "targetCode": "TS_TRAILER_MISSING",
+        "description": "Transaction set trailer missing"
+      },
+      {
+        "sourceCode": "3",
+        "targetCode": "TS_CONTROL_NUMBER_MISMATCH",
+        "description": "Transaction set control number mismatch"
+      },
+      {
+        "sourceCode": "4",
+        "targetCode": "SEGMENT_COUNT_MISMATCH",
+        "description": "Number of included segments does not match actual count"
+      },
+      {
+        "sourceCode": "5",
+        "targetCode": "ONE_OR_MORE_SEGMENTS_ERROR",
+        "description": "One or more segments in error"
+      },
+      {
+        "sourceCode": "6",
+        "targetCode": "MISSING_OR_INVALID_TS_ID",
+        "description": "Missing or invalid transaction set identifier"
+      },
+      {
+        "sourceCode": "7",
+        "targetCode": "MISSING_OR_INVALID_TS_CONTROL",
+        "description": "Missing or invalid transaction set control number"
+      },
+      {
+        "sourceCode": "23",
+        "targetCode": "TS_CONTROL_NUMBER_NOT_UNIQUE",
+        "description": "Transaction set control number not unique"
+      }
+    ],
+    "segmentSyntaxErrorCodes": [
+      {
+        "sourceCode": "1",
+        "targetCode": "UNRECOGNIZED_SEGMENT",
+        "description": "Unrecognized segment ID"
+      },
+      {
+        "sourceCode": "2",
+        "targetCode": "UNEXPECTED_SEGMENT",
+        "description": "Unexpected segment"
+      },
+      {
+        "sourceCode": "3",
+        "targetCode": "MANDATORY_SEGMENT_MISSING",
+        "description": "Mandatory segment missing"
+      },
+      {
+        "sourceCode": "4",
+        "targetCode": "LOOP_OCCURS_OVER_MAX",
+        "description": "Loop occurs over maximum times"
+      },
+      {
+        "sourceCode": "5",
+        "targetCode": "SEGMENT_EXCEEDS_MAX_USE",
+        "description": "Segment exceeds maximum use"
+      },
+      {
+        "sourceCode": "6",
+        "targetCode": "SEGMENT_NOT_IN_DEFINED_TS",
+        "description": "Segment not in defined transaction set"
+      },
+      {
+        "sourceCode": "7",
+        "targetCode": "SEGMENT_NOT_IN_PROPER_SEQUENCE",
+        "description": "Segment not in proper sequence"
+      },
+      {
+        "sourceCode": "8",
+        "targetCode": "SEGMENT_HAS_DATA_ELEMENT_ERRORS",
+        "description": "Segment has data element errors"
+      }
+    ],
+    "elementSyntaxErrorCodes": [
+      {
+        "sourceCode": "1",
+        "targetCode": "MANDATORY_DATA_ELEMENT_MISSING",
+        "description": "Mandatory data element missing"
+      },
+      {
+        "sourceCode": "2",
+        "targetCode": "CONDITIONAL_REQUIRED_MISSING",
+        "description": "Conditional required data element missing"
+      },
+      {
+        "sourceCode": "3",
+        "targetCode": "TOO_MANY_DATA_ELEMENTS",
+        "description": "Too many data elements"
+      },
+      {
+        "sourceCode": "4",
+        "targetCode": "DATA_ELEMENT_TOO_SHORT",
+        "description": "Data element too short"
+      },
+      {
+        "sourceCode": "5",
+        "targetCode": "DATA_ELEMENT_TOO_LONG",
+        "description": "Data element too long"
+      },
+      {
+        "sourceCode": "6",
+        "targetCode": "INVALID_CHARACTER",
+        "description": "Invalid character in data element"
+      },
+      {
+        "sourceCode": "7",
+        "targetCode": "INVALID_CODE_VALUE",
+        "description": "Invalid code value"
+      },
+      {
+        "sourceCode": "8",
+        "targetCode": "INVALID_DATE",
+        "description": "Invalid date"
+      },
+      {
+        "sourceCode": "9",
+        "targetCode": "INVALID_TIME",
+        "description": "Invalid time"
+      },
+      {
+        "sourceCode": "10",
+        "targetCode": "EXCLUSION_CONDITION_VIOLATED",
+        "description": "Exclusion condition violated"
+      }
+    ]
+  }
+}

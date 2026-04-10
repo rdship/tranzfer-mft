@@ -1,0 +1,502 @@
+{
+  "mapId": "X12_820--INHOUSE_PAYMENT",
+  "name": "X12 820 Payment Order/Remittance Advice to Internal Payment",
+  "version": "1.0.0",
+  "sourceType": "X12_820",
+  "targetType": "PAYMENT_INH",
+  "sourceStandard": "X12",
+  "targetStandard": "INHOUSE",
+  "bidirectional": false,
+  "description": "Standard map for converting ANSI X12 820 Payment Order/Remittance Advice to TranzFer internal payment format. Maps BPR payment info, TRN trace, DTM dates, N1 parties, ENT entity, RMR remittance detail.",
+  "status": "ACTIVE",
+  "confidence": 1.0,
+  "fieldMappings": [
+    {
+      "sourcePath": "BPR.01",
+      "targetPath": "transactionHandlingCode",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "transactionHandlingCodes"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BPR.02",
+      "targetPath": "totalAmount",
+      "transform": "COPY",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BPR.03",
+      "targetPath": "creditDebitFlag",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "creditDebitCodes"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BPR.04",
+      "targetPath": "paymentMethodCode",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "paymentMethodCodes"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BPR.05",
+      "targetPath": "paymentFormat",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "BPR.06",
+      "targetPath": "senderDfiIdQualifier",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "BPR.07",
+      "targetPath": "senderDfiId",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BPR.08",
+      "targetPath": "senderAccountQualifier",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "BPR.09",
+      "targetPath": "senderAccountNumber",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BPR.10",
+      "targetPath": "originatingCompanyId",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "BPR.12",
+      "targetPath": "receiverDfiIdQualifier",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "BPR.13",
+      "targetPath": "receiverDfiId",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BPR.14",
+      "targetPath": "receiverAccountQualifier",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "BPR.15",
+      "targetPath": "receiverAccountNumber",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BPR.16",
+      "targetPath": "paymentDate",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyyMMdd",
+        "targetFormat": "yyyy-MM-dd"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "TRN.02",
+      "targetPath": "traceNumber",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "TRN.03",
+      "targetPath": "originatingCompanySupplementalId",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "CUR.02",
+      "targetPath": "currency",
+      "transform": "COPY",
+      "defaultValue": "USD",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "REF.02",
+      "targetPath": "referenceNumber",
+      "transform": "TRIM",
+      "condition": "REF.01 == 'TN'",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "DTM.02",
+      "targetPath": "effectiveDate",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyyMMdd",
+        "targetFormat": "yyyy-MM-dd"
+      },
+      "condition": "DTM.01 == '009'",
+      "confidence": 1.0
+    }
+  ],
+  "loopMappings": [
+    {
+      "sourceLoop": "N1",
+      "targetArray": "parties",
+      "fieldMappings": [
+        {
+          "sourcePath": "N1.01",
+          "targetPath": "role",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "entityCodes"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N1.02",
+          "targetPath": "name",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N1.03",
+          "targetPath": "idQualifier",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N1.04",
+          "targetPath": "id",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N3.01",
+          "targetPath": "address.line1",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N4.01",
+          "targetPath": "address.city",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N4.02",
+          "targetPath": "address.state",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N4.03",
+          "targetPath": "address.postalCode",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "N4.04",
+          "targetPath": "address.country",
+          "transform": "COPY",
+          "defaultValue": "US",
+          "confidence": 1.0
+        }
+      ]
+    },
+    {
+      "sourceLoop": "RMR",
+      "targetArray": "remittanceDetails",
+      "fieldMappings": [
+        {
+          "sourcePath": "RMR.01",
+          "targetPath": "referenceIdQualifier",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "referenceIdQualifiers"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "RMR.02",
+          "targetPath": "referenceId",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "RMR.03",
+          "targetPath": "paymentActionCode",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "paymentActionCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "RMR.04",
+          "targetPath": "amountPaid",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "RMR.05",
+          "targetPath": "amountOwed",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "REF.02",
+          "targetPath": "invoiceNumber",
+          "transform": "TRIM",
+          "condition": "REF.01 == 'VV'",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "DTM.02",
+          "targetPath": "invoiceDate",
+          "transform": "DATE_FORMAT",
+          "transformConfig": {
+            "sourceFormat": "yyyyMMdd",
+            "targetFormat": "yyyy-MM-dd"
+          },
+          "condition": "DTM.01 == '003'",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "ADX.01",
+          "targetPath": "adjustmentAmount",
+          "transform": "COPY",
+          "confidence": 0.8
+        },
+        {
+          "sourcePath": "ADX.02",
+          "targetPath": "adjustmentReasonCode",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "adjustmentReasonCodes"
+          },
+          "confidence": 0.8
+        }
+      ]
+    }
+  ],
+  "codeTables": {
+    "transactionHandlingCodes": [
+      {
+        "sourceCode": "C",
+        "targetCode": "PAYMENT_ACCOMPANIES",
+        "description": "Payment accompanies remittance advice"
+      },
+      {
+        "sourceCode": "D",
+        "targetCode": "MAKE_PAYMENT",
+        "description": "Make payment only"
+      },
+      {
+        "sourceCode": "H",
+        "targetCode": "NOTIFICATION_ONLY",
+        "description": "Notification only"
+      },
+      {
+        "sourceCode": "I",
+        "targetCode": "REMITTANCE_ONLY",
+        "description": "Remittance information only"
+      },
+      {
+        "sourceCode": "P",
+        "targetCode": "PRENOTIFICATION",
+        "description": "Prenotification of future transfers"
+      },
+      {
+        "sourceCode": "U",
+        "targetCode": "SPLIT_PAYMENT",
+        "description": "Split payment and remittance"
+      },
+      {
+        "sourceCode": "X",
+        "targetCode": "HANDLING_PARTY",
+        "description": "Handling party's option to split"
+      }
+    ],
+    "creditDebitCodes": [
+      {
+        "sourceCode": "C",
+        "targetCode": "CREDIT",
+        "description": "Credit"
+      },
+      {
+        "sourceCode": "D",
+        "targetCode": "DEBIT",
+        "description": "Debit"
+      }
+    ],
+    "paymentMethodCodes": [
+      {
+        "sourceCode": "ACH",
+        "targetCode": "ACH",
+        "description": "Automated Clearing House"
+      },
+      {
+        "sourceCode": "BOP",
+        "targetCode": "BOOK_TRANSFER",
+        "description": "Financial institution option"
+      },
+      {
+        "sourceCode": "CHK",
+        "targetCode": "CHECK",
+        "description": "Check"
+      },
+      {
+        "sourceCode": "FWT",
+        "targetCode": "WIRE",
+        "description": "Federal Reserve wire transfer"
+      },
+      {
+        "sourceCode": "SWT",
+        "targetCode": "SWIFT",
+        "description": "SWIFT wire transfer"
+      }
+    ],
+    "entityCodes": [
+      {
+        "sourceCode": "PE",
+        "targetCode": "PAYEE",
+        "description": "Payee"
+      },
+      {
+        "sourceCode": "PR",
+        "targetCode": "PAYER",
+        "description": "Payer"
+      },
+      {
+        "sourceCode": "BO",
+        "targetCode": "BROKER_OR_DEALER",
+        "description": "Broker or sales office"
+      },
+      {
+        "sourceCode": "OB",
+        "targetCode": "ORIGINATING_BANK",
+        "description": "Originating financial institution"
+      },
+      {
+        "sourceCode": "RB",
+        "targetCode": "RECEIVING_BANK",
+        "description": "Receiving financial institution"
+      }
+    ],
+    "referenceIdQualifiers": [
+      {
+        "sourceCode": "IV",
+        "targetCode": "INVOICE",
+        "description": "Invoice number"
+      },
+      {
+        "sourceCode": "PO",
+        "targetCode": "PURCHASE_ORDER",
+        "description": "Purchase order number"
+      },
+      {
+        "sourceCode": "VV",
+        "targetCode": "VOUCHER",
+        "description": "Voucher number"
+      },
+      {
+        "sourceCode": "CR",
+        "targetCode": "CREDIT_MEMO",
+        "description": "Credit memo number"
+      }
+    ],
+    "paymentActionCodes": [
+      {
+        "sourceCode": "PA",
+        "targetCode": "FULL_PAYMENT",
+        "description": "Pay in full"
+      },
+      {
+        "sourceCode": "PP",
+        "targetCode": "PARTIAL_PAYMENT",
+        "description": "Partial payment"
+      },
+      {
+        "sourceCode": "PI",
+        "targetCode": "PAYMENT_IN_ADVANCE",
+        "description": "Payment in advance"
+      },
+      {
+        "sourceCode": "PO",
+        "targetCode": "PAYMENT_ON_ACCOUNT",
+        "description": "Payment on account"
+      }
+    ],
+    "adjustmentReasonCodes": [
+      {
+        "sourceCode": "01",
+        "targetCode": "PRICING_ERROR",
+        "description": "Pricing error"
+      },
+      {
+        "sourceCode": "02",
+        "targetCode": "EXTENSION_ERROR",
+        "description": "Extension error"
+      },
+      {
+        "sourceCode": "03",
+        "targetCode": "DAMAGED_GOODS",
+        "description": "Damaged goods"
+      },
+      {
+        "sourceCode": "04",
+        "targetCode": "ITEM_NOT_RECEIVED",
+        "description": "Goods not received"
+      },
+      {
+        "sourceCode": "05",
+        "targetCode": "QUALITY_DISPUTE",
+        "description": "Quality dispute"
+      },
+      {
+        "sourceCode": "11",
+        "targetCode": "RETURNS",
+        "description": "Returns/credit requested"
+      },
+      {
+        "sourceCode": "12",
+        "targetCode": "PROMOTION_DISCOUNT",
+        "description": "Promotion/deal discount"
+      },
+      {
+        "sourceCode": "59",
+        "targetCode": "LATE_DELIVERY",
+        "description": "Late delivery"
+      },
+      {
+        "sourceCode": "75",
+        "targetCode": "DISCOUNT_TAKEN",
+        "description": "Discount taken"
+      }
+    ]
+  }
+}

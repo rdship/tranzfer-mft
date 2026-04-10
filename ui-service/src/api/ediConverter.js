@@ -1,4 +1,4 @@
-import { ediApi } from './client'
+import { ediApi, aiApi } from './client'
 
 // Map-based conversion (new map system on edi-converter :8095)
 export const convertWithMap = (content, sourceType, targetType, partnerId) =>
@@ -10,3 +10,26 @@ export const getMapDetail = (mapId) => ediApi.get(`/api/v1/convert/maps/${mapId}
 
 // Document type detection
 export const detectDocumentType = (content) => ediApi.post('/api/v1/convert/detect/type', { content }).then(r => r.data)
+
+// ── Map testing (edi-converter :8095) ─────────────────────────────────────────
+export const testMap = (mapId, content) =>
+  ediApi.post(`/api/v1/convert/maps/${mapId}/test`, { content }).then(r => r.data)
+
+// ── Partner map management (ai-engine :8091) ──────────────────────────────────
+export const cloneMap = (sourceMapId, partnerId, name) =>
+  aiApi.post('/api/v1/edi/maps/clone', { sourceMapId, partnerId, name }).then(r => r.data)
+
+export const getPartnerMaps = (partnerId) =>
+  aiApi.get(`/api/v1/edi/maps/partner/${partnerId}`).then(r => r.data)
+
+export const updateMap = (mapId, mapDefinition) =>
+  aiApi.put(`/api/v1/edi/maps/${mapId}`, mapDefinition).then(r => r.data)
+
+export const activateMap = (mapId) =>
+  aiApi.post(`/api/v1/edi/maps/${mapId}/activate`).then(r => r.data)
+
+export const deactivateMap = (mapId) =>
+  aiApi.post(`/api/v1/edi/maps/${mapId}/deactivate`).then(r => r.data)
+
+export const deleteMap = (mapId) =>
+  aiApi.delete(`/api/v1/edi/maps/${mapId}`)

@@ -1,0 +1,487 @@
+{
+  "mapId": "INHOUSE_PURCHASE_ORDER--X12_850",
+  "name": "Internal Purchase Order to X12 850 Purchase Order",
+  "version": "1.0.0",
+  "sourceType": "PURCHASE_ORDER_INH",
+  "targetType": "X12_850",
+  "sourceStandard": "INHOUSE",
+  "targetStandard": "X12",
+  "bidirectional": false,
+  "description": "Outbound map for generating ANSI X12 850 Purchase Order from TranzFer internal format. Builds ISA/GS/ST envelope, BEG, DTM, N1/N3/N4, PO1/PID segments from INHOUSE fields.",
+  "status": "ACTIVE",
+  "confidence": 1.0,
+  "fieldMappings": [
+    {
+      "sourcePath": "senderId",
+      "targetPath": "ISA.06",
+      "transform": "PAD_RIGHT",
+      "transformConfig": {
+        "length": "15",
+        "padChar": " "
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "receiverId",
+      "targetPath": "ISA.08",
+      "transform": "PAD_RIGHT",
+      "transformConfig": {
+        "length": "15",
+        "padChar": " "
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "senderQualifier",
+      "targetPath": "ISA.05",
+      "transform": "COPY",
+      "defaultValue": "ZZ",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "receiverQualifier",
+      "targetPath": "ISA.07",
+      "transform": "COPY",
+      "defaultValue": "ZZ",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "controlNumber",
+      "targetPath": "ISA.13",
+      "transform": "PAD_LEFT",
+      "transformConfig": {
+        "length": "9",
+        "padChar": "0"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "senderId",
+      "targetPath": "GS.02",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "receiverId",
+      "targetPath": "GS.03",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "groupControlNumber",
+      "targetPath": "GS.06",
+      "transform": "COPY",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "purpose",
+      "targetPath": "BEG.01",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "purposeCodes"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "orderType",
+      "targetPath": "BEG.02",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "orderTypeCodes"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "documentNumber",
+      "targetPath": "BEG.03",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "documentDate",
+      "targetPath": "BEG.05",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyy-MM-dd",
+        "targetFormat": "yyyyMMdd"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "currency",
+      "targetPath": "CUR.02",
+      "transform": "COPY",
+      "defaultValue": "USD",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "referenceNumber",
+      "targetPath": "REF.02",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "contactName",
+      "targetPath": "PER.02",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "contactPhone",
+      "targetPath": "PER.04",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "requestedDeliveryDate",
+      "targetPath": "DTM.02",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyy-MM-dd",
+        "targetFormat": "yyyyMMdd"
+      },
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "paymentTermsDescription",
+      "targetPath": "ITD.12",
+      "transform": "TRIM",
+      "confidence": 0.8
+    },
+    {
+      "sourcePath": "fobPoint",
+      "targetPath": "FOB.02",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "carrierRouting",
+      "targetPath": "TD5.05",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "totalLineItems",
+      "targetPath": "CTT.01",
+      "transform": "COPY",
+      "confidence": 1.0
+    }
+  ],
+  "loopMappings": [
+    {
+      "sourceLoop": "parties",
+      "targetArray": "N1",
+      "fieldMappings": [
+        {
+          "sourcePath": "role",
+          "targetPath": "N1.01",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "entityCodes"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "name",
+          "targetPath": "N1.02",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "qualifier",
+          "targetPath": "N1.03",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "id",
+          "targetPath": "N1.04",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "address.line1",
+          "targetPath": "N3.01",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "address.line2",
+          "targetPath": "N3.02",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "address.city",
+          "targetPath": "N4.01",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "address.state",
+          "targetPath": "N4.02",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "address.postalCode",
+          "targetPath": "N4.03",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "address.country",
+          "targetPath": "N4.04",
+          "transform": "COPY",
+          "defaultValue": "US",
+          "confidence": 1.0
+        }
+      ]
+    },
+    {
+      "sourceLoop": "lineItems",
+      "targetArray": "PO1",
+      "fieldMappings": [
+        {
+          "sourcePath": "lineNumber",
+          "targetPath": "PO1.01",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "quantity",
+          "targetPath": "PO1.02",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "unitOfMeasure",
+          "targetPath": "PO1.03",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "unitCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "unitPrice",
+          "targetPath": "PO1.04",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "productIdQualifier",
+          "targetPath": "PO1.06",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "productIdQualifiers"
+          },
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "productId",
+          "targetPath": "PO1.07",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "alternateProductId",
+          "targetPath": "PO1.09",
+          "transform": "TRIM",
+          "confidence": 0.8
+        },
+        {
+          "sourcePath": "description",
+          "targetPath": "PID.05",
+          "transform": "TRIM",
+          "confidence": 0.9
+        }
+      ]
+    }
+  ],
+  "codeTables": {
+    "purposeCodes": [
+      {
+        "sourceCode": "ORIGINAL",
+        "targetCode": "00",
+        "description": "Original order"
+      },
+      {
+        "sourceCode": "CANCEL",
+        "targetCode": "01",
+        "description": "Cancellation"
+      },
+      {
+        "sourceCode": "CHANGE",
+        "targetCode": "04",
+        "description": "Change order"
+      },
+      {
+        "sourceCode": "REPLACE",
+        "targetCode": "05",
+        "description": "Replacement"
+      },
+      {
+        "sourceCode": "CONFIRM",
+        "targetCode": "06",
+        "description": "Confirmation"
+      },
+      {
+        "sourceCode": "DUPLICATE",
+        "targetCode": "07",
+        "description": "Duplicate"
+      }
+    ],
+    "orderTypeCodes": [
+      {
+        "sourceCode": "NEW",
+        "targetCode": "NE",
+        "description": "New order"
+      },
+      {
+        "sourceCode": "DROPSHIP",
+        "targetCode": "DS",
+        "description": "Drop ship"
+      },
+      {
+        "sourceCode": "STANDING",
+        "targetCode": "SA",
+        "description": "Standing order"
+      },
+      {
+        "sourceCode": "BLANKET",
+        "targetCode": "BK",
+        "description": "Blanket order"
+      },
+      {
+        "sourceCode": "RELEASE",
+        "targetCode": "RL",
+        "description": "Release against blanket"
+      }
+    ],
+    "entityCodes": [
+      {
+        "sourceCode": "BUYER",
+        "targetCode": "BY",
+        "description": "Buyer"
+      },
+      {
+        "sourceCode": "SELLER",
+        "targetCode": "SE",
+        "description": "Seller"
+      },
+      {
+        "sourceCode": "SHIP_TO",
+        "targetCode": "ST",
+        "description": "Ship to"
+      },
+      {
+        "sourceCode": "BILL_TO",
+        "targetCode": "BT",
+        "description": "Bill to"
+      },
+      {
+        "sourceCode": "REMIT_TO",
+        "targetCode": "RI",
+        "description": "Remit to"
+      },
+      {
+        "sourceCode": "SHIP_FROM",
+        "targetCode": "SF",
+        "description": "Ship from"
+      }
+    ],
+    "unitCodes": [
+      {
+        "sourceCode": "EACH",
+        "targetCode": "EA",
+        "description": "Each"
+      },
+      {
+        "sourceCode": "CASE",
+        "targetCode": "CS",
+        "description": "Case"
+      },
+      {
+        "sourceCode": "BOX",
+        "targetCode": "BX",
+        "description": "Box"
+      },
+      {
+        "sourceCode": "PACK",
+        "targetCode": "PK",
+        "description": "Pack"
+      },
+      {
+        "sourceCode": "POUND",
+        "targetCode": "LB",
+        "description": "Pound"
+      },
+      {
+        "sourceCode": "KILOGRAM",
+        "targetCode": "KG",
+        "description": "Kilogram"
+      },
+      {
+        "sourceCode": "LITER",
+        "targetCode": "LT",
+        "description": "Liter"
+      },
+      {
+        "sourceCode": "GALLON",
+        "targetCode": "GA",
+        "description": "Gallon"
+      },
+      {
+        "sourceCode": "FOOT",
+        "targetCode": "FT",
+        "description": "Foot"
+      },
+      {
+        "sourceCode": "METER",
+        "targetCode": "MT",
+        "description": "Meter"
+      }
+    ],
+    "productIdQualifiers": [
+      {
+        "sourceCode": "UPC",
+        "targetCode": "UP",
+        "description": "UPC code"
+      },
+      {
+        "sourceCode": "EAN",
+        "targetCode": "EN",
+        "description": "EAN code"
+      },
+      {
+        "sourceCode": "VENDOR",
+        "targetCode": "VN",
+        "description": "Vendor part number"
+      },
+      {
+        "sourceCode": "BUYER_PART",
+        "targetCode": "BP",
+        "description": "Buyer part number"
+      },
+      {
+        "sourceCode": "SKU",
+        "targetCode": "SK",
+        "description": "Stock keeping unit"
+      }
+    ]
+  }
+}

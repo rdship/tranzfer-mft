@@ -1,0 +1,410 @@
+{
+  "mapId": "ISO20022_CAMT053--INHOUSE_BANK_STATEMENT",
+  "name": "ISO 20022 camt.053 Bank to Customer Statement to Internal Bank Statement",
+  "version": "1.0.0",
+  "sourceType": "ISO20022_CAMT053",
+  "targetType": "BANK_STATEMENT_INH",
+  "sourceStandard": "ISO20022",
+  "targetStandard": "INHOUSE",
+  "bidirectional": false,
+  "description": "Standard map for converting ISO 20022 camt.053.001 (Bank to Customer Statement) to TranzFer internal bank statement format. Maps GrpHdr, Stmt statement info, Bal balances, Ntry transaction entries, NtryDtls entry details with batch/transaction info.",
+  "status": "ACTIVE",
+  "confidence": 1.0,
+  "fieldMappings": [
+    {
+      "sourcePath": "BkToCstmrStmt.GrpHdr.MsgId",
+      "targetPath": "messageId",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BkToCstmrStmt.GrpHdr.CreDtTm",
+      "targetPath": "creationDateTime",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyy-MM-dd'T'HH:mm:ss",
+        "targetFormat": "yyyy-MM-dd'T'HH:mm:ss"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BkToCstmrStmt.GrpHdr.MsgPgntn.PgNb",
+      "targetPath": "pageNumber",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "BkToCstmrStmt.GrpHdr.MsgPgntn.LastPgInd",
+      "targetPath": "lastPageIndicator",
+      "transform": "COPY",
+      "confidence": 0.9
+    }
+  ],
+  "loopMappings": [
+    {
+      "sourceLoop": "Stmt",
+      "targetArray": "statements",
+      "fieldMappings": [
+        {
+          "sourcePath": "Id",
+          "targetPath": "statementId",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "ElctrncSeqNb",
+          "targetPath": "electronicSequenceNumber",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "LglSeqNb",
+          "targetPath": "legalSequenceNumber",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "CreDtTm",
+          "targetPath": "statementDate",
+          "transform": "DATE_FORMAT",
+          "transformConfig": {
+            "sourceFormat": "yyyy-MM-dd'T'HH:mm:ss",
+            "targetFormat": "yyyy-MM-dd'T'HH:mm:ss"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "FrToDt.FrDtTm",
+          "targetPath": "periodFromDate",
+          "transform": "DATE_FORMAT",
+          "transformConfig": {
+            "sourceFormat": "yyyy-MM-dd'T'HH:mm:ss",
+            "targetFormat": "yyyy-MM-dd'T'HH:mm:ss"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "FrToDt.ToDtTm",
+          "targetPath": "periodToDate",
+          "transform": "DATE_FORMAT",
+          "transformConfig": {
+            "sourceFormat": "yyyy-MM-dd'T'HH:mm:ss",
+            "targetFormat": "yyyy-MM-dd'T'HH:mm:ss"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "Acct.Id.IBAN",
+          "targetPath": "account.iban",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "Acct.Id.Othr.Id",
+          "targetPath": "account.accountNumber",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "Acct.Ccy",
+          "targetPath": "account.currencyCode",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "Acct.Ownr.Nm",
+          "targetPath": "account.ownerName",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "Acct.Svcr.FinInstnId.BICFI",
+          "targetPath": "account.servicerBic",
+          "transform": "TRIM",
+          "confidence": 1.0
+        }
+      ]
+    },
+    {
+      "sourceLoop": "Bal",
+      "targetArray": "balances",
+      "fieldMappings": [
+        {
+          "sourcePath": "Tp.CdOrPrtry.Cd",
+          "targetPath": "balanceType",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "balanceTypeCodes"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "Amt",
+          "targetPath": "amount",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "Amt.Ccy",
+          "targetPath": "currency",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "CdtDbtInd",
+          "targetPath": "creditDebitIndicator",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "creditDebitCodes"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "Dt.Dt",
+          "targetPath": "date",
+          "transform": "DATE_FORMAT",
+          "transformConfig": {
+            "sourceFormat": "yyyy-MM-dd",
+            "targetFormat": "yyyy-MM-dd"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "Dt.DtTm",
+          "targetPath": "dateTime",
+          "transform": "DATE_FORMAT",
+          "transformConfig": {
+            "sourceFormat": "yyyy-MM-dd'T'HH:mm:ss",
+            "targetFormat": "yyyy-MM-dd'T'HH:mm:ss"
+          },
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "sourceLoop": "Ntry",
+      "targetArray": "transactions",
+      "fieldMappings": [
+        {
+          "sourcePath": "NtryRef",
+          "targetPath": "entryReference",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "Amt",
+          "targetPath": "amount",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "Amt.Ccy",
+          "targetPath": "currency",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "CdtDbtInd",
+          "targetPath": "creditDebitIndicator",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "creditDebitCodes"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "RvslInd",
+          "targetPath": "reversalIndicator",
+          "transform": "COPY",
+          "confidence": 0.8
+        },
+        {
+          "sourcePath": "Sts",
+          "targetPath": "status",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "entryStatusCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "BookgDt.Dt",
+          "targetPath": "bookingDate",
+          "transform": "DATE_FORMAT",
+          "transformConfig": {
+            "sourceFormat": "yyyy-MM-dd",
+            "targetFormat": "yyyy-MM-dd"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "ValDt.Dt",
+          "targetPath": "valueDate",
+          "transform": "DATE_FORMAT",
+          "transformConfig": {
+            "sourceFormat": "yyyy-MM-dd",
+            "targetFormat": "yyyy-MM-dd"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "AcctSvcrRef",
+          "targetPath": "bankReference",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "BkTxCd.Domn.Cd",
+          "targetPath": "domainCode",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "BkTxCd.Domn.Fmly.Cd",
+          "targetPath": "familyCode",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "BkTxCd.Domn.Fmly.SubFmlyCd",
+          "targetPath": "subFamilyCode",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "NtryDtls.TxDtls.Refs.EndToEndId",
+          "targetPath": "endToEndId",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "NtryDtls.TxDtls.Refs.MndtId",
+          "targetPath": "mandateId",
+          "transform": "TRIM",
+          "confidence": 0.8
+        },
+        {
+          "sourcePath": "NtryDtls.TxDtls.RltdPties.Dbtr.Nm",
+          "targetPath": "counterpartyDebtorName",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "NtryDtls.TxDtls.RltdPties.Cdtr.Nm",
+          "targetPath": "counterpartyCreditName",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "NtryDtls.TxDtls.RmtInf.Ustrd",
+          "targetPath": "remittanceInfo",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "AddtlNtryInf",
+          "targetPath": "additionalEntryInfo",
+          "transform": "TRIM",
+          "confidence": 0.8
+        }
+      ]
+    }
+  ],
+  "codeTables": {
+    "balanceTypeCodes": [
+      {
+        "sourceCode": "OPBD",
+        "targetCode": "OPENING_BOOKED",
+        "description": "Opening booked balance"
+      },
+      {
+        "sourceCode": "CLBD",
+        "targetCode": "CLOSING_BOOKED",
+        "description": "Closing booked balance"
+      },
+      {
+        "sourceCode": "OPAV",
+        "targetCode": "OPENING_AVAILABLE",
+        "description": "Opening available balance"
+      },
+      {
+        "sourceCode": "CLAV",
+        "targetCode": "CLOSING_AVAILABLE",
+        "description": "Closing available balance"
+      },
+      {
+        "sourceCode": "FWAV",
+        "targetCode": "FORWARD_AVAILABLE",
+        "description": "Forward available balance"
+      },
+      {
+        "sourceCode": "INFO",
+        "targetCode": "INFORMATION",
+        "description": "Information balance"
+      },
+      {
+        "sourceCode": "PRCD",
+        "targetCode": "PREVIOUSLY_CLOSED",
+        "description": "Previously closed booked balance"
+      },
+      {
+        "sourceCode": "ITBD",
+        "targetCode": "INTERIM_BOOKED",
+        "description": "Interim booked balance"
+      },
+      {
+        "sourceCode": "ITAV",
+        "targetCode": "INTERIM_AVAILABLE",
+        "description": "Interim available balance"
+      },
+      {
+        "sourceCode": "XPCD",
+        "targetCode": "EXPECTED",
+        "description": "Expected balance"
+      }
+    ],
+    "creditDebitCodes": [
+      {
+        "sourceCode": "CRDT",
+        "targetCode": "CREDIT",
+        "description": "Credit"
+      },
+      {
+        "sourceCode": "DBIT",
+        "targetCode": "DEBIT",
+        "description": "Debit"
+      }
+    ],
+    "entryStatusCodes": [
+      {
+        "sourceCode": "BOOK",
+        "targetCode": "BOOKED",
+        "description": "Booked (final)"
+      },
+      {
+        "sourceCode": "PDNG",
+        "targetCode": "PENDING",
+        "description": "Pending"
+      },
+      {
+        "sourceCode": "INFO",
+        "targetCode": "INFORMATION",
+        "description": "Information only"
+      },
+      {
+        "sourceCode": "FUTR",
+        "targetCode": "FUTURE",
+        "description": "Future value date"
+      }
+    ]
+  }
+}

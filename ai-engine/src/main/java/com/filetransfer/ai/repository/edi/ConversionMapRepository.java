@@ -21,6 +21,11 @@ public interface ConversionMapRepository extends JpaRepository<ConversionMap, UU
 
     List<ConversionMap> findByPartnerId(String partnerId);
 
+    List<ConversionMap> findByPartnerIdAndStatus(String partnerId, String status);
+
+    List<ConversionMap> findByPartnerIdAndSourceFormatAndTargetFormatAndStatus(
+            String partnerId, String sourceFormat, String targetFormat, String status);
+
     List<ConversionMap> findBySourceFormatAndTargetFormat(String sourceFormat, String targetFormat);
 
     Optional<ConversionMap> findByMapKeyAndVersion(String mapKey, int version);

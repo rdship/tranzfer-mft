@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { ediApi as api } from '../api/client'
-import { convertWithMap, getAvailableMaps, getMapDetail, detectDocumentType } from '../api/ediConverter'
+import {
+  convertWithMap, getAvailableMaps, getMapDetail, detectDocumentType,
+  cloneMap, getPartnerMaps, updateMap, activateMap, deactivateMap, deleteMap,
+} from '../api/ediConverter'
+import MapEditor from '../components/MapEditor'
+import MapTestPanel from '../components/MapTestPanel'
 
 const TABS = [
   { id: 'convert', label: 'Convert' },
@@ -76,6 +81,23 @@ export default function Edi() {
   const [selectedMap, setSelectedMap] = useState(null)
   const [mapDetailLoading, setMapDetailLoading] = useState(false)
 
+  // Map editor state
+  const [mapEditorOpen, setMapEditorOpen] = useState(false)
+  const [mapEditorReadOnly, setMapEditorReadOnly] = useState(false)
+  const [mapEditorDef, setMapEditorDef] = useState(null)
+
+  // Partner maps state
+  const [mapMode, setMapMode] = useState('standard') // 'standard' | 'partner'
+  const [partnerMaps, setPartnerMaps] = useState([])
+  const [partnerMapsLoading, setPartnerMapsLoading] = useState(false)
+  const [selectedPartnerForMaps, setSelectedPartnerForMaps] = useState('')
+
+  // Clone modal state
+  const [cloneModalOpen, setCloneModalOpen] = useState(false)
+  const [clonePartnerName, setClonePartnerName] = useState('')
+  const [cloneMapName, setCloneMapName] = useState('')
+  const [cloning, setCloning] = useState(false)
+
   // Load maps when Maps tab is selected
   useEffect(() => {
     if (tab === 'maps' && maps.length === 0) {
@@ -122,6 +144,110 @@ export default function Edi() {
       setSelectedMap(detail)
     } catch (e) { toast.error('Failed to load map: ' + (e.response?.data?.message || e.message)) }
     finally { setMapDetailLoading(false) }
+  }
+
+  // Open map in visual editor
+  const handleEditMap = async (map) => {
+    if (!map) return
+    let detail = map
+    if (!map.fieldMappings && !map.mappings) {
+      setMapDetailLoading(true)
+      try {
+        detail = await getMapDetail(map.mapId || map.id)
+      } catch (e) {
+        toast.error('Failed to load map: ' + (e.response?.data?.message || e.message))
+        setMapDetailLoading(false)
+        return
+      }
+      setMapDetailLoading(false)
+    }
+    const isStandard = (detail.category || '').toUpperCase() === 'STANDARD'
+    setMapEditorDef(detail)
+    setMapEditorReadOnly(isStandard)
+    setMapEditorOpen(true)
+  }
+
+  // Save updated map
+  const handleMapSave = async (updatedDef) => {
+    try {
+      await updateMap(updatedDef.mapId || updatedDef.id, updatedDef)
+      toast.success('Map saved successfully')
+      setMapEditorOpen(false)
+      // Refresh maps list
+      if (mapMode === 'partner' && selectedPartnerForMaps) {
+        loadPartnerMaps(selectedPartnerForMaps)
+      }
+    } catch (e) {
+      toast.error('Save failed: ' + (e.response?.data?.message || e.message))
+    }
+  }
+
+  // Clone a standard map for a partner
+  const handleCloneMap = async () => {
+    if (!clonePartnerName.trim()) { toast.error('Enter a partner name'); return }
+    const sourceId = mapEditorDef?.mapId || mapEditorDef?.id || selectedMap?.mapId || selectedMap?.id
+    if (!sourceId) { toast.error('No map selected to clone'); return }
+    setCloning(true)
+    try {
+      const cloned = await cloneMap(sourceId, clonePartnerName.trim(), cloneMapName.trim() || undefined)
+      toast.success('Map cloned for partner: ' + clonePartnerName)
+      setCloneModalOpen(false)
+      setClonePartnerName('')
+      setCloneMapName('')
+      // Open the cloned map in edit mode
+      setMapEditorDef(cloned)
+      setMapEditorReadOnly(false)
+      setMapEditorOpen(true)
+    } catch (e) {
+      toast.error('Clone failed: ' + (e.response?.data?.message || e.message))
+    } finally {
+      setCloning(false)
+    }
+  }
+
+  // Load partner maps
+  const loadPartnerMaps = async (pid) => {
+    if (!pid) return
+    setPartnerMapsLoading(true)
+    try {
+      const data = await getPartnerMaps(pid)
+      setPartnerMaps(Array.isArray(data) ? data : data?.maps || [])
+    } catch (e) {
+      toast.error('Failed to load partner maps: ' + (e.response?.data?.message || e.message))
+      setPartnerMaps([])
+    } finally {
+      setPartnerMapsLoading(false)
+    }
+  }
+
+  // Activate/deactivate partner map
+  const handleToggleMapStatus = async (map) => {
+    const mapId = map.mapId || map.id
+    try {
+      if (map.status === 'ACTIVE' || map.active) {
+        await deactivateMap(mapId)
+        toast.success('Map deactivated')
+      } else {
+        await activateMap(mapId)
+        toast.success('Map activated')
+      }
+      if (selectedPartnerForMaps) loadPartnerMaps(selectedPartnerForMaps)
+    } catch (e) {
+      toast.error('Status change failed: ' + (e.response?.data?.message || e.message))
+    }
+  }
+
+  // Delete partner map
+  const handleDeleteMap = async (map) => {
+    const mapId = map.mapId || map.id
+    if (!confirm(`Delete map "${map.name || mapId}"? This cannot be undone.`)) return
+    try {
+      await deleteMap(mapId)
+      toast.success('Map deleted')
+      if (selectedPartnerForMaps) loadPartnerMaps(selectedPartnerForMaps)
+    } catch (e) {
+      toast.error('Delete failed: ' + (e.response?.data?.message || e.message))
+    }
   }
 
   const filteredMaps = maps.filter(m => {
@@ -227,179 +353,452 @@ export default function Edi() {
       {/* Maps Tab */}
       {tab === 'maps' && (
         <div className="space-y-4">
-          {/* Filters */}
+          {/* Mode toggle + Filters */}
           <div className="card space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-primary">Conversion Maps</h3>
-              <button onClick={() => {
-                setMapsLoading(true)
-                getAvailableMaps()
-                  .then(data => setMaps(Array.isArray(data) ? data : data?.maps || []))
-                  .catch(e => toast.error('Refresh failed: ' + (e.response?.data?.message || e.message)))
-                  .finally(() => setMapsLoading(false))
-              }} className="btn-sm bg-gray-600 text-white text-xs">Refresh</button>
+              <div className="flex items-center gap-3">
+                <h3 className="font-semibold text-primary">Conversion Maps</h3>
+                {/* Standard / Partner toggle */}
+                <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid rgb(var(--border))' }}>
+                  <button
+                    onClick={() => setMapMode('standard')}
+                    className="text-xs px-3 py-1.5 font-medium transition-colors"
+                    style={{
+                      background: mapMode === 'standard' ? 'rgb(var(--accent) / 0.15)' : 'transparent',
+                      color: mapMode === 'standard' ? 'rgb(var(--accent))' : 'rgb(var(--tx-secondary))',
+                    }}>
+                    Standard Maps
+                  </button>
+                  <button
+                    onClick={() => setMapMode('partner')}
+                    className="text-xs px-3 py-1.5 font-medium transition-colors"
+                    style={{
+                      background: mapMode === 'partner' ? 'rgb(var(--accent) / 0.15)' : 'transparent',
+                      color: mapMode === 'partner' ? 'rgb(var(--accent))' : 'rgb(var(--tx-secondary))',
+                      borderLeft: '1px solid rgb(var(--border))',
+                    }}>
+                    Partner Maps
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {mapMode === 'partner' && (
+                  <button
+                    onClick={() => { setCloneModalOpen(true); setMapEditorDef(null) }}
+                    className="btn-sm text-xs font-medium"
+                    style={{ background: '#4c1d9522', color: '#c084fc', border: '1px solid #4c1d9540' }}>
+                    Clone from Standard
+                  </button>
+                )}
+                <button onClick={() => {
+                  setMapsLoading(true)
+                  getAvailableMaps()
+                    .then(data => setMaps(Array.isArray(data) ? data : data?.maps || []))
+                    .catch(e => toast.error('Refresh failed: ' + (e.response?.data?.message || e.message)))
+                    .finally(() => setMapsLoading(false))
+                }} className="btn-sm bg-gray-600 text-white text-xs">Refresh</button>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <input value={mapSearch} onChange={e => setMapSearch(e.target.value)}
-                className="flex-1 min-w-[200px] text-sm border rounded px-3 py-1.5" placeholder="Search by name or ID..." />
-              <select value={mapSourceFilter} onChange={e => setMapSourceFilter(e.target.value)}
-                className="text-sm border rounded px-2 py-1.5">
-                {SOURCE_STANDARDS.map(s => <option key={s} value={s}>{s === 'All' ? 'Source: All' : s}</option>)}
-              </select>
-              <select value={mapTargetFilter} onChange={e => setMapTargetFilter(e.target.value)}
-                className="text-sm border rounded px-2 py-1.5">
-                {SOURCE_STANDARDS.map(s => <option key={s} value={s}>{s === 'All' ? 'Target: All' : s}</option>)}
-              </select>
-              <select value={mapCategoryFilter} onChange={e => setMapCategoryFilter(e.target.value)}
-                className="text-sm border rounded px-2 py-1.5">
-                <option value="All">Category: All</option>
-                <option value="STANDARD">Standard</option>
-                <option value="TRAINED">Trained</option>
-                <option value="PARTNER">Partner</option>
-              </select>
+
+            {/* Partner selector for partner mode */}
+            {mapMode === 'partner' && (
+              <div className="flex items-center gap-3">
+                <label className="text-xs font-medium" style={{ color: 'rgb(var(--tx-secondary))' }}>Partner:</label>
+                <input
+                  value={selectedPartnerForMaps}
+                  onChange={e => setSelectedPartnerForMaps(e.target.value)}
+                  className="flex-1 max-w-xs text-sm rounded px-3 py-1.5"
+                  style={{ background: 'rgb(var(--canvas))', color: 'rgb(var(--tx-primary))', border: '1px solid rgb(var(--border))' }}
+                  placeholder="Enter partner ID..."
+                />
+                <button
+                  onClick={() => loadPartnerMaps(selectedPartnerForMaps)}
+                  disabled={!selectedPartnerForMaps.trim() || partnerMapsLoading}
+                  className="btn-primary text-xs px-3 py-1.5">
+                  {partnerMapsLoading ? 'Loading...' : 'Load Maps'}
+                </button>
+              </div>
+            )}
+
+            {/* Filters (standard mode) */}
+            {mapMode === 'standard' && (
+              <div className="flex flex-wrap gap-3">
+                <input value={mapSearch} onChange={e => setMapSearch(e.target.value)}
+                  className="flex-1 min-w-[200px] text-sm border rounded px-3 py-1.5" placeholder="Search by name or ID..." />
+                <select value={mapSourceFilter} onChange={e => setMapSourceFilter(e.target.value)}
+                  className="text-sm border rounded px-2 py-1.5">
+                  {SOURCE_STANDARDS.map(s => <option key={s} value={s}>{s === 'All' ? 'Source: All' : s}</option>)}
+                </select>
+                <select value={mapTargetFilter} onChange={e => setMapTargetFilter(e.target.value)}
+                  className="text-sm border rounded px-2 py-1.5">
+                  {SOURCE_STANDARDS.map(s => <option key={s} value={s}>{s === 'All' ? 'Target: All' : s}</option>)}
+                </select>
+                <select value={mapCategoryFilter} onChange={e => setMapCategoryFilter(e.target.value)}
+                  className="text-sm border rounded px-2 py-1.5">
+                  <option value="All">Category: All</option>
+                  <option value="STANDARD">Standard</option>
+                  <option value="TRAINED">Trained</option>
+                  <option value="PARTNER">Partner</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Standard maps view */}
+          {mapMode === 'standard' && (
+            <>
+              {mapsLoading && <div className="text-center text-secondary py-8">Loading maps...</div>}
+
+              {!mapsLoading && filteredMaps.length === 0 && (
+                <div className="text-center text-secondary py-8">
+                  {maps.length === 0 ? 'No maps available. Train a model or import standard maps.' : 'No maps match the current filters.'}
+                </div>
+              )}
+
+              {/* Map cards grid */}
+              {!mapsLoading && filteredMaps.length > 0 && !selectedMap && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {filteredMaps.map(m => (
+                    <div key={m.mapId || m.id} onClick={() => handleMapDetail(m.mapId || m.id)}
+                      className="card cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all space-y-2">
+                      <div className="flex items-start justify-between">
+                        <h4 className="font-medium text-primary text-sm truncate">{m.name || m.mapId || m.id}</h4>
+                        {m.category && (
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${CATEGORY_COLORS[m.category?.toUpperCase()] || 'bg-gray-100 text-gray-800'}`}>
+                            {m.category}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 text-xs">
+                        <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">{m.sourceType || m.sourceStandard || '?'}</span>
+                        <span className="text-secondary">&rarr;</span>
+                        <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">{m.targetType || m.targetStandard || '?'}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-secondary">
+                        {m.version && <span>v{m.version}</span>}
+                        {m.confidence != null && <span>Confidence: {m.confidence}%</span>}
+                        {m.fieldCount != null && <span>{m.fieldCount} fields</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Map detail panel */}
+              {selectedMap && (
+                <div className="card space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => setSelectedMap(null)} className="text-sm text-blue-600 hover:underline">&larr; Back</button>
+                      <span className="font-semibold text-primary text-lg">{selectedMap.name || selectedMap.mapId}</span>
+                      {selectedMap.category && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${CATEGORY_COLORS[selectedMap.category?.toUpperCase()] || 'bg-gray-100 text-gray-800'}`}>
+                          {selectedMap.category}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => handleEditMap(selectedMap)}
+                        className="btn-sm text-xs font-medium flex items-center gap-1.5"
+                        style={{ background: 'rgb(var(--accent) / 0.15)', color: 'rgb(var(--accent))', border: '1px solid rgb(var(--accent) / 0.3)' }}>
+                        {(selectedMap.category || '').toUpperCase() === 'STANDARD' ? 'View in Editor' : 'Edit in Editor'}
+                      </button>
+                      {(selectedMap.category || '').toUpperCase() === 'STANDARD' && (
+                        <button onClick={() => { setMapEditorDef(selectedMap); setCloneModalOpen(true) }}
+                          className="btn-sm text-xs font-medium"
+                          style={{ background: '#4c1d9522', color: '#c084fc', border: '1px solid #4c1d9540' }}>
+                          Clone for Partner
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Metadata */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    <div className="bg-canvas rounded p-2">
+                      <div className="text-xs text-secondary">Source</div>
+                      <div className="font-medium">{selectedMap.sourceType || selectedMap.sourceStandard || '-'}</div>
+                    </div>
+                    <div className="bg-canvas rounded p-2">
+                      <div className="text-xs text-secondary">Target</div>
+                      <div className="font-medium">{selectedMap.targetType || selectedMap.targetStandard || '-'}</div>
+                    </div>
+                    <div className="bg-canvas rounded p-2">
+                      <div className="text-xs text-secondary">Version</div>
+                      <div className="font-medium">{selectedMap.version || '-'}</div>
+                    </div>
+                    <div className="bg-canvas rounded p-2">
+                      <div className="text-xs text-secondary">Status</div>
+                      <div className="font-medium">{selectedMap.status || '-'}</div>
+                    </div>
+                  </div>
+
+                  {selectedMap.description && (
+                    <p className="text-sm text-secondary">{selectedMap.description}</p>
+                  )}
+
+                  {/* Field mappings table */}
+                  {(selectedMap.fieldMappings || selectedMap.mappings) && (
+                    <div>
+                      <h4 className="font-medium text-primary text-sm mb-2">Field Mappings</h4>
+                      <div className="overflow-auto max-h-96 border rounded-lg">
+                        <table className="w-full text-xs">
+                          <thead className="bg-canvas sticky top-0">
+                            <tr>
+                              <th className="text-left px-3 py-2 font-medium text-secondary">Source Path</th>
+                              <th className="text-left px-3 py-2 font-medium text-secondary">Target Path</th>
+                              <th className="text-left px-3 py-2 font-medium text-secondary">Transform</th>
+                              <th className="text-left px-3 py-2 font-medium text-secondary">Confidence</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border">
+                            {(selectedMap.fieldMappings || selectedMap.mappings || []).map((fm, i) => (
+                              <tr key={i} className="hover:bg-canvas">
+                                <td className="px-3 py-1.5 font-mono">{fm.sourcePath || fm.source}</td>
+                                <td className="px-3 py-1.5 font-mono">{fm.targetPath || fm.target}</td>
+                                <td className="px-3 py-1.5">{fm.transform || fm.transformation || 'direct'}</td>
+                                <td className="px-3 py-1.5">
+                                  {fm.confidence != null && (
+                                    <span className={fm.confidence >= 90 ? 'text-green-600' : fm.confidence >= 70 ? 'text-yellow-600' : 'text-red-600'}>
+                                      {fm.confidence}%
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Code tables */}
+                  {selectedMap.codeTables && (typeof selectedMap.codeTables === 'object' ? Object.keys(selectedMap.codeTables).length > 0 : selectedMap.codeTables.length > 0) && (
+                    <div>
+                      <h4 className="font-medium text-primary text-sm mb-2">Code Tables</h4>
+                      <pre className="text-xs bg-canvas rounded-lg p-3 overflow-auto font-mono max-h-48">
+                        {JSON.stringify(selectedMap.codeTables, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+
+                  {/* Loop mappings */}
+                  {selectedMap.loopMappings && selectedMap.loopMappings.length > 0 && (
+                    <div>
+                      <h4 className="font-medium text-primary text-sm mb-2">Loop Mappings</h4>
+                      <pre className="text-xs bg-canvas rounded-lg p-3 overflow-auto font-mono max-h-48">
+                        {JSON.stringify(selectedMap.loopMappings, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+
+                  {/* Test panel */}
+                  <div style={{ borderTop: '1px solid rgb(var(--border))', paddingTop: 16 }}>
+                    <MapTestPanel
+                      mapId={selectedMap.mapId || selectedMap.id}
+                      sourceType={selectedMap.sourceType || selectedMap.sourceStandard}
+                      targetType={selectedMap.targetType || selectedMap.targetStandard}
+                    />
+                  </div>
+
+                  {/* Raw JSON fallback */}
+                  <details className="text-xs">
+                    <summary className="cursor-pointer text-secondary hover:text-primary">Raw map data</summary>
+                    <pre className="bg-canvas rounded-lg p-3 overflow-auto font-mono max-h-64 mt-2">
+                      {JSON.stringify(selectedMap, null, 2)}
+                    </pre>
+                  </details>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Partner maps view */}
+          {mapMode === 'partner' && (
+            <>
+              {partnerMapsLoading && <div className="text-center text-secondary py-8">Loading partner maps...</div>}
+
+              {!partnerMapsLoading && !selectedPartnerForMaps && (
+                <div className="text-center py-8" style={{ color: 'rgb(var(--tx-muted))' }}>
+                  Enter a partner ID above and click "Load Maps" to view partner-specific maps.
+                </div>
+              )}
+
+              {!partnerMapsLoading && selectedPartnerForMaps && partnerMaps.length === 0 && (
+                <div className="text-center py-8" style={{ color: 'rgb(var(--tx-muted))' }}>
+                  No maps found for partner "{selectedPartnerForMaps}". Clone a standard map to get started.
+                </div>
+              )}
+
+              {!partnerMapsLoading && partnerMaps.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {partnerMaps.map(m => (
+                    <div key={m.mapId || m.id}
+                      className="card space-y-2 transition-all"
+                      style={{ border: '1px solid rgb(var(--border))' }}>
+                      <div className="flex items-start justify-between">
+                        <h4 className="font-medium text-primary text-sm truncate">{m.name || m.mapId || m.id}</h4>
+                        <span
+                          className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded"
+                          style={{
+                            background: (m.status === 'ACTIVE' || m.active) ? '#14532d22' : '#7f1d1d22',
+                            color: (m.status === 'ACTIVE' || m.active) ? '#4ade80' : '#f87171',
+                          }}>
+                          {m.status || (m.active ? 'ACTIVE' : 'INACTIVE')}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs">
+                        <span className="px-1.5 py-0.5 rounded" style={{ background: '#78350f22', color: '#fbbf24' }}>
+                          {m.sourceType || m.sourceStandard || '?'}
+                        </span>
+                        <span style={{ color: 'rgb(var(--tx-muted))' }}>&rarr;</span>
+                        <span className="px-1.5 py-0.5 rounded" style={{ background: '#14532d22', color: '#4ade80' }}>
+                          {m.targetType || m.targetStandard || '?'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs" style={{ color: 'rgb(var(--tx-muted))' }}>
+                        {m.version && <span>v{m.version}</span>}
+                        {m.confidence != null && <span>Conf: {m.confidence}%</span>}
+                        {m.fieldCount != null && <span>{m.fieldCount} fields</span>}
+                      </div>
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-1.5 pt-1" style={{ borderTop: '1px solid rgb(var(--border))' }}>
+                        <button onClick={() => handleEditMap(m)}
+                          className="flex-1 text-xs py-1 rounded transition-colors"
+                          style={{ background: 'rgb(var(--accent) / 0.1)', color: 'rgb(var(--accent))' }}>
+                          Edit
+                        </button>
+                        <button onClick={() => handleToggleMapStatus(m)}
+                          className="flex-1 text-xs py-1 rounded transition-colors"
+                          style={{
+                            background: (m.status === 'ACTIVE' || m.active) ? '#78350f15' : '#14532d15',
+                            color: (m.status === 'ACTIVE' || m.active) ? '#fbbf24' : '#4ade80',
+                          }}>
+                          {(m.status === 'ACTIVE' || m.active) ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button onClick={() => handleDeleteMap(m)}
+                          className="text-xs py-1 px-2 rounded transition-colors"
+                          style={{ background: '#7f1d1d15', color: '#f87171' }}>
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Map Editor full-screen modal */}
+      {mapEditorOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: 'rgb(var(--canvas))' }}>
+          {/* Modal header */}
+          <div className="flex items-center justify-between px-4 py-3 flex-shrink-0"
+            style={{ background: 'rgb(var(--surface))', borderBottom: '1px solid rgb(var(--border))' }}>
+            <div className="flex items-center gap-3">
+              <h2 className="text-sm font-bold" style={{ color: 'rgb(var(--tx-primary))' }}>
+                {mapEditorReadOnly ? 'View Map' : 'Edit Map'}
+              </h2>
+              <span className="text-xs font-mono" style={{ color: 'rgb(var(--tx-muted))', fontFamily: "'JetBrains Mono', monospace" }}>
+                {mapEditorDef?.mapId || mapEditorDef?.id || ''}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {mapEditorReadOnly && (
+                <button
+                  onClick={() => { setCloneModalOpen(true) }}
+                  className="btn-sm text-xs font-medium"
+                  style={{ background: '#4c1d9522', color: '#c084fc', border: '1px solid #4c1d9540' }}>
+                  Clone for Partner
+                </button>
+              )}
+              <button onClick={() => setMapEditorOpen(false)}
+                className="p-1.5 rounded-lg transition-colors"
+                style={{ color: 'rgb(var(--tx-secondary))' }}>
+                <span className="text-xs font-medium mr-1">Close</span>
+                <span className="text-xs" style={{ color: 'rgb(var(--tx-muted))' }}>ESC</span>
+              </button>
             </div>
           </div>
 
-          {mapsLoading && <div className="text-center text-secondary py-8">Loading maps...</div>}
-
-          {!mapsLoading && filteredMaps.length === 0 && (
-            <div className="text-center text-secondary py-8">
-              {maps.length === 0 ? 'No maps available. Train a model or import standard maps.' : 'No maps match the current filters.'}
+          {/* Editor body */}
+          <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 overflow-auto">
+              <MapEditor
+                mapDefinition={mapEditorDef}
+                onSave={handleMapSave}
+                readOnly={mapEditorReadOnly}
+              />
             </div>
-          )}
-
-          {/* Map cards grid */}
-          {!mapsLoading && filteredMaps.length > 0 && !selectedMap && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {filteredMaps.map(m => (
-                <div key={m.mapId || m.id} onClick={() => handleMapDetail(m.mapId || m.id)}
-                  className="card cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all space-y-2">
-                  <div className="flex items-start justify-between">
-                    <h4 className="font-medium text-primary text-sm truncate">{m.name || m.mapId || m.id}</h4>
-                    {m.category && (
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${CATEGORY_COLORS[m.category?.toUpperCase()] || 'bg-gray-100 text-gray-800'}`}>
-                        {m.category}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1 text-xs">
-                    <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">{m.sourceType || m.sourceStandard || '?'}</span>
-                    <span className="text-secondary">&rarr;</span>
-                    <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">{m.targetType || m.targetStandard || '?'}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-secondary">
-                    {m.version && <span>v{m.version}</span>}
-                    {m.confidence != null && <span>Confidence: {m.confidence}%</span>}
-                    {m.fieldCount != null && <span>{m.fieldCount} fields</span>}
-                  </div>
-                </div>
-              ))}
+            {/* Side test panel */}
+            <div className="w-96 flex-shrink-0 overflow-y-auto p-4"
+              style={{ borderLeft: '1px solid rgb(var(--border))', background: 'rgb(var(--surface))' }}>
+              <MapTestPanel
+                mapId={mapEditorDef?.mapId || mapEditorDef?.id}
+                sourceType={mapEditorDef?.sourceType || mapEditorDef?.sourceStandard}
+                targetType={mapEditorDef?.targetType || mapEditorDef?.targetStandard}
+              />
             </div>
-          )}
+          </div>
+        </div>
+      )}
 
-          {/* Map detail panel */}
-          {selectedMap && (
-            <div className="card space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <button onClick={() => setSelectedMap(null)} className="text-sm text-blue-600 hover:underline mr-3">&larr; Back to maps</button>
-                  <span className="font-semibold text-primary text-lg">{selectedMap.name || selectedMap.mapId}</span>
-                </div>
-                {selectedMap.category && (
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${CATEGORY_COLORS[selectedMap.category?.toUpperCase()] || 'bg-gray-100 text-gray-800'}`}>
-                    {selectedMap.category}
-                  </span>
-                )}
-              </div>
-
-              {/* Metadata */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                <div className="bg-canvas rounded p-2">
-                  <div className="text-xs text-secondary">Source</div>
-                  <div className="font-medium">{selectedMap.sourceType || selectedMap.sourceStandard || '-'}</div>
-                </div>
-                <div className="bg-canvas rounded p-2">
-                  <div className="text-xs text-secondary">Target</div>
-                  <div className="font-medium">{selectedMap.targetType || selectedMap.targetStandard || '-'}</div>
-                </div>
-                <div className="bg-canvas rounded p-2">
-                  <div className="text-xs text-secondary">Version</div>
-                  <div className="font-medium">{selectedMap.version || '-'}</div>
-                </div>
-                <div className="bg-canvas rounded p-2">
-                  <div className="text-xs text-secondary">Status</div>
-                  <div className="font-medium">{selectedMap.status || '-'}</div>
+      {/* Clone modal */}
+      {cloneModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="rounded-xl shadow-xl w-full max-w-md flex flex-col"
+            style={{ background: 'rgb(var(--surface))', border: '1px solid rgb(var(--border))' }}>
+            <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid rgb(var(--border))' }}>
+              <h3 className="text-sm font-bold" style={{ color: 'rgb(var(--tx-primary))' }}>Clone Map for Partner</h3>
+              <button onClick={() => { setCloneModalOpen(false); setClonePartnerName(''); setCloneMapName('') }}
+                className="p-1 rounded-lg transition-colors" style={{ color: 'rgb(var(--tx-muted))' }}>
+                <span className="text-lg leading-none">&times;</span>
+              </button>
+            </div>
+            <div className="p-4 space-y-3">
+              <div>
+                <label className="text-xs font-medium" style={{ color: 'rgb(var(--tx-secondary))' }}>Source Map</label>
+                <div className="text-xs font-mono mt-1 px-2 py-1.5 rounded"
+                  style={{ background: 'rgb(var(--canvas))', color: 'rgb(var(--tx-primary))', fontFamily: "'JetBrains Mono', monospace" }}>
+                  {mapEditorDef?.name || mapEditorDef?.mapId || selectedMap?.name || selectedMap?.mapId || '—'}
                 </div>
               </div>
-
-              {selectedMap.description && (
-                <p className="text-sm text-secondary">{selectedMap.description}</p>
-              )}
-
-              {/* Field mappings table */}
-              {(selectedMap.fieldMappings || selectedMap.mappings) && (
-                <div>
-                  <h4 className="font-medium text-primary text-sm mb-2">Field Mappings</h4>
-                  <div className="overflow-auto max-h-96 border rounded-lg">
-                    <table className="w-full text-xs">
-                      <thead className="bg-canvas sticky top-0">
-                        <tr>
-                          <th className="text-left px-3 py-2 font-medium text-secondary">Source Path</th>
-                          <th className="text-left px-3 py-2 font-medium text-secondary">Target Path</th>
-                          <th className="text-left px-3 py-2 font-medium text-secondary">Transform</th>
-                          <th className="text-left px-3 py-2 font-medium text-secondary">Confidence</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {(selectedMap.fieldMappings || selectedMap.mappings || []).map((fm, i) => (
-                          <tr key={i} className="hover:bg-canvas">
-                            <td className="px-3 py-1.5 font-mono">{fm.sourcePath || fm.source}</td>
-                            <td className="px-3 py-1.5 font-mono">{fm.targetPath || fm.target}</td>
-                            <td className="px-3 py-1.5">{fm.transform || fm.transformation || 'direct'}</td>
-                            <td className="px-3 py-1.5">
-                              {fm.confidence != null && (
-                                <span className={fm.confidence >= 90 ? 'text-green-600' : fm.confidence >= 70 ? 'text-yellow-600' : 'text-red-600'}>
-                                  {fm.confidence}%
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Code tables */}
-              {selectedMap.codeTables && selectedMap.codeTables.length > 0 && (
-                <div>
-                  <h4 className="font-medium text-primary text-sm mb-2">Code Tables</h4>
-                  <pre className="text-xs bg-canvas rounded-lg p-3 overflow-auto font-mono max-h-48">
-                    {JSON.stringify(selectedMap.codeTables, null, 2)}
-                  </pre>
-                </div>
-              )}
-
-              {/* Loop mappings */}
-              {selectedMap.loopMappings && selectedMap.loopMappings.length > 0 && (
-                <div>
-                  <h4 className="font-medium text-primary text-sm mb-2">Loop Mappings</h4>
-                  <pre className="text-xs bg-canvas rounded-lg p-3 overflow-auto font-mono max-h-48">
-                    {JSON.stringify(selectedMap.loopMappings, null, 2)}
-                  </pre>
-                </div>
-              )}
-
-              {/* Raw JSON fallback */}
-              <details className="text-xs">
-                <summary className="cursor-pointer text-secondary hover:text-primary">Raw map data</summary>
-                <pre className="bg-canvas rounded-lg p-3 overflow-auto font-mono max-h-64 mt-2">
-                  {JSON.stringify(selectedMap, null, 2)}
-                </pre>
-              </details>
+              <div>
+                <label className="text-xs font-medium" style={{ color: 'rgb(var(--tx-secondary))' }}>Partner ID / Name</label>
+                <input
+                  value={clonePartnerName}
+                  onChange={e => setClonePartnerName(e.target.value)}
+                  className="w-full text-sm mt-1 rounded px-3 py-1.5"
+                  style={{ background: 'rgb(var(--canvas))', color: 'rgb(var(--tx-primary))', border: '1px solid rgb(var(--border))' }}
+                  placeholder="e.g. acme-corp"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium" style={{ color: 'rgb(var(--tx-secondary))' }}>Map Name (optional)</label>
+                <input
+                  value={cloneMapName}
+                  onChange={e => setCloneMapName(e.target.value)}
+                  className="w-full text-sm mt-1 rounded px-3 py-1.5"
+                  style={{ background: 'rgb(var(--canvas))', color: 'rgb(var(--tx-primary))', border: '1px solid rgb(var(--border))' }}
+                  placeholder="Custom name for the cloned map..."
+                />
+              </div>
             </div>
-          )}
+            <div className="flex items-center justify-end gap-2 p-4" style={{ borderTop: '1px solid rgb(var(--border))' }}>
+              <button onClick={() => { setCloneModalOpen(false); setClonePartnerName(''); setCloneMapName('') }}
+                className="text-xs px-3 py-1.5 rounded"
+                style={{ color: 'rgb(var(--tx-secondary))' }}>
+                Cancel
+              </button>
+              <button onClick={handleCloneMap} disabled={cloning || !clonePartnerName.trim()}
+                className="btn-primary text-xs px-4 py-1.5">
+                {cloning ? 'Cloning...' : 'Clone & Edit'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

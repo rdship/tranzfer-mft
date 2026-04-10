@@ -1,0 +1,646 @@
+{
+  "mapId": "EDIFACT_ORDERS--INHOUSE_PURCHASE_ORDER",
+  "name": "EDIFACT ORDERS Purchase Order to Internal Purchase Order",
+  "version": "1.0.0",
+  "sourceType": "EDIFACT_ORDERS",
+  "targetType": "PURCHASE_ORDER_INH",
+  "sourceStandard": "EDIFACT",
+  "targetStandard": "INHOUSE",
+  "bidirectional": false,
+  "description": "Standard map for converting UN/EDIFACT ORDERS (Purchase Order) to TranzFer internal format. Maps UNH, BGM, DTM, NAD loops, LIN loops with quantities and prices, UNS summary, CNT control, and UNT trailer.",
+  "status": "ACTIVE",
+  "confidence": 1.0,
+  "fieldMappings": [
+    {
+      "sourcePath": "UNH.0062",
+      "targetPath": "messageReferenceNumber",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "UNH.S009.0065",
+      "targetPath": "messageType",
+      "transform": "COPY",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "UNH.S009.0052",
+      "targetPath": "messageVersion",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "BGM.C002.1001",
+      "targetPath": "documentType",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "bgmDocumentTypeCodes"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BGM.C106.1004",
+      "targetPath": "documentNumber",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "BGM.1225",
+      "targetPath": "messageFunctionCode",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "messageFunctionCodes"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "DTM.C507.2005:137",
+      "targetPath": "documentDate",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyyMMdd",
+        "targetFormat": "yyyy-MM-dd"
+      },
+      "condition": "DTM.C507.2005 == '137'",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "DTM.C507.2005:2",
+      "targetPath": "deliveryDate",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyyMMdd",
+        "targetFormat": "yyyy-MM-dd"
+      },
+      "condition": "DTM.C507.2005 == '2'",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "DTM.C507.2005:63",
+      "targetPath": "latestDeliveryDate",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyyMMdd",
+        "targetFormat": "yyyy-MM-dd"
+      },
+      "condition": "DTM.C507.2005 == '63'",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "DTM.C507.2005:64",
+      "targetPath": "earliestDeliveryDate",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyyMMdd",
+        "targetFormat": "yyyy-MM-dd"
+      },
+      "condition": "DTM.C507.2005 == '64'",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "FTX.4440",
+      "targetPath": "freeTextNote",
+      "transform": "TRIM",
+      "confidence": 0.8
+    },
+    {
+      "sourcePath": "RFF.C506.1154",
+      "targetPath": "referenceNumber",
+      "transform": "TRIM",
+      "condition": "RFF.C506.1153 == 'ON'",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "RFF.C506.1154",
+      "targetPath": "contractNumber",
+      "transform": "TRIM",
+      "condition": "RFF.C506.1153 == 'CT'",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "CUX.C504.6345",
+      "targetPath": "currency",
+      "transform": "COPY",
+      "defaultValue": "EUR",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "TOD.4055",
+      "targetPath": "deliveryTermsCode",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "deliveryTermsCodes"
+      },
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "PAT.4279",
+      "targetPath": "paymentTermsType",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "paymentTermsCodes"
+      },
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "CNT.C270.6069",
+      "targetPath": "controlQualifier",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "CNT.C270.6066",
+      "targetPath": "controlValue",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "UNT.0074",
+      "targetPath": "segmentCount",
+      "transform": "COPY",
+      "confidence": 1.0
+    }
+  ],
+  "loopMappings": [
+    {
+      "sourceLoop": "NAD",
+      "targetArray": "parties",
+      "fieldMappings": [
+        {
+          "sourcePath": "NAD.3035",
+          "targetPath": "role",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "nadPartyQualifiers"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "NAD.C082.3039",
+          "targetPath": "id",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "NAD.C082.1131",
+          "targetPath": "idCodeListAgency",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "NAD.C080.3036",
+          "targetPath": "name",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "NAD.C059.3042",
+          "targetPath": "address.line1",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "NAD.C059.3042_2",
+          "targetPath": "address.line2",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "NAD.3164",
+          "targetPath": "address.city",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "NAD.3229",
+          "targetPath": "address.state",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "NAD.3251",
+          "targetPath": "address.postalCode",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "NAD.3207",
+          "targetPath": "address.countryCode",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "CTA.C056.3413",
+          "targetPath": "contactName",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "COM.C076.3148",
+          "targetPath": "contactPhone",
+          "transform": "TRIM",
+          "condition": "COM.C076.3155 == 'TE'",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "COM.C076.3148",
+          "targetPath": "contactEmail",
+          "transform": "TRIM",
+          "condition": "COM.C076.3155 == 'EM'",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "sourceLoop": "LIN",
+      "targetArray": "lineItems",
+      "fieldMappings": [
+        {
+          "sourcePath": "LIN.1082",
+          "targetPath": "lineNumber",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "LIN.C212.7140",
+          "targetPath": "productId",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "LIN.C212.7143",
+          "targetPath": "productIdQualifier",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "productIdQualifiers"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "PIA.C212.7140",
+          "targetPath": "alternateProductId",
+          "transform": "TRIM",
+          "confidence": 0.8
+        },
+        {
+          "sourcePath": "IMD.C273.7008",
+          "targetPath": "description",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "QTY.C186.6060",
+          "targetPath": "quantity",
+          "transform": "COPY",
+          "condition": "QTY.C186.6063 == '21'",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "QTY.C186.6411",
+          "targetPath": "unitOfMeasure",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "unitCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "PRI.C509.5118",
+          "targetPath": "unitPrice",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "PRI.C509.5125",
+          "targetPath": "priceQualifier",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "priceQualifierCodes"
+          },
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "MOA.C516.5004",
+          "targetPath": "lineAmount",
+          "transform": "COPY",
+          "condition": "MOA.C516.5025 == '203'",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "DTM.C507.2380",
+          "targetPath": "requestedDeliveryDate",
+          "transform": "DATE_FORMAT",
+          "transformConfig": {
+            "sourceFormat": "yyyyMMdd",
+            "targetFormat": "yyyy-MM-dd"
+          },
+          "condition": "DTM.C507.2005 == '2'",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "FTX.4440",
+          "targetPath": "lineNote",
+          "transform": "TRIM",
+          "confidence": 0.7
+        }
+      ]
+    }
+  ],
+  "codeTables": {
+    "bgmDocumentTypeCodes": [
+      {
+        "sourceCode": "220",
+        "targetCode": "ORDER",
+        "description": "Order"
+      },
+      {
+        "sourceCode": "221",
+        "targetCode": "BLANKET_ORDER",
+        "description": "Blanket order"
+      },
+      {
+        "sourceCode": "224",
+        "targetCode": "RUSH_ORDER",
+        "description": "Rush order"
+      },
+      {
+        "sourceCode": "226",
+        "targetCode": "CALL_OFF_ORDER",
+        "description": "Call-off order"
+      },
+      {
+        "sourceCode": "227",
+        "targetCode": "CONSIGNMENT_ORDER",
+        "description": "Consignment order"
+      },
+      {
+        "sourceCode": "228",
+        "targetCode": "SAMPLE_ORDER",
+        "description": "Sample order"
+      },
+      {
+        "sourceCode": "245",
+        "targetCode": "RELEASE_ORDER",
+        "description": "Release order (against blanket)"
+      }
+    ],
+    "messageFunctionCodes": [
+      {
+        "sourceCode": "9",
+        "targetCode": "ORIGINAL",
+        "description": "Original"
+      },
+      {
+        "sourceCode": "1",
+        "targetCode": "CANCEL",
+        "description": "Cancellation"
+      },
+      {
+        "sourceCode": "4",
+        "targetCode": "CHANGE",
+        "description": "Change"
+      },
+      {
+        "sourceCode": "5",
+        "targetCode": "REPLACE",
+        "description": "Replace"
+      },
+      {
+        "sourceCode": "31",
+        "targetCode": "COPY",
+        "description": "Copy"
+      },
+      {
+        "sourceCode": "43",
+        "targetCode": "DUPLICATE",
+        "description": "Duplicate"
+      }
+    ],
+    "nadPartyQualifiers": [
+      {
+        "sourceCode": "BY",
+        "targetCode": "BUYER",
+        "description": "Buyer"
+      },
+      {
+        "sourceCode": "SE",
+        "targetCode": "SELLER",
+        "description": "Seller/supplier"
+      },
+      {
+        "sourceCode": "DP",
+        "targetCode": "DELIVERY_PARTY",
+        "description": "Delivery party (ship to)"
+      },
+      {
+        "sourceCode": "IV",
+        "targetCode": "INVOICEE",
+        "description": "Invoicee (bill to)"
+      },
+      {
+        "sourceCode": "SU",
+        "targetCode": "SUPPLIER",
+        "description": "Supplier"
+      },
+      {
+        "sourceCode": "UC",
+        "targetCode": "ULTIMATE_CONSIGNEE",
+        "description": "Ultimate consignee"
+      },
+      {
+        "sourceCode": "AB",
+        "targetCode": "BUYER_AGENT",
+        "description": "Buyer's agent"
+      },
+      {
+        "sourceCode": "CA",
+        "targetCode": "CARRIER",
+        "description": "Carrier"
+      },
+      {
+        "sourceCode": "MF",
+        "targetCode": "MANUFACTURER",
+        "description": "Manufacturer"
+      }
+    ],
+    "productIdQualifiers": [
+      {
+        "sourceCode": "SRV",
+        "targetCode": "GTIN",
+        "description": "GS1 Global Trade Item Number"
+      },
+      {
+        "sourceCode": "EN",
+        "targetCode": "EAN",
+        "description": "EAN article number"
+      },
+      {
+        "sourceCode": "UP",
+        "targetCode": "UPC",
+        "description": "UPC number"
+      },
+      {
+        "sourceCode": "SA",
+        "targetCode": "SUPPLIER_PART",
+        "description": "Supplier article number"
+      },
+      {
+        "sourceCode": "BP",
+        "targetCode": "BUYER_PART",
+        "description": "Buyer article number"
+      },
+      {
+        "sourceCode": "MF",
+        "targetCode": "MANUFACTURER_PART",
+        "description": "Manufacturer part number"
+      }
+    ],
+    "unitCodes": [
+      {
+        "sourceCode": "PCE",
+        "targetCode": "EACH",
+        "description": "Piece/each"
+      },
+      {
+        "sourceCode": "KGM",
+        "targetCode": "KILOGRAM",
+        "description": "Kilogram"
+      },
+      {
+        "sourceCode": "LTR",
+        "targetCode": "LITER",
+        "description": "Liter"
+      },
+      {
+        "sourceCode": "MTR",
+        "targetCode": "METER",
+        "description": "Meter"
+      },
+      {
+        "sourceCode": "CT",
+        "targetCode": "CARTON",
+        "description": "Carton"
+      },
+      {
+        "sourceCode": "BX",
+        "targetCode": "BOX",
+        "description": "Box"
+      },
+      {
+        "sourceCode": "PK",
+        "targetCode": "PACK",
+        "description": "Pack"
+      },
+      {
+        "sourceCode": "SET",
+        "targetCode": "SET",
+        "description": "Set"
+      },
+      {
+        "sourceCode": "TNE",
+        "targetCode": "TONNE",
+        "description": "Metric tonne"
+      },
+      {
+        "sourceCode": "GRM",
+        "targetCode": "GRAM",
+        "description": "Gram"
+      }
+    ],
+    "priceQualifierCodes": [
+      {
+        "sourceCode": "AAA",
+        "targetCode": "CALCULATION_NET",
+        "description": "Calculation net price"
+      },
+      {
+        "sourceCode": "AAB",
+        "targetCode": "CALCULATION_GROSS",
+        "description": "Calculation gross price"
+      },
+      {
+        "sourceCode": "AAE",
+        "targetCode": "INFORMATION_NET",
+        "description": "Information net price"
+      },
+      {
+        "sourceCode": "AAF",
+        "targetCode": "INFORMATION_GROSS",
+        "description": "Information gross price"
+      }
+    ],
+    "deliveryTermsCodes": [
+      {
+        "sourceCode": "1",
+        "targetCode": "CFR",
+        "description": "Cost and freight"
+      },
+      {
+        "sourceCode": "2",
+        "targetCode": "CIF",
+        "description": "Cost, insurance and freight"
+      },
+      {
+        "sourceCode": "4",
+        "targetCode": "DAP",
+        "description": "Delivered at place"
+      },
+      {
+        "sourceCode": "6",
+        "targetCode": "EXW",
+        "description": "Ex works"
+      },
+      {
+        "sourceCode": "7",
+        "targetCode": "FCA",
+        "description": "Free carrier"
+      },
+      {
+        "sourceCode": "8",
+        "targetCode": "FOB",
+        "description": "Free on board"
+      }
+    ],
+    "paymentTermsCodes": [
+      {
+        "sourceCode": "1",
+        "targetCode": "BASIC",
+        "description": "Basic payment terms"
+      },
+      {
+        "sourceCode": "10",
+        "targetCode": "CASH",
+        "description": "Cash with order"
+      },
+      {
+        "sourceCode": "20",
+        "targetCode": "DEFERRED",
+        "description": "Deferred payment"
+      },
+      {
+        "sourceCode": "22",
+        "targetCode": "DISCOUNT_OFFERED",
+        "description": "Discount for prompt payment"
+      },
+      {
+        "sourceCode": "52",
+        "targetCode": "NET_30",
+        "description": "Net 30 days"
+      },
+      {
+        "sourceCode": "54",
+        "targetCode": "NET_60",
+        "description": "Net 60 days"
+      }
+    ]
+  }
+}

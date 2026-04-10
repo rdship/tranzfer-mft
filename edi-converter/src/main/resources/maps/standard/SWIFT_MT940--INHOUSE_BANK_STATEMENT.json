@@ -1,0 +1,389 @@
+{
+  "mapId": "SWIFT_MT940--INHOUSE_BANK_STATEMENT",
+  "name": "SWIFT MT940 Customer Statement to Internal Bank Statement",
+  "version": "1.0.0",
+  "sourceType": "SWIFT_MT940",
+  "targetType": "BANK_STATEMENT_INH",
+  "sourceStandard": "SWIFT",
+  "targetStandard": "INHOUSE",
+  "bidirectional": false,
+  "description": "Standard map for converting SWIFT MT940 Customer Statement to TranzFer internal bank statement format. Maps tag 20 reference, 25 account, 28C statement number, 60F/62F opening/closing balances, and 61/86 transaction details.",
+  "status": "ACTIVE",
+  "confidence": 1.0,
+  "fieldMappings": [
+    {
+      "sourcePath": "20.01",
+      "targetPath": "transactionReference",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "21.01",
+      "targetPath": "relatedReference",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "25.01",
+      "targetPath": "account.accountNumber",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "25.02",
+      "targetPath": "account.currencyCode",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "28C.01",
+      "targetPath": "statementNumber",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "28C.02",
+      "targetPath": "sequenceNumber",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "60F.01",
+      "targetPath": "openingBalance.debitCreditMark",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "debitCreditCodes"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "60F.02",
+      "targetPath": "openingBalance.date",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyMMdd",
+        "targetFormat": "yyyy-MM-dd"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "60F.03",
+      "targetPath": "openingBalance.currency",
+      "transform": "COPY",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "60F.04",
+      "targetPath": "openingBalance.amount",
+      "transform": "COPY",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "60M.01",
+      "targetPath": "openingBalance.debitCreditMark",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "debitCreditCodes"
+      },
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "60M.02",
+      "targetPath": "openingBalance.date",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyMMdd",
+        "targetFormat": "yyyy-MM-dd"
+      },
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "60M.03",
+      "targetPath": "openingBalance.currency",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "60M.04",
+      "targetPath": "openingBalance.amount",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "62F.01",
+      "targetPath": "closingBalance.debitCreditMark",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "debitCreditCodes"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "62F.02",
+      "targetPath": "closingBalance.date",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyMMdd",
+        "targetFormat": "yyyy-MM-dd"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "62F.03",
+      "targetPath": "closingBalance.currency",
+      "transform": "COPY",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "62F.04",
+      "targetPath": "closingBalance.amount",
+      "transform": "COPY",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "64.01",
+      "targetPath": "closingAvailableBalance.debitCreditMark",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "debitCreditCodes"
+      },
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "64.02",
+      "targetPath": "closingAvailableBalance.date",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyMMdd",
+        "targetFormat": "yyyy-MM-dd"
+      },
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "64.03",
+      "targetPath": "closingAvailableBalance.currency",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "64.04",
+      "targetPath": "closingAvailableBalance.amount",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "65.04",
+      "targetPath": "forwardAvailableBalance.amount",
+      "transform": "COPY",
+      "confidence": 0.8
+    }
+  ],
+  "loopMappings": [
+    {
+      "sourceLoop": "61",
+      "targetArray": "transactions",
+      "fieldMappings": [
+        {
+          "sourcePath": "61.01",
+          "targetPath": "valueDate",
+          "transform": "DATE_FORMAT",
+          "transformConfig": {
+            "sourceFormat": "yyMMdd",
+            "targetFormat": "yyyy-MM-dd"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "61.02",
+          "targetPath": "entryDate",
+          "transform": "DATE_FORMAT",
+          "transformConfig": {
+            "sourceFormat": "MMdd",
+            "targetFormat": "MM-dd"
+          },
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "61.03",
+          "targetPath": "debitCreditMark",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "debitCreditCodes"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "61.04",
+          "targetPath": "fundsCode",
+          "transform": "COPY",
+          "confidence": 0.8
+        },
+        {
+          "sourcePath": "61.05",
+          "targetPath": "amount",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "61.06",
+          "targetPath": "transactionTypeCode",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "transactionTypeCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "61.07",
+          "targetPath": "customerReference",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "61.08",
+          "targetPath": "bankReference",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "61.09",
+          "targetPath": "supplementaryDetails",
+          "transform": "TRIM",
+          "confidence": 0.8
+        },
+        {
+          "sourcePath": "86.01",
+          "targetPath": "informationToAccountOwner",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "86.02",
+          "targetPath": "additionalInfo",
+          "transform": "TRIM",
+          "confidence": 0.8
+        }
+      ]
+    }
+  ],
+  "codeTables": {
+    "debitCreditCodes": [
+      {
+        "sourceCode": "C",
+        "targetCode": "CREDIT",
+        "description": "Credit"
+      },
+      {
+        "sourceCode": "D",
+        "targetCode": "DEBIT",
+        "description": "Debit"
+      },
+      {
+        "sourceCode": "RC",
+        "targetCode": "REVERSAL_CREDIT",
+        "description": "Reversal of credit"
+      },
+      {
+        "sourceCode": "RD",
+        "targetCode": "REVERSAL_DEBIT",
+        "description": "Reversal of debit"
+      },
+      {
+        "sourceCode": "EC",
+        "targetCode": "EXPECTED_CREDIT",
+        "description": "Expected credit"
+      },
+      {
+        "sourceCode": "ED",
+        "targetCode": "EXPECTED_DEBIT",
+        "description": "Expected debit"
+      }
+    ],
+    "transactionTypeCodes": [
+      {
+        "sourceCode": "S",
+        "targetCode": "SWIFT_TRANSFER",
+        "description": "SWIFT transfer"
+      },
+      {
+        "sourceCode": "N",
+        "targetCode": "NON_SWIFT",
+        "description": "Non-SWIFT transfer"
+      },
+      {
+        "sourceCode": "F",
+        "targetCode": "FIRST_ADVICE",
+        "description": "First advice (used by some banks for initial notification)"
+      },
+      {
+        "sourceCode": "NTRF",
+        "targetCode": "TRANSFER",
+        "description": "Transfer"
+      },
+      {
+        "sourceCode": "NCHK",
+        "targetCode": "CHEQUE",
+        "description": "Cheque"
+      },
+      {
+        "sourceCode": "NDDT",
+        "targetCode": "DIRECT_DEBIT",
+        "description": "Direct debit"
+      },
+      {
+        "sourceCode": "NCOL",
+        "targetCode": "COLLECTION",
+        "description": "Collection"
+      },
+      {
+        "sourceCode": "NDIV",
+        "targetCode": "DIVIDEND",
+        "description": "Dividend"
+      },
+      {
+        "sourceCode": "NINT",
+        "targetCode": "INTEREST",
+        "description": "Interest"
+      },
+      {
+        "sourceCode": "NCHG",
+        "targetCode": "CHARGES",
+        "description": "Charges and fees"
+      },
+      {
+        "sourceCode": "NMSC",
+        "targetCode": "MISCELLANEOUS",
+        "description": "Miscellaneous"
+      },
+      {
+        "sourceCode": "NRTI",
+        "targetCode": "RETURNED_ITEM",
+        "description": "Returned item"
+      },
+      {
+        "sourceCode": "NBOE",
+        "targetCode": "BILL_OF_EXCHANGE",
+        "description": "Bill of exchange"
+      },
+      {
+        "sourceCode": "NCLR",
+        "targetCode": "CASH_LETTER",
+        "description": "Cash letter/remittance"
+      }
+    ]
+  }
+}

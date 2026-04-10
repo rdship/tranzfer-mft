@@ -1,0 +1,288 @@
+{
+  "mapId": "SWIFT_MT103--ISO20022_PACS008--BIDI",
+  "name": "SWIFT MT103 to ISO 20022 pacs.008 Migration Map",
+  "version": "1.0.0",
+  "sourceType": "SWIFT_MT103",
+  "targetType": "ISO20022_PACS008",
+  "sourceStandard": "SWIFT",
+  "targetStandard": "ISO20022",
+  "bidirectional": true,
+  "description": "Cross-standard migration map for converting SWIFT MT103 Single Customer Credit Transfer to ISO 20022 pacs.008.001 FI to FI Customer Credit Transfer. Supports SWIFT CBPR+ migration with bidirectional field mapping including BIC translations, amount/currency, and party information.",
+  "status": "ACTIVE",
+  "confidence": 1.0,
+  "fieldMappings": [
+    {
+      "sourcePath": "20.01",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.PmtId.TxId",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "20.01",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.PmtId.EndToEndId",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "23B.01",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.PmtTpInf.SvcLvl.Cd",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "bankOpToServiceLevel"
+      },
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "32A.01",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.IntrBkSttlmDt",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyMMdd",
+        "targetFormat": "yyyy-MM-dd"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "32A.02",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.IntrBkSttlmAmt.Ccy",
+      "transform": "COPY",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "32A.03",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.IntrBkSttlmAmt",
+      "transform": "COPY",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "33B.01",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.InstdAmt.Ccy",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "33B.02",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.InstdAmt",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "50K.01",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.DbtrAcct.Id.Othr.Id",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "50K.02",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.Dbtr.Nm",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "50K.03",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.Dbtr.PstlAdr.AdrLine",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "50A.01",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.DbtrAcct.Id.Othr.Id",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "52A.01",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.DbtrAgt.FinInstnId.BICFI",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "53A.01",
+      "targetPath": "FIToFICstmrCdtTrf.GrpHdr.SttlmInf.SttlmAcct.Id.Othr.Id",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "54A.01",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.IntrmyAgt1.FinInstnId.BICFI",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "56A.01",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.IntrmyAgt1.FinInstnId.BICFI",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "57A.01",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.CdtrAgt.FinInstnId.BICFI",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "59.01",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.CdtrAcct.Id.Othr.Id",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "59.02",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.Cdtr.Nm",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "59.03",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.Cdtr.PstlAdr.AdrLine",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "70.01",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.RmtInf.Ustrd",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "71A.01",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.ChrgBr",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "chargesToChargeBearer"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "71F.01",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.ChrgsInf.Amt",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "71G.01",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.ChrgsInf.Amt",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "72.01",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.InstrForCdtrAgt.InstrInf",
+      "transform": "TRIM",
+      "confidence": 0.8
+    },
+    {
+      "sourcePath": "77B.01",
+      "targetPath": "FIToFICstmrCdtTrf.CdtTrfTxInf.RgltryRptg.Dtls.Inf",
+      "transform": "TRIM",
+      "confidence": 0.7
+    }
+  ],
+  "loopMappings": [],
+  "codeTables": {
+    "bankOpToServiceLevel": [
+      {
+        "sourceCode": "CRED",
+        "targetCode": "NURG",
+        "description": "Customer credit transfer -> Non-urgent"
+      },
+      {
+        "sourceCode": "CRTS",
+        "targetCode": "NURG",
+        "description": "Testing credit transfer -> Non-urgent"
+      },
+      {
+        "sourceCode": "SPAY",
+        "targetCode": "SDVA",
+        "description": "Special payment -> Same day value"
+      },
+      {
+        "sourceCode": "SPRI",
+        "targetCode": "PRPT",
+        "description": "Priority payment -> Priority"
+      },
+      {
+        "sourceCode": "SSTD",
+        "targetCode": "NURG",
+        "description": "Standard payment -> Non-urgent"
+      }
+    ],
+    "chargesToChargeBearer": [
+      {
+        "sourceCode": "BEN",
+        "targetCode": "CRED",
+        "description": "Beneficiary -> Creditor pays all charges"
+      },
+      {
+        "sourceCode": "OUR",
+        "targetCode": "DEBT",
+        "description": "Ordering customer -> Debtor pays all charges"
+      },
+      {
+        "sourceCode": "SHA",
+        "targetCode": "SHAR",
+        "description": "Shared -> Each party pays own charges"
+      }
+    ],
+    "mt103FieldToIso20022Path": [
+      {
+        "sourceCode": "13C",
+        "targetCode": "SttlmTmIndctn",
+        "description": "Time indication -> Settlement time indication"
+      },
+      {
+        "sourceCode": "23E",
+        "targetCode": "InstrForCdtrAgt/InstrForNxtAgt",
+        "description": "Instruction code -> Instruction for creditor agent"
+      },
+      {
+        "sourceCode": "26T",
+        "targetCode": "Purp.Cd",
+        "description": "Transaction type code -> Purpose code"
+      },
+      {
+        "sourceCode": "36",
+        "targetCode": "XchgRate",
+        "description": "Exchange rate"
+      },
+      {
+        "sourceCode": "50A",
+        "targetCode": "Dbtr+DbtrAcct",
+        "description": "Ordering customer (Option A) -> Debtor + Debtor account (BIC)"
+      },
+      {
+        "sourceCode": "50F",
+        "targetCode": "Dbtr+DbtrAcct",
+        "description": "Ordering customer (Option F) -> Debtor + Debtor account (structured)"
+      },
+      {
+        "sourceCode": "50K",
+        "targetCode": "Dbtr+DbtrAcct",
+        "description": "Ordering customer (Option K) -> Debtor + Debtor account (name/addr)"
+      },
+      {
+        "sourceCode": "59",
+        "targetCode": "Cdtr+CdtrAcct",
+        "description": "Beneficiary (no option) -> Creditor + Creditor account"
+      },
+      {
+        "sourceCode": "59A",
+        "targetCode": "Cdtr+CdtrAcct",
+        "description": "Beneficiary (Option A) -> Creditor + Creditor account (BIC)"
+      },
+      {
+        "sourceCode": "59F",
+        "targetCode": "Cdtr+CdtrAcct",
+        "description": "Beneficiary (Option F) -> Creditor + Creditor account (structured)"
+      }
+    ]
+  }
+}

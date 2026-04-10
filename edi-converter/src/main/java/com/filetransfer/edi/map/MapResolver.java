@@ -4,7 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.filetransfer.edi.service.TrainedMapConsumer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import jakarta.annotation.PostConstruct;
 import java.io.InputStream;
@@ -32,6 +36,11 @@ public class MapResolver {
 
     // Index of available standard maps (loaded at startup, maps loaded lazily)
     private final Map<String, String> standardMapIndex = new ConcurrentHashMap<>();
+
+    @Value("${platform.services.ai-engine.url:http://ai-engine:8091}")
+    private String aiEngineUrl;
+
+    private final RestTemplate partnerMapRestTemplate = new RestTemplate();
 
     @Autowired(required = false)
     private TrainedMapConsumer trainedMapConsumer;
@@ -119,35 +128,27 @@ public class MapResolver {
     // --- internal ---
 
     private void buildStandardMapIndex() {
-        // Scan classpath for map JSON files
-        String[] mapFiles = {
-            "STD-PO-001", "STD-PO-002", "STD-PO-003",
-            "STD-INV-001", "STD-INV-002", "STD-INV-003",
-            "STD-ASN-001", "STD-ASN-002", "STD-ASN-003",
-            "STD-PAY-001", "STD-PAY-002",
-            "STD-ACK-001", "STD-ACK-002", "STD-ACK-003",
-            "STD-SWF-001", "STD-SWF-002", "STD-SWF-005", "STD-SWF-006", "STD-SWF-007",
-            "STD-ACH-001", "STD-ACH-002",
-            "STD-HIP-001", "STD-HIP-002", "STD-HIP-003",
-            "STD-BAI-001",
-            "STD-TRD-001", "STD-TRD-002"
-        };
-
-        for (String mapId : mapFiles) {
-            try (InputStream is = getClass().getResourceAsStream("/maps/standard/" + mapId + ".json")) {
-                if (is != null) {
+        // Auto-discover all map JSON files from classpath — no hardcoded array needed
+        try {
+            PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+            Resource[] resources = resolver.getResources("classpath:maps/standard/*.json");
+            for (Resource resource : resources) {
+                try (InputStream is = resource.getInputStream()) {
                     ConversionMapDefinition map = objectMapper.readValue(is, ConversionMapDefinition.class);
                     String key = map.getSourceType() + ":" + map.getTargetType();
-                    standardMapIndex.put(key, mapId);
-                    standardMaps.put(mapId, map);
+                    standardMapIndex.put(key, map.getMapId());
+                    standardMaps.put(map.getMapId(), map);
                     if (map.isBidirectional()) {
                         String reverseKey = map.getTargetType() + ":" + map.getSourceType();
-                        standardMapIndex.put(reverseKey, mapId + "_REV");
+                        standardMapIndex.put(reverseKey, map.getMapId() + "_REV");
                     }
+                    log.debug("Indexed standard map: {} → {}", map.getMapId(), key);
+                } catch (Exception e) {
+                    log.warn("Failed to index map {}: {}", resource.getFilename(), e.getMessage());
                 }
-            } catch (Exception e) {
-                log.warn("Failed to index standard map {}: {}", mapId, e.getMessage());
             }
+        } catch (Exception e) {
+            log.warn("Failed to scan standard maps directory: {}", e.getMessage());
         }
     }
 
@@ -212,6 +213,7 @@ public class MapResolver {
         return Optional.empty();
     }
 
+    @SuppressWarnings("unchecked")
     private Optional<ConversionMapDefinition> getPartnerMap(String partnerId, String sourceType, String targetType) {
         String cacheKey = partnerId + ":" + sourceType + ":" + targetType;
         CacheEntry cached = partnerMapCache.get(cacheKey);
@@ -219,8 +221,61 @@ public class MapResolver {
             return Optional.ofNullable(cached.map());
         }
 
-        // Partner maps fetched from ai-engine DB via REST — placeholder for future wiring
-        // Cache the miss
+        // Fetch active partner map from ai-engine
+        try {
+            String url = aiEngineUrl + "/api/v1/edi/maps/partner/" + partnerId
+                    + "?sourceType=" + sourceType + "&targetType=" + targetType;
+            List<Map<String, Object>> maps = partnerMapRestTemplate.getForObject(url, List.class);
+
+            if (maps != null && !maps.isEmpty()) {
+                Map<String, Object> first = maps.get(0);
+                String fieldMappingsJson = (String) first.get("fieldMappingsJson");
+
+                // Parse field mappings from JSON
+                List<ConversionMapDefinition.FieldMapping> fieldMappings = new ArrayList<>();
+                if (fieldMappingsJson != null && !fieldMappingsJson.isBlank()) {
+                    try {
+                        List<Map<String, Object>> rawMappings = objectMapper.readValue(fieldMappingsJson, List.class);
+                        for (Map<String, Object> fm : rawMappings) {
+                            fieldMappings.add(ConversionMapDefinition.FieldMapping.builder()
+                                    .sourcePath((String) fm.get("sourcePath"))
+                                    .targetPath((String) fm.get("targetPath"))
+                                    .transform((String) fm.getOrDefault("transform", "COPY"))
+                                    .confidence(fm.containsKey("confidence")
+                                            ? ((Number) fm.get("confidence")).doubleValue() : 1.0)
+                                    .build());
+                        }
+                    } catch (Exception e) {
+                        log.warn("Failed to parse partner map field mappings: {}", e.getMessage());
+                    }
+                }
+
+                ConversionMapDefinition map = ConversionMapDefinition.builder()
+                        .mapId((String) first.get("id"))
+                        .name((String) first.get("name"))
+                        .version(String.valueOf(first.getOrDefault("version", 1)))
+                        .sourceType((String) first.get("sourceType"))
+                        .targetType((String) first.get("targetType"))
+                        .sourceStandard((String) first.get("sourceFormat"))
+                        .targetStandard((String) first.get("targetFormat"))
+                        .status((String) first.get("status"))
+                        .confidence(first.containsKey("confidence")
+                                ? ((Number) first.get("confidence")).doubleValue() / 100.0 : 1.0)
+                        .fieldMappings(fieldMappings)
+                        .build();
+
+                // Cache with 5-minute TTL
+                partnerMapCache.put(cacheKey, new CacheEntry(map, System.currentTimeMillis() + 300_000L));
+                log.debug("Fetched partner map '{}' for partner {} ({} field mappings)",
+                        map.getMapId(), partnerId, fieldMappings.size());
+                return Optional.of(map);
+            }
+        } catch (Exception e) {
+            log.debug("Partner map lookup failed for partner={}, {}->{}: {}",
+                    partnerId, sourceType, targetType, e.getMessage());
+        }
+
+        // Cache the miss with shorter TTL (1 min)
         partnerMapCache.put(cacheKey, new CacheEntry(null, System.currentTimeMillis() + 60_000L));
         return Optional.empty();
     }

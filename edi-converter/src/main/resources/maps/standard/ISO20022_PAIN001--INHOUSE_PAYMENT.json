@@ -1,0 +1,384 @@
+{
+  "mapId": "ISO20022_PAIN001--INHOUSE_PAYMENT",
+  "name": "ISO 20022 pain.001 Customer Credit Transfer Initiation to Internal Payment",
+  "version": "1.0.0",
+  "sourceType": "ISO20022_PAIN001",
+  "targetType": "PAYMENT_INH",
+  "sourceStandard": "ISO20022",
+  "targetStandard": "INHOUSE",
+  "bidirectional": false,
+  "description": "Standard map for converting ISO 20022 pain.001.001 (Customer Credit Transfer Initiation) to TranzFer internal payment format. Maps GrpHdr, PmtInf payment info block, CdtTrfTxInf individual transfers.",
+  "status": "ACTIVE",
+  "confidence": 1.0,
+  "fieldMappings": [
+    {
+      "sourcePath": "CstmrCdtTrfInitn.GrpHdr.MsgId",
+      "targetPath": "messageId",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "CstmrCdtTrfInitn.GrpHdr.CreDtTm",
+      "targetPath": "creationDateTime",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyy-MM-dd'T'HH:mm:ss",
+        "targetFormat": "yyyy-MM-dd'T'HH:mm:ss"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "CstmrCdtTrfInitn.GrpHdr.NbOfTxs",
+      "targetPath": "numberOfTransactions",
+      "transform": "COPY",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "CstmrCdtTrfInitn.GrpHdr.CtrlSum",
+      "targetPath": "controlSum",
+      "transform": "COPY",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "CstmrCdtTrfInitn.GrpHdr.InitgPty.Nm",
+      "targetPath": "initiatingParty.name",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "CstmrCdtTrfInitn.GrpHdr.InitgPty.Id.OrgId.BICOrBEI",
+      "targetPath": "initiatingParty.bic",
+      "transform": "TRIM",
+      "confidence": 0.9
+    }
+  ],
+  "loopMappings": [
+    {
+      "sourceLoop": "PmtInf",
+      "targetArray": "paymentInstructions",
+      "fieldMappings": [
+        {
+          "sourcePath": "PmtInfId",
+          "targetPath": "paymentInfoId",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "PmtMtd",
+          "targetPath": "paymentMethod",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "paymentMethodCodes"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "BtchBookg",
+          "targetPath": "batchBooking",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "NbOfTxs",
+          "targetPath": "numberOfTransactions",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "CtrlSum",
+          "targetPath": "controlSum",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "PmtTpInf.SvcLvl.Cd",
+          "targetPath": "serviceLevel",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "serviceLevelCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "PmtTpInf.LclInstrm.Cd",
+          "targetPath": "localInstrument",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "PmtTpInf.CtgyPurp.Cd",
+          "targetPath": "categoryPurpose",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "ReqdExctnDt",
+          "targetPath": "requestedExecutionDate",
+          "transform": "DATE_FORMAT",
+          "transformConfig": {
+            "sourceFormat": "yyyy-MM-dd",
+            "targetFormat": "yyyy-MM-dd"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "Dbtr.Nm",
+          "targetPath": "debtor.name",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "Dbtr.PstlAdr.StrtNm",
+          "targetPath": "debtor.address.streetName",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "Dbtr.PstlAdr.TwnNm",
+          "targetPath": "debtor.address.city",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "Dbtr.PstlAdr.Ctry",
+          "targetPath": "debtor.address.country",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "DbtrAcct.Id.IBAN",
+          "targetPath": "debtor.iban",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "DbtrAcct.Id.Othr.Id",
+          "targetPath": "debtor.accountNumber",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "DbtrAgt.FinInstnId.BICFI",
+          "targetPath": "debtorAgent.bic",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "ChrgBr",
+          "targetPath": "chargeBearer",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "chargeBearerCodes"
+          },
+          "confidence": 1.0
+        }
+      ]
+    },
+    {
+      "sourceLoop": "CdtTrfTxInf",
+      "targetArray": "creditTransfers",
+      "fieldMappings": [
+        {
+          "sourcePath": "PmtId.InstrId",
+          "targetPath": "instructionId",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "PmtId.EndToEndId",
+          "targetPath": "endToEndId",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "Amt.InstdAmt",
+          "targetPath": "amount",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "Amt.InstdAmt.Ccy",
+          "targetPath": "currency",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "Amt.EqvtAmt.Amt",
+          "targetPath": "equivalentAmount",
+          "transform": "COPY",
+          "confidence": 0.8
+        },
+        {
+          "sourcePath": "Amt.EqvtAmt.CcyOfTrf",
+          "targetPath": "equivalentCurrency",
+          "transform": "COPY",
+          "confidence": 0.8
+        },
+        {
+          "sourcePath": "CdtrAgt.FinInstnId.BICFI",
+          "targetPath": "creditorAgent.bic",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "CdtrAgt.FinInstnId.ClrSysMmbId.MmbId",
+          "targetPath": "creditorAgent.clearingMemberId",
+          "transform": "TRIM",
+          "confidence": 0.8
+        },
+        {
+          "sourcePath": "Cdtr.Nm",
+          "targetPath": "creditor.name",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "Cdtr.PstlAdr.StrtNm",
+          "targetPath": "creditor.address.streetName",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "Cdtr.PstlAdr.TwnNm",
+          "targetPath": "creditor.address.city",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "Cdtr.PstlAdr.PstCd",
+          "targetPath": "creditor.address.postalCode",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "Cdtr.PstlAdr.Ctry",
+          "targetPath": "creditor.address.country",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "CdtrAcct.Id.IBAN",
+          "targetPath": "creditor.iban",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "CdtrAcct.Id.Othr.Id",
+          "targetPath": "creditor.accountNumber",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "Purp.Cd",
+          "targetPath": "purposeCode",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "RmtInf.Ustrd",
+          "targetPath": "remittanceInfoUnstructured",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "RmtInf.Strd.CdtrRefInf.Ref",
+          "targetPath": "creditorReference",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "RmtInf.Strd.RfrdDocInf.Nb",
+          "targetPath": "invoiceNumber",
+          "transform": "TRIM",
+          "confidence": 0.9
+        }
+      ]
+    }
+  ],
+  "codeTables": {
+    "paymentMethodCodes": [
+      {
+        "sourceCode": "TRF",
+        "targetCode": "CREDIT_TRANSFER",
+        "description": "Credit transfer"
+      },
+      {
+        "sourceCode": "TRA",
+        "targetCode": "CREDIT_TRANSFER_ADVANCE",
+        "description": "Credit transfer with advance notification"
+      },
+      {
+        "sourceCode": "CHK",
+        "targetCode": "CHEQUE",
+        "description": "Cheque"
+      }
+    ],
+    "serviceLevelCodes": [
+      {
+        "sourceCode": "SEPA",
+        "targetCode": "SEPA",
+        "description": "SEPA payment"
+      },
+      {
+        "sourceCode": "SDVA",
+        "targetCode": "SAME_DAY_VALUE",
+        "description": "Same day value"
+      },
+      {
+        "sourceCode": "PRPT",
+        "targetCode": "PRIORITY",
+        "description": "Priority payment"
+      },
+      {
+        "sourceCode": "NURG",
+        "targetCode": "NON_URGENT",
+        "description": "Non-urgent payment"
+      },
+      {
+        "sourceCode": "URGP",
+        "targetCode": "URGENT",
+        "description": "Urgent payment"
+      },
+      {
+        "sourceCode": "G001",
+        "targetCode": "INST",
+        "description": "Instant payment"
+      }
+    ],
+    "chargeBearerCodes": [
+      {
+        "sourceCode": "DEBT",
+        "targetCode": "DEBTOR",
+        "description": "All charges borne by debtor"
+      },
+      {
+        "sourceCode": "CRED",
+        "targetCode": "CREDITOR",
+        "description": "All charges borne by creditor"
+      },
+      {
+        "sourceCode": "SHAR",
+        "targetCode": "SHARED",
+        "description": "Charges shared"
+      },
+      {
+        "sourceCode": "SLEV",
+        "targetCode": "SERVICE_LEVEL",
+        "description": "Charges as per service level"
+      }
+    ]
+  }
+}

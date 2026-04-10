@@ -1,0 +1,487 @@
+{
+  "mapId": "INHOUSE_INVOICE--X12_810",
+  "name": "Internal Invoice to X12 810 Invoice",
+  "version": "1.0.0",
+  "sourceType": "INVOICE_INH",
+  "targetType": "X12_810",
+  "sourceStandard": "INHOUSE",
+  "targetStandard": "X12",
+  "bidirectional": false,
+  "description": "Outbound map for generating ANSI X12 810 Invoice from TranzFer internal format. Builds ISA/GS/ST envelope, BIG, N1/N3/N4, IT1/PID segments from INHOUSE fields.",
+  "status": "ACTIVE",
+  "confidence": 1.0,
+  "fieldMappings": [
+    {
+      "sourcePath": "senderId",
+      "targetPath": "ISA.06",
+      "transform": "PAD_RIGHT",
+      "transformConfig": {
+        "length": "15",
+        "padChar": " "
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "receiverId",
+      "targetPath": "ISA.08",
+      "transform": "PAD_RIGHT",
+      "transformConfig": {
+        "length": "15",
+        "padChar": " "
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "controlNumber",
+      "targetPath": "ISA.13",
+      "transform": "PAD_LEFT",
+      "transformConfig": {
+        "length": "9",
+        "padChar": "0"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "senderId",
+      "targetPath": "GS.02",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "receiverId",
+      "targetPath": "GS.03",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "invoiceDate",
+      "targetPath": "BIG.01",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyy-MM-dd",
+        "targetFormat": "yyyyMMdd"
+      },
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "invoiceNumber",
+      "targetPath": "BIG.02",
+      "transform": "TRIM",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "purchaseOrderDate",
+      "targetPath": "BIG.03",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyy-MM-dd",
+        "targetFormat": "yyyyMMdd"
+      },
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "purchaseOrderNumber",
+      "targetPath": "BIG.04",
+      "transform": "TRIM",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "transactionType",
+      "targetPath": "BIG.07",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "invoiceTypeCodes"
+      },
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "currency",
+      "targetPath": "CUR.02",
+      "transform": "COPY",
+      "defaultValue": "USD",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "referenceNumber",
+      "targetPath": "REF.02",
+      "transform": "TRIM",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "paymentTermsType",
+      "targetPath": "ITD.01",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "paymentTermsCodes"
+      },
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "discountPercent",
+      "targetPath": "ITD.02",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "discountDaysDue",
+      "targetPath": "ITD.05",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "netDays",
+      "targetPath": "ITD.07",
+      "transform": "COPY",
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "paymentTermsDescription",
+      "targetPath": "ITD.12",
+      "transform": "TRIM",
+      "confidence": 0.8
+    },
+    {
+      "sourcePath": "dueDate",
+      "targetPath": "DTM.02",
+      "transform": "DATE_FORMAT",
+      "transformConfig": {
+        "sourceFormat": "yyyy-MM-dd",
+        "targetFormat": "yyyyMMdd"
+      },
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "totalAmount",
+      "targetPath": "TDS.01",
+      "transform": "COPY",
+      "required": true,
+      "confidence": 1.0
+    },
+    {
+      "sourcePath": "amountSubjectToDiscount",
+      "targetPath": "TDS.02",
+      "transform": "COPY",
+      "confidence": 0.8
+    },
+    {
+      "sourcePath": "taxAmount",
+      "targetPath": "TXI.02",
+      "transform": "COPY",
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "taxType",
+      "targetPath": "TXI.01",
+      "transform": "LOOKUP",
+      "transformConfig": {
+        "table": "taxTypeCodes"
+      },
+      "confidence": 0.9
+    },
+    {
+      "sourcePath": "serviceChargeAmount",
+      "targetPath": "SAC.05",
+      "transform": "COPY",
+      "confidence": 0.8
+    },
+    {
+      "sourcePath": "totalLineItems",
+      "targetPath": "CTT.01",
+      "transform": "COPY",
+      "confidence": 1.0
+    }
+  ],
+  "loopMappings": [
+    {
+      "sourceLoop": "parties",
+      "targetArray": "N1",
+      "fieldMappings": [
+        {
+          "sourcePath": "role",
+          "targetPath": "N1.01",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "entityCodes"
+          },
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "name",
+          "targetPath": "N1.02",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "idQualifier",
+          "targetPath": "N1.03",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "id",
+          "targetPath": "N1.04",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "address.line1",
+          "targetPath": "N3.01",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "address.line2",
+          "targetPath": "N3.02",
+          "transform": "TRIM",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "address.city",
+          "targetPath": "N4.01",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "address.state",
+          "targetPath": "N4.02",
+          "transform": "COPY",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "address.postalCode",
+          "targetPath": "N4.03",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "address.country",
+          "targetPath": "N4.04",
+          "transform": "COPY",
+          "defaultValue": "US",
+          "confidence": 1.0
+        }
+      ]
+    },
+    {
+      "sourceLoop": "lineItems",
+      "targetArray": "IT1",
+      "fieldMappings": [
+        {
+          "sourcePath": "lineNumber",
+          "targetPath": "IT1.01",
+          "transform": "TRIM",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "quantityInvoiced",
+          "targetPath": "IT1.02",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "unitOfMeasure",
+          "targetPath": "IT1.03",
+          "transform": "LOOKUP",
+          "transformConfig": {
+            "table": "unitCodes"
+          },
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "unitPrice",
+          "targetPath": "IT1.04",
+          "transform": "COPY",
+          "required": true,
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "productIdQualifier",
+          "targetPath": "IT1.06",
+          "transform": "COPY",
+          "confidence": 0.9
+        },
+        {
+          "sourcePath": "productId",
+          "targetPath": "IT1.07",
+          "transform": "TRIM",
+          "confidence": 1.0
+        },
+        {
+          "sourcePath": "alternateProductId",
+          "targetPath": "IT1.09",
+          "transform": "TRIM",
+          "confidence": 0.8
+        },
+        {
+          "sourcePath": "description",
+          "targetPath": "PID.05",
+          "transform": "TRIM",
+          "confidence": 0.9
+        }
+      ]
+    }
+  ],
+  "codeTables": {
+    "invoiceTypeCodes": [
+      {
+        "sourceCode": "DEBIT_INVOICE",
+        "targetCode": "DI",
+        "description": "Debit invoice"
+      },
+      {
+        "sourceCode": "CREDIT_MEMO",
+        "targetCode": "CR",
+        "description": "Credit memo"
+      },
+      {
+        "sourceCode": "DEBIT_MEMO",
+        "targetCode": "DR",
+        "description": "Debit memo"
+      },
+      {
+        "sourceCode": "CREDIT_NOTE",
+        "targetCode": "CN",
+        "description": "Credit note"
+      }
+    ],
+    "paymentTermsCodes": [
+      {
+        "sourceCode": "BASIC",
+        "targetCode": "01",
+        "description": "Basic terms"
+      },
+      {
+        "sourceCode": "END_OF_MONTH",
+        "targetCode": "02",
+        "description": "End of month"
+      },
+      {
+        "sourceCode": "FIXED_DATE",
+        "targetCode": "03",
+        "description": "Fixed date"
+      },
+      {
+        "sourceCode": "DEFERRED",
+        "targetCode": "04",
+        "description": "Deferred payment"
+      },
+      {
+        "sourceCode": "BASIC_DISCOUNT",
+        "targetCode": "08",
+        "description": "Basic discount offered"
+      },
+      {
+        "sourceCode": "NET_NET",
+        "targetCode": "12",
+        "description": "Net, no discount"
+      },
+      {
+        "sourceCode": "PREVIOUSLY_AGREED",
+        "targetCode": "14",
+        "description": "Previously agreed upon"
+      }
+    ],
+    "entityCodes": [
+      {
+        "sourceCode": "BUYER",
+        "targetCode": "BY",
+        "description": "Buyer"
+      },
+      {
+        "sourceCode": "SELLER",
+        "targetCode": "SE",
+        "description": "Seller"
+      },
+      {
+        "sourceCode": "SHIP_TO",
+        "targetCode": "ST",
+        "description": "Ship to"
+      },
+      {
+        "sourceCode": "BILL_TO",
+        "targetCode": "BT",
+        "description": "Bill to"
+      },
+      {
+        "sourceCode": "REMIT_TO",
+        "targetCode": "RI",
+        "description": "Remit to"
+      },
+      {
+        "sourceCode": "ISSUER_OF_INVOICE",
+        "targetCode": "II",
+        "description": "Issuer of invoice"
+      }
+    ],
+    "unitCodes": [
+      {
+        "sourceCode": "EACH",
+        "targetCode": "EA",
+        "description": "Each"
+      },
+      {
+        "sourceCode": "CASE",
+        "targetCode": "CS",
+        "description": "Case"
+      },
+      {
+        "sourceCode": "BOX",
+        "targetCode": "BX",
+        "description": "Box"
+      },
+      {
+        "sourceCode": "PACK",
+        "targetCode": "PK",
+        "description": "Pack"
+      },
+      {
+        "sourceCode": "POUND",
+        "targetCode": "LB",
+        "description": "Pound"
+      },
+      {
+        "sourceCode": "KILOGRAM",
+        "targetCode": "KG",
+        "description": "Kilogram"
+      }
+    ],
+    "taxTypeCodes": [
+      {
+        "sourceCode": "STATE_TAX",
+        "targetCode": "ST",
+        "description": "State sales tax"
+      },
+      {
+        "sourceCode": "CITY_TAX",
+        "targetCode": "CT",
+        "description": "City tax"
+      },
+      {
+        "sourceCode": "FEDERAL_TAX",
+        "targetCode": "FD",
+        "description": "Federal tax"
+      },
+      {
+        "sourceCode": "VAT",
+        "targetCode": "VA",
+        "description": "Value added tax"
+      },
+      {
+        "sourceCode": "GST",
+        "targetCode": "GS",
+        "description": "Goods and services tax"
+      }
+    ]
+  }
+}
