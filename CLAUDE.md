@@ -34,7 +34,7 @@ All repositories are interfaces → safe to @Mock
 --add-opens java.base/java.lang=ALL-UNNAMED +reflect +util +invoke +io, -XX:+EnableDynamicAgentLoading
 
 ## Architecture
-- 24 modules (22 services + api-gateway + cli), shared library with 84 JPA entities
+- 24 modules (22 services + api-gateway + cli), shared library with 100 JPA entities
 - REST via ResilientServiceClient (circuit breaker+retry)
 - **Service identity**: SPIFFE/SPIRE — REQUIRED (X-Internal-Key removed; SPIFFE is the only inter-service auth)
   - Default ON: `SPIFFE_ENABLED=true` in docker-compose. Fresh install: fully automatic via spire-init container.
