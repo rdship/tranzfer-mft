@@ -465,6 +465,567 @@ public void stream(@PathVariable String sha256, HttpServletResponse response) th
 
 ---
 
-*This document is the design proposal. Implementation begins with streaming reads + zero-copy
-(GAPs 1, 7, 10), then S3 multipart (GAP 2), then WAIL + atomic tier moves (GAPs 3, 6),
-then resumable uploads (GAP 5), then lane system (GAP 8).*
+---
+
+# Part 2: The Flow Execution Engine — Beyond DAGs
+
+## Why Not a DAG?
+
+DAG (Directed Acyclic Graph) is what Airflow, Prefect, and Dagster use. It's already outdated
+for real-time, distributed file processing. Here's what changed:
+
+| Limitation | Impact on MFT |
+|-----------|--------------|
+| **Acyclic** — no loops by definition | Can't express retry sub-graphs natively |
+| **Static topology** — graph fixed at design time | Can't add delivery endpoints at runtime |
+| **Batch-oriented** — designed for scheduled ETL | Files arrive continuously, not in batches |
+| **No long-running waits** — steps are expected to complete | APPROVE gates need hours/days of waiting |
+| **No streaming** — passes references between steps | Each step loads full file, GC pressure |
+| **External coordinator** — needs a DAG server (Airflow, etc.) | One more infra component to manage |
+
+**What the industry actually uses in 2025-2026:**
+
+| Company | Engine | Why They Moved Away from DAGs |
+|---------|--------|------------------------------|
+| **Airbnb** | Temporal (Journey Platform) | Interactive user workflows, not batch |
+| **Netflix** | Maestro (stateful actors + virtual threads) | 100x faster than their DAG engine; 1M+ tasks/day |
+| **Stripe** | Temporal | Payment workflows need durability, not scheduling |
+| **Uber** | Cadence → Temporal | Ride orchestration needs sub-second latency |
+| **Coinbase** | Temporal | Transaction workflows with regulatory holds |
+
+---
+
+## The 2026 Landscape: What's Available
+
+### Temporal.io (Durable Execution)
+
+**What it is:** Write workflows as ordinary Java code. The Temporal server records every step as
+an event. On crash, the workflow replays deterministically from the event log.
+
+**Who uses it:** Stripe, Netflix (CI/CD), Airbnb, Snap, DoorDash, Coinbase. 2,500+ customers.
+
+**Strengths:**
+- Automatic retry with configurable backoff
+- Workflow state survives JVM crashes (event replay)
+- Workers are stateless — any worker picks up any workflow
+- Long-running waits (sleep for days without consuming resources)
+
+**Fatal flaw for MFT:**
+- **2 MB payload limit** — file bytes CANNOT pass through Temporal
+- 4 MB gRPC message limit — workflow terminated as non-recoverable if exceeded
+- Designed for orchestration (control plane), NOT data transfer (data plane)
+- Adds an external cluster dependency (Temporal server)
+
+**Verdict:** Excellent orchestrator, but CANNOT be the file pipeline engine. Would require
+passing only file references (SHA-256 keys), never bytes.
+
+### Restate (Virtual Object Model)
+
+**What it is:** Built in Rust by the original Apache Flink creators. Each entity (transfer, flow)
+is a "virtual object" with K/V state and single-writer semantics. Durable execution via a
+built-in distributed log.
+
+**Strengths:**
+- Lower latency than Temporal (<100ms p99 for 10-step workflows)
+- State stored in server, not application heap
+- Active-active deployments with instant replication
+
+**For MFT:**
+- Elegant model: each file transfer = a virtual object with its own state machine
+- But: newer, smaller community, higher risk for production adoption today
+- Same payload limitation — designed for RPC, not streaming bytes
+
+**Verdict:** Watch list. Compelling but not mature enough for institutional-grade MFT in 2026.
+
+### Netflix Maestro (Stateful Actors + Virtual Threads)
+
+**What it is:** Netflix's 2025 rewrite of their workflow engine. Each workflow gets an in-memory
+actor in the JVM. The actor knows its next steps and reacts to events instantly. Database is the
+source of truth; in-memory state rebuilds from DB on bootstrap.
+
+**Result:** 100x performance improvement (seconds → milliseconds). Runs 1M+ tasks/day.
+
+**Key architecture decisions:**
+- No external coordinator — the engine IS the application
+- Virtual threads (Java 21) — millions of concurrent workflows, no thread pool sizing
+- Internal queues replaced distributed queues — less infra
+- DB as truth + in-memory actor as fast path
+
+**Verdict:** THIS is the model. No external dependency. No DAG server. No payload limits.
+Built for exactly this class of problem.
+
+### SEDA (Staged Event-Driven Architecture)
+
+**What it is:** Decompose application into stages connected by bounded queues. Each stage has its
+own thread pool and queue. Controllers size pools dynamically. Admission control prevents overload.
+
+**Who uses it:** Apache Cassandra (all internal operations decomposed into SEDA stages).
+
+**Why it matters for MFT:**
+- File transfer IS a set of stages: receive → validate → transform → route → deliver
+- Bounded queues = natural backpressure (no OOM)
+- Stage-level monitoring = instant visibility into bottlenecks
+- Admission control = graceful degradation under load
+
+**Verdict:** Use as the INTERNAL architecture pattern, not as an external framework.
+
+### Project Reactor (Reactive Streams)
+
+**What it is:** `Flux<DataBuffer>` — chunked streams with backpressure. Subscriber signals demand
+via `request(n)`, publisher respects limits.
+
+**For file streaming:**
+- Files read as `Flux<DataBuffer>` — 8-256 KB chunks, never full file in heap
+- `limitRate(16)` = at most 16 buffers in flight (~4 MB heap for any file size)
+- Backpressure prevents OOM even if consumer is slow
+
+**Verdict:** THE data plane for byte streaming. Combine with the actor model for orchestration.
+
+### Chicory (WebAssembly on JVM)
+
+**What it is:** Pure Java WebAssembly runtime. AOT compiles Wasm to JVM bytecode. Sandboxed —
+plugin can't access JVM heap, files, or network unless explicitly granted.
+
+**Performance:** 30-50% of native speed (AOT mode). Acceptable for transform plugins.
+
+**For MFT plugins:**
+- Partners compile their transform logic to Wasm (Rust, Go, C, AssemblyScript, etc.)
+- Platform loads Wasm module into sandboxed runtime
+- Host streams file chunks through the sandbox: copy-in → transform → copy-out
+- Buggy plugin can't crash the platform or access other tenants' data
+
+**Verdict:** Perfect for the partner plugin sandbox. Pure Java, no JNI, no native deps.
+
+### io_uring (Async I/O)
+
+**Status:** JUring (Java + Panama FFM) shows 33-78% I/O improvement. But NOT production-ready
+for Java as of 2025. Virtual threads get pinned during file I/O — io_uring would fix this.
+
+**Verdict:** Use `FileChannel.transferTo()` (sendfile syscall) today. Monitor io_uring Java
+libraries for 2027+.
+
+---
+
+## The Proposed Engine: Durable Reactive Pipeline (DRP)
+
+Not a DAG. Not Temporal. Not an external dependency.
+
+Inspired by Netflix Maestro (stateful actors) + SEDA (staged processing) + Project Reactor
+(streaming backpressure) + Chicory (plugin sandbox). Built into the platform as a first-class engine.
+
+### Architecture Overview
+
+```
+                    ┌─────────────────────────────────────────────────┐
+                    │              FLOW EXECUTION ENGINE               │
+                    │                                                  │
+  File arrives ───► │  ┌──────────┐    ┌─────────┐    ┌────────────┐  │
+                    │  │  INTAKE   │───►│ PIPELINE │───►│  DELIVERY  │  │
+                    │  │  STAGE    │    │  STAGE   │    │  STAGE     │  │
+                    │  └──────────┘    └─────────┘    └────────────┘  │
+                    │       │              │                │          │
+                    │       ▼              ▼                ▼          │
+                    │  ┌─────────────────────────────────────────┐    │
+                    │  │         EVENT JOURNAL (DB)               │    │
+                    │  │   Append-only, event-sourced state       │    │
+                    │  └─────────────────────────────────────────┘    │
+                    │                                                  │
+                    │  ┌─────────────────────────────────────────┐    │
+                    │  │         FUNCTION REGISTRY                │    │
+                    │  │   Built-in │ WASM │ gRPC │ Container     │    │
+                    │  └─────────────────────────────────────────┘    │
+                    └─────────────────────────────────────────────────┘
+```
+
+### Layer 1: Stateful Flow Actors (inspired by Netflix Maestro)
+
+Each flow execution is a **lightweight actor** running on a virtual thread:
+
+```java
+// One virtual thread per flow execution — millions can coexist
+Thread.ofVirtual().name("flow-" + trackId).start(() -> {
+    FlowActor actor = new FlowActor(flowDefinition, trackId, inputRef);
+    actor.run();  // event loop: react to step completions, failures, approvals
+});
+```
+
+**Why actors, not for-loops:**
+
+```
+FOR LOOP (current):
+  Thread blocked for entire flow duration
+  One failure = entire thread stuck in retry/backoff
+  APPROVE gate = thread parked for hours/days
+  100 flows × 5-minute avg = 100 threads permanently occupied
+
+ACTOR (proposed):
+  Actor reacts to events (step completed, step failed, approval received)
+  Between events: actor is suspended, ZERO resource consumption
+  APPROVE gate: actor suspends, virtual thread yielded — costs nothing
+  100,000 flows × 5-minute avg = 100,000 virtual threads (~50 MB total)
+```
+
+**Actor state machine:**
+
+```
+         ┌──────────────────────────────────────────────────────┐
+         │                                                      │
+         ▼                                                      │
+    ┌─────────┐     ┌──────────┐     ┌───────────┐     ┌──────┴────┐
+    │ PENDING │────►│EXECUTING │────►│ WAITING   │────►│ EXECUTING │
+    └─────────┘     │  step N  │     │ (approve/ │     │  step N+1 │
+                    └────┬─────┘     │  ext call)│     └───────────┘
+                         │           └───────────┘           │
+                    step fails                          all steps done
+                         │                                   │
+                         ▼                                   ▼
+                    ┌─────────┐                        ┌───────────┐
+                    │ RETRY   │                        │ COMPLETED │
+                    │ backoff │                        └───────────┘
+                    └────┬────┘
+                         │
+                    max retries
+                         │
+                         ▼
+                    ┌─────────┐
+                    │ FAILED  │
+                    └─────────┘
+```
+
+**Durability:** Every state transition is an event appended to the journal (PostgreSQL).
+On JVM restart, actors rebuild from the journal — exactly like Netflix Maestro rebuilds
+from DB on bootstrap.
+
+### Layer 2: SEDA Stages with Bounded Queues
+
+Three processing stages, each with its own admission-controlled queue:
+
+```
+INTAKE STAGE                    PIPELINE STAGE                 DELIVERY STAGE
+┌────────────────┐             ┌────────────────┐             ┌────────────────┐
+│ Queue: 1000    │             │ Queue: 500     │             │ Queue: 2000    │
+│ Threads: 16    │             │ Threads: 32    │             │ Threads: 16    │
+│                │             │                │             │                │
+│ • Match rules  │────────────►│ • Run pipeline │────────────►│ • Route        │
+│ • Create exec  │             │ • Stream bytes │             │ • Deliver SFTP │
+│ • Start actor  │             │ • Apply funcs  │             │ • Deliver AS2  │
+│                │             │                │             │ • Mailbox copy │
+│ Admission:     │             │ Admission:     │             │ Admission:     │
+│ reject if full │             │ backpressure   │             │ retry queue    │
+└────────────────┘             └────────────────┘             └────────────────┘
+```
+
+**What this gives you:**
+- **Backpressure propagation**: If delivery is slow (partner SFTP down), pipeline stage
+  slows down (bounded queue fills), intake stage rejects new work (admission control)
+- **Stage-level metrics**: Queue depth per stage = instant visibility into bottlenecks
+- **Isolation**: A slow encryption step doesn't block file matching or delivery
+- **Dynamic sizing**: Stage controller adjusts thread count based on queue depth
+
+### Layer 3: Reactive Byte Pipeline (the actual file processing)
+
+Bytes never touch the heap. Each function wraps the stream:
+
+```java
+// Build a composed reactive pipeline — zero heap allocation for file bytes
+Flux<DataBuffer> pipeline = storageBackend.readStream(inputKey);
+
+for (FlowFunction fn : resolvedFunctions) {
+    switch (fn.ioMode()) {
+        case STREAMING:
+            // Function transforms chunks on the fly (gzip, rename, etc.)
+            // Only 64KB in flight per function — bounded
+            pipeline = fn.transformStream(pipeline, stepConfig);
+            break;
+
+        case MATERIALIZING:
+            // Function needs full file (encryption REST call, screening)
+            // Spill to temp file — NOT heap. Still bounded.
+            pipeline = materializeAndTransform(pipeline, fn, stepConfig);
+            break;
+
+        case METADATA_ONLY:
+            // Function doesn't touch bytes (rename, route, approve)
+            fn.applyMetadata(executionContext, stepConfig);
+            break;
+    }
+}
+
+// Terminal: pipe composed stream directly to CAS — zero intermediate copies
+storageBackend.writeStream(pipeline, outputKey);
+```
+
+**Memory comparison (10 concurrent flows, 500 MB files, 4 steps each):**
+
+| Model | Heap Usage | Why |
+|-------|-----------|-----|
+| Current for-loop | **23 GB** | Each step: readAllBytes + Base64 |
+| DAG (Airflow-style) | **23 GB** | Same problem — steps load full file |
+| Temporal | **N/A** | Can't pass files through Temporal at all |
+| **DRP (proposed)** | **~40 MB** | 10 flows × 4 functions × 64KB buffer + actor state |
+
+### Layer 4: Function Registry & Plugin System
+
+Functions are first-class entities — not switch cases:
+
+```
+┌───────────────────────────────────────────────────────────┐
+│                    FUNCTION REGISTRY                       │
+├───────────────┬───────────────┬──────────────┬────────────┤
+│  BUILT-IN     │  WASM         │  gRPC        │ CONTAINER  │
+│  (same JVM)   │  (sandboxed)  │  (sidecar)   │ (isolated) │
+├───────────────┼───────────────┼──────────────┼────────────┤
+│ compress-gzip │ partner-      │ partner-     │ legacy-    │
+│ decompress    │   custom-     │   ml-model   │   mainframe│
+│ encrypt-pgp   │   validator   │   enrichment │   bridge   │
+│ encrypt-aes   │ partner-      │              │            │
+│ decrypt-pgp   │   format-     │              │            │
+│ decrypt-aes   │   converter   │              │            │
+│ screen        │               │              │            │
+│ rename        │               │              │            │
+│ mailbox       │               │              │            │
+│ deliver       │               │              │            │
+│ convert-edi   │               │              │            │
+│ route         │               │              │            │
+│ approve       │               │              │            │
+│ execute-script│               │              │            │
+├───────────────┼───────────────┼──────────────┼────────────┤
+│ Zero overhead │ ~50μs/chunk   │ ~1ms/chunk   │ ~100ms     │
+│ Full trust    │ Sandboxed     │ Process iso  │ Full iso   │
+│ Java only     │ Any language  │ Any language │ Any lang   │
+└───────────────┴───────────────┴──────────────┴────────────┘
+```
+
+**FlowFunction interface (the universal plugin contract):**
+
+```java
+public interface FlowFunction {
+
+    /** Transform a reactive stream — chunk by chunk, backpressure-aware */
+    Flux<DataBuffer> transformStream(Flux<DataBuffer> input, Map<String, String> config);
+
+    /** I/O mode declaration — engine uses this to optimize the pipeline */
+    IOMode ioMode();  // STREAMING | MATERIALIZING | METADATA_ONLY
+
+    /** JSON Schema for config validation (UI renders as form) */
+    String configSchema();
+
+    /** Runtime type — how the engine loads and calls this function */
+    Runtime runtime();  // BUILT_IN | WASM | GRPC | CONTAINER
+
+    /** Metadata for discovery, import/export, versioning */
+    FunctionDescriptor descriptor();
+}
+
+record FunctionDescriptor(
+    String name,           // "pgp-encrypt"
+    String version,        // "2.1.0"
+    String category,       // TRANSFORM | VALIDATE | ROUTE | DELIVER | GATE
+    String scope,          // SYSTEM | TENANT | PARTNER
+    String author,         // "system" | "partner-acme"
+    boolean exportable,    // can be packaged and shared
+    String description
+) {}
+```
+
+**WASM plugin execution (Chicory runtime):**
+
+```java
+// Load partner's custom validator (compiled from Rust/Go/C to WASM)
+WasmModule module = chicory.load(wasmBytes);
+
+// For each chunk in the file stream:
+Flux<DataBuffer> output = input.map(chunk -> {
+    // Copy chunk into WASM linear memory (sandboxed)
+    module.memory().write(0, chunk.asByteBuffer());
+
+    // Call the transform function in the sandbox
+    int outputLen = module.call("transform", chunk.readableByteCount());
+
+    // Read result from WASM linear memory
+    byte[] result = module.memory().read(0, outputLen);
+    return bufferFactory.wrap(result);
+});
+```
+
+**Partner cannot:**
+- Access JVM heap (sandbox boundary)
+- Read other tenants' files (no file system access)
+- Make network calls (no WASI networking unless explicitly granted)
+- Crash the platform (trap = only sandbox dies)
+
+**Import/Export:**
+
+```
+EXPORT a function:
+  GET /api/functions/{id}/export
+  → ZIP package containing:
+    ├── manifest.json      (name, version, configSchema, ioMode, runtime)
+    ├── function.wasm       (compiled WASM module)
+    └── README.md           (usage documentation)
+
+IMPORT a function:
+  POST /api/functions/import
+  Body: multipart (ZIP package)
+  → Platform validates manifest, loads WASM module, registers in catalog
+  → Available immediately for flow design
+```
+
+### Layer 5: Event Journal (Durability + Audit)
+
+Every state transition is an immutable event. Not traditional DB rows — event sourcing:
+
+```
+Event Stream for track TRZ-A1B2C3D4E:
+
+  1  FlowMatched        { flowId, criteria, timestamp }
+  2  ExecutionStarted   { trackId, inputKey, stepCount }
+  3  StepStarted        { stepIndex: 0, type: COMPRESS_GZIP }
+  4  StepCompleted      { stepIndex: 0, outputKey: "sha256-1", durationMs: 120 }
+  5  StepStarted        { stepIndex: 1, type: ENCRYPT_PGP }
+  6  StepFailed         { stepIndex: 1, error: "encryption-service timeout", attempt: 1 }
+  7  StepRetrying       { stepIndex: 1, attempt: 2, backoffMs: 2000 }
+  8  StepStarted        { stepIndex: 1, type: ENCRYPT_PGP, attempt: 2 }
+  9  StepCompleted      { stepIndex: 1, outputKey: "sha256-2", durationMs: 340 }
+  10 StepStarted        { stepIndex: 2, type: APPROVE }
+  11 ExecutionPaused    { stepIndex: 2, reason: "awaiting approval" }
+     ... (3 hours pass — actor suspended, zero resources consumed) ...
+  12 ApprovalReceived   { reviewer: "admin@company.com", decision: APPROVED }
+  13 ExecutionResumed   { fromStep: 3 }
+  14 StepStarted        { stepIndex: 3, type: FILE_DELIVERY }
+  15 StepCompleted      { stepIndex: 3, durationMs: 890 }
+  16 ExecutionCompleted { totalDurationMs: 10801350, stepsExecuted: 4 }
+```
+
+**What this enables:**
+- **Time-travel debugging**: Replay events to reconstruct state at any point in time
+- **Restart from any step**: Event journal knows the storageKey at every step boundary
+- **Full audit trail**: Immutable, append-only — satisfies regulatory requirements
+- **Actor recovery**: On JVM restart, replay events to rebuild in-memory actor state
+- **Metrics & analytics**: Event stream feeds dashboards in real time
+
+### Execution Model Comparison: Final
+
+```
+FOR LOOP (current):
+  Start → step1 → step2 → step3 → step4 → End
+  |_________________________________________________|
+  Single thread, blocked entire duration, steps serial
+
+DAG (Airflow/Prefect):
+  Scheduler polls → step1 → step2a ─┐
+                           → step2b ─┼→ join → step3 → End
+                                     │
+  External coordinator, batch-oriented, no streaming
+
+TEMPORAL (durable execution):
+  Worker polls → activity1 → event → activity2 → event → activity3
+  |__________________|          |__________________|
+  Durable, but 2MB payload limit, external server required
+
+PETRI NET:
+  Places + transitions + tokens = concurrent state machine
+  Formally verifiable but hard to program, no mainstream Java runtime
+
+═══════════════════════════════════════════════════════════════
+
+DRP — DURABLE REACTIVE PIPELINE (proposed):
+
+  ┌─────────────────────────────────────────────────────────┐
+  │ Virtual Thread Actor (per flow)                         │
+  │                                                         │
+  │   Event Journal ◄── state transitions ──►  Recovery     │
+  │                                                         │
+  │   Reactive Pipeline:                                    │
+  │     CAS ──► [fn1: 64KB chunks] ──► [fn2] ──► [fn3] ──► CAS  │
+  │              │ backpressure │                            │
+  │              │ SEDA queue   │                            │
+  │              └──────────────┘                            │
+  │                                                         │
+  │   Functions: BUILT_IN │ WASM │ gRPC │ CONTAINER         │
+  │                                                         │
+  │   ✓ No external dependency (engine IS the app)          │
+  │   ✓ No payload limit (bytes stream, never in engine)    │
+  │   ✓ Durable (event journal + actor recovery)            │
+  │   ✓ Millions concurrent (virtual threads)               │
+  │   ✓ Bounded memory (reactive backpressure)              │
+  │   ✓ Pluggable (WASM sandbox for partner functions)      │
+  │   ✓ Observable (event stream → dashboards)              │
+  │   ✓ Restartable (replay from any step's storageKey)     │
+  └─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Memory & Boot Projections: DRP vs Current
+
+### Boot Time (DRP)
+
+| Component | Cost | With 100 Flows | With 10,000 Flows |
+|-----------|------|-----------------|-------------------|
+| Spring context | ~5-8s | ~5-8s | ~5-8s |
+| Flow rule compilation | O(N) × <1ms | ~50ms | ~5s |
+| Function registry load | O(F) built-ins | ~10ms | ~10ms |
+| WASM module preload | O(W) × ~50ms each | ~200ms (4 WASM) | ~2.5s (50 WASM) |
+| Actor recovery (replay journals) | O(A) active flows | ~100ms | ~5s |
+| **Total** | | **~6s** | **~18s** |
+
+WASM modules can be lazy-loaded (on first use) to keep boot under 10s even with 50+ plugins.
+
+### Runtime Memory (DRP vs Current)
+
+**Scenario: 1,000 concurrent flows, mixed file sizes**
+
+| Component | Current Engine | DRP Engine |
+|-----------|---------------|------------|
+| 100 × 1 KB EDI files | 460 KB (fine) | 6.4 MB (actors + buffers) |
+| 500 × 10 MB documents | **23 GB** (OOM) | 32 MB (500 × 64KB pipeline) |
+| 300 × 100 MB archives | **138 GB** (impossible) | 19 MB (300 × 64KB pipeline) |
+| 100 × 1 GB batches | **460 GB** (absurd) | 6.4 MB (100 × 64KB pipeline) |
+| Actor state (all 1000) | ~10 MB | ~50 MB (event replay cache) |
+| WASM plugin memory | N/A | ~256 MB (50 plugins × ~5MB each) |
+| Function registry | ~500 bytes × 16 | ~2 KB × 100 |
+| SEDA queues | N/A | ~12 MB (3 stages × bounded) |
+| **TOTAL** | **>600 GB → OOM** | **~380 MB** |
+
+The 1,000× memory reduction comes from ONE change: bytes stream through 64 KB chunks
+instead of loading into heap. Everything else is incremental.
+
+### Adding More Functions: Memory Impact
+
+| Functions Loaded | Current (switch cases) | DRP (registry) |
+|-----------------|----------------------|----------------|
+| 16 (today) | ~0 (code on classpath) | ~8 KB (descriptors) |
+| 50 | ~0 (more switch cases) | ~25 KB (descriptors) |
+| 100 (with 30 WASM) | N/A (can't add external) | ~150 MB (30 × 5MB WASM linear memory) |
+| 500 (marketplace) | N/A | ~150 MB (WASM lazy-loaded, only active ones in memory) |
+
+Adding functions does NOT increase per-flow memory. Each function processes 64 KB chunks
+regardless of how many functions exist. The registry is metadata only.
+
+---
+
+## Technology Stack for DRP
+
+| Layer | Technology | Why This, Not That |
+|-------|-----------|-------------------|
+| **Actor runtime** | Java 21 virtual threads | No external dependency (vs Temporal server). Millions of concurrent actors on 1 GB heap. |
+| **Byte streaming** | Project Reactor `Flux<DataBuffer>` | Backpressure-aware, bounded memory, composable operators. |
+| **Event journal** | PostgreSQL (JSONB append-only table) | Already in the stack. No new infra. Event sourcing without Kafka. |
+| **Plugin sandbox** | Chicory (WebAssembly on JVM) | Pure Java, no JNI, no native deps. 30-50% native speed. Sandboxed. |
+| **External plugins** | gRPC streaming (`stream Chunk`) | Language-agnostic, bidirectional streaming, standard protocol. |
+| **Stage queues** | `java.util.concurrent.LinkedBlockingQueue` | Bounded, backpressure-native, zero external deps. |
+| **Rule matching** | Current `FlowRuleRegistry` (keep) | Already excellent: pre-compiled predicates, sub-microsecond matching. |
+| **Zero-copy I/O** | `FileChannel.transferTo()` (sendfile) | Production-ready today. io_uring when Java libraries mature (~2027). |
+| **State recovery** | Event replay on boot (Netflix Maestro pattern) | DB is truth. Actors rebuild from journal. No external state store. |
+
+---
+
+*This document is the complete design proposal. Implementation phases:*
+
+*Phase 1 — Streaming reads + zero-copy (GAPs 1, 7, 10) + new StorageBackend interface*
+*Phase 2 — Reactive byte pipeline (Layer 3) + FlowFunction interface*
+*Phase 3 — SEDA stages with admission control (Layer 2)*
+*Phase 4 — Event journal + actor model (Layers 1, 5)*
+*Phase 5 — WASM plugin runtime + gRPC sidecar support (Layer 4)*
+*Phase 6 — Function marketplace (import/export/catalog)*
