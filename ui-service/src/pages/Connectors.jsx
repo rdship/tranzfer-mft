@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { configApi, onboardingApi } from '../api/client'
 import Modal from '../components/Modal'
@@ -105,6 +105,8 @@ export default function Connectors() {
   })
 
   const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState('name')
+  const [sortDir, setSortDir] = useState('asc')
 
   // Partner webhooks
   const [showWebhookModal, setShowWebhookModal] = useState(false)
@@ -195,6 +197,51 @@ export default function Connectors() {
     setShowWebhookModal(true)
   }
 
+  const toggleSort = (col) => {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(col); setSortDir('asc') }
+  }
+
+  const sortedConnectors = useMemo(() => {
+    const list = (connectors || []).filter(c => {
+      if (!search) return true
+      const q = search.toLowerCase()
+      return c.name?.toLowerCase().includes(q) || c.type?.toLowerCase().includes(q) || c.url?.toLowerCase().includes(q)
+    })
+    const arr = [...list]
+    arr.sort((a, b) => {
+      let va, vb
+      if (sortBy === 'active') {
+        va = a.active ? 1 : 0; vb = b.active ? 1 : 0
+      } else {
+        va = a[sortBy] ?? ''; vb = b[sortBy] ?? ''
+      }
+      if (typeof va === 'number') return sortDir === 'asc' ? va - vb : vb - va
+      return sortDir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va))
+    })
+    return arr
+  }, [connectors, search, sortBy, sortDir])
+
+  const sortedWebhooks = useMemo(() => {
+    const list = (partnerWebhooks || []).filter(hook => {
+      if (!search) return true
+      const q = search.toLowerCase()
+      return hook.partnerName?.toLowerCase().includes(q) || hook.url?.toLowerCase().includes(q)
+    })
+    const arr = [...list]
+    arr.sort((a, b) => {
+      let va, vb
+      if (sortBy === 'active') {
+        va = a.active ? 1 : 0; vb = b.active ? 1 : 0
+      } else {
+        va = a[sortBy] ?? ''; vb = b[sortBy] ?? ''
+      }
+      if (typeof va === 'number') return sortDir === 'asc' ? va - vb : vb - va
+      return sortDir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va))
+    })
+    return arr
+  }, [partnerWebhooks, search, sortBy, sortDir])
+
   if (isLoading) return <LoadingSpinner />
 
   return (
@@ -236,16 +283,28 @@ export default function Connectors() {
           </button>
         </div>
 
+        <div className="flex items-center gap-2 mb-3 text-xs text-secondary">
+          <span className="text-muted">Sort:</span>
+          {[
+            { key: 'name', label: 'Name' },
+            { key: 'type', label: 'Type' },
+            { key: 'active', label: 'Active' },
+          ].map(col => (
+            <button key={col.key} onClick={() => toggleSort(col.key)}
+              className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                sortBy === col.key ? 'bg-blue-100 text-blue-700' : 'bg-hover text-secondary hover:bg-gray-200'
+              }`}>
+              {col.label} {sortBy === col.key && (sortDir === 'asc' ? '\u2191' : '\u2193')}
+            </button>
+          ))}
+        </div>
+
         <div className="space-y-3">
           {connectors.length === 0 ? (
             <div className="card text-center py-8" style={{ color: 'rgb(var(--tx-muted))' }}>
               No connectors configured. Add one to receive alerts in Slack, PagerDuty, or ServiceNow.
             </div>
-          ) : (connectors || []).filter(c => {
-            if (!search) return true
-            const q = search.toLowerCase()
-            return c.name?.toLowerCase().includes(q) || c.type?.toLowerCase().includes(q) || c.url?.toLowerCase().includes(q)
-          }).map(c => (
+          ) : sortedConnectors.map(c => (
             <div key={c.id} className="card flex items-center gap-4">
               <BoltIcon className="w-6 h-6 text-blue-400 flex-shrink-0" />
               <div className="flex-1 min-w-0">
@@ -287,11 +346,7 @@ export default function Connectors() {
           </div>
         ) : (
           <div className="space-y-3">
-            {(partnerWebhooks || []).filter(hook => {
-              if (!search) return true
-              const q = search.toLowerCase()
-              return hook.partnerName?.toLowerCase().includes(q) || hook.url?.toLowerCase().includes(q)
-            }).map(hook => (
+            {sortedWebhooks.map(hook => (
               <WebhookCard
                 key={hook.id}
                 hook={hook}

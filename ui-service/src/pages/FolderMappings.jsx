@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getFolderMappings, createFolderMapping, updateFolderMapping, deleteFolderMapping, getAccounts } from '../api/accounts'
 import Modal from '../components/Modal'
@@ -158,6 +158,8 @@ export default function FolderMappings() {
   const [showSamples, setShowSamples] = useState(true)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState('source')
+  const [sortDir, setSortDir] = useState('asc')
 
   const { data: mappings = [], isLoading } = useQuery({ queryKey: ['folder-mappings'], queryFn: getFolderMappings })
   const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts })
@@ -211,22 +213,42 @@ export default function FolderMappings() {
   const accountProtocol = {}
   accounts.forEach(a => { accountProtocol[a.id] = a.protocol })
 
-  // Filter mappings by protocol and search
-  const filteredMappings = (protocolFilter === 'All'
-    ? mappings
-    : mappings.filter(m => {
-        const srcProto = accountProtocol[m.sourceAccountId]
-        const dstProto = accountProtocol[m.destinationAccountId]
-        return srcProto === protocolFilter || dstProto === protocolFilter
-      })
-  ).filter(m => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    const srcAccount = accounts.find(a => a.id === m.sourceAccountId)
-    const dstAccount = accounts.find(a => a.id === m.destinationAccountId)
-    return m.sourcePath?.toLowerCase().includes(q) || m.destinationPath?.toLowerCase().includes(q)
-      || srcAccount?.username?.toLowerCase().includes(q) || dstAccount?.username?.toLowerCase().includes(q)
-  })
+  const toggleSort = (col) => {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(col); setSortDir('asc') }
+  }
+
+  // Filter mappings by protocol and search, then sort
+  const filteredMappings = useMemo(() => {
+    const list = (protocolFilter === 'All'
+      ? mappings
+      : mappings.filter(m => {
+          const srcProto = accountProtocol[m.sourceAccountId]
+          const dstProto = accountProtocol[m.destinationAccountId]
+          return srcProto === protocolFilter || dstProto === protocolFilter
+        })
+    ).filter(m => {
+      if (!search) return true
+      const q = search.toLowerCase()
+      const srcAccount = accounts.find(a => a.id === m.sourceAccountId)
+      const dstAccount = accounts.find(a => a.id === m.destinationAccountId)
+      return m.sourcePath?.toLowerCase().includes(q) || m.destinationPath?.toLowerCase().includes(q)
+        || srcAccount?.username?.toLowerCase().includes(q) || dstAccount?.username?.toLowerCase().includes(q)
+    })
+    const arr = [...list]
+    arr.sort((a, b) => {
+      let va, vb
+      if (sortBy === 'source') {
+        va = a.sourcePath ?? ''; vb = b.sourcePath ?? ''
+      } else if (sortBy === 'destination') {
+        va = a.destinationPath ?? ''; vb = b.destinationPath ?? ''
+      } else {
+        va = a[sortBy] ?? ''; vb = b[sortBy] ?? ''
+      }
+      return sortDir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va))
+    })
+    return arr
+  }, [mappings, protocolFilter, search, accounts, sortBy, sortDir])
 
   // Filter samples by protocol
   const filteredSamples = protocolFilter === 'All'
@@ -380,7 +402,23 @@ export default function FolderMappings() {
       {/* Existing Mappings */}
       {filteredMappings.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-primary uppercase tracking-wider">Active Mappings</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-primary uppercase tracking-wider">Active Mappings</h2>
+            <div className="flex items-center gap-2 text-xs text-secondary">
+              <span className="text-muted">Sort:</span>
+              {[
+                { key: 'source', label: 'Source' },
+                { key: 'destination', label: 'Destination' },
+              ].map(col => (
+                <button key={col.key} onClick={() => toggleSort(col.key)}
+                  className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                    sortBy === col.key ? 'bg-blue-100 text-blue-700' : 'bg-hover text-secondary hover:bg-gray-200'
+                  }`}>
+                  {col.label} {sortBy === col.key && (sortDir === 'asc' ? '\u2191' : '\u2193')}
+                </button>
+              ))}
+            </div>
+          </div>
           {filteredMappings.map(m => {
             const srcAccount = accounts.find(a => a.id === m.sourceAccountId)
             const dstAccount = accounts.find(a => a.id === m.destinationAccountId)

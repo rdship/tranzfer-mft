@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { getAccounts, createAccount, updateAccount, deleteAccount, toggleAccount, getServerInstancesActive } from '../api/accounts'
@@ -47,9 +47,13 @@ export default function Accounts() {
   const [detailAccount, setDetailAccount] = useState(null)
   const [drawerTrackId, setDrawerTrackId] = useState(null)
   const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState('username')
+  const [sortDir, setSortDir] = useState('asc')
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [form, setForm] = useState({ ...defaultForm })
   const [editQos, setEditQos] = useState({ ...defaultEditQos })
+  const [selected, setSelected] = useState(new Set())
+  const [showBulkConfirm, setShowBulkConfirm] = useState(null) // 'enable' | 'disable'
 
   const { data: accounts = [], isLoading } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts })
   const { data: serverInstances = [] } = useQuery({ queryKey: ['server-instances-active'], queryFn: getServerInstancesActive })
@@ -66,9 +70,56 @@ export default function Accounts() {
   const toggleMut = useMutation({ mutationFn: ({ id, active }) => toggleAccount(id, active),
     onSuccess: () => qc.invalidateQueries(['accounts']) })
 
-  const filtered = accounts.filter(a =>
-    a.username?.toLowerCase().includes(search.toLowerCase()) ||
-    a.protocol?.toLowerCase().includes(search.toLowerCase()))
+  const toggleSort = (col) => {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(col); setSortDir('asc') }
+  }
+
+  const filtered = useMemo(() => {
+    const list = accounts.filter(a =>
+      a.username?.toLowerCase().includes(search.toLowerCase()) ||
+      a.protocol?.toLowerCase().includes(search.toLowerCase()))
+    const arr = [...list]
+    arr.sort((a, b) => {
+      let va, vb
+      if (sortBy === 'active') {
+        va = a.active ? 1 : 0
+        vb = b.active ? 1 : 0
+      } else {
+        va = a[sortBy] ?? ''
+        vb = b[sortBy] ?? ''
+      }
+      if (typeof va === 'number') return sortDir === 'asc' ? va - vb : vb - va
+      return sortDir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va))
+    })
+    return arr
+  }, [accounts, search, sortBy, sortDir])
+
+  const toggleSelect = (id) => setSelected(s => {
+    const n = new Set(s)
+    n.has(id) ? n.delete(id) : n.add(id)
+    return n
+  })
+  const toggleSelectAll = () => {
+    if (selected.size === filtered.length) setSelected(new Set())
+    else setSelected(new Set(filtered.map(a => a.id)))
+  }
+
+  const handleBulkAction = async (action) => {
+    const ids = [...selected]
+    const active = action === 'enable'
+    const results = await Promise.allSettled(
+      ids.map(id => toggleAccount(id, active))
+    )
+    const succeeded = results.filter(r => r.status === 'fulfilled').length
+    const failed = results.filter(r => r.status === 'rejected').length
+    const label = active ? 'enabled' : 'disabled'
+    if (failed === 0) toast.success(`${succeeded} account${succeeded !== 1 ? 's' : ''} ${label}`)
+    else toast.error(`${succeeded} of ${ids.length} accounts ${label}, ${failed} failed`)
+    setSelected(new Set())
+    setShowBulkConfirm(null)
+    qc.invalidateQueries(['accounts'])
+  }
 
   const filteredInstances = serverInstances.filter(s => s.protocol === form.protocol)
 
@@ -120,6 +171,16 @@ export default function Accounts() {
           </div>
         </div>
 
+        {/* Bulk Action Bar */}
+        {selected.size > 0 && (
+          <div className="flex items-center gap-3 bg-[rgba(100,140,255,0.1)] border border-[rgba(100,140,255,0.2)] rounded-xl px-4 py-2 mb-4">
+            <span className="text-sm font-medium">{selected.size} selected</span>
+            <button className="btn-secondary text-sm" onClick={() => setShowBulkConfirm('enable')}>Enable All</button>
+            <button className="btn-secondary text-sm" onClick={() => setShowBulkConfirm('disable')}>Disable All</button>
+            <button className="text-sm text-red-400 hover:text-red-300" onClick={() => setSelected(new Set())}>Clear</button>
+          </div>
+        )}
+
         {filtered.length === 0 ? (
           <EmptyState title="No accounts found" description="Create your first transfer account to get started." action={<button className="btn-primary" onClick={() => setShowCreate(true)}><PlusIcon className="w-4 h-4" />New Account</button>} />
         ) : (
@@ -128,13 +189,14 @@ export default function Accounts() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
-                <th className="table-header">Username</th>
-                <th className="table-header">Protocol</th>
+                <th className="table-header w-8"><input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleSelectAll} /></th>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('username')}>Username {sortBy === 'username' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('protocol')}>Protocol {sortBy === 'protocol' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                 <th className="table-header">Server</th>
                 <th className="table-header">QoS</th>
                 <th className="table-header">Bandwidth</th>
                 <th className="table-header">Sessions</th>
-                <th className="table-header">Status</th>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('active')}>Status {sortBy === 'active' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                 <th className="table-header">Created</th>
                 <th className="table-header">Actions</th>
               </tr>
@@ -144,6 +206,7 @@ export default function Accounts() {
                 const tier = getQosTier(acc)
                 return (
                 <tr key={acc.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => setDetailAccount(acc)} onDoubleClick={(e) => { e.stopPropagation(); openEdit(acc) }}>
+                  <td className="table-cell" onClick={e => e.stopPropagation()}><input type="checkbox" checked={selected.has(acc.id)} onChange={() => toggleSelect(acc.id)} /></td>
                   <td className="table-cell font-medium">{acc.username}</td>
                   <td className="table-cell"><span className="badge badge-blue">{acc.protocol}</span></td>
                   <td className="table-cell text-xs text-secondary">{acc.serverInstance || <span className="text-muted">Any</span>}</td>
@@ -389,6 +452,21 @@ export default function Accounts() {
           <div className="flex gap-3 justify-end">
             <button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
             <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}>Delete</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Bulk Confirm Modal */}
+      {showBulkConfirm && (
+        <Modal title={`Bulk ${showBulkConfirm === 'enable' ? 'Enable' : 'Disable'} Accounts`} onClose={() => setShowBulkConfirm(null)}>
+          <p className="text-secondary mb-4">
+            Are you sure you want to {showBulkConfirm} <strong>{selected.size}</strong> account{selected.size !== 1 ? 's' : ''}?
+          </p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setShowBulkConfirm(null)}>Cancel</button>
+            <button className="btn-primary" onClick={() => handleBulkAction(showBulkConfirm)}>
+              {showBulkConfirm === 'enable' ? 'Enable All' : 'Disable All'}
+            </button>
           </div>
         </Modal>
       )}

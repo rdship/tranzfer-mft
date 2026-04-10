@@ -7,6 +7,7 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer'
 import FileDownloadButton from '../components/FileDownloadButton'
+import ConfigLink from '../components/ConfigLink'
 import MatchCriteriaBuilder, { MatchSummaryBadges, buildCriteriaFromLegacy } from '../components/MatchCriteriaBuilder'
 import toast from 'react-hot-toast'
 import {
@@ -604,6 +605,8 @@ export default function Flows() {
   const [aiAvailable, setAiAvailable] = useState(true)
   const [drawerTrackId, setDrawerTrackId] = useState(null)     // execution detail drawer
   const [confirmDeleteFlow, setConfirmDeleteFlow] = useState(null)
+  const [selectedFlows, setSelectedFlows] = useState(new Set())
+  const [showBulkFlowConfirm, setShowBulkFlowConfirm] = useState(null) // 'enable' | 'disable'
 
   // ─── Dynamic function catalog fetch ───
   const loadCatalog = useCallback(() => {
@@ -947,6 +950,12 @@ export default function Flows() {
     setShowAddStep(false)
   }, [])
 
+  const toggleFlowSelect = (id) => setSelectedFlows(s => {
+    const n = new Set(s)
+    n.has(id) ? n.delete(id) : n.add(id)
+    return n
+  })
+
   const addStep = useCallback((type) => {
     const meta = STEP_TYPE_CATALOG[type]
     const defaultConfig = {}
@@ -993,6 +1002,14 @@ export default function Flows() {
     toast.success(`Applied "${template.name}" template`)
   }, [])
 
+  // ─── Sorting ───
+  const [sortBy, setSortBy] = useState('name')
+  const [sortDir, setSortDir] = useState('asc')
+  const toggleSort = (col) => {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(col); setSortDir('asc') }
+  }
+
   // ─── Filtered flows ───
   const filteredFlows = useMemo(() => {
     let result = flows
@@ -1004,11 +1021,59 @@ export default function Flows() {
         f.name?.toLowerCase().includes(q) || f.description?.toLowerCase().includes(q) || f.sourcePath?.toLowerCase().includes(q)
       )
     }
-    return result
-  }, [flows, filter, search])
+    // Sort
+    const arr = [...result]
+    arr.sort((a, b) => {
+      const va = a[sortBy] ?? ''
+      const vb = b[sortBy] ?? ''
+      if (typeof va === 'number') return sortDir === 'asc' ? va - vb : vb - va
+      return sortDir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va))
+    })
+    return arr
+  }, [flows, filter, search, sortBy, sortDir])
+
+  // ─── Execution counts per flow ───
+  const executionCountByFlowId = useMemo(() => {
+    const counts = {}
+    executions.forEach(ex => {
+      const fid = ex.flow?.id || ex.flowId
+      if (fid) counts[fid] = (counts[fid] || 0) + 1
+    })
+    return counts
+  }, [executions])
 
   const activeCount = flows.filter(f => f.active).length
   const inactiveCount = flows.filter(f => !f.active).length
+
+  const toggleFlowSelectAll = () => {
+    if (selectedFlows.size === filteredFlows.length) setSelectedFlows(new Set())
+    else setSelectedFlows(new Set(filteredFlows.map(f => f.id)))
+  }
+
+  const handleBulkFlowAction = async (action) => {
+    const ids = [...selectedFlows]
+    // For 'enable': toggle only disabled flows; for 'disable': toggle only active flows
+    const targetFlows = ids.filter(id => {
+      const flow = flows.find(f => f.id === id)
+      return action === 'enable' ? !flow?.active : flow?.active
+    })
+    if (targetFlows.length === 0) {
+      toast.error(`No flows to ${action} -- all selected are already ${action === 'enable' ? 'active' : 'disabled'}`)
+      setShowBulkFlowConfirm(null)
+      return
+    }
+    const results = await Promise.allSettled(
+      targetFlows.map(id => configApi.patch(`/api/flows/${id}/toggle`).then(r => r.data))
+    )
+    const succeeded = results.filter(r => r.status === 'fulfilled').length
+    const failed = results.filter(r => r.status === 'rejected').length
+    const label = action === 'enable' ? 'enabled' : 'disabled'
+    if (failed === 0) toast.success(`${succeeded} flow${succeeded !== 1 ? 's' : ''} ${label}`)
+    else toast.error(`${succeeded} of ${targetFlows.length} flows ${label}, ${failed} failed`)
+    setSelectedFlows(new Set())
+    setShowBulkFlowConfirm(null)
+    qc.invalidateQueries(['flows'])
+  }
 
   if (isLoading) return <LoadingSpinner />
 
@@ -1161,6 +1226,39 @@ export default function Flows() {
         </>
       )}
 
+      {/* ─── Sort controls (flows tab only) ─── */}
+      {activeTab === 'flows' && filteredFlows.length > 0 && (
+        <div className="flex items-center gap-2 text-xs text-secondary">
+          <ArrowsUpDownIcon className="w-3.5 h-3.5 text-muted" />
+          <span className="text-muted">Sort:</span>
+          {[
+            { key: 'name', label: 'Name' },
+            { key: 'priority', label: 'Priority' },
+            { key: 'active', label: 'Active' },
+          ].map(col => (
+            <button key={col.key} onClick={() => toggleSort(col.key)}
+              className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                sortBy === col.key ? 'bg-blue-100 text-blue-700' : 'bg-hover text-secondary hover:bg-gray-200'
+              }`}>
+              {col.label} {sortBy === col.key && (sortDir === 'asc' ? '\u2191' : '\u2193')}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ─── Flow Bulk Actions ─── */}
+      {activeTab === 'flows' && selectedFlows.size > 0 && (
+        <div className="flex items-center gap-3 bg-[rgba(100,140,255,0.1)] border border-[rgba(100,140,255,0.2)] rounded-xl px-4 py-2">
+          <span className="text-sm font-medium">{selectedFlows.size} selected</span>
+          <button className="btn-secondary text-sm" onClick={() => setShowBulkFlowConfirm('enable')}>Enable All</button>
+          <button className="btn-secondary text-sm" onClick={() => setShowBulkFlowConfirm('disable')}>Disable All</button>
+          <button className="text-sm text-secondary hover:text-primary" onClick={toggleFlowSelectAll}>
+            {selectedFlows.size === filteredFlows.length ? 'Deselect All' : 'Select All'}
+          </button>
+          <button className="text-sm text-red-400 hover:text-red-300" onClick={() => setSelectedFlows(new Set())}>Clear</button>
+        </div>
+      )}
+
       {/* ─── Flow List ─── */}
       {activeTab === 'flows' && (filteredFlows.length === 0 ? (
         <div className="card">
@@ -1179,6 +1277,9 @@ export default function Flows() {
           {filteredFlows.map(flow => (
             <div key={flow.id} className="card hover:shadow-md transition-shadow cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => openEdit(flow)}>
               <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center self-center mr-1" onClick={e => e.stopPropagation()}>
+                  <input type="checkbox" checked={selectedFlows.has(flow.id)} onChange={() => toggleFlowSelect(flow.id)} />
+                </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="font-semibold text-primary">{flow.name}</h3>
@@ -1200,6 +1301,37 @@ export default function Flows() {
                   {flow.description && (
                     <p className="text-sm text-secondary mt-1">{flow.description}</p>
                   )}
+                  {/* Usage chips: source, destination, partner, external dest, execution count */}
+                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                    {flow.sourceAccount && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200" onClick={e => e.stopPropagation()}>
+                        Source: <ConfigLink type="account" id={flow.sourceAccount.id} name={flow.sourceAccount.username} navigateTo="/accounts" />
+                      </span>
+                    )}
+                    {flow.destinationAccount && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-50 text-green-700 border border-green-200" onClick={e => e.stopPropagation()}>
+                        Dest: <ConfigLink type="account" id={flow.destinationAccount.id} name={flow.destinationAccount.username} navigateTo="/accounts" />
+                      </span>
+                    )}
+                    {flow.partnerId && (() => {
+                      const p = partners.find(pp => pp.id === flow.partnerId)
+                      return (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-700 border border-purple-200" onClick={e => e.stopPropagation()}>
+                          Partner: <ConfigLink type="partner" id={flow.partnerId} name={p?.companyName || p?.name || flow.partnerId} navigateTo={`/partners/${flow.partnerId}`} />
+                        </span>
+                      )
+                    })()}
+                    {flow.externalDestination && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200" onClick={e => e.stopPropagation()}>
+                        Ext: <ConfigLink type="destination" id={flow.externalDestination.id} name={flow.externalDestination.name || flow.externalDestination.host || 'External'} />
+                      </span>
+                    )}
+                    {executionCountByFlowId[flow.id] > 0 && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                        {executionCountByFlowId[flow.id]} execution{executionCountByFlowId[flow.id] !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
                   <div className="mt-1">
                     {flow.matchCriteria ? (
                       <MatchSummaryBadges criteria={flow.matchCriteria} />
@@ -1467,6 +1599,21 @@ export default function Flows() {
           <div className="flex gap-3 justify-end">
             <button className="btn-secondary" onClick={() => setConfirmDeleteFlow(null)}>Cancel</button>
             <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteMut.mutate(confirmDeleteFlow.id); setConfirmDeleteFlow(null) }}>Delete</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Bulk Flow Confirm Modal */}
+      {showBulkFlowConfirm && (
+        <Modal title={`Bulk ${showBulkFlowConfirm === 'enable' ? 'Enable' : 'Disable'} Flows`} onClose={() => setShowBulkFlowConfirm(null)}>
+          <p className="text-secondary mb-4">
+            Are you sure you want to {showBulkFlowConfirm} <strong>{selectedFlows.size}</strong> flow{selectedFlows.size !== 1 ? 's' : ''}?
+          </p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setShowBulkFlowConfirm(null)}>Cancel</button>
+            <button className="btn-primary" onClick={() => handleBulkFlowAction(showBulkFlowConfirm)}>
+              {showBulkFlowConfirm === 'enable' ? 'Enable All' : 'Disable All'}
+            </button>
           </div>
         </Modal>
       )}

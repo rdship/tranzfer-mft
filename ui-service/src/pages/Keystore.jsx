@@ -117,6 +117,8 @@ export default function Keystore() {
   // State
   const [activeTab, setActiveTab] = useState('all')
   const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState('alias')
+  const [sortDir, setSortDir] = useState('asc')
   const [showGenerate, setShowGenerate] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [showDetail, setShowDetail] = useState(null) // key object
@@ -178,7 +180,12 @@ export default function Keystore() {
     onError: (err) => toast.error(err.response?.data?.message || 'Deactivation failed')
   })
 
-  // Filtered keys
+  const toggleSort = (col) => {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(col); setSortDir('asc') }
+  }
+
+  // Filtered + sorted keys
   const filteredKeys = useMemo(() => {
     let result = keys
     if (activeTab !== 'all') {
@@ -194,8 +201,20 @@ export default function Keystore() {
         k.description?.toLowerCase().includes(q)
       )
     }
-    return result
-  }, [keys, activeTab, search])
+    const arr = [...result]
+    arr.sort((a, b) => {
+      let va, vb
+      if (sortBy === 'type') {
+        va = a.keyType ?? ''; vb = b.keyType ?? ''
+      } else if (sortBy === 'status') {
+        va = a.status ?? ''; vb = b.status ?? ''
+      } else {
+        va = a[sortBy] ?? ''; vb = b[sortBy] ?? ''
+      }
+      return sortDir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va))
+    })
+    return arr
+  }, [keys, activeTab, search, sortBy, sortDir])
 
   // Copy to clipboard helper
   const copyToClipboard = async (text) => {
@@ -334,12 +353,12 @@ export default function Keystore() {
           <table className="w-full">
             <thead>
               <tr className="border-b bg-canvas/50">
-                <th className="table-header">Key</th>
-                <th className="table-header">Type</th>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('alias')}>Key {sortBy === 'alias' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('type')}>Type {sortBy === 'type' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                 <th className="table-header">Algorithm</th>
                 <th className="table-header">Owner / Partner</th>
                 <th className="table-header">Fingerprint</th>
-                <th className="table-header">Expires</th>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('status')}>Expires {sortBy === 'status' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                 <th className="table-header">Created</th>
                 <th className="table-header text-right">Actions</th>
               </tr>

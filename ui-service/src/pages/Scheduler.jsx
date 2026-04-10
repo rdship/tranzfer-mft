@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { configApi } from '../api/client'
 import Modal from '../components/Modal'
@@ -28,6 +28,8 @@ export default function Scheduler() {
   const [form, setForm] = useState({ ...EMPTY_FORM })
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState('name')
+  const [sortDir, setSortDir] = useState('asc')
 
   const { data: tasks = [], isLoading, isError, refetch } = useQuery({ queryKey: ['scheduler'], queryFn: () => configApi.get('/api/scheduler/all').then(r => r.data), retry: 1 })
   const { data: flows = [] } = useQuery({ queryKey: ['flows-for-scheduler'], queryFn: () => configApi.get('/api/flows').then(r => r.data).catch(() => []), staleTime: 60000 })
@@ -77,6 +79,35 @@ export default function Scheduler() {
     }
   }
 
+  const toggleSort = (col) => {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(col); setSortDir('asc') }
+  }
+
+  const sortedTasks = useMemo(() => {
+    const list = (tasks || []).filter(t => {
+      if (!search) return true
+      const q = search.toLowerCase()
+      const flowName = flows.find(f => f.id === t.flowId || f.id === t.config?.flowId)?.name || ''
+      return t.name?.toLowerCase().includes(q) || flowName.toLowerCase().includes(q) || t.cronExpression?.toLowerCase().includes(q)
+    })
+    const arr = [...list]
+    arr.sort((a, b) => {
+      let va, vb
+      if (sortBy === 'nextRun') {
+        va = a.lastRun ? new Date(a.lastRun).getTime() : 0
+        vb = b.lastRun ? new Date(b.lastRun).getTime() : 0
+      } else if (sortBy === 'active') {
+        va = a.enabled ? 1 : 0; vb = b.enabled ? 1 : 0
+      } else {
+        va = a[sortBy] ?? ''; vb = b[sortBy] ?? ''
+      }
+      if (typeof va === 'number') return sortDir === 'asc' ? va - vb : vb - va
+      return sortDir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va))
+    })
+    return arr
+  }, [tasks, search, flows, sortBy, sortDir])
+
   if (isLoading) return <LoadingSpinner />
   return (
     <div className="space-y-6">
@@ -103,17 +134,12 @@ export default function Scheduler() {
       </div>
       <div className="card">
         <table className="w-full"><thead><tr className="border-b">
-          <th className="table-header">Name</th><th className="table-header">Cron</th><th className="table-header">Type</th>
-          <th className="table-header">Last Run</th><th className="table-header">Status</th><th className="table-header">Runs</th><th className="table-header">Actions</th>
+          <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('name')}>Name {sortBy === 'name' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th><th className="table-header">Cron</th><th className="table-header">Type</th>
+          <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('nextRun')}>Last Run {sortBy === 'nextRun' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th><th className="table-header">Status</th><th className="table-header">Runs</th><th className="table-header cursor-pointer select-none" onClick={() => toggleSort('active')}>Actions {sortBy === 'active' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
         </tr></thead><tbody>
           {tasks.length === 0 ? (
             <tr><td colSpan={7} className="text-center py-8 text-secondary text-sm">No scheduled tasks yet. Create your first schedule to automate recurring jobs.</td></tr>
-          ) : (tasks || []).filter(t => {
-            if (!search) return true
-            const q = search.toLowerCase()
-            const flowName = flows.find(f => f.id === t.flowId || f.id === t.config?.flowId)?.name || ''
-            return t.name?.toLowerCase().includes(q) || flowName.toLowerCase().includes(q) || t.cronExpression?.toLowerCase().includes(q)
-          }).map(t => (
+          ) : sortedTasks.map(t => (
             <tr key={t.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => openEdit(t)}>
               <td className="table-cell font-medium">{t.name}</td>
               <td className="table-cell font-mono text-xs">{t.cronExpression}</td>

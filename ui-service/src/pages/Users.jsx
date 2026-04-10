@@ -40,6 +40,8 @@ export default function Users() {
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [sortBy, setSortBy] = useState('email')
+  const [sortDir, setSortDir] = useState('asc')
   const [showCreate, setShowCreate] = useState(false)
   const [createForm, setCreateForm] = useState({ ...EMPTY_CREATE_FORM })
   const [createErrors, setCreateErrors] = useState({})
@@ -90,9 +92,14 @@ export default function Users() {
     onError: err => toast.error(friendlyError(err))
   })
 
-  // Filtering
+  const toggleSort = (col) => {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(col); setSortDir('asc') }
+  }
+
+  // Filtering + sorting
   const filtered = useMemo(() => {
-    return users.filter(u => {
+    const list = users.filter(u => {
       const matchesSearch = !search || u.email?.toLowerCase().includes(search.toLowerCase())
       const matchesRole = !roleFilter || u.role === roleFilter
       const matchesStatus = !statusFilter ||
@@ -100,7 +107,21 @@ export default function Users() {
         (statusFilter === 'disabled' && u.enabled === false)
       return matchesSearch && matchesRole && matchesStatus
     })
-  }, [users, search, roleFilter, statusFilter])
+    const arr = [...list]
+    arr.sort((a, b) => {
+      let va, vb
+      if (sortBy === 'status') {
+        va = a.enabled !== false ? 'active' : 'disabled'
+        vb = b.enabled !== false ? 'active' : 'disabled'
+      } else {
+        va = a[sortBy] ?? ''
+        vb = b[sortBy] ?? ''
+      }
+      if (typeof va === 'number') return sortDir === 'asc' ? va - vb : vb - va
+      return sortDir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va))
+    })
+    return arr
+  }, [users, search, roleFilter, statusFilter, sortBy, sortDir])
 
   const hasFilters = search || roleFilter || statusFilter
 
@@ -265,9 +286,9 @@ export default function Users() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="table-header">Email</th>
-                  <th className="table-header">Role</th>
-                  <th className="table-header">Status</th>
+                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('email')}>Email {sortBy === 'email' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('role')}>Role {sortBy === 'role' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('status')}>Status {sortBy === 'status' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                   <th className="table-header">Created</th>
                   <th className="table-header">Actions</th>
                 </tr>

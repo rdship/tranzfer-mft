@@ -21,7 +21,7 @@ import {
   WrenchScrewdriverIcon, ArrowPathIcon, XMarkIcon, CheckIcon,
   ChevronDownIcon, ChevronUpIcon, MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 
 const PROTOCOLS = ['SFTP', 'FTP', 'FTP_WEB', 'HTTPS', 'AS2', 'AS4']
 
@@ -270,6 +270,8 @@ export default function ServerInstances() {
   const [protocolFilter, setProtocolFilter] = useState('ALL')
   const [accountsServer, setAccountsServer] = useState(null)
   const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState('name')
+  const [sortDir, setSortDir] = useState('asc')
 
   const { data: servers = [], isLoading } = useQuery({ queryKey: ['server-instances'], queryFn: getServerInstances })
 
@@ -342,14 +344,35 @@ export default function ServerInstances() {
     })
   }
 
-  const filtered = (protocolFilter === 'ALL'
-    ? servers
-    : servers.filter(s => s.protocol === protocolFilter)
-  ).filter(s => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    return s.name?.toLowerCase().includes(q) || s.internalHost?.toLowerCase().includes(q) || s.instanceId?.toLowerCase().includes(q) || s.protocol?.toLowerCase().includes(q)
-  })
+  const toggleSort = (col) => {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(col); setSortDir('asc') }
+  }
+
+  const filtered = useMemo(() => {
+    const list = (protocolFilter === 'ALL'
+      ? servers
+      : servers.filter(s => s.protocol === protocolFilter)
+    ).filter(s => {
+      if (!search) return true
+      const q = search.toLowerCase()
+      return s.name?.toLowerCase().includes(q) || s.internalHost?.toLowerCase().includes(q) || s.instanceId?.toLowerCase().includes(q) || s.protocol?.toLowerCase().includes(q)
+    })
+    const arr = [...list]
+    arr.sort((a, b) => {
+      let va, vb
+      if (sortBy === 'active') {
+        va = a.active ? 1 : 0; vb = b.active ? 1 : 0
+      } else if (sortBy === 'connections') {
+        va = a.maxConnections ?? 0; vb = b.maxConnections ?? 0
+      } else {
+        va = a[sortBy] ?? ''; vb = b[sortBy] ?? ''
+      }
+      if (typeof va === 'number') return sortDir === 'asc' ? va - vb : vb - va
+      return sortDir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va))
+    })
+    return arr
+  }, [servers, protocolFilter, search, sortBy, sortDir])
 
   const protocolCounts = PROTOCOLS.reduce((acc, p) => {
     acc[p] = servers.filter(s => s.protocol === p).length
@@ -432,13 +455,13 @@ export default function ServerInstances() {
             <thead>
               <tr className="border-b border-border">
                 <th className="table-header">Instance</th>
-                <th className="table-header">Protocol</th>
-                <th className="table-header">Name</th>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('protocol')}>Protocol {sortBy === 'protocol' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('name')}>Name {sortBy === 'name' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                 <th className="table-header">Storage</th>
                 <th className="table-header">Internal</th>
-                <th className="table-header">Client Connection</th>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('connections')}>Client Connection {sortBy === 'connections' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                 <th className="table-header">Security</th>
-                <th className="table-header">Status</th>
+                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('active')}>Status {sortBy === 'active' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                 <th className="table-header">Actions</th>
               </tr>
             </thead>

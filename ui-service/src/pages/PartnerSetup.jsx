@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
@@ -16,10 +16,14 @@ import {
   ChevronUpIcon,
   EyeIcon,
   EyeSlashIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  SignalIcon,
+  ExclamationTriangleIcon,
+  BoltIcon
 } from '@heroicons/react/24/outline'
 import { createPartner } from '../api/partners'
 import { createAccount } from '../api/accounts'
+import { onboardingApi, configApi } from '../api/client'
 import { friendlyError } from '../components/FormField'
 import LoadingSpinner from '../components/LoadingSpinner'
 
@@ -29,8 +33,13 @@ const STEPS = [
   { num: 3, label: 'Contacts' },
   { num: 4, label: 'Account Setup' },
   { num: 5, label: 'SLA Config' },
-  { num: 6, label: 'Review' }
+  { num: 6, label: 'Server Assign' },
+  { num: 7, label: 'Flow Config' },
+  { num: 8, label: 'Test Connect' },
+  { num: 9, label: 'Review' }
 ]
+
+const TOTAL_STEPS = STEPS.length
 
 const INDUSTRIES = [
   'Financial Services', 'Healthcare', 'Retail', 'Manufacturing',
@@ -117,20 +126,50 @@ export default function PartnerSetup() {
   const [showPasswords, setShowPasswords] = useState({})
   const [stepErrors, setStepErrors] = useState({})
 
+  // Server Assignment state (step 6)
+  const [servers, setServers] = useState([])
+  const [serversLoading, setServersLoading] = useState(false)
+  const [selectedServerId, setSelectedServerId] = useState(null)
+  const [serverAssigned, setServerAssigned] = useState(false)
+  const [serverAssigning, setServerAssigning] = useState(false)
+
+  // Flow Configuration state (step 7)
+  const [flows, setFlows] = useState([])
+  const [flowsLoading, setFlowsLoading] = useState(false)
+  const [selectedFlowId, setSelectedFlowId] = useState(null)
+
+  // Test Connection state (step 8)
+  const [testResult, setTestResult] = useState(null)  // { success, message, details }
+  const [testRunning, setTestRunning] = useState(false)
+
+  // Created entity IDs (populated during submit or account creation)
+  const [createdPartnerId, setCreatedPartnerId] = useState(null)
+  const [createdAccountIds, setCreatedAccountIds] = useState([])
+
   const updateForm = (fields) => setForm((prev) => ({ ...prev, ...fields }))
 
+  // Creates partner + accounts, used both when advancing past SLA (step 5→6) and on final submit
   const createMut = useMutation({
     mutationFn: async (data) => {
       const partner = await createPartner(data)
+      const accountIds = []
       for (const acc of form.accounts) {
-        await createAccount({ ...acc, partnerId: partner.id })
+        const created = await createAccount({ ...acc, partnerId: partner.id })
+        accountIds.push(created.id)
       }
-      return partner
+      return { partner, accountIds }
     },
-    onSuccess: (partner) => {
-      toast.success('Partner onboarded successfully!')
+    onSuccess: ({ partner, accountIds }) => {
+      setCreatedPartnerId(partner.id)
+      setCreatedAccountIds(accountIds)
       queryClient.invalidateQueries({ queryKey: ['partners'] })
-      navigate(`/partners/${partner.id}`)
+      // If we are at step 5 advancing to 6, just advance — don't navigate
+      if (step === 5) {
+        setStep(6)
+      } else {
+        toast.success('Partner onboarded successfully!')
+        navigate(`/partners/${partner.id}`)
+      }
     },
     onError: (err) => toast.error(friendlyError(err))
   })
@@ -168,6 +207,52 @@ export default function PartnerSetup() {
     return true
   }
 
+  // Fetch servers filtered by selected protocols
+  const fetchServers = useCallback(async () => {
+    setServersLoading(true)
+    try {
+      const { data } = await onboardingApi.get('/api/servers?activeOnly=true')
+      // Filter servers that match any of the partner's selected protocols
+      const filtered = (data || []).filter((s) =>
+        form.protocolsEnabled.some((p) =>
+          (s.protocol || '').toUpperCase() === p.toUpperCase()
+        )
+      )
+      setServers(filtered)
+    } catch {
+      setServers([])
+    } finally {
+      setServersLoading(false)
+    }
+  }, [form.protocolsEnabled])
+
+  // Fetch flows filtered by protocol
+  const fetchFlows = useCallback(async () => {
+    setFlowsLoading(true)
+    try {
+      const { data } = await configApi.get('/api/flows')
+      const filtered = (data || []).filter((f) =>
+        form.protocolsEnabled.some((p) =>
+          (f.protocol || '').toUpperCase() === p.toUpperCase()
+        )
+      )
+      setFlows(filtered)
+    } catch {
+      setFlows([])
+    } finally {
+      setFlowsLoading(false)
+    }
+  }, [form.protocolsEnabled])
+
+  // Auto-fetch when entering steps 6 or 7
+  useEffect(() => {
+    if (step === 6) fetchServers()
+  }, [step, fetchServers])
+
+  useEffect(() => {
+    if (step === 7) fetchFlows()
+  }, [step, fetchFlows])
+
   const handleNext = () => {
     if (validateStep(step)) {
       if (step === 2) {
@@ -189,13 +274,48 @@ export default function PartnerSetup() {
         const filtered = newAccounts.filter((a) => form.protocolsEnabled.includes(a.protocol))
         updateForm({ accounts: filtered })
       }
-      setStep((prev) => Math.min(prev + 1, 6))
+
+      // Create partner + accounts when advancing from SLA Config (step 5) to Server Assignment (step 6)
+      if (step === 5 && !createdPartnerId) {
+        const payload = {
+          companyName: form.companyName,
+          displayName: form.displayName || form.companyName,
+          industry: form.industry,
+          website: form.website,
+          partnerType: form.partnerType,
+          logoUrl: form.logoUrl,
+          notes: form.notes,
+          protocolsEnabled: form.protocolsEnabled,
+          contacts: form.contacts,
+          slaTier: form.slaTier,
+          maxFileSizeBytes: form.maxFileSizeBytes,
+          maxTransfersPerDay: form.maxTransfersPerDay,
+          retentionDays: form.retentionDays
+        }
+        createMut.mutate(payload)
+        return  // step advancement happens in onSuccess
+      }
+
+      setStep((prev) => Math.min(prev + 1, TOTAL_STEPS))
     }
   }
 
-  const handleBack = () => { setStepErrors({}); setStep((prev) => Math.max(prev - 1, 1)) }
+  const handleBack = () => {
+    setStepErrors({})
+    // Don't allow going back before step 6 once partner is created
+    const minStep = createdPartnerId ? 6 : 1
+    setStep((prev) => Math.max(prev - 1, minStep))
+  }
 
   const handleSubmit = () => {
+    // Partner was already created when advancing past step 5; just navigate
+    if (createdPartnerId) {
+      toast.success('Partner onboarded successfully!')
+      queryClient.invalidateQueries({ queryKey: ['partners'] })
+      navigate(`/partners/${createdPartnerId}`)
+      return
+    }
+    // Fallback: create partner if somehow not yet created
     const payload = {
       companyName: form.companyName,
       displayName: form.displayName || form.companyName,
@@ -212,6 +332,47 @@ export default function PartnerSetup() {
       retentionDays: form.retentionDays
     }
     createMut.mutate(payload)
+  }
+
+  // Server assignment handler
+  const handleAssignServer = async () => {
+    if (!selectedServerId || createdAccountIds.length === 0) return
+    setServerAssigning(true)
+    try {
+      // Assign the first account to the selected server (primary account)
+      await onboardingApi.post(`/api/servers/${selectedServerId}/accounts/${createdAccountIds[0]}`)
+      setServerAssigned(true)
+      toast.success('Server assigned successfully')
+    } catch (err) {
+      toast.error(friendlyError(err))
+    } finally {
+      setServerAssigning(false)
+    }
+  }
+
+  // Test connection handler
+  const handleTestConnection = async () => {
+    setTestRunning(true)
+    setTestResult(null)
+    try {
+      const { data } = await onboardingApi.get('/api/partner/test-connection', {
+        params: { partnerId: createdPartnerId }
+      })
+      setTestResult({
+        success: true,
+        message: data?.message || 'Connection successful',
+        details: data
+      })
+    } catch (err) {
+      const errMsg = err.response?.data?.message || err.message || 'Connection test failed'
+      setTestResult({
+        success: false,
+        message: errMsg,
+        details: err.response?.data
+      })
+    } finally {
+      setTestRunning(false)
+    }
   }
 
   const toggleProtocol = (proto) => {
@@ -813,12 +974,294 @@ export default function PartnerSetup() {
     </div>
   )
 
-  // ---------- Step 6: Review ----------
+  // ---------- Step 6: Server Assignment ----------
   const renderStep6 = () => (
+    <div className="card">
+      <h2 className="text-xl font-bold text-primary">Server Assignment</h2>
+      <p className="text-sm text-secondary mb-2">Assign this partner's account to a transfer server</p>
+      <p className="text-xs text-muted mb-6">Servers handle the actual file transfer connections. Pick one that matches the partner's protocol.</p>
+
+      {serverAssigned ? (
+        <div className="flex flex-col items-center justify-center py-10">
+          <div className="w-16 h-16 bg-[rgb(30,80,50)] rounded-full flex items-center justify-center mb-4">
+            <CheckIcon className="w-8 h-8 text-[rgb(60,200,120)]" />
+          </div>
+          <p className="text-lg font-semibold text-[rgb(60,200,120)]">Server Assigned</p>
+          <p className="text-sm text-secondary mt-1">
+            Account linked to server: {servers.find((s) => s.id === selectedServerId)?.name || selectedServerId}
+          </p>
+        </div>
+      ) : serversLoading ? (
+        <div className="flex items-center justify-center py-10">
+          <LoadingSpinner />
+          <span className="ml-3 text-secondary">Loading available servers...</span>
+        </div>
+      ) : servers.length === 0 ? (
+        <div className="text-center py-10">
+          <ServerIcon className="w-12 h-12 text-muted mx-auto mb-3" />
+          <p className="text-secondary">No active servers found for the selected protocols.</p>
+          <p className="text-xs text-muted mt-1">You can assign a server later from the Partner Detail page.</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {servers.map((server) => {
+              const isSelected = selectedServerId === server.id
+              return (
+                <button
+                  key={server.id}
+                  type="button"
+                  onClick={() => setSelectedServerId(server.id)}
+                  className={`relative p-5 rounded-xl border-2 text-left transition-all ${
+                    isSelected ? 'border-accent bg-accent-soft' : 'border-border hover:border-muted'
+                  }`}
+                >
+                  {isSelected && (
+                    <div className="absolute top-3 right-3">
+                      <div className="w-6 h-6 bg-accent rounded-full flex items-center justify-center">
+                        <CheckIcon className="w-4 h-4 text-white" />
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3 mb-2">
+                    <ServerIcon className={`w-6 h-6 ${isSelected ? 'text-accent' : 'text-muted'}`} />
+                    <span className={`font-semibold ${isSelected ? 'text-accent' : 'text-primary'}`}>
+                      {server.name || `Server ${server.id}`}
+                    </span>
+                  </div>
+                  <div className="space-y-1 text-xs text-muted">
+                    {server.protocol && <p>Protocol: <span className="text-secondary">{server.protocol}</span></p>}
+                    {server.host && <p>Host: <span className="text-secondary font-mono">{server.host}:{server.port || '—'}</span></p>}
+                    {server.status && <p>Status: <span className="text-secondary">{server.status}</span></p>}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="flex items-center gap-3 mt-6">
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleAssignServer}
+              disabled={!selectedServerId || serverAssigning}
+            >
+              {serverAssigning ? (
+                <span className="flex items-center gap-2"><LoadingSpinner /> Assigning...</span>
+              ) : (
+                'Assign Server'
+              )}
+            </button>
+          </div>
+        </>
+      )}
+
+      <div className="mt-6 pt-4 border-t">
+        <button
+          type="button"
+          onClick={() => setStep(7)}
+          className="text-sm text-accent hover:underline"
+        >
+          I'll do this later — skip to Flow Configuration
+        </button>
+      </div>
+    </div>
+  )
+
+  // ---------- Step 7: Flow Configuration ----------
+  const renderStep7 = () => (
+    <div className="card">
+      <h2 className="text-xl font-bold text-primary">Flow Configuration</h2>
+      <p className="text-sm text-secondary mb-2">Select or create a transfer flow for this partner</p>
+      <p className="text-xs text-muted mb-6">Flows define how files are processed, routed, and delivered. You can pick an existing flow or create a new one.</p>
+
+      {flowsLoading ? (
+        <div className="flex items-center justify-center py-10">
+          <LoadingSpinner />
+          <span className="ml-3 text-secondary">Loading available flows...</span>
+        </div>
+      ) : flows.length === 0 ? (
+        <div className="text-center py-10">
+          <ArrowsRightLeftIcon className="w-12 h-12 text-muted mx-auto mb-3" />
+          <p className="text-secondary">No existing flows match the selected protocols.</p>
+          <p className="text-xs text-muted mt-1">Create a new flow or skip and configure later.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {flows.map((flow) => {
+            const isSelected = selectedFlowId === flow.id
+            return (
+              <button
+                key={flow.id}
+                type="button"
+                onClick={() => setSelectedFlowId(flow.id)}
+                className={`relative p-5 rounded-xl border-2 text-left transition-all ${
+                  isSelected ? 'border-accent bg-accent-soft' : 'border-border hover:border-muted'
+                }`}
+              >
+                {isSelected && (
+                  <div className="absolute top-3 right-3">
+                    <div className="w-6 h-6 bg-accent rounded-full flex items-center justify-center">
+                      <CheckIcon className="w-4 h-4 text-white" />
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-center gap-3 mb-2">
+                  <ArrowsRightLeftIcon className={`w-5 h-5 ${isSelected ? 'text-accent' : 'text-muted'}`} />
+                  <span className={`font-semibold ${isSelected ? 'text-accent' : 'text-primary'}`}>
+                    {flow.name || `Flow ${flow.id}`}
+                  </span>
+                </div>
+                <div className="space-y-1 text-xs text-muted">
+                  {flow.protocol && <p>Protocol: <span className="text-secondary">{flow.protocol}</span></p>}
+                  {flow.description && <p className="text-secondary">{flow.description}</p>}
+                  {flow.direction && <p>Direction: <span className="text-secondary">{flow.direction}</span></p>}
+                </div>
+                {isSelected && (
+                  <div className="mt-3 pt-2 border-t border-accent/20">
+                    <span className="text-xs text-accent font-medium">Selected — will be assigned on review</span>
+                  </div>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      <div className="flex items-center gap-4 mt-6">
+        <button
+          type="button"
+          className="btn-secondary flex items-center gap-2"
+          onClick={() => navigate('/flows')}
+        >
+          <PlusIcon className="w-4 h-4" />
+          Create New Flow
+        </button>
+      </div>
+
+      <div className="mt-6 pt-4 border-t">
+        <button
+          type="button"
+          onClick={() => setStep(8)}
+          className="text-sm text-accent hover:underline"
+        >
+          I'll do this later — skip to Test Connection
+        </button>
+      </div>
+    </div>
+  )
+
+  // ---------- Step 8: Test Connection ----------
+  const renderStep8 = () => {
+    const primaryProtocol = form.protocolsEnabled[0] || 'SFTP'
+    return (
+      <div className="card">
+        <h2 className="text-xl font-bold text-primary">Test Connection</h2>
+        <p className="text-sm text-secondary mb-2">Verify connectivity before finishing setup</p>
+        <p className="text-xs text-muted mb-6">
+          Run a connectivity test to make sure the partner's {primaryProtocol} endpoint is reachable and credentials work correctly.
+        </p>
+
+        <div className="flex flex-col items-center py-8">
+          {!testResult && !testRunning && (
+            <>
+              <div className="w-20 h-20 bg-hover rounded-full flex items-center justify-center mb-6">
+                <SignalIcon className="w-10 h-10 text-muted" />
+              </div>
+              <p className="text-secondary mb-6">Click below to test {primaryProtocol} connectivity</p>
+              <button
+                type="button"
+                className="btn-primary flex items-center gap-2 px-6 py-2.5"
+                onClick={handleTestConnection}
+              >
+                <BoltIcon className="w-5 h-5" />
+                Test {primaryProtocol} Connectivity
+              </button>
+            </>
+          )}
+
+          {testRunning && (
+            <div className="flex flex-col items-center">
+              <LoadingSpinner />
+              <p className="text-secondary mt-4">Testing connection...</p>
+            </div>
+          )}
+
+          {testResult && !testRunning && (
+            <div className="w-full max-w-lg">
+              {testResult.success ? (
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-[rgb(30,80,50)] rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CheckIcon className="w-8 h-8 text-[rgb(60,200,120)]" />
+                  </div>
+                  <p className="text-lg font-semibold text-[rgb(60,200,120)]">Connection Successful</p>
+                  <p className="text-sm text-secondary mt-1">{testResult.message}</p>
+                </div>
+              ) : (
+                <div>
+                  <div className="text-center mb-6">
+                    <div className="w-16 h-16 bg-[rgb(80,30,30)] rounded-full flex items-center justify-center mx-auto mb-4">
+                      <ExclamationTriangleIcon className="w-8 h-8 text-[rgb(240,120,120)]" />
+                    </div>
+                    <p className="text-lg font-semibold text-[rgb(240,120,120)]">Connection Failed</p>
+                    <p className="text-sm text-secondary mt-1">{testResult.message}</p>
+                  </div>
+
+                  <div className="bg-[rgb(60,20,20)] border border-[rgb(80,30,30)] rounded-lg p-4">
+                    <h4 className="text-sm font-semibold text-[rgb(240,180,180)] mb-2">Troubleshooting Tips</h4>
+                    <ul className="space-y-2 text-xs text-[rgb(200,160,160)]">
+                      <li className="flex items-start gap-2">
+                        <span className="text-[rgb(240,120,120)] mt-0.5">*</span>
+                        <span>Verify the hostname and port are correct and reachable from this network</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-[rgb(240,120,120)] mt-0.5">*</span>
+                        <span>Check that firewall rules allow outbound traffic on the {primaryProtocol} port</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-[rgb(240,120,120)] mt-0.5">*</span>
+                        <span>Confirm credentials (username/password or SSH key) are correct</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-[rgb(240,120,120)] mt-0.5">*</span>
+                        <span>If using SFTP/FTP, ensure the server is running and accepting connections</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="mt-4 btn-secondary flex items-center gap-2"
+                    onClick={handleTestConnection}
+                  >
+                    <ArrowPathIcon className="w-4 h-4" />
+                    Retry Test
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-6 pt-4 border-t">
+          <button
+            type="button"
+            onClick={() => setStep(9)}
+            className="text-sm text-accent hover:underline"
+          >
+            Test later — skip to Review
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ---------- Step 9: Review ----------
+  const renderStep9 = () => (
     <div className="space-y-6">
       <div className="card">
-        <h2 className="text-xl font-bold text-primary">Review & Create</h2>
-        <p className="text-sm text-secondary">Verify everything looks correct</p>
+        <h2 className="text-xl font-bold text-primary">Review & Finish</h2>
+        <p className="text-sm text-secondary">Review the onboarding summary before proceeding to the Partner Detail page</p>
       </div>
 
       {/* Company Details */}
@@ -965,17 +1408,75 @@ export default function PartnerSetup() {
         </div>
       </div>
 
+      {/* Server Assignment */}
+      <div className="card">
+        <h3 className="text-sm font-semibold text-secondary uppercase tracking-wider mb-3">
+          Server Assignment
+        </h3>
+        {serverAssigned ? (
+          <div className="flex items-center gap-3 text-sm">
+            <CheckIcon className="w-5 h-5 text-[rgb(60,200,120)]" />
+            <span className="text-primary font-medium">
+              Assigned to: {servers.find((s) => s.id === selectedServerId)?.name || `Server ${selectedServerId}`}
+            </span>
+          </div>
+        ) : (
+          <p className="text-sm text-muted italic">Not assigned — can be configured from the Partner Detail page.</p>
+        )}
+      </div>
+
+      {/* Flow Configuration */}
+      <div className="card">
+        <h3 className="text-sm font-semibold text-secondary uppercase tracking-wider mb-3">
+          Flow Configuration
+        </h3>
+        {selectedFlowId ? (
+          <div className="flex items-center gap-3 text-sm">
+            <ArrowsRightLeftIcon className="w-5 h-5 text-accent" />
+            <span className="text-primary font-medium">
+              Flow: {flows.find((f) => f.id === selectedFlowId)?.name || `Flow ${selectedFlowId}`}
+            </span>
+          </div>
+        ) : (
+          <p className="text-sm text-muted italic">No flow selected — can be configured from the Partner Detail page.</p>
+        )}
+      </div>
+
+      {/* Test Connection */}
+      <div className="card">
+        <h3 className="text-sm font-semibold text-secondary uppercase tracking-wider mb-3">
+          Connectivity Test
+        </h3>
+        {testResult ? (
+          <div className="flex items-center gap-3 text-sm">
+            {testResult.success ? (
+              <>
+                <CheckIcon className="w-5 h-5 text-[rgb(60,200,120)]" />
+                <span className="text-[rgb(60,200,120)] font-medium">Passed</span>
+              </>
+            ) : (
+              <>
+                <ExclamationTriangleIcon className="w-5 h-5 text-[rgb(240,120,120)]" />
+                <span className="text-[rgb(240,120,120)] font-medium">Failed: {testResult.message}</span>
+              </>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-muted italic">Not tested — you can test connectivity from the Partner Detail page.</p>
+        )}
+      </div>
+
       {/* What happens next */}
       <div className="card border-2 border-blue-100 bg-accent-soft/50">
-        <h3 className="text-sm font-semibold text-blue-900 mb-3">What happens when you click "Create Partner"?</h3>
+        <h3 className="text-sm font-semibold text-blue-900 mb-3">Partner has been created</h3>
         <ol className="space-y-2 text-sm text-blue-800">
           <li className="flex items-start gap-2">
             <span className="flex-shrink-0 w-5 h-5 bg-accent text-white rounded-full flex items-center justify-center text-xs font-bold mt-0.5">1</span>
-            <span>A new partner record is created with status <strong>PENDING</strong> and a unique slug for API references.</span>
+            <span>Your partner record was created with status <strong>PENDING</strong> and a unique slug for API references.</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="flex-shrink-0 w-5 h-5 bg-accent text-white rounded-full flex items-center justify-center text-xs font-bold mt-0.5">2</span>
-            <span>Transfer accounts are provisioned for each selected protocol with home directories created automatically.</span>
+            <span>Transfer accounts have been provisioned for each selected protocol with home directories created automatically.</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="flex-shrink-0 w-5 h-5 bg-accent text-white rounded-full flex items-center justify-center text-xs font-bold mt-0.5">3</span>
@@ -983,7 +1484,7 @@ export default function PartnerSetup() {
           </li>
           <li className="flex items-start gap-2">
             <span className="flex-shrink-0 w-5 h-5 bg-accent text-white rounded-full flex items-center justify-center text-xs font-bold mt-0.5">4</span>
-            <span>You'll be redirected to the Partner Detail page where you can <strong>activate</strong> the partner, configure flows, and set up webhooks.</span>
+            <span>Click <strong>"Finish & View Partner"</strong> to go to the Partner Detail page where you can <strong>activate</strong> the partner and configure webhooks.</span>
           </li>
         </ol>
       </div>
@@ -1005,6 +1506,12 @@ export default function PartnerSetup() {
         return renderStep5()
       case 6:
         return renderStep6()
+      case 7:
+        return renderStep7()
+      case 8:
+        return renderStep8()
+      case 9:
+        return renderStep9()
       default:
         return null
     }
@@ -1017,7 +1524,7 @@ export default function PartnerSetup() {
         <h1 className="text-2xl font-bold">Onboard New Partner</h1>
         <p className="text-blue-100 mt-1 text-sm">
           This wizard will guide you through setting up a new trading partner in {STEPS.length} steps:
-          company details, protocol selection, contacts, transfer accounts, SLA configuration, and final review.
+          company details, protocol selection, contacts, transfer accounts, SLA configuration, server assignment, flow configuration, connectivity test, and final review.
         </p>
         <div className="flex items-center gap-4 mt-3 text-xs text-blue-200">
           <span>Step {step} of {STEPS.length}: <strong className="text-white">{STEPS[step - 1].label}</strong></span>
@@ -1035,14 +1542,20 @@ export default function PartnerSetup() {
           type="button"
           className="btn-secondary"
           onClick={handleBack}
-          disabled={step === 1}
+          disabled={step === 1 || (createdPartnerId && step === 6)}
         >
           Back
         </button>
 
-        {step < 6 ? (
-          <button type="button" className="btn-primary" onClick={handleNext}>
-            Next
+        {step < TOTAL_STEPS ? (
+          <button type="button" className="btn-primary" onClick={handleNext}
+            disabled={step === 5 && createMut.isPending}
+          >
+            {step === 5 && createMut.isPending ? (
+              <span className="flex items-center gap-2"><LoadingSpinner /> Creating...</span>
+            ) : (
+              'Next'
+            )}
           </button>
         ) : (
           <button
@@ -1056,7 +1569,7 @@ export default function PartnerSetup() {
                 <LoadingSpinner /> Creating...
               </span>
             ) : (
-              'Create Partner'
+              'Finish & View Partner'
             )}
           </button>
         )}

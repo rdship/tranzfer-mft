@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import * as dlqApi from '../api/dlq'
 import toast from 'react-hot-toast'
@@ -45,6 +45,8 @@ export default function DlqManager() {
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [confirmRetryAll, setConfirmRetryAll] = useState(false)
   const [confirmAction, setConfirmAction] = useState(null) // { id, type: 'retry'|'discard' }
+  const [sortBy, setSortBy] = useState('failedAt')
+  const [sortDir, setSortDir] = useState('desc')
 
   // ── Queries ──
 
@@ -101,12 +103,36 @@ export default function DlqManager() {
 
   // ── Filtered messages ──
 
-  const filtered = search.trim()
-    ? messages.filter(m =>
-        (m.errorMessage || '').toLowerCase().includes(search.toLowerCase()) ||
-        (m.originalQueue || '').toLowerCase().includes(search.toLowerCase())
-      )
-    : messages
+  const toggleSort = (col) => {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(col); setSortDir('asc') }
+  }
+
+  const filtered = useMemo(() => {
+    const list = search.trim()
+      ? messages.filter(m =>
+          (m.errorMessage || '').toLowerCase().includes(search.toLowerCase()) ||
+          (m.originalQueue || '').toLowerCase().includes(search.toLowerCase())
+        )
+      : messages
+    const arr = [...list]
+    arr.sort((a, b) => {
+      let va, vb
+      if (sortBy === 'failedAt') {
+        va = a.failedAt ? new Date(a.failedAt).getTime() : 0
+        vb = b.failedAt ? new Date(b.failedAt).getTime() : 0
+      } else if (sortBy === 'retryCount') {
+        va = a.retryCount ?? 0; vb = b.retryCount ?? 0
+      } else if (sortBy === 'queue') {
+        va = a.originalQueue ?? ''; vb = b.originalQueue ?? ''
+      } else {
+        va = a[sortBy] ?? ''; vb = b[sortBy] ?? ''
+      }
+      if (typeof va === 'number') return sortDir === 'asc' ? va - vb : vb - va
+      return sortDir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va))
+    })
+    return arr
+  }, [messages, search, sortBy, sortDir])
 
   // ── Render ────────────────────────────────────────────────────────────
 
@@ -208,10 +234,10 @@ export default function DlqManager() {
               <tr className="border-b border-border text-muted text-xs uppercase tracking-wider">
                 <th className="px-4 py-3 text-left w-8"></th>
                 <th className="px-4 py-3 text-left">ID</th>
-                <th className="px-4 py-3 text-left">Original Queue</th>
+                <th className="px-4 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort('queue')}>Original Queue {sortBy === 'queue' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                 <th className="px-4 py-3 text-left">Error Message</th>
-                <th className="px-4 py-3 text-left">Failed At</th>
-                <th className="px-4 py-3 text-left">Retries</th>
+                <th className="px-4 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort('failedAt')}>Failed At {sortBy === 'failedAt' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                <th className="px-4 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort('retryCount')}>Retries {sortBy === 'retryCount' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                 <th className="px-4 py-3 text-left">Status</th>
                 <th className="px-4 py-3 text-left">Actions</th>
               </tr>

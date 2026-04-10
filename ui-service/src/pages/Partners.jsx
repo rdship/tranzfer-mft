@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { getPartners, createPartner, deletePartner, activatePartner, suspendPartner, getPartnerStats } from '../api/partners'
@@ -109,6 +109,10 @@ export default function Partners() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [openActions, setOpenActions] = useState(null)
   const [formErrors, setFormErrors] = useState({})
+  const [selected, setSelected] = useState(new Set())
+  const [showBulkConfirm, setShowBulkConfirm] = useState(null) // 'activate' | 'suspend'
+  const [sortBy, setSortBy] = useState('companyName')
+  const [sortDir, setSortDir] = useState('asc')
 
   const { data: partners = [], isLoading } = useQuery({
     queryKey: ['partners', statusFilter],
@@ -165,10 +169,25 @@ export default function Partners() {
 
   const totalPartners = (stats.ACTIVE || 0) + (stats.PENDING || 0) + (stats.SUSPENDED || 0) + (stats.OFFBOARDED || 0)
 
-  const filtered = partners.filter(p =>
-    p.companyName?.toLowerCase().includes(search.toLowerCase()) ||
-    p.displayName?.toLowerCase().includes(search.toLowerCase())
-  )
+  const toggleSort = (col) => {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(col); setSortDir('asc') }
+  }
+
+  const filtered = useMemo(() => {
+    const list = partners.filter(p =>
+      p.companyName?.toLowerCase().includes(search.toLowerCase()) ||
+      p.displayName?.toLowerCase().includes(search.toLowerCase())
+    )
+    const arr = [...list]
+    arr.sort((a, b) => {
+      const va = a[sortBy] ?? ''
+      const vb = b[sortBy] ?? ''
+      if (typeof va === 'number') return sortDir === 'asc' ? va - vb : vb - va
+      return sortDir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va))
+    })
+    return arr
+  }, [partners, search, sortBy, sortDir])
 
   const handleProtocolToggle = (protocol) => {
     setForm(prev => {
@@ -196,6 +215,32 @@ export default function Partners() {
       ...form,
       protocolsEnabled: JSON.stringify(form.protocolsEnabled),
     })
+  }
+
+  const toggleSelect = (id) => setSelected(s => {
+    const n = new Set(s)
+    n.has(id) ? n.delete(id) : n.add(id)
+    return n
+  })
+  const toggleSelectAll = () => {
+    if (selected.size === filtered.length) setSelected(new Set())
+    else setSelected(new Set(filtered.map(p => p.id)))
+  }
+
+  const handleBulkAction = async (action) => {
+    const ids = [...selected]
+    const results = await Promise.allSettled(
+      ids.map(id => action === 'activate' ? activatePartner(id) : suspendPartner(id))
+    )
+    const succeeded = results.filter(r => r.status === 'fulfilled').length
+    const failed = results.filter(r => r.status === 'rejected').length
+    const label = action === 'activate' ? 'activated' : 'suspended'
+    if (failed === 0) toast.success(`${succeeded} partner${succeeded !== 1 ? 's' : ''} ${label}`)
+    else toast.error(`${succeeded} of ${ids.length} partners ${label}, ${failed} failed`)
+    setSelected(new Set())
+    setShowBulkConfirm(null)
+    qc.invalidateQueries(['partners'])
+    qc.invalidateQueries(['partner-stats'])
   }
 
   const handleDelete = (e, id) => {
@@ -307,6 +352,16 @@ export default function Partners() {
         />
       </div>
 
+      {/* Bulk Action Bar */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 bg-[rgba(100,140,255,0.1)] border border-[rgba(100,140,255,0.2)] rounded-xl px-4 py-2">
+          <span className="text-sm font-medium">{selected.size} selected</span>
+          <button className="btn-secondary text-sm" onClick={() => setShowBulkConfirm('activate')}>Activate All</button>
+          <button className="btn-secondary text-sm" onClick={() => setShowBulkConfirm('suspend')}>Suspend All</button>
+          <button className="text-sm text-red-400 hover:text-red-300" onClick={() => setSelected(new Set())}>Clear</button>
+        </div>
+      )}
+
       {/* Partner Table */}
       {filtered.length === 0 ? (
         <EmptyState
@@ -326,14 +381,15 @@ export default function Partners() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="table-header">Company</th>
-                  <th className="table-header">Type</th>
+                  <th className="table-header w-8"><input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleSelectAll} /></th>
+                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('companyName')}>Company {sortBy === 'companyName' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
+                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('partnerType')}>Type {sortBy === 'partnerType' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                   <th className="table-header">Protocols</th>
-                  <th className="table-header">Status</th>
+                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('status')}>Status {sortBy === 'status' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                   <th className="table-header">Phase</th>
                   <th className="table-header">SLA Tier</th>
                   <th className="table-header">Accounts</th>
-                  <th className="table-header">Created</th>
+                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('createdAt')}>Created {sortBy === 'createdAt' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                   <th className="table-header">Actions</th>
                 </tr>
               </thead>
@@ -346,6 +402,7 @@ export default function Partners() {
                       className="table-row cursor-pointer"
                       onClick={() => navigate(`/partners/${partner.id}`)}
                     >
+                      <td className="table-cell" onClick={e => e.stopPropagation()}><input type="checkbox" checked={selected.has(partner.id)} onChange={() => toggleSelect(partner.id)} /></td>
                       <td className="table-cell">
                         <div>
                           <p className="font-semibold text-primary">{partner.companyName}</p>
@@ -569,6 +626,21 @@ export default function Partners() {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* Bulk Confirm Modal */}
+      {showBulkConfirm && (
+        <Modal title={`Bulk ${showBulkConfirm === 'activate' ? 'Activate' : 'Suspend'} Partners`} onClose={() => setShowBulkConfirm(null)}>
+          <p className="text-secondary mb-4">
+            Are you sure you want to {showBulkConfirm} <strong>{selected.size}</strong> partner{selected.size !== 1 ? 's' : ''}?
+          </p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setShowBulkConfirm(null)}>Cancel</button>
+            <button className="btn-primary" onClick={() => handleBulkAction(showBulkConfirm)}>
+              {showBulkConfirm === 'activate' ? 'Activate All' : 'Suspend All'}
+            </button>
+          </div>
         </Modal>
       )}
 
