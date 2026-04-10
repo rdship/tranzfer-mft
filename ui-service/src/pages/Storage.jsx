@@ -16,6 +16,10 @@ export default function Storage() {
   const { data: actions = [] } = useQuery({ queryKey: ['storage-actions'],
     queryFn: () => storageApi.get('/api/v1/storage/lifecycle/actions').then(r => r.data).catch(() => []) })
 
+  const { data: drpStats = null } = useQuery({ queryKey: ['drp-stats'],
+    queryFn: () => storageApi.get('/api/v1/storage/drp-stats').then(r => r.data).catch(() => null),
+    refetchInterval: 30000 })
+
   const tierMut = useMutation({ mutationFn: () => storageApi.post('/api/v1/storage/lifecycle/tier'),
     onSuccess: () => toast.success('Tiering cycle completed') })
   const backupMut = useMutation({ mutationFn: () => storageApi.post('/api/v1/storage/lifecycle/backup'),
@@ -96,6 +100,33 @@ export default function Storage() {
               <span className="text-gray-400 text-xs ml-auto">{a.timestamp ? format(new Date(a.timestamp), 'HH:mm:ss') : ''}</span>
             </div>
           ))}</div>
+        </div>
+      )}
+
+      {/* DRP Engine Stats */}
+      {drpStats && (
+        <div className="card">
+          <h3 className="font-semibold text-gray-900 mb-1">DRP Engine Stats</h3>
+          <p className="text-gray-500 text-xs mb-4">Data Replication & Protection engine status and I/O lane metrics</p>
+          {drpStats.ioLanes && Object.keys(drpStats.ioLanes).length > 0 ? (
+            <div className="grid grid-cols-3 gap-4">
+              {Object.entries(drpStats.ioLanes).map(([key, val]) => (
+                <div key={key} className="border rounded-lg p-3 bg-gray-50 text-center">
+                  <span className="text-sm text-gray-500 block">{key}</span>
+                  <span className="text-lg font-bold text-gray-900">{typeof val === 'number' ? val.toLocaleString() : String(val)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-4">
+              {Object.entries(drpStats).filter(([k]) => k !== 'ioLanes').map(([key, val]) => (
+                <div key={key} className="border rounded-lg p-3 bg-gray-50 text-center">
+                  <span className="text-sm text-gray-500 block">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                  <span className="text-lg font-bold text-gray-900">{typeof val === 'number' ? val.toLocaleString() : typeof val === 'boolean' ? (val ? 'Yes' : 'No') : String(val)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

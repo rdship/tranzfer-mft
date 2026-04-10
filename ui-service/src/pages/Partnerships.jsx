@@ -1,11 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getPartnerships, createPartnership, deletePartnership, togglePartnership } from '../api/config'
+import { keystoreApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
 import toast from 'react-hot-toast'
 import { PlusIcon, TrashIcon, ArrowsRightLeftIcon, CheckCircleIcon, XCircleIcon, SignalIcon } from '@heroicons/react/24/outline'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const EMPTY_FORM = {
   partnerName: '', partnerAs2Id: '', ourAs2Id: '', endpointUrl: '', protocol: 'AS2',
@@ -19,6 +20,15 @@ export default function Partnerships() {
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [filter, setFilter] = useState('ALL')
+  const [keystoreCerts, setKeystoreCerts] = useState([])
+  const [selectedCert, setSelectedCert] = useState('')
+
+  // Fetch TLS certificates from Keystore Manager for partner cert selection
+  useEffect(() => {
+    keystoreApi.get('/api/v1/keys?type=TLS_CERTIFICATE')
+      .then(r => setKeystoreCerts(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setKeystoreCerts([]))
+  }, [])
 
   const { data: partnerships = [], isLoading } = useQuery({ queryKey: ['partnerships'], queryFn: getPartnerships })
   const createMut = useMutation({
@@ -179,7 +189,27 @@ export default function Partnerships() {
                 </div>
               </div>
               <div className="mt-3">
-                <label>Partner Certificate (PEM)</label>
+                <label>Partner Certificate</label>
+                <select value={selectedCert} onChange={e => {
+                  setSelectedCert(e.target.value)
+                  if (e.target.value) {
+                    const cert = keystoreCerts.find(c => c.id === e.target.value || c.alias === e.target.value)
+                    if (cert) setForm(f => ({...f, partnerCertificate: cert.alias || cert.id}))
+                  }
+                }}>
+                  <option value="">Select certificate from Keystore...</option>
+                  {keystoreCerts.map(cert => (
+                    <option key={cert.id || cert.alias} value={cert.id || cert.alias}>
+                      {cert.alias} ({cert.type || cert.algorithm || 'TLS'})
+                      {cert.subjectDn ? ` - ${cert.subjectDn}` : ''}
+                      {cert.expiresAt ? ` - expires ${new Date(cert.expiresAt).toLocaleDateString()}` : ''}
+                    </option>
+                  ))}
+                </select>
+                {keystoreCerts.length === 0 && (
+                  <p className="text-xs text-amber-500 mt-1">Keystore Manager unavailable — paste PEM manually below</p>
+                )}
+                <p className="text-xs text-gray-400 mt-2">Or paste PEM manually:</p>
                 <textarea rows={3} value={form.partnerCertificate} onChange={e => setForm(f => ({...f, partnerCertificate: e.target.value}))}
                   placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
                   className="font-mono text-xs" />

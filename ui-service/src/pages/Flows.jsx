@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { configApi, onboardingApi } from '../api/client'
 import { getPendingApprovals, approveStep, rejectStep } from '../api/approvals'
@@ -15,8 +15,8 @@ import {
   BeakerIcon, ExclamationTriangleIcon, QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline'
 
-// ─── Step type definitions with icons, labels, categories, and config fields ───
-const STEP_TYPE_CATALOG = {
+// ─── Fallback step type definitions (used when backend catalog is unavailable) ───
+const FALLBACK_STEP_TYPES = {
   // Encryption
   ENCRYPT_PGP:     { label: 'Encrypt (PGP)',     icon: '🔒', category: 'Encryption',   color: 'text-amber-600 bg-amber-50',     configFields: [{ key: 'keyAlias', label: 'PGP Key Alias', placeholder: 'recipient-public-key' }] },
   DECRYPT_PGP:     { label: 'Decrypt (PGP)',     icon: '🔓', category: 'Encryption',   color: 'text-amber-600 bg-amber-50',     configFields: [{ key: 'keyAlias', label: 'PGP Key Alias', placeholder: 'our-private-key' }] },
@@ -31,6 +31,7 @@ const STEP_TYPE_CATALOG = {
   RENAME:          { label: 'Rename File',       icon: '✏️', category: 'Transform',    color: 'text-indigo-600 bg-indigo-50',   configFields: [{ key: 'pattern', label: 'Rename Pattern', placeholder: '${basename}_${timestamp}${ext}', helper: 'Variables: ${basename}, ${timestamp}, ${trackid}, ${ext}, ${date}' }] },
   // Validation
   SCREEN:          { label: 'Sanctions Screen',  icon: '🛡️', category: 'Validation',   color: 'text-red-600 bg-red-50',         configFields: [{ key: 'mode', label: 'Screen Mode', placeholder: 'OFAC', type: 'select', options: ['OFAC', 'AML', 'BOTH'] }] },
+  CHECKSUM_VERIFY: { label: 'Checksum Verify',   icon: '🔒', category: 'Validation',   color: 'text-red-600 bg-red-50',         configFields: [{ key: 'expectedSha256', label: 'Expected SHA-256 (optional)', placeholder: 'Leave empty for auto-detect' }] },
   // Delivery
   MAILBOX:         { label: 'Mailbox Delivery',  icon: '📬', category: 'Delivery',     color: 'text-blue-600 bg-blue-50',       configFields: [{ key: 'path', label: 'Mailbox Path', placeholder: '/outbox' }] },
   FILE_DELIVERY:   { label: 'File Delivery',     icon: '📤', category: 'Delivery',     color: 'text-blue-600 bg-blue-50',       configFields: [{ key: 'destinationId', label: 'Destination ID', placeholder: 'UUID of external destination' }] },
@@ -44,15 +45,20 @@ const STEP_TYPE_CATALOG = {
   APPROVE:         { label: 'Admin Approval',    icon: '✋', category: 'Governance',   color: 'text-purple-600 bg-purple-50',   configFields: [{ key: 'requiredApprovers', label: 'Required Approvers', placeholder: 'admin, finance-team (usernames, informational)' }] },
 }
 
-const STEP_CATEGORIES = [
+// Mutable — will be replaced by dynamic fetch in the main component
+let STEP_TYPE_CATALOG = { ...FALLBACK_STEP_TYPES }
+
+const FALLBACK_STEP_CATEGORIES = [
   { name: 'Encryption',   types: ['ENCRYPT_PGP', 'DECRYPT_PGP', 'ENCRYPT_AES', 'DECRYPT_AES'] },
   { name: 'Compression',  types: ['COMPRESS_GZIP', 'DECOMPRESS_GZIP', 'COMPRESS_ZIP', 'DECOMPRESS_ZIP'] },
   { name: 'Transform',    types: ['RENAME'] },
-  { name: 'Validation',   types: ['SCREEN'] },
+  { name: 'Validation',   types: ['SCREEN', 'CHECKSUM_VERIFY'] },
   { name: 'Delivery',     types: ['MAILBOX', 'FILE_DELIVERY', 'ROUTE'] },
   { name: 'Data',         types: ['CONVERT_EDI'] },
   { name: 'Scripting',    types: ['EXECUTE_SCRIPT'] },
 ]
+
+let STEP_CATEGORIES = [...FALLBACK_STEP_CATEGORIES]
 
 const PROTOCOLS = ['ANY', 'SFTP', 'FTP', 'AS2', 'API']
 
@@ -572,6 +578,70 @@ export default function Flows() {
   const [filter, setFilter] = useState('all') // 'all' | 'active' | 'inactive'
   const [selectedIds, setSelectedIds] = useState(new Set()) // trackIds selected for bulk restart
   const [dryRunResult, setDryRunResult] = useState(null)   // non-null = show dry run modal
+  const [activeTab, setActiveTab] = useState('flows')      // 'flows' | 'catalog'
+  const [functionCatalog, setFunctionCatalog] = useState([])
+  const [importName, setImportName] = useState('')
+  const [importRuntime, setImportRuntime] = useState('GRPC')
+  const [importEndpoint, setImportEndpoint] = useState('')
+  const [importDesc, setImportDesc] = useState('')
+
+  // ─── Dynamic function catalog fetch ───
+  const loadCatalog = useCallback(() => {
+    configApi.get('/api/flows/functions/catalog')
+      .then(r => {
+        const data = r.data
+        if (Array.isArray(data) && data.length > 0) {
+          setFunctionCatalog(data)
+          // Build dynamic step type catalog from backend response
+          const dynamicCatalog = { ...FALLBACK_STEP_TYPES }
+          const categoryMap = {}
+          data.forEach(fn => {
+            if (fn.type && !dynamicCatalog[fn.type]) {
+              dynamicCatalog[fn.type] = {
+                label: fn.label || fn.type,
+                icon: fn.icon || '?',
+                category: fn.category || 'Custom',
+                color: fn.color || 'text-gray-600 bg-gray-100',
+                configFields: fn.configFields || fn.configSchema ?
+                  (fn.configFields || [{ key: 'config', label: 'Configuration', placeholder: fn.configSchema || '' }]) : [],
+              }
+            }
+            const cat = fn.category || 'Custom'
+            if (!categoryMap[cat]) categoryMap[cat] = []
+            if (!categoryMap[cat].includes(fn.type)) categoryMap[cat].push(fn.type)
+          })
+          STEP_TYPE_CATALOG = dynamicCatalog
+          // Rebuild categories to include any new types from backend
+          const existingCatNames = new Set(FALLBACK_STEP_CATEGORIES.map(c => c.name))
+          const newCategories = [...FALLBACK_STEP_CATEGORIES]
+          Object.entries(categoryMap).forEach(([name, types]) => {
+            if (!existingCatNames.has(name)) {
+              newCategories.push({ name, types })
+            }
+          })
+          STEP_CATEGORIES = newCategories
+        }
+      })
+      .catch(() => {
+        STEP_TYPE_CATALOG = { ...FALLBACK_STEP_TYPES }
+        STEP_CATEGORIES = [...FALLBACK_STEP_CATEGORIES]
+      })
+  }, [])
+
+  useEffect(() => { loadCatalog() }, [loadCatalog])
+
+  const handleImportFunction = useCallback(() => {
+    if (!importName.trim()) { toast.error('Function name is required'); return }
+    configApi.post('/api/flows/functions/import', {
+      name: importName, runtime: importRuntime, endpoint: importEndpoint, description: importDesc
+    }).then(() => {
+      loadCatalog()
+      setImportName('')
+      setImportEndpoint('')
+      setImportDesc('')
+      toast.success(`Function "${importName}" imported`)
+    }).catch(err => toast.error(err.response?.data?.error || 'Failed to import function'))
+  }, [importName, importRuntime, importEndpoint, importDesc, loadCatalog])
 
   // ─── Queries ───
   const { data: flows = [], isLoading } = useQuery({
@@ -858,7 +928,25 @@ export default function Flows() {
         </button>
       </div>
 
-      {/* ─── Filter bar ─── */}
+      {/* ─── Main Tabs ─── */}
+      <div className="flex items-center gap-2 border-b border-gray-200 pb-2">
+        {[
+          { key: 'flows', label: 'Flows' },
+          { key: 'catalog', label: 'Function Catalog' },
+        ].map(t => (
+          <button key={t.key} onClick={() => setActiveTab(t.key)}
+            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+              activeTab === t.key
+                ? 'bg-white text-blue-700 border border-gray-200 border-b-white -mb-[1px]'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ─── Filter bar (flows tab only) ─── */}
+      {activeTab === 'flows' && (
       <div className="flex items-center gap-2">
         <FunnelIcon className="w-4 h-4 text-gray-400" />
         {[
@@ -874,9 +962,100 @@ export default function Flows() {
           </button>
         ))}
       </div>
+      )}
+
+      {/* ═══ Function Catalog Tab ═══ */}
+      {activeTab === 'catalog' && (
+        <>
+          <div className="card">
+            <h3 className="font-semibold text-gray-900 mb-1">Function Catalog</h3>
+            <p className="text-sm text-gray-500 mb-4">All registered flow functions — built-in + imported</p>
+            {functionCatalog.length === 0 ? (
+              <div className="text-center py-8 text-gray-400 text-sm">
+                <p>No catalog data from backend. Showing built-in functions only.</p>
+                <div className="overflow-x-auto mt-4">
+                  <table className="w-full">
+                    <thead><tr className="border-b border-gray-100">
+                      <th className="table-header">Type</th>
+                      <th className="table-header">Label</th>
+                      <th className="table-header">Category</th>
+                      <th className="table-header">Config Fields</th>
+                    </tr></thead>
+                    <tbody>
+                      {Object.entries(STEP_TYPE_CATALOG).map(([type, meta]) => (
+                        <tr key={type} className="table-row">
+                          <td className="table-cell"><code className="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded">{type}</code></td>
+                          <td className="table-cell text-sm"><span className={`inline-flex items-center gap-1 ${meta.color} px-2 py-0.5 rounded-full text-xs font-medium`}>{meta.icon} {meta.label}</span></td>
+                          <td className="table-cell text-xs text-gray-500">{meta.category}</td>
+                          <td className="table-cell text-xs text-gray-400">{meta.configFields?.length > 0 ? meta.configFields.map(f => f.key).join(', ') : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead><tr className="border-b border-gray-100">
+                    <th className="table-header">Type</th>
+                    <th className="table-header">I/O Mode</th>
+                    <th className="table-header">Description</th>
+                    <th className="table-header">Config Schema</th>
+                  </tr></thead>
+                  <tbody>
+                    {functionCatalog.map(fn => (
+                      <tr key={fn.type} className="table-row">
+                        <td className="table-cell"><code className="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded">{fn.type}</code></td>
+                        <td className="table-cell">
+                          <span className={`badge ${fn.ioMode === 'STREAMING' ? 'bg-emerald-100 text-emerald-700' : fn.ioMode === 'METADATA_ONLY' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {fn.ioMode || 'STANDARD'}
+                          </span>
+                        </td>
+                        <td className="table-cell text-sm text-gray-600">{fn.description || '—'}</td>
+                        <td className="table-cell text-xs text-gray-400 font-mono">{fn.configSchema || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Function Import */}
+          <div className="card">
+            <h3 className="font-semibold text-gray-900 mb-1">Import External Function</h3>
+            <p className="text-sm text-gray-500 mb-4">Register a gRPC service or WASM module as a flow function</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-medium text-gray-600">Function Name</label>
+                <input placeholder="e.g. custom-transform" value={importName} onChange={e => setImportName(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">Runtime</label>
+                <select value={importRuntime} onChange={e => setImportRuntime(e.target.value)}>
+                  <option value="GRPC">gRPC Service</option>
+                  <option value="WASM">WASM Module</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">Endpoint URL (for gRPC)</label>
+                <input placeholder="grpc://localhost:50051" value={importEndpoint} onChange={e => setImportEndpoint(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">Description</label>
+                <input placeholder="What this function does" value={importDesc} onChange={e => setImportDesc(e.target.value)} />
+              </div>
+            </div>
+            <div className="mt-3">
+              <button onClick={handleImportFunction} className="btn-primary text-sm">Import Function</button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ─── Flow List ─── */}
-      {filteredFlows.length === 0 ? (
+      {activeTab === 'flows' && (filteredFlows.length === 0 ? (
         <div className="card">
           <EmptyState
             title={filter !== 'all' ? `No ${filter} flows` : 'No flows configured'}
@@ -972,10 +1151,10 @@ export default function Flows() {
             </div>
           ))}
         </div>
-      )}
+      ))}
 
       {/* ─── Pending Approvals ─── */}
-      {pendingApprovals.length > 0 && (
+      {activeTab === 'flows' && pendingApprovals.length > 0 && (
         <div className="card border-l-4 border-purple-500">
           <div className="flex items-center gap-2 mb-4">
             <HandRaisedIcon className="w-5 h-5 text-purple-500" />
@@ -1000,7 +1179,7 @@ export default function Flows() {
       )}
 
       {/* ─── Scheduled Retries (only shown when there are any) ─── */}
-      {scheduledRetries.length > 0 && (
+      {activeTab === 'flows' && scheduledRetries.length > 0 && (
         <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
           <div className="flex items-center gap-2 mb-3">
             <ClockIcon className="w-4 h-4 text-blue-500" />
@@ -1034,7 +1213,7 @@ export default function Flows() {
       )}
 
       {/* ─── Execution History ─── */}
-      <div className="card">
+      {activeTab === 'flows' && <div className="card">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <ClockIcon className="w-5 h-5 text-gray-400" />
@@ -1125,7 +1304,7 @@ export default function Flows() {
             </table>
           </div>
         )}
-      </div>
+      </div>}
 
       {/* ═══ Dry Run Results Modal ═══ */}
       {dryRunResult && (
