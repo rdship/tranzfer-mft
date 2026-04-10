@@ -267,9 +267,10 @@ Clear separation of concerns:
 
 ### 3.1 Transaction Sets to Support
 
-The following transaction sets represent approximately 95% of B2B EDI traffic worldwide.
+The following transaction sets represent approximately 98% of B2B EDI, financial messaging,
+healthcare, and retail traffic worldwide. Organized by standard and industry.
 
-#### X12 Transaction Sets (14)
+#### X12 Transaction Sets (14 + 6 HIPAA)
 
 | Code | Name | Business Function |
 |------|------|-------------------|
@@ -302,7 +303,111 @@ The following transaction sets represent approximately 95% of B2B EDI traffic wo
 | IFTMIN | Instruction to Forward (Transport) | Logistics/shipping instructions |
 | CUSREP | Customs Report | Customs declaration/clearance |
 
-#### INHOUSE Document Types (5)
+#### TRADACOMS Message Types (6) — UK/Retail Standard
+
+TRADACOMS is the dominant B2B standard in UK retail (Tesco, Sainsbury's, Marks & Spencer).
+It predates EDIFACT and uses a fixed-field format with STX/END envelope.
+
+| Code | Name | Business Function |
+|------|------|-------------------|
+| ORDHDR / ORDDET | Purchase Order (Header + Detail) | Retail ordering |
+| INVFIL | Invoice File | Supplier invoicing |
+| DLCFIL | Delivery Confirmation | Delivery/receipt notification |
+| AVLFIL | Availability Report | Stock availability |
+| PRIHDR / PRIDET | Price Information (Header + Detail) | Price catalogue updates |
+| ACKHDR | Order Acknowledgment | PO confirmation/rejection |
+
+#### SWIFT MT Message Types (8) — Financial Messaging
+
+SWIFT (Society for Worldwide Interbank Financial Telecommunication) messages for
+banking, payments, securities, and trade finance. Used by 11,000+ financial institutions.
+
+| Code | Name | Business Function |
+|------|------|-------------------|
+| MT103 | Single Customer Credit Transfer | Wire transfers / cross-border payments |
+| MT202 | General Financial Institution Transfer | Bank-to-bank transfers |
+| MT199 | Free Format Message | Free-form banking communication |
+| MT300 | Foreign Exchange Confirmation | FX trade confirmation |
+| MT502 | Order to Buy or Sell | Securities trading |
+| MT535 | Statement of Holdings | Portfolio/custody positions |
+| MT940 | Customer Statement | Account statement (end-of-day) |
+| MT942 | Interim Transaction Report | Intraday account statement |
+
+#### SWIFT MX (ISO 20022) Message Types (6) — Next-Gen Financial
+
+ISO 20022 XML-based messages replacing MT messages globally. US FedNow and
+CHIPS adopted ISO 20022 in 2023-2025. Mandatory for cross-border by 2025.
+
+| Code | Name | Business Function |
+|------|------|-------------------|
+| pacs.008 | FI to FI Customer Credit Transfer | Payment instruction (replaces MT103) |
+| pacs.009 | FI to FI Financial Institution Credit Transfer | Interbank (replaces MT202) |
+| pacs.002 | Payment Status Report | Payment status / rejection |
+| pain.001 | Customer Credit Transfer Initiation | Batch payment file (corporate → bank) |
+| pain.002 | Customer Payment Status Report | Payment batch status |
+| camt.053 | Bank to Customer Statement | Account statement (replaces MT940) |
+
+#### NACHA / ACH File Formats (3) — US Payments
+
+NACHA (National Automated Clearing House Association) processes $72+ trillion/year
+in US electronic payments. ACH files are the backbone of US payroll, direct deposit,
+and vendor payments.
+
+| Code | Name | Business Function |
+|------|------|-------------------|
+| ACH_PPD | Prearranged Payment and Deposit | Payroll, direct deposit, consumer payments |
+| ACH_CCD | Cash Concentration or Disbursement | Corporate-to-corporate payments |
+| ACH_CTX | Corporate Trade Exchange | EDI payment with addenda (remittance advice) |
+
+#### HIPAA Transaction Sets (6) — US Healthcare
+
+HIPAA mandates specific X12 transaction sets for all US healthcare entities.
+$4+ trillion US healthcare industry — these are required by law.
+
+| Code | Name | Business Function |
+|------|------|-------------------|
+| 270/271 | Eligibility Inquiry / Response | Insurance eligibility verification |
+| 276/277 | Claim Status Inquiry / Response | Check claim processing status |
+| 278 | Health Care Services Review | Prior authorization requests |
+| 835 | Health Care Claim Payment/Advice | Remittance advice (ERA) |
+| 837P | Health Care Claim — Professional | Provider claim submission |
+| 837I | Health Care Claim — Institutional | Hospital/facility claim submission |
+
+#### NCPDP (4) — US Pharmacy
+
+National Council for Prescription Drug Programs. Standard for US pharmacy
+claims, eligibility, and prior authorization. Used by every US pharmacy.
+
+| Code | Name | Business Function |
+|------|------|-------------------|
+| NCPDP D.0 | Telecommunications Standard | Real-time pharmacy claims at POS |
+| NCPDP SCRIPT | Electronic Prescribing | e-Prescriptions (NewRx, RxRenewal, CancelRx) |
+| NCPDP POST | Post Adjudication | Rebate and pricing adjustments |
+| NCPDP Formulary | Formulary and Benefit | Drug coverage and cost information |
+
+#### FIX Protocol (4) — US/Global Capital Markets
+
+Financial Information eXchange — dominant in equities, futures, options trading.
+Used by NYSE, NASDAQ, CME, and every major broker-dealer.
+
+| Code | Name | Business Function |
+|------|------|-------------------|
+| FIX_NewOrderSingle | New Order (D) | Submit buy/sell order |
+| FIX_ExecutionReport | Execution Report (8) | Fill/partial fill/reject notification |
+| FIX_OrderCancelRequest | Cancel Request (F) | Cancel a pending order |
+| FIX_MarketDataSnapshot | Market Data (W) | Real-time quote/price data |
+
+#### BAI2 (2) — US Banking
+
+Bank Administration Institute format. Universal standard for US bank
+cash management reporting. Every US bank supports BAI2.
+
+| Code | Name | Business Function |
+|------|------|-------------------|
+| BAI2_STATEMENT | Account Statement | Daily bank statement with transactions |
+| BAI2_LOCKBOX | Lockbox Report | Lockbox payment detail (check processing) |
+
+#### INHOUSE Document Types (8)
 
 Standard internal format for each major business document. These serve as the default target
 for companies that do not have a custom ERP schema.
@@ -314,6 +419,9 @@ for companies that do not have a custom ERP schema.
 | SHIP_NOTICE_INH | Internal Ship Notice | WMS/TMS import of ASNs |
 | PAYMENT_INH | Internal Payment/Remittance | Treasury/AP import |
 | ACKNOWLEDGMENT_INH | Internal Acknowledgment | Status tracking |
+| HEALTHCARE_CLAIM_INH | Internal Healthcare Claim | Claims processing import |
+| BANK_STATEMENT_INH | Internal Bank Statement | Treasury/cash management import |
+| TRADE_ORDER_INH | Internal Trade Order | Trading system import |
 
 ### 3.2 INHOUSE Format Specification
 
@@ -528,7 +636,82 @@ Every map listed below is a JSON file bundled in the edi-converter JAR under
 | `STD-XF-001` | X12 864 | EDIFACT (free text) | one-way | P2 |
 | `STD-XF-002` | X12 843 | EDIFACT ORDRSP | one-way | P2 |
 
-**Total: 36 standard maps** covering 95%+ of B2B EDI traffic.
+#### TRADACOMS Maps (4)
+
+| Map ID | Source | Target | Direction | Priority |
+|--------|--------|--------|-----------|----------|
+| `STD-TRD-001` | TRADACOMS ORDHDR/ORDDET | PURCHASE_ORDER_INH | one-way | P1 |
+| `STD-TRD-002` | TRADACOMS INVFIL | INVOICE_INH | one-way | P1 |
+| `STD-TRD-003` | TRADACOMS DLCFIL | SHIP_NOTICE_INH | one-way | P1 |
+| `STD-TRD-004` | TRADACOMS ORDHDR | EDIFACT ORDERS | one-way (migration) | P2 |
+
+#### SWIFT / ISO 20022 Maps (8)
+
+| Map ID | Source | Target | Direction | Priority |
+|--------|--------|--------|-----------|----------|
+| `STD-SWF-001` | SWIFT MT103 | PAYMENT_INH | one-way | P0 |
+| `STD-SWF-002` | SWIFT MT940 | BANK_STATEMENT_INH | one-way | P0 |
+| `STD-SWF-003` | SWIFT MT202 | PAYMENT_INH | one-way | P1 |
+| `STD-SWF-004` | SWIFT MT535 | ACKNOWLEDGMENT_INH | one-way | P1 |
+| `STD-SWF-005` | ISO20022 pacs.008 | PAYMENT_INH | one-way | P0 |
+| `STD-SWF-006` | ISO20022 pain.001 | PAYMENT_INH | one-way | P0 |
+| `STD-SWF-007` | ISO20022 camt.053 | BANK_STATEMENT_INH | one-way | P0 |
+| `STD-SWF-008` | SWIFT MT103 | ISO20022 pacs.008 | one-way (migration) | P1 |
+
+#### NACHA / ACH Maps (4)
+
+| Map ID | Source | Target | Direction | Priority |
+|--------|--------|--------|-----------|----------|
+| `STD-ACH-001` | NACHA ACH_PPD | PAYMENT_INH | one-way | P0 |
+| `STD-ACH-002` | NACHA ACH_CCD | PAYMENT_INH | one-way | P0 |
+| `STD-ACH-003` | NACHA ACH_CTX | PAYMENT_INH | one-way | P1 |
+| `STD-ACH-004` | PAYMENT_INH | NACHA ACH_CCD | one-way (outbound payment) | P1 |
+
+#### HIPAA Healthcare Maps (8)
+
+| Map ID | Source | Target | Direction | Priority |
+|--------|--------|--------|-----------|----------|
+| `STD-HIP-001` | X12 837P | HEALTHCARE_CLAIM_INH | one-way | P0 |
+| `STD-HIP-002` | X12 837I | HEALTHCARE_CLAIM_INH | one-way | P0 |
+| `STD-HIP-003` | X12 835 | PAYMENT_INH | one-way (ERA→remittance) | P0 |
+| `STD-HIP-004` | X12 270 | ACKNOWLEDGMENT_INH | one-way (eligibility request) | P1 |
+| `STD-HIP-005` | X12 271 | ACKNOWLEDGMENT_INH | one-way (eligibility response) | P1 |
+| `STD-HIP-006` | X12 276 | ACKNOWLEDGMENT_INH | one-way (status inquiry) | P1 |
+| `STD-HIP-007` | X12 277 | ACKNOWLEDGMENT_INH | one-way (status response) | P1 |
+| `STD-HIP-008` | HEALTHCARE_CLAIM_INH | X12 837P | one-way (outbound claim) | P1 |
+
+#### BAI2 Banking Maps (2)
+
+| Map ID | Source | Target | Direction | Priority |
+|--------|--------|--------|-----------|----------|
+| `STD-BAI-001` | BAI2 Statement | BANK_STATEMENT_INH | one-way | P0 |
+| `STD-BAI-002` | BAI2 Lockbox | PAYMENT_INH | one-way | P1 |
+
+#### FIX Protocol Maps (3)
+
+| Map ID | Source | Target | Direction | Priority |
+|--------|--------|--------|-----------|----------|
+| `STD-FIX-001` | FIX NewOrderSingle | TRADE_ORDER_INH | one-way | P1 |
+| `STD-FIX-002` | FIX ExecutionReport | TRADE_ORDER_INH | one-way (fill) | P1 |
+| `STD-FIX-003` | TRADE_ORDER_INH | FIX NewOrderSingle | one-way (outbound) | P2 |
+
+#### NCPDP Pharmacy Maps (2)
+
+| Map ID | Source | Target | Direction | Priority |
+|--------|--------|--------|-----------|----------|
+| `STD-RX-001` | NCPDP D.0 Claim | HEALTHCARE_CLAIM_INH | one-way | P2 |
+| `STD-RX-002` | NCPDP SCRIPT NewRx | HEALTHCARE_CLAIM_INH | one-way | P2 |
+
+**Total: 67 standard maps** covering 98%+ of B2B EDI, financial, healthcare, and retail traffic.
+
+#### Coverage by Industry
+
+| Industry | Standards | Maps | Coverage |
+|----------|-----------|------|----------|
+| **Retail / Manufacturing** | X12, EDIFACT, TRADACOMS | 40 | Supply chain, orders, invoices, shipping |
+| **Banking / Payments** | SWIFT MT, ISO 20022, NACHA, BAI2 | 14 | Wire transfers, ACH, statements, reconciliation |
+| **Healthcare** | HIPAA X12, NCPDP | 10 | Claims, eligibility, prescriptions, remittance |
+| **Capital Markets** | FIX Protocol | 3 | Order entry, execution, market data |
 
 ### 3.4 Standard Map JSON Format
 
