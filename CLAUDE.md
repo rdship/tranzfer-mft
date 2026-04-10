@@ -37,7 +37,7 @@ All repositories are interfaces → safe to @Mock
 - 22 modules, shared library with 32 JPA entities
 - REST via ResilientServiceClient (circuit breaker+retry)
 - **Service identity**: SPIFFE/SPIRE — REQUIRED (X-Internal-Key removed; SPIFFE is the only inter-service auth)
-  - Default ON: `SPIFFE_ENABLED=true` in docker-compose. Fresh install: run `bash spire/bootstrap.sh` once.
+  - Default ON: `SPIFFE_ENABLED=true` in docker-compose. Fresh install: fully automatic via spire-init container.
   - Services self-heal: `SpiffeWorkloadClient` retries SPIRE connection every 15s until agent is available.
   - Key classes: `SpiffeWorkloadClient` (shared-core), `SpiffeProxyAuth` (dmz-proxy), `SpiffeX509Manager` (shared-core)
   - `PlatformJwtAuthFilter` validates 3 paths: mTLS peer cert (path 0) → SPIFFE JWT-SVID (path 1) → Platform JWT (path 2)
@@ -54,11 +54,8 @@ All repositories are interfaces → safe to @Mock
 - SPIRE Server + Agent: always-on (no profile gate) — start with `docker compose up -d`
 - SPIRE Agent socket: /run/spire/sockets/agent.sock (volume: spire-socket, mounted read-only into all services)
 - Trust domain: filetransfer.io
-- **Fresh install (run ONCE):**
-  1. `docker compose up -d spire-server`
-  2. `bash spire/bootstrap.sh`   ← registers all 22 services, writes join token to volume
-  3. `docker compose up -d`       ← agent connects, all services get SVIDs
-- **Subsequent restarts:** `docker compose up -d` (bootstrap data persists in spire-server-data volume)
+- **Fresh install:** `docker compose up -d` — fully automatic. spire-init container generates token + registers all services.
+- **Subsequent restarts:** `docker compose up -d` (bootstrap data persists in spire-init-data volume)
 - Production / Kubernetes: use Red Hat SPIRE Operator (no static join tokens, automatic attestation)
 
 ## Pending (do NOT start unless explicitly asked)

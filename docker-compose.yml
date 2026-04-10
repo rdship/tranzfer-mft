@@ -57,10 +57,8 @@ services:
   # auth mechanism. Services self-heal if SPIRE is not yet bootstrapped
   # (SpiffeWorkloadClient retries every 15s until the agent is available).
   #
-  # Fresh install (run ONCE):
-  #   docker compose up -d spire-server
-  #   bash spire/bootstrap.sh          ← registers all 22 services, writes join token
-  #   docker compose up -d             ← starts everything; agent connects immediately
+  # Fresh install: just run `docker compose up -d` — spire-init container
+  # auto-generates token and registers all services. No manual step needed.
   #
   # Subsequent restarts: docker compose up -d (bootstrap data persists in volumes)
   # Production / Kubernetes: use Red Hat SPIRE Operator (no static join tokens)
@@ -82,12 +80,31 @@ services:
     networks:
       - mft-network
 
+  # Auto-bootstrap: generates join token + registers all services.
+  # Runs once then exits. No manual `bash bootstrap.sh` needed.
+  spire-init:
+    image: ghcr.io/spiffe/spire-server:1.9.6
+    container_name: mft-spire-init
+    depends_on:
+      spire-server:
+        condition: service_healthy
+    volumes:
+      - ./spire/auto-bootstrap.sh:/opt/spire/auto-bootstrap.sh:ro
+      - spire-server-sock:/tmp/spire-server:ro
+      - spire-init-data:/tmp/spire-init
+    entrypoint: ["/bin/sh", "/opt/spire/auto-bootstrap.sh"]
+    restart: "no"
+    networks:
+      - mft-network
+
   spire-agent:
     image: ghcr.io/spiffe/spire-agent:1.9.6
     container_name: mft-spire-agent
     depends_on:
       spire-server:
         condition: service_healthy
+      spire-init:
+        condition: service_completed_successfully
     volumes:
       - ./spire/agent:/opt/spire/conf/agent:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -98,7 +115,7 @@ services:
       - /bin/sh
       - -c
       - |
-        echo "Waiting for join token..."
+        echo "Reading join token from spire-init..."
         until [ -f /tmp/spire-init/join-token ]; do sleep 2; done
         TOKEN=$(cat /tmp/spire-init/join-token)
         exec /opt/spire/bin/spire-agent run \
