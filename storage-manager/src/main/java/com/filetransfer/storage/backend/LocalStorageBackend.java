@@ -10,10 +10,16 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
+import java.io.BufferedInputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 
 /**
  * Local filesystem backend — the default.
@@ -75,11 +81,45 @@ public class LocalStorageBackend implements StorageBackend {
                 durationMs, r.getThroughputMbps(), false);
     }
 
+    @Deprecated
     @Override
     public ReadResult read(String storageKey) throws Exception {
         Path path = resolvePath(storageKey);
         ParallelIOEngine.ReadResult r = ioEngine.read(path);
         return new ReadResult(r.getData(), r.getData().length, storageKey, null);
+    }
+
+    /**
+     * Stream file content directly to the target using kernel-level zero-copy
+     * via {@link FileChannel#transferTo}. No JVM heap allocation for the file payload.
+     *
+     * @param storageKey SHA-256 hex key or legacy absolute path
+     * @param target     destination stream (e.g. servlet response output stream)
+     */
+    @Override
+    public void readTo(String storageKey, OutputStream target) throws Exception {
+        Path path = resolvePath(storageKey);
+        try (FileChannel fc = FileChannel.open(path, StandardOpenOption.READ)) {
+            WritableByteChannel out = Channels.newChannel(target);
+            long pos = 0, rem = fc.size();
+            while (rem > 0) {
+                long transferred = fc.transferTo(pos, rem, out);
+                pos += transferred;
+                rem -= transferred;
+            }
+        }
+    }
+
+    /**
+     * Open a buffered {@link InputStream} for the given storage key.
+     * Caller is responsible for closing the returned stream.
+     *
+     * @param storageKey SHA-256 hex key or legacy absolute path
+     * @return buffered input stream positioned at the start of the file
+     */
+    @Override
+    public InputStream readStream(String storageKey) throws Exception {
+        return new BufferedInputStream(Files.newInputStream(resolvePath(storageKey)));
     }
 
     @Override

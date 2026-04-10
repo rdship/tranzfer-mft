@@ -17,11 +17,14 @@ import software.amazon.awssdk.services.s3.model.*;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
+import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.Set;
 
 /**
@@ -95,35 +98,50 @@ public class S3StorageBackend implements StorageBackend {
 
     @Override
     public WriteResult write(InputStream data, long sizeBytes, String filename) throws Exception {
-        byte[] bytes = readFully(data, sizeBytes);
-        String sha256 = computeSha256(bytes);
+        // Wrap input in DigestInputStream to compute SHA-256 during the S3 upload
+        // instead of buffering the entire payload into heap.
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        DigestInputStream digestStream = new DigestInputStream(data, digest);
+
+        // We must upload to a temp key first because we don't know the sha256 yet.
+        String tempKey = "tmp-upload-" + Thread.currentThread().getId() + "-" + System.nanoTime();
         long start = System.currentTimeMillis();
 
-        // Deduplication: check if object already exists
-        if (objectExists(sha256)) {
-            log.debug("[S3Backend] Dedup hit for sha256={}", sha256.substring(0, 12));
-            return new WriteResult(sha256, bytes.length, sha256, 0L, 0.0, true);
-        }
-
-        // Store with SHA-256 as key
         s3.putObject(
                 PutObjectRequest.builder()
                         .bucket(bucket)
-                        .key(sha256)
-                        .contentLength((long) bytes.length)
-                        .checksumSHA256(toBase64(sha256))
+                        .key(tempKey)
+                        .contentLength(sizeBytes > 0 ? sizeBytes : null)
                         .build(),
-                RequestBody.fromBytes(bytes));
+                RequestBody.fromInputStream(digestStream, sizeBytes > 0 ? sizeBytes : -1));
+
+        String sha256 = HexFormat.of().formatHex(digest.digest());
+        long uploadedSize = sizeBytes > 0 ? sizeBytes : headObjectSize(tempKey);
+
+        // Deduplication: check if canonical key already exists
+        if (objectExists(sha256)) {
+            // Delete the temp object — dedup hit
+            try { s3.deleteObject(b -> b.bucket(bucket).key(tempKey)); } catch (Exception ignored) {}
+            log.debug("[S3Backend] Dedup hit for sha256={}", sha256.substring(0, 12));
+            return new WriteResult(sha256, uploadedSize, sha256, 0L, 0.0, true);
+        }
+
+        // Move temp → canonical key via copy + delete
+        s3.copyObject(b -> b
+                .sourceBucket(bucket).sourceKey(tempKey)
+                .destinationBucket(bucket).destinationKey(sha256));
+        try { s3.deleteObject(b -> b.bucket(bucket).key(tempKey)); } catch (Exception ignored) {}
 
         long durationMs = System.currentTimeMillis() - start;
-        double mbps = durationMs > 0 ? (bytes.length / 1048576.0) / (durationMs / 1000.0) : 0;
+        double mbps = durationMs > 0 ? (uploadedSize / 1048576.0) / (durationMs / 1000.0) : 0;
 
         log.debug("[S3Backend] Stored {} bytes → s3://{}/{} ({} MB/s)",
-                bytes.length, bucket, sha256.substring(0, 8), String.format("%.1f", mbps));
+                uploadedSize, bucket, sha256.substring(0, 8), String.format("%.1f", mbps));
 
-        return new WriteResult(sha256, bytes.length, sha256, durationMs, mbps, false);
+        return new WriteResult(sha256, uploadedSize, sha256, durationMs, mbps, false);
     }
 
+    @Deprecated
     @Override
     public ReadResult read(String storageKey) throws Exception {
         // storageKey may be a sha256 or a legacy s3:// URI — normalize to just sha256
@@ -133,6 +151,38 @@ public class S3StorageBackend implements StorageBackend {
             byte[] data = response.readAllBytes();
             return new ReadResult(data, data.length, key, response.response().contentType());
         }
+    }
+
+    /**
+     * Stream S3 object content directly to the target using a 256 KB chunked pipe.
+     * No JVM heap allocation for the full file payload.
+     *
+     * @param storageKey SHA-256 hex key or legacy {@code s3://} URI
+     * @param target     destination stream (e.g. servlet response output stream)
+     */
+    @Override
+    public void readTo(String storageKey, OutputStream target) throws Exception {
+        String key = normalizeKey(storageKey);
+        try (var response = s3.getObject(b -> b.bucket(bucket).key(key))) {
+            byte[] buf = new byte[256 * 1024]; // 256 KB chunks
+            int n;
+            while ((n = response.read(buf)) != -1) {
+                target.write(buf, 0, n);
+            }
+        }
+    }
+
+    /**
+     * Open a streaming {@link InputStream} for the given S3 object.
+     * Returns the raw S3 response stream — caller is responsible for closing it.
+     *
+     * @param storageKey SHA-256 hex key or legacy {@code s3://} URI
+     * @return the S3 response input stream positioned at the start of the object
+     */
+    @Override
+    public InputStream readStream(String storageKey) throws Exception {
+        String key = normalizeKey(storageKey);
+        return s3.getObject(b -> b.bucket(bucket).key(key));
     }
 
     @Override
@@ -207,19 +257,14 @@ public class S3StorageBackend implements StorageBackend {
         }
     }
 
-    private static byte[] readFully(InputStream in, long sizeHint) throws IOException {
-        if (sizeHint > 0 && sizeHint <= Integer.MAX_VALUE) {
-            return in.readNBytes((int) sizeHint);
+    /** Query S3 for the content-length of an object (used after streaming upload when size was unknown). */
+    private long headObjectSize(String key) {
+        try {
+            return s3.headObject(b -> b.bucket(bucket).key(key)).contentLength();
+        } catch (Exception e) {
+            log.warn("[S3Backend] headObject({}) failed: {}", key, e.getMessage());
+            return -1;
         }
-        return in.readAllBytes();
-    }
-
-    private static String computeSha256(byte[] data) throws Exception {
-        MessageDigest md = MessageDigest.getInstance("SHA-256");
-        byte[] hash = md.digest(data);
-        StringBuilder hex = new StringBuilder();
-        for (byte b : hash) hex.append(String.format("%02x", b));
-        return hex.toString();
     }
 
     private static String toBase64(String hex) {

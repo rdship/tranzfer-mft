@@ -118,7 +118,11 @@ public class StorageLocationRegistry {
     /**
      * Fetch the physical bytes from the owning pod via an internal HTTP call.
      * Returns {@code null} if the owning pod is unreachable.
+     *
+     * @deprecated Use {@link #proxyRetrieveTo(String, java.io.OutputStream)} to avoid
+     *             loading the entire file into JVM heap.
      */
+    @Deprecated
     @Nullable
     public byte[] proxyRetrieve(String sha256) {
         String ownerUrl = getOwnerUrl(sha256);
@@ -131,6 +135,47 @@ public class StorageLocationRegistry {
             log.warn("[StorageRegistry] Proxy retrieve failed for sha256={} from {}: {}",
                     sha256.substring(0, 12), ownerUrl, e.getMessage());
             return null;
+        }
+    }
+
+    /**
+     * Stream file content from the owning pod directly to the given {@link java.io.OutputStream}
+     * without buffering the entire payload in JVM heap.
+     *
+     * <p>Uses {@link RestTemplate#execute} with a {@code ResponseExtractor} that pipes
+     * the HTTP response body in 256 KB chunks.
+     *
+     * @param sha256 the SHA-256 content key
+     * @param target destination stream (e.g. servlet response output stream)
+     * @return {@code true} if the proxy succeeded, {@code false} if the owning pod
+     *         is unknown or unreachable (caller should fall back to local backend read)
+     */
+    public boolean proxyRetrieveTo(String sha256, java.io.OutputStream target) {
+        String ownerUrl = getOwnerUrl(sha256);
+        if (ownerUrl == null) return false;
+        try {
+            log.debug("[StorageRegistry] Streaming proxy sha256={} → {}", sha256.substring(0, 12), ownerUrl);
+            restTemplate.execute(
+                    ownerUrl + "/api/v1/storage/stream/" + sha256,
+                    org.springframework.http.HttpMethod.GET,
+                    null,
+                    response -> {
+                        try (var body = response.getBody()) {
+                            if (body != null) {
+                                byte[] buf = new byte[256 * 1024]; // 256 KB chunks
+                                int n;
+                                while ((n = body.read(buf)) != -1) {
+                                    target.write(buf, 0, n);
+                                }
+                            }
+                        }
+                        return null;
+                    });
+            return true;
+        } catch (Exception e) {
+            log.warn("[StorageRegistry] Streaming proxy failed for sha256={} from {}: {}",
+                    sha256.substring(0, 12), ownerUrl, e.getMessage());
+            return false;
         }
     }
 

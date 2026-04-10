@@ -206,6 +206,26 @@ public class ParallelIOEngine {
     }
 
     /**
+     * Stream file content directly to the given {@link OutputStream} using kernel-level
+     * zero-copy via {@link FileChannel#transferTo}. No intermediate heap buffer is
+     * allocated for the file payload.
+     *
+     * @param source file to read
+     * @param target destination stream (e.g. servlet response output stream)
+     */
+    public void readTo(Path source, OutputStream target) throws Exception {
+        try (FileChannel fc = FileChannel.open(source, StandardOpenOption.READ)) {
+            java.nio.channels.WritableByteChannel out = java.nio.channels.Channels.newChannel(target);
+            long pos = 0, rem = fc.size();
+            while (rem > 0) {
+                long transferred = fc.transferTo(pos, rem, out);
+                pos += transferred;
+                rem -= transferred;
+            }
+        }
+    }
+
+    /**
      * Copy file between tiers with integrity verification.
      */
     public String tierCopy(Path source, Path destination) throws Exception {

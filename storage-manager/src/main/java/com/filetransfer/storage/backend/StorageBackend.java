@@ -1,6 +1,8 @@
 package com.filetransfer.storage.backend;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 
 /**
  * Abstraction over the physical byte store for the storage-manager.
@@ -37,8 +39,47 @@ public interface StorageBackend {
      * Read bytes by content-addressed key (SHA-256).
      *
      * @param storageKey SHA-256 hex string, or for backward-compat, a legacy absolute path
+     * @deprecated Use {@link #readTo(String, OutputStream)} or {@link #readStream(String)}
+     *             to avoid loading the entire file into JVM heap.
      */
+    @Deprecated
     ReadResult read(String storageKey) throws Exception;
+
+    /**
+     * Stream file content directly to the given {@link OutputStream} without
+     * buffering the entire payload in JVM heap.
+     *
+     * <p>Implementations should use zero-copy or chunked-pipe strategies:
+     * <ul>
+     *   <li>Local: {@code FileChannel.transferTo()} (kernel-level zero-copy)
+     *   <li>S3: 256 KB chunked pipe from the S3 response stream
+     * </ul>
+     *
+     * <p>The default implementation delegates to the deprecated {@link #read(String)}
+     * for backward compatibility with custom backends that have not yet migrated.
+     *
+     * @param storageKey SHA-256 hex string, or for backward-compat, a legacy absolute path
+     * @param target     destination stream (e.g. {@code HttpServletResponse.getOutputStream()})
+     */
+    default void readTo(String storageKey, OutputStream target) throws Exception {
+        ReadResult r = read(storageKey);
+        target.write(r.data());
+    }
+
+    /**
+     * Open a streaming {@link InputStream} for the given storage key.
+     *
+     * <p><b>Caller is responsible for closing the returned stream.</b> Unlike
+     * {@link #read(String)}, this never loads the full file into heap — the bytes
+     * flow from the physical store on demand.
+     *
+     * @param storageKey SHA-256 hex string, or for backward-compat, a legacy absolute path
+     * @return an open input stream positioned at the start of the file
+     */
+    default InputStream readStream(String storageKey) throws Exception {
+        ReadResult r = read(storageKey);
+        return new ByteArrayInputStream(r.data());
+    }
 
     /**
      * Check whether the given SHA-256 key exists in the backend.

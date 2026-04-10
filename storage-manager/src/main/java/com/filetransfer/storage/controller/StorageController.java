@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import java.io.IOException;
 import java.nio.file.Paths;
@@ -279,15 +280,15 @@ public class StorageController {
     }
 
     /**
-     * Stream a CAS object by SHA-256 key.
+     * Stream a CAS object by SHA-256 key with true zero-copy streaming.
      *
-     * <p>Returns a truly streaming response via {@link StreamingResponseBody} — the file
-     * is piped from storage-manager's local disk directly to the HTTP response without
-     * loading it into the JVM heap. Callers (flow step handlers, forwarder-service, etc.)
-     * can pipe this response into their own transform without an intermediate byte buffer.
+     * <p>Pipes file content directly from the storage backend to the HTTP response
+     * output stream using {@link StorageBackend#readTo(String, java.io.OutputStream)}.
+     * No JVM heap allocation for the file payload — a 1 GB file uses only the
+     * backend's internal transfer buffer (e.g. kernel sendfile for local, 256 KB for S3).
      */
     @GetMapping("/stream/{sha256}")
-    public ResponseEntity<StreamingResponseBody> stream(@PathVariable String sha256) throws Exception {
+    public void stream(@PathVariable String sha256, HttpServletResponse response) throws Exception {
         StorageObject obj = objectRepo.findBySha256AndDeletedFalse(sha256)
                 .orElseThrow(() -> new RuntimeException("File not found for key: " + sha256));
 
@@ -295,24 +296,21 @@ public class StorageController {
         obj.setLastAccessedAt(Instant.now());
         objectRepo.save(obj);
 
-        // For streaming, read via backend then stream the bytes
-        String storageKey = obj.getSha256() != null ? obj.getSha256() : obj.getPhysicalPath();
-        StorageBackend.ReadResult backendResult = storageBackend.read(storageKey);
-        byte[] fileData = backendResult.data();
-        StreamingResponseBody body = out -> {
-            try (var in = new java.io.ByteArrayInputStream(fileData)) {
-                in.transferTo(out);
-            }
-        };
+        // Set headers before streaming — once bytes flow, headers are committed
+        response.setContentType(obj.getContentType() != null
+                ? obj.getContentType()
+                : MediaType.APPLICATION_OCTET_STREAM_VALUE);
+        if (obj.getSizeBytes() > 0) {
+            response.setContentLengthLong(obj.getSizeBytes());
+        }
+        response.setHeader("X-SHA256", sha256);
+        response.setHeader("X-Storage-Tier", obj.getTier());
+        response.setHeader("X-Storage-Backend", storageBackend.type());
 
-        return ResponseEntity.ok()
-                .contentType(obj.getContentType() != null
-                        ? org.springframework.http.MediaType.parseMediaType(obj.getContentType())
-                        : org.springframework.http.MediaType.APPLICATION_OCTET_STREAM)
-                .header("Content-Length", String.valueOf(obj.getSizeBytes()))
-                .header("X-SHA256", sha256)
-                .header("X-Storage-Tier", obj.getTier())
-                .body(body);
+        // Stream directly from backend to response — no heap buffering
+        String storageKey = obj.getSha256() != null ? obj.getSha256() : obj.getPhysicalPath();
+        storageBackend.readTo(storageKey, response.getOutputStream());
+        response.flushBuffer();
     }
 
     /**
