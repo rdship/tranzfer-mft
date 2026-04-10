@@ -107,6 +107,7 @@ export default function Connectors() {
   const [showWebhookModal, setShowWebhookModal] = useState(false)
   const [editingWebhook, setEditingWebhook] = useState(null) // null = create, object = edit
   const [webhookForm, setWebhookForm] = useState(emptyWebhookForm)
+  const [confirmDelete, setConfirmDelete] = useState(null)
 
   // ── Queries ──
   const { data: connectors = [], isLoading } = useQuery({
@@ -262,7 +263,7 @@ export default function Connectors() {
                 key={hook.id}
                 hook={hook}
                 onEdit={openEditWebhook}
-                onDelete={(id) => { if (confirm('Delete this webhook?')) deleteWebhookMut.mutate(id) }}
+                onDelete={(id) => setConfirmDelete({ id, name: hook.name || hook.partnerName || 'this webhook' })}
                 onTest={(id) => testWebhookMut.mutate(id)}
                 testPending={testWebhookMut.isPending}
               />
@@ -445,6 +446,16 @@ export default function Connectors() {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {confirmDelete && (
+        <Modal title="Confirm Delete" onClose={() => setConfirmDelete(null)}>
+          <p className="text-secondary mb-4">Are you sure you want to delete <strong>{confirmDelete.name}</strong>? This action cannot be undone.</p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
+            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteWebhookMut.mutate(confirmDelete.id); setConfirmDelete(null) }}>Delete</button>
+          </div>
         </Modal>
       )}
     </div>

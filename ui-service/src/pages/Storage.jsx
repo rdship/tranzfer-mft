@@ -22,15 +22,17 @@ export default function Storage() {
     refetchInterval: 30000 })
 
   const tierMut = useMutation({ mutationFn: () => storageApi.post('/api/v1/storage/lifecycle/tier'),
-    onSuccess: () => { toast.success('Tiering cycle completed'); qc.invalidateQueries({ queryKey: ['storage'] }); qc.invalidateQueries({ queryKey: ['storage-metrics'] }); qc.invalidateQueries({ queryKey: ['storage-objects'] }); qc.invalidateQueries({ queryKey: ['storage-actions'] }) } })
+    onSuccess: () => { toast.success('Tiering cycle completed'); qc.invalidateQueries({ queryKey: ['storage'] }); qc.invalidateQueries({ queryKey: ['storage-metrics'] }); qc.invalidateQueries({ queryKey: ['storage-objects'] }); qc.invalidateQueries({ queryKey: ['storage-actions'] }) },
+    onError: (err) => toast.error(err.response?.data?.error || err.response?.data?.message || 'Failed to run tiering cycle — please try again') })
   const backupMut = useMutation({ mutationFn: () => storageApi.post('/api/v1/storage/lifecycle/backup'),
-    onSuccess: () => { toast.success('Backup completed'); qc.invalidateQueries({ queryKey: ['storage'] }); qc.invalidateQueries({ queryKey: ['storage-metrics'] }); qc.invalidateQueries({ queryKey: ['storage-objects'] }); qc.invalidateQueries({ queryKey: ['storage-actions'] }) } })
+    onSuccess: () => { toast.success('Backup completed'); qc.invalidateQueries({ queryKey: ['storage'] }); qc.invalidateQueries({ queryKey: ['storage-metrics'] }); qc.invalidateQueries({ queryKey: ['storage-objects'] }); qc.invalidateQueries({ queryKey: ['storage-actions'] }) },
+    onError: (err) => toast.error(err.response?.data?.error || err.response?.data?.message || 'Failed to run backup — please try again') })
 
   if (isLoading) return <LoadingSpinner />
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold text-gray-900">Storage Manager</h1>
+        <div><h1 className="text-2xl font-bold text-primary">Storage Manager</h1>
           <p className="text-secondary text-sm">GPFS-style tiered storage with parallel I/O and AI lifecycle</p></div>
         <div className="flex gap-2">
           <button className="btn-secondary text-xs" onClick={() => tierMut.mutate()} disabled={tierMut.isPending}>
@@ -50,11 +52,11 @@ export default function Storage() {
         ].map(t => (
           <div key={t.tier} className="card text-center">
             <div className="text-3xl mb-2">{t.icon}</div>
-            <h3 className="font-bold text-gray-900">{t.tier} Tier</h3>
+            <h3 className="font-bold text-primary">{t.tier} Tier</h3>
             <p className="text-xs text-secondary mb-3">{t.desc}</p>
-            <p className="text-2xl font-bold text-gray-900">{t.count.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-primary">{t.count.toLocaleString()}</p>
             <p className="text-sm text-secondary">files</p>
-            <p className="text-lg font-semibold text-gray-700 mt-1">{t.size} GB</p>
+            <p className="text-lg font-semibold text-secondary mt-1">{t.size} GB</p>
           </div>
         ))}
       </div>
@@ -69,7 +71,7 @@ export default function Storage() {
       {/* Objects table */}
       {objects.length > 0 && (
         <div className="card">
-          <h3 className="font-semibold text-gray-900 mb-3">Stored Objects ({objects.length})</h3>
+          <h3 className="font-semibold text-primary mb-3">Stored Objects ({objects.length})</h3>
           <table className="w-full"><thead><tr className="border-b">
             <th className="table-header">File</th><th className="table-header">Track ID</th><th className="table-header">Tier</th>
             <th className="table-header">Size</th><th className="table-header">Accesses</th><th className="table-header">SHA-256</th><th className="table-header">Stored</th>
@@ -92,7 +94,7 @@ export default function Storage() {
       {/* Lifecycle actions */}
       {actions.length > 0 && (
         <div className="card">
-          <h3 className="font-semibold text-gray-900 mb-3">Recent Lifecycle Actions</h3>
+          <h3 className="font-semibold text-primary mb-3">Recent Lifecycle Actions</h3>
           <div className="space-y-1">{actions.slice(0, 20).map((a, i) => (
             <div key={i} className="flex items-center gap-3 text-sm py-1">
               <span className="badge badge-blue text-xs">{a.action}</span>
@@ -107,14 +109,14 @@ export default function Storage() {
       {/* DRP Engine Stats */}
       {drpStats && (
         <div className="card">
-          <h3 className="font-semibold text-gray-900 mb-1">DRP Engine Stats</h3>
+          <h3 className="font-semibold text-primary mb-1">DRP Engine Stats</h3>
           <p className="text-secondary text-xs mb-4">Data Replication & Protection engine status and I/O lane metrics</p>
           {drpStats.ioLanes && Object.keys(drpStats.ioLanes).length > 0 ? (
             <div className="grid grid-cols-3 gap-4">
               {Object.entries(drpStats.ioLanes).map(([key, val]) => (
                 <div key={key} className="border rounded-lg p-3 bg-canvas text-center">
                   <span className="text-sm text-secondary block">{key}</span>
-                  <span className="text-lg font-bold text-gray-900">{typeof val === 'number' ? val.toLocaleString() : String(val)}</span>
+                  <span className="text-lg font-bold text-primary">{typeof val === 'number' ? val.toLocaleString() : String(val)}</span>
                 </div>
               ))}
             </div>
@@ -123,7 +125,7 @@ export default function Storage() {
               {Object.entries(drpStats).filter(([k]) => k !== 'ioLanes').map(([key, val]) => (
                 <div key={key} className="border rounded-lg p-3 bg-canvas text-center">
                   <span className="text-sm text-secondary block">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
-                  <span className="text-lg font-bold text-gray-900">{typeof val === 'number' ? val.toLocaleString() : typeof val === 'boolean' ? (val ? 'Yes' : 'No') : String(val)}</span>
+                  <span className="text-lg font-bold text-primary">{typeof val === 'number' ? val.toLocaleString() : typeof val === 'boolean' ? (val ? 'Yes' : 'No') : String(val)}</span>
                 </div>
               ))}
             </div>

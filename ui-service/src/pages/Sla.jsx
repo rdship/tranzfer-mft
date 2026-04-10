@@ -30,6 +30,7 @@ export default function Sla() {
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
   const [editingSla, setEditingSla] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(null)
   const [form, setForm] = useState({ ...emptyForm })
 
   const { data: slas = [], isLoading } = useQuery({ queryKey: ['slas'], queryFn: () => configApi.get('/api/sla').then(r => r.data).catch(() => []) })
@@ -190,7 +191,7 @@ export default function Sla() {
         <div className="flex flex-wrap gap-2 mt-2">
           {ALL_DAYS.map(day => (
             <button key={day} type="button" onClick={() => toggleDay(day)}
-              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${form.expectedDays.includes(day) ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-gray-100 text-secondary border border-border'}`}>
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${form.expectedDays.includes(day) ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-surface text-secondary border border-border'}`}>
               {day.substring(0, 3)}
             </button>
           ))}
@@ -223,7 +224,7 @@ export default function Sla() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold text-gray-900">SLA Agreements</h1>
+        <div><h1 className="text-2xl font-bold text-primary">SLA Agreements</h1>
           <p className="text-secondary text-sm">Partner delivery agreements and breach monitoring</p></div>
         <button className="btn-primary" onClick={openCreate}><PlusIcon className="w-4 h-4" /> New Agreement</button>
       </div>
@@ -241,7 +242,7 @@ export default function Sla() {
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-gray-900">{s.partnerName || s.name}</h3>
+                  <h3 className="font-semibold text-primary">{s.partnerName || s.name}</h3>
                   {tierBadge(s.tier || 'SILVER')}
                   {s.protocol && s.protocol !== 'ANY' && <span className="badge badge-blue">{s.protocol}</span>}
                   {s.serverName && <span className="text-xs text-secondary">@ {s.serverName}</span>}
@@ -253,8 +254,8 @@ export default function Sla() {
               <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                 <span className={`badge ${s.totalBreaches > 0 ? 'badge-red' : 'badge-green'}`}>{s.totalBreaches} breaches</span>
                 <button onClick={() => openEdit(s)} title="Edit agreement"
-                  className="p-1.5 rounded hover:bg-blue-50 text-blue-500 transition-colors"><PencilSquareIcon className="w-4 h-4" /></button>
-                <button onClick={() => { if (confirm('Delete this SLA agreement?')) deleteMut.mutate(s.id) }} title="Delete agreement"
+                  className="p-1.5 rounded hover:bg-[rgba(100,140,255,0.1)] text-blue-500 transition-colors"><PencilSquareIcon className="w-4 h-4" /></button>
+                <button onClick={() => setConfirmDelete(s)} title="Delete agreement"
                   className="p-1.5 rounded hover:bg-red-50 text-red-500 transition-colors"><TrashIcon className="w-4 h-4" /></button>
               </div>
             </div>
@@ -278,6 +279,16 @@ export default function Sla() {
             e => { e.preventDefault(); updateMut.mutate({ id: editingSla.id, data: form }) },
             updateMut.isPending, 'Save Changes', 'Saving...'
           )}
+        </Modal>
+      )}
+
+      {confirmDelete && (
+        <Modal title="Confirm Delete" onClose={() => setConfirmDelete(null)}>
+          <p className="text-secondary mb-4">Are you sure you want to delete SLA agreement <strong>{confirmDelete.name || confirmDelete.partnerName}</strong>? This action cannot be undone.</p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
+            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}>Delete</button>
+          </div>
         </Modal>
       )}
     </div>

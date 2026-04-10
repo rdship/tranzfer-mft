@@ -1,8 +1,6 @@
 import { useState } from 'react'
-import axios from 'axios'
 import toast from 'react-hot-toast'
-
-const api = axios.create({ baseURL: 'http://localhost:8095' })
+import { ediApi as api } from '../api/client'
 
 const TABS = [
   { id: 'convert', label: 'Convert' },

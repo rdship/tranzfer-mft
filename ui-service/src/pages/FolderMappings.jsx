@@ -156,6 +156,7 @@ export default function FolderMappings() {
   const [form, setForm] = useState({ ...emptyForm })
   const [protocolFilter, setProtocolFilter] = useState('All')
   const [showSamples, setShowSamples] = useState(true)
+  const [confirmDelete, setConfirmDelete] = useState(null)
 
   const { data: mappings = [], isLoading } = useQuery({ queryKey: ['folder-mappings'], queryFn: getFolderMappings })
   const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts })
@@ -163,16 +164,17 @@ export default function FolderMappings() {
   const createMut = useMutation({
     mutationFn: createFolderMapping,
     onSuccess: () => { qc.invalidateQueries(['folder-mappings']); setShowCreate(false); setForm({ ...emptyForm }); toast.success('Mapping created') },
-    onError: err => toast.error(err.response?.data?.error || 'Failed')
+    onError: err => toast.error(err.response?.data?.error || 'Failed to create mapping — check your input and try again')
   })
   const updateMut = useMutation({
     mutationFn: ({ id, data }) => updateFolderMapping(id, data),
     onSuccess: () => { qc.invalidateQueries(['folder-mappings']); setEditingMapping(null); setForm({ ...emptyForm }); toast.success('Mapping updated') },
-    onError: err => toast.error(err.response?.data?.error || 'Failed')
+    onError: err => toast.error(err.response?.data?.error || 'Failed to update mapping — check your input and try again')
   })
   const deleteMut = useMutation({
     mutationFn: deleteFolderMapping,
-    onSuccess: () => { qc.invalidateQueries(['folder-mappings']); toast.success('Deleted') }
+    onSuccess: () => { qc.invalidateQueries(['folder-mappings']); toast.success('Deleted') },
+    onError: (err) => toast.error(err.response?.data?.error || err.response?.data?.message || 'Failed to delete mapping — the item may be in use')
   })
 
   const openEdit = (m) => {
@@ -394,7 +396,7 @@ export default function FolderMappings() {
                 <span className="badge badge-blue">{m.encryptionOption || 'NONE'}</span>
                 <button onClick={() => openEdit(m)} title="Edit mapping"
                   className="p-1.5 rounded hover:bg-blue-50 text-blue-500 transition-colors"><PencilSquareIcon className="w-4 h-4" /></button>
-                <button onClick={() => { if(confirm('Delete this mapping?')) deleteMut.mutate(m.id) }} title="Delete mapping"
+                <button onClick={() => setConfirmDelete(m)} title="Delete mapping"
                   className="p-1.5 rounded hover:bg-red-50 text-red-500"><TrashIcon className="w-4 h-4" /></button>
               </div>
             )
@@ -523,6 +525,15 @@ export default function FolderMappings() {
             e => { e.preventDefault(); updateMut.mutate({ id: editingMapping.id, data: form }) },
             updateMut.isPending, 'Save Changes', 'Saving...'
           )}
+        </Modal>
+      )}
+      {confirmDelete && (
+        <Modal title="Confirm Delete" onClose={() => setConfirmDelete(null)}>
+          <p className="text-secondary mb-4">Are you sure you want to delete this mapping? This action cannot be undone.</p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
+            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}>Delete</button>
+          </div>
         </Modal>
       )}
     </div>

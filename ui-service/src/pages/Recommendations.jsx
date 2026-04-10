@@ -43,7 +43,7 @@ export default function Recommendations() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
             <LightBulbIcon className="w-7 h-7 text-amber-500" /> AI Recommendations
           </h1>
           <p className="text-secondary text-sm">AI-powered analysis of platform health, performance, and security</p>
@@ -65,7 +65,7 @@ export default function Recommendations() {
       {/* Platform health summary */}
       {Object.keys(summary).length > 0 && (
         <div className="card">
-          <h3 className="font-semibold text-gray-900 mb-3">Platform Health Snapshot</h3>
+          <h3 className="font-semibold text-primary mb-3">Platform Health Snapshot</h3>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
             {[
               ['Transfers/Day', summary.transfersLastDay || 0],
@@ -76,9 +76,9 @@ export default function Recommendations() {
               ['Services', summary.registeredServices || 0],
               ['Total Records', summary.totalTransferRecords || 0],
             ].map(([label, value]) => (
-              <div key={label} className="p-3 bg-gray-50 rounded-lg">
+              <div key={label} className="p-3 bg-surface rounded-lg">
                 <p className="text-xs text-secondary">{label}</p>
-                <p className="font-bold text-gray-900">{typeof value === 'number' ? value.toLocaleString() : value}</p>
+                <p className="font-bold text-primary">{typeof value === 'number' ? value.toLocaleString() : value}</p>
               </div>
             ))}
           </div>
@@ -89,7 +89,7 @@ export default function Recommendations() {
       {recs.length === 0 ? (
         <div className="card text-center py-12">
           <ShieldCheckIcon className="w-12 h-12 text-green-400 mx-auto mb-3" />
-          <h3 className="text-lg font-semibold text-gray-900">All Clear</h3>
+          <h3 className="text-lg font-semibold text-primary">All Clear</h3>
           <p className="text-sm text-secondary mt-1">No recommendations at this time. Platform is healthy.</p>
         </div>
       ) : (

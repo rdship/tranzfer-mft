@@ -197,6 +197,7 @@ function FindingsTab() {
       {isLoading ? (
         <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
       ) : (
+        <p className="text-xs text-muted mb-2">Tip: Double-click any row to open detailed view</p>
         <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
           <table className="w-full text-sm">
             <thead>

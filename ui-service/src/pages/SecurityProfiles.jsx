@@ -22,6 +22,7 @@ export default function SecurityProfiles() {
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
   const [editingProfile, setEditingProfile] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(null)
   const [form, setForm] = useState({ ...defaultForm })
 
   const { data: profiles = [], isLoading } = useQuery({
@@ -32,16 +33,17 @@ export default function SecurityProfiles() {
   const createMut = useMutation({
     mutationFn: (data) => configApi.post('/api/security-profiles', data).then(r => r.data),
     onSuccess: () => { qc.invalidateQueries(['security-profiles']); setShowCreate(false); setForm({ ...defaultForm }); toast.success('Security profile created') },
-    onError: err => toast.error(err.response?.data?.error || 'Failed')
+    onError: err => toast.error(err.response?.data?.error || 'Failed to create profile — check your input and try again')
   })
   const updateMut = useMutation({
     mutationFn: ({ id, data }) => configApi.put(`/api/security-profiles/${id}`, data).then(r => r.data),
     onSuccess: () => { qc.invalidateQueries(['security-profiles']); setEditingProfile(null); setForm({ ...defaultForm }); toast.success('Profile updated') },
-    onError: err => toast.error(err.response?.data?.error || 'Failed')
+    onError: err => toast.error(err.response?.data?.error || 'Failed to update profile — check your input and try again')
   })
   const deleteMut = useMutation({
     mutationFn: (id) => configApi.delete(`/api/security-profiles/${id}`),
-    onSuccess: () => { qc.invalidateQueries(['security-profiles']); toast.success('Profile deleted') }
+    onSuccess: () => { qc.invalidateQueries(['security-profiles']); toast.success('Profile deleted') },
+    onError: (err) => toast.error(err.response?.data?.error || err.response?.data?.message || 'Failed to delete profile — the item may be in use')
   })
 
   const toggleItem = (field, item) => {
@@ -153,7 +155,7 @@ export default function SecurityProfiles() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Security Profiles</h1>
+          <h1 className="text-2xl font-bold text-primary">Security Profiles</h1>
           <p className="text-secondary text-sm">Configure cipher suites, MACs, and key exchange algorithms</p>
         </div>
         <button className="btn-primary" onClick={openCreate}>
@@ -172,16 +174,16 @@ export default function SecurityProfiles() {
             <div key={p.id} className="card">
               <div className="flex items-start justify-between">
                 <div>
-                  <h3 className="font-semibold text-gray-900">{p.name}</h3>
+                  <h3 className="font-semibold text-primary">{p.name}</h3>
                   <p className="text-sm text-secondary mt-0.5">{p.description}</p>
                   <span className={`badge mt-2 ${p.type === 'SSH' ? 'badge-blue' : 'badge-purple'}`}>{p.type}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <button onClick={() => openEdit(p)} title="Edit profile"
-                    className="p-1.5 rounded hover:bg-blue-50 text-blue-500 transition-colors">
+                    className="p-1.5 rounded hover:bg-[rgba(100,140,255,0.1)] text-blue-500 transition-colors">
                     <PencilSquareIcon className="w-4 h-4" />
                   </button>
-                  <button onClick={() => { if (confirm('Delete profile?')) deleteMut.mutate(p.id) }} title="Delete profile"
+                  <button onClick={() => setConfirmDelete(p)} title="Delete profile"
                     className="p-1.5 rounded hover:bg-red-50 text-red-500 transition-colors">
                     <TrashIcon className="w-4 h-4" />
                   </button>
@@ -189,9 +191,9 @@ export default function SecurityProfiles() {
               </div>
               {p.type === 'SSH' && (
                 <div className="mt-4 grid grid-cols-2 gap-4 text-xs">
-                  <div><p className="font-semibold text-gray-700 mb-1">Ciphers</p>
+                  <div><p className="font-semibold text-secondary mb-1">Ciphers</p>
                     {(p.sshCiphers || []).map(c => <div key={c} className="text-secondary font-mono">{c}</div>)}</div>
-                  <div><p className="font-semibold text-gray-700 mb-1">MACs</p>
+                  <div><p className="font-semibold text-secondary mb-1">MACs</p>
                     {(p.sshMacs || []).map(m => <div key={m} className="text-secondary font-mono">{m}</div>)}</div>
                 </div>
               )}
@@ -215,6 +217,16 @@ export default function SecurityProfiles() {
             e => { e.preventDefault(); updateMut.mutate({ id: editingProfile.id, data: form }) },
             updateMut.isPending, 'Save Changes', 'Saving...'
           )}
+        </Modal>
+      )}
+
+      {confirmDelete && (
+        <Modal title="Confirm Delete" onClose={() => setConfirmDelete(null)}>
+          <p className="text-secondary mb-4">Are you sure you want to delete profile <strong>{confirmDelete.name}</strong>? This action cannot be undone.</p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
+            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}>Delete</button>
+          </div>
         </Modal>
       )}
     </div>

@@ -66,6 +66,7 @@ export default function FolderTemplates() {
   const [tab, setTab] = useState('templates')
   const [showCreate, setShowCreate] = useState(false)
   const [editTemplate, setEditTemplate] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(null)
   const [form, setForm] = useState({ name: '', description: '', folders: [{ path: '', description: '' }] })
   const [expandedCards, setExpandedCards] = useState({})
   const fileRef = useRef(null)
@@ -252,7 +253,7 @@ export default function FolderTemplates() {
                           <PencilIcon className="w-4 h-4" />
                         </button>
                         <button className="p-1.5 rounded hover:bg-red-50 text-muted hover:text-red-600 transition-colors"
-                          onClick={(e) => { e.stopPropagation(); if (confirm('Delete this template? Servers using it will lose their folder structure assignment.')) deleteMut.mutate(t.id) }}
+                          onClick={(e) => { e.stopPropagation(); setConfirmDelete(t) }}
                           title="Delete template">
                           <TrashIcon className="w-4 h-4" />
                         </button>
@@ -630,6 +631,16 @@ export default function FolderTemplates() {
             addFolder={addFolder} removeFolder={removeFolder} updateFolder={updateFolder} moveFolder={moveFolder}
             onCancel={() => setEditTemplate(null)} submitLabel="Save" isPending={updateMut.isPending}
           />
+        </Modal>
+      )}
+
+      {confirmDelete && (
+        <Modal title="Confirm Delete" onClose={() => setConfirmDelete(null)}>
+          <p className="text-secondary mb-4">Are you sure you want to delete template <strong>{confirmDelete.name}</strong>? Servers using it will lose their folder structure assignment.</p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
+            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}>Delete</button>
+          </div>
         </Modal>
       )}
     </div>

@@ -47,6 +47,7 @@ export default function Accounts() {
   const [detailAccount, setDetailAccount] = useState(null)
   const [drawerTrackId, setDrawerTrackId] = useState(null)
   const [search, setSearch] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(null)
   const [form, setForm] = useState({ ...defaultForm })
   const [editQos, setEditQos] = useState({ ...defaultEditQos })
 
@@ -60,7 +61,8 @@ export default function Accounts() {
     onSuccess: () => { qc.invalidateQueries(['accounts']); setEditAccount(null); toast.success('Account updated') },
     onError: err => toast.error(friendlyError(err)) })
   const deleteMut = useMutation({ mutationFn: deleteAccount,
-    onSuccess: () => { qc.invalidateQueries(['accounts']); toast.success('Account deleted') } })
+    onSuccess: () => { qc.invalidateQueries(['accounts']); toast.success('Account deleted') },
+    onError: (err) => toast.error(err.response?.data?.error || err.response?.data?.message || 'Failed to delete account — the item may be in use') })
   const toggleMut = useMutation({ mutationFn: ({ id, active }) => toggleAccount(id, active),
     onSuccess: () => qc.invalidateQueries(['accounts']) })
 
@@ -121,6 +123,8 @@ export default function Accounts() {
         {filtered.length === 0 ? (
           <EmptyState title="No accounts found" description="Create your first transfer account to get started." action={<button className="btn-primary" onClick={() => setShowCreate(true)}><PlusIcon className="w-4 h-4" />New Account</button>} />
         ) : (
+          <>
+          <p className="text-xs text-muted mb-2">Tip: Click any row to view account detail with recent transfers. Use the edit button for QoS changes.</p>
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
@@ -139,7 +143,7 @@ export default function Accounts() {
               {filtered.map(acc => {
                 const tier = getQosTier(acc)
                 return (
-                <tr key={acc.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => openEdit(acc)} onDoubleClick={(e) => { e.stopPropagation(); setDetailAccount(acc) }}>
+                <tr key={acc.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => setDetailAccount(acc)} onDoubleClick={(e) => { e.stopPropagation(); openEdit(acc) }}>
                   <td className="table-cell font-medium">{acc.username}</td>
                   <td className="table-cell"><span className="badge badge-blue">{acc.protocol}</span></td>
                   <td className="table-cell text-xs text-secondary">{acc.serverInstance || <span className="text-muted">Any</span>}</td>
@@ -165,7 +169,7 @@ export default function Accounts() {
                         className="p-1.5 rounded hover:bg-accent-soft text-accent hover:text-accent transition-colors">
                         <PencilSquareIcon className="w-4 h-4" />
                       </button>
-                      <button onClick={(e) => { e.stopPropagation(); if (confirm('Delete account?')) deleteMut.mutate(acc.id) }} title="Delete account"
+                      <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(acc) }} title="Delete account"
                         className="p-1.5 rounded hover:bg-[rgb(60,20,20)] text-[rgb(240,120,120)] hover:text-[rgb(255,140,140)] transition-colors">
                         <TrashIcon className="w-4 h-4" />
                       </button>
@@ -175,6 +179,7 @@ export default function Accounts() {
               )})}
             </tbody>
           </table>
+          </>
         )}
       </div>
 
@@ -374,6 +379,16 @@ export default function Accounts() {
               <h4 className="text-sm font-semibold text-primary mb-3">Recent Transfers</h4>
               <AccountTransfers username={detailAccount.username} navigate={navigate} onTrackClick={setDrawerTrackId} />
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {confirmDelete && (
+        <Modal title="Confirm Delete" onClose={() => setConfirmDelete(null)}>
+          <p className="text-secondary mb-4">Are you sure you want to delete account <strong>{confirmDelete.username}</strong>? This action cannot be undone.</p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
+            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}>Delete</button>
           </div>
         </Modal>
       )}

@@ -13,20 +13,23 @@ export default function TwoFactor() {
 
   const enableMut = useMutation({
     mutationFn: (username) => onboardingApi.post('/api/2fa/enable', { username, method: 'TOTP_APP' }).then(r => r.data),
-    onSuccess: (data) => { setSelected(data); toast.success('2FA enabled — share QR with partner'); qc.invalidateQueries({ queryKey: ['2fa-status'] }) }
+    onSuccess: (data) => { setSelected(data); toast.success('2FA enabled — share QR with partner'); qc.invalidateQueries({ queryKey: ['2fa-status'] }) },
+    onError: (err) => toast.error(err.response?.data?.error || err.response?.data?.message || 'Failed to enable 2FA — please try again')
   })
   const disableMut = useMutation({
     mutationFn: (username) => onboardingApi.post('/api/2fa/disable', { username }).then(r => r.data),
-    onSuccess: () => { setSelected(null); toast.success('2FA disabled'); qc.invalidateQueries({ queryKey: ['2fa-status'] }) }
+    onSuccess: () => { setSelected(null); toast.success('2FA disabled'); qc.invalidateQueries({ queryKey: ['2fa-status'] }) },
+    onError: (err) => toast.error(err.response?.data?.error || err.response?.data?.message || 'Failed to disable 2FA — please try again')
   })
   const checkMut = useMutation({
-    mutationFn: (username) => onboardingApi.get(`/api/2fa/status/${username}`).then(r => r.data)
+    mutationFn: (username) => onboardingApi.get(`/api/2fa/status/${username}`).then(r => r.data),
+    onError: (err) => toast.error(err.response?.data?.error || err.response?.data?.message || 'Failed to check 2FA status — please try again')
   })
 
   if (isLoading) return <LoadingSpinner />
   return (
     <div className="space-y-6">
-      <div><h1 className="text-2xl font-bold text-gray-900">Two-Factor Authentication</h1>
+      <div><h1 className="text-2xl font-bold text-primary">Two-Factor Authentication</h1>
         <p className="text-secondary text-sm">Enable TOTP 2FA per account — partners use Google Authenticator, Authy, or Microsoft Authenticator</p></div>
 
       <div className="card">
@@ -67,18 +70,18 @@ export default function TwoFactor() {
           <h3 className="font-semibold text-green-900 mb-3 flex items-center gap-2"><ShieldCheckIcon className="w-5 h-5" /> 2FA Enabled — Share With Partner</h3>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-sm font-medium text-gray-700 mb-1">Secret (Base32):</p>
-              <code className="text-xs bg-white p-2 rounded block font-mono break-all">{selected.secret}</code>
+              <p className="text-sm font-medium text-secondary mb-1">Secret (Base32):</p>
+              <code className="text-xs bg-surface p-2 rounded block font-mono break-all">{selected.secret}</code>
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-700 mb-1">QR Provisioning URI:</p>
-              <code className="text-xs bg-white p-2 rounded block font-mono break-all">{selected.provisioningUri}</code>
+              <p className="text-sm font-medium text-secondary mb-1">QR Provisioning URI:</p>
+              <code className="text-xs bg-surface p-2 rounded block font-mono break-all">{selected.provisioningUri}</code>
             </div>
           </div>
           <div className="mt-3">
-            <p className="text-sm font-medium text-gray-700 mb-1">Backup Codes (one-time use):</p>
+            <p className="text-sm font-medium text-secondary mb-1">Backup Codes (one-time use):</p>
             <div className="flex flex-wrap gap-1">{(selected.backupCodes || []).map((c, i) =>
-              <code key={i} className="text-xs bg-white px-2 py-0.5 rounded font-mono">{c}</code>
+              <code key={i} className="text-xs bg-surface px-2 py-0.5 rounded font-mono">{c}</code>
             )}</div>
           </div>
           <p className="text-xs text-green-700 mt-3">{selected.instructions}</p>

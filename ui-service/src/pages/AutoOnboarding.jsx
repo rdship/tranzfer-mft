@@ -5,7 +5,7 @@ import Modal from '../components/Modal'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import {
-  CpuChipIcon, CheckCircleIcon, XCircleIcon,
+  CpuChipIcon, CheckCircleIcon,
   ClockIcon, AcademicCapIcon, MagnifyingGlassIcon,
   SignalIcon, ServerIcon, DocumentDuplicateIcon,
   ChevronRightIcon, GlobeAltIcon, ArrowPathIcon,
@@ -50,7 +50,7 @@ export default function AutoOnboarding() {
   const queryClient = useQueryClient()
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [selectedSession, setSelectedSession] = useState(null)
-  const [confirmAction, setConfirmAction] = useState(null) // { id, type: 'approve'|'reject' }
+  const [confirmAction, setConfirmAction] = useState(null) // { id, type: 'approve' }
 
   // ── Queries ──
 
@@ -88,19 +88,7 @@ export default function AutoOnboarding() {
     },
   })
 
-  const reject = useMutation({
-    mutationFn: autoOnboardingApi.rejectSession,
-    onSuccess: () => {
-      toast.success('Session rejected')
-      queryClient.invalidateQueries({ queryKey: ['auto-onboard-sessions'] })
-      queryClient.invalidateQueries({ queryKey: ['auto-onboard-stats'] })
-      setConfirmAction(null)
-    },
-    onError: (err) => {
-      toast.error(err?.response?.data?.message || 'Rejection failed')
-      setConfirmAction(null)
-    },
-  })
+  // Note: backend has no reject endpoint — reject UI action removed
 
   // ── Stats cards ──
 
@@ -213,10 +201,8 @@ export default function AutoOnboarding() {
               confirmAction={confirmAction}
               onConfirmAction={setConfirmAction}
               onApprove={(id) => approve.mutate(id)}
-              onReject={(id) => reject.mutate(id)}
               onViewDetails={(id) => setSelectedSession(id)}
               approvePending={approve.isPending}
-              rejectPending={reject.isPending}
             />
           ))}
         </div>
@@ -236,8 +222,8 @@ export default function AutoOnboarding() {
 
 function SessionCard({
   session, confirmAction, onConfirmAction,
-  onApprove, onReject, onViewDetails,
-  approvePending, rejectPending,
+  onApprove, onViewDetails,
+  approvePending,
 }) {
   const isConfirming = confirmAction?.id === session.id
   const confidence = session.confidence ?? session.confidenceScore ?? 0
@@ -363,10 +349,9 @@ function SessionCard({
       <div className="flex items-center gap-2 pt-3 border-t border-border">
         {isConfirming ? (
           <ConfirmActionBar
-            type={confirmAction.type}
-            onConfirm={() => confirmAction.type === 'approve' ? onApprove(session.id) : onReject(session.id)}
+            onConfirm={() => onApprove(session.id)}
             onCancel={() => onConfirmAction(null)}
-            pending={approvePending || rejectPending}
+            pending={approvePending}
           />
         ) : (
           <>
@@ -378,13 +363,6 @@ function SessionCard({
                 >
                   <CheckCircleIcon className="w-4 h-4" />
                   Approve
-                </button>
-                <button
-                  onClick={() => onConfirmAction({ id: session.id, type: 'reject' })}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600/15 text-red-400 text-xs font-medium rounded-lg hover:bg-red-600/25 transition-colors"
-                >
-                  <XCircleIcon className="w-4 h-4" />
-                  Reject
                 </button>
               </>
             )}
@@ -404,23 +382,18 @@ function SessionCard({
 
 // ── Confirm Action Bar ──────────────────────────────────────────────────
 
-function ConfirmActionBar({ type, onConfirm, onCancel, pending }) {
-  const isApprove = type === 'approve'
+function ConfirmActionBar({ onConfirm, onCancel, pending }) {
   return (
     <div className="flex items-center gap-2 w-full">
-      <span className={`text-xs ${isApprove ? 'text-green-400' : 'text-red-400'}`}>
-        {isApprove ? 'Approve this session?' : 'Reject this session?'}
+      <span className="text-xs text-green-400">
+        Approve this session?
       </span>
       <button
         onClick={onConfirm}
         disabled={pending}
-        className={`text-xs px-3 py-1 rounded-lg font-medium transition-colors disabled:opacity-50 ${
-          isApprove
-            ? 'bg-green-600/20 text-green-400 hover:bg-green-600/30'
-            : 'bg-red-600/20 text-red-400 hover:bg-red-600/30'
-        }`}
+        className="text-xs px-3 py-1 rounded-lg font-medium transition-colors disabled:opacity-50 bg-green-600/20 text-green-400 hover:bg-green-600/30"
       >
-        {pending ? (isApprove ? 'Approving...' : 'Rejecting...') : 'Confirm'}
+        {pending ? 'Approving...' : 'Confirm'}
       </button>
       <button onClick={onCancel} className="text-xs px-2 py-1 text-muted hover:text-primary transition-colors">
         Cancel

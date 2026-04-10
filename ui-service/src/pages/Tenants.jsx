@@ -11,6 +11,7 @@ export default function Tenants() {
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
   const [editingTenant, setEditingTenant] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(null)
   const [form, setForm] = useState({ slug: '', companyName: '', email: '' })
 
   const { data: tenants = [], isLoading } = useQuery({ queryKey: ['tenants'],
@@ -50,7 +51,7 @@ export default function Tenants() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold text-gray-900">Multi-Tenant Management</h1>
+        <div><h1 className="text-2xl font-bold text-primary">Multi-Tenant Management</h1>
           <p className="text-secondary text-sm">SaaS tenants — each gets their own namespace</p></div>
         <button className="btn-primary" onClick={openCreate}><PlusIcon className="w-4 h-4" /> New Tenant</button>
       </div>
@@ -60,7 +61,7 @@ export default function Tenants() {
           <div key={t.id} className="card flex items-center gap-4">
             <BuildingOffice2Icon className="w-8 h-8 text-blue-500" />
             <div className="flex-1">
-              <h3 className="font-semibold text-gray-900">{t.companyName}</h3>
+              <h3 className="font-semibold text-primary">{t.companyName}</h3>
               <p className="text-xs text-secondary">{t.slug}.tranzfer.io — {t.contactEmail}</p>
             </div>
             <span className={`badge ${t.plan === 'TRIAL' ? 'badge-yellow' : 'badge-green'}`}>{t.plan}</span>
@@ -69,8 +70,8 @@ export default function Tenants() {
               {t.trialEndsAt && <p>Trial ends: {format(new Date(t.trialEndsAt), 'MMM d')}</p>}
             </div>
             <button onClick={() => openEdit(t)} title="Edit tenant"
-              className="p-1.5 rounded hover:bg-blue-50 text-blue-500 transition-colors"><PencilSquareIcon className="w-4 h-4" /></button>
-            <button onClick={() => { if (confirm('Delete this tenant? This cannot be undone.')) deleteMut.mutate(t.id) }} title="Delete tenant"
+              className="p-1.5 rounded hover:bg-[rgba(100,140,255,0.1)] text-blue-500 transition-colors"><PencilSquareIcon className="w-4 h-4" /></button>
+            <button onClick={() => setConfirmDelete(t)} title="Delete tenant"
               className="p-1.5 rounded hover:bg-red-50 text-red-500 transition-colors"><TrashIcon className="w-4 h-4" /></button>
           </div>
         ))}
@@ -100,6 +101,15 @@ export default function Tenants() {
             <div className="flex gap-3 justify-end"><button type="button" className="btn-secondary" onClick={() => setEditingTenant(null)}>Cancel</button>
               <button type="submit" className="btn-primary" disabled={updateMut.isPending}>{updateMut.isPending ? 'Saving...' : 'Save Changes'}</button></div>
           </form>
+        </Modal>
+      )}
+      {confirmDelete && (
+        <Modal title="Confirm Delete" onClose={() => setConfirmDelete(null)}>
+          <p className="text-secondary mb-4">Are you sure you want to delete tenant <strong>{confirmDelete.companyName}</strong>? This action cannot be undone.</p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
+            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}>Delete</button>
+          </div>
         </Modal>
       )}
     </div>

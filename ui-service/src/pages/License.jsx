@@ -91,7 +91,7 @@ export default function License() {
 
   return (
     <div className="space-y-6">
-      <div><h1 className="text-2xl font-bold text-gray-900">License Management</h1>
+      <div><h1 className="text-2xl font-bold text-primary">License Management</h1>
         <p className="text-secondary text-sm">Manage your TranzFer MFT platform license</p></div>
 
       <div className="card">
@@ -100,7 +100,7 @@ export default function License() {
             {status?.valid ? <CheckBadgeIcon className="w-8 h-8 text-green-600" /> : <KeyIcon className="w-8 h-8 text-yellow-600" />}
           </div>
           <div>
-            <h2 className="text-xl font-bold text-gray-900">
+            <h2 className="text-xl font-bold text-primary">
               {isLoading ? 'Checking license...' : (status?.valid ? 'Licensed' : 'No Active License')}
             </h2>
             {status && (
@@ -115,7 +115,7 @@ export default function License() {
                   <div className="text-amber-700 font-medium">{status.trialDaysRemaining} trial days remaining</div>
                 )}
                 {status.maxInstances > 0 && <div><span className="text-secondary">Max instances per service: </span><strong>{status.maxInstances}</strong></div>}
-                <p className="text-gray-600 mt-2">{status.message}</p>
+                <p className="text-secondary mt-2">{status.message}</p>
               </div>
             )}
           </div>
@@ -123,7 +123,7 @@ export default function License() {
       </div>
 
       <div className="card">
-        <h3 className="font-semibold text-gray-900 mb-4">Activate License</h3>
+        <h3 className="font-semibold text-primary mb-4">Activate License</h3>
         <div className="space-y-3">
           <div>
             <label>License Key</label>
@@ -141,7 +141,7 @@ export default function License() {
       <div className="card">
         <div className="flex items-center gap-2 mb-4">
           <CubeIcon className="w-5 h-5 text-indigo-600" />
-          <h3 className="font-semibold text-gray-900">Component Catalog</h3>
+          <h3 className="font-semibold text-primary">Component Catalog</h3>
           <span className="text-xs text-secondary">Licensable modules and features</span>
         </div>
         {loadingCatalog ? <LoadingSpinner /> : catalog.length === 0 ? (
@@ -151,7 +151,7 @@ export default function License() {
             {catalog.map(comp => (
               <div key={comp.id || comp.name} className="border border-border rounded-lg p-4 hover:shadow-sm transition-shadow">
                 <div className="flex items-start justify-between gap-2 mb-2">
-                  <h4 className="font-semibold text-gray-900 text-sm">{comp.name}</h4>
+                  <h4 className="font-semibold text-primary text-sm">{comp.name}</h4>
                   {comp.licensed ? (
                     <span className="badge badge-green flex-shrink-0">Licensed</span>
                   ) : (
@@ -181,7 +181,7 @@ export default function License() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <KeyIcon className="w-5 h-5 text-amber-600" />
-              <h3 className="font-semibold text-gray-900">Admin: License Management</h3>
+              <h3 className="font-semibold text-primary">Admin: License Management</h3>
             </div>
             <button onClick={() => { setShowIssueModal(true); setIssueForm({ licenseKey: '', edition: 'STANDARD', expiry: '', maxInstances: 1 }) }}
               className="btn-primary flex items-center gap-1.5">
@@ -332,11 +332,11 @@ export default function License() {
             {name:'Professional', price:'$4,999/yr', features:['Unlimited accounts','5 replicas/service','Priority support','Analytics']},
             {name:'Enterprise', price:'Custom', features:['Unlimited everything','HA clustering','SLA 99.99%','24/7 support']}
           ].map(tier => (
-            <div key={tier.name} className="bg-white rounded-lg p-4 border border-blue-100">
-              <h4 className="font-bold text-gray-900">{tier.name}</h4>
+            <div key={tier.name} className="bg-surface rounded-lg p-4 border border-blue-100">
+              <h4 className="font-bold text-primary">{tier.name}</h4>
               <p className="text-blue-600 font-semibold">{tier.price}</p>
               <ul className="mt-2 space-y-1">
-                {tier.features.map(f => <li key={f} className="text-xs text-gray-600">✓ {f}</li>)}
+                {tier.features.map(f => <li key={f} className="text-xs text-secondary">✓ {f}</li>)}
               </ul>
             </div>
           ))}

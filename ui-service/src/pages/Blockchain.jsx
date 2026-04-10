@@ -24,7 +24,7 @@ export default function Blockchain() {
   if (isLoading) return <LoadingSpinner />
   return (
     <div className="space-y-6">
-      <div><h1 className="text-2xl font-bold text-gray-900">Blockchain Notarization</h1>
+      <div><h1 className="text-2xl font-bold text-primary">Blockchain Notarization</h1>
         <p className="text-secondary text-sm">Immutable cryptographic proof of every file transfer — non-repudiation</p></div>
 
       <div className="card flex gap-3">
@@ -49,18 +49,18 @@ export default function Blockchain() {
             <div className="col-span-2"><span className="text-secondary">SHA-256:</span> <code className="text-xs font-mono break-all">{proof.sha256}</code></div>
             <div className="col-span-2"><span className="text-secondary">Merkle Root:</span> <code className="text-xs font-mono break-all">{proof.merkleRoot}</code></div>
           </div>
-          <p className="text-xs text-gray-600 mt-3 italic">{proof.nonRepudiation}</p>
+          <p className="text-xs text-secondary mt-3 italic">{proof.nonRepudiation}</p>
         </div>
       )}
 
       <div className="card">
-        <h3 className="font-semibold text-gray-900 mb-3">Recent Anchors ({anchors.length})</h3>
+        <h3 className="font-semibold text-primary mb-3">Recent Anchors ({anchors.length})</h3>
         {anchors.length === 0 ? <p className="text-sm text-secondary">No anchors yet. Transfers are anchored every hour.</p> : (
           <table className="w-full"><thead><tr className="border-b">
             <th className="table-header">Track ID</th><th className="table-header">File</th><th className="table-header">Chain</th><th className="table-header">Anchored</th>
           </tr></thead><tbody>
             {anchors.slice(0, 20).map(a => (
-              <tr key={a.id} className="table-row cursor-pointer hover:bg-blue-50" onClick={() => { setVerifyId(a.trackId); verify() }}>
+              <tr key={a.id} className="table-row cursor-pointer hover:bg-[rgba(100,140,255,0.1)]" onClick={() => { setVerifyId(a.trackId); verify() }}>
                 <td className="table-cell font-mono text-xs font-bold text-blue-600">{a.trackId}</td>
                 <td className="table-cell text-sm">{a.filename}</td>
                 <td className="table-cell"><span className="badge badge-blue">{a.chain}</span></td>

@@ -51,7 +51,7 @@ export default function Logs() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold text-gray-900">Audit Logs</h1>
+        <div><h1 className="text-2xl font-bold text-primary">Audit Logs</h1>
           <p className="text-secondary text-sm">Centralized log search across all services</p></div>
         <button onClick={exportCSV} className="btn-secondary"><ArrowDownTrayIcon className="w-4 h-4" /> Export CSV</button>
       </div>
@@ -67,8 +67,9 @@ export default function Logs() {
         </div>
         {isLoading ? <LoadingSpinner /> : (
           <>
+            <p className="text-xs text-muted mb-2">Tip: Double-click any row to open detailed view</p>
             <table className="w-full">
-              <thead><tr className="border-b border-gray-100">
+              <thead><tr className="border-b border-border">
                 <th className="table-header">Time</th>
                 <th className="table-header">Account</th>
                 <th className="table-header">Action</th>
@@ -154,10 +155,10 @@ export default function Logs() {
             </table>
 
             {/* Pagination controls */}
-            <div className="flex items-center justify-between pt-4 border-t border-gray-100 mt-4">
+            <div className="flex items-center justify-between pt-4 border-t border-border mt-4">
               <div className="flex items-center gap-2 text-sm text-secondary">
                 <span>Showing {logs.length === 0 ? 0 : safePage * pageSize + 1}--{Math.min((safePage + 1) * pageSize, logs.length)} of {logs.length}</span>
-                <span className="text-gray-300">|</span>
+                <span className="text-muted">|</span>
                 <label className="flex items-center gap-1">
                   <span>Per page:</span>
                   <select value={pageSize} onChange={e => handlePageSizeChange(+e.target.value)} className="w-auto text-xs px-2 py-1 border rounded-lg">

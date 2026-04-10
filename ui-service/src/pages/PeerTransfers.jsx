@@ -15,19 +15,19 @@ export default function PeerTransfers() {
 
   return (
     <div className="space-y-6">
-      <div><h1 className="text-2xl font-bold text-gray-900">Peer-to-Peer Transfers</h1>
+      <div><h1 className="text-2xl font-bold text-primary">Peer-to-Peer Transfers</h1>
         <p className="text-secondary text-sm">Direct client-to-client file transfers</p></div>
 
       {/* Online Peers */}
       <div className="card">
-        <h3 className="font-semibold text-gray-900 mb-3">Online Clients ({peers.length})</h3>
+        <h3 className="font-semibold text-primary mb-3">Online Clients ({peers.length})</h3>
         {peers.length === 0 ? <p className="text-sm text-secondary">No clients currently online</p> : (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {peers.map(p => (
               <div key={p.username} className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
                 <UserIcon className="w-4 h-4 text-green-600" />
-                <div><p className="font-medium text-sm text-gray-900">{p.username}</p>
+                <div><p className="font-medium text-sm text-primary">{p.username}</p>
                   <p className="text-xs text-secondary">{p.host}:{p.port}</p></div>
               </div>
             ))}
@@ -37,7 +37,7 @@ export default function PeerTransfers() {
 
       {/* Transfer Tickets */}
       <div className="card">
-        <h3 className="font-semibold text-gray-900 mb-3">Transfer History</h3>
+        <h3 className="font-semibold text-primary mb-3">Transfer History</h3>
         <table className="w-full"><thead><tr className="border-b">
           <th className="table-header">Track ID</th><th className="table-header">Sender</th><th className="table-header"></th>
           <th className="table-header">Receiver</th><th className="table-header">File</th><th className="table-header">Status</th><th className="table-header">Time</th>

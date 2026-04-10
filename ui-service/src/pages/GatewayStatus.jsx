@@ -52,6 +52,8 @@ export default function GatewayStatus() {
   const [showLegacyForm, setShowLegacyForm] = useState(false)
   const [editingLegacy, setEditingLegacy] = useState(null)
   const [legacyForm, setLegacyForm] = useState({ name: '', protocol: 'SFTP', host: '', port: 22, healthCheckUser: '', active: true })
+  const [confirmDeleteMapping, setConfirmDeleteMapping] = useState(null)
+  const [confirmDeleteLegacy, setConfirmDeleteLegacy] = useState(null)
 
   // ─── Queries ───
   const { data: gwStatus } = useQuery({
@@ -570,9 +572,7 @@ export default function GatewayStatus() {
                           </span>
                         </td>
                         <td className="table-cell text-right" onClick={(e) => e.stopPropagation()}>
-                          <button onClick={() => {
-                            if (confirm(`Remove mapping "${m.name}"?`)) removeMappingMut.mutate(m.name)
-                          }} className="p-1.5 rounded-lg hover:bg-red-50 text-muted hover:text-red-600" title="Remove">
+                          <button onClick={() => setConfirmDeleteMapping(m)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted hover:text-red-600" title="Remove">
                             <TrashIcon className="w-4 h-4" />
                           </button>
                         </td>
@@ -771,7 +771,7 @@ export default function GatewayStatus() {
                         <button onClick={() => openEditLegacy(s)} className="p-1.5 rounded hover:bg-blue-50 text-blue-500 transition-colors" title="Edit">
                           <EyeIcon className="w-4 h-4" />
                         </button>
-                        <button onClick={() => { if (confirm('Delete this legacy server?')) deleteLegacyMut.mutate(s.id) }}
+                        <button onClick={() => setConfirmDeleteLegacy(s)}
                           className="p-1.5 rounded hover:bg-red-50 text-red-500 transition-colors" title="Delete">
                           <TrashIcon className="w-4 h-4" />
                         </button>
@@ -838,6 +838,25 @@ export default function GatewayStatus() {
             </Modal>
           )}
         </div>
+      )}
+      {confirmDeleteMapping && (
+        <Modal title="Confirm Remove" onClose={() => setConfirmDeleteMapping(null)}>
+          <p className="text-secondary mb-4">Are you sure you want to remove mapping <strong>{confirmDeleteMapping.name}</strong>? This action cannot be undone.</p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setConfirmDeleteMapping(null)}>Cancel</button>
+            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { removeMappingMut.mutate(confirmDeleteMapping.name); setConfirmDeleteMapping(null) }}>Remove</button>
+          </div>
+        </Modal>
+      )}
+
+      {confirmDeleteLegacy && (
+        <Modal title="Confirm Delete" onClose={() => setConfirmDeleteLegacy(null)}>
+          <p className="text-secondary mb-4">Are you sure you want to delete legacy server <strong>{confirmDeleteLegacy.name}</strong>? This action cannot be undone.</p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setConfirmDeleteLegacy(null)}>Cancel</button>
+            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteLegacyMut.mutate(confirmDeleteLegacy.id); setConfirmDeleteLegacy(null) }}>Delete</button>
+          </div>
+        </Modal>
       )}
     </div>
   )

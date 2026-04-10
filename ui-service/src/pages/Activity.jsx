@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { configApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import StatCard from '../components/StatCard'
@@ -6,6 +7,7 @@ import { SignalIcon, ArrowUpTrayIcon, ArrowDownTrayIcon, WifiIcon } from '@heroi
 import { format } from 'date-fns'
 
 export default function Activity() {
+  const navigate = useNavigate()
   const { data: snapshot = {}, isLoading } = useQuery({ queryKey: ['activity-snap'],
     queryFn: () => configApi.get('/api/activity/snapshot').then(r => r.data).catch(() => ({})), refetchInterval: 5000 })
   const { data: transfers = [] } = useQuery({ queryKey: ['activity-transfers'],
@@ -16,7 +18,7 @@ export default function Activity() {
   if (isLoading) return <LoadingSpinner />
   return (
     <div className="space-y-6">
-      <div><h1 className="text-2xl font-bold text-gray-900">Real-Time Activity</h1>
+      <div><h1 className="text-2xl font-bold text-primary">Real-Time Activity</h1>
         <p className="text-secondary text-sm">Live view — auto-refreshes every 5 seconds</p></div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -28,7 +30,7 @@ export default function Activity() {
 
       {transfers.length > 0 && (
         <div className="card">
-          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <h3 className="font-semibold text-primary mb-3 flex items-center gap-2">
             <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" /> Active Transfers
           </h3>
           <div className="space-y-2">{transfers.map((t, i) => (
@@ -45,16 +47,19 @@ export default function Activity() {
       )}
 
       <div className="card">
-        <h3 className="font-semibold text-gray-900 mb-3">Recent Events ({events.length})</h3>
+        <h3 className="font-semibold text-primary mb-3">Recent Events ({events.length})</h3>
         {events.length === 0 ? <p className="text-sm text-secondary">No events yet. Activity will appear here as files are transferred.</p> : (
           <div className="space-y-1 max-h-96 overflow-y-auto">{events.map((e, i) => (
-            <div key={i} className="flex items-center gap-2 text-xs py-1 border-b border-gray-50">
+            <div key={i} className="flex items-center gap-2 text-xs py-1 border-b border-border">
               <span className="text-muted w-16 font-mono">{e.timestamp ? format(new Date(e.timestamp), 'HH:mm:ss') : ''}</span>
               <span className={`badge text-xs ${e.status === 'COMPLETED' ? 'badge-green' : e.status === 'FAILED' ? 'badge-red' : 'badge-blue'}`}>{e.eventType}</span>
               <span className="badge badge-gray text-xs">{e.protocol}</span>
-              <span className="font-medium text-gray-700">{e.filename || ''}</span>
+              <span className="font-medium text-secondary">{e.filename || ''}</span>
               <span className="text-muted">{e.account}</span>
-              {e.trackId && <span className="font-mono text-blue-500 ml-auto">{e.trackId}</span>}
+              {e.trackId && <button onClick={() => navigate(`/journey?trackId=${e.trackId}`)}
+                className="text-[rgb(100,140,255)] hover:underline font-mono text-xs ml-auto">
+                {e.trackId}
+              </button>}
             </div>
           ))}</div>
         )}

@@ -92,6 +92,8 @@ export default function Screening() {
   const [scanFile, setScanFile] = useState(null)
   const [scanResult, setScanResult] = useState(null)
   const [scanning, setScanning] = useState(false)
+  const [confirmDeletePolicy, setConfirmDeletePolicy] = useState(null)
+  const [confirmDeleteRule, setConfirmDeleteRule] = useState(null)
   const fileInputRef = useRef(null)
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -205,7 +207,7 @@ export default function Screening() {
 
   const { data: dlpRules = [], isLoading: loadingRules } = useQuery({
     queryKey: ['dlp-rules'],
-    queryFn: () => screeningApi.get('/api/v1/screening/dlp/rules').then(r => r.data).catch(() => [])
+    queryFn: () => screeningApi.get('/api/v1/dlp/policies').then(r => r.data).catch(() => [])
   })
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -214,7 +216,7 @@ export default function Screening() {
 
   const { data: screeningQuarantine = [], isLoading: loadingScreeningQ } = useQuery({
     queryKey: ['screening-quarantine'],
-    queryFn: () => screeningApi.get('/api/v1/screening/quarantine', { params: { page: 0, size: 10 } })
+    queryFn: () => screeningApi.get('/api/v1/quarantine', { params: { page: 0, size: 10 } })
       .then(r => r.data?.content || r.data || []).catch(() => []),
     refetchInterval: 30000
   })
@@ -224,7 +226,7 @@ export default function Screening() {
   // ═══════════════════════════════════════════════════════════════════════
 
   const createRule = useMutation({
-    mutationFn: (data) => screeningApi.post('/api/v1/screening/dlp/rules', data).then(r => r.data),
+    mutationFn: (data) => screeningApi.post('/api/v1/dlp/policies', data).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries(['dlp-rules'])
       setShowRuleModal(false)
@@ -235,7 +237,7 @@ export default function Screening() {
   })
 
   const updateRule = useMutation({
-    mutationFn: ({ id, data }) => screeningApi.put(`/api/v1/screening/dlp/rules/${id}`, data).then(r => r.data),
+    mutationFn: ({ id, data }) => screeningApi.put(`/api/v1/dlp/policies/${id}`, data).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries(['dlp-rules'])
       setShowRuleModal(false)
@@ -247,7 +249,7 @@ export default function Screening() {
   })
 
   const deleteRule = useMutation({
-    mutationFn: (id) => screeningApi.delete(`/api/v1/screening/dlp/rules/${id}`),
+    mutationFn: (id) => screeningApi.delete(`/api/v1/dlp/policies/${id}`),
     onSuccess: () => {
       qc.invalidateQueries(['dlp-rules'])
       toast.success('DLP rule deleted')
@@ -256,7 +258,7 @@ export default function Screening() {
   })
 
   const toggleRuleEnabled = useMutation({
-    mutationFn: ({ id, enabled }) => screeningApi.put(`/api/v1/screening/dlp/rules/${id}`, { enabled }).then(r => r.data),
+    mutationFn: ({ id, enabled }) => screeningApi.put(`/api/v1/dlp/policies/${id}`, { enabled }).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries(['dlp-rules'])
       toast.success('Rule toggled')
@@ -659,7 +661,7 @@ export default function Screening() {
                         <button onClick={(e) => { e.stopPropagation(); openEditPolicy(p) }} className="p-1 rounded hover:bg-hover" title="Edit">
                           <PencilSquareIcon className="w-4 h-4 text-secondary" />
                         </button>
-                        <button onClick={(e) => { e.stopPropagation(); if (confirm('Delete this DLP policy?')) deletePolicy.mutate(p.id) }}
+                        <button onClick={(e) => { e.stopPropagation(); setConfirmDeletePolicy(p) }}
                           className="p-1 rounded hover:bg-hover" title="Delete">
                           <TrashIcon className="w-4 h-4 text-red-500" />
                         </button>
@@ -891,7 +893,7 @@ export default function Screening() {
                         <button onClick={(e) => { e.stopPropagation(); openEditRule(rule) }} className="p-1 rounded hover:bg-hover" title="Edit">
                           <PencilSquareIcon className="w-4 h-4 text-secondary" />
                         </button>
-                        <button onClick={(e) => { e.stopPropagation(); if (confirm('Delete this DLP rule?')) deleteRule.mutate(rule.id) }}
+                        <button onClick={(e) => { e.stopPropagation(); setConfirmDeleteRule(rule) }}
                           className="p-1 rounded hover:bg-hover" title="Delete">
                           <TrashIcon className="w-4 h-4 text-red-500" />
                         </button>
@@ -1116,6 +1118,26 @@ export default function Screening() {
       {tab === 'dlp' && renderDlp()}
       {tab === 'dlpRules' && renderDlpRules()}
       {tab === 'quarantineSummary' && renderQuarantineSummary()}
+
+      {confirmDeletePolicy && (
+        <Modal title="Confirm Delete" onClose={() => setConfirmDeletePolicy(null)}>
+          <p className="text-secondary mb-4">Are you sure you want to delete DLP policy <strong>{confirmDeletePolicy.name}</strong>? This action cannot be undone.</p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setConfirmDeletePolicy(null)}>Cancel</button>
+            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deletePolicy.mutate(confirmDeletePolicy.id); setConfirmDeletePolicy(null) }}>Delete</button>
+          </div>
+        </Modal>
+      )}
+
+      {confirmDeleteRule && (
+        <Modal title="Confirm Delete" onClose={() => setConfirmDeleteRule(null)}>
+          <p className="text-secondary mb-4">Are you sure you want to delete DLP rule <strong>{confirmDeleteRule.name}</strong>? This action cannot be undone.</p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setConfirmDeleteRule(null)}>Cancel</button>
+            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteRule.mutate(confirmDeleteRule.id); setConfirmDeleteRule(null) }}>Delete</button>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }

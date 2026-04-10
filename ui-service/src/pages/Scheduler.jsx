@@ -47,7 +47,8 @@ export default function Scheduler() {
     onError: err => toast.error(err.response?.data?.message || 'Failed to delete schedule')
   })
   const toggleMut = useMutation({ mutationFn: (id) => configApi.patch(`/api/scheduler/${id}/toggle`),
-    onSuccess: () => { qc.invalidateQueries(['scheduler']); toast.success('Toggled') } })
+    onSuccess: () => { qc.invalidateQueries(['scheduler']); toast.success('Toggled') },
+    onError: (err) => toast.error(err.response?.data?.error || err.response?.data?.message || 'Failed to toggle schedule — please try again') })
 
   const openCreate = () => { setEditingTask(null); setForm({ ...EMPTY_FORM }); setShowModal(true) }
   const openEdit = (t) => {
@@ -79,7 +80,7 @@ export default function Scheduler() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold text-gray-900">Scheduler</h1>
+        <div><h1 className="text-2xl font-bold text-primary">Scheduler</h1>
           <p className="text-secondary text-sm">Cron-based task scheduling — {tasks.length} tasks</p></div>
         <button className="btn-primary" onClick={openCreate}><PlusIcon className="w-4 h-4" /> Create Task</button>
       </div>
@@ -100,13 +101,13 @@ export default function Scheduler() {
               <td className="table-cell text-xs">{t.totalRuns} ({t.failedRuns} failed)</td>
               <td className="table-cell">
                 <div className="flex items-center gap-1">
-                  <button onClick={(e) => { e.stopPropagation(); openEdit(t) }} className="p-1 rounded hover:bg-gray-100" title="Edit task">
+                  <button onClick={(e) => { e.stopPropagation(); openEdit(t) }} className="p-1 rounded hover:bg-hover" title="Edit task">
                     <PencilSquareIcon className="w-4 h-4 text-secondary" />
                   </button>
                   <button onClick={(e) => { e.stopPropagation(); toggleMut.mutate(t.id) }} className={`text-xs px-2 py-0.5 rounded ${t.enabled ? 'text-red-600 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}>
                     {t.enabled ? 'Disable' : 'Enable'}
                   </button>
-                  <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(t) }} className="p-1 rounded hover:bg-gray-100" title="Delete task">
+                  <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(t) }} className="p-1 rounded hover:bg-hover" title="Delete task">
                     <TrashIcon className="w-4 h-4 text-red-500" />
                   </button>
                 </div>
@@ -133,7 +134,7 @@ export default function Scheduler() {
                     {CRON_PRESETS.map(p => (
                       <button key={p.cron} type="button"
                         onClick={() => setForm(f => ({...f, cronExpression: p.cron}))}
-                        className={`text-xs px-2 py-0.5 rounded border transition-colors ${form.cronExpression === p.cron ? 'bg-blue-100 border-blue-300 text-blue-700' : 'border-border text-secondary hover:bg-gray-50'}`}>
+                        className={`text-xs px-2 py-0.5 rounded border transition-colors ${form.cronExpression === p.cron ? 'bg-blue-100 border-blue-300 text-blue-700' : 'border-border text-secondary hover:bg-hover'}`}>
                         {p.label}
                       </button>
                     ))}
@@ -189,7 +190,7 @@ export default function Scheduler() {
       {deleteConfirm && (
         <Modal title="Delete Scheduled Task" onClose={() => setDeleteConfirm(null)}>
           <div className="space-y-4">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-secondary">
               Are you sure you want to delete the task <strong>"{deleteConfirm.name}"</strong>? This action cannot be undone.
             </p>
             <div className="flex gap-3 justify-end">

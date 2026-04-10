@@ -930,6 +930,7 @@ export default function ActivityMonitor() {
           </div>
         ) : (
           <>
+            <p className="text-xs text-muted mb-2">Tip: Double-click any row to open detailed view</p>
             {/* Scrollable table container */}
             <div className="overflow-x-auto">
               <table className="w-full">

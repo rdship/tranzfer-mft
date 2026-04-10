@@ -602,6 +602,7 @@ export default function Flows() {
   const [aiSuggestions, setAiSuggestions] = useState(null)      // { steps: [...] } or null
   const [aiAvailable, setAiAvailable] = useState(true)
   const [drawerTrackId, setDrawerTrackId] = useState(null)     // execution detail drawer
+  const [confirmDeleteFlow, setConfirmDeleteFlow] = useState(null)
 
   // ─── Dynamic function catalog fetch ───
   const loadCatalog = useCallback(() => {
@@ -871,7 +872,8 @@ export default function Flows() {
 
   const deleteMut = useMutation({
     mutationFn: (id) => configApi.delete(`/api/flows/${id}`),
-    onSuccess: () => { qc.invalidateQueries(['flows']); toast.success('Flow deactivated') }
+    onSuccess: () => { qc.invalidateQueries(['flows']); toast.success('Flow deactivated') },
+    onError: (err) => toast.error(err.response?.data?.error || err.response?.data?.message || 'Failed to deactivate flow — the item may be in use')
   })
 
   // ─── Helpers ───
@@ -1226,8 +1228,7 @@ export default function Flows() {
                   </button>
                   <button onClick={(e) => {
                     e.stopPropagation()
-                    if (window.confirm(`Delete flow "${flow.name}"? This will deactivate it.`))
-                      deleteMut.mutate(flow.id)
+                    setConfirmDeleteFlow(flow)
                   }}
                     className="p-2 text-muted hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                     title="Delete flow">
@@ -1353,6 +1354,7 @@ export default function Flows() {
             </button>
           </div>
         </div>
+        <p className="text-xs text-muted mb-2">Tip: Double-click any row to open detailed view</p>
         {executions.length === 0 ? (
           <div className="text-center py-8 text-muted text-sm">
             No flow executions yet. Executions will appear here when files are processed.
@@ -1442,6 +1444,16 @@ export default function Flows() {
       {/* ═══ Dry Run Results Modal ═══ */}
       {dryRunResult && (
         <DryRunModal result={dryRunResult} onClose={() => setDryRunResult(null)} />
+      )}
+
+      {confirmDeleteFlow && (
+        <Modal title="Confirm Delete" onClose={() => setConfirmDeleteFlow(null)}>
+          <p className="text-secondary mb-4">Are you sure you want to delete flow <strong>{confirmDeleteFlow.name}</strong>? This will deactivate it. This action cannot be undone.</p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setConfirmDeleteFlow(null)}>Cancel</button>
+            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteMut.mutate(confirmDeleteFlow.id); setConfirmDeleteFlow(null) }}>Delete</button>
+          </div>
+        </Modal>
       )}
 
       {/* Execution Detail Drawer — triggered by double-clicking an execution row */}

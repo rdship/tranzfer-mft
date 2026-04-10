@@ -78,7 +78,7 @@ const NetworkMap = memo(function NetworkMap({ serviceGraph, services }) {
   return (
     <div className="card">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="font-semibold text-gray-900">Service Network</h3>
+        <h3 className="font-semibold text-primary">Service Network</h3>
         <div className="flex gap-4 text-xs text-muted">
           {[['#10b981','Active'],['#f59e0b','Degraded'],['#94a3b8','Unknown']].map(([c,l]) => (
             <span key={l} className="flex items-center gap-1.5">
@@ -191,7 +191,7 @@ const ActivityHeatmap = memo(function ActivityHeatmap({ heatmapData }) {
 
   return (
     <div className="card">
-      <h3 className="font-semibold text-gray-900 mb-3">Transfer Activity — Last 30 Days</h3>
+      <h3 className="font-semibold text-primary mb-3">Transfer Activity — Last 30 Days</h3>
       <div className="overflow-x-auto">
         {/* Grid: row = hour, col = day */}
         <div style={{display:'grid', gridTemplateColumns:`28px repeat(${DAYS},1fr)`, gap:1, minWidth:380}}>
@@ -274,35 +274,35 @@ const DomainGroups = memo(function DomainGroups({ domainGroups }) {
   if (groups.length === 0)
     return (
       <div className="card">
-        <h3 className="font-semibold text-gray-900 mb-3">Flow Domains</h3>
+        <h3 className="font-semibold text-primary mb-3">Flow Domains</h3>
         <p className="text-sm text-muted">No flow activity in the last 7 days.</p>
       </div>
     )
 
   return (
     <div className="card">
-      <h3 className="font-semibold text-gray-900 mb-3">Flow Domains <span className="text-xs text-muted font-normal ml-1">last 7 days</span></h3>
+      <h3 className="font-semibold text-primary mb-3">Flow Domains <span className="text-xs text-muted font-normal ml-1">last 7 days</span></h3>
       <div className="space-y-1.5">
         {groups.map(g => {
           const open = expanded === g.domainName
           return (
-            <div key={g.domainName} className="rounded-lg border border-gray-100 overflow-hidden">
+            <div key={g.domainName} className="rounded-lg border border-border overflow-hidden">
               <button
                 onClick={() => setExpanded(open ? null : g.domainName)}
                 className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-canvas transition-colors text-left"
               >
                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${healthDot(g.successRate)}`} />
-                <span className="font-medium text-gray-900 text-sm flex-1 truncate">{g.domainName}</span>
+                <span className="font-medium text-primary text-sm flex-1 truncate">{g.domainName}</span>
                 <span className={`text-xs font-semibold px-1.5 py-0.5 rounded flex-shrink-0 ${healthBadge(g.successRate)}`}>
                   {Math.round(g.successRate * 100)}%
                 </span>
                 <span className="text-xs text-muted flex-shrink-0 w-20 text-right">{g.totalCount} flows</span>
-                <span className="text-xs text-gray-300 flex-shrink-0 w-16 text-right">{timeAgo(g.lastActivityAt)}</span>
+                <span className="text-xs text-muted flex-shrink-0 w-16 text-right">{timeAgo(g.lastActivityAt)}</span>
                 <ChevronDownIcon className={`w-3.5 h-3.5 text-muted flex-shrink-0 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
               </button>
 
               {open && (
-                <div className="px-3 pb-3 pt-2 border-t border-gray-100 bg-canvas">
+                <div className="px-3 pb-3 pt-2 border-t border-border bg-canvas">
                   <div className="grid grid-cols-3 gap-3 mb-2">
                     <div className="text-center">
                       <p className="text-xl font-bold text-emerald-600">{g.completedCount}</p>
@@ -569,7 +569,7 @@ export default function Observatory() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Observatory</h1>
+          <h1 className="text-2xl font-bold text-primary">Observatory</h1>
           <p className="text-secondary text-sm">Platform health at a glance</p>
         </div>
         <div className="flex items-center gap-3">

@@ -107,10 +107,10 @@ export default function Terminal() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <CommandLineIcon className="w-6 h-6 text-gray-700" />
-        <h1 className="text-2xl font-bold text-gray-900">Admin Terminal</h1>
+        <CommandLineIcon className="w-6 h-6 text-secondary" />
+        <h1 className="text-2xl font-bold text-primary">Admin Terminal</h1>
       </div>
-      <p className="text-secondary text-sm">Execute admin commands directly. Type <code className="bg-gray-100 px-1 rounded">help</code> to see all available commands.</p>
+      <p className="text-secondary text-sm">Execute admin commands directly. Type <code className="bg-surface px-1 rounded">help</code> to see all available commands.</p>
 
       <div
         className="bg-gray-950 rounded-xl border border-gray-800 font-mono text-sm overflow-hidden"
@@ -159,7 +159,7 @@ export default function Terminal() {
         {['status', 'accounts list', 'services', 'flows list', 'search recent 10', 'logs recent 20',
           'ask show me recent transfers', 'design flow: decrypt PGP then compress and route'].map(cmd => (
           <button key={cmd} onClick={() => { setInput(cmd); execute(cmd) }}
-            className="px-3 py-1 bg-gray-100 text-gray-700 text-xs font-mono rounded-lg hover:bg-gray-200 transition-colors">
+            className="px-3 py-1 bg-surface text-secondary text-xs font-mono rounded-lg hover:bg-hover transition-colors">
             {cmd}
           </button>
         ))}

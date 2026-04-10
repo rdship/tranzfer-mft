@@ -26,7 +26,7 @@ export default function Analytics() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
+        <div><h1 className="text-2xl font-bold text-primary">Analytics</h1>
           <p className="text-secondary text-sm">Transfer metrics and trend analysis</p></div>
         <div className="flex gap-2">
           <select value={service} onChange={e => setService(e.target.value)} className="w-auto text-sm">
@@ -44,7 +44,7 @@ export default function Analytics() {
       {isLoading ? <LoadingSpinner /> : (
         <div className="space-y-6">
           <div className="card">
-            <h3 className="font-semibold text-gray-900 mb-4">Transfer Volume</h3>
+            <h3 className="font-semibold text-primary mb-4">Transfer Volume</h3>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -57,7 +57,7 @@ export default function Analytics() {
             </ResponsiveContainer>
           </div>
           <div className="card">
-            <h3 className="font-semibold text-gray-900 mb-4">Avg Latency (ms)</h3>
+            <h3 className="font-semibold text-primary mb-4">Avg Latency (ms)</h3>
             <ResponsiveContainer width="100%" height={180}>
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -69,7 +69,7 @@ export default function Analytics() {
             </ResponsiveContainer>
           </div>
           <div className="card">
-            <h3 className="font-semibold text-gray-900 mb-4">Data Transferred (MB)</h3>
+            <h3 className="font-semibold text-primary mb-4">Data Transferred (MB)</h3>
             <ResponsiveContainer width="100%" height={180}>
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />

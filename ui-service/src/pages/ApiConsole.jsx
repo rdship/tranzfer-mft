@@ -31,7 +31,7 @@ export default function ApiConsole() {
 
   return (
     <div className="space-y-6">
-      <div><h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><CodeBracketIcon className="w-7 h-7 text-blue-600" /> Transfer API v2</h1>
+      <div><h1 className="text-2xl font-bold text-primary flex items-center gap-2"><CodeBracketIcon className="w-7 h-7 text-blue-600" /> Transfer API v2</h1>
         <p className="text-secondary text-sm">Developer console — test the single-call transfer API</p></div>
 
       <div className="card space-y-4">
@@ -52,7 +52,7 @@ export default function ApiConsole() {
       {result && (
         <div className="card bg-green-50 border-green-200">
           <h3 className="font-semibold text-green-900 mb-2">Transfer Accepted</h3>
-          <pre className="text-xs bg-white rounded p-3 overflow-auto font-mono">{JSON.stringify(result, null, 2)}</pre>
+          <pre className="text-xs bg-surface rounded p-3 overflow-auto font-mono">{JSON.stringify(result, null, 2)}</pre>
           <button onClick={() => pollStatus(result.trackId)} className="mt-3 text-xs px-3 py-1 bg-blue-600 text-white rounded">Poll Status</button>
         </div>
       )}

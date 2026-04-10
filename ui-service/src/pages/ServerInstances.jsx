@@ -128,6 +128,7 @@ function AccountsPanel({ server, onClose }) {
   const qc = useQueryClient()
   const [assignUsername, setAssignUsername] = useState('')
   const [editAssignment, setEditAssignment] = useState(null)
+  const [confirmRevoke, setConfirmRevoke] = useState(null)
 
   const { data: assignments = [], isLoading } = useQuery({
     queryKey: ['server-accounts', server.id],
@@ -138,7 +139,7 @@ function AccountsPanel({ server, onClose }) {
   const revokeMut = useMutation({
     mutationFn: ({ accountId }) => revokeServerAccess(server.id, accountId),
     onSuccess: () => { qc.invalidateQueries(['server-accounts', server.id]); toast.success('Access revoked') },
-    onError: () => toast.error('Revoke failed'),
+    onError: (err) => toast.error(err.response?.data?.error || err.response?.data?.message || 'Failed to revoke access — the account may still be in use'),
   })
 
   const toggleEnabled = useMutation({
@@ -219,7 +220,7 @@ function AccountsPanel({ server, onClose }) {
                     {a.enabled ? <CheckIcon className="w-4 h-4" /> : <ArrowPathIcon className="w-4 h-4" />}
                   </button>
                   <button
-                    onClick={() => { if (confirm(`Revoke ${a.username}'s access to this server?`)) revokeMut.mutate({ accountId: a.accountId }) }}
+                    onClick={() => setConfirmRevoke(a)}
                     title="Revoke access"
                     className="p-1 rounded transition-colors"
                     style={{ color: 'rgb(var(--tx-muted))' }}
@@ -246,6 +247,16 @@ function AccountsPanel({ server, onClose }) {
           <button className="btn-secondary" onClick={onClose}>Close</button>
         </div>
       </div>
+
+      {confirmRevoke && (
+        <Modal title="Confirm Revoke" onClose={() => setConfirmRevoke(null)}>
+          <p className="text-secondary mb-4">Are you sure you want to revoke <strong>{confirmRevoke.username}</strong>'s access to this server? This action cannot be undone.</p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setConfirmRevoke(null)}>Cancel</button>
+            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { revokeMut.mutate({ accountId: confirmRevoke.accountId }); setConfirmRevoke(null) }}>Revoke</button>
+          </div>
+        </Modal>
+      )}
     </Modal>
   )
 }
@@ -254,6 +265,7 @@ export default function ServerInstances() {
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
   const [editServer, setEditServer] = useState(null)
+  const [confirmDeactivate, setConfirmDeactivate] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [protocolFilter, setProtocolFilter] = useState('ALL')
   const [accountsServer, setAccountsServer] = useState(null)
@@ -274,7 +286,8 @@ export default function ServerInstances() {
 
   const deleteMut = useMutation({
     mutationFn: deleteServerInstance,
-    onSuccess: () => { qc.invalidateQueries(['server-instances']); toast.success('Server deactivated') }
+    onSuccess: () => { qc.invalidateQueries(['server-instances']); toast.success('Server deactivated') },
+    onError: (err) => toast.error(err.response?.data?.error || err.response?.data?.message || 'Failed to deactivate server — the item may be in use')
   })
 
   const toggleMut = useMutation({
@@ -500,7 +513,7 @@ export default function ServerInstances() {
                         <button onClick={(e) => { e.stopPropagation(); openEdit(s) }} title="Edit server" className="p-1.5 rounded hover:bg-blue-50 text-blue-500">
                           <PencilIcon className="w-4 h-4" />
                         </button>
-                        <button onClick={(e) => { e.stopPropagation(); if(confirm('Deactivate this server?')) deleteMut.mutate(s.id) }} title="Deactivate server"
+                        <button onClick={(e) => { e.stopPropagation(); setConfirmDeactivate(s) }} title="Deactivate server"
                           className="p-1.5 rounded hover:bg-red-50 text-red-500">
                           <TrashIcon className="w-4 h-4" />
                         </button>
@@ -542,6 +555,16 @@ export default function ServerInstances() {
       {/* Accounts Panel */}
       {accountsServer && (
         <AccountsPanel server={accountsServer} onClose={() => setAccountsServer(null)} />
+      )}
+
+      {confirmDeactivate && (
+        <Modal title="Confirm Deactivate" onClose={() => setConfirmDeactivate(null)}>
+          <p className="text-secondary mb-4">Are you sure you want to deactivate server <strong>{confirmDeactivate.name}</strong>? This action cannot be undone.</p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setConfirmDeactivate(null)}>Cancel</button>
+            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteMut.mutate(confirmDeactivate.id); setConfirmDeactivate(null) }}>Deactivate</button>
+          </div>
+        </Modal>
       )}
     </div>
   )

@@ -82,6 +82,10 @@ export default function Notifications() {
   const [trackIdFilter, setTrackIdFilter] = useState('')
   const [searchTrackId, setSearchTrackId] = useState('')
 
+  // ── Confirm delete state ──
+  const [confirmDeleteRule, setConfirmDeleteRule] = useState(null)
+  const [confirmDeleteTemplate, setConfirmDeleteTemplate] = useState(null)
+
   // ── Test state ──
   const [testForm, setTestForm] = useState({ channel: 'EMAIL', recipient: '', subject: '', body: '' })
   const [testResult, setTestResult] = useState(null)
@@ -344,7 +348,7 @@ export default function Notifications() {
                         <button onClick={(e) => { e.stopPropagation(); openEditRule(r) }} className="p-1 rounded hover:bg-hover" title="Edit">
                           <PencilSquareIcon className="w-4 h-4 text-secondary" />
                         </button>
-                        <button onClick={(e) => { e.stopPropagation(); if (confirm('Delete this notification rule?')) deleteRule.mutate(r.id) }}
+                        <button onClick={(e) => { e.stopPropagation(); setConfirmDeleteRule(r) }}
                           className="p-1 rounded hover:bg-hover" title="Delete">
                           <TrashIcon className="w-4 h-4 text-red-500" />
                         </button>
@@ -503,7 +507,7 @@ export default function Notifications() {
                         <button onClick={(e) => { e.stopPropagation(); openEditTemplate(t) }} className="p-1 rounded hover:bg-hover" title="Edit">
                           <PencilSquareIcon className="w-4 h-4 text-secondary" />
                         </button>
-                        <button onClick={(e) => { e.stopPropagation(); if (confirm('Delete this notification template?')) deleteTemplate.mutate(t.id) }}
+                        <button onClick={(e) => { e.stopPropagation(); setConfirmDeleteTemplate(t) }}
                           className="p-1 rounded hover:bg-hover" title="Delete">
                           <TrashIcon className="w-4 h-4 text-red-500" />
                         </button>
@@ -828,6 +832,26 @@ export default function Notifications() {
       {tab === 'templates' && renderTemplates()}
       {tab === 'logs' && renderLogs()}
       {tab === 'test' && renderTest()}
+
+      {confirmDeleteRule && (
+        <Modal title="Confirm Delete" onClose={() => setConfirmDeleteRule(null)}>
+          <p className="text-secondary mb-4">Are you sure you want to delete notification rule <strong>{confirmDeleteRule.name}</strong>? This action cannot be undone.</p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setConfirmDeleteRule(null)}>Cancel</button>
+            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteRule.mutate(confirmDeleteRule.id); setConfirmDeleteRule(null) }}>Delete</button>
+          </div>
+        </Modal>
+      )}
+
+      {confirmDeleteTemplate && (
+        <Modal title="Confirm Delete" onClose={() => setConfirmDeleteTemplate(null)}>
+          <p className="text-secondary mb-4">Are you sure you want to delete notification template <strong>{confirmDeleteTemplate.name}</strong>? This action cannot be undone.</p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setConfirmDeleteTemplate(null)}>Cancel</button>
+            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteTemplate.mutate(confirmDeleteTemplate.id); setConfirmDeleteTemplate(null) }}>Delete</button>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }

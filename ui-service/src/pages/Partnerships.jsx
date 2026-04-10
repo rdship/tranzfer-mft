@@ -20,6 +20,7 @@ export default function Partnerships() {
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [filter, setFilter] = useState('ALL')
+  const [confirmDelete, setConfirmDelete] = useState(null)
   const [keystoreCerts, setKeystoreCerts] = useState([])
   const [selectedCert, setSelectedCert] = useState('')
 
@@ -44,7 +45,8 @@ export default function Partnerships() {
   })
   const deleteMut = useMutation({
     mutationFn: deletePartnership,
-    onSuccess: () => { qc.invalidateQueries(['partnerships']); toast.success('Partnership deactivated') }
+    onSuccess: () => { qc.invalidateQueries(['partnerships']); toast.success('Partnership deactivated') },
+    onError: (err) => toast.error(err.response?.data?.error || err.response?.data?.message || 'Failed to deactivate partnership — please try again')
   })
   const toggleMut = useMutation({
     mutationFn: togglePartnership,
@@ -141,7 +143,7 @@ export default function Partnerships() {
                   title={p.active ? 'Deactivate' : 'Activate'}>
                   {p.active ? <CheckCircleIcon className="w-5 h-5" /> : <XCircleIcon className="w-5 h-5" />}
                 </button>
-                <button onClick={() => { if(confirm(`Deactivate partnership "${p.partnerName}"?`)) deleteMut.mutate(p.id) }}
+                <button onClick={() => setConfirmDelete(p)}
                   className="p-1.5 rounded hover:bg-red-50 text-red-500 transition-colors">
                   <TrashIcon className="w-4 h-4" />
                 </button>
@@ -271,6 +273,16 @@ export default function Partnerships() {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {confirmDelete && (
+        <Modal title="Confirm Deactivate" onClose={() => setConfirmDelete(null)}>
+          <p className="text-secondary mb-4">Are you sure you want to deactivate partnership <strong>{confirmDelete.partnerName}</strong>? This action cannot be undone.</p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
+            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}>Deactivate</button>
+          </div>
         </Modal>
       )}
     </div>

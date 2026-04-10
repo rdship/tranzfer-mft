@@ -54,6 +54,7 @@ export default function Compliance() {
   const [tab, setTab] = useState('profiles')
   const [showModal, setShowModal] = useState(false)
   const [editingProfile, setEditingProfile] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(null)
   const [form, setForm] = useState({ ...defaultProfileForm })
   const [resolveId, setResolveId] = useState(null)
   const [resolveNote, setResolveNote] = useState('')
@@ -99,7 +100,7 @@ export default function Compliance() {
 
   const { data: servers = [] } = useQuery({
     queryKey: ['server-instances'],
-    queryFn: () => configApi.get('/api/server-instances').then(r => r.data).catch(() => [])
+    queryFn: () => configApi.get('/api/servers').then(r => r.data).catch(() => [])
   })
 
   // ── Mutations ──
@@ -118,7 +119,8 @@ export default function Compliance() {
 
   const deleteProfile = useMutation({
     mutationFn: (id) => configApi.delete(`/api/compliance/profiles/${id}`),
-    onSuccess: () => { qc.invalidateQueries(['compliance-profiles']); qc.invalidateQueries(['compliance-profiles-all']); toast.success('Profile deactivated') }
+    onSuccess: () => { qc.invalidateQueries(['compliance-profiles']); qc.invalidateQueries(['compliance-profiles-all']); toast.success('Profile deactivated') },
+    onError: (err) => toast.error(err.response?.data?.error || err.response?.data?.message || 'Failed to deactivate profile — the item may be in use')
   })
 
   const resolveMut = useMutation({
@@ -229,7 +231,7 @@ export default function Compliance() {
                       <button onClick={(e) => { e.stopPropagation(); openEdit(p) }} className="p-1 rounded hover:bg-hover" title="Edit">
                         <PencilSquareIcon className="w-4 h-4 text-secondary" />
                       </button>
-                      <button onClick={(e) => { e.stopPropagation(); if (confirm('Deactivate this profile?')) deleteProfile.mutate(p.id) }} className="p-1 rounded hover:bg-hover" title="Deactivate">
+                      <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(p) }} className="p-1 rounded hover:bg-hover" title="Deactivate">
                         <TrashIcon className="w-4 h-4 text-red-500" />
                       </button>
                     </div>
@@ -560,6 +562,16 @@ export default function Compliance() {
 
       {/* Profile modal */}
       {showModal && renderProfileModal()}
+
+      {confirmDelete && (
+        <Modal title="Confirm Deactivate" onClose={() => setConfirmDelete(null)}>
+          <p className="text-secondary mb-4">Are you sure you want to deactivate profile <strong>{confirmDelete.name}</strong>? This action cannot be undone.</p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
+            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteProfile.mutate(confirmDelete.id); setConfirmDelete(null) }}>Deactivate</button>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }

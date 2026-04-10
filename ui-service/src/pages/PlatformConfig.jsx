@@ -463,6 +463,7 @@ export default function PlatformConfig() {
   const [search, setSearch] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [editSetting, setEditSetting] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(null)
   const [showClone, setShowClone] = useState(false)
   const [cloneTarget, setCloneTarget] = useState('CERT')
 
@@ -629,7 +630,7 @@ export default function PlatformConfig() {
                             className="p-1 rounded hover:bg-blue-50 text-blue-500 hover:text-blue-700">
                             <PencilIcon className="w-3.5 h-3.5" />
                           </button>
-                          <button onClick={(e) => { e.stopPropagation(); if (confirm(`Delete ${s.settingKey}?`)) deleteMut.mutate(s.id) }}
+                          <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(s) }}
                             className="p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-700">
                             <TrashIcon className="w-3.5 h-3.5" />
                           </button>
@@ -688,6 +689,16 @@ export default function PlatformConfig() {
                 {cloneMut.isPending ? 'Cloning...' : `Clone to ${cloneTarget}`}
               </button>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {confirmDelete && (
+        <Modal title="Confirm Delete" onClose={() => setConfirmDelete(null)}>
+          <p className="text-secondary mb-4">Are you sure you want to delete <strong>{confirmDelete.settingKey}</strong>? This action cannot be undone.</p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
+            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}>Delete</button>
           </div>
         </Modal>
       )}

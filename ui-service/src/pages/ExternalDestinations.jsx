@@ -16,6 +16,7 @@ import { useState } from 'react'
 export default function ExternalDestinations() {
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(null)
   const [form, setForm] = useState({
     name: '', type: 'SFTP', host: '', port: 22, username: '', encryptedPassword: '', remotePath: '/incoming',
     url: '', authType: 'NONE', sshKeyAlias: '', certAlias: '', passiveMode: false, bearerToken: '',
@@ -113,7 +114,7 @@ export default function ExternalDestinations() {
               {['FTP', 'HTTP'].includes(d.type) && (
                 <span className="badge badge-red">No TLS</span>
               )}
-              <button onClick={() => { if(confirm('Delete?')) deleteMut.mutate(d.id) }} title="Delete destination" className="p-1.5 rounded hover:bg-[rgb(60,20,20)] text-[rgb(240,120,120)]"><TrashIcon className="w-4 h-4" /></button>
+              <button onClick={() => setConfirmDelete(d)} title="Delete destination" className="p-1.5 rounded hover:bg-[rgb(60,20,20)] text-[rgb(240,120,120)]"><TrashIcon className="w-4 h-4" /></button>
             </div>
           ))}
         </div>
@@ -453,6 +454,16 @@ export default function ExternalDestinations() {
               <button type="submit" className="btn-primary" disabled={createMut.isPending}>Create</button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {confirmDelete && (
+        <Modal title="Confirm Delete" onClose={() => setConfirmDelete(null)}>
+          <p className="text-secondary mb-4">Are you sure you want to delete destination <strong>{confirmDelete.name}</strong>? This action cannot be undone.</p>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
+            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}>Delete</button>
+          </div>
         </Modal>
       )}
     </div>
