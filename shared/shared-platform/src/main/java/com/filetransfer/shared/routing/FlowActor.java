@@ -32,7 +32,7 @@ public class FlowActor {
      * Replays events in order to reconstruct the actor's current state
      * without re-executing any steps.
      */
-    public void replayFromJournal(List<FlowEvent> events) {
+    public synchronized void replayFromJournal(List<FlowEvent> events) {
         for (FlowEvent event : events) {
             switch (event.getEventType()) {
                 case "EXECUTION_STARTED" -> {
