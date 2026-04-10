@@ -2,6 +2,7 @@ package com.filetransfer.edi.controller;
 
 import com.filetransfer.edi.converter.*;
 import com.filetransfer.edi.format.TemplateLibrary;
+import com.filetransfer.edi.map.*;
 import com.filetransfer.edi.model.CanonicalDocument;
 import com.filetransfer.edi.model.EdiDocument;
 import com.filetransfer.edi.parser.*;
@@ -14,6 +15,8 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @RestController @RequestMapping("/api/v1/convert") @RequiredArgsConstructor
 public class EdiConverterController {
@@ -33,6 +36,9 @@ public class EdiConverterController {
     private final AiMappingGenerator aiMappingGenerator;
     private final NaturalLanguageEdiCreator nlEdiCreator;
     private final TrainedMapConsumer trainedMapConsumer;
+    private final MapResolver mapResolver;
+    private final MapBasedConverter mapBasedConverter;
+    private final HipaaParser hipaaParser;
 
     // ===================================================================
     // CORE CONVERSION
@@ -386,6 +392,232 @@ public class EdiConverterController {
     @PostMapping("/create")
     public NaturalLanguageEdiCreator.NlEdiResult createFromNaturalLanguage(@RequestBody Map<String, String> body) {
         return nlEdiCreator.create(body.get("text"));
+    }
+
+    // ===================================================================
+    // DOCUMENT-TYPE MAP CONVERSION
+    // ===================================================================
+
+    /**
+     * Convert using a specific map (document-type mapping).
+     * This is the production endpoint — converts between specific document types
+     * using standard, trained, or partner-specific maps.
+     */
+    @PostMapping("/convert/map")
+    public ResponseEntity<Map<String, Object>> convertWithMap(@RequestBody Map<String, String> request) {
+        String content = request.get("content");
+        if (content == null || content.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "content is required"));
+        }
+
+        String sourceType = request.get("sourceType");    // e.g., "X12_850"
+        String targetType = request.get("targetType");     // e.g., "PURCHASE_ORDER_INH"
+        String partnerId = request.get("partnerId");       // optional
+
+        // 1. Auto-detect source type if not provided
+        if (sourceType == null || sourceType.isEmpty()) {
+            sourceType = detectDocumentType(content);
+        }
+
+        if (targetType == null || targetType.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "targetType is required",
+                    "detectedSourceType", sourceType,
+                    "suggestion", "Check available maps at GET /api/v1/convert/maps"));
+        }
+
+        // 2. Resolve the map
+        Optional<ConversionMapDefinition> map = mapResolver.resolve(sourceType, targetType, partnerId);
+        if (map.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "No map found for " + sourceType + " -> " + targetType,
+                    "detectedSourceType", sourceType,
+                    "requestedTargetType", targetType,
+                    "suggestion", "Check available maps at GET /api/v1/convert/maps"));
+        }
+
+        // 3. Parse source document
+        EdiDocument doc = parser.parse(content);
+
+        // 4. Apply conversion map
+        Map<String, Object> converted = mapBasedConverter.convert(doc, map.get());
+
+        var result = new LinkedHashMap<String, Object>();
+        result.put("converted", converted);
+        result.put("mapUsed", map.get().getMapId());
+        result.put("mapVersion", map.get().getVersion());
+        result.put("sourceType", sourceType);
+        result.put("targetType", targetType);
+        result.put("confidence", map.get().getConfidence());
+        if (partnerId != null) result.put("partnerId", partnerId);
+
+        return ResponseEntity.ok(result);
+    }
+
+    /** List all available conversion maps (standard + trained + partner). */
+    @GetMapping("/maps")
+    public List<MapSummary> listMaps() {
+        return mapResolver.listAvailableMaps();
+    }
+
+    /** Get a specific map definition by ID. */
+    @GetMapping("/maps/{mapId}")
+    public ResponseEntity<ConversionMapDefinition> getMap(@PathVariable String mapId) {
+        return mapResolver.getStandardMapById(mapId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Auto-detect the document type from content.
+     * Combines format detection with transaction-set-level detection.
+     * Returns types like "X12_850", "X12_837P", "EDIFACT_ORDERS", "SWIFT_MT103", "FIX_D".
+     */
+    @PostMapping("/detect/type")
+    public Map<String, String> detectType(@RequestBody Map<String, String> body) {
+        String content = body.get("content");
+        String docType = detectDocumentType(content);
+        String format = detector.detect(content);
+        return Map.of("format", format, "documentType", docType);
+    }
+
+    /**
+     * Detect document type: combines format detection with sub-type detection.
+     * e.g., X12 + ST*850 -> "X12_850", EDIFACT + UNH ORDERS -> "EDIFACT_ORDERS"
+     */
+    private String detectDocumentType(String content) {
+        if (content == null || content.isBlank()) return "UNKNOWN";
+
+        String format = detector.detect(content);
+
+        return switch (format) {
+            case "X12" -> {
+                // Check for HIPAA sub-types first
+                String hipaaType = hipaaParser.detectDocumentType(content);
+                if (hipaaType != null) yield hipaaType;
+                // Generic X12: extract from ST segment
+                String txnSet = extractX12TransactionSet(content);
+                yield txnSet != null ? "X12_" + txnSet : "X12";
+            }
+            case "EDIFACT" -> {
+                // Extract message type from UNH segment
+                String msgType = extractEdifactMessageType(content);
+                yield msgType != null ? "EDIFACT_" + msgType : "EDIFACT";
+            }
+            case "SWIFT_MT" -> {
+                // Extract MT type from {2: block
+                String mtType = extractSwiftMtType(content);
+                yield mtType != null ? "SWIFT_" + mtType : "SWIFT_MT";
+            }
+            case "FIX" -> {
+                // Extract message type from tag 35
+                String fixType = extractFixMsgType(content);
+                yield fixType != null ? "FIX_" + fixType : "FIX";
+            }
+            case "TRADACOMS" -> {
+                // Extract from MHD segment
+                String tradType = extractTradacomsMsgType(content);
+                yield tradType != null ? "TRADACOMS_" + tradType : "TRADACOMS";
+            }
+            case "NACHA" -> "NACHA_ACH";
+            case "BAI2" -> "BAI2_BALANCE";
+            case "HL7" -> {
+                // Extract from MSH-9
+                String hl7Type = extractHl7MsgType(content);
+                yield hl7Type != null ? "HL7_" + hl7Type : "HL7";
+            }
+            case "PEPPOL" -> {
+                if (content.contains("<Invoice")) yield "PEPPOL_INVOICE";
+                else if (content.contains("<CreditNote")) yield "PEPPOL_CREDITNOTE";
+                else if (content.contains("<Order")) yield "PEPPOL_ORDER";
+                else yield "PEPPOL";
+            }
+            case "ISO20022" -> {
+                if (content.contains("pacs.008")) yield "ISO20022_PACS008";
+                else if (content.contains("BkToCstmrStmt")) yield "ISO20022_CAMT053";
+                else yield "ISO20022";
+            }
+            default -> format;
+        };
+    }
+
+    private String extractX12TransactionSet(String content) {
+        // Find ST segment: ST*XXX* where XXX is the transaction set code
+        int stPos = content.indexOf("ST");
+        while (stPos >= 0 && stPos + 2 < content.length()) {
+            char sep = content.charAt(stPos + 2);
+            if (!Character.isLetterOrDigit(sep)) {
+                int nextSep = content.indexOf(sep, stPos + 3);
+                if (nextSep > stPos + 3) {
+                    String txnSet = content.substring(stPos + 3, nextSep).trim();
+                    if (txnSet.matches("\\d{3}")) return txnSet;
+                }
+            }
+            stPos = content.indexOf("ST", stPos + 1);
+        }
+        return null;
+    }
+
+    private String extractEdifactMessageType(String content) {
+        // Find UNH segment: UNH+refnum+msgtype:version:...
+        int unhPos = content.indexOf("UNH+");
+        if (unhPos < 0) unhPos = content.indexOf("UNH:");
+        if (unhPos < 0) return null;
+        char elemSep = content.charAt(unhPos + 3);
+        // Skip reference number to get to message identifier
+        int secondElem = content.indexOf(elemSep, unhPos + 4);
+        if (secondElem < 0) return null;
+        int thirdElem = content.indexOf(elemSep, secondElem + 1);
+        // Extract message type (first component before ':')
+        String msgIdField = thirdElem > 0
+                ? content.substring(secondElem + 1, thirdElem)
+                : content.substring(secondElem + 1, Math.min(secondElem + 20, content.length()));
+        int colonPos = msgIdField.indexOf(':');
+        return colonPos > 0 ? msgIdField.substring(0, colonPos).trim() : msgIdField.trim();
+    }
+
+    private String extractSwiftMtType(String content) {
+        // Extract from {2:I103... or {2:O103...
+        int blockPos = content.indexOf("{2:");
+        if (blockPos < 0) return null;
+        String afterBlock = content.substring(blockPos + 3);
+        // Skip I/O indicator
+        String digits = afterBlock.replaceAll("[^0-9]", "");
+        if (digits.length() >= 3) {
+            return "MT" + digits.substring(0, 3);
+        }
+        return null;
+    }
+
+    private String extractFixMsgType(String content) {
+        // Find 35=X tag
+        String delim = content.contains("\001") ? "\001" : "\\|";
+        for (String field : content.split(delim)) {
+            if (field.startsWith("35=")) {
+                return field.substring(3).trim();
+            }
+        }
+        return null;
+    }
+
+    private String extractTradacomsMsgType(String content) {
+        // Find MHD=ref+TYPE:version
+        Matcher m = Pattern.compile("MHD=\\d+\\+([^:']+)").matcher(content);
+        if (m.find()) return m.group(1).trim();
+        return null;
+    }
+
+    private String extractHl7MsgType(String content) {
+        // MSH|^~\\&|...|...|...|...|...|...|MSG_TYPE^TRIGGER|
+        for (String line : content.split("\\r?\\n")) {
+            if (line.startsWith("MSH|")) {
+                String[] fields = line.split("\\|", -1);
+                if (fields.length > 9) {
+                    return fields[9].replace("^", "_").trim();
+                }
+            }
+        }
+        return null;
     }
 
     // ===================================================================

@@ -772,35 +772,50 @@ public class FlowProcessingEngine {
     }
 
     /**
-     * CONVERT_EDI step — calls the EDI Converter service to convert the file using a trained map.
-     * Config: {"targetFormat": "JSON|XML|CSV", "partnerId": "optional-partner-id"}
+     * CONVERT_EDI step — calls the EDI Converter service to convert the file using map-based conversion.
+     * Config: {"targetType": "PURCHASE_ORDER_INH", "targetFormat": "JSON|XML|CSV", "partnerId": "optional"}
+     *
+     * <p>If {@code targetType} is set, uses the new map-based endpoint ({@code /api/v1/convert/convert/map})
+     * which selects the best conversion map for the source→target document type pair.
+     * Falls back to the legacy trained endpoint when only {@code targetFormat} is provided.
      */
     private String callEdiConverter(Path input, Path workDir, Map<String, String> cfg, String trackId) throws Exception {
         String converterUrl = serviceProps.getEdiConverter().getUrl();
+        String targetType   = cfg.get("targetType");
         String targetFormat = cfg.getOrDefault("targetFormat", "JSON");
-        String partnerId = cfg.get("partnerId");
+        String partnerId    = cfg.get("partnerId");
 
         String content = Files.readString(input);
 
-        Map<String, String> body = new LinkedHashMap<>();
+        Map<String, Object> body = new LinkedHashMap<>();
         body.put("content", content);
-        body.put("targetFormat", targetFormat);
-        if (partnerId != null && !partnerId.isBlank()) {
-            body.put("partnerId", partnerId);
+
+        String endpoint;
+        if (targetType != null && !targetType.isBlank()) {
+            // Map-based conversion — document-type-aware
+            body.put("targetType", targetType);
+            if (partnerId != null && !partnerId.isBlank()) body.put("partnerId", partnerId);
+            endpoint = converterUrl + "/api/v1/convert/convert/map";
+        } else {
+            // Legacy format-based conversion
+            body.put("targetFormat", targetFormat);
+            if (partnerId != null && !partnerId.isBlank()) body.put("partnerId", partnerId);
+            endpoint = converterUrl + "/api/v1/convert/trained";
         }
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         addInternalAuth(headers, "edi-converter");
-        HttpEntity<Map<String, String>> entity = new HttpEntity<>(body, headers);
 
         @SuppressWarnings("unchecked")
         ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
-                converterUrl + "/api/v1/convert/trained",
-                HttpMethod.POST, entity,
+                endpoint, HttpMethod.POST, new HttpEntity<>(body, headers),
                 (Class<Map<String, Object>>) (Class<?>) Map.class);
 
-        String output = response.getBody() != null ? (String) response.getBody().get("output") : "";
+        Map<String, Object> respBody = response.getBody();
+        String output = respBody != null ? (String) respBody.get("output") : "";
+        String mapUsed = respBody != null ? (String) respBody.get("mapUsed") : null;
+        Object confidence = respBody != null ? respBody.get("confidence") : null;
 
         String ext = switch (targetFormat.toUpperCase()) {
             case "JSON" -> ".json";
@@ -815,8 +830,8 @@ public class FlowProcessingEngine {
         Path outputFile = workDir.resolve(baseName + ext);
         Files.writeString(outputFile, output);
 
-        log.info("[{}] CONVERT_EDI: {} -> {} (targetFormat={}, partnerId={})",
-                trackId, input.getFileName(), outputFile.getFileName(), targetFormat, partnerId);
+        log.info("[{}] CONVERT_EDI: {} -> {} (targetType={}, targetFormat={}, partnerId={}, mapUsed={}, confidence={})",
+                trackId, input.getFileName(), outputFile.getFileName(), targetType, targetFormat, partnerId, mapUsed, confidence);
         return outputFile.toString();
     }
 
@@ -1429,30 +1444,47 @@ public class FlowProcessingEngine {
     /**
      * CONVERT_EDI — fetch text content from storage-manager → call EDI converter →
      * stream result back to storage-manager. No disk I/O.
+     *
+     * <p>Supports new map-based conversion via {@code targetType} config, with fallback to
+     * legacy format-based conversion when only {@code targetFormat} is provided.
      */
     private StepOutcome refConvertEdi(String storageKey, String virtualPath, FileRef origin,
                                        String trackId, Map<String, String> cfg) throws Exception {
+        String targetType   = cfg.get("targetType");
         String targetFormat = cfg.getOrDefault("targetFormat", "JSON");
         String partnerId    = cfg.get("partnerId");
 
         byte[] raw     = storageClient.retrieveBySha256(storageKey);
         String content = new String(raw, java.nio.charset.StandardCharsets.UTF_8);
 
-        Map<String, String> body = new LinkedHashMap<>();
-        body.put("content", content); body.put("targetFormat", targetFormat);
-        if (partnerId != null && !partnerId.isBlank()) body.put("partnerId", partnerId);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("content", content);
+
+        String endpoint;
+        if (targetType != null && !targetType.isBlank()) {
+            body.put("targetType", targetType);
+            if (partnerId != null && !partnerId.isBlank()) body.put("partnerId", partnerId);
+            endpoint = serviceProps.getEdiConverter().getUrl() + "/api/v1/convert/convert/map";
+        } else {
+            body.put("targetFormat", targetFormat);
+            if (partnerId != null && !partnerId.isBlank()) body.put("partnerId", partnerId);
+            endpoint = serviceProps.getEdiConverter().getUrl() + "/api/v1/convert/trained";
+        }
 
         HttpHeaders ediHdr = new HttpHeaders();
         ediHdr.setContentType(MediaType.APPLICATION_JSON);
         addInternalAuth(ediHdr, "edi-converter");
         @SuppressWarnings("unchecked")
         ResponseEntity<Map<String, Object>> resp = restTemplate.exchange(
-                serviceProps.getEdiConverter().getUrl() + "/api/v1/convert/trained",
-                HttpMethod.POST, new HttpEntity<>(body, ediHdr),
+                endpoint, HttpMethod.POST, new HttpEntity<>(body, ediHdr),
                 (Class<Map<String, Object>>) (Class<?>) Map.class);
 
-        String output = resp.getBody() != null ? (String) resp.getBody().get("output") : "";
-        String ext    = switch (targetFormat.toUpperCase()) {
+        Map<String, Object> respBody = resp.getBody();
+        String output     = respBody != null ? (String) respBody.get("output") : "";
+        String mapUsed    = respBody != null ? (String) respBody.get("mapUsed") : null;
+        Object confidence = respBody != null ? respBody.get("confidence") : null;
+
+        String ext = switch (targetFormat.toUpperCase()) {
             case "JSON" -> ".json"; case "XML" -> ".xml";
             case "CSV"  -> ".csv";  case "YAML" -> ".yaml"; default -> ".txt";
         };
@@ -1473,7 +1505,8 @@ public class FlowProcessingEngine {
         String newKey  = (String) stored.get("sha256");
         long   newSize = ((Number) stored.get("sizeBytes")).longValue();
         vfsBridge.registerRef(origin.accountId(), newPath, newKey, newSize, trackId, ct);
-        log.info("[{}] CONVERT_EDI (VIRTUAL): {} → {} (format={})", trackId, virtualPath, newPath, targetFormat);
+        log.info("[{}] CONVERT_EDI (VIRTUAL): {} -> {} (targetType={}, format={}, mapUsed={}, confidence={})",
+                trackId, virtualPath, newPath, targetType, targetFormat, mapUsed, confidence);
         return new StepOutcome(newKey, newPath, newSize);
     }
 

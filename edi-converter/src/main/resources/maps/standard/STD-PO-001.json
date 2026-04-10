@@ -1,0 +1,104 @@
+{
+  "mapId": "STD-PO-001",
+  "name": "X12 850 Purchase Order to Internal Purchase Order",
+  "version": "1.0.0",
+  "sourceType": "X12_850",
+  "targetType": "PURCHASE_ORDER_INH",
+  "sourceStandard": "X12",
+  "targetStandard": "INHOUSE",
+  "bidirectional": false,
+  "description": "Standard map for converting ANSI X12 850 Purchase Order to TranzFer internal format",
+  "status": "ACTIVE",
+  "confidence": 1.0,
+  "fieldMappings": [
+    {"sourcePath": "BEG.03", "targetPath": "documentNumber", "transform": "TRIM", "required": true, "confidence": 1.0},
+    {"sourcePath": "BEG.05", "targetPath": "documentDate", "transform": "DATE_FORMAT", "transformConfig": {"sourceFormat": "yyyyMMdd", "targetFormat": "yyyy-MM-dd"}, "required": true, "confidence": 1.0},
+    {"sourcePath": "BEG.01", "targetPath": "purpose", "transform": "LOOKUP", "transformConfig": {"table": "purposeCodes"}, "confidence": 1.0},
+    {"sourcePath": "BEG.02", "targetPath": "orderType", "transform": "LOOKUP", "transformConfig": {"table": "orderTypeCodes"}, "confidence": 1.0},
+    {"sourcePath": "CUR.02", "targetPath": "currency", "transform": "COPY", "defaultValue": "USD", "confidence": 1.0},
+    {"sourcePath": "REF.02", "targetPath": "referenceNumber", "transform": "TRIM", "confidence": 0.9},
+    {"sourcePath": "PER.04", "targetPath": "contactPhone", "transform": "COPY", "confidence": 0.9},
+    {"sourcePath": "PER.02", "targetPath": "contactName", "transform": "TRIM", "confidence": 0.9},
+    {"sourcePath": "DTM.02", "targetPath": "requestedDeliveryDate", "transform": "DATE_FORMAT", "transformConfig": {"sourceFormat": "yyyyMMdd", "targetFormat": "yyyy-MM-dd"}, "condition": "DTM.01 == '002'", "confidence": 1.0},
+    {"sourcePath": "ITD.12", "targetPath": "paymentTermsDescription", "transform": "TRIM", "confidence": 0.8},
+    {"sourcePath": "FOB.02", "targetPath": "fobPoint", "transform": "COPY", "confidence": 0.9},
+    {"sourcePath": "TD5.05", "targetPath": "carrierRouting", "transform": "TRIM", "confidence": 0.9},
+    {"sourcePath": "CTT.01", "targetPath": "totalLineItems", "transform": "COPY", "confidence": 1.0}
+  ],
+  "loopMappings": [
+    {
+      "sourceLoop": "N1",
+      "targetArray": "parties",
+      "fieldMappings": [
+        {"sourcePath": "N1.01", "targetPath": "role", "transform": "LOOKUP", "transformConfig": {"table": "entityCodes"}, "confidence": 1.0},
+        {"sourcePath": "N1.02", "targetPath": "name", "transform": "TRIM", "required": true, "confidence": 1.0},
+        {"sourcePath": "N1.03", "targetPath": "qualifier", "transform": "COPY", "confidence": 1.0},
+        {"sourcePath": "N1.04", "targetPath": "id", "transform": "TRIM", "confidence": 1.0},
+        {"sourcePath": "N3.01", "targetPath": "address.line1", "transform": "TRIM", "confidence": 1.0},
+        {"sourcePath": "N3.02", "targetPath": "address.line2", "transform": "TRIM", "confidence": 0.9},
+        {"sourcePath": "N4.01", "targetPath": "address.city", "transform": "TRIM", "confidence": 1.0},
+        {"sourcePath": "N4.02", "targetPath": "address.state", "transform": "COPY", "confidence": 1.0},
+        {"sourcePath": "N4.03", "targetPath": "address.postalCode", "transform": "TRIM", "confidence": 1.0},
+        {"sourcePath": "N4.04", "targetPath": "address.country", "transform": "COPY", "defaultValue": "US", "confidence": 1.0}
+      ]
+    },
+    {
+      "sourceLoop": "PO1",
+      "targetArray": "lineItems",
+      "fieldMappings": [
+        {"sourcePath": "PO1.01", "targetPath": "lineNumber", "transform": "TRIM", "required": true, "confidence": 1.0},
+        {"sourcePath": "PO1.02", "targetPath": "quantity", "transform": "COPY", "required": true, "confidence": 1.0},
+        {"sourcePath": "PO1.03", "targetPath": "unitOfMeasure", "transform": "LOOKUP", "transformConfig": {"table": "unitCodes"}, "confidence": 1.0},
+        {"sourcePath": "PO1.04", "targetPath": "unitPrice", "transform": "COPY", "confidence": 1.0},
+        {"sourcePath": "PO1.07", "targetPath": "productId", "transform": "TRIM", "confidence": 1.0},
+        {"sourcePath": "PO1.06", "targetPath": "productIdQualifier", "transform": "LOOKUP", "transformConfig": {"table": "productIdQualifiers"}, "confidence": 0.9},
+        {"sourcePath": "PO1.09", "targetPath": "alternateProductId", "transform": "TRIM", "confidence": 0.8},
+        {"sourcePath": "PID.05", "targetPath": "description", "transform": "TRIM", "confidence": 0.9}
+      ]
+    }
+  ],
+  "codeTables": {
+    "purposeCodes": [
+      {"sourceCode": "00", "targetCode": "ORIGINAL", "description": "Original order"},
+      {"sourceCode": "01", "targetCode": "CANCEL", "description": "Cancellation"},
+      {"sourceCode": "04", "targetCode": "CHANGE", "description": "Change order"},
+      {"sourceCode": "05", "targetCode": "REPLACE", "description": "Replacement"},
+      {"sourceCode": "06", "targetCode": "CONFIRM", "description": "Confirmation"},
+      {"sourceCode": "07", "targetCode": "DUPLICATE", "description": "Duplicate"}
+    ],
+    "orderTypeCodes": [
+      {"sourceCode": "NE", "targetCode": "NEW", "description": "New order"},
+      {"sourceCode": "DS", "targetCode": "DROPSHIP", "description": "Drop ship"},
+      {"sourceCode": "SA", "targetCode": "STANDING", "description": "Standing order"},
+      {"sourceCode": "BK", "targetCode": "BLANKET", "description": "Blanket order"},
+      {"sourceCode": "RL", "targetCode": "RELEASE", "description": "Release against blanket"}
+    ],
+    "entityCodes": [
+      {"sourceCode": "BY", "targetCode": "BUYER", "description": "Buyer"},
+      {"sourceCode": "SE", "targetCode": "SELLER", "description": "Seller"},
+      {"sourceCode": "ST", "targetCode": "SHIP_TO", "description": "Ship to"},
+      {"sourceCode": "BT", "targetCode": "BILL_TO", "description": "Bill to"},
+      {"sourceCode": "RI", "targetCode": "REMIT_TO", "description": "Remit to"},
+      {"sourceCode": "SF", "targetCode": "SHIP_FROM", "description": "Ship from"}
+    ],
+    "unitCodes": [
+      {"sourceCode": "EA", "targetCode": "EACH", "description": "Each"},
+      {"sourceCode": "CS", "targetCode": "CASE", "description": "Case"},
+      {"sourceCode": "BX", "targetCode": "BOX", "description": "Box"},
+      {"sourceCode": "PK", "targetCode": "PACK", "description": "Pack"},
+      {"sourceCode": "LB", "targetCode": "POUND", "description": "Pound"},
+      {"sourceCode": "KG", "targetCode": "KILOGRAM", "description": "Kilogram"},
+      {"sourceCode": "LT", "targetCode": "LITER", "description": "Liter"},
+      {"sourceCode": "GA", "targetCode": "GALLON", "description": "Gallon"},
+      {"sourceCode": "FT", "targetCode": "FOOT", "description": "Foot"},
+      {"sourceCode": "MT", "targetCode": "METER", "description": "Meter"}
+    ],
+    "productIdQualifiers": [
+      {"sourceCode": "UP", "targetCode": "UPC", "description": "UPC code"},
+      {"sourceCode": "EN", "targetCode": "EAN", "description": "EAN code"},
+      {"sourceCode": "VN", "targetCode": "VENDOR", "description": "Vendor part number"},
+      {"sourceCode": "BP", "targetCode": "BUYER_PART", "description": "Buyer part number"},
+      {"sourceCode": "SK", "targetCode": "SKU", "description": "Stock keeping unit"}
+    ]
+  }
+}

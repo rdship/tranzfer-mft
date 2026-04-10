@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { ediApi as api } from '../api/client'
+import { convertWithMap, getAvailableMaps, getMapDetail, detectDocumentType } from '../api/ediConverter'
 
 const TABS = [
   { id: 'convert', label: 'Convert' },
+  { id: 'maps', label: 'Maps' },
   { id: 'explain', label: 'Explain' },
   { id: 'heal', label: 'Self-Heal' },
   { id: 'compliance', label: 'Compliance' },
@@ -12,6 +14,25 @@ const TABS = [
   { id: 'mapping', label: 'AI Mapping' },
   { id: 'partners', label: 'Partners' },
 ]
+
+const DOC_TYPES = [
+  'X12_850', 'X12_810', 'X12_856', 'X12_997', 'X12_834', 'X12_835', 'X12_837',
+  'EDIFACT_ORDERS', 'EDIFACT_INVOIC', 'EDIFACT_DESADV',
+  'SWIFT_MT103', 'SWIFT_MT202', 'SWIFT_MT940',
+  'HL7_ADT', 'HL7_ORM', 'HL7_ORU',
+  'NACHA_ACH', 'BAI2', 'ISO20022_PAIN', 'ISO20022_CAMT',
+  'PEPPOL_INVOICE', 'PEPPOL_ORDER', 'FIX_NEWORDERSINGLE',
+  'PURCHASE_ORDER_INH', 'INVOICE_INH', 'SHIP_NOTICE_INH',
+  'JSON', 'XML', 'CSV', 'YAML', 'FLAT',
+]
+
+const CATEGORY_COLORS = {
+  STANDARD: 'bg-blue-100 text-blue-800',
+  TRAINED:  'bg-green-100 text-green-800',
+  PARTNER:  'bg-purple-100 text-purple-800',
+}
+
+const SOURCE_STANDARDS = ['All', 'X12', 'EDIFACT', 'SWIFT', 'HL7', 'NACHA', 'BAI2', 'ISO20022', 'PEPPOL', 'FIX']
 
 const SAMPLE_X12 = `ISA*00*          *00*          *ZZ*SENDER         *ZZ*RECEIVER       *230101*1200*U*00501*000000001*0*P*>~
 GS*PO*SENDER*RECEIVER*20230101*1200*1*X*005010~
@@ -38,6 +59,79 @@ export default function Edi() {
   const [tab, setTab] = useState('convert')
   const [target, setTarget] = useState('JSON')
   const [loading, setLoading] = useState(false)
+
+  // Map-based conversion state
+  const [sourceType, setSourceType] = useState('')
+  const [targetType, setTargetType] = useState('')
+  const [convertPartnerId, setConvertPartnerId] = useState('')
+  const [detecting, setDetecting] = useState(false)
+
+  // Maps browser state
+  const [maps, setMaps] = useState([])
+  const [mapsLoading, setMapsLoading] = useState(false)
+  const [mapSearch, setMapSearch] = useState('')
+  const [mapSourceFilter, setMapSourceFilter] = useState('All')
+  const [mapTargetFilter, setMapTargetFilter] = useState('All')
+  const [mapCategoryFilter, setMapCategoryFilter] = useState('All')
+  const [selectedMap, setSelectedMap] = useState(null)
+  const [mapDetailLoading, setMapDetailLoading] = useState(false)
+
+  // Load maps when Maps tab is selected
+  useEffect(() => {
+    if (tab === 'maps' && maps.length === 0) {
+      setMapsLoading(true)
+      getAvailableMaps()
+        .then(data => setMaps(Array.isArray(data) ? data : data?.maps || []))
+        .catch(e => toast.error('Failed to load maps: ' + (e.response?.data?.message || e.message)))
+        .finally(() => setMapsLoading(false))
+    }
+  }, [tab])
+
+  const handleDetectType = async () => {
+    if (!content.trim()) { toast.error('Paste content first'); return }
+    setDetecting(true)
+    try {
+      const res = await detectDocumentType(content)
+      setSourceType(res.documentType || res.type || '')
+      toast.success('Detected: ' + (res.documentType || res.type || 'unknown'))
+    } catch (e) { toast.error('Detection failed: ' + (e.response?.data?.message || e.message)) }
+    finally { setDetecting(false) }
+  }
+
+  const handleConvertWithMap = async () => {
+    if (!content.trim()) { toast.error('Paste content first'); return }
+    if (!targetType) { toast.error('Select a target type'); return }
+    setLoading(true)
+    try {
+      const res = await convertWithMap(content, sourceType, targetType, convertPartnerId)
+      setResult({ label: 'Map Convert', data: res })
+    } catch (e) {
+      const errData = e.response?.data
+      if (errData?.availableMaps) {
+        setResult({ label: 'Map Convert Error', data: errData })
+      }
+      toast.error('Conversion failed: ' + (errData?.message || e.message))
+    }
+    finally { setLoading(false) }
+  }
+
+  const handleMapDetail = async (mapId) => {
+    setMapDetailLoading(true)
+    try {
+      const detail = await getMapDetail(mapId)
+      setSelectedMap(detail)
+    } catch (e) { toast.error('Failed to load map: ' + (e.response?.data?.message || e.message)) }
+    finally { setMapDetailLoading(false) }
+  }
+
+  const filteredMaps = maps.filter(m => {
+    if (mapSearch && !((m.name || '').toLowerCase().includes(mapSearch.toLowerCase()) ||
+        (m.mapId || m.id || '').toLowerCase().includes(mapSearch.toLowerCase()))) return false
+    if (mapSourceFilter !== 'All' && !(m.sourceStandard || m.sourceType || '').toUpperCase().startsWith(mapSourceFilter)) return false
+    if (mapTargetFilter !== 'All' && !(m.targetStandard || m.targetType || '').toUpperCase().startsWith(mapTargetFilter)) return false
+    if (mapCategoryFilter !== 'All' && (m.category || '').toUpperCase() !== mapCategoryFilter) return false
+    return true
+  })
 
   const call = async (endpoint, data, label) => {
     setLoading(true)
@@ -67,24 +161,245 @@ export default function Edi() {
 
       {/* Convert Tab */}
       {tab === 'convert' && (
-        <div className="card space-y-4">
-          <div className="flex items-center gap-3">
-            <h3 className="font-semibold text-primary">Convert / Detect / Validate / Explain</h3>
-            <button onClick={() => setContent(SAMPLE_X12)} className="text-xs text-blue-600 hover:underline">Load sample X12 850</button>
+        <div className="space-y-4">
+          {/* Map-based conversion */}
+          <div className="card space-y-4">
+            <div className="flex items-center gap-3">
+              <h3 className="font-semibold text-primary">Map-Based Conversion</h3>
+              <button onClick={() => setContent(SAMPLE_X12)} className="text-xs text-blue-600 hover:underline">Load sample X12 850</button>
+            </div>
+            <textarea value={content} onChange={e => setContent(e.target.value)} rows={8}
+              className="w-full rounded-lg border px-3 py-2 text-xs font-mono" placeholder="Paste any EDI content — X12, EDIFACT, HL7, SWIFT, PEPPOL..." />
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs font-medium text-secondary">Source Type</label>
+                <div className="flex gap-1">
+                  <select value={sourceType} onChange={e => setSourceType(e.target.value)}
+                    className="flex-1 text-sm border rounded px-2 py-1.5">
+                    <option value="">Auto-detect</option>
+                    {DOC_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <button onClick={handleDetectType} disabled={detecting}
+                    className="btn-sm bg-gray-700 text-white text-xs whitespace-nowrap">
+                    {detecting ? '...' : 'Detect'}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-secondary">Target Type</label>
+                <select value={targetType} onChange={e => setTargetType(e.target.value)}
+                  className="w-full text-sm border rounded px-2 py-1.5">
+                  <option value="">Select target...</option>
+                  {DOC_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-secondary">Partner (optional)</label>
+                <input value={convertPartnerId} onChange={e => setConvertPartnerId(e.target.value)}
+                  className="w-full text-sm border rounded px-2 py-1.5" placeholder="partner-id" />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleConvertWithMap} disabled={loading} className="btn-primary">
+                {loading ? 'Converting...' : 'Convert with Map'}
+              </button>
+            </div>
           </div>
-          <textarea value={content} onChange={e => setContent(e.target.value)} rows={8}
-            className="w-full rounded-lg border px-3 py-2 text-xs font-mono" placeholder="Paste any EDI content — X12, EDIFACT, HL7, SWIFT, PEPPOL..." />
-          <div className="flex flex-wrap gap-2">
-            <button onClick={() => call('/api/v1/convert/detect', { content }, 'Detect')} className="btn-sm bg-gray-700 text-white">Detect Format</button>
-            <button onClick={() => call('/api/v1/convert/validate', { content }, 'Validate')} className="btn-sm bg-green-600 text-white">Validate</button>
-            <button onClick={() => call('/api/v1/convert/explain', { content }, 'Explain')} className="btn-sm bg-purple-600 text-white">Explain in English</button>
-            <button onClick={() => call('/api/v1/convert/canonical', { content }, 'Canonical')} className="btn-sm bg-indigo-600 text-white">Canonical Model</button>
-            <span className="border-l mx-1" />
-            <select value={target} onChange={e => setTarget(e.target.value)} className="text-sm border rounded px-2 py-1">
-              {['JSON', 'XML', 'CSV', 'YAML', 'FLAT', 'TIF'].map(f => <option key={f}>{f}</option>)}
-            </select>
-            <button onClick={() => call('/api/v1/convert/convert', { content, target }, 'Convert → ' + target)} className="btn-sm bg-blue-600 text-white">Convert</button>
+
+          {/* Quick tools row */}
+          <div className="card space-y-3">
+            <h3 className="font-semibold text-primary text-sm">Quick Tools</h3>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => call('/api/v1/convert/detect', { content }, 'Detect')} className="btn-sm bg-gray-700 text-white">Detect Format</button>
+              <button onClick={() => call('/api/v1/convert/validate', { content }, 'Validate')} className="btn-sm bg-green-600 text-white">Validate</button>
+              <button onClick={() => call('/api/v1/convert/explain', { content }, 'Explain')} className="btn-sm bg-purple-600 text-white">Explain in English</button>
+              <button onClick={() => call('/api/v1/convert/canonical', { content }, 'Canonical')} className="btn-sm bg-indigo-600 text-white">Canonical Model</button>
+              <span className="border-l mx-1" />
+              <select value={target} onChange={e => setTarget(e.target.value)} className="text-sm border rounded px-2 py-1">
+                {['JSON', 'XML', 'CSV', 'YAML', 'FLAT', 'TIF'].map(f => <option key={f}>{f}</option>)}
+              </select>
+              <button onClick={() => call('/api/v1/convert/convert', { content, target }, 'Convert → ' + target)} className="btn-sm bg-blue-600 text-white">Convert (format)</button>
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* Maps Tab */}
+      {tab === 'maps' && (
+        <div className="space-y-4">
+          {/* Filters */}
+          <div className="card space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-primary">Conversion Maps</h3>
+              <button onClick={() => {
+                setMapsLoading(true)
+                getAvailableMaps()
+                  .then(data => setMaps(Array.isArray(data) ? data : data?.maps || []))
+                  .catch(e => toast.error('Refresh failed: ' + (e.response?.data?.message || e.message)))
+                  .finally(() => setMapsLoading(false))
+              }} className="btn-sm bg-gray-600 text-white text-xs">Refresh</button>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <input value={mapSearch} onChange={e => setMapSearch(e.target.value)}
+                className="flex-1 min-w-[200px] text-sm border rounded px-3 py-1.5" placeholder="Search by name or ID..." />
+              <select value={mapSourceFilter} onChange={e => setMapSourceFilter(e.target.value)}
+                className="text-sm border rounded px-2 py-1.5">
+                {SOURCE_STANDARDS.map(s => <option key={s} value={s}>{s === 'All' ? 'Source: All' : s}</option>)}
+              </select>
+              <select value={mapTargetFilter} onChange={e => setMapTargetFilter(e.target.value)}
+                className="text-sm border rounded px-2 py-1.5">
+                {SOURCE_STANDARDS.map(s => <option key={s} value={s}>{s === 'All' ? 'Target: All' : s}</option>)}
+              </select>
+              <select value={mapCategoryFilter} onChange={e => setMapCategoryFilter(e.target.value)}
+                className="text-sm border rounded px-2 py-1.5">
+                <option value="All">Category: All</option>
+                <option value="STANDARD">Standard</option>
+                <option value="TRAINED">Trained</option>
+                <option value="PARTNER">Partner</option>
+              </select>
+            </div>
+          </div>
+
+          {mapsLoading && <div className="text-center text-secondary py-8">Loading maps...</div>}
+
+          {!mapsLoading && filteredMaps.length === 0 && (
+            <div className="text-center text-secondary py-8">
+              {maps.length === 0 ? 'No maps available. Train a model or import standard maps.' : 'No maps match the current filters.'}
+            </div>
+          )}
+
+          {/* Map cards grid */}
+          {!mapsLoading && filteredMaps.length > 0 && !selectedMap && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {filteredMaps.map(m => (
+                <div key={m.mapId || m.id} onClick={() => handleMapDetail(m.mapId || m.id)}
+                  className="card cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all space-y-2">
+                  <div className="flex items-start justify-between">
+                    <h4 className="font-medium text-primary text-sm truncate">{m.name || m.mapId || m.id}</h4>
+                    {m.category && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${CATEGORY_COLORS[m.category?.toUpperCase()] || 'bg-gray-100 text-gray-800'}`}>
+                        {m.category}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 text-xs">
+                    <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">{m.sourceType || m.sourceStandard || '?'}</span>
+                    <span className="text-secondary">&rarr;</span>
+                    <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">{m.targetType || m.targetStandard || '?'}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-secondary">
+                    {m.version && <span>v{m.version}</span>}
+                    {m.confidence != null && <span>Confidence: {m.confidence}%</span>}
+                    {m.fieldCount != null && <span>{m.fieldCount} fields</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Map detail panel */}
+          {selectedMap && (
+            <div className="card space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <button onClick={() => setSelectedMap(null)} className="text-sm text-blue-600 hover:underline mr-3">&larr; Back to maps</button>
+                  <span className="font-semibold text-primary text-lg">{selectedMap.name || selectedMap.mapId}</span>
+                </div>
+                {selectedMap.category && (
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${CATEGORY_COLORS[selectedMap.category?.toUpperCase()] || 'bg-gray-100 text-gray-800'}`}>
+                    {selectedMap.category}
+                  </span>
+                )}
+              </div>
+
+              {/* Metadata */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                <div className="bg-canvas rounded p-2">
+                  <div className="text-xs text-secondary">Source</div>
+                  <div className="font-medium">{selectedMap.sourceType || selectedMap.sourceStandard || '-'}</div>
+                </div>
+                <div className="bg-canvas rounded p-2">
+                  <div className="text-xs text-secondary">Target</div>
+                  <div className="font-medium">{selectedMap.targetType || selectedMap.targetStandard || '-'}</div>
+                </div>
+                <div className="bg-canvas rounded p-2">
+                  <div className="text-xs text-secondary">Version</div>
+                  <div className="font-medium">{selectedMap.version || '-'}</div>
+                </div>
+                <div className="bg-canvas rounded p-2">
+                  <div className="text-xs text-secondary">Status</div>
+                  <div className="font-medium">{selectedMap.status || '-'}</div>
+                </div>
+              </div>
+
+              {selectedMap.description && (
+                <p className="text-sm text-secondary">{selectedMap.description}</p>
+              )}
+
+              {/* Field mappings table */}
+              {(selectedMap.fieldMappings || selectedMap.mappings) && (
+                <div>
+                  <h4 className="font-medium text-primary text-sm mb-2">Field Mappings</h4>
+                  <div className="overflow-auto max-h-96 border rounded-lg">
+                    <table className="w-full text-xs">
+                      <thead className="bg-canvas sticky top-0">
+                        <tr>
+                          <th className="text-left px-3 py-2 font-medium text-secondary">Source Path</th>
+                          <th className="text-left px-3 py-2 font-medium text-secondary">Target Path</th>
+                          <th className="text-left px-3 py-2 font-medium text-secondary">Transform</th>
+                          <th className="text-left px-3 py-2 font-medium text-secondary">Confidence</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {(selectedMap.fieldMappings || selectedMap.mappings || []).map((fm, i) => (
+                          <tr key={i} className="hover:bg-canvas">
+                            <td className="px-3 py-1.5 font-mono">{fm.sourcePath || fm.source}</td>
+                            <td className="px-3 py-1.5 font-mono">{fm.targetPath || fm.target}</td>
+                            <td className="px-3 py-1.5">{fm.transform || fm.transformation || 'direct'}</td>
+                            <td className="px-3 py-1.5">
+                              {fm.confidence != null && (
+                                <span className={fm.confidence >= 90 ? 'text-green-600' : fm.confidence >= 70 ? 'text-yellow-600' : 'text-red-600'}>
+                                  {fm.confidence}%
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Code tables */}
+              {selectedMap.codeTables && selectedMap.codeTables.length > 0 && (
+                <div>
+                  <h4 className="font-medium text-primary text-sm mb-2">Code Tables</h4>
+                  <pre className="text-xs bg-canvas rounded-lg p-3 overflow-auto font-mono max-h-48">
+                    {JSON.stringify(selectedMap.codeTables, null, 2)}
+                  </pre>
+                </div>
+              )}
+
+              {/* Loop mappings */}
+              {selectedMap.loopMappings && selectedMap.loopMappings.length > 0 && (
+                <div>
+                  <h4 className="font-medium text-primary text-sm mb-2">Loop Mappings</h4>
+                  <pre className="text-xs bg-canvas rounded-lg p-3 overflow-auto font-mono max-h-48">
+                    {JSON.stringify(selectedMap.loopMappings, null, 2)}
+                  </pre>
+                </div>
+              )}
+
+              {/* Raw JSON fallback */}
+              <details className="text-xs">
+                <summary className="cursor-pointer text-secondary hover:text-primary">Raw map data</summary>
+                <pre className="bg-canvas rounded-lg p-3 overflow-auto font-mono max-h-64 mt-2">
+                  {JSON.stringify(selectedMap, null, 2)}
+                </pre>
+              </details>
+            </div>
+          )}
         </div>
       )}
 
@@ -298,6 +613,46 @@ export default function Edi() {
             </div>
           )}
 
+          {/* Special rendering for map convert */}
+          {result.label === 'Map Convert' && result.data && (
+            <div className="mb-4 space-y-3">
+              <div className="flex items-center gap-4 text-sm">
+                {result.data.mapUsed && (
+                  <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                    <span className="text-secondary">Map:</span> <span className="font-medium text-blue-800">{result.data.mapUsed}</span>
+                  </div>
+                )}
+                {result.data.confidence != null && (
+                  <div className={`rounded-lg px-3 py-2 ${result.data.confidence >= 90 ? 'bg-green-50 border border-green-100 text-green-800' : result.data.confidence >= 70 ? 'bg-yellow-50 border border-yellow-100 text-yellow-800' : 'bg-red-50 border border-red-100 text-red-800'}`}>
+                    Confidence: <span className="font-bold">{result.data.confidence}%</span>
+                  </div>
+                )}
+              </div>
+              {result.data.output && (
+                <>
+                  <label className="text-xs font-medium text-secondary">Converted Output:</label>
+                  <pre className="text-xs bg-gray-900 text-green-400 rounded-lg p-3 overflow-auto font-mono max-h-64">
+                    {result.data.output}
+                  </pre>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Special rendering for map convert error — show available maps */}
+          {result.label === 'Map Convert Error' && result.data?.availableMaps && (
+            <div className="mb-4 space-y-2">
+              <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-sm text-amber-800">
+                <p className="font-medium">No matching map found. Available maps for this conversion:</p>
+                <ul className="mt-2 space-y-1">
+                  {result.data.availableMaps.map((m, i) => (
+                    <li key={i} className="font-mono text-xs">{m.mapId || m.name} ({m.sourceType} &rarr; {m.targetType})</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
           {/* JSON output */}
           <pre className="text-xs bg-canvas rounded-lg p-3 overflow-auto font-mono max-h-96">
             {typeof result.data === 'string' ? result.data : JSON.stringify(result.data, null, 2)}
@@ -309,6 +664,8 @@ export default function Edi() {
       {!result && tab === 'convert' && (
         <div className="grid grid-cols-3 gap-4">
           {[
+            ['Map-Based Convert', 'Document-type-aware conversion via trained maps — select source & target type, auto-detect, partner-specific'],
+            ['Map Browser', 'Browse, search, and inspect all conversion maps — field mappings, code tables, loop mappings, confidence scores'],
             ['11 Input Formats', 'X12, EDIFACT, TRADACOMS, SWIFT MT, HL7, NACHA, BAI2, ISO20022, FIX, PEPPOL/UBL, Auto-detect'],
             ['6 Output Formats', 'JSON, XML, CSV, YAML, Fixed-width, TIF (TranzFer Internal)'],
             ['Self-Healing', 'Auto-fixes 25+ common EDI errors — missing terminators, wrong counts, padding, trailers'],

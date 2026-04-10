@@ -25,16 +25,33 @@ public class UniversalEdiParser {
 
     private final FormatDetector detector;
     private final X12LoopDefinitions loopDefinitions;
+    private final TradacomsParser tradacomsParser;
+    private final NachaParser nachaParser;
+    private final Bai2Parser bai2Parser;
+    private final FixParser fixParser;
+    private final HipaaParser hipaaParser;
 
     @org.springframework.beans.factory.annotation.Autowired
-    public UniversalEdiParser(FormatDetector detector, X12LoopDefinitions loopDefinitions) {
+    public UniversalEdiParser(FormatDetector detector, X12LoopDefinitions loopDefinitions,
+                              TradacomsParser tradacomsParser, NachaParser nachaParser,
+                              Bai2Parser bai2Parser, FixParser fixParser, HipaaParser hipaaParser) {
         this.detector = detector;
         this.loopDefinitions = loopDefinitions;
+        this.tradacomsParser = tradacomsParser;
+        this.nachaParser = nachaParser;
+        this.bai2Parser = bai2Parser;
+        this.fixParser = fixParser;
+        this.hipaaParser = hipaaParser;
     }
 
     public UniversalEdiParser(FormatDetector detector) {
         this.detector = detector;
         this.loopDefinitions = new X12LoopDefinitions();
+        this.tradacomsParser = new TradacomsParser();
+        this.nachaParser = new NachaParser();
+        this.bai2Parser = new Bai2Parser();
+        this.fixParser = new FixParser();
+        this.hipaaParser = new HipaaParser();
     }
 
     private static final Map<String, String> X12_TYPES = Map.ofEntries(
@@ -58,15 +75,22 @@ public class UniversalEdiParser {
         log.info("Parsing EDI format: {}", format);
 
         return switch (format) {
-            case "X12" -> parseX12(content);
+            case "X12" -> {
+                EdiDocument x12Doc = parseX12(content);
+                // Enrich with HIPAA-specific document type if applicable
+                if (hipaaParser.isHipaa(x12Doc)) {
+                    yield hipaaParser.enrich(x12Doc);
+                }
+                yield x12Doc;
+            }
             case "EDIFACT" -> parseEdifact(content);
-            case "TRADACOMS" -> parseTradacoms(content);
+            case "TRADACOMS" -> tradacomsParser.parse(content);
             case "SWIFT_MT" -> parseSwiftMt(content);
             case "HL7" -> parseHl7(content);
-            case "NACHA" -> parseNacha(content);
-            case "BAI2" -> parseBai2(content);
+            case "NACHA" -> nachaParser.parse(content);
+            case "BAI2" -> bai2Parser.parse(content);
             case "ISO20022" -> parseIso20022(content);
-            case "FIX" -> parseFix(content);
+            case "FIX" -> fixParser.parse(content);
             case "PEPPOL" -> parsePeppol(content);
             default -> EdiDocument.builder().sourceFormat("UNKNOWN").rawContent(content).segments(List.of())
                     .parseErrors(List.of()).parseWarnings(List.of()).build();
@@ -539,39 +563,8 @@ public class UniversalEdiParser {
     }
 
     // ========================================================================
-    // TRADACOMS Parser
+    // TRADACOMS — delegated to TradacomsParser
     // ========================================================================
-
-    private EdiDocument parseTradacoms(String content) {
-        List<Segment> segments = new ArrayList<>();
-        List<String> errors = new ArrayList<>();
-        String senderId = null, txnType = "TRADACOMS";
-        int segCount = 0;
-
-        for (String line : content.split("\n")) {
-            String trimmed = line.trim();
-            if (trimmed.isEmpty()) continue;
-            segCount++;
-
-            try {
-                String[] parts = trimmed.split("=", -1);
-                String segId = parts[0];
-                List<String> elements = parts.length > 1 ? List.of(parts[1].split("\\+")) : List.of();
-                segments.add(Segment.builder().id(segId).elements(elements).build());
-                if ("STX".equals(segId) && elements.size() > 1) senderId = elements.get(1);
-                if ("MHD".equals(segId) && elements.size() > 1) txnType = "TRADACOMS-" + elements.get(1);
-            } catch (Exception e) {
-                errors.add("Segment " + segCount + ": " + e.getMessage());
-                segments.add(Segment.builder().id("ERROR").elements(List.of(trimmed)).build());
-            }
-        }
-
-        return EdiDocument.builder().sourceFormat("TRADACOMS").documentType(txnType)
-                .documentName("TRADACOMS Message").senderId(senderId)
-                .segments(segments).rawContent(content)
-                .parseErrors(errors).parseWarnings(List.of())
-                .build();
-    }
 
     // ========================================================================
     // SWIFT MT Parser
@@ -693,86 +686,12 @@ public class UniversalEdiParser {
     }
 
     // ========================================================================
-    // NACHA/ACH Parser
+    // NACHA/ACH — delegated to NachaParser
     // ========================================================================
 
-    private EdiDocument parseNacha(String content) {
-        List<Segment> segments = new ArrayList<>();
-        List<String> errors = new ArrayList<>();
-        Map<String, Object> biz = new LinkedHashMap<>();
-        int segCount = 0;
-
-        for (String line : content.split("\n")) {
-            if (line.length() < 2) continue;
-            segCount++;
-
-            try {
-                String recType = line.substring(0, 1);
-                String name = switch (recType) {
-                    case "1" -> "FILE_HEADER";
-                    case "5" -> "BATCH_HEADER";
-                    case "6" -> "ENTRY_DETAIL";
-                    case "7" -> "ADDENDA";
-                    case "8" -> "BATCH_CONTROL";
-                    case "9" -> "FILE_CONTROL";
-                    default -> "RECORD_" + recType;
-                };
-                segments.add(Segment.builder().id(name).elements(List.of(line))
-                        .namedFields(Map.of("recordType", recType, "raw", line)).build());
-
-                if ("1".equals(recType) && line.length() >= 40) {
-                    biz.put("immediateOrigin", line.substring(13, 23).trim());
-                    biz.put("immediateDestination", line.substring(3, 13).trim());
-                    biz.put("fileCreationDate", line.substring(23, 29).trim());
-                }
-            } catch (Exception e) {
-                errors.add("Record " + segCount + ": " + e.getMessage());
-                segments.add(Segment.builder().id("ERROR").elements(List.of(line)).build());
-            }
-        }
-
-        return EdiDocument.builder().sourceFormat("NACHA").documentType("ACH")
-                .documentName("NACHA ACH File").segments(segments).rawContent(content).businessData(biz)
-                .parseErrors(errors).parseWarnings(List.of())
-                .build();
-    }
-
     // ========================================================================
-    // BAI2 Parser
+    // BAI2 — delegated to Bai2Parser
     // ========================================================================
-
-    private EdiDocument parseBai2(String content) {
-        List<Segment> segments = new ArrayList<>();
-        List<String> errors = new ArrayList<>();
-        int segCount = 0;
-
-        for (String line : content.split("\n")) {
-            if (line.isEmpty()) continue;
-            segCount++;
-
-            try {
-                String[] parts = line.split(",", -1);
-                String recType = parts[0];
-                String name = switch (recType) {
-                    case "01" -> "FILE_HEADER"; case "02" -> "GROUP_HEADER"; case "03" -> "ACCOUNT_IDENTIFIER";
-                    case "16" -> "TRANSACTION_DETAIL"; case "49" -> "ACCOUNT_TRAILER";
-                    case "98" -> "GROUP_TRAILER"; case "99" -> "FILE_TRAILER";
-                    default -> "RECORD_" + recType;
-                };
-                List<String> elements = new ArrayList<>();
-                for (int i = 1; i < parts.length; i++) elements.add(parts[i]);
-                segments.add(Segment.builder().id(name).elements(elements).build());
-            } catch (Exception e) {
-                errors.add("Record " + segCount + ": " + e.getMessage());
-                segments.add(Segment.builder().id("ERROR").elements(List.of(line)).build());
-            }
-        }
-
-        return EdiDocument.builder().sourceFormat("BAI2").documentType("BAI2")
-                .documentName("BAI2 Balance Report").segments(segments).rawContent(content)
-                .parseErrors(errors).parseWarnings(List.of())
-                .build();
-    }
 
     // ========================================================================
     // ISO 20022 / CAMT Parser
@@ -884,44 +803,6 @@ public class UniversalEdiParser {
     }
 
     // ========================================================================
-    // FIX Parser
+    // FIX — delegated to FixParser
     // ========================================================================
-
-    private EdiDocument parseFix(String content) {
-        List<Segment> segments = new ArrayList<>();
-        List<String> errors = new ArrayList<>();
-        Map<String, Object> biz = new LinkedHashMap<>();
-        String version = null, msgType = null;
-        int segCount = 0;
-
-        String delim = content.contains("\001") ? "\001" : "\\|";
-        for (String field : content.split(delim)) {
-            if (field.isEmpty()) continue;
-            segCount++;
-
-            try {
-                String[] kv = field.split("=", 2);
-                if (kv.length == 2) {
-                    segments.add(Segment.builder().id("Tag" + kv[0]).elements(List.of(kv[1]))
-                            .namedFields(Map.of("tag", kv[0], "value", kv[1])).build());
-                    biz.put("tag_" + kv[0], kv[1]);
-                    if ("8".equals(kv[0])) version = kv[1];
-                    if ("35".equals(kv[0])) msgType = kv[1];
-                }
-            } catch (Exception e) {
-                errors.add("Field " + segCount + ": " + e.getMessage());
-            }
-        }
-
-        String msgName = switch (msgType != null ? msgType : "") {
-            case "D" -> "New Order Single"; case "8" -> "Execution Report";
-            case "0" -> "Heartbeat"; case "A" -> "Logon"; case "5" -> "Logout";
-            default -> "FIX Message " + msgType;
-        };
-
-        return EdiDocument.builder().sourceFormat("FIX").documentType(msgType).documentName(msgName)
-                .version(version).segments(segments).rawContent(content).businessData(biz)
-                .parseErrors(errors).parseWarnings(List.of())
-                .build();
-    }
 }
