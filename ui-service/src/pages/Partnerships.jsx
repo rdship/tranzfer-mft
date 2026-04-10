@@ -5,7 +5,7 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
 import toast from 'react-hot-toast'
-import { PlusIcon, TrashIcon, ArrowsRightLeftIcon, CheckCircleIcon, XCircleIcon, SignalIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, TrashIcon, ArrowsRightLeftIcon, CheckCircleIcon, XCircleIcon, SignalIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { useState, useEffect } from 'react'
 
 const EMPTY_FORM = {
@@ -21,6 +21,7 @@ export default function Partnerships() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [filter, setFilter] = useState('ALL')
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [search, setSearch] = useState('')
   const [keystoreCerts, setKeystoreCerts] = useState([])
   const [selectedCert, setSelectedCert] = useState('')
 
@@ -53,7 +54,11 @@ export default function Partnerships() {
     onSuccess: () => { qc.invalidateQueries(['partnerships']); toast.success('Partnership toggled') }
   })
 
-  const filtered = filter === 'ALL' ? partnerships : partnerships.filter(p => p.protocol === filter)
+  const filtered = (filter === 'ALL' ? partnerships : partnerships.filter(p => p.protocol === filter)).filter(p => {
+    if (!search) return true
+    const q = search.toLowerCase()
+    return p.partnerName?.toLowerCase().includes(q) || p.partnerAs2Id?.toLowerCase().includes(q) || p.ourAs2Id?.toLowerCase().includes(q)
+  })
   const as2Count = partnerships.filter(p => p.protocol === 'AS2').length
   const as4Count = partnerships.filter(p => p.protocol === 'AS4').length
 
@@ -66,9 +71,16 @@ export default function Partnerships() {
           <h1 className="text-2xl font-bold text-primary">AS2/AS4 Partnerships</h1>
           <p className="text-secondary text-sm">Manage B2B trading partner configurations for AS2 (RFC 4130) and AS4 (OASIS ebMS3)</p>
         </div>
-        <button className="btn-primary" onClick={() => setShowCreate(true)}>
-          <PlusIcon className="w-4 h-4" /> Add Partnership
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search partnerships..." className="pl-9 w-64" />
+          </div>
+          <button className="btn-primary" onClick={() => setShowCreate(true)}>
+            <PlusIcon className="w-4 h-4" /> Add Partnership
+          </button>
+        </div>
       </div>
 
       {/* Protocol Summary Cards */}

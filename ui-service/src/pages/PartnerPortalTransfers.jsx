@@ -25,7 +25,7 @@ const STATUS_BADGE = {
   COMPLETED:   'badge-green',
   FAILED:      'badge-red',
   IN_PROGRESS: 'badge-yellow',
-  PENDING:     'badge-blue',
+  PENDING:     'badge-yellow',
   QUEUED:      'badge-gray',
 }
 

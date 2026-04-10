@@ -5,7 +5,7 @@ import { onboardingApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer'
 import { format } from 'date-fns'
-import { MagnifyingGlassIcon, ArrowDownTrayIcon, ChevronLeftIcon, ChevronRightIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
+import { MagnifyingGlassIcon, ArrowDownTrayIcon, ChevronLeftIcon, ChevronRightIcon, ArrowTopRightOnSquareIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 
 const LEVELS = ['ALL', 'ERROR', 'WARN', 'INFO']
 const PAGE_SIZES = [25, 50, 100, 200]
@@ -20,12 +20,13 @@ export default function Logs() {
   const [expandedRow, setExpandedRow] = useState(null)
   const [drawerTrackId, setDrawerTrackId] = useState(null)
 
-  const { data: logs = [], isLoading } = useQuery({
+  const { data: logs = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['audit-logs', search, level, service],
     queryFn: () => onboardingApi.get('/api/audit-logs', {
       params: { search: search || undefined, level: level !== 'ALL' ? level : undefined, service: service !== 'ALL' ? service : undefined }
-    }).then(r => r.data).catch(() => []),
-    refetchInterval: 15000
+    }).then(r => r.data),
+    refetchInterval: 15000,
+    retry: 1
   })
 
   // Reset to first page when filters change
@@ -50,6 +51,15 @@ export default function Logs() {
 
   return (
     <div className="space-y-6">
+      {isError && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ExclamationTriangleIcon className="w-5 h-5 text-red-400" />
+            <span className="text-sm text-red-400">Failed to load data — service may be unavailable</span>
+          </div>
+          <button onClick={() => refetch()} className="text-xs text-red-400 hover:text-red-300 underline">Retry</button>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-bold text-primary">Audit Logs</h1>
           <p className="text-secondary text-sm">Centralized log search across all services</p></div>

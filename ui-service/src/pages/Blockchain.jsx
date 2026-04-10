@@ -3,15 +3,16 @@ import { useQuery } from '@tanstack/react-query'
 import { onboardingApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import toast from 'react-hot-toast'
-import { ShieldCheckIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
+import { ShieldCheckIcon, MagnifyingGlassIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
 
 export default function Blockchain() {
   const [verifyId, setVerifyId] = useState('')
   const [proof, setProof] = useState(null)
 
-  const { data: anchors = [], isLoading } = useQuery({ queryKey: ['bc-anchors'],
-    queryFn: () => onboardingApi.get('/api/v1/blockchain/anchors').then(r => r.data).catch(() => []) })
+  const { data: anchors = [], isLoading, isError, refetch } = useQuery({ queryKey: ['bc-anchors'],
+    queryFn: () => onboardingApi.get('/api/v1/blockchain/anchors').then(r => r.data),
+    retry: 1 })
 
   const verify = async () => {
     if (!verifyId) return
@@ -24,6 +25,15 @@ export default function Blockchain() {
   if (isLoading) return <LoadingSpinner />
   return (
     <div className="space-y-6">
+      {isError && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ExclamationTriangleIcon className="w-5 h-5 text-red-400" />
+            <span className="text-sm text-red-400">Failed to load data — service may be unavailable</span>
+          </div>
+          <button onClick={() => refetch()} className="text-xs text-red-400 hover:text-red-300 underline">Retry</button>
+        </div>
+      )}
       <div><h1 className="text-2xl font-bold text-primary">Blockchain Notarization</h1>
         <p className="text-secondary text-sm">Immutable cryptographic proof of every file transfer — non-repudiation</p></div>
 

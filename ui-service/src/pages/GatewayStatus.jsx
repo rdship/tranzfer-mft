@@ -89,10 +89,11 @@ export default function GatewayStatus() {
     queryKey: ['forwarder-health'], queryFn: getForwarderHealth, refetchInterval: 15000,
     retry: false, placeholderData: null
   })
-  const { data: services = [] } = useQuery({
+  const { data: services = [], isError: servicesError, refetch: refetchServices } = useQuery({
     queryKey: ['service-registry-gw'],
-    queryFn: () => onboardingApi.get('/api/service-registry').then(r => r.data).catch(() => []),
-    refetchInterval: 30000
+    queryFn: () => onboardingApi.get('/api/service-registry').then(r => r.data),
+    refetchInterval: 30000,
+    retry: 1
   })
 
   // ─── Legacy Servers ───
@@ -159,6 +160,15 @@ export default function GatewayStatus() {
 
   return (
     <div className="space-y-6">
+      {servicesError && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ExclamationTriangleIcon className="w-5 h-5 text-red-400" />
+            <span className="text-sm text-red-400">Failed to load data — service may be unavailable</span>
+          </div>
+          <button onClick={() => refetchServices()} className="text-xs text-red-400 hover:text-red-300 underline">Retry</button>
+        </div>
+      )}
       {/* ─── Header ─── */}
       <div className="flex items-center justify-between">
         <div>

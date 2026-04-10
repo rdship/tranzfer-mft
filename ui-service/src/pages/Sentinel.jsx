@@ -8,8 +8,10 @@ import {
   ShieldCheckIcon, ExclamationTriangleIcon, ChartBarIcon,
   AdjustmentsHorizontalIcon, ArrowPathIcon, CheckCircleIcon,
   LinkIcon, BoltIcon, CpuChipIcon, PlusIcon, TrashIcon, XMarkIcon,
-  ArrowTopRightOnSquareIcon
+  ArrowTopRightOnSquareIcon, NoSymbolIcon, DocumentTextIcon,
+  MagnifyingGlassIcon, ShieldExclamationIcon
 } from '@heroicons/react/24/outline'
+import { dmzApi } from '../api/client'
 
 const TABS = [
   { key: 'overview', label: 'Overview', icon: ChartBarIcon },
@@ -21,13 +23,28 @@ const TABS = [
 const SEV_COLORS = {
   CRITICAL: 'bg-red-600', HIGH: 'bg-orange-500', MEDIUM: 'bg-yellow-500', LOW: 'bg-blue-500', INFO: 'bg-canvas0'
 }
+const SEV_BADGE = {
+  CRITICAL: 'badge badge-red', HIGH: 'badge badge-red', MEDIUM: 'badge badge-yellow', LOW: 'badge badge-gray', INFO: 'badge badge-gray'
+}
 const SEV_TEXT = {
   CRITICAL: 'text-red-400', HIGH: 'text-orange-400', MEDIUM: 'text-yellow-400', LOW: 'text-blue-400', INFO: 'text-muted'
+}
+const STATUS_BADGE = {
+  OPEN: 'badge badge-red', ACKNOWLEDGED: 'badge badge-yellow',
+  DISMISSED: 'badge badge-gray', RESOLVED: 'badge badge-green',
+  REPORTED: 'badge badge-purple'
 }
 const STATUS_COLORS = {
   OPEN: 'bg-red-500/20 text-red-400', ACKNOWLEDGED: 'bg-yellow-500/20 text-yellow-400',
   DISMISSED: 'bg-canvas0/20 text-muted', RESOLVED: 'bg-green-500/20 text-green-400',
   REPORTED: 'bg-blue-500/20 text-blue-400'
+}
+
+/** Extract first IPv4 address from evidence string */
+const extractIp = (evidence) => {
+  if (!evidence) return null
+  const match = evidence.match(/\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b/)
+  return match ? match[1] : null
 }
 
 function HealthGauge({ score }) {
@@ -130,7 +147,7 @@ function OverviewTab() {
           {(dashboard?.recentFindings || []).map(f => (
             <div key={f.id} className="px-4 py-3 flex items-center gap-3">
               <span className={`w-2 h-2 rounded-full ${SEV_COLORS[f.severity]}`} />
-              <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${STATUS_COLORS[f.status] || ''}`}>{f.status}</span>
+              <span className={STATUS_BADGE[f.status] || 'badge badge-gray'}>{f.status}</span>
               <span className="text-gray-300 text-sm flex-1 truncate">{f.title}</span>
               {f.trackId && (
                 <button
@@ -162,6 +179,7 @@ function FindingsTab() {
   const navigate = useNavigate()
   const [filters, setFilters] = useState({ status: '', severity: '', analyzer: '', page: 0 })
   const [drawerTrackId, setDrawerTrackId] = useState(null)
+  const [blockIpForm, setBlockIpForm] = useState(null) // { findingId, ip, mappingName }
   const queryClient = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -172,6 +190,11 @@ function FindingsTab() {
 
   const dismiss = useMutation({ mutationFn: sentinelApi.dismissFinding, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sentinel-findings'] }) })
   const ack = useMutation({ mutationFn: sentinelApi.acknowledgeFinding, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sentinel-findings'] }) })
+  const blockIp = useMutation({
+    mutationFn: ({ mappingName, ip }) => dmzApi.put(`/api/proxy/mappings/${encodeURIComponent(mappingName)}/security/blacklist`, { ip }).then(r => r.data),
+    onSuccess: () => { setBlockIpForm(null) },
+    onError: () => { setBlockIpForm(null) }
+  })
 
   const findings = data?.content || []
   const totalPages = data?.totalPages || 0
@@ -197,6 +220,7 @@ function FindingsTab() {
       {isLoading ? (
         <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
       ) : (
+        <>
         <p className="text-xs text-muted mb-2">Tip: Double-click any row to open detailed view</p>
         <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
           <table className="w-full text-sm">
@@ -217,7 +241,7 @@ function FindingsTab() {
                 <tr key={f.id} className="hover:bg-gray-750 cursor-pointer"
                     onDoubleClick={() => { if (f.trackId) setDrawerTrackId(f.trackId) }}>
                   <td className="px-4 py-2"><span className={`inline-block w-2 h-2 rounded-full ${SEV_COLORS[f.severity]}`} title={f.severity} /></td>
-                  <td className="px-4 py-2"><span className={`text-xs px-1.5 py-0.5 rounded ${STATUS_COLORS[f.status] || ''}`}>{f.status}</span></td>
+                  <td className="px-4 py-2"><span className={STATUS_BADGE[f.status] || 'badge badge-gray'}>{f.status}</span></td>
                   <td className="px-4 py-2 text-gray-300 max-w-md truncate">{f.title}
                     {f.githubIssueUrl && <a href={f.githubIssueUrl} target="_blank" rel="noreferrer" className="ml-2 text-blue-400 text-xs hover:underline">GitHub</a>}
                   </td>
@@ -235,25 +259,76 @@ function FindingsTab() {
                   <td className="px-4 py-2 text-muted">{f.analyzer}</td>
                   <td className="px-4 py-2 text-muted">{f.affectedService || '—'}</td>
                   <td className="px-4 py-2 text-secondary text-xs">{new Date(f.createdAt).toLocaleString()}</td>
-                  <td className="px-4 py-2 flex gap-1 items-center">
-                    {f.trackId && (
-                      <FileDownloadButton trackId={f.trackId} filename={f.filename} />
-                    )}
-                    {f.trackId && (
-                      <button
-                        onClick={() => navigate(`/journey?trackId=${encodeURIComponent(f.trackId)}`)}
-                        title="View Transfer"
-                        className="text-xs px-2 py-0.5 bg-blue-600/20 text-blue-400 rounded hover:bg-blue-600/30"
-                      >
-                        <ArrowTopRightOnSquareIcon className="w-3 h-3 inline" />
-                      </button>
-                    )}
-                    {f.status === 'OPEN' && (
-                      <>
-                        <button onClick={() => ack.mutate(f.id)} className="text-xs px-2 py-0.5 bg-yellow-600/20 text-yellow-400 rounded hover:bg-yellow-600/30">Ack</button>
-                        <button onClick={() => dismiss.mutate(f.id)} className="text-xs px-2 py-0.5 bg-gray-600/20 text-muted rounded hover:bg-gray-600/30">Dismiss</button>
-                      </>
-                    )}
+                  <td className="px-4 py-2">
+                    <div className="flex gap-1 items-center flex-wrap">
+                      {f.trackId && (
+                        <FileDownloadButton trackId={f.trackId} filename={f.filename} />
+                      )}
+                      {f.trackId && (
+                        <button
+                          onClick={() => navigate(`/quarantine`)}
+                          title="Quarantine File"
+                          className="text-xs px-2 py-0.5 bg-orange-600/20 text-orange-400 rounded hover:bg-orange-600/30"
+                        >
+                          <ShieldExclamationIcon className="w-3 h-3 inline" />
+                        </button>
+                      )}
+                      {extractIp(f.evidence) && (
+                        blockIpForm?.findingId === f.id ? (
+                          <span className="flex items-center gap-1">
+                            <input
+                              type="text"
+                              value={blockIpForm.mappingName}
+                              onChange={e => setBlockIpForm(prev => ({ ...prev, mappingName: e.target.value }))}
+                              placeholder="mapping name"
+                              className="bg-gray-700 text-gray-300 text-xs border border-gray-600 rounded px-1.5 py-0.5 w-24"
+                            />
+                            <button
+                              onClick={() => blockIp.mutate({ mappingName: blockIpForm.mappingName, ip: blockIpForm.ip })}
+                              disabled={!blockIpForm.mappingName || blockIp.isPending}
+                              className="text-xs px-1.5 py-0.5 bg-red-600/20 text-red-400 rounded hover:bg-red-600/30 disabled:opacity-50"
+                            >
+                              {blockIp.isPending ? '...' : 'Block'}
+                            </button>
+                            <button onClick={() => setBlockIpForm(null)} className="text-xs text-muted hover:text-gray-300">
+                              <XMarkIcon className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => setBlockIpForm({ findingId: f.id, ip: extractIp(f.evidence), mappingName: '' })}
+                            title={`Block IP ${extractIp(f.evidence)}`}
+                            className="text-xs px-2 py-0.5 bg-red-600/20 text-red-400 rounded hover:bg-red-600/30"
+                          >
+                            <NoSymbolIcon className="w-3 h-3 inline" />
+                          </button>
+                        )
+                      )}
+                      {(f.affectedService || f.trackId) && (
+                        <button
+                          onClick={() => navigate(f.trackId ? `/logs?search=${encodeURIComponent(f.trackId)}` : `/logs?service=${encodeURIComponent(f.affectedService)}`)}
+                          title="View Logs"
+                          className="text-xs px-2 py-0.5 bg-gray-600/20 text-gray-300 rounded hover:bg-gray-600/30"
+                        >
+                          <DocumentTextIcon className="w-3 h-3 inline" />
+                        </button>
+                      )}
+                      {f.trackId && (
+                        <button
+                          onClick={() => navigate(`/journey?trackId=${encodeURIComponent(f.trackId)}`)}
+                          title="View Journey"
+                          className="text-xs px-2 py-0.5 bg-blue-600/20 text-blue-400 rounded hover:bg-blue-600/30"
+                        >
+                          <MagnifyingGlassIcon className="w-3 h-3 inline" />
+                        </button>
+                      )}
+                      {f.status === 'OPEN' && (
+                        <>
+                          <button onClick={() => ack.mutate(f.id)} className="text-xs px-2 py-0.5 bg-yellow-600/20 text-yellow-400 rounded hover:bg-yellow-600/30">Ack</button>
+                          <button onClick={() => dismiss.mutate(f.id)} className="text-xs px-2 py-0.5 bg-gray-600/20 text-muted rounded hover:bg-gray-600/30">Dismiss</button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -273,6 +348,7 @@ function FindingsTab() {
             </div>
           )}
         </div>
+        </>
       )}
 
       <ExecutionDetailDrawer trackId={drawerTrackId} open={!!drawerTrackId} onClose={() => setDrawerTrackId(null)} />
@@ -564,7 +640,7 @@ export default function Sentinel() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <span className={`px-2 py-1 rounded text-xs font-medium ${health?.status === 'UP' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+          <span className={`badge ${health?.status === 'UP' ? 'badge-green' : 'badge-red'}`}>
             {health?.status || 'OFFLINE'}
           </span>
           {health && <span className="text-secondary text-xs">{health.totalRules} rules · {health.openFindings} open</span>}

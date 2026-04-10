@@ -6,7 +6,8 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import toast from 'react-hot-toast'
 import {
   PlusIcon, BoltIcon, LinkIcon, TrashIcon, PencilSquareIcon,
-  CheckCircleIcon, XCircleIcon, ArrowPathIcon,
+  CheckCircleIcon, XCircleIcon, ArrowPathIcon, MagnifyingGlassIcon,
+  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline'
 
 // ── Admin connector constants ──────────────────────────────────────────────────
@@ -103,6 +104,8 @@ export default function Connectors() {
     channel: '', apiKey: '', region: 'us', priority: 'P3', headers: '', authType: 'NONE', bearerToken: '', basicUser: '', basicPass: '',
   })
 
+  const [search, setSearch] = useState('')
+
   // Partner webhooks
   const [showWebhookModal, setShowWebhookModal] = useState(false)
   const [editingWebhook, setEditingWebhook] = useState(null) // null = create, object = edit
@@ -110,16 +113,21 @@ export default function Connectors() {
   const [confirmDelete, setConfirmDelete] = useState(null)
 
   // ── Queries ──
-  const { data: connectors = [], isLoading } = useQuery({
+  const { data: connectors = [], isLoading, isError: connectorsError, refetch: refetchConnectors } = useQuery({
     queryKey: ['connectors'],
-    queryFn: () => configApi.get('/api/connectors').then(r => r.data).catch(() => [])
+    queryFn: () => configApi.get('/api/connectors').then(r => r.data),
+    retry: 1
   })
 
-  const { data: partnerWebhooks = [], isLoading: webhooksLoading } = useQuery({
+  const { data: partnerWebhooks = [], isLoading: webhooksLoading, isError: webhooksError, refetch: refetchWebhooks } = useQuery({
     queryKey: ['partner-webhooks'],
-    queryFn: () => onboardingApi.get('/api/partner-webhooks').then(r => r.data).catch(() => []),
+    queryFn: () => onboardingApi.get('/api/partner-webhooks').then(r => r.data),
     refetchInterval: 30000,
+    retry: 1
   })
+
+  const isError = connectorsError || webhooksError
+  const refetch = () => { refetchConnectors(); refetchWebhooks() }
 
   const { data: partners = [] } = useQuery({
     queryKey: ['partners-for-connector'],
@@ -192,9 +200,26 @@ export default function Connectors() {
   return (
     <div className="space-y-8">
 
-      <div>
-        <h1 className="text-2xl font-bold" style={{ color: 'rgb(var(--tx-primary))' }}>Connectors &amp; Webhooks</h1>
-        <p className="text-sm" style={{ color: 'rgb(var(--tx-secondary))' }}>Manage external integrations and partner webhook notifications</p>
+      {isError && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ExclamationTriangleIcon className="w-5 h-5 text-red-400" />
+            <span className="text-sm text-red-400">Failed to load data — service may be unavailable</span>
+          </div>
+          <button onClick={() => refetch()} className="text-xs text-red-400 hover:text-red-300 underline">Retry</button>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold" style={{ color: 'rgb(var(--tx-primary))' }}>Connectors &amp; Webhooks</h1>
+          <p className="text-sm" style={{ color: 'rgb(var(--tx-secondary))' }}>Manage external integrations and partner webhook notifications</p>
+        </div>
+        <div className="relative">
+          <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search connectors..." className="pl-9 w-64" />
+        </div>
       </div>
 
       {/* ── Admin Connectors ── */}
@@ -216,7 +241,11 @@ export default function Connectors() {
             <div className="card text-center py-8" style={{ color: 'rgb(var(--tx-muted))' }}>
               No connectors configured. Add one to receive alerts in Slack, PagerDuty, or ServiceNow.
             </div>
-          ) : connectors.map(c => (
+          ) : (connectors || []).filter(c => {
+            if (!search) return true
+            const q = search.toLowerCase()
+            return c.name?.toLowerCase().includes(q) || c.type?.toLowerCase().includes(q) || c.url?.toLowerCase().includes(q)
+          }).map(c => (
             <div key={c.id} className="card flex items-center gap-4">
               <BoltIcon className="w-6 h-6 text-blue-400 flex-shrink-0" />
               <div className="flex-1 min-w-0">
@@ -258,7 +287,11 @@ export default function Connectors() {
           </div>
         ) : (
           <div className="space-y-3">
-            {partnerWebhooks.map(hook => (
+            {(partnerWebhooks || []).filter(hook => {
+              if (!search) return true
+              const q = search.toLowerCase()
+              return hook.partnerName?.toLowerCase().includes(q) || hook.url?.toLowerCase().includes(q)
+            }).map(hook => (
               <WebhookCard
                 key={hook.id}
                 hook={hook}

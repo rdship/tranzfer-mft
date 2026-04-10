@@ -9,7 +9,7 @@ import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import {
   PlusIcon, PencilSquareIcon, TrashIcon, CheckCircleIcon,
-  ShieldExclamationIcon, ExclamationTriangleIcon
+  ShieldExclamationIcon, ExclamationTriangleIcon, MagnifyingGlassIcon
 } from '@heroicons/react/24/outline'
 
 // ── Default form state ──────────────────────────────────────────────────
@@ -56,6 +56,7 @@ export default function Compliance() {
   const [editingProfile, setEditingProfile] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [form, setForm] = useState({ ...defaultProfileForm })
+  const [search, setSearch] = useState('')
   const [resolveId, setResolveId] = useState(null)
   const [resolveNote, setResolveNote] = useState('')
   const [violationFilter, setViolationFilter] = useState({ severity: '', resolved: 'false', serverId: '', username: '' })
@@ -184,9 +185,16 @@ export default function Compliance() {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <p className="text-sm text-secondary">{profiles.length} active compliance profile(s)</p>
-        <button onClick={openCreate} className="btn btn-primary flex items-center gap-1.5">
-          <PlusIcon className="w-4 h-4" /> New Profile
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search profiles..." className="pl-9 w-64" />
+          </div>
+          <button onClick={openCreate} className="btn btn-primary flex items-center gap-1.5">
+            <PlusIcon className="w-4 h-4" /> New Profile
+          </button>
+        </div>
       </div>
 
       {loadingProfiles ? <LoadingSpinner /> : profiles.length === 0 ? (
@@ -204,7 +212,11 @@ export default function Compliance() {
               <th className="table-header w-24">Actions</th>
             </tr></thead>
             <tbody>
-              {profiles.map(p => (
+              {(profiles || []).filter(p => {
+                if (!search) return true
+                const q = search.toLowerCase()
+                return p.name?.toLowerCase().includes(q)
+              }).map(p => (
                 <tr key={p.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => openEdit(p)}>
                   <td className="table-cell">
                     <div className="font-medium text-primary">{p.name}</div>

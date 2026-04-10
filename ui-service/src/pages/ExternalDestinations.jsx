@@ -10,7 +10,7 @@ import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
 import { friendlyError } from '../components/FormField'
 import toast from 'react-hot-toast'
-import { PlusIcon, TrashIcon, SignalIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, TrashIcon, SignalIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { useState } from 'react'
 
 export default function ExternalDestinations() {
@@ -24,6 +24,7 @@ export default function ExternalDestinations() {
     securityTier: 'RULES', securityPolicy: {},
     protocolCredentials: {}
   })
+  const [search, setSearch] = useState('')
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState(null)
   const { services } = useServices() || { services: {} }
@@ -92,13 +93,24 @@ export default function ExternalDestinations() {
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-bold text-primary">External Destinations</h1>
           <p className="text-secondary text-sm">External endpoints (SFTP, FTP, FTPS, HTTP, HTTPS, API) for file forwarding</p></div>
-        <button className="btn-primary" onClick={() => setShowCreate(true)}><PlusIcon className="w-4 h-4" /> Add Destination</button>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search destinations..." className="pl-9 w-64" />
+          </div>
+          <button className="btn-primary" onClick={() => setShowCreate(true)}><PlusIcon className="w-4 h-4" /> Add Destination</button>
+        </div>
       </div>
       {dests.length === 0 ? (
         <div className="card"><EmptyState title="No external destinations" description="Add partner SFTP/FTP servers to forward files externally." action={<button className="btn-primary" onClick={() => setShowCreate(true)}><PlusIcon className="w-4 h-4" />Add Destination</button>} /></div>
       ) : (
         <div className="space-y-3">
-          {dests.map(d => (
+          {(dests || []).filter(d => {
+            if (!search) return true
+            const q = search.toLowerCase()
+            return d.name?.toLowerCase().includes(q) || d.host?.toLowerCase().includes(q) || d.type?.toLowerCase().includes(q)
+          }).map(d => (
             <div key={d.id} className="card flex items-center gap-4">
               <SignalIcon className="w-5 h-5 text-accent flex-shrink-0" />
               <div className="flex-1">

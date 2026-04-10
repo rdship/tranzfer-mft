@@ -48,7 +48,7 @@ function StatusBadge({ status }) {
     COMPLETED:   'badge-green',
     FAILED:      'badge-red',
     IN_PROGRESS: 'badge-yellow',
-    PENDING:     'badge-blue',
+    PENDING:     'badge-yellow',
     QUEUED:      'badge-gray',
   }
   return <span className={`badge ${map[status] || 'badge-gray'}`}>{status}</span>

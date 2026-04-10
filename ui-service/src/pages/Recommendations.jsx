@@ -21,16 +21,21 @@ const severityBadge = {
 }
 
 export default function Recommendations() {
-  const { data: recs = [], isLoading } = useQuery({
+  const { data: recs = [], isLoading, isError: recsError, refetch: refetchRecs } = useQuery({
     queryKey: ['recommendations'],
-    queryFn: () => aiApi.get('/api/v1/ai/recommendations').then(r => r.data).catch(() => []),
-    refetchInterval: 60000
+    queryFn: () => aiApi.get('/api/v1/ai/recommendations').then(r => r.data),
+    refetchInterval: 60000,
+    retry: 1
   })
-  const { data: summary = {} } = useQuery({
+  const { data: summary = {}, isError: summaryError, refetch: refetchSummary } = useQuery({
     queryKey: ['rec-summary'],
-    queryFn: () => aiApi.get('/api/v1/ai/recommendations/summary').then(r => r.data).catch(() => ({})),
-    refetchInterval: 60000
+    queryFn: () => aiApi.get('/api/v1/ai/recommendations/summary').then(r => r.data),
+    refetchInterval: 60000,
+    retry: 1
   })
+
+  const isError = recsError || summaryError
+  const refetch = () => { refetchRecs(); refetchSummary() }
 
   if (isLoading) return <LoadingSpinner />
 
@@ -41,6 +46,15 @@ export default function Recommendations() {
 
   return (
     <div className="space-y-6">
+      {isError && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ExclamationTriangleIcon className="w-5 h-5 text-red-400" />
+            <span className="text-sm text-red-400">Failed to load data — service may be unavailable</span>
+          </div>
+          <button onClick={() => refetch()} className="text-xs text-red-400 hover:text-red-300 underline">Retry</button>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-primary flex items-center gap-2">

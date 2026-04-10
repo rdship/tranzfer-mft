@@ -9,7 +9,7 @@ import { format } from 'date-fns'
 import {
   BellAlertIcon, PlusIcon, PencilSquareIcon, TrashIcon,
   PaperAirplaneIcon, ArrowPathIcon, DocumentTextIcon,
-  MagnifyingGlassIcon, BeakerIcon
+  MagnifyingGlassIcon, BeakerIcon, ExclamationTriangleIcon
 } from '@heroicons/react/24/outline'
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -95,26 +95,32 @@ export default function Notifications() {
   // Queries
   // ═══════════════════════════════════════════════════════════════════════
 
-  const { data: rules = [], isLoading: loadingRules } = useQuery({
+  const { data: rules = [], isLoading: loadingRules, isError: rulesError, refetch: refetchRules } = useQuery({
     queryKey: ['notification-rules'],
-    queryFn: () => notificationApi.get('/api/notifications/rules').then(r => r.data).catch(() => [])
+    queryFn: () => notificationApi.get('/api/notifications/rules').then(r => r.data),
+    retry: 1
   })
 
-  const { data: templates = [], isLoading: loadingTemplates } = useQuery({
+  const { data: templates = [], isLoading: loadingTemplates, isError: templatesError, refetch: refetchTemplates } = useQuery({
     queryKey: ['notification-templates'],
-    queryFn: () => notificationApi.get('/api/notifications/templates').then(r => r.data).catch(() => [])
+    queryFn: () => notificationApi.get('/api/notifications/templates').then(r => r.data),
+    retry: 1
   })
 
-  const { data: recentLogs = [], isLoading: loadingLogs } = useQuery({
+  const { data: recentLogs = [], isLoading: loadingLogs, isError: logsError, refetch: refetchLogs } = useQuery({
     queryKey: ['notification-logs', searchTrackId],
     queryFn: () => {
       if (searchTrackId.trim()) {
-        return notificationApi.get(`/api/notifications/logs/by-track-id/${searchTrackId}`).then(r => r.data).catch(() => [])
+        return notificationApi.get(`/api/notifications/logs/by-track-id/${searchTrackId}`).then(r => r.data)
       }
-      return notificationApi.get('/api/notifications/logs/recent').then(r => r.data).catch(() => [])
+      return notificationApi.get('/api/notifications/logs/recent').then(r => r.data)
     },
-    refetchInterval: searchTrackId ? false : 15000
+    refetchInterval: searchTrackId ? false : 15000,
+    retry: 1
   })
+
+  const isError = rulesError || templatesError || logsError
+  const refetchAll = () => { refetchRules(); refetchTemplates(); refetchLogs() }
 
   // ═══════════════════════════════════════════════════════════════════════
   // Mutations — Rules
@@ -799,6 +805,15 @@ export default function Notifications() {
 
   return (
     <div className="space-y-6">
+      {isError && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ExclamationTriangleIcon className="w-5 h-5 text-red-400" />
+            <span className="text-sm text-red-400">Failed to load data — service may be unavailable</span>
+          </div>
+          <button onClick={() => refetchAll()} className="text-xs text-red-400 hover:text-red-300 underline">Retry</button>
+        </div>
+      )}
       <div>
         <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
           <BellAlertIcon className="w-7 h-7 text-indigo-600" />

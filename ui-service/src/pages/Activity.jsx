@@ -3,21 +3,33 @@ import { useNavigate } from 'react-router-dom'
 import { configApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import StatCard from '../components/StatCard'
-import { SignalIcon, ArrowUpTrayIcon, ArrowDownTrayIcon, WifiIcon } from '@heroicons/react/24/outline'
+import { SignalIcon, ArrowUpTrayIcon, ArrowDownTrayIcon, WifiIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
 
 export default function Activity() {
   const navigate = useNavigate()
-  const { data: snapshot = {}, isLoading } = useQuery({ queryKey: ['activity-snap'],
-    queryFn: () => configApi.get('/api/activity/snapshot').then(r => r.data).catch(() => ({})), refetchInterval: 5000 })
-  const { data: transfers = [] } = useQuery({ queryKey: ['activity-transfers'],
-    queryFn: () => configApi.get('/api/activity/transfers').then(r => r.data).catch(() => []), refetchInterval: 5000 })
-  const { data: events = [] } = useQuery({ queryKey: ['activity-events'],
-    queryFn: () => configApi.get('/api/activity/events?limit=50').then(r => r.data).catch(() => []), refetchInterval: 5000 })
+  const { data: snapshot = {}, isLoading, isError: snapError, refetch: refetchSnap } = useQuery({ queryKey: ['activity-snap'],
+    queryFn: () => configApi.get('/api/activity/snapshot').then(r => r.data), refetchInterval: 5000, retry: 1 })
+  const { data: transfers = [], isError: transfersError, refetch: refetchTransfers } = useQuery({ queryKey: ['activity-transfers'],
+    queryFn: () => configApi.get('/api/activity/transfers').then(r => r.data), refetchInterval: 5000, retry: 1 })
+  const { data: events = [], isError: eventsError, refetch: refetchEvents } = useQuery({ queryKey: ['activity-events'],
+    queryFn: () => configApi.get('/api/activity/events?limit=50').then(r => r.data), refetchInterval: 5000, retry: 1 })
+
+  const isError = snapError || transfersError || eventsError
+  const refetch = () => { refetchSnap(); refetchTransfers(); refetchEvents() }
 
   if (isLoading) return <LoadingSpinner />
   return (
     <div className="space-y-6">
+      {isError && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ExclamationTriangleIcon className="w-5 h-5 text-red-400" />
+            <span className="text-sm text-red-400">Failed to load data — service may be unavailable</span>
+          </div>
+          <button onClick={() => refetch()} className="text-xs text-red-400 hover:text-red-300 underline">Retry</button>
+        </div>
+      )}
       <div><h1 className="text-2xl font-bold text-primary">Real-Time Activity</h1>
         <p className="text-secondary text-sm">Live view — auto-refreshes every 5 seconds</p></div>
 

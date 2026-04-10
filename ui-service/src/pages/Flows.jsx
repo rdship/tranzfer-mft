@@ -14,7 +14,7 @@ import {
   FunnelIcon, ArrowPathIcon, ClockIcon, CheckCircleIcon, XCircleIcon,
   ArrowsUpDownIcon, SparklesIcon, StopIcon,
   ChevronRightIcon, InboxIcon, PaperAirplaneIcon, HandRaisedIcon,
-  BeakerIcon, ExclamationTriangleIcon, QuestionMarkCircleIcon,
+  BeakerIcon, ExclamationTriangleIcon, QuestionMarkCircleIcon, MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline'
 
 // ─── Fallback step type definitions (used when backend catalog is unavailable) ───
@@ -599,6 +599,7 @@ export default function Flows() {
   const [importRuntime, setImportRuntime] = useState('GRPC')
   const [importEndpoint, setImportEndpoint] = useState('')
   const [importDesc, setImportDesc] = useState('')
+  const [search, setSearch] = useState('')
   const [aiSuggestions, setAiSuggestions] = useState(null)      // { steps: [...] } or null
   const [aiAvailable, setAiAvailable] = useState(true)
   const [drawerTrackId, setDrawerTrackId] = useState(null)     // execution detail drawer
@@ -994,10 +995,17 @@ export default function Flows() {
 
   // ─── Filtered flows ───
   const filteredFlows = useMemo(() => {
-    if (filter === 'active') return flows.filter(f => f.active)
-    if (filter === 'inactive') return flows.filter(f => !f.active)
-    return flows
-  }, [flows, filter])
+    let result = flows
+    if (filter === 'active') result = result.filter(f => f.active)
+    if (filter === 'inactive') result = result.filter(f => !f.active)
+    if (search) {
+      const q = search.toLowerCase()
+      result = result.filter(f =>
+        f.name?.toLowerCase().includes(q) || f.description?.toLowerCase().includes(q) || f.sourcePath?.toLowerCase().includes(q)
+      )
+    }
+    return result
+  }, [flows, filter, search])
 
   const activeCount = flows.filter(f => f.active).length
   const inactiveCount = flows.filter(f => !f.active).length
@@ -1015,9 +1023,16 @@ export default function Flows() {
             {activeCount > 0 && <span className="text-emerald-600 ml-1">({activeCount} active)</span>}
           </p>
         </div>
-        <button className="btn-primary" onClick={openCreate}>
-          <PlusIcon className="w-4 h-4" /> New Flow
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search flows..." className="pl-9 w-64" />
+          </div>
+          <button className="btn-primary" onClick={openCreate}>
+            <PlusIcon className="w-4 h-4" /> New Flow
+          </button>
+        </div>
       </div>
 
       {/* ─── Main Tabs ─── */}

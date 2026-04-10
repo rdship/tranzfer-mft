@@ -4,7 +4,7 @@ import { onboardingApi } from '../api/client'
 import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
 import toast from 'react-hot-toast'
-import { PlusIcon, PencilSquareIcon, TrashIcon, BuildingOffice2Icon } from '@heroicons/react/24/outline'
+import { PlusIcon, PencilSquareIcon, TrashIcon, BuildingOffice2Icon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
 
 export default function Tenants() {
@@ -14,8 +14,9 @@ export default function Tenants() {
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [form, setForm] = useState({ slug: '', companyName: '', email: '' })
 
-  const { data: tenants = [], isLoading } = useQuery({ queryKey: ['tenants'],
-    queryFn: () => onboardingApi.get('/api/v1/tenants').then(r => r.data).catch(() => []) })
+  const { data: tenants = [], isLoading, isError, refetch } = useQuery({ queryKey: ['tenants'],
+    queryFn: () => onboardingApi.get('/api/v1/tenants').then(r => r.data),
+    retry: 1 })
 
   const createMut = useMutation({
     mutationFn: (d) => onboardingApi.post('/api/v1/tenants/signup', d).then(r => r.data),
@@ -50,6 +51,15 @@ export default function Tenants() {
   if (isLoading) return <LoadingSpinner />
   return (
     <div className="space-y-6">
+      {isError && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ExclamationTriangleIcon className="w-5 h-5 text-red-400" />
+            <span className="text-sm text-red-400">Failed to load data — service may be unavailable</span>
+          </div>
+          <button onClick={() => refetch()} className="text-xs text-red-400 hover:text-red-300 underline">Retry</button>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-bold text-primary">Multi-Tenant Management</h1>
           <p className="text-secondary text-sm">SaaS tenants — each gets their own namespace</p></div>

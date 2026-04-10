@@ -19,7 +19,7 @@ import {
   PlusIcon, TrashIcon, PencilIcon, ServerStackIcon, SignalIcon, SignalSlashIcon,
   FolderIcon, CircleStackIcon, LockClosedIcon, UsersIcon,
   WrenchScrewdriverIcon, ArrowPathIcon, XMarkIcon, CheckIcon,
-  ChevronDownIcon, ChevronUpIcon,
+  ChevronDownIcon, ChevronUpIcon, MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline'
 import { useState, useEffect } from 'react'
 
@@ -269,6 +269,7 @@ export default function ServerInstances() {
   const [form, setForm] = useState(emptyForm)
   const [protocolFilter, setProtocolFilter] = useState('ALL')
   const [accountsServer, setAccountsServer] = useState(null)
+  const [search, setSearch] = useState('')
 
   const { data: servers = [], isLoading } = useQuery({ queryKey: ['server-instances'], queryFn: getServerInstances })
 
@@ -341,9 +342,14 @@ export default function ServerInstances() {
     })
   }
 
-  const filtered = protocolFilter === 'ALL'
+  const filtered = (protocolFilter === 'ALL'
     ? servers
     : servers.filter(s => s.protocol === protocolFilter)
+  ).filter(s => {
+    if (!search) return true
+    const q = search.toLowerCase()
+    return s.name?.toLowerCase().includes(q) || s.internalHost?.toLowerCase().includes(q) || s.instanceId?.toLowerCase().includes(q) || s.protocol?.toLowerCase().includes(q)
+  })
 
   const protocolCounts = PROTOCOLS.reduce((acc, p) => {
     acc[p] = servers.filter(s => s.protocol === p).length
@@ -359,9 +365,16 @@ export default function ServerInstances() {
           <h1 className="text-2xl font-bold text-primary">Server Instances</h1>
           <p className="text-secondary text-sm">Manage server instances across all protocols and assign users to specific servers</p>
         </div>
-        <button className="btn-primary" onClick={() => { setForm(emptyForm); setShowCreate(true) }}>
-          <PlusIcon className="w-4 h-4" /> Add Server
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search servers..." className="pl-9 w-64" />
+          </div>
+          <button className="btn-primary" onClick={() => { setForm(emptyForm); setShowCreate(true) }}>
+            <PlusIcon className="w-4 h-4" /> Add Server
+          </button>
+        </div>
       </div>
 
       {/* Summary cards */}

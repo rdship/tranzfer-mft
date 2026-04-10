@@ -3,23 +3,26 @@ import { storageApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import StatCard from '../components/StatCard'
 import toast from 'react-hot-toast'
-import { CircleStackIcon, ArrowPathIcon, ArrowUpTrayIcon, CloudIcon } from '@heroicons/react/24/outline'
+import { CircleStackIcon, ArrowPathIcon, ArrowUpTrayIcon, CloudIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
 
 const tierColors = { HOT: 'bg-red-100 text-red-800', WARM: 'bg-amber-100 text-amber-800', COLD: 'bg-blue-100 text-blue-800' }
 
 export default function Storage() {
   const qc = useQueryClient()
-  const { data: metrics = {}, isLoading } = useQuery({ queryKey: ['storage-metrics'],
-    queryFn: () => storageApi.get('/api/v1/storage/metrics').then(r => r.data).catch(() => ({})), refetchInterval: 30000 })
-  const { data: objects = [] } = useQuery({ queryKey: ['storage-objects'],
-    queryFn: () => storageApi.get('/api/v1/storage/objects').then(r => r.data).catch(() => []) })
-  const { data: actions = [] } = useQuery({ queryKey: ['storage-actions'],
-    queryFn: () => storageApi.get('/api/v1/storage/lifecycle/actions').then(r => r.data).catch(() => []) })
+  const { data: metrics = {}, isLoading, isError: metricsError, refetch: refetchMetrics } = useQuery({ queryKey: ['storage-metrics'],
+    queryFn: () => storageApi.get('/api/v1/storage/metrics').then(r => r.data), refetchInterval: 30000, retry: 1 })
+  const { data: objects = [], isError: objectsError, refetch: refetchObjects } = useQuery({ queryKey: ['storage-objects'],
+    queryFn: () => storageApi.get('/api/v1/storage/objects').then(r => r.data), retry: 1 })
+  const { data: actions = [], isError: actionsError, refetch: refetchActions } = useQuery({ queryKey: ['storage-actions'],
+    queryFn: () => storageApi.get('/api/v1/storage/lifecycle/actions').then(r => r.data), retry: 1 })
 
   const { data: drpStats = null } = useQuery({ queryKey: ['drp-stats'],
     queryFn: () => storageApi.get('/api/v1/storage/drp-stats').then(r => r.data).catch(() => null),
     refetchInterval: 30000 })
+
+  const isError = metricsError || objectsError || actionsError
+  const refetch = () => { refetchMetrics(); refetchObjects(); refetchActions() }
 
   const tierMut = useMutation({ mutationFn: () => storageApi.post('/api/v1/storage/lifecycle/tier'),
     onSuccess: () => { toast.success('Tiering cycle completed'); qc.invalidateQueries({ queryKey: ['storage'] }); qc.invalidateQueries({ queryKey: ['storage-metrics'] }); qc.invalidateQueries({ queryKey: ['storage-objects'] }); qc.invalidateQueries({ queryKey: ['storage-actions'] }) },
@@ -31,6 +34,15 @@ export default function Storage() {
   if (isLoading) return <LoadingSpinner />
   return (
     <div className="space-y-6">
+      {isError && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ExclamationTriangleIcon className="w-5 h-5 text-red-400" />
+            <span className="text-sm text-red-400">Failed to load data — service may be unavailable</span>
+          </div>
+          <button onClick={() => refetch()} className="text-xs text-red-400 hover:text-red-300 underline">Retry</button>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-bold text-primary">Storage Manager</h1>
           <p className="text-secondary text-sm">GPFS-style tiered storage with parallel I/O and AI lifecycle</p></div>

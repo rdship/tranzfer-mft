@@ -5,7 +5,7 @@ import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import toast from 'react-hot-toast'
-import { PlusIcon, TrashIcon, PencilSquareIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, TrashIcon, PencilSquareIcon, MagnifyingGlassIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 
 const SSH_CIPHERS = ['aes256-ctr','aes128-ctr','aes256-gcm@openssh.com','aes128-gcm@openssh.com','chacha20-poly1305@openssh.com']
 const SSH_MACS = ['hmac-sha2-256','hmac-sha2-512','hmac-sha2-256-etm@openssh.com','hmac-sha2-512-etm@openssh.com']
@@ -23,11 +23,13 @@ export default function SecurityProfiles() {
   const [showCreate, setShowCreate] = useState(false)
   const [editingProfile, setEditingProfile] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [search, setSearch] = useState('')
   const [form, setForm] = useState({ ...defaultForm })
 
-  const { data: profiles = [], isLoading } = useQuery({
+  const { data: profiles = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['security-profiles'],
-    queryFn: () => configApi.get('/api/security-profiles').then(r => r.data).catch(() => [])
+    queryFn: () => configApi.get('/api/security-profiles').then(r => r.data),
+    retry: 1
   })
 
   const createMut = useMutation({
@@ -153,14 +155,30 @@ export default function SecurityProfiles() {
 
   return (
     <div className="space-y-6">
+      {isError && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ExclamationTriangleIcon className="w-5 h-5 text-red-400" />
+            <span className="text-sm text-red-400">Failed to load data — service may be unavailable</span>
+          </div>
+          <button onClick={() => refetch()} className="text-xs text-red-400 hover:text-red-300 underline">Retry</button>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-primary">Security Profiles</h1>
           <p className="text-secondary text-sm">Configure cipher suites, MACs, and key exchange algorithms</p>
         </div>
-        <button className="btn-primary" onClick={openCreate}>
-          <PlusIcon className="w-4 h-4" /> New Profile
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search profiles..." className="pl-9 w-64" />
+          </div>
+          <button className="btn-primary" onClick={openCreate}>
+            <PlusIcon className="w-4 h-4" /> New Profile
+          </button>
+        </div>
       </div>
 
       {profiles.length === 0 ? (
@@ -170,7 +188,11 @@ export default function SecurityProfiles() {
         </div>
       ) : (
         <div className="grid gap-4">
-          {profiles.map(p => (
+          {(profiles || []).filter(p => {
+            if (!search) return true
+            const q = search.toLowerCase()
+            return p.name?.toLowerCase().includes(q)
+          }).map(p => (
             <div key={p.id} className="card">
               <div className="flex items-start justify-between">
                 <div>

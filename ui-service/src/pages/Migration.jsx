@@ -34,7 +34,7 @@ const STATUS_BADGE = {
   IN_PROGRESS:  'badge-yellow',
   SHADOW_MODE:  'badge-purple',
   VERIFIED:     'badge-green',
-  COMPLETED:    'badge-teal',
+  COMPLETED:    'badge-green',
 }
 
 const STATUS_LABEL = {
@@ -62,7 +62,7 @@ const EVENT_BADGE = {
   SHADOW_DISABLED:'badge-gray',
   VERIFICATION_STARTED: 'badge-yellow',
   VERIFICATION_RECORDED:'badge-green',
-  COMPLETED:      'badge-teal',
+  COMPLETED:      'badge-green',
   ROLLED_BACK:    'badge-red',
   DISCOVERED:     'badge-blue',
   CONNECTION:     'badge-gray',

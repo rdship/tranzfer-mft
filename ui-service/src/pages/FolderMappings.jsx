@@ -9,7 +9,7 @@ import toast from 'react-hot-toast'
 import {
   PlusIcon, TrashIcon, PencilSquareIcon, ArrowRightIcon,
   ServerStackIcon, FolderIcon, SparklesIcon, DocumentDuplicateIcon,
-  FunnelIcon
+  FunnelIcon, MagnifyingGlassIcon
 } from '@heroicons/react/24/outline'
 
 const emptyForm = { sourceAccountId: '', sourcePath: '/inbox', destinationAccountId: '', destinationPath: '/outbox', filenamePattern: '', encryptionOption: 'NONE' }
@@ -157,6 +157,7 @@ export default function FolderMappings() {
   const [protocolFilter, setProtocolFilter] = useState('All')
   const [showSamples, setShowSamples] = useState(true)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [search, setSearch] = useState('')
 
   const { data: mappings = [], isLoading } = useQuery({ queryKey: ['folder-mappings'], queryFn: getFolderMappings })
   const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts })
@@ -210,14 +211,22 @@ export default function FolderMappings() {
   const accountProtocol = {}
   accounts.forEach(a => { accountProtocol[a.id] = a.protocol })
 
-  // Filter mappings by protocol
-  const filteredMappings = protocolFilter === 'All'
+  // Filter mappings by protocol and search
+  const filteredMappings = (protocolFilter === 'All'
     ? mappings
     : mappings.filter(m => {
         const srcProto = accountProtocol[m.sourceAccountId]
         const dstProto = accountProtocol[m.destinationAccountId]
         return srcProto === protocolFilter || dstProto === protocolFilter
       })
+  ).filter(m => {
+    if (!search) return true
+    const q = search.toLowerCase()
+    const srcAccount = accounts.find(a => a.id === m.sourceAccountId)
+    const dstAccount = accounts.find(a => a.id === m.destinationAccountId)
+    return m.sourcePath?.toLowerCase().includes(q) || m.destinationPath?.toLowerCase().includes(q)
+      || srcAccount?.username?.toLowerCase().includes(q) || dstAccount?.username?.toLowerCase().includes(q)
+  })
 
   // Filter samples by protocol
   const filteredSamples = protocolFilter === 'All'
@@ -310,9 +319,16 @@ export default function FolderMappings() {
           <h1 className="text-2xl font-bold text-primary">Folder Mappings</h1>
           <p className="text-secondary text-sm">Route files between accounts across SFTP, FTP, FTP-Web, AS2, and HTTPS servers</p>
         </div>
-        <button className="btn-primary" onClick={openCreate}>
-          <PlusIcon className="w-4 h-4" /> New Mapping
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search mappings..." className="pl-9 w-64" />
+          </div>
+          <button className="btn-primary" onClick={openCreate}>
+            <PlusIcon className="w-4 h-4" /> New Mapping
+          </button>
+        </div>
       </div>
 
       {/* Stats */}

@@ -5,7 +5,7 @@ import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import toast from 'react-hot-toast'
-import { KeyIcon, CheckBadgeIcon, TrashIcon, PlusIcon, CubeIcon } from '@heroicons/react/24/outline'
+import { KeyIcon, CheckBadgeIcon, TrashIcon, PlusIcon, CubeIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
 
 export default function License() {
@@ -41,16 +41,21 @@ export default function License() {
   })
 
   // ── Component Catalog ──
-  const { data: catalog = [], isLoading: loadingCatalog } = useQuery({
+  const { data: catalog = [], isLoading: loadingCatalog, isError: catalogError, refetch: refetchCatalog } = useQuery({
     queryKey: ['license-catalog'],
-    queryFn: () => licenseApi.get('/api/v1/licenses/catalog/components').then(r => r.data).catch(() => [])
+    queryFn: () => licenseApi.get('/api/v1/licenses/catalog/components').then(r => r.data),
+    retry: 1
   })
 
   // ── All licenses (admin) ──
-  const { data: allLicenses = [], isLoading: loadingLicenses } = useQuery({
+  const { data: allLicenses = [], isLoading: loadingLicenses, isError: licensesError, refetch: refetchLicenses } = useQuery({
     queryKey: ['all-licenses'],
-    queryFn: () => licenseApi.get('/api/v1/licenses').then(r => r.data).catch(() => [])
+    queryFn: () => licenseApi.get('/api/v1/licenses').then(r => r.data),
+    retry: 1
   })
+
+  const isError = catalogError || licensesError
+  const refetchAll = () => { refetchCatalog(); refetchLicenses() }
 
   // ── Admin state ──
   const [showIssueModal, setShowIssueModal] = useState(false)
@@ -91,6 +96,15 @@ export default function License() {
 
   return (
     <div className="space-y-6">
+      {isError && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ExclamationTriangleIcon className="w-5 h-5 text-red-400" />
+            <span className="text-sm text-red-400">Failed to load data — service may be unavailable</span>
+          </div>
+          <button onClick={() => refetchAll()} className="text-xs text-red-400 hover:text-red-300 underline">Retry</button>
+        </div>
+      )}
       <div><h1 className="text-2xl font-bold text-primary">License Management</h1>
         <p className="text-secondary text-sm">Manage your TranzFer MFT platform license</p></div>
 

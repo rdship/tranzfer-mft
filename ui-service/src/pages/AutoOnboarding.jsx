@@ -22,7 +22,7 @@ const statusBadge = (status) => {
     case 'APPROVED':  return 'badge-green'
     case 'REJECTED':  return 'badge-red'
     case 'LEARNING':  return 'badge-blue'
-    case 'COMPLETED': return 'badge-teal'
+    case 'COMPLETED': return 'badge-green'
     default:          return 'badge-gray'
   }
 }

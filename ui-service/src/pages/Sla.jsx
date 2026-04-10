@@ -4,7 +4,7 @@ import { configApi, onboardingApi } from '../api/client'
 import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
 import toast from 'react-hot-toast'
-import { PlusIcon, PencilSquareIcon, TrashIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, PencilSquareIcon, TrashIcon, ExclamationTriangleIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 
 const emptyForm = {
   name: '',
@@ -32,9 +32,13 @@ export default function Sla() {
   const [editingSla, setEditingSla] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [form, setForm] = useState({ ...emptyForm })
+  const [search, setSearch] = useState('')
 
-  const { data: slas = [], isLoading } = useQuery({ queryKey: ['slas'], queryFn: () => configApi.get('/api/sla').then(r => r.data).catch(() => []) })
-  const { data: breaches = [] } = useQuery({ queryKey: ['sla-breaches'], queryFn: () => configApi.get('/api/sla/breaches').then(r => r.data).catch(() => []), refetchInterval: 60000 })
+  const { data: slas = [], isLoading, isError: slasError, refetch: refetchSlas } = useQuery({ queryKey: ['slas'], queryFn: () => configApi.get('/api/sla').then(r => r.data), retry: 1 })
+  const { data: breaches = [], isError: breachesError, refetch: refetchBreaches } = useQuery({ queryKey: ['sla-breaches'], queryFn: () => configApi.get('/api/sla/breaches').then(r => r.data), refetchInterval: 60000, retry: 1 })
+
+  const isError = slasError || breachesError
+  const refetch = () => { refetchSlas(); refetchBreaches() }
 
   const { data: partners = [] } = useQuery({
     queryKey: ['partners-list'],
@@ -223,10 +227,26 @@ export default function Sla() {
 
   return (
     <div className="space-y-6">
+      {isError && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ExclamationTriangleIcon className="w-5 h-5 text-red-400" />
+            <span className="text-sm text-red-400">Failed to load data — service may be unavailable</span>
+          </div>
+          <button onClick={() => refetch()} className="text-xs text-red-400 hover:text-red-300 underline">Retry</button>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-bold text-primary">SLA Agreements</h1>
           <p className="text-secondary text-sm">Partner delivery agreements and breach monitoring</p></div>
-        <button className="btn-primary" onClick={openCreate}><PlusIcon className="w-4 h-4" /> New Agreement</button>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search agreements..." className="pl-9 w-64" />
+          </div>
+          <button className="btn-primary" onClick={openCreate}><PlusIcon className="w-4 h-4" /> New Agreement</button>
+        </div>
       </div>
       {breaches.length > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4">
@@ -237,7 +257,11 @@ export default function Sla() {
         </div>
       )}
       <div className="space-y-3">
-        {slas.map(s => (
+        {(slas || []).filter(s => {
+          if (!search) return true
+          const q = search.toLowerCase()
+          return s.name?.toLowerCase().includes(q) || s.partnerName?.toLowerCase().includes(q)
+        }).map(s => (
           <div key={s.id} className="card cursor-pointer hover:bg-[rgba(100,140,255,0.06)] transition-colors" onClick={() => openEdit(s)}>
             <div className="flex items-center justify-between">
               <div>
@@ -261,7 +285,7 @@ export default function Sla() {
             </div>
           </div>
         ))}
-        {slas.length === 0 && <div className="card text-center py-8 text-secondary">No SLA agreements configured</div>}
+        {slas.length === 0 && !search && <div className="card text-center py-8 text-secondary">No SLA agreements configured</div>}
       </div>
 
       {showCreate && (

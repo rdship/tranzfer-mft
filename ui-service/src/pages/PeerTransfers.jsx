@@ -2,19 +2,31 @@ import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { onboardingApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
-import { ArrowsRightLeftIcon, UserIcon } from '@heroicons/react/24/outline'
+import { ArrowsRightLeftIcon, UserIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
 
 export default function PeerTransfers() {
   const [expandedTicket, setExpandedTicket] = useState(null)
-  const { data: peers = [] } = useQuery({ queryKey: ['p2p-peers'], queryFn: () => onboardingApi.get('/api/p2p/presence').then(r => r.data).catch(() => []), refetchInterval: 15000 })
-  const { data: tickets = [], isLoading } = useQuery({ queryKey: ['p2p-tickets'], queryFn: () => onboardingApi.get('/api/p2p/tickets').then(r => r.data).catch(() => []), refetchInterval: 10000 })
+  const { data: peers = [], isError: peersError, refetch: refetchPeers } = useQuery({ queryKey: ['p2p-peers'], queryFn: () => onboardingApi.get('/api/p2p/presence').then(r => r.data), refetchInterval: 15000, retry: 1 })
+  const { data: tickets = [], isLoading, isError: ticketsError, refetch: refetchTickets } = useQuery({ queryKey: ['p2p-tickets'], queryFn: () => onboardingApi.get('/api/p2p/tickets').then(r => r.data), refetchInterval: 10000, retry: 1 })
+
+  const isError = peersError || ticketsError
+  const refetch = () => { refetchPeers(); refetchTickets() }
 
   if (isLoading) return <LoadingSpinner />
   const statusColor = { COMPLETED: 'badge-green', FAILED: 'badge-red', PENDING: 'badge-yellow', IN_PROGRESS: 'badge-blue', EXPIRED: 'badge-gray' }
 
   return (
     <div className="space-y-6">
+      {isError && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ExclamationTriangleIcon className="w-5 h-5 text-red-400" />
+            <span className="text-sm text-red-400">Failed to load data — service may be unavailable</span>
+          </div>
+          <button onClick={() => refetch()} className="text-xs text-red-400 hover:text-red-300 underline">Retry</button>
+        </div>
+      )}
       <div><h1 className="text-2xl font-bold text-primary">Peer-to-Peer Transfers</h1>
         <p className="text-secondary text-sm">Direct client-to-client file transfers</p></div>
 
