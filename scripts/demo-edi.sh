@@ -1,98 +1,235 @@
 #!/usr/bin/env bash
 # =============================================================================
-# TranzFer MFT — EDI converter demo runner
+# TranzFer MFT — EDI converter validating test
 # =============================================================================
-# Runs each sample in scripts/demo-edi-samples/ through the live edi-converter
-# service (port 8095) and prints a formatted before/after. Purely read-only —
-# no DB writes, no state changes.
+# Exercises the live edi-converter service (port 8095) by running each sample
+# in scripts/demo-edi-samples/ through /detect and /convert endpoints, then
+# asserting that the output contains expected fields. PASS/FAIL per check,
+# exit non-zero if ANY assertion fails. Pure REST, read-only.
 #
-# edi-converter is dropped in the tier-2 demo profile, so this script only
-# works against the full-stack boot (./scripts/demo-all.sh --full).
+# edi-converter is dropped in the tier-2 demo profile — this test only works
+# against the full-stack boot (./scripts/demo-all.sh --full).
+#
+# Exit codes:
+#   0  all assertions pass
+#   1  one or more assertions failed
+#   2  edi-converter unreachable (prerequisite failure)
 #
 # Usage:  ./scripts/demo-edi.sh
+#         ./scripts/demo-edi.sh --quiet      (summary only, no per-check detail)
 # =============================================================================
-set -euo pipefail
+set -uo pipefail
 cd "$(dirname "$0")/.."
 
 EDI_URL="${EDI_URL:-http://localhost:8095}"
 SAMPLES_DIR="scripts/demo-edi-samples"
+QUIET=false
 
-log()  { printf '\n\033[1;34m[demo-edi]\033[0m %s\n' "$*"; }
-warn() { printf '\033[1;33m[demo-edi] %s\033[0m\n' "$*"; }
-die()  { printf '\033[1;31m[demo-edi] %s\033[0m\n' "$*" >&2; exit 1; }
+while (( $# > 0 )); do
+  case "$1" in
+    --quiet|-q) QUIET=true; shift ;;
+    *) shift ;;
+  esac
+done
+
+RED=$'\e[31m'; GREEN=$'\e[32m'; YELLOW=$'\e[33m'; BLUE=$'\e[34m'; BOLD=$'\e[1m'; RST=$'\e[0m'
+
+log()   { printf '\n%s[demo-edi]%s %s\n' "$BLUE" "$RST" "$*"; }
+pass()  { printf '  %s✓%s %s\n' "$GREEN" "$RST" "$*"; PASSED=$((PASSED+1)); }
+fail()  { printf '  %s✗%s %s\n' "$RED"   "$RST" "$*"; FAILED=$((FAILED+1)); FAILED_LABELS+=("$*"); }
+skip()  { printf '  %s·%s %s\n' "$YELLOW" "$RST" "$*"; SKIPPED=$((SKIPPED+1)); }
+die()   { printf '%s[demo-edi] %s%s\n' "$RED" "$*" "$RST" >&2; exit 2; }
+
+PASSED=0
+FAILED=0
+SKIPPED=0
+FAILED_LABELS=()
 
 # --- Preflight ---------------------------------------------------------------
 command -v curl >/dev/null || die "curl is required"
-command -v jq >/dev/null || warn "jq not found — JSON output will be raw (brew install jq for pretty printing)"
+if ! command -v jq >/dev/null; then
+  die "jq is required for response assertions. Install with: brew install jq"
+fi
 
 if ! curl -sf "${EDI_URL}/actuator/health/liveness" >/dev/null 2>&1; then
-  die "edi-converter not reachable at ${EDI_URL}. Is the full-stack demo up? (./scripts/demo-all.sh --full)"
+  die "edi-converter not reachable at ${EDI_URL}. Boot the full stack first: ./scripts/demo-all.sh --full"
 fi
 
 log "edi-converter is up at ${EDI_URL}"
 
-# Pretty-print helper: use jq if available, else cat
-pretty() {
-  if command -v jq >/dev/null 2>&1; then
-    jq -r '.' 2>/dev/null || cat
+# --- Helper: call /detect, capture detected type ----------------------------
+detect_format() {
+  local content="$1"
+  local payload
+  payload=$(jq -n --arg c "$content" '{content:$c}')
+  curl -sf -X POST "${EDI_URL}/api/v1/convert/detect" \
+    -H 'Content-Type: application/json' \
+    --data-raw "$payload" 2>/dev/null
+}
+
+# --- Helper: call /convert with a target format -----------------------------
+convert_format() {
+  local content="$1" target="$2"
+  local payload
+  payload=$(jq -n --arg c "$content" --arg t "$target" '{content:$c, target:$t}')
+  curl -sf -X POST "${EDI_URL}/api/v1/convert/convert" \
+    -H 'Content-Type: application/json' \
+    --data-raw "$payload" 2>/dev/null
+}
+
+# --- Helper: assert JSON response contains a field ---------------------------
+# Usage: assert_contains "label" "$json" ".some.path" "expected-substring"
+assert_contains() {
+  local label="$1" json="$2" path="$3" expect="$4"
+  if [[ -z "$json" ]]; then
+    fail "$label — empty response from edi-converter"
+    return
+  fi
+  local val
+  val=$(echo "$json" | jq -r "$path // empty" 2>/dev/null)
+  if [[ -z "$val" ]]; then
+    fail "$label — path $path not found in response"
+    return
+  fi
+  if [[ "$val" == *"$expect"* ]]; then
+    pass "$label — $path contains '$expect'"
   else
-    cat
+    fail "$label — $path='$val' does not contain '$expect'"
   fi
 }
 
-# --- Sample → conversion pairs -----------------------------------------------
-# Each entry is:  sample-file | target-format | description
-SAMPLES=(
-  "x12-850-purchase-order.edi|JSON|X12 850 Purchase Order → JSON"
-  "x12-850-purchase-order.edi|XML|X12 850 Purchase Order → XML"
-  "x12-810-invoice.edi|JSON|X12 810 Invoice → JSON"
-  "edifact-orders.edi|JSON|EDIFACT ORDERS → JSON"
-  "hl7-adt-admission.hl7|JSON|HL7 ADT^A01 Admission → JSON"
-)
+# --- Helper: assert response is a non-empty JSON object / array --------------
+assert_nonempty_json() {
+  local label="$1" json="$2"
+  if [[ -z "$json" ]]; then
+    fail "$label — empty response"
+    return
+  fi
+  local len
+  len=$(echo "$json" | jq -r 'if type == "object" then (keys | length) elif type == "array" then length else 0 end' 2>/dev/null || echo 0)
+  if [[ "$len" -gt 0 ]]; then
+    pass "$label — response has $len top-level keys/items"
+  else
+    fail "$label — response is empty or not valid JSON"
+  fi
+}
 
-BAR='======================================================================'
+# =============================================================================
+# TEST 1: X12 850 Purchase Order → auto-detect + convert to JSON
+# =============================================================================
+log "Test 1: X12 850 Purchase Order"
+PATH1="${SAMPLES_DIR}/x12-850-purchase-order.edi"
+if [[ ! -f "$PATH1" ]]; then
+  skip "Missing sample file: $PATH1"
+else
+  CONTENT=$(cat "$PATH1")
 
-for entry in "${SAMPLES[@]}"; do
-  IFS='|' read -r file target label <<< "$entry"
-  path="${SAMPLES_DIR}/${file}"
+  DETECT=$(detect_format "$CONTENT" || true)
+  assert_contains "X12 850 detect" "$DETECT" '.documentType // .type // .format' 'X12'
 
-  [[ -f "$path" ]] || { warn "Missing sample: $path"; continue; }
+  JSON=$(convert_format "$CONTENT" 'JSON' || true)
+  assert_nonempty_json "X12 850 → JSON conversion" "$JSON"
+  # X12 850 must contain BEG (Beginning Segment for Purchase Order) somewhere
+  if [[ -n "$JSON" ]] && echo "$JSON" | jq -e '.. | strings? | select(. == "BEG" or contains("BEG"))' >/dev/null 2>&1; then
+    pass "X12 850 → JSON contains BEG segment reference"
+  else
+    fail "X12 850 → JSON missing BEG segment marker"
+  fi
+fi
 
-  printf '\n%s\n%s\n%s\n' "$BAR" " $label" "$BAR"
+# =============================================================================
+# TEST 2: X12 810 Invoice → auto-detect + convert to JSON
+# =============================================================================
+log "Test 2: X12 810 Invoice"
+PATH2="${SAMPLES_DIR}/x12-810-invoice.edi"
+if [[ ! -f "$PATH2" ]]; then
+  skip "Missing sample file: $PATH2"
+else
+  CONTENT=$(cat "$PATH2")
 
-  CONTENT=$(cat "$path")
+  DETECT=$(detect_format "$CONTENT" || true)
+  assert_contains "X12 810 detect" "$DETECT" '.documentType // .type // .format' 'X12'
 
-  # 1. Detect format
-  log "POST /api/v1/convert/detect"
-  DETECT=$(curl -sf -X POST "${EDI_URL}/api/v1/convert/detect" \
-    -H 'Content-Type: application/json' \
-    --data-raw "$(jq -n --arg c "$CONTENT" '{content:$c}' 2>/dev/null || printf '{"content": %s}' "$(printf '%s' "$CONTENT" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))' 2>/dev/null || echo '""')")" \
-    2>/dev/null || echo '{"error":"detect failed"}')
-  printf '  Detected: '
-  echo "$DETECT" | pretty
+  JSON=$(convert_format "$CONTENT" 'JSON' || true)
+  assert_nonempty_json "X12 810 → JSON conversion" "$JSON"
+  if [[ -n "$JSON" ]] && echo "$JSON" | jq -e '.. | strings? | select(. == "BIG" or contains("BIG"))' >/dev/null 2>&1; then
+    pass "X12 810 → JSON contains BIG segment reference"
+  else
+    fail "X12 810 → JSON missing BIG segment marker"
+  fi
+fi
 
-  # 2. Convert
-  log "POST /api/v1/convert/convert  (target=${target})"
-  PAYLOAD=$(jq -n --arg c "$CONTENT" --arg t "$target" '{content:$c, target:$t}' 2>/dev/null) || \
-    PAYLOAD="{\"content\":$(printf '%s' "$CONTENT" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))' 2>/dev/null || echo '""'),\"target\":\"${target}\"}"
-  RESULT=$(curl -sf -X POST "${EDI_URL}/api/v1/convert/convert" \
-    -H 'Content-Type: application/json' \
-    --data-raw "$PAYLOAD" \
-    2>/dev/null || echo '{"error":"convert failed"}')
-  echo "$RESULT" | pretty | head -40
-  echo "  (...output truncated at 40 lines)"
-done
+# =============================================================================
+# TEST 3: EDIFACT ORDERS → auto-detect + convert to JSON
+# =============================================================================
+log "Test 3: EDIFACT ORDERS"
+PATH3="${SAMPLES_DIR}/edifact-orders.edi"
+if [[ ! -f "$PATH3" ]]; then
+  skip "Missing sample file: $PATH3"
+else
+  CONTENT=$(cat "$PATH3")
 
-printf '\n%s\n' "$BAR"
-cat <<'EOF'
+  DETECT=$(detect_format "$CONTENT" || true)
+  assert_contains "EDIFACT detect" "$DETECT" '.documentType // .type // .format' 'EDIFACT'
 
-Try the same conversions in the UI:
-  1. Open http://localhost:3000 → EDI Translation → Convert tab
-  2. Copy the content of any file in scripts/demo-edi-samples/
-  3. Paste into the EDI Content textarea
-  4. Click Detect → pick a target → Convert
+  JSON=$(convert_format "$CONTENT" 'JSON' || true)
+  assert_nonempty_json "EDIFACT ORDERS → JSON conversion" "$JSON"
+  if [[ -n "$JSON" ]] && echo "$JSON" | jq -e '.. | strings? | select(. == "BGM" or contains("BGM"))' >/dev/null 2>&1; then
+    pass "EDIFACT ORDERS → JSON contains BGM segment reference"
+  else
+    fail "EDIFACT ORDERS → JSON missing BGM segment marker"
+  fi
+fi
 
-See scripts/demo-edi-samples/README.md for the full walkthrough including
-Explain, Validate, Heal, Diff, and Compliance tabs.
+# =============================================================================
+# TEST 4: HL7 ADT^A01 → auto-detect + convert to JSON
+# =============================================================================
+log "Test 4: HL7 ADT^A01"
+PATH4="${SAMPLES_DIR}/hl7-adt-admission.hl7"
+if [[ ! -f "$PATH4" ]]; then
+  skip "Missing sample file: $PATH4"
+else
+  CONTENT=$(cat "$PATH4")
 
-EOF
+  DETECT=$(detect_format "$CONTENT" || true)
+  assert_contains "HL7 detect" "$DETECT" '.documentType // .type // .format' 'HL7'
+
+  JSON=$(convert_format "$CONTENT" 'JSON' || true)
+  assert_nonempty_json "HL7 ADT → JSON conversion" "$JSON"
+  # HL7 ADT^A01 admissions always have a PID segment with patient info
+  if [[ -n "$JSON" ]] && echo "$JSON" | jq -e '.. | strings? | select(. == "PID" or contains("PID"))' >/dev/null 2>&1; then
+    pass "HL7 ADT → JSON contains PID segment reference"
+  else
+    fail "HL7 ADT → JSON missing PID segment marker"
+  fi
+  # Patient surname DOE should survive parsing
+  if [[ -n "$JSON" ]] && echo "$JSON" | grep -qi 'DOE'; then
+    pass "HL7 ADT → JSON preserves patient surname DOE"
+  else
+    fail "HL7 ADT → JSON lost patient surname DOE"
+  fi
+fi
+
+# =============================================================================
+# Summary
+# =============================================================================
+TOTAL=$((PASSED + FAILED + SKIPPED))
+printf '\n%s═══════════════════════════════════════════════════════════%s\n' "$BOLD" "$RST"
+printf ' Results:  %s%d passed%s   %s%d failed%s   %s%d skipped%s   (%d total)\n' \
+  "$GREEN" "$PASSED" "$RST" \
+  "$RED"   "$FAILED" "$RST" \
+  "$YELLOW" "$SKIPPED" "$RST" \
+  "$TOTAL"
+printf '%s═══════════════════════════════════════════════════════════%s\n' "$BOLD" "$RST"
+
+if (( FAILED > 0 )); then
+  printf '\n%sFailures:%s\n' "$RED" "$RST"
+  for label in "${FAILED_LABELS[@]}"; do
+    printf '  %s✗%s %s\n' "$RED" "$RST" "$label"
+  done
+  printf '\n'
+  exit 1
+fi
+
+printf '\n%sAll EDI conversion tests passed.%s\n\n' "$GREEN" "$RST"
+exit 0
