@@ -133,7 +133,7 @@ export default function PartnerDetail() {
 
   const { data: webhooks = [], isLoading: loadingWebhooks } = useQuery({
     queryKey: ['partner-webhooks', id],
-    queryFn: () => onboardingApi.get(`/api/partner-webhooks?partnerId=${id}`).then(r => r.data).catch(() => []),
+    queryFn: () => onboardingApi.get(`/api/partner-webhooks?partnerId=${id}`).then(r => r.data),
     enabled: activeTab === 'webhooks',
   })
 

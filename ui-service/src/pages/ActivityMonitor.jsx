@@ -617,7 +617,7 @@ export default function ActivityMonitor() {
   // Data fetching
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['activity-monitor', queryParams],
-    queryFn: () => onboardingApi.get('/api/activity-monitor', { params: queryParams }).then(r => r.data).catch(() => ({ content: [], totalElements: 0, totalPages: 0 })),
+    queryFn: () => onboardingApi.get('/api/activity-monitor', { params: queryParams }).then(r => r.data),
     placeholderData: keepPreviousData,
     refetchInterval: autoRefresh ? 30000 : false,
   })
@@ -679,14 +679,14 @@ export default function ActivityMonitor() {
   // Fetch flow execution detail for expanded row
   const { data: flowExecDetail } = useQuery({
     queryKey: ['flow-execution-detail', expandedTrackId],
-    queryFn: () => configApi.get(`/api/flow-executions/${expandedTrackId}`).then(r => r.data).catch(() => null),
+    queryFn: () => configApi.get(`/api/flow-executions/${expandedTrackId}`).then(r => r.data),
     enabled: !!expandedTrackId,
     staleTime: 10000,
   })
 
   const { data: flowEvents = [] } = useQuery({
     queryKey: ['flow-events', expandedTrackId],
-    queryFn: () => configApi.get(`/api/flow-executions/flow-events/${expandedTrackId}`).then(r => r.data).catch(() => []),
+    queryFn: () => configApi.get(`/api/flow-executions/flow-events/${expandedTrackId}`).then(r => r.data),
     enabled: !!expandedTrackId,
     staleTime: 10000,
   })
@@ -694,7 +694,7 @@ export default function ActivityMonitor() {
   // ── Scheduled Retries ─────────────────────────────────────────────────
   const { data: scheduledRetries = [], isLoading: loadingRetries } = useQuery({
     queryKey: ['activity-scheduled-retries'],
-    queryFn: () => onboardingApi.get('/api/flow-executions/scheduled-retries').then(r => r.data).catch(() => []),
+    queryFn: () => onboardingApi.get('/api/flow-executions/scheduled-retries').then(r => r.data),
     refetchInterval: 60000
   })
 

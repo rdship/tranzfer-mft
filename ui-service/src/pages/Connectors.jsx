@@ -140,7 +140,7 @@ export default function Connectors() {
 
   const { data: partners = [] } = useQuery({
     queryKey: ['partners-for-connector'],
-    queryFn: () => onboardingApi.get('/api/partners').then(r => r.data).catch(() => [])
+    queryFn: () => onboardingApi.get('/api/partners').then(r => r.data)
   })
 
   // ── Admin connector mutations ──

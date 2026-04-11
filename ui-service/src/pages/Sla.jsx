@@ -43,12 +43,12 @@ export default function Sla() {
 
   const { data: partners = [] } = useQuery({
     queryKey: ['partners-list'],
-    queryFn: () => onboardingApi.get('/api/partners').then(r => r.data).catch(() => [])
+    queryFn: () => onboardingApi.get('/api/partners').then(r => r.data)
   })
 
   const { data: servers = [] } = useQuery({
     queryKey: ['servers-list'],
-    queryFn: () => onboardingApi.get('/api/servers?activeOnly=true').then(r => r.data).catch(() => [])
+    queryFn: () => onboardingApi.get('/api/servers?activeOnly=true').then(r => r.data)
   })
 
   const filteredServers = useMemo(() => {

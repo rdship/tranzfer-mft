@@ -32,7 +32,7 @@ export default function Scheduler() {
   const [sortDir, setSortDir] = useState('asc')
 
   const { data: tasks = [], isLoading, isError, refetch } = useQuery({ queryKey: ['scheduler'], queryFn: () => configApi.get('/api/scheduler/all').then(r => r.data), retry: 1 })
-  const { data: flows = [] } = useQuery({ queryKey: ['flows-for-scheduler'], queryFn: () => configApi.get('/api/flows').then(r => r.data).catch(() => []), staleTime: 60000 })
+  const { data: flows = [] } = useQuery({ queryKey: ['flows-for-scheduler'], queryFn: () => configApi.get('/api/flows').then(r => r.data), staleTime: 60000 })
 
   const createMut = useMutation({
     mutationFn: (d) => configApi.post('/api/scheduler', d).then(r => r.data),

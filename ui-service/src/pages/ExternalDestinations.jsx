@@ -36,11 +36,11 @@ export default function ExternalDestinations() {
   // Keystore queries for protocol-specific dropdowns
   const { data: sshKeys = [] } = useQuery({
     queryKey: ['keystore-ssh-keys'],
-    queryFn: () => keystoreApi.get('/api/v1/keys?type=SSH_USER').then(r => r.data).catch(() => [])
+    queryFn: () => keystoreApi.get('/api/v1/keys?type=SSH_USER').then(r => r.data)
   })
   const { data: tlsCerts = [] } = useQuery({
     queryKey: ['keystore-tls-certs'],
-    queryFn: () => keystoreApi.get('/api/v1/keys?type=TLS').then(r => r.data).catch(() => [])
+    queryFn: () => keystoreApi.get('/api/v1/keys?type=TLS').then(r => r.data)
   })
 
   // Reset protocol-specific fields when type changes

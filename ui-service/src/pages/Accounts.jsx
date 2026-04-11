@@ -790,7 +790,7 @@ function AccountTransfers({ username, navigate, onTrackClick }) {
     queryKey: ['account-transfers', username],
     queryFn: () => onboardingApi.get('/api/activity-monitor', {
       params: { sourceUsername: username, size: 10 }
-    }).then(r => r.data).catch(() => ({ content: [] })),
+    }).then(r => r.data),
     enabled: !!username,
     staleTime: 10_000,
   })

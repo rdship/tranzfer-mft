@@ -18,7 +18,7 @@ export default function Storage() {
     queryFn: () => storageApi.get('/api/v1/storage/lifecycle/actions').then(r => r.data), retry: 1 })
 
   const { data: drpStats = null } = useQuery({ queryKey: ['drp-stats'],
-    queryFn: () => storageApi.get('/api/v1/storage/drp-stats').then(r => r.data).catch(() => null),
+    queryFn: () => storageApi.get('/api/v1/storage/drp-stats').then(r => r.data),
     refetchInterval: 30000 })
 
   const isError = metricsError || objectsError || actionsError

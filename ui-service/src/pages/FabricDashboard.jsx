@@ -72,8 +72,7 @@ export default function FabricDashboard() {
     queryFn: () =>
       onboardingApi
         .get('/api/activity-monitor', { params: { page: 0, size: 10, sortBy: 'uploadedAt', sortDir: 'DESC' } })
-        .then(r => r.data)
-        .catch(() => ({ content: [] })),
+        .then(r => r.data),
     refetchInterval: 5000,
   })
 

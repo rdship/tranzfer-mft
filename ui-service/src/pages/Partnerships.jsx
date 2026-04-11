@@ -35,7 +35,7 @@ export default function Partnerships() {
 
   const { data: partners = [] } = useQuery({
     queryKey: ['partners-for-partnership'],
-    queryFn: () => onboardingApi.get('/api/partners').then(r => r.data?.content || r.data || []).catch(() => []),
+    queryFn: () => onboardingApi.get('/api/partners').then(r => r.data?.content || r.data || []),
     staleTime: 300000
   })
 

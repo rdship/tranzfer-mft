@@ -63,15 +63,27 @@ export default function Compliance() {
   const [violationFilter, setViolationFilter] = useState({ severity: '', resolved: 'false', serverId: '', username: '' })
 
   // ── Queries ──
+  // Previously every query on this page used `.catch(() => [])` which
+  // silently hid config-service outages. We now surface errors via a
+  // dedup'd toast so the operator is told why their list is empty.
+
+  const toastOnError = (id, label) => (e) => {
+    const msg = e?.response?.data?.message || e?.message || 'request failed'
+    toast.error(`${label}: ${msg}`, { id })
+  }
 
   const { data: profiles = [], isLoading: loadingProfiles } = useQuery({
     queryKey: ['compliance-profiles'],
-    queryFn: () => configApi.get('/api/compliance/profiles').then(r => r.data).catch(() => [])
+    queryFn: () => configApi.get('/api/compliance/profiles').then(r => r.data),
+    retry: 1,
+    onError: toastOnError('compliance-profiles-err', "Couldn't load compliance profiles"),
   })
 
   const { data: allProfiles = [] } = useQuery({
     queryKey: ['compliance-profiles-all'],
-    queryFn: () => configApi.get('/api/compliance/profiles/all').then(r => r.data).catch(() => [])
+    queryFn: () => configApi.get('/api/compliance/profiles/all').then(r => r.data),
+    retry: 1,
+    onError: toastOnError('compliance-profiles-all-err', "Couldn't load full profile list"),
   })
 
   const violationParams = new URLSearchParams()
@@ -83,26 +95,33 @@ export default function Compliance() {
     queryFn: () => {
       // Use server-specific endpoint when filtering by server
       if (violationFilter.serverId) {
-        return configApi.get(`/api/compliance/violations/server/${violationFilter.serverId}?${violationParams}`).then(r => r.data).catch(() => [])
+        return configApi.get(`/api/compliance/violations/server/${violationFilter.serverId}?${violationParams}`).then(r => r.data)
       }
       // Use user-specific endpoint when filtering by username
       if (violationFilter.username) {
-        return configApi.get(`/api/compliance/violations/user/${encodeURIComponent(violationFilter.username)}?${violationParams}`).then(r => r.data).catch(() => [])
+        return configApi.get(`/api/compliance/violations/user/${encodeURIComponent(violationFilter.username)}?${violationParams}`).then(r => r.data)
       }
-      return configApi.get(`/api/compliance/violations?${violationParams}`).then(r => r.data).catch(() => [])
+      return configApi.get(`/api/compliance/violations?${violationParams}`).then(r => r.data)
     },
-    refetchInterval: 15000
+    refetchInterval: 15000,
+    retry: 1,
+    onError: toastOnError('compliance-violations-err', "Couldn't load violations"),
   })
 
   const { data: violationCount = {} } = useQuery({
     queryKey: ['compliance-violation-count'],
-    queryFn: () => configApi.get('/api/compliance/violations/count').then(r => r.data).catch(() => ({ unresolved: 0 })),
-    refetchInterval: 15000
+    queryFn: () => configApi.get('/api/compliance/violations/count').then(r => r.data),
+    refetchInterval: 15000,
+    retry: 1,
+    // Count query — keep silent to avoid toast storm, sidebar badge disappears
+    // which is its own signal.
   })
 
   const { data: servers = [] } = useQuery({
     queryKey: ['server-instances'],
-    queryFn: () => configApi.get('/api/servers').then(r => r.data).catch(() => [])
+    queryFn: () => configApi.get('/api/servers').then(r => r.data),
+    retry: 1,
+    onError: toastOnError('servers-err', "Couldn't load server instances"),
   })
 
   // ── Mutations ──

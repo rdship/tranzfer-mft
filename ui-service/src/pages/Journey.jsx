@@ -498,12 +498,12 @@ export default function Journey() {
 
   const { data: execDetail } = useQuery({
     queryKey: ['flow-exec-detail', searchId], enabled: !!searchId,
-    queryFn: () => onboardingApi.get(`/api/flow-executions/${searchId}`).then(r => r.data).catch(() => null)
+    queryFn: () => onboardingApi.get(`/api/flow-executions/${searchId}`).then(r => r.data)
   })
 
   const { data: stepSnapshots = [] } = useQuery({
     queryKey: ['flow-steps-for-action', searchId], enabled: !!searchId,
-    queryFn: () => onboardingApi.get(`/api/flow-steps/${searchId}`).then(r => r.data).catch(() => [])
+    queryFn: () => onboardingApi.get(`/api/flow-steps/${searchId}`).then(r => r.data)
   })
 
   const { data: recent = [] } = useQuery({

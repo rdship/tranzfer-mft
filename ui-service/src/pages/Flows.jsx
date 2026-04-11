@@ -686,7 +686,7 @@ export default function Flows() {
   // ─── Queries ───
   const { data: flowsData, isLoading } = useQuery({
     queryKey: ['flows'],
-    queryFn: () => configApi.get('/api/flows').then(r => r.data).catch(() => [])
+    queryFn: () => configApi.get('/api/flows').then(r => r.data)
   })
   const flows = flowsData || []
   // Skeleton only on first fetch; 100ms flash guard (Stability).
@@ -695,7 +695,7 @@ export default function Flows() {
 
   const { data: executions = [] } = useQuery({
     queryKey: ['flow-executions'],
-    queryFn: () => configApi.get('/api/flows/executions?size=20').then(r => r.data?.content || r.data || []).catch(() => []),
+    queryFn: () => configApi.get('/api/flows/executions?size=20').then(r => r.data?.content || r.data || []),
     refetchInterval: 10000
   })
 
@@ -811,31 +811,31 @@ export default function Flows() {
 
   const { data: scheduledRetries = [] } = useQuery({
     queryKey: ['scheduled-retries'],
-    queryFn: () => onboardingApi.get('/api/flow-executions/scheduled-retries').then(r => r.data).catch(() => []),
+    queryFn: () => onboardingApi.get('/api/flow-executions/scheduled-retries').then(r => r.data),
     refetchInterval: 60000  // was 30s — scheduled retries change infrequently
   })
 
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounts-for-flows'],
-    queryFn: () => onboardingApi.get('/api/accounts').then(r => r.data).catch(() => []),
+    queryFn: () => onboardingApi.get('/api/accounts').then(r => r.data),
     staleTime: 60000
   })
 
   const { data: externalDests = [] } = useQuery({
     queryKey: ['ext-dests-for-flows'],
-    queryFn: () => configApi.get('/api/external-destinations').then(r => r.data).catch(() => []),
+    queryFn: () => configApi.get('/api/external-destinations').then(r => r.data),
     staleTime: 60000
   })
 
   const { data: servers = [] } = useQuery({
     queryKey: ['servers-for-flows'],
-    queryFn: () => onboardingApi.get('/api/servers?activeOnly=true').then(r => r.data).catch(() => []),
+    queryFn: () => onboardingApi.get('/api/servers?activeOnly=true').then(r => r.data),
     staleTime: 60000
   })
 
   const { data: partners = [] } = useQuery({
     queryKey: ['partners-for-flows'],
-    queryFn: () => onboardingApi.get('/api/partners').then(r => r.data?.content || r.data || []).catch(() => []),
+    queryFn: () => onboardingApi.get('/api/partners').then(r => r.data?.content || r.data || []),
     staleTime: 300000
   })
 

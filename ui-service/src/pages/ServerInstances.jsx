@@ -769,13 +769,13 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
 
   const { data: complianceProfiles = [] } = useQuery({
     queryKey: ['compliance-profiles-picker'],
-    queryFn: () => configApi.get('/api/compliance/profiles').then(r => r.data).catch(() => []),
+    queryFn: () => configApi.get('/api/compliance/profiles').then(r => r.data),
     staleTime: 300_000
   })
 
   const { data: securityProfiles = [] } = useQuery({
     queryKey: ['security-profiles-picker'],
-    queryFn: () => configApi.get('/api/listener-security-policies').then(r => r.data).catch(() => []),
+    queryFn: () => configApi.get('/api/listener-security-policies').then(r => r.data),
     staleTime: 300_000
   })
 
