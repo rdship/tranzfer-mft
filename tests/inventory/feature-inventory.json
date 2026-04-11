@@ -1,0 +1,4508 @@
+{
+  "generated_at": "2026-04-11T15:06:36.319036",
+  "summary": {
+    "ui_routes": 72,
+    "sidebar_links": 60,
+    "api_endpoints": 628,
+    "db_entities": 103,
+    "services_with_ports": 19
+  },
+  "ui_routes": [
+    "/",
+    "/2fa",
+    "/accounts",
+    "/activity",
+    "/activity-monitor",
+    "/analytics",
+    "/api-console",
+    "/as2-partnerships",
+    "/auto-onboarding",
+    "/blockchain",
+    "/cas-dedup",
+    "/circuit-breakers",
+    "/cluster",
+    "/compliance",
+    "/config-export",
+    "/connectors",
+    "/dashboard",
+    "/db-advisory",
+    "/dlq",
+    "/dmz-proxy",
+    "/edi",
+    "/edi-mapping",
+    "/edi-partners",
+    "/edi-training",
+    "/external-destinations",
+    "/fabric",
+    "/file-manager",
+    "/flows",
+    "/folder-mappings",
+    "/folder-templates",
+    "/gateway",
+    "/journey",
+    "/keystore",
+    "/license",
+    "/live",
+    "/login",
+    "/logs",
+    "/migration",
+    "/monitoring",
+    "/notifications",
+    "/observatory",
+    "/operations",
+    "/p2p",
+    "/partner-setup",
+    "/partners",
+    "/partners/:id",
+    "/platform-config",
+    "/portal",
+    "/portal/login",
+    "/predictions",
+    "/proxy-groups",
+    "/proxy-intelligence",
+    "/quarantine",
+    "/recommendations",
+    "/scheduler",
+    "/screening",
+    "/security-profiles",
+    "/sentinel",
+    "/server-instances",
+    "/services",
+    "/settings",
+    "/sla",
+    "/storage",
+    "/tenants",
+    "/terminal",
+    "/threat-intelligence",
+    "/transfers",
+    "/users",
+    "/vfs-storage"
+  ],
+  "sidebar_links": [
+    "/2fa",
+    "/accounts",
+    "/analytics",
+    "/api-console",
+    "/as2-partnerships",
+    "/auto-onboarding",
+    "/blockchain",
+    "/cas-dedup",
+    "/circuit-breakers",
+    "/cluster",
+    "/compliance",
+    "/config-export",
+    "/connectors",
+    "/db-advisory",
+    "/dlq",
+    "/dmz-proxy",
+    "/edi",
+    "/edi-mapping",
+    "/edi-partners",
+    "/edi-training",
+    "/external-destinations",
+    "/file-manager",
+    "/flows",
+    "/folder-mappings",
+    "/folder-templates",
+    "/gateway",
+    "/keystore",
+    "/license",
+    "/logs",
+    "/migration",
+    "/monitoring",
+    "/notifications",
+    "/observatory",
+    "/operations",
+    "/operations/activity",
+    "/operations/fabric",
+    "/operations/journey",
+    "/operations/live",
+    "/p2p",
+    "/partner-setup",
+    "/partners",
+    "/platform-config",
+    "/predictions",
+    "/proxy-groups",
+    "/proxy-intelligence",
+    "/quarantine",
+    "/recommendations",
+    "/scheduler",
+    "/screening",
+    "/security-profiles",
+    "/sentinel",
+    "/server-instances",
+    "/services",
+    "/sla",
+    "/storage",
+    "/tenants",
+    "/terminal",
+    "/threat-intelligence",
+    "/users",
+    "/vfs-storage"
+  ],
+  "api_endpoints": [
+    {
+      "service": "ai-engine",
+      "method": "DELETE",
+      "path": "/api/v1/edi/maps/{X}",
+      "controller": "PartnerMapController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "DELETE",
+      "path": "/api/v1/edi/training/samples/{X}",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "DELETE",
+      "path": "/api/v1/proxy/allowlist/{X}",
+      "controller": "ProxyIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "DELETE",
+      "path": "/api/v1/proxy/blocklist/{X}",
+      "controller": "ProxyIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "DELETE",
+      "path": "/api/v1/threats/indicators/{X}",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/ai/anomalies",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/ai/health",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/ai/intelligence/signals",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/ai/intelligence/status",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/ai/partners",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/ai/partners/{X}",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/ai/recommendations",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/ai/recommendations/summary",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/ai/remediation/actions",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/ai/self-driving/actions",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/ai/self-driving/status",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/ai/sla/forecasts",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/edi/correction/health",
+      "controller": "MappingCorrectionController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/edi/correction/sessions",
+      "controller": "MappingCorrectionController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/edi/correction/sessions/{X}",
+      "controller": "MappingCorrectionController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/edi/correction/sessions/{X}/history",
+      "controller": "MappingCorrectionController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/edi/maps/partner/{X}",
+      "controller": "PartnerMapController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/edi/maps/{X}",
+      "controller": "PartnerMapController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/edi/maps/{X}/versions",
+      "controller": "PartnerMapController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/edi/training/health",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/edi/training/maps",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/edi/training/maps/history",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/edi/training/maps/lookup",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/edi/training/maps/{X}",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/edi/training/samples",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/edi/training/samples/counts",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/edi/training/samples/partner/{X}",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/edi/training/samples/{X}",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/edi/training/schemas",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/edi/training/sessions",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/edi/training/sessions/map",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/edi/training/sessions/{X}",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/edi/types",
+      "controller": "EdiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/proxy/allowlist",
+      "controller": "ProxyIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/proxy/blocklist",
+      "controller": "ProxyIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/proxy/dashboard",
+      "controller": "ProxyIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/proxy/events",
+      "controller": "ProxyIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/proxy/geo/stats",
+      "controller": "ProxyIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/proxy/health",
+      "controller": "ProxyIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/proxy/ip/{X}",
+      "controller": "ProxyIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/proxy/overhead-estimates",
+      "controller": "ProxyIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/proxy/verdicts",
+      "controller": "ProxyIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/threats/agents",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/threats/chains",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/threats/chains/{X}",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/threats/dashboard",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/threats/geo/resolve/{X}",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/threats/graph",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/threats/graph/path",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/threats/graph/related/{X}",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/threats/graph/stats",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/threats/health",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/threats/incidents",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/threats/incidents/{X}",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/threats/indicators",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/threats/indicators/{X}",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/threats/mitre/coverage",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/threats/mitre/mapping",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/threats/mitre/technique/{X}",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/threats/mitre/techniques",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/threats/playbooks",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "GET",
+      "path": "/api/v1/threats/playbooks/executions",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "PATCH",
+      "path": "/api/v1/threats/incidents/{X}",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/ai/ask",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/ai/classify",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/ai/classify/text",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/ai/detect-format",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/ai/nlp/command",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/ai/nlp/explain",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/ai/nlp/suggest-flow",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/ai/partners/{X}/check",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/ai/risk-score",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/ai/smart-retry",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/ai/threat-score",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/ai/validate",
+      "controller": "AiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/correction/sessions",
+      "controller": "MappingCorrectionController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/correction/sessions/{X}/approve",
+      "controller": "MappingCorrectionController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/correction/sessions/{X}/correct",
+      "controller": "MappingCorrectionController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/correction/sessions/{X}/reject",
+      "controller": "MappingCorrectionController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/correction/sessions/{X}/test",
+      "controller": "MappingCorrectionController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/detect",
+      "controller": "EdiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/maps/build-from-samples",
+      "controller": "MapChatController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/maps/chat",
+      "controller": "MapChatController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/maps/clone",
+      "controller": "PartnerMapController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/maps/{X}/activate",
+      "controller": "PartnerMapController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/maps/{X}/deactivate",
+      "controller": "PartnerMapController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/maps/{X}/feedback",
+      "controller": "MapChatController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/maps/{X}/test",
+      "controller": "PartnerMapController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/training/generate-from-schema",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/training/maps/refresh-cache",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/training/maps/rollback",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/training/quick-train",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/training/samples",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/training/samples/bulk",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/training/samples/{X}/validate",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/training/seed",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/training/train",
+      "controller": "EdiMapTrainingController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/translate/csv",
+      "controller": "EdiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/translate/json",
+      "controller": "EdiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/edi/validate",
+      "controller": "EdiController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/proxy/allowlist",
+      "controller": "ProxyIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/proxy/blocklist",
+      "controller": "ProxyIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/proxy/event",
+      "controller": "ProxyIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/proxy/events",
+      "controller": "ProxyIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/proxy/geo/high-risk-countries",
+      "controller": "ProxyIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/proxy/geo/tor-nodes",
+      "controller": "ProxyIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/proxy/geo/vpn-prefixes",
+      "controller": "ProxyIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/proxy/verdict",
+      "controller": "ProxyIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/proxy/verdicts/batch",
+      "controller": "ProxyIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/threats/agents/{X}/pause",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/threats/agents/{X}/trigger",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/threats/analyze/anomaly",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/threats/analyze/network",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/threats/hunt",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/threats/incidents",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/threats/indicators",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "POST",
+      "path": "/api/v1/threats/playbooks/{X}/trigger",
+      "controller": "ThreatIntelligenceController.java"
+    },
+    {
+      "service": "ai-engine",
+      "method": "PUT",
+      "path": "/api/v1/edi/maps/{X}",
+      "controller": "PartnerMapController.java"
+    },
+    {
+      "service": "analytics-service",
+      "method": "DELETE",
+      "path": "/api/v1/analytics/alerts/{X}",
+      "controller": "AnalyticsController.java"
+    },
+    {
+      "service": "analytics-service",
+      "method": "GET",
+      "path": "/api/v1/analytics/alerts",
+      "controller": "AnalyticsController.java"
+    },
+    {
+      "service": "analytics-service",
+      "method": "GET",
+      "path": "/api/v1/analytics/dashboard",
+      "controller": "AnalyticsController.java"
+    },
+    {
+      "service": "analytics-service",
+      "method": "GET",
+      "path": "/api/v1/analytics/dedup-stats",
+      "controller": "AnalyticsController.java"
+    },
+    {
+      "service": "analytics-service",
+      "method": "GET",
+      "path": "/api/v1/analytics/observatory/public",
+      "controller": "ObservatoryController.java"
+    },
+    {
+      "service": "analytics-service",
+      "method": "GET",
+      "path": "/api/v1/analytics/observatory/step-latency",
+      "controller": "ObservatoryController.java"
+    },
+    {
+      "service": "analytics-service",
+      "method": "GET",
+      "path": "/api/v1/analytics/predictions",
+      "controller": "AnalyticsController.java"
+    },
+    {
+      "service": "analytics-service",
+      "method": "GET",
+      "path": "/api/v1/analytics/predictions/{X}",
+      "controller": "AnalyticsController.java"
+    },
+    {
+      "service": "analytics-service",
+      "method": "GET",
+      "path": "/api/v1/analytics/timeseries",
+      "controller": "AnalyticsController.java"
+    },
+    {
+      "service": "analytics-service",
+      "method": "POST",
+      "path": "/api/v1/analytics/alerts",
+      "controller": "AnalyticsController.java"
+    },
+    {
+      "service": "analytics-service",
+      "method": "PUT",
+      "path": "/api/v1/analytics/alerts/{X}",
+      "controller": "AnalyticsController.java"
+    },
+    {
+      "service": "as2-service",
+      "method": "GET",
+      "path": "/internal/health",
+      "controller": "HealthController.java"
+    },
+    {
+      "service": "as2-service",
+      "method": "POST",
+      "path": "/as2/mdn",
+      "controller": "As2MdnCallbackController.java"
+    },
+    {
+      "service": "as2-service",
+      "method": "POST",
+      "path": "/as2/receive",
+      "controller": "As2InboundController.java"
+    },
+    {
+      "service": "as2-service",
+      "method": "POST",
+      "path": "/as4/receive",
+      "controller": "As4InboundController.java"
+    },
+    {
+      "service": "as2-service",
+      "method": "POST",
+      "path": "/internal/files/receive",
+      "controller": "FileReceiveController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "DELETE",
+      "path": "/api/as2-partnerships/{X}",
+      "controller": "As2PartnershipController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "DELETE",
+      "path": "/api/compliance/profiles/{X}",
+      "controller": "ComplianceController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "DELETE",
+      "path": "/api/connectors/{X}",
+      "controller": "ConnectorController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "DELETE",
+      "path": "/api/delivery-endpoints/{X}",
+      "controller": "DeliveryEndpointController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "DELETE",
+      "path": "/api/encryption-keys/{X}",
+      "controller": "EncryptionKeyController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "DELETE",
+      "path": "/api/external-destinations/{X}",
+      "controller": "ExternalDestinationController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "DELETE",
+      "path": "/api/flows/{X}",
+      "controller": "FileFlowController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "DELETE",
+      "path": "/api/folder-templates/{X}",
+      "controller": "FolderTemplateController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "DELETE",
+      "path": "/api/legacy-servers/{X}",
+      "controller": "LegacyServerController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "DELETE",
+      "path": "/api/listener-security-policies/{X}",
+      "controller": "ListenerSecurityPolicyController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "DELETE",
+      "path": "/api/platform-settings/{X}",
+      "controller": "PlatformSettingsController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "DELETE",
+      "path": "/api/scheduler/{X}",
+      "controller": "SchedulerController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "DELETE",
+      "path": "/api/security-profiles/{X}",
+      "controller": "SecurityProfileController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "DELETE",
+      "path": "/api/servers/{X}",
+      "controller": "ServerConfigController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "DELETE",
+      "path": "/api/sla/{X}",
+      "controller": "SlaController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "DELETE",
+      "path": "/api/v1/migration/partners/{X}/shadow",
+      "controller": "MigrationController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/activity/events",
+      "controller": "ActivityController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/activity/snapshot",
+      "controller": "ActivityController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/activity/transfers",
+      "controller": "ActivityController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/as2-partnerships/public",
+      "controller": "As2PartnershipController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/as2-partnerships/{X}",
+      "controller": "As2PartnershipController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/compliance/profiles",
+      "controller": "ComplianceController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/compliance/profiles/all",
+      "controller": "ComplianceController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/compliance/profiles/{X}",
+      "controller": "ComplianceController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/compliance/violations",
+      "controller": "ComplianceController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/compliance/violations/count",
+      "controller": "ComplianceController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/compliance/violations/server/{X}",
+      "controller": "ComplianceController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/compliance/violations/user/{X}",
+      "controller": "ComplianceController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/connectors/public",
+      "controller": "ConnectorController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/connectors/types",
+      "controller": "ConnectorController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/delivery-endpoints/auth-types",
+      "controller": "DeliveryEndpointController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/delivery-endpoints/protocols",
+      "controller": "DeliveryEndpointController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/delivery-endpoints/proxy-types",
+      "controller": "DeliveryEndpointController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/delivery-endpoints/public",
+      "controller": "DeliveryEndpointController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/delivery-endpoints/summary",
+      "controller": "DeliveryEndpointController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/delivery-endpoints/{X}",
+      "controller": "DeliveryEndpointController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/encryption-keys/public",
+      "controller": "EncryptionKeyController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/encryption-keys/{X}",
+      "controller": "EncryptionKeyController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/external-destinations/public",
+      "controller": "ExternalDestinationController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/external-destinations/{X}",
+      "controller": "ExternalDestinationController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/flows/executions",
+      "controller": "FileFlowController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/flows/executions/{X}",
+      "controller": "FileFlowController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/flows/functions/catalog",
+      "controller": "FileFlowController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/flows/functions/{X}/export",
+      "controller": "FileFlowController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/flows/match-fields",
+      "controller": "FileFlowController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/flows/public",
+      "controller": "FileFlowController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/flows/step-types",
+      "controller": "FileFlowController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/flows/{X}",
+      "controller": "FileFlowController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/folder-templates/export",
+      "controller": "FolderTemplateController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/folder-templates/public",
+      "controller": "FolderTemplateController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/folder-templates/{X}",
+      "controller": "FolderTemplateController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/folder-templates/{X}/export",
+      "controller": "FolderTemplateController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/legacy-servers/public",
+      "controller": "LegacyServerController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/legacy-servers/{X}",
+      "controller": "LegacyServerController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/listener-security-policies/destination/{X}",
+      "controller": "ListenerSecurityPolicyController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/listener-security-policies/public",
+      "controller": "ListenerSecurityPolicyController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/listener-security-policies/server/{X}",
+      "controller": "ListenerSecurityPolicyController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/listener-security-policies/{X}",
+      "controller": "ListenerSecurityPolicyController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/platform-settings/@Operation(summary",
+      "controller": "PlatformSettingsController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/platform-settings/categories",
+      "controller": "PlatformSettingsController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/platform-settings/environments",
+      "controller": "PlatformSettingsController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/platform-settings/services",
+      "controller": "PlatformSettingsController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/platform-settings/{X}",
+      "controller": "PlatformSettingsController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/scheduler/all",
+      "controller": "SchedulerController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/scheduler/public",
+      "controller": "SchedulerController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/scheduler/{X}",
+      "controller": "SchedulerController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/security-profiles/public",
+      "controller": "SecurityProfileController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/security-profiles/{X}",
+      "controller": "SecurityProfileController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/servers/@Operation(summary",
+      "controller": "ServerConfigController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/servers/{X}",
+      "controller": "ServerConfigController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/sla/breaches",
+      "controller": "SlaController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/sla/public",
+      "controller": "SlaController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/v1/migration/connection-stats",
+      "controller": "MigrationController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/v1/migration/dashboard",
+      "controller": "MigrationController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/v1/migration/partners",
+      "controller": "MigrationController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/v1/migration/partners/{X}",
+      "controller": "MigrationController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/v1/migration/partners/{X}/connections",
+      "controller": "MigrationController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/v1/migration/partners/{X}/events",
+      "controller": "MigrationController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/vfs/accounts/{X}/usage",
+      "controller": "VfsStorageController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/vfs/buckets",
+      "controller": "VfsStorageController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/vfs/dashboard",
+      "controller": "VfsStorageController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/vfs/intents/health",
+      "controller": "VfsStorageController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "GET",
+      "path": "/api/vfs/intents/recent",
+      "controller": "VfsStorageController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "PATCH",
+      "path": "/api/as2-partnerships/{X}/toggle",
+      "controller": "As2PartnershipController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "PATCH",
+      "path": "/api/delivery-endpoints/{X}/toggle",
+      "controller": "DeliveryEndpointController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "PATCH",
+      "path": "/api/flows/{X}/toggle",
+      "controller": "FileFlowController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "PATCH",
+      "path": "/api/platform-settings/{X}/value",
+      "controller": "PlatformSettingsController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "PATCH",
+      "path": "/api/scheduler/{X}/toggle",
+      "controller": "SchedulerController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "PATCH",
+      "path": "/api/servers/{X}/active",
+      "controller": "ServerConfigController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/as2-partnerships/@ResponseStatus(HttpStatus.CREATED",
+      "controller": "As2PartnershipController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/compliance/profiles",
+      "controller": "ComplianceController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/compliance/violations/{X}/resolve",
+      "controller": "ComplianceController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/connectors/public",
+      "controller": "ConnectorController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/connectors/{X}/test",
+      "controller": "ConnectorController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/delivery-endpoints/public",
+      "controller": "DeliveryEndpointController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/encryption-keys/@ResponseStatus(HttpStatus.CREATED",
+      "controller": "EncryptionKeyController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/external-destinations/@ResponseStatus(HttpStatus.CREATED",
+      "controller": "ExternalDestinationController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/flows/functions/import",
+      "controller": "FileFlowController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/flows/public",
+      "controller": "FileFlowController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/flows/test-match",
+      "controller": "FileFlowController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/flows/validate-criteria",
+      "controller": "FileFlowController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/folder-templates/@ResponseStatus(HttpStatus.CREATED",
+      "controller": "FolderTemplateController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/folder-templates/import",
+      "controller": "FolderTemplateController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/legacy-servers/@ResponseStatus(HttpStatus.CREATED",
+      "controller": "LegacyServerController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/listener-security-policies/@ResponseStatus(HttpStatus.CREATED",
+      "controller": "ListenerSecurityPolicyController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/platform-settings/@ResponseStatus(HttpStatus.CREATED",
+      "controller": "PlatformSettingsController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/platform-settings/clone",
+      "controller": "PlatformSettingsController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/scheduler/public",
+      "controller": "SchedulerController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/security-profiles/public",
+      "controller": "SecurityProfileController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/servers/@ResponseStatus(HttpStatus.CREATED",
+      "controller": "ServerConfigController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/sla/public",
+      "controller": "SlaController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/v1/migration/audit-connection",
+      "controller": "MigrationController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/v1/migration/partners/{X}/complete",
+      "controller": "MigrationController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/v1/migration/partners/{X}/rollback",
+      "controller": "MigrationController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/v1/migration/partners/{X}/shadow",
+      "controller": "MigrationController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/v1/migration/partners/{X}/start",
+      "controller": "MigrationController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/v1/migration/partners/{X}/verify",
+      "controller": "MigrationController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "POST",
+      "path": "/api/v1/migration/partners/{X}/verify/record",
+      "controller": "MigrationController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "PUT",
+      "path": "/api/as2-partnerships/{X}",
+      "controller": "As2PartnershipController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "PUT",
+      "path": "/api/compliance/profiles/{X}",
+      "controller": "ComplianceController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "PUT",
+      "path": "/api/compliance/servers/{X}/profile",
+      "controller": "ComplianceController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "PUT",
+      "path": "/api/connectors/{X}",
+      "controller": "ConnectorController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "PUT",
+      "path": "/api/delivery-endpoints/{X}",
+      "controller": "DeliveryEndpointController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "PUT",
+      "path": "/api/external-destinations/{X}",
+      "controller": "ExternalDestinationController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "PUT",
+      "path": "/api/flows/{X}",
+      "controller": "FileFlowController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "PUT",
+      "path": "/api/folder-templates/{X}",
+      "controller": "FolderTemplateController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "PUT",
+      "path": "/api/legacy-servers/{X}",
+      "controller": "LegacyServerController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "PUT",
+      "path": "/api/listener-security-policies/{X}",
+      "controller": "ListenerSecurityPolicyController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "PUT",
+      "path": "/api/platform-settings/{X}",
+      "controller": "PlatformSettingsController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "PUT",
+      "path": "/api/scheduler/{X}",
+      "controller": "SchedulerController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "PUT",
+      "path": "/api/security-profiles/{X}",
+      "controller": "SecurityProfileController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "PUT",
+      "path": "/api/servers/{X}",
+      "controller": "ServerConfigController.java"
+    },
+    {
+      "service": "config-service",
+      "method": "PUT",
+      "path": "/api/sla/{X}",
+      "controller": "SlaController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "DELETE",
+      "path": "/api/proxy/mappings/{X}",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "DELETE",
+      "path": "/api/proxy/mappings/{X}/security/blacklist/{X}",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "DELETE",
+      "path": "/api/proxy/mappings/{X}/security/whitelist/{X}",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "GET",
+      "path": "/api/proxy/audit/stats",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "GET",
+      "path": "/api/proxy/backends/health",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "GET",
+      "path": "/api/proxy/egress/check",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "GET",
+      "path": "/api/proxy/egress/stats",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "GET",
+      "path": "/api/proxy/health",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "GET",
+      "path": "/api/proxy/info",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "GET",
+      "path": "/api/proxy/listeners",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "GET",
+      "path": "/api/proxy/mappings",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "GET",
+      "path": "/api/proxy/metrics",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "GET",
+      "path": "/api/proxy/qos/stats",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "GET",
+      "path": "/api/proxy/qos/stats/{X}",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "GET",
+      "path": "/api/proxy/security/connections",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "GET",
+      "path": "/api/proxy/security/ip/{X}",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "GET",
+      "path": "/api/proxy/security/rate-limits",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "GET",
+      "path": "/api/proxy/security/stats",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "GET",
+      "path": "/api/proxy/security/summary",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "GET",
+      "path": "/api/proxy/zones/check",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "GET",
+      "path": "/api/proxy/zones/rules",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "POST",
+      "path": "/api/proxy/audit/flush",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "POST",
+      "path": "/api/proxy/mappings",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "POST",
+      "path": "/api/proxy/reachability",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "PUT",
+      "path": "/api/proxy/mappings/{X}/security-policy",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "PUT",
+      "path": "/api/proxy/mappings/{X}/security/blacklist",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "dmz-proxy",
+      "method": "PUT",
+      "path": "/api/proxy/mappings/{X}/security/whitelist",
+      "controller": "ProxyManagementController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "DELETE",
+      "path": "/api/v1/convert/partners/{X}",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "GET",
+      "path": "/api/v1/convert/compare/reports/{X}",
+      "controller": "ComparisonSuiteController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "GET",
+      "path": "/api/v1/convert/compare/reports/{X}/summary",
+      "controller": "ComparisonSuiteController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "GET",
+      "path": "/api/v1/convert/compare/sessions/{X}",
+      "controller": "ComparisonSuiteController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "GET",
+      "path": "/api/v1/convert/convert/trained/cache-stats",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "GET",
+      "path": "/api/v1/convert/convert/trained/check",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "GET",
+      "path": "/api/v1/convert/convert/trained/maps",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "GET",
+      "path": "/api/v1/convert/formats",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "GET",
+      "path": "/api/v1/convert/health",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "GET",
+      "path": "/api/v1/convert/maps",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "GET",
+      "path": "/api/v1/convert/maps/{X}",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "GET",
+      "path": "/api/v1/convert/partners",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "GET",
+      "path": "/api/v1/convert/partners/{X}",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "GET",
+      "path": "/api/v1/convert/templates",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/canonical",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/compare/execute/{X}",
+      "controller": "ComparisonSuiteController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/compare/prepare",
+      "controller": "ComparisonSuiteController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/compare/prepare/upload",
+      "controller": "ComparisonSuiteController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/compliance",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/convert",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/convert/file",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/convert/map",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/convert/test-mappings",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/convert/trained",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/convert/trained/invalidate-all",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/convert/trained/invalidate-cache",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/create",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/detect",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/detect/type",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/diff",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/explain",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/heal",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/mapping/generate",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/mapping/schema",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/mapping/smart",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/maps/{X}/test",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/parse",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/partners",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/partners/{X}/analyze",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/partners/{X}/apply",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/stream",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/stream/file",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/templates/{X}/generate",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "POST",
+      "path": "/api/v1/convert/validate",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "edi-converter",
+      "method": "PUT",
+      "path": "/api/v1/convert/partners/{X}",
+      "controller": "EdiConverterController.java"
+    },
+    {
+      "service": "encryption-service",
+      "method": "POST",
+      "path": "/api/encrypt/credential/decrypt",
+      "controller": "EncryptionController.java"
+    },
+    {
+      "service": "encryption-service",
+      "method": "POST",
+      "path": "/api/encrypt/credential/encrypt",
+      "controller": "EncryptionController.java"
+    },
+    {
+      "service": "encryption-service",
+      "method": "POST",
+      "path": "/api/encrypt/decrypt",
+      "controller": "EncryptionController.java"
+    },
+    {
+      "service": "encryption-service",
+      "method": "POST",
+      "path": "/api/encrypt/decrypt/base64",
+      "controller": "EncryptionController.java"
+    },
+    {
+      "service": "encryption-service",
+      "method": "POST",
+      "path": "/api/encrypt/encrypt",
+      "controller": "EncryptionController.java"
+    },
+    {
+      "service": "encryption-service",
+      "method": "POST",
+      "path": "/api/encrypt/encrypt/base64",
+      "controller": "EncryptionController.java"
+    },
+    {
+      "service": "external-forwarder-service",
+      "method": "GET",
+      "path": "/api/forward/health",
+      "controller": "ForwarderController.java"
+    },
+    {
+      "service": "external-forwarder-service",
+      "method": "GET",
+      "path": "/api/forward/transfers/active",
+      "controller": "ForwarderController.java"
+    },
+    {
+      "service": "external-forwarder-service",
+      "method": "POST",
+      "path": "/api/forward/deliver/{X}",
+      "controller": "ForwarderController.java"
+    },
+    {
+      "service": "external-forwarder-service",
+      "method": "POST",
+      "path": "/api/forward/deliver/{X}/base64",
+      "controller": "ForwarderController.java"
+    },
+    {
+      "service": "external-forwarder-service",
+      "method": "POST",
+      "path": "/api/forward/test-connection",
+      "controller": "ForwarderController.java"
+    },
+    {
+      "service": "external-forwarder-service",
+      "method": "POST",
+      "path": "/api/forward/{X}",
+      "controller": "ForwarderController.java"
+    },
+    {
+      "service": "external-forwarder-service",
+      "method": "POST",
+      "path": "/api/forward/{X}/base64",
+      "controller": "ForwarderController.java"
+    },
+    {
+      "service": "ftp-service",
+      "method": "GET",
+      "path": "/internal/health",
+      "controller": "HealthController.java"
+    },
+    {
+      "service": "ftp-service",
+      "method": "POST",
+      "path": "/internal/files/receive",
+      "controller": "FileReceiveController.java"
+    },
+    {
+      "service": "ftp-web-service",
+      "method": "DELETE",
+      "path": "/api/files/delete",
+      "controller": "FileController.java"
+    },
+    {
+      "service": "ftp-web-service",
+      "method": "DELETE",
+      "path": "/api/transfers/chunked/{X}",
+      "controller": "ChunkedUploadController.java"
+    },
+    {
+      "service": "ftp-web-service",
+      "method": "GET",
+      "path": "/api/files/download",
+      "controller": "FileController.java"
+    },
+    {
+      "service": "ftp-web-service",
+      "method": "GET",
+      "path": "/api/files/list",
+      "controller": "FileController.java"
+    },
+    {
+      "service": "ftp-web-service",
+      "method": "GET",
+      "path": "/api/transfers/chunked/{X}/status",
+      "controller": "ChunkedUploadController.java"
+    },
+    {
+      "service": "ftp-web-service",
+      "method": "GET",
+      "path": "/internal/health",
+      "controller": "HealthController.java"
+    },
+    {
+      "service": "ftp-web-service",
+      "method": "POST",
+      "path": "/api/files/mkdir",
+      "controller": "FileController.java"
+    },
+    {
+      "service": "ftp-web-service",
+      "method": "POST",
+      "path": "/api/files/rename",
+      "controller": "FileController.java"
+    },
+    {
+      "service": "ftp-web-service",
+      "method": "POST",
+      "path": "/api/files/upload",
+      "controller": "FileController.java"
+    },
+    {
+      "service": "ftp-web-service",
+      "method": "POST",
+      "path": "/api/transfers/chunked/init",
+      "controller": "ChunkedUploadController.java"
+    },
+    {
+      "service": "ftp-web-service",
+      "method": "POST",
+      "path": "/api/transfers/chunked/{X}/complete",
+      "controller": "ChunkedUploadController.java"
+    },
+    {
+      "service": "ftp-web-service",
+      "method": "POST",
+      "path": "/internal/files/receive",
+      "controller": "FileReceiveController.java"
+    },
+    {
+      "service": "ftp-web-service",
+      "method": "PUT",
+      "path": "/api/transfers/chunked/{X}/chunks/{X}",
+      "controller": "ChunkedUploadController.java"
+    },
+    {
+      "service": "gateway-service",
+      "method": "GET",
+      "path": "/internal/gateway/legacy-servers",
+      "controller": "GatewayStatusController.java"
+    },
+    {
+      "service": "gateway-service",
+      "method": "GET",
+      "path": "/internal/gateway/routes",
+      "controller": "GatewayStatusController.java"
+    },
+    {
+      "service": "gateway-service",
+      "method": "GET",
+      "path": "/internal/gateway/stats",
+      "controller": "GatewayStatusController.java"
+    },
+    {
+      "service": "gateway-service",
+      "method": "GET",
+      "path": "/internal/gateway/status",
+      "controller": "GatewayStatusController.java"
+    },
+    {
+      "service": "keystore-manager",
+      "method": "DELETE",
+      "path": "/api/v1/keys/{X}",
+      "controller": "KeystoreController.java"
+    },
+    {
+      "service": "keystore-manager",
+      "method": "GET",
+      "path": "/api/v1/keys/expiring",
+      "controller": "KeystoreController.java"
+    },
+    {
+      "service": "keystore-manager",
+      "method": "GET",
+      "path": "/api/v1/keys/health",
+      "controller": "KeystoreController.java"
+    },
+    {
+      "service": "keystore-manager",
+      "method": "GET",
+      "path": "/api/v1/keys/public",
+      "controller": "KeystoreController.java"
+    },
+    {
+      "service": "keystore-manager",
+      "method": "GET",
+      "path": "/api/v1/keys/stats",
+      "controller": "KeystoreController.java"
+    },
+    {
+      "service": "keystore-manager",
+      "method": "GET",
+      "path": "/api/v1/keys/types",
+      "controller": "KeystoreController.java"
+    },
+    {
+      "service": "keystore-manager",
+      "method": "GET",
+      "path": "/api/v1/keys/{X}",
+      "controller": "KeystoreController.java"
+    },
+    {
+      "service": "keystore-manager",
+      "method": "GET",
+      "path": "/api/v1/keys/{X}/download",
+      "controller": "KeystoreController.java"
+    },
+    {
+      "service": "keystore-manager",
+      "method": "GET",
+      "path": "/api/v1/keys/{X}/public",
+      "controller": "KeystoreController.java"
+    },
+    {
+      "service": "keystore-manager",
+      "method": "POST",
+      "path": "/api/v1/keys/generate/aes",
+      "controller": "KeystoreController.java"
+    },
+    {
+      "service": "keystore-manager",
+      "method": "POST",
+      "path": "/api/v1/keys/generate/hmac",
+      "controller": "KeystoreController.java"
+    },
+    {
+      "service": "keystore-manager",
+      "method": "POST",
+      "path": "/api/v1/keys/generate/pgp",
+      "controller": "KeystoreController.java"
+    },
+    {
+      "service": "keystore-manager",
+      "method": "POST",
+      "path": "/api/v1/keys/generate/ssh-host",
+      "controller": "KeystoreController.java"
+    },
+    {
+      "service": "keystore-manager",
+      "method": "POST",
+      "path": "/api/v1/keys/generate/ssh-user",
+      "controller": "KeystoreController.java"
+    },
+    {
+      "service": "keystore-manager",
+      "method": "POST",
+      "path": "/api/v1/keys/generate/tls",
+      "controller": "KeystoreController.java"
+    },
+    {
+      "service": "keystore-manager",
+      "method": "POST",
+      "path": "/api/v1/keys/import",
+      "controller": "KeystoreController.java"
+    },
+    {
+      "service": "keystore-manager",
+      "method": "POST",
+      "path": "/api/v1/keys/{X}/rotate",
+      "controller": "KeystoreController.java"
+    },
+    {
+      "service": "license-service",
+      "method": "DELETE",
+      "path": "/api/v1/licenses/{X}/revoke",
+      "controller": "LicenseController.java"
+    },
+    {
+      "service": "license-service",
+      "method": "GET",
+      "path": "/api/v1/licenses/@PreAuthorize(Roles.ADMIN",
+      "controller": "LicenseController.java"
+    },
+    {
+      "service": "license-service",
+      "method": "GET",
+      "path": "/api/v1/licenses/catalog/components",
+      "controller": "LicenseController.java"
+    },
+    {
+      "service": "license-service",
+      "method": "GET",
+      "path": "/api/v1/licenses/catalog/tiers",
+      "controller": "LicenseController.java"
+    },
+    {
+      "service": "license-service",
+      "method": "GET",
+      "path": "/api/v1/licenses/health",
+      "controller": "LicenseController.java"
+    },
+    {
+      "service": "license-service",
+      "method": "GET",
+      "path": "/api/v1/licenses/{X}/activations",
+      "controller": "LicenseController.java"
+    },
+    {
+      "service": "license-service",
+      "method": "POST",
+      "path": "/api/v1/licenses/catalog/entitled",
+      "controller": "LicenseController.java"
+    },
+    {
+      "service": "license-service",
+      "method": "POST",
+      "path": "/api/v1/licenses/issue",
+      "controller": "LicenseController.java"
+    },
+    {
+      "service": "license-service",
+      "method": "POST",
+      "path": "/api/v1/licenses/trial",
+      "controller": "LicenseController.java"
+    },
+    {
+      "service": "license-service",
+      "method": "POST",
+      "path": "/api/v1/licenses/validate",
+      "controller": "LicenseController.java"
+    },
+    {
+      "service": "notification-service",
+      "method": "DELETE",
+      "path": "/api/notifications/rules/{X}",
+      "controller": "NotificationController.java"
+    },
+    {
+      "service": "notification-service",
+      "method": "DELETE",
+      "path": "/api/notifications/templates/{X}",
+      "controller": "NotificationController.java"
+    },
+    {
+      "service": "notification-service",
+      "method": "GET",
+      "path": "/api/notifications/health",
+      "controller": "NotificationController.java"
+    },
+    {
+      "service": "notification-service",
+      "method": "GET",
+      "path": "/api/notifications/logs",
+      "controller": "NotificationController.java"
+    },
+    {
+      "service": "notification-service",
+      "method": "GET",
+      "path": "/api/notifications/logs/by-track-id/{X}",
+      "controller": "NotificationController.java"
+    },
+    {
+      "service": "notification-service",
+      "method": "GET",
+      "path": "/api/notifications/logs/recent",
+      "controller": "NotificationController.java"
+    },
+    {
+      "service": "notification-service",
+      "method": "GET",
+      "path": "/api/notifications/rules",
+      "controller": "NotificationController.java"
+    },
+    {
+      "service": "notification-service",
+      "method": "GET",
+      "path": "/api/notifications/rules/{X}",
+      "controller": "NotificationController.java"
+    },
+    {
+      "service": "notification-service",
+      "method": "GET",
+      "path": "/api/notifications/templates",
+      "controller": "NotificationController.java"
+    },
+    {
+      "service": "notification-service",
+      "method": "GET",
+      "path": "/api/notifications/templates/{X}",
+      "controller": "NotificationController.java"
+    },
+    {
+      "service": "notification-service",
+      "method": "POST",
+      "path": "/api/notifications/rules",
+      "controller": "NotificationController.java"
+    },
+    {
+      "service": "notification-service",
+      "method": "POST",
+      "path": "/api/notifications/templates",
+      "controller": "NotificationController.java"
+    },
+    {
+      "service": "notification-service",
+      "method": "POST",
+      "path": "/api/notifications/test",
+      "controller": "NotificationController.java"
+    },
+    {
+      "service": "notification-service",
+      "method": "PUT",
+      "path": "/api/notifications/rules/{X}",
+      "controller": "NotificationController.java"
+    },
+    {
+      "service": "notification-service",
+      "method": "PUT",
+      "path": "/api/notifications/templates/{X}",
+      "controller": "NotificationController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "DELETE",
+      "path": "/api/accounts/{X}",
+      "controller": "AccountController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "DELETE",
+      "path": "/api/accounts/{X}/servers/{X}",
+      "controller": "ServerAccountAssignmentController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "DELETE",
+      "path": "/api/dlq/messages/{X}",
+      "controller": "DeadLetterController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "DELETE",
+      "path": "/api/flow-executions/{X}/schedule-retry",
+      "controller": "FlowExecutionController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "DELETE",
+      "path": "/api/folder-mappings/{X}",
+      "controller": "FolderMappingController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "DELETE",
+      "path": "/api/partner-webhooks/{X}",
+      "controller": "PartnerWebhookController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "DELETE",
+      "path": "/api/partners/{X}",
+      "controller": "PartnerManagementController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "DELETE",
+      "path": "/api/proxy-groups/{X}",
+      "controller": "ProxyGroupController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "DELETE",
+      "path": "/api/servers/{X}",
+      "controller": "ServerInstanceController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "DELETE",
+      "path": "/api/servers/{X}/accounts/{X}",
+      "controller": "ServerAccountAssignmentController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "DELETE",
+      "path": "/api/users/{X}",
+      "controller": "UserController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "DELETE",
+      "path": "/api/v1/tenants/{X}",
+      "controller": "TenantController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/2fa/status/{X}",
+      "controller": "TotpController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/accounts/@Operation(summary",
+      "controller": "AccountController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/accounts/{X}",
+      "controller": "AccountController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/accounts/{X}/servers",
+      "controller": "ServerAccountAssignmentController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/activity-monitor/@Operation(summary",
+      "controller": "ActivityMonitorController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/audit-logs/@Operation(summary",
+      "controller": "AuditLogController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/clusters/communication-mode",
+      "controller": "ClusterController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/clusters/live",
+      "controller": "ClusterController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/clusters/public",
+      "controller": "ClusterController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/clusters/topology",
+      "controller": "ClusterController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/clusters/{X}",
+      "controller": "ClusterController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/dlq/messages",
+      "controller": "DeadLetterController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/fabric/instances",
+      "controller": "FabricObservabilityController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/fabric/latency",
+      "controller": "FabricObservabilityController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/fabric/queues",
+      "controller": "FabricObservabilityController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/fabric/stuck",
+      "controller": "FabricObservabilityController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/fabric/track/{X}/timeline",
+      "controller": "FabricObservabilityController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/flow-executions/flow-events/{X}",
+      "controller": "FlowExecutionController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/flow-executions/live-stats",
+      "controller": "FlowExecutionController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/flow-executions/pending-approvals",
+      "controller": "FlowExecutionController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/flow-executions/scheduled-retries",
+      "controller": "FlowExecutionController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/flow-executions/{X}",
+      "controller": "FlowExecutionController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/flow-executions/{X}/history",
+      "controller": "FlowExecutionController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/flow-steps/{X}",
+      "controller": "FlowStepPreviewController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/flow-steps/{X}/{X}",
+      "controller": "FlowStepPreviewController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/flow-steps/{X}/{X}/{X}/content",
+      "controller": "FlowStepPreviewController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/folder-mappings/public",
+      "controller": "FolderMappingController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/folder-mappings/{X}",
+      "controller": "FolderMappingController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/journey/public",
+      "controller": "TransferJourneyController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/journey/{X}",
+      "controller": "TransferJourneyController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/p2p/presence",
+      "controller": "PeerTransferController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/p2p/tickets",
+      "controller": "PeerTransferController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/partner-webhooks/@PreAuthorize(Roles.VIEWER",
+      "controller": "PartnerWebhookController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/partner/dashboard",
+      "controller": "PartnerPortalController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/partner/receipt/{X}",
+      "controller": "PartnerPortalController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/partner/sla",
+      "controller": "PartnerPortalController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/partner/test-connection",
+      "controller": "PartnerPortalController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/partner/track/{X}",
+      "controller": "PartnerPortalController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/partner/transfers",
+      "controller": "PartnerPortalController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/partners/public",
+      "controller": "PartnerManagementController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/partners/stats",
+      "controller": "PartnerManagementController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/partners/{X}",
+      "controller": "PartnerManagementController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/partners/{X}/accounts",
+      "controller": "PartnerManagementController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/partners/{X}/endpoints",
+      "controller": "PartnerManagementController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/partners/{X}/flows",
+      "controller": "PartnerManagementController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/proxy-groups/@PreAuthorize(Roles.VIEWER",
+      "controller": "ProxyGroupController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/proxy-groups/by-type/{X}",
+      "controller": "ProxyGroupController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/proxy-groups/discover",
+      "controller": "ProxyGroupController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/proxy-groups/{X}",
+      "controller": "ProxyGroupController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/servers/by-instance/{X}",
+      "controller": "ServerInstanceController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/servers/public",
+      "controller": "ServerInstanceController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/servers/{X}",
+      "controller": "ServerInstanceController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/servers/{X}/access-check/{X}",
+      "controller": "ServerAccountAssignmentController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/servers/{X}/accounts",
+      "controller": "ServerAccountAssignmentController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/service-registry/@PreAuthorize(",
+      "controller": "ServiceRegistryController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/snapshot-retention/@PreAuthorize(Roles.VIEWER",
+      "controller": "SnapshotRetentionController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/users/@PreAuthorize(Roles.ADMIN",
+      "controller": "UserController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/auto-onboard/sessions",
+      "controller": "AutonomousOnboardController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/auto-onboard/sessions/{X}",
+      "controller": "AutonomousOnboardController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/auto-onboard/stats",
+      "controller": "AutonomousOnboardController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/blockchain/anchors",
+      "controller": "BlockchainController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/blockchain/verify/{X}",
+      "controller": "BlockchainController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/config-export/info",
+      "controller": "ConfigExportController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/config-export/scope",
+      "controller": "ConfigExportController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/db-advisory/@Operation(summary",
+      "controller": "DatabaseAdvisoryController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/db-advisory/postgres-conf",
+      "controller": "DatabaseAdvisoryController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/db-advisory/psql-commands",
+      "controller": "DatabaseAdvisoryController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/db-advisory/scaling-table",
+      "controller": "DatabaseAdvisoryController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/db-advisory/status",
+      "controller": "DatabaseAdvisoryController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/monitoring/alertmanager/alerts",
+      "controller": "MonitoringProxyController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/monitoring/alertmanager/groups",
+      "controller": "MonitoringProxyController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/monitoring/loki/label/{X}/values",
+      "controller": "MonitoringProxyController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/monitoring/loki/labels",
+      "controller": "MonitoringProxyController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/monitoring/loki/query_range",
+      "controller": "MonitoringProxyController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/monitoring/overview",
+      "controller": "MonitoringProxyController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/monitoring/prometheus/alerts",
+      "controller": "MonitoringProxyController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/monitoring/prometheus/labels",
+      "controller": "MonitoringProxyController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/monitoring/prometheus/query",
+      "controller": "MonitoringProxyController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/monitoring/prometheus/query_range",
+      "controller": "MonitoringProxyController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/monitoring/prometheus/targets",
+      "controller": "MonitoringProxyController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/tenants/public",
+      "controller": "TenantController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/tenants/{X}",
+      "controller": "TenantController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v1/tenants/{X}/usage",
+      "controller": "TenantController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v2/transfer/{X}",
+      "controller": "TransferApiV2Controller.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "GET",
+      "path": "/api/v2/transfer/{X}/receipt",
+      "controller": "TransferApiV2Controller.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "PATCH",
+      "path": "/api/accounts/{X}",
+      "controller": "AccountController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "PATCH",
+      "path": "/api/folder-mappings/{X}/active",
+      "controller": "FolderMappingController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "PATCH",
+      "path": "/api/servers/{X}",
+      "controller": "ServerInstanceController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "PATCH",
+      "path": "/api/users/{X}",
+      "controller": "UserController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/2fa/disable",
+      "controller": "TotpController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/2fa/enable",
+      "controller": "TotpController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/2fa/verify",
+      "controller": "TotpController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/accounts/@ResponseStatus(HttpStatus.CREATED",
+      "controller": "AccountController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/accounts/{X}/servers/{X}",
+      "controller": "ServerAccountAssignmentController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/auth/login",
+      "controller": "AuthController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/auth/register",
+      "controller": "AuthController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/cli/execute",
+      "controller": "AdminCliController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/dlq/messages/{X}/retry",
+      "controller": "DeadLetterController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/dlq/retry-all",
+      "controller": "DeadLetterController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/flow-executions/bulk-restart",
+      "controller": "FlowExecutionController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/flow-executions/{X}/approve",
+      "controller": "FlowExecutionController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/flow-executions/{X}/reject",
+      "controller": "FlowExecutionController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/flow-executions/{X}/restart",
+      "controller": "FlowExecutionController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/flow-executions/{X}/restart/{X}",
+      "controller": "FlowExecutionController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/flow-executions/{X}/schedule-retry",
+      "controller": "FlowExecutionController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/flow-executions/{X}/skip/{X}",
+      "controller": "FlowExecutionController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/flow-executions/{X}/terminate",
+      "controller": "FlowExecutionController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/folder-mappings/@ResponseStatus(HttpStatus.CREATED",
+      "controller": "FolderMappingController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/p2p/presence",
+      "controller": "PeerTransferController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/p2p/tickets",
+      "controller": "PeerTransferController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/p2p/tickets/{X}/complete",
+      "controller": "PeerTransferController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/p2p/tickets/{X}/validate",
+      "controller": "PeerTransferController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/partner-webhooks/@PreAuthorize(Roles.OPERATOR",
+      "controller": "PartnerWebhookController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/partner-webhooks/{X}/test",
+      "controller": "PartnerWebhookController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/partner/change-password",
+      "controller": "PartnerPortalController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/partner/login",
+      "controller": "PartnerPortalController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/partner/rotate-key",
+      "controller": "PartnerPortalController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/partners/@ResponseStatus(HttpStatus.CREATED",
+      "controller": "PartnerManagementController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/partners/{X}/accounts",
+      "controller": "PartnerManagementController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/partners/{X}/activate",
+      "controller": "PartnerManagementController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/partners/{X}/suspend",
+      "controller": "PartnerManagementController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/proxy-groups/@PreAuthorize(Roles.ADMIN",
+      "controller": "ProxyGroupController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/servers/@ResponseStatus(HttpStatus.CREATED",
+      "controller": "ServerInstanceController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/servers/{X}/accounts/bulk",
+      "controller": "ServerAccountAssignmentController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/servers/{X}/accounts/{X}",
+      "controller": "ServerAccountAssignmentController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/servers/{X}/maintenance",
+      "controller": "ServerAccountAssignmentController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/snapshot-retention/purge-now",
+      "controller": "SnapshotRetentionController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/v1/auto-onboard/detect",
+      "controller": "AutonomousOnboardController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/v1/auto-onboard/learn",
+      "controller": "AutonomousOnboardController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/v1/auto-onboard/sessions/{X}/approve",
+      "controller": "AutonomousOnboardController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/v1/config-export/public",
+      "controller": "ConfigExportController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/v1/db-advisory/apply",
+      "controller": "DatabaseAdvisoryController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/v1/onboard/@PreAuthorize(Roles.ADMIN",
+      "controller": "UnifiedOnboardController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/v1/tenants/signup",
+      "controller": "TenantController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/v2/transfer/batch",
+      "controller": "TransferApiV2Controller.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "POST",
+      "path": "/api/v2/transfer/consumes",
+      "controller": "TransferApiV2Controller.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "PUT",
+      "path": "/api/accounts/{X}",
+      "controller": "AccountController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "PUT",
+      "path": "/api/clusters/communication-mode",
+      "controller": "ClusterController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "PUT",
+      "path": "/api/clusters/{X}",
+      "controller": "ClusterController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "PUT",
+      "path": "/api/folder-mappings/{X}",
+      "controller": "FolderMappingController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "PUT",
+      "path": "/api/partner-webhooks/{X}",
+      "controller": "PartnerWebhookController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "PUT",
+      "path": "/api/partners/{X}",
+      "controller": "PartnerManagementController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "PUT",
+      "path": "/api/proxy-groups/{X}",
+      "controller": "ProxyGroupController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "PUT",
+      "path": "/api/servers/{X}/accounts/{X}",
+      "controller": "ServerAccountAssignmentController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "PUT",
+      "path": "/api/snapshot-retention/@PreAuthorize(Roles.ADMIN",
+      "controller": "SnapshotRetentionController.java"
+    },
+    {
+      "service": "onboarding-api",
+      "method": "PUT",
+      "path": "/api/v1/tenants/{X}",
+      "controller": "TenantController.java"
+    },
+    {
+      "service": "platform-sentinel",
+      "method": "DELETE",
+      "path": "/api/v1/sentinel/rules/{X}",
+      "controller": "SentinelController.java"
+    },
+    {
+      "service": "platform-sentinel",
+      "method": "GET",
+      "path": "/api/v1/sentinel/circuit-breakers",
+      "controller": "SentinelController.java"
+    },
+    {
+      "service": "platform-sentinel",
+      "method": "GET",
+      "path": "/api/v1/sentinel/correlations",
+      "controller": "SentinelController.java"
+    },
+    {
+      "service": "platform-sentinel",
+      "method": "GET",
+      "path": "/api/v1/sentinel/dashboard",
+      "controller": "SentinelController.java"
+    },
+    {
+      "service": "platform-sentinel",
+      "method": "GET",
+      "path": "/api/v1/sentinel/findings",
+      "controller": "SentinelController.java"
+    },
+    {
+      "service": "platform-sentinel",
+      "method": "GET",
+      "path": "/api/v1/sentinel/findings/{X}",
+      "controller": "SentinelController.java"
+    },
+    {
+      "service": "platform-sentinel",
+      "method": "GET",
+      "path": "/api/v1/sentinel/health",
+      "controller": "SentinelController.java"
+    },
+    {
+      "service": "platform-sentinel",
+      "method": "GET",
+      "path": "/api/v1/sentinel/health-score",
+      "controller": "SentinelController.java"
+    },
+    {
+      "service": "platform-sentinel",
+      "method": "GET",
+      "path": "/api/v1/sentinel/health-score/history",
+      "controller": "SentinelController.java"
+    },
+    {
+      "service": "platform-sentinel",
+      "method": "GET",
+      "path": "/api/v1/sentinel/rules",
+      "controller": "SentinelController.java"
+    },
+    {
+      "service": "platform-sentinel",
+      "method": "POST",
+      "path": "/api/v1/sentinel/analyze",
+      "controller": "SentinelController.java"
+    },
+    {
+      "service": "platform-sentinel",
+      "method": "POST",
+      "path": "/api/v1/sentinel/findings/{X}/acknowledge",
+      "controller": "SentinelController.java"
+    },
+    {
+      "service": "platform-sentinel",
+      "method": "POST",
+      "path": "/api/v1/sentinel/findings/{X}/dismiss",
+      "controller": "SentinelController.java"
+    },
+    {
+      "service": "platform-sentinel",
+      "method": "POST",
+      "path": "/api/v1/sentinel/rules",
+      "controller": "SentinelController.java"
+    },
+    {
+      "service": "platform-sentinel",
+      "method": "PUT",
+      "path": "/api/v1/sentinel/rules/{X}",
+      "controller": "SentinelController.java"
+    },
+    {
+      "service": "screening-service",
+      "method": "DELETE",
+      "path": "/api/v1/dlp/policies/{X}",
+      "controller": "DlpController.java"
+    },
+    {
+      "service": "screening-service",
+      "method": "DELETE",
+      "path": "/api/v1/quarantine/{X}",
+      "controller": "QuarantineController.java"
+    },
+    {
+      "service": "screening-service",
+      "method": "GET",
+      "path": "/api/v1/dlp/policies",
+      "controller": "DlpController.java"
+    },
+    {
+      "service": "screening-service",
+      "method": "GET",
+      "path": "/api/v1/dlp/policies/{X}",
+      "controller": "DlpController.java"
+    },
+    {
+      "service": "screening-service",
+      "method": "GET",
+      "path": "/api/v1/quarantine/@PreAuthorize(Roles.OPERATOR",
+      "controller": "QuarantineController.java"
+    },
+    {
+      "service": "screening-service",
+      "method": "GET",
+      "path": "/api/v1/quarantine/stats",
+      "controller": "QuarantineController.java"
+    },
+    {
+      "service": "screening-service",
+      "method": "GET",
+      "path": "/api/v1/quarantine/{X}",
+      "controller": "QuarantineController.java"
+    },
+    {
+      "service": "screening-service",
+      "method": "GET",
+      "path": "/api/v1/screening/health",
+      "controller": "ScreeningController.java"
+    },
+    {
+      "service": "screening-service",
+      "method": "GET",
+      "path": "/api/v1/screening/hits",
+      "controller": "ScreeningController.java"
+    },
+    {
+      "service": "screening-service",
+      "method": "GET",
+      "path": "/api/v1/screening/lists",
+      "controller": "ScreeningController.java"
+    },
+    {
+      "service": "screening-service",
+      "method": "GET",
+      "path": "/api/v1/screening/results",
+      "controller": "ScreeningController.java"
+    },
+    {
+      "service": "screening-service",
+      "method": "GET",
+      "path": "/api/v1/screening/results/{X}",
+      "controller": "ScreeningController.java"
+    },
+    {
+      "service": "screening-service",
+      "method": "POST",
+      "path": "/api/v1/dlp/policies",
+      "controller": "DlpController.java"
+    },
+    {
+      "service": "screening-service",
+      "method": "POST",
+      "path": "/api/v1/dlp/scan",
+      "controller": "DlpController.java"
+    },
+    {
+      "service": "screening-service",
+      "method": "POST",
+      "path": "/api/v1/quarantine/{X}/release",
+      "controller": "QuarantineController.java"
+    },
+    {
+      "service": "screening-service",
+      "method": "POST",
+      "path": "/api/v1/screening/lists/refresh",
+      "controller": "ScreeningController.java"
+    },
+    {
+      "service": "screening-service",
+      "method": "POST",
+      "path": "/api/v1/screening/scan",
+      "controller": "ScreeningController.java"
+    },
+    {
+      "service": "screening-service",
+      "method": "POST",
+      "path": "/api/v1/screening/scan/sanctions",
+      "controller": "ScreeningController.java"
+    },
+    {
+      "service": "screening-service",
+      "method": "POST",
+      "path": "/api/v1/screening/scan/text",
+      "controller": "ScreeningController.java"
+    },
+    {
+      "service": "screening-service",
+      "method": "PUT",
+      "path": "/api/v1/dlp/policies/{X}",
+      "controller": "DlpController.java"
+    },
+    {
+      "service": "sftp-service",
+      "method": "GET",
+      "path": "/internal/health",
+      "controller": "HealthController.java"
+    },
+    {
+      "service": "sftp-service",
+      "method": "POST",
+      "path": "/internal/files/receive",
+      "controller": "FileReceiveController.java"
+    },
+    {
+      "service": "storage-manager",
+      "method": "DELETE",
+      "path": "/api/v1/storage/objects/{X}",
+      "controller": "StorageController.java"
+    },
+    {
+      "service": "storage-manager",
+      "method": "GET",
+      "path": "/api/v1/storage/drp-stats",
+      "controller": "StorageController.java"
+    },
+    {
+      "service": "storage-manager",
+      "method": "GET",
+      "path": "/api/v1/storage/health",
+      "controller": "StorageController.java"
+    },
+    {
+      "service": "storage-manager",
+      "method": "GET",
+      "path": "/api/v1/storage/lifecycle/actions",
+      "controller": "StorageController.java"
+    },
+    {
+      "service": "storage-manager",
+      "method": "GET",
+      "path": "/api/v1/storage/metrics",
+      "controller": "StorageController.java"
+    },
+    {
+      "service": "storage-manager",
+      "method": "GET",
+      "path": "/api/v1/storage/objects",
+      "controller": "StorageController.java"
+    },
+    {
+      "service": "storage-manager",
+      "method": "GET",
+      "path": "/api/v1/storage/ref-count/{X}",
+      "controller": "StorageController.java"
+    },
+    {
+      "service": "storage-manager",
+      "method": "GET",
+      "path": "/api/v1/storage/retrieve-by-key/{X}",
+      "controller": "StorageController.java"
+    },
+    {
+      "service": "storage-manager",
+      "method": "GET",
+      "path": "/api/v1/storage/retrieve/{X}",
+      "controller": "StorageController.java"
+    },
+    {
+      "service": "storage-manager",
+      "method": "GET",
+      "path": "/api/v1/storage/stream/{X}",
+      "controller": "StorageController.java"
+    },
+    {
+      "service": "storage-manager",
+      "method": "POST",
+      "path": "/api/v1/storage/lifecycle/backup",
+      "controller": "StorageController.java"
+    },
+    {
+      "service": "storage-manager",
+      "method": "POST",
+      "path": "/api/v1/storage/lifecycle/tier",
+      "controller": "StorageController.java"
+    },
+    {
+      "service": "storage-manager",
+      "method": "POST",
+      "path": "/api/v1/storage/store",
+      "controller": "StorageController.java"
+    },
+    {
+      "service": "storage-manager",
+      "method": "POST",
+      "path": "/api/v1/storage/store-bytes",
+      "controller": "StorageController.java"
+    },
+    {
+      "service": "storage-manager",
+      "method": "POST",
+      "path": "/api/v1/storage/store-stream",
+      "controller": "StorageController.java"
+    }
+  ],
+  "db_entities": [
+    {
+      "class": "AiEngineApplication",
+      "table": null,
+      "file": "ai-engine/src/main/java/com/filetransfer/ai/AiEngineApplication.java"
+    },
+    {
+      "class": "AlertRule",
+      "table": "alert_rules",
+      "file": "analytics-service/src/main/java/com/filetransfer/analytics/entity/AlertRule.java"
+    },
+    {
+      "class": "AnalyticsServiceApplication",
+      "table": null,
+      "file": "analytics-service/src/main/java/com/filetransfer/analytics/AnalyticsServiceApplication.java"
+    },
+    {
+      "class": "As2Message",
+      "table": "as2_messages",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/As2Message.java"
+    },
+    {
+      "class": "As2Partnership",
+      "table": "as2_partnerships",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/As2Partnership.java"
+    },
+    {
+      "class": "As2ServiceApplication",
+      "table": null,
+      "file": "as2-service/src/main/java/com/filetransfer/as2/As2ServiceApplication.java"
+    },
+    {
+      "class": "AttackCampaign",
+      "table": "attack_campaigns",
+      "file": "ai-engine/src/main/java/com/filetransfer/ai/entity/threat/AttackCampaign.java"
+    },
+    {
+      "class": "AuditLog",
+      "table": "audit_logs",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/AuditLog.java"
+    },
+    {
+      "class": "AutoOnboardSession",
+      "table": "auto_onboard_sessions",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/AutoOnboardSession.java"
+    },
+    {
+      "class": "BlockchainAnchor",
+      "table": "blockchain_anchors",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/BlockchainAnchor.java"
+    },
+    {
+      "class": "ChunkedUpload",
+      "table": "chunked_uploads",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/ChunkedUpload.java"
+    },
+    {
+      "class": "ChunkedUploadChunk",
+      "table": "chunked_upload_chunks",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/ChunkedUploadChunk.java"
+    },
+    {
+      "class": "ClientPresence",
+      "table": "client_presence",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/ClientPresence.java"
+    },
+    {
+      "class": "ClusterNode",
+      "table": "cluster_nodes",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/ClusterNode.java"
+    },
+    {
+      "class": "ComplianceProfile",
+      "table": "compliance_profiles",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/ComplianceProfile.java"
+    },
+    {
+      "class": "ComplianceViolation",
+      "table": "compliance_violations",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/ComplianceViolation.java"
+    },
+    {
+      "class": "ConfigServiceApplication",
+      "table": null,
+      "file": "config-service/src/main/java/com/filetransfer/config/ConfigServiceApplication.java"
+    },
+    {
+      "class": "ConnectionAudit",
+      "table": "connection_audits",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/ConnectionAudit.java"
+    },
+    {
+      "class": "ConversionMap",
+      "table": "edi_conversion_maps",
+      "file": "ai-engine/src/main/java/com/filetransfer/ai/entity/edi/ConversionMap.java"
+    },
+    {
+      "class": "CorrelationGroup",
+      "table": "sentinel_correlation_groups",
+      "file": "platform-sentinel/src/main/java/com/filetransfer/sentinel/entity/CorrelationGroup.java"
+    },
+    {
+      "class": "CryptoKeyPair",
+      "table": "crypto_key_pairs",
+      "file": "license-service/src/main/java/com/filetransfer/license/entity/CryptoKeyPair.java"
+    },
+    {
+      "class": "DatabaseAdvisoryController",
+      "table": null,
+      "file": "onboarding-api/src/main/java/com/filetransfer/onboarding/controller/DatabaseAdvisoryController.java"
+    },
+    {
+      "class": "DeadLetterMessage",
+      "table": "dead_letter_messages",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/DeadLetterMessage.java"
+    },
+    {
+      "class": "DeliveryEndpoint",
+      "table": "delivery_endpoints",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/DeliveryEndpoint.java"
+    },
+    {
+      "class": "DlpPolicy",
+      "table": "dlp_policies",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/DlpPolicy.java"
+    },
+    {
+      "class": "EncryptionKey",
+      "table": "encryption_keys",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/EncryptionKey.java"
+    },
+    {
+      "class": "EncryptionServiceApplication",
+      "table": null,
+      "file": "encryption-service/src/main/java/com/filetransfer/encryption/EncryptionServiceApplication.java"
+    },
+    {
+      "class": "ExternalDestination",
+      "table": "external_destinations",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/ExternalDestination.java"
+    },
+    {
+      "class": "FabricCheckpoint",
+      "table": "fabric_checkpoints",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/FabricCheckpoint.java"
+    },
+    {
+      "class": "FabricInstance",
+      "table": "fabric_instances",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/FabricInstance.java"
+    },
+    {
+      "class": "FileFlow",
+      "table": "file_flows",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/FileFlow.java"
+    },
+    {
+      "class": "FileTransferRecord",
+      "table": "file_transfer_records",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/FileTransferRecord.java"
+    },
+    {
+      "class": "FlowApproval",
+      "table": "flow_approvals",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/FlowApproval.java"
+    },
+    {
+      "class": "FlowEvent",
+      "table": "flow_events",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/FlowEvent.java"
+    },
+    {
+      "class": "FlowExecution",
+      "table": "flow_executions",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/FlowExecution.java"
+    },
+    {
+      "class": "FlowStepSnapshot",
+      "table": "flow_step_snapshots",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/FlowStepSnapshot.java"
+    },
+    {
+      "class": "FolderMapping",
+      "table": "folder_mappings",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/FolderMapping.java"
+    },
+    {
+      "class": "FolderTemplate",
+      "table": "folder_templates",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/FolderTemplate.java"
+    },
+    {
+      "class": "ForwarderServiceApplication",
+      "table": null,
+      "file": "external-forwarder-service/src/main/java/com/filetransfer/forwarder/ForwarderServiceApplication.java"
+    },
+    {
+      "class": "FtpServiceApplication",
+      "table": null,
+      "file": "ftp-service/src/main/java/com/filetransfer/ftp/FtpServiceApplication.java"
+    },
+    {
+      "class": "FtpWebServiceApplication",
+      "table": null,
+      "file": "ftp-web-service/src/main/java/com/filetransfer/ftpweb/FtpWebServiceApplication.java"
+    },
+    {
+      "class": "GatewayServiceApplication",
+      "table": null,
+      "file": "gateway-service/src/main/java/com/filetransfer/gateway/GatewayServiceApplication.java"
+    },
+    {
+      "class": "HealthScore",
+      "table": "sentinel_health_scores",
+      "file": "platform-sentinel/src/main/java/com/filetransfer/sentinel/entity/HealthScore.java"
+    },
+    {
+      "class": "InstallationFingerprint",
+      "table": "installation_fingerprints",
+      "file": "license-service/src/main/java/com/filetransfer/license/entity/InstallationFingerprint.java"
+    },
+    {
+      "class": "KeystoreManagerApplication",
+      "table": null,
+      "file": "keystore-manager/src/main/java/com/filetransfer/keystore/KeystoreManagerApplication.java"
+    },
+    {
+      "class": "LegacyServerConfig",
+      "table": "legacy_server_configs",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/LegacyServerConfig.java"
+    },
+    {
+      "class": "LicenseActivation",
+      "table": "license_activations",
+      "file": "license-service/src/main/java/com/filetransfer/license/entity/LicenseActivation.java"
+    },
+    {
+      "class": "LicenseRecord",
+      "table": "license_records",
+      "file": "license-service/src/main/java/com/filetransfer/license/entity/LicenseRecord.java"
+    },
+    {
+      "class": "LicenseServiceApplication",
+      "table": null,
+      "file": "license-service/src/main/java/com/filetransfer/license/LicenseServiceApplication.java"
+    },
+    {
+      "class": "ListenerSecurityPolicy",
+      "table": "listener_security_policies",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/ListenerSecurityPolicy.java"
+    },
+    {
+      "class": "LoginAttempt",
+      "table": "login_attempts",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/LoginAttempt.java"
+    },
+    {
+      "class": "ManagedKey",
+      "table": "managed_keys",
+      "file": "keystore-manager/src/main/java/com/filetransfer/keystore/entity/ManagedKey.java"
+    },
+    {
+      "class": "MappingCorrectionSession",
+      "table": "edi_mapping_correction_sessions",
+      "file": "ai-engine/src/main/java/com/filetransfer/ai/entity/edi/MappingCorrectionSession.java"
+    },
+    {
+      "class": "MetricSnapshot",
+      "table": "metric_snapshots",
+      "file": "analytics-service/src/main/java/com/filetransfer/analytics/entity/MetricSnapshot.java"
+    },
+    {
+      "class": "MigrationEvent",
+      "table": "migration_events",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/MigrationEvent.java"
+    },
+    {
+      "class": "NotificationApplication",
+      "table": null,
+      "file": "notification-service/src/main/java/com/filetransfer/notification/NotificationApplication.java"
+    },
+    {
+      "class": "NotificationLog",
+      "table": "notification_logs",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/NotificationLog.java"
+    },
+    {
+      "class": "NotificationRule",
+      "table": "notification_rules",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/NotificationRule.java"
+    },
+    {
+      "class": "NotificationTemplate",
+      "table": "notification_templates",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/NotificationTemplate.java"
+    },
+    {
+      "class": "OnboardingApiApplication",
+      "table": null,
+      "file": "onboarding-api/src/main/java/com/filetransfer/onboarding/OnboardingApiApplication.java"
+    },
+    {
+      "class": "Partner",
+      "table": "partners",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/Partner.java"
+    },
+    {
+      "class": "PartnerAgreement",
+      "table": "partner_agreements",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/PartnerAgreement.java"
+    },
+    {
+      "class": "PartnerContact",
+      "table": "partner_contacts",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/PartnerContact.java"
+    },
+    {
+      "class": "PartnerWebhook",
+      "table": "partner_webhooks",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/PartnerWebhook.java"
+    },
+    {
+      "class": "Permission",
+      "table": "permissions",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/Permission.java"
+    },
+    {
+      "class": "PlatformSetting",
+      "table": "platform_settings",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/PlatformSetting.java"
+    },
+    {
+      "class": "ProxyGroup",
+      "table": "proxy_groups",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/ProxyGroup.java"
+    },
+    {
+      "class": "QuarantineRecord",
+      "table": "quarantine_records",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/QuarantineRecord.java"
+    },
+    {
+      "class": "RolePermission",
+      "table": "role_permissions",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/RolePermission.java"
+    },
+    {
+      "class": "SanctionsEntry",
+      "table": "sanctions_entries",
+      "file": "screening-service/src/main/java/com/filetransfer/screening/entity/SanctionsEntry.java"
+    },
+    {
+      "class": "ScheduledTask",
+      "table": "scheduled_tasks",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/ScheduledTask.java"
+    },
+    {
+      "class": "ScreeningResult",
+      "table": "screening_results",
+      "file": "screening-service/src/main/java/com/filetransfer/screening/entity/ScreeningResult.java"
+    },
+    {
+      "class": "ScreeningServiceApplication",
+      "table": null,
+      "file": "screening-service/src/main/java/com/filetransfer/screening/ScreeningServiceApplication.java"
+    },
+    {
+      "class": "SecurityAlert",
+      "table": "security_alerts",
+      "file": "ai-engine/src/main/java/com/filetransfer/ai/entity/threat/SecurityAlert.java"
+    },
+    {
+      "class": "SecurityEvent",
+      "table": "security_events",
+      "file": "ai-engine/src/main/java/com/filetransfer/ai/entity/threat/SecurityEvent.java"
+    },
+    {
+      "class": "SecurityProfile",
+      "table": "security_profiles",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/SecurityProfile.java"
+    },
+    {
+      "class": "SentinelApplication",
+      "table": null,
+      "file": "platform-sentinel/src/main/java/com/filetransfer/sentinel/SentinelApplication.java"
+    },
+    {
+      "class": "SentinelFinding",
+      "table": "sentinel_findings",
+      "file": "platform-sentinel/src/main/java/com/filetransfer/sentinel/entity/SentinelFinding.java"
+    },
+    {
+      "class": "SentinelRule",
+      "table": "sentinel_rules",
+      "file": "platform-sentinel/src/main/java/com/filetransfer/sentinel/entity/SentinelRule.java"
+    },
+    {
+      "class": "ServerAccountAssignment",
+      "table": "server_account_assignments",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/ServerAccountAssignment.java"
+    },
+    {
+      "class": "ServerConfig",
+      "table": "server_configs",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/ServerConfig.java"
+    },
+    {
+      "class": "ServerInstance",
+      "table": "server_instances",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/ServerInstance.java"
+    },
+    {
+      "class": "ServiceRegistration",
+      "table": "service_registrations",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/ServiceRegistration.java"
+    },
+    {
+      "class": "SftpServiceApplication",
+      "table": null,
+      "file": "sftp-service/src/main/java/com/filetransfer/sftp/SftpServiceApplication.java"
+    },
+    {
+      "class": "StorageManagerApplication",
+      "table": null,
+      "file": "storage-manager/src/main/java/com/filetransfer/storage/StorageManagerApplication.java"
+    },
+    {
+      "class": "StorageObject",
+      "table": "storage_objects",
+      "file": "storage-manager/src/main/java/com/filetransfer/storage/entity/StorageObject.java"
+    },
+    {
+      "class": "Tenant",
+      "table": "tenants",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/Tenant.java"
+    },
+    {
+      "class": "ThreatActor",
+      "table": "threat_actors",
+      "file": "ai-engine/src/main/java/com/filetransfer/ai/entity/threat/ThreatActor.java"
+    },
+    {
+      "class": "ThreatIndicator",
+      "table": "intel_threat_indicators",
+      "file": "ai-engine/src/main/java/com/filetransfer/ai/entity/intelligence/ThreatIndicator.java"
+    },
+    {
+      "class": "TotpConfig",
+      "table": "totp_configs",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/TotpConfig.java"
+    },
+    {
+      "class": "TrainingSample",
+      "table": "edi_training_samples",
+      "file": "ai-engine/src/main/java/com/filetransfer/ai/entity/edi/TrainingSample.java"
+    },
+    {
+      "class": "TrainingSession",
+      "table": "edi_training_sessions",
+      "file": "ai-engine/src/main/java/com/filetransfer/ai/entity/edi/TrainingSession.java"
+    },
+    {
+      "class": "TransferAccount",
+      "table": "transfer_accounts",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/TransferAccount.java"
+    },
+    {
+      "class": "TransferTicket",
+      "table": "transfer_tickets",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/TransferTicket.java"
+    },
+    {
+      "class": "User",
+      "table": "users",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/User.java"
+    },
+    {
+      "class": "UserPermission",
+      "table": "user_permissions",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/UserPermission.java"
+    },
+    {
+      "class": "VerdictRecord",
+      "table": "verdict_records",
+      "file": "ai-engine/src/main/java/com/filetransfer/ai/entity/threat/VerdictRecord.java"
+    },
+    {
+      "class": "VfsChunk",
+      "table": "vfs_chunks",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/VfsChunk.java"
+    },
+    {
+      "class": "VfsIntent",
+      "table": "vfs_intents",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/VfsIntent.java"
+    },
+    {
+      "class": "VirtualEntry",
+      "table": "virtual_entries",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/VirtualEntry.java"
+    },
+    {
+      "class": "WebhookConnector",
+      "table": "webhook_connectors",
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/WebhookConnector.java"
+    },
+    {
+      "class": "WriteIntent",
+      "table": "write_intents",
+      "file": "storage-manager/src/main/java/com/filetransfer/storage/entity/WriteIntent.java"
+    },
+    {
+      "class": "for",
+      "table": null,
+      "file": "shared/shared-platform/src/main/java/com/filetransfer/shared/entity/Auditable.java"
+    }
+  ],
+  "service_ports": {
+    "onboarding": {
+      "port": 8080,
+      "health_path": "/actuator/health"
+    },
+    "config": {
+      "port": 8084,
+      "health_path": "/api/servers"
+    },
+    "sftp": {
+      "port": 8081,
+      "health_path": "/health"
+    },
+    "ftp": {
+      "port": 8082,
+      "health_path": "/health"
+    },
+    "ftpWeb": {
+      "port": 8083,
+      "health_path": "/actuator/health"
+    },
+    "gateway": {
+      "port": 8085,
+      "health_path": "/actuator/health"
+    },
+    "encryption": {
+      "port": 8086,
+      "health_path": "/actuator/health"
+    },
+    "forwarder": {
+      "port": 8087,
+      "health_path": "/api/forward/health"
+    },
+    "dmz": {
+      "port": 8088,
+      "health_path": "/api/proxy/health"
+    },
+    "license": {
+      "port": 8089,
+      "health_path": "/api/v1/licenses/health"
+    },
+    "analytics": {
+      "port": 8090,
+      "health_path": "/api/v1/analytics/dashboard"
+    },
+    "aiEngine": {
+      "port": 8091,
+      "health_path": "/api/v1/ai/health"
+    },
+    "screening": {
+      "port": 8092,
+      "health_path": "/api/v1/screening/health"
+    },
+    "keystore": {
+      "port": 8093,
+      "health_path": "/api/v1/keys/health"
+    },
+    "sentinel": {
+      "port": 8098,
+      "health_path": "/api/v1/sentinel/health"
+    },
+    "ediConverter": {
+      "port": 8095,
+      "health_path": "/actuator/health/readiness"
+    },
+    "notification": {
+      "port": 8097,
+      "health_path": "/actuator/health"
+    },
+    "storage": {
+      "port": 8096,
+      "health_path": "/actuator/health"
+    },
+    "as2": {
+      "port": 8094,
+      "health_path": "/actuator/health"
+    }
+  }
+}
