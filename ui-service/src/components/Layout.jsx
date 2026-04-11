@@ -30,9 +30,11 @@ export default function Layout() {
   // here so every navigation under the protected shell is recorded.
   useRecentlyViewed()
 
-  // Global keyboard shortcuts:
-  //   Cmd/Ctrl+K  → open GlobalSearch
-  //   ?           → open KeyboardShortcuts cheat sheet (only when not typing in an input)
+  // Global keyboard shortcuts + custom DOM events:
+  //   Cmd/Ctrl+K              → open GlobalSearch
+  //   ?                       → open KeyboardShortcuts cheat sheet (only when not typing in an input)
+  //   'global-search-open'    → programmatic GlobalSearch open (Header search button, etc.)
+  //   'keyboard-shortcuts-open' → programmatic KeyboardShortcuts open (Header user menu, etc.)
   useEffect(() => {
     const handler = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -45,8 +47,16 @@ export default function Layout() {
         setShortcutsOpen(true)
       }
     }
+    const openSearch    = () => setSearchOpen(true)
+    const openShortcuts = () => setShortcutsOpen(true)
     window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
+    window.addEventListener('global-search-open', openSearch)
+    window.addEventListener('keyboard-shortcuts-open', openShortcuts)
+    return () => {
+      window.removeEventListener('keydown', handler)
+      window.removeEventListener('global-search-open', openSearch)
+      window.removeEventListener('keyboard-shortcuts-open', openShortcuts)
+    }
   }, [])
 
   return (
