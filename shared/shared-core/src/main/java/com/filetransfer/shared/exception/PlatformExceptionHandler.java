@@ -9,11 +9,16 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -79,12 +84,93 @@ public class PlatformExceptionHandler {
                 ApiError.of(403, "Forbidden", ErrorCode.ACCESS_DENIED.getCode(), "Access denied", request.getRequestURI()));
     }
 
+    /**
+     * Wrong password / unknown user on the login endpoint. Previously this
+     * fell through to the generic 500 handler which logged a stack trace
+     * on every bad login — polluting ERROR logs with normal user mistakes
+     * and showing "Internal Server Error" to the operator. Now returns a
+     * clean 401 with a friendly message.
+     */
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ApiError> handleBadCredentials(BadCredentialsException ex, HttpServletRequest request) {
+        log.warn("Bad credentials at {}: {}", request.getRequestURI(), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                ApiError.of(401, "Unauthorized", ErrorCode.UNAUTHORIZED.getCode(),
+                        ex.getMessage(), request.getRequestURI()));
+    }
+
+    /**
+     * A @RequestParam couldn't be coerced to its target type — typically
+     * happens when the UI sends an invalid enum value (e.g.
+     * ?status=DELIVERED when the enum has MOVED_TO_SENT). Return a
+     * helpful 400 with the bad value and the parameter name so the UI
+     * can recover without the operator seeing a scary 500 page.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiError> handleTypeMismatch(
+            MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        String msg = String.format("Invalid value '%s' for parameter '%s'",
+                ex.getValue(), ex.getName());
+        log.warn("Type mismatch at {}: {}", request.getRequestURI(), msg);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                ApiError.of(400, "Bad Request", ErrorCode.VALIDATION_FAILED.getCode(),
+                        msg, request.getRequestURI()));
+    }
+
+    /** A required query/form parameter wasn't sent. Return 400, not 500. */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiError> handleMissingParam(
+            MissingServletRequestParameterException ex, HttpServletRequest request) {
+        String msg = String.format("Required parameter '%s' is missing", ex.getParameterName());
+        log.warn("Missing parameter at {}: {}", request.getRequestURI(), msg);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                ApiError.of(400, "Bad Request", ErrorCode.VALIDATION_FAILED.getCode(),
+                        msg, request.getRequestURI()));
+    }
+
+    /** Wrong HTTP method on a known URL — return 405, not 500. */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiError> handleMethodNotAllowed(
+            HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
+        log.warn("Method not allowed at {}: {}", request.getRequestURI(), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(
+                ApiError.of(405, "Method Not Allowed", ErrorCode.VALIDATION_FAILED.getCode(),
+                        ex.getMessage(), request.getRequestURI()));
+    }
+
     @ExceptionHandler(ResourceAccessException.class)
     public ResponseEntity<ApiError> handleServiceUnavailable(ResourceAccessException ex, HttpServletRequest request) {
         log.error("Downstream service unreachable: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(
                 ApiError.of(503, "Service Unavailable", ErrorCode.SERVICE_UNAVAILABLE.getCode(),
                         "A required service is temporarily unavailable", request.getRequestURI()));
+    }
+
+    /**
+     * Preserve the HTTP status encoded in a ResponseStatusException (which
+     * Spring controllers throw via orElseThrow(() -> new ResponseStatusException(
+     * HttpStatus.NOT_FOUND, ...))). Before this handler existed, such
+     * exceptions were caught by the generic @ExceptionHandler(Exception.class)
+     * below and downgraded to 500 — hiding legitimate 404/409/etc. from
+     * the UI.
+     */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiError> handleResponseStatus(
+            ResponseStatusException ex, HttpServletRequest request) {
+        int status = ex.getStatusCode().value();
+        String reason = ex.getReason() != null ? ex.getReason() : ex.getMessage();
+        ErrorCode code = switch (status) {
+            case 400 -> ErrorCode.VALIDATION_FAILED;
+            case 401 -> ErrorCode.UNAUTHORIZED;
+            case 403 -> ErrorCode.ACCESS_DENIED;
+            case 404 -> ErrorCode.ENTITY_NOT_FOUND;
+            case 409 -> ErrorCode.ENTITY_CONFLICT;
+            default  -> ErrorCode.INTERNAL_ERROR;
+        };
+        log.warn("[{}] {} {}: {}", MDC.get("correlationId"), status, ex.getStatusCode(), reason);
+        return ResponseEntity.status(status).body(
+                ApiError.of(status, ex.getStatusCode().toString(), code.getCode(),
+                        reason, request.getRequestURI()));
     }
 
     @ExceptionHandler(Exception.class)
