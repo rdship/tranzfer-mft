@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { BrandingProvider } from './context/BrandingContext'
 import { ServiceProvider } from './context/ServiceContext'
+import { ThemeProvider } from './context/ThemeContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import ChunkLoadErrorBoundary from './components/ChunkLoadErrorBoundary'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -85,6 +86,7 @@ const ThreatIntelligence = lazy(() => import('./pages/ThreatIntelligence'))
 const EdiTraining        = lazy(() => import('./pages/EdiTraining'))
 const ProxyIntelligence  = lazy(() => import('./pages/ProxyIntelligence'))
 const ConfigExport       = lazy(() => import('./pages/ConfigExport'))
+const Monitoring         = lazy(() => import('./pages/Monitoring'))
 
 /**
  * RouteFallback — shown while a lazy route chunk is being fetched.
@@ -179,6 +181,7 @@ function EagerRoute({ children }) {
 export default function App() {
   return (
     <ErrorBoundary>
+    <ThemeProvider>
     <BrandingProvider>
       <ServiceProvider>
       <AuthProvider>
@@ -270,12 +273,14 @@ export default function App() {
             <Route path="edi-training"          element={<LazyRoute><EdiTraining /></LazyRoute>} />
             <Route path="proxy-intelligence"    element={<LazyRoute><ProxyIntelligence /></LazyRoute>} />
             <Route path="config-export"         element={<LazyRoute><ConfigExport /></LazyRoute>} />
+            <Route path="monitoring"            element={<LazyRoute><Monitoring /></LazyRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/operations" replace />} />
         </Routes>
       </AuthProvider>
       </ServiceProvider>
     </BrandingProvider>
+    </ThemeProvider>
     </ErrorBoundary>
   )
 }

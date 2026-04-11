@@ -11,8 +11,9 @@
    bg-surface/80  →  background: rgb(var(--surface) / 0.8)
    ═══════════════════════════════════════════════════════════ */
 
-/* ── SCANDINAVIAN DARK — Unified theme for all pages ── */
+/* ── SCANDINAVIAN DARK — default theme for all pages ── */
 :root,
+[data-theme="dark"],
 [data-theme="elevated"],
 [data-theme="dark-ops"],
 [data-theme="compliance"],
@@ -31,6 +32,41 @@
   --chart-2:         72 199 174;   /* muted teal             */
   --chart-3:        240 180  80;   /* warm amber             */
   --chart-4:        220 100 100;   /* soft red               */
+}
+
+/* ── LIGHT — R20 addition for the theme toggle in the sidebar footer.
+   Mirrors the dark palette with high-contrast light tokens so every
+   page styled via the CSS vars flips cleanly. Charts stay rich-color
+   because they need to be legible on both backgrounds. ── */
+[data-theme="light"] {
+  --surface:        255 255 255;   /* pure white cards       */
+  --canvas:         246 248 251;   /* cool mist bg           */
+  --border:         226 232 240;   /* gentle slate border    */
+  --hover:          241 245 249;   /* slate-100 hover        */
+  --tx-primary:      15  23  42;   /* slate-900              */
+  --tx-secondary:    71  85 105;   /* slate-600              */
+  --tx-muted:       148 163 184;   /* slate-400              */
+  --accent:          79  70 229;   /* indigo-600             */
+  --accent-soft:    224 231 255;   /* indigo-100             */
+  --chart-1:         79  70 229;   /* indigo                 */
+  --chart-2:         16 185 129;   /* emerald                */
+  --chart-3:        234 179   8;   /* amber                  */
+  --chart-4:        239  68  68;   /* red                    */
+}
+
+/* ═══════════════════════════════════════════════════════════
+   THEME TOGGLE — R20 playful spin on click so the switch feels
+   fun instead of utilitarian. Sun/moon icons rotate a full
+   360° when activated.
+   ═══════════════════════════════════════════════════════════ */
+.theme-toggle-btn svg {
+  transition: transform 400ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.theme-toggle-btn:hover svg {
+  transform: rotate(20deg) scale(1.1);
+}
+.theme-toggle-btn:active svg {
+  transform: rotate(360deg) scale(1.2);
 }
 
 /* ═══════════════════════════════════════════════════════════

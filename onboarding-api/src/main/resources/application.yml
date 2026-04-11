@@ -2,6 +2,18 @@ server:
   port: 8080
   shutdown: graceful
 
+# Monitoring proxy configuration — MonitoringProxyController forwards
+# PromQL/LogQL queries from the admin UI's Monitoring page to these
+# backends. Defaults match the docker-compose service names; override
+# via env vars for local dev or non-Docker runs.
+monitoring:
+  prometheus:
+    url: ${PROMETHEUS_URL:http://prometheus:9090}
+  loki:
+    url: ${LOKI_URL:http://loki:3100}
+  alertmanager:
+    url: ${ALERTMANAGER_URL:http://alertmanager:9093}
+
 management:
   health:
     probes:

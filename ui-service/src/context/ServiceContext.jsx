@@ -147,6 +147,12 @@ const PAGE_SERVICE_MAP = {
 
   // Config Export (Phase 1 — read-only export side)
   '/config-export': ['onboarding'],
+
+  // Monitoring — embedded Prometheus + Grafana + Alertmanager. Always
+  // visible because the page itself probes each tool's reachability
+  // and renders a fallback card when one is down. It's valuable to
+  // the admin even when all services are down (shows what's missing).
+  '/monitoring': ['core'],
 }
 
 const ServiceContext = createContext(null)

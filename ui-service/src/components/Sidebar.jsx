@@ -3,9 +3,11 @@ import { useQuery } from '@tanstack/react-query'
 import { useBranding } from '../context/BrandingContext'
 import { useServices } from '../context/ServiceContext'
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 import { useRecentlyViewed } from '../hooks/useRecentlyViewed'
 import { configApi, onboardingApi, screeningApi } from '../api/client'
 import { getFabricStuck } from '../api/fabric'
+import { SunIcon, MoonIcon } from '@heroicons/react/24/solid'
 import {
   HomeIcon,
   BuildingOfficeIcon,
@@ -130,6 +132,15 @@ const navGroups = [
     ],
   },
   {
+    // Monitoring — embedded Prometheus + Grafana + Alertmanager so the
+    // admin never has to leave the UI to check platform health, run
+    // PromQL queries, or silence alerts. Added in R19.
+    label: 'Monitoring',
+    items: [
+      { to: '/monitoring',   icon: ChartBarIcon, label: 'Dashboards & Metrics', role: 'ADMIN' },
+    ],
+  },
+  {
     label: 'EDI',
     items: [
       { to: '/edi',           icon: DocumentTextIcon,    label: 'EDI Convert' },
@@ -166,6 +177,7 @@ export default function Sidebar() {
   const { branding }               = useBranding()
   const { isPageVisible, loading } = useServices()
   const { user, logout }           = useAuth()
+  const { theme, toggle: toggleTheme } = useTheme()
   const { entries: recentEntries } = useRecentlyViewed()
   const userRole                   = user?.role || 'USER'
   const initials                   = (user?.email?.[0] || 'A').toUpperCase()
@@ -389,6 +401,27 @@ export default function Sidebar() {
           </p>
         </div>
 
+        {/* Theme toggle — small, discoverable but unobtrusive. Pops a
+            360° spin on click to make the switch feel playful, and shows
+            the destination theme name on hover so users know what they'll
+            get. R20 addition. */}
+        <button
+          onClick={toggleTheme}
+          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          aria-label="Toggle theme"
+          className="p-1.5 rounded-md transition-all flex-shrink-0 theme-toggle-btn"
+          style={{
+            color: theme === 'dark' ? 'rgb(250, 204, 21)' : 'rgb(79, 70, 229)',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgb(var(--hover))' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+        >
+          {theme === 'dark' ? (
+            <SunIcon className="w-4 h-4" />
+          ) : (
+            <MoonIcon className="w-4 h-4" />
+          )}
+        </button>
         {/* Logout */}
         <button
           onClick={logout}
