@@ -68,12 +68,14 @@ export default function Quarantine() {
     queryKey: ['quarantine-files', page],
     queryFn: () => quarantineApi.getQuarantinedFiles(page, 20),
     refetchInterval: 15000,
+    meta: { errorMessage: "Couldn't load quarantined files" },
   })
 
   const { data: stats } = useQuery({
     queryKey: ['quarantine-stats'],
     queryFn: quarantineApi.getQuarantineStats,
     refetchInterval: 30000,
+    meta: { silent: true }, // cosmetic counts, missing badge is its own signal
   })
 
   const files = data?.content || data || []

@@ -4,7 +4,7 @@ import { useBranding } from '../context/BrandingContext'
 import { useServices } from '../context/ServiceContext'
 import { useAuth } from '../context/AuthContext'
 import { useRecentlyViewed } from '../hooks/useRecentlyViewed'
-import { configApi, onboardingApi } from '../api/client'
+import { configApi, onboardingApi, screeningApi } from '../api/client'
 import { getFabricStuck } from '../api/fabric'
 import {
   HomeIcon,
@@ -203,7 +203,7 @@ export default function Sidebar() {
   const { data: dlqCount } = useQuery({
     queryKey: ['sidebar-dlq-count'],
     queryFn: () =>
-      onboardingApi.get('/api/dlq', { params: { size: 1 } })
+      onboardingApi.get('/api/dlq/messages', { params: { size: 1 } })
         .then(r => r.data?.totalElements ?? r.data?.total ?? 0)
         .catch(() => 0),
     refetchInterval: 60000,
@@ -212,9 +212,13 @@ export default function Sidebar() {
 
   const { data: quarantineCount } = useQuery({
     queryKey: ['sidebar-quarantine-count'],
+    // Quarantine count lives on the screening service — onboarding-api has
+    // no /api/quarantine. Use the same stats endpoint the Screening page
+    // uses, but surface just the total count. screeningApi base URL is
+    // http://localhost:8092 in dev.
     queryFn: () =>
-      onboardingApi.get('/api/quarantine', { params: { size: 1 } })
-        .then(r => r.data?.totalElements ?? r.data?.total ?? 0)
+      screeningApi.get('/api/v1/quarantine/stats')
+        .then(r => r.data?.total ?? r.data?.count ?? 0)
         .catch(() => 0),
     refetchInterval: 60000,
     retry: 0,
