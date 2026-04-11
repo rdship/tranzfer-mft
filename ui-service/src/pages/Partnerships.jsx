@@ -4,6 +4,7 @@ import { keystoreApi, onboardingApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
+import ConfirmDialog from '../components/ConfirmDialog'
 import toast from 'react-hot-toast'
 import { PlusIcon, TrashIcon, ArrowsRightLeftIcon, CheckCircleIcon, XCircleIcon, SignalIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { useState, useEffect } from 'react'
@@ -288,15 +289,17 @@ export default function Partnerships() {
         </Modal>
       )}
 
-      {confirmDelete && (
-        <Modal title="Confirm Deactivate" onClose={() => setConfirmDelete(null)}>
-          <p className="text-secondary mb-4">Are you sure you want to deactivate partnership <strong>{confirmDelete.partnerName}</strong>? This action cannot be undone.</p>
-          <div className="flex gap-3 justify-end">
-            <button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
-            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}>Deactivate</button>
-          </div>
-        </Modal>
-      )}
+      <ConfirmDialog
+        open={!!confirmDelete}
+        variant="warning"
+        title="Deactivate partnership?"
+        message={confirmDelete ? `Are you sure you want to deactivate partnership "${confirmDelete.partnerName}"? This action cannot be undone.` : ''}
+        confirmLabel="Deactivate"
+        cancelLabel="Cancel"
+        loading={deleteMut.isPending}
+        onConfirm={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   )
 }

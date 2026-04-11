@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { configApi } from '../api/client'
 import Modal from '../components/Modal'
+import ConfirmDialog from '../components/ConfirmDialog'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import toast from 'react-hot-toast'
@@ -242,15 +243,17 @@ export default function SecurityProfiles() {
         </Modal>
       )}
 
-      {confirmDelete && (
-        <Modal title="Confirm Delete" onClose={() => setConfirmDelete(null)}>
-          <p className="text-secondary mb-4">Are you sure you want to delete profile <strong>{confirmDelete.name}</strong>? This action cannot be undone.</p>
-          <div className="flex gap-3 justify-end">
-            <button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
-            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}>Delete</button>
-          </div>
-        </Modal>
-      )}
+      <ConfirmDialog
+        open={!!confirmDelete}
+        variant="danger"
+        title="Delete security profile?"
+        message={confirmDelete ? `Are you sure you want to delete profile "${confirmDelete.name}"? This action cannot be undone.` : ''}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        loading={deleteMut.isPending}
+        onConfirm={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   )
 }

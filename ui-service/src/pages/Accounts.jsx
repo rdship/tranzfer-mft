@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { getAccounts, createAccount, updateAccount, deleteAccount, toggleAccount, getServerInstancesActive } from '../api/accounts'
 import { onboardingApi } from '../api/client'
 import Modal from '../components/Modal'
+import ConfirmDialog from '../components/ConfirmDialog'
 import FormField, { friendlyError } from '../components/FormField'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
@@ -82,7 +83,11 @@ export default function Accounts() {
   const [form, setForm] = useState({ ...defaultForm })
   const [editQos, setEditQos] = useState({ ...defaultEditQos })
   const [selected, setSelected] = useState(new Set())
-  const [showBulkConfirm, setShowBulkConfirm] = useState(null) // 'enable' | 'disable'
+  const [showBulkConfirm, setShowBulkConfirm] = useState(null) // 'enable' | 'disable' | 'delete'
+  const [bulkLoading, setBulkLoading] = useState(false)
+  // lastClickedId powers shift-click range select (nice-to-have). Kept in a ref
+  // so it never triggers re-renders.
+  const lastClickedIdRef = useRef(null)
 
   const { data: accounts = [], isLoading } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts })
   const { data: serverInstances = [] } = useQuery({ queryKey: ['server-instances-active'], queryFn: getServerInstancesActive })
@@ -137,30 +142,83 @@ export default function Accounts() {
     return arr
   }, [accounts, search, sortBy, sortDir, partnerIdFilter, serverInstanceFilter, keyAliasFilter])
 
-  const toggleSelect = (id) => setSelected(s => {
-    const n = new Set(s)
-    n.has(id) ? n.delete(id) : n.add(id)
-    return n
-  })
+  // Clear selection when the filter surface changes (search / URL filters).
+  // Stability principle — selection is preserved across react-query background
+  // refetches, but a user-initiated filter change clears stale selections.
+  useEffect(() => {
+    setSelected(new Set())
+    lastClickedIdRef.current = null
+  }, [search, partnerIdFilter, serverInstanceFilter, keyAliasFilter])
+
+  const toggleSelect = (id, event) => {
+    // Shift-click range select across the currently filtered list (Flexibility).
+    if (event?.shiftKey && lastClickedIdRef.current != null) {
+      const ids = filtered.map(a => a.id)
+      const a = ids.indexOf(lastClickedIdRef.current)
+      const b = ids.indexOf(id)
+      if (a !== -1 && b !== -1) {
+        const [lo, hi] = a < b ? [a, b] : [b, a]
+        const range = ids.slice(lo, hi + 1)
+        setSelected(s => {
+          const n = new Set(s)
+          range.forEach(rid => n.add(rid))
+          return n
+        })
+        lastClickedIdRef.current = id
+        return
+      }
+    }
+    setSelected(s => {
+      const n = new Set(s)
+      n.has(id) ? n.delete(id) : n.add(id)
+      return n
+    })
+    lastClickedIdRef.current = id
+  }
   const toggleSelectAll = () => {
     if (selected.size === filtered.length) setSelected(new Set())
     else setSelected(new Set(filtered.map(a => a.id)))
   }
 
+  // Counts used to show Activate only when there is something inactive in the
+  // selection, Deactivate only when there's something active (Guidance).
+  const selectedAccounts = useMemo(
+    () => filtered.filter(a => selected.has(a.id)),
+    [filtered, selected],
+  )
+  const hasInactiveSelected = selectedAccounts.some(a => !a.active)
+  const hasActiveSelected = selectedAccounts.some(a => a.active)
+
   const handleBulkAction = async (action) => {
     const ids = [...selected]
-    const active = action === 'enable'
-    const results = await Promise.allSettled(
-      ids.map(id => toggleAccount(id, active))
-    )
-    const succeeded = results.filter(r => r.status === 'fulfilled').length
-    const failed = results.filter(r => r.status === 'rejected').length
-    const label = active ? 'enabled' : 'disabled'
-    if (failed === 0) toast.success(`${succeeded} account${succeeded !== 1 ? 's' : ''} ${label}`)
-    else toast.error(`${succeeded} of ${ids.length} accounts ${label}, ${failed} failed`)
-    setSelected(new Set())
-    setShowBulkConfirm(null)
-    qc.invalidateQueries(['accounts'])
+    if (ids.length === 0) return
+    setBulkLoading(true)
+    try {
+      // NOTE: the accounts API exposes a single PATCH /api/accounts/{id} with
+      // { active: bool } rather than dedicated /activate /deactivate endpoints
+      // (see api/accounts.js → toggleAccount). We fan that out for bulk.
+      let results, label, noun = 'accounts'
+      if (action === 'delete') {
+        results = await Promise.allSettled(ids.map(id => deleteAccount(id)))
+        label = 'Deleted'
+      } else {
+        const active = action === 'enable'
+        results = await Promise.allSettled(ids.map(id => toggleAccount(id, active)))
+        label = active ? 'Activated' : 'Deactivated'
+      }
+      const succeeded = results.filter(r => r.status === 'fulfilled').length
+      const failed = results.filter(r => r.status === 'rejected').length
+      if (failed === 0) {
+        toast.success(`${label} ${succeeded} ${noun}`)
+      } else {
+        toast.error(`${label} ${succeeded} of ${ids.length} ${noun} — ${failed} failed`)
+      }
+      setSelected(new Set())
+      setShowBulkConfirm(null)
+      qc.invalidateQueries(['accounts'])
+    } finally {
+      setBulkLoading(false)
+    }
   }
 
   const filteredInstances = serverInstances.filter(s => s.protocol === form.protocol)
@@ -249,13 +307,30 @@ export default function Accounts() {
           </div>
         )}
 
-        {/* Bulk Action Bar */}
+        {/* Bulk Action Toolbar — sticky above table, only visible when a
+            selection exists (Guidance + Information transparency). */}
         {selected.size > 0 && (
-          <div className="flex items-center gap-3 bg-[rgba(100,140,255,0.1)] border border-[rgba(100,140,255,0.2)] rounded-xl px-4 py-2 mb-4">
-            <span className="text-sm font-medium">{selected.size} selected</span>
-            <button className="btn-secondary text-sm" onClick={() => setShowBulkConfirm('enable')}>Enable All</button>
-            <button className="btn-secondary text-sm" onClick={() => setShowBulkConfirm('disable')}>Disable All</button>
-            <button className="text-sm text-red-400 hover:text-red-300" onClick={() => setSelected(new Set())}>Clear</button>
+          <div
+            className="sticky top-0 z-10 flex items-center gap-3 bg-[rgba(100,140,255,0.12)] border border-[rgba(100,140,255,0.25)] rounded-xl px-4 py-2 mb-4 backdrop-blur"
+          >
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-[rgba(100,140,255,0.22)] text-primary">
+              {selected.size} selected
+            </span>
+            <button className="text-xs text-secondary hover:text-primary underline" onClick={() => setSelected(new Set())}>Clear</button>
+            <div className="flex-1" />
+            {hasInactiveSelected && (
+              <button className="btn-secondary text-sm" onClick={() => setShowBulkConfirm('enable')}>Activate</button>
+            )}
+            {hasActiveSelected && (
+              <button className="btn-secondary text-sm" onClick={() => setShowBulkConfirm('disable')}>Deactivate</button>
+            )}
+            <button
+              className="btn-secondary text-sm"
+              style={{ background: 'rgba(220,38,38,0.15)', color: 'rgb(248,113,113)', border: '1px solid rgba(220,38,38,0.4)' }}
+              onClick={() => setShowBulkConfirm('delete')}
+            >
+              Delete
+            </button>
           </div>
         )}
 
@@ -284,7 +359,7 @@ export default function Accounts() {
                 const tier = getQosTier(acc)
                 return (
                 <tr key={acc.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => setDetailAccount(acc)} onDoubleClick={(e) => { e.stopPropagation(); openEdit(acc) }}>
-                  <td className="table-cell" onClick={e => e.stopPropagation()}><input type="checkbox" checked={selected.has(acc.id)} onChange={() => toggleSelect(acc.id)} /></td>
+                  <td className="table-cell" onClick={e => e.stopPropagation()}><input type="checkbox" checked={selected.has(acc.id)} onClick={e => toggleSelect(acc.id, e)} onChange={() => {}} /></td>
                   {/*
                     Phase 2 — If the account payload carries a partnerId, surface it as a
                     deep-link back to PartnerDetail. Falls through to plain username otherwise
@@ -569,30 +644,48 @@ export default function Accounts() {
         </Modal>
       )}
 
-      {confirmDelete && (
-        <Modal title="Confirm Delete" onClose={() => setConfirmDelete(null)}>
-          <p className="text-secondary mb-4">Are you sure you want to delete account <strong>{confirmDelete.username}</strong>? This action cannot be undone.</p>
-          <div className="flex gap-3 justify-end">
-            <button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
-            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}>Delete</button>
-          </div>
-        </Modal>
-      )}
+      <ConfirmDialog
+        open={!!confirmDelete}
+        variant="danger"
+        title="Delete account?"
+        message={confirmDelete ? `Are you sure you want to delete account "${confirmDelete.username}"? This action cannot be undone.` : ''}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        loading={deleteMut.isPending}
+        onConfirm={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}
+        onCancel={() => setConfirmDelete(null)}
+      />
 
-      {/* Bulk Confirm Modal */}
-      {showBulkConfirm && (
-        <Modal title={`Bulk ${showBulkConfirm === 'enable' ? 'Enable' : 'Disable'} Accounts`} onClose={() => setShowBulkConfirm(null)}>
-          <p className="text-secondary mb-4">
-            Are you sure you want to {showBulkConfirm} <strong>{selected.size}</strong> account{selected.size !== 1 ? 's' : ''}?
-          </p>
-          <div className="flex gap-3 justify-end">
-            <button className="btn-secondary" onClick={() => setShowBulkConfirm(null)}>Cancel</button>
-            <button className="btn-primary" onClick={() => handleBulkAction(showBulkConfirm)}>
-              {showBulkConfirm === 'enable' ? 'Enable All' : 'Disable All'}
-            </button>
-          </div>
-        </Modal>
-      )}
+      {/* Bulk Confirm — ConfirmDialog primitive (danger for delete, warning
+          otherwise). Title includes count for transparency. */}
+      <ConfirmDialog
+        open={!!showBulkConfirm}
+        variant={showBulkConfirm === 'delete' ? 'danger' : 'warning'}
+        title={
+          showBulkConfirm === 'delete'
+            ? `Delete ${selected.size} account${selected.size !== 1 ? 's' : ''}?`
+            : showBulkConfirm === 'enable'
+              ? `Activate ${selected.size} account${selected.size !== 1 ? 's' : ''}?`
+              : showBulkConfirm === 'disable'
+                ? `Deactivate ${selected.size} account${selected.size !== 1 ? 's' : ''}?`
+                : ''
+        }
+        message={
+          showBulkConfirm === 'delete'
+            ? 'This will permanently remove the selected accounts and their folder mappings.'
+            : showBulkConfirm === 'enable'
+              ? 'Selected accounts will accept new logins and transfers.'
+              : 'Selected accounts will be blocked from new logins and transfers.'
+        }
+        confirmLabel={
+          showBulkConfirm === 'delete' ? 'Delete all'
+          : showBulkConfirm === 'enable' ? 'Activate all'
+          : 'Deactivate all'
+        }
+        onConfirm={() => handleBulkAction(showBulkConfirm)}
+        onCancel={() => setShowBulkConfirm(null)}
+        loading={bulkLoading}
+      />
 
       <ExecutionDetailDrawer trackId={drawerTrackId} open={!!drawerTrackId} onClose={() => setDrawerTrackId(null)} />
     </div>

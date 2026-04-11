@@ -5,6 +5,7 @@ import { onboardingApi, configApi } from '../api/client'
 import { getFabricQueues, getFabricStuck, getFabricLatency, getFabricInstances } from '../api/fabric'
 import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
+import Skeleton, { useDelayedFlag } from '../components/Skeleton'
 import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer'
 import FileDownloadButton from '../components/FileDownloadButton'
 import ConfigLink from '../components/ConfigLink'
@@ -591,6 +592,11 @@ export default function ActivityMonitor() {
     placeholderData: keepPreviousData,
     refetchInterval: autoRefresh ? 30000 : false,
   })
+
+  // Skeleton only shows on the first fetch (no data yet), and only if the
+  // fetch takes longer than ~100ms — avoids a flash on cached/fast responses.
+  const isFirstLoad = isLoading && !data
+  const showSkeleton = useDelayedFlag(isFirstLoad, 100)
 
   const rawRows = data?.content || []
   // Client-side filters layered on top of the server query:
@@ -1406,10 +1412,17 @@ export default function ActivityMonitor() {
 
       {/* ── Table ────────────────────────────────────────────────── */}
       {activeTab === 'transfers' && <div className="card !p-0 overflow-hidden">
-        {isLoading ? (
-          <div className="p-12">
-            <LoadingSpinner text="Loading transfers..." />
-          </div>
+        {isFirstLoad ? (
+          showSkeleton ? (
+            <Skeleton.Table
+              rows={10}
+              cols={[32, 120, 200, 80, 120, 80, 100, 80]}
+              rowHeight={44}
+            />
+          ) : (
+            /* Sub-100ms: keep the shell empty briefly to avoid skeleton flash */
+            <div style={{ minHeight: '440px' }} aria-hidden="true" />
+          )
         ) : rows.length === 0 ? (
           /* Empty state */
           <div className="flex flex-col items-center justify-center py-20 px-6">
@@ -1601,43 +1614,19 @@ export default function ActivityMonitor() {
         )}
       </div>}
 
-      {/* ── Bulk Restart Confirmation Modal ──────────────────────── */}
-      {showBulkConfirm && (
-        <Modal title="Confirm Bulk Restart" onClose={() => setShowBulkConfirm(false)}>
-          <div className="space-y-4">
-            <div className="flex items-start gap-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <ArrowPathIcon className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-yellow-800">
-                  Restart {selectedTrackIds.size} failed transfer{selectedTrackIds.size !== 1 ? 's' : ''}?
-                </p>
-                <p className="text-sm text-yellow-700 mt-1">
-                  This will re-queue the selected transfers for processing. They will be retried from the beginning of their flow pipeline.
-                </p>
-              </div>
-            </div>
-            <div className="max-h-40 overflow-y-auto bg-canvas rounded-lg p-3">
-              <p className="text-xs font-medium text-secondary mb-1">Selected Track IDs:</p>
-              <div className="flex flex-wrap gap-1">
-                {[...selectedTrackIds].map(id => (
-                  <span key={id} className="font-mono text-xs bg-red-50 text-red-700 px-2 py-0.5 rounded border border-red-200">{id}</span>
-                ))}
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setShowBulkConfirm(false)} className="btn-secondary">Cancel</button>
-              <button
-                onClick={() => bulkRestartMut.mutate([...selectedTrackIds])}
-                disabled={bulkRestartMut.isPending}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 transition-colors"
-              >
-                <ArrowPathIcon className={`w-4 h-4 ${bulkRestartMut.isPending ? 'animate-spin' : ''}`} />
-                {bulkRestartMut.isPending ? 'Restarting...' : `Restart ${selectedTrackIds.size} Transfer${selectedTrackIds.size !== 1 ? 's' : ''}`}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
+      {/* ── Bulk Restart Confirmation ──────────────────────── */}
+      <ConfirmDialog
+        open={showBulkConfirm}
+        variant="warning"
+        title="Confirm Bulk Restart"
+        message={`Restart ${selectedTrackIds.size} failed transfer${selectedTrackIds.size !== 1 ? 's' : ''}? This will re-queue the selected transfers for processing. They will be retried from the beginning of their flow pipeline.`}
+        evidence={[...selectedTrackIds].join('\n')}
+        confirmLabel={`Restart ${selectedTrackIds.size} Transfer${selectedTrackIds.size !== 1 ? 's' : ''}`}
+        cancelLabel="Cancel"
+        loading={bulkRestartMut.isPending}
+        onConfirm={() => bulkRestartMut.mutate([...selectedTrackIds])}
+        onCancel={() => setShowBulkConfirm(false)}
+      />
 
       {/* ── Schedule Retry Modal ─────────────────────────────────── */}
       {scheduleModal && (

@@ -4,6 +4,7 @@ import {
   getProxyGroups, createProxyGroup, updateProxyGroup, deleteProxyGroup,
 } from '../api/proxyGroups'
 import Modal from '../components/Modal'
+import ConfirmDialog from '../components/ConfirmDialog'
 import toast from 'react-hot-toast'
 import {
   PlusIcon, PencilSquareIcon, TrashIcon, ArrowPathIcon,
@@ -130,7 +131,7 @@ function GroupCard({ group, onEdit, onDelete }) {
               title="Edit group" aria-label="Edit group">
               <PencilSquareIcon className="w-4 h-4" />
             </button>
-            <button onClick={() => { if (confirm(`Delete proxy group "${group.name}"?`)) onDelete(group.id) }}
+            <button onClick={() => onDelete(group)}
               className="p-1.5 rounded-lg transition-colors"
               style={{ color: 'rgb(var(--tx-muted))' }}
               onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
@@ -309,6 +310,7 @@ export default function ProxyGroups() {
   const qc = useQueryClient()
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing]     = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   const { data: groups = [], isLoading, refetch, isFetching } = useQuery({
     queryKey: ['proxy-groups'],
@@ -431,7 +433,7 @@ export default function ProxyGroups() {
           {groups.map((g, i) => (
             <GroupCard key={g.id || g.name || i} group={g}
               onEdit={openEdit}
-              onDelete={(id) => deleteMut.mutate(id)}
+              onDelete={(g) => setDeleteTarget(g)}
             />
           ))}
         </div>
@@ -446,6 +448,18 @@ export default function ProxyGroups() {
           saving={saveMut.isPending}
         />
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        variant="danger"
+        title="Delete proxy group?"
+        message={deleteTarget ? `Delete proxy group "${deleteTarget.name}"?` : ''}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        loading={deleteMut.isPending}
+        onConfirm={() => { deleteMut.mutate(deleteTarget.id); setDeleteTarget(null) }}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   )
 }

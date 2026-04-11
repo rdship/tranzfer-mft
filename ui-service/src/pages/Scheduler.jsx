@@ -138,7 +138,32 @@ export default function Scheduler() {
           <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('nextRun')} aria-sort={sortBy === 'nextRun' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Last Run {sortBy === 'nextRun' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th><th className="table-header">Status</th><th className="table-header">Runs</th><th className="table-header cursor-pointer select-none" onClick={() => toggleSort('active')} aria-sort={sortBy === 'active' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Actions {sortBy === 'active' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
         </tr></thead><tbody>
           {tasks.length === 0 ? (
-            <tr><td colSpan={7} className="text-center py-8 text-secondary text-sm">No scheduled tasks yet. Create your first schedule to automate recurring jobs.</td></tr>
+            <tr>
+              <td colSpan={7}>
+                <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+                  <div
+                    className="w-14 h-14 rounded-full flex items-center justify-center mb-3"
+                    style={{ background: 'rgba(79, 70, 229, 0.1)' }}
+                  >
+                    <PlusIcon className="w-7 h-7" style={{ color: 'rgb(var(--accent, 79 70 229))' }} />
+                  </div>
+                  <h3 className="text-base font-semibold mb-1" style={{ color: 'rgb(var(--tx-primary))' }}>
+                    No scheduled tasks yet
+                  </h3>
+                  <p className="text-xs max-w-md mb-4" style={{ color: 'rgb(148, 163, 184)' }}>
+                    Schedule cron-driven tasks to poll partner servers, run maintenance, or trigger flows.
+                  </p>
+                  <button
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors"
+                    style={{ background: 'rgb(var(--accent, 79 70 229))', color: '#fff' }}
+                    onClick={openCreate}
+                  >
+                    <PlusIcon className="w-3.5 h-3.5" />
+                    New Task
+                  </button>
+                </div>
+              </td>
+            </tr>
           ) : sortedTasks.map(t => (
             <tr key={t.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => openEdit(t)}>
               <td className="table-cell font-medium">{t.name}</td>

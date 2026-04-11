@@ -342,11 +342,20 @@ export default function Keystore() {
       {/* ─── Keys Table ─── */}
       {filteredKeys.length === 0 ? (
         <EmptyState
-          emoji="🔑"
           title={search ? 'No keys match your search' : 'No keys yet'}
-          description={search ? 'Try adjusting your search or filter.' : 'Generate or import your first key to get started.'}
-          actionLabel="Generate Key"
-          onAction={() => setShowGenerate(true)}
+          description={search
+            ? 'Try adjusting your search or filter.'
+            : 'Keys are used by accounts (SSH, TLS) and flows (PGP, AES, HMAC). Import your first key or generate a new one.'}
+          action={!search && (
+            <div className="flex items-center gap-2">
+              <button className="btn-secondary" onClick={() => setShowImport(true)}>
+                <ArrowUpTrayIcon className="w-4 h-4" /> Import Key
+              </button>
+              <button className="btn-primary" onClick={() => setShowGenerate(true)}>
+                <PlusIcon className="w-4 h-4" /> Generate Key
+              </button>
+            </div>
+          )}
         />
       ) : (
         <div className="card !p-0 overflow-hidden">

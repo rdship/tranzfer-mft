@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import Modal from '../components/Modal'
+import ConfirmDialog from '../components/ConfirmDialog'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import {
@@ -849,25 +850,29 @@ export default function GatewayStatus() {
           )}
         </div>
       )}
-      {confirmDeleteMapping && (
-        <Modal title="Confirm Remove" onClose={() => setConfirmDeleteMapping(null)}>
-          <p className="text-secondary mb-4">Are you sure you want to remove mapping <strong>{confirmDeleteMapping.name}</strong>? This action cannot be undone.</p>
-          <div className="flex gap-3 justify-end">
-            <button className="btn-secondary" onClick={() => setConfirmDeleteMapping(null)}>Cancel</button>
-            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { removeMappingMut.mutate(confirmDeleteMapping.name); setConfirmDeleteMapping(null) }}>Remove</button>
-          </div>
-        </Modal>
-      )}
+      <ConfirmDialog
+        open={!!confirmDeleteMapping}
+        variant="danger"
+        title="Remove mapping?"
+        message={confirmDeleteMapping ? `Are you sure you want to remove mapping "${confirmDeleteMapping.name}"? This action cannot be undone.` : ''}
+        confirmLabel="Remove"
+        cancelLabel="Cancel"
+        loading={removeMappingMut.isPending}
+        onConfirm={() => { removeMappingMut.mutate(confirmDeleteMapping.name); setConfirmDeleteMapping(null) }}
+        onCancel={() => setConfirmDeleteMapping(null)}
+      />
 
-      {confirmDeleteLegacy && (
-        <Modal title="Confirm Delete" onClose={() => setConfirmDeleteLegacy(null)}>
-          <p className="text-secondary mb-4">Are you sure you want to delete legacy server <strong>{confirmDeleteLegacy.name}</strong>? This action cannot be undone.</p>
-          <div className="flex gap-3 justify-end">
-            <button className="btn-secondary" onClick={() => setConfirmDeleteLegacy(null)}>Cancel</button>
-            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteLegacyMut.mutate(confirmDeleteLegacy.id); setConfirmDeleteLegacy(null) }}>Delete</button>
-          </div>
-        </Modal>
-      )}
+      <ConfirmDialog
+        open={!!confirmDeleteLegacy}
+        variant="danger"
+        title="Delete legacy server?"
+        message={confirmDeleteLegacy ? `Are you sure you want to delete legacy server "${confirmDeleteLegacy.name}"? This action cannot be undone.` : ''}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        loading={deleteLegacyMut.isPending}
+        onConfirm={() => { deleteLegacyMut.mutate(confirmDeleteLegacy.id); setConfirmDeleteLegacy(null) }}
+        onCancel={() => setConfirmDeleteLegacy(null)}
+      />
     </div>
   )
 }

@@ -14,6 +14,7 @@ import SecurityTierSelector from '../components/SecurityTierSelector'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
+import ConfirmDialog from '../components/ConfirmDialog'
 import ColumnSettingsButton from '../components/ColumnSettingsButton'
 import useColumnPrefs from '../hooks/useColumnPrefs'
 import { friendlyError } from '../components/FormField'
@@ -270,15 +271,17 @@ function AccountsPanel({ server, onClose }) {
         </div>
       </div>
 
-      {confirmRevoke && (
-        <Modal title="Confirm Revoke" onClose={() => setConfirmRevoke(null)}>
-          <p className="text-secondary mb-4">Are you sure you want to revoke <strong>{confirmRevoke.username}</strong>'s access to this server? This action cannot be undone.</p>
-          <div className="flex gap-3 justify-end">
-            <button className="btn-secondary" onClick={() => setConfirmRevoke(null)}>Cancel</button>
-            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { revokeMut.mutate({ accountId: confirmRevoke.accountId }); setConfirmRevoke(null) }}>Revoke</button>
-          </div>
-        </Modal>
-      )}
+      <ConfirmDialog
+        open={!!confirmRevoke}
+        variant="warning"
+        title="Revoke access?"
+        message={confirmRevoke ? `Are you sure you want to revoke "${confirmRevoke.username}"'s access to this server? This action cannot be undone.` : ''}
+        confirmLabel="Revoke"
+        cancelLabel="Cancel"
+        loading={revokeMut.isPending}
+        onConfirm={() => { revokeMut.mutate({ accountId: confirmRevoke.accountId }); setConfirmRevoke(null) }}
+        onCancel={() => setConfirmRevoke(null)}
+      />
     </Modal>
   )
 }
@@ -524,7 +527,17 @@ export default function ServerInstances() {
 
       {/* Server list */}
       {filtered.length === 0 ? (
-        <div className="card"><EmptyState title="No server instances found" description="Add your first server instance to get started." /></div>
+        <div className="card">
+          <EmptyState
+            title="No server instances registered"
+            description="Server instances are the SFTP/FTP/HTTPS endpoints clients connect to. Add one to start accepting traffic."
+            action={
+              <button className="btn-primary" onClick={() => { setForm(emptyForm); setShowCreate(true) }}>
+                <PlusIcon className="w-4 h-4" /> Add Instance
+              </button>
+            }
+          />
+        </div>
       ) : (
         <div className="card">
           <table className="w-full">
@@ -712,15 +725,17 @@ export default function ServerInstances() {
         <AccountsPanel server={accountsServer} onClose={() => setAccountsServer(null)} />
       )}
 
-      {confirmDeactivate && (
-        <Modal title="Confirm Deactivate" onClose={() => setConfirmDeactivate(null)}>
-          <p className="text-secondary mb-4">Are you sure you want to deactivate server <strong>{confirmDeactivate.name}</strong>? This action cannot be undone.</p>
-          <div className="flex gap-3 justify-end">
-            <button className="btn-secondary" onClick={() => setConfirmDeactivate(null)}>Cancel</button>
-            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteMut.mutate(confirmDeactivate.id); setConfirmDeactivate(null) }}>Deactivate</button>
-          </div>
-        </Modal>
-      )}
+      <ConfirmDialog
+        open={!!confirmDeactivate}
+        variant="warning"
+        title="Deactivate server?"
+        message={confirmDeactivate ? `Are you sure you want to deactivate server "${confirmDeactivate.name}"? This action cannot be undone.` : ''}
+        confirmLabel="Deactivate"
+        cancelLabel="Cancel"
+        loading={deleteMut.isPending}
+        onConfirm={() => { deleteMut.mutate(confirmDeactivate.id); setConfirmDeactivate(null) }}
+        onCancel={() => setConfirmDeactivate(null)}
+      />
     </div>
   )
 }

@@ -38,6 +38,7 @@ import {
 } from '../api/partners'
 import { onboardingApi } from '../api/client'
 import { createAccount } from '../api/accounts'
+import ConfirmDialog from '../components/ConfirmDialog'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
@@ -99,6 +100,7 @@ export default function PartnerDetail() {
   const [editingWebhook, setEditingWebhook] = useState(null)
   const [webhookForm, setWebhookForm] = useState({ ...EMPTY_WEBHOOK })
   const [deleteWebhookConfirm, setDeleteWebhookConfirm] = useState(null)
+  const [showSuspendConfirm, setShowSuspendConfirm] = useState(false)
   const [expandedAccount, setExpandedAccount] = useState(null)
   const [expandedEndpoint, setExpandedEndpoint] = useState(null)
   const [expandedWebhook, setExpandedWebhook] = useState(null)
@@ -353,9 +355,7 @@ export default function PartnerDetail() {
             {partner.status === 'ACTIVE' ? (
               <button
                 className="btn-danger"
-                onClick={() => {
-                  if (confirm(`Suspend partner "${partner.companyName}"?`)) suspendMut.mutate()
-                }}
+                onClick={() => setShowSuspendConfirm(true)}
                 disabled={suspendMut.isPending}
               >
                 <PauseIcon className="w-4 h-4" /> {suspendMut.isPending ? 'Suspending...' : 'Suspend'}
@@ -1098,22 +1098,18 @@ export default function PartnerDetail() {
             </Modal>
           )}
 
-          {/* Delete confirmation */}
-          {deleteWebhookConfirm && (
-            <Modal title="Delete Webhook" onClose={() => setDeleteWebhookConfirm(null)}>
-              <div className="space-y-4">
-                <p className="text-sm text-secondary">
-                  Are you sure you want to delete the webhook for <strong className="font-mono text-xs">{deleteWebhookConfirm.url}</strong>?
-                </p>
-                <div className="flex gap-3 justify-end">
-                  <button className="btn-secondary" onClick={() => setDeleteWebhookConfirm(null)}>Cancel</button>
-                  <button className="btn-danger" onClick={() => deleteWebhookMut.mutate(deleteWebhookConfirm.id)} disabled={deleteWebhookMut.isPending}>
-                    {deleteWebhookMut.isPending ? 'Deleting...' : 'Delete Webhook'}
-                  </button>
-                </div>
-              </div>
-            </Modal>
-          )}
+          {/* Delete webhook confirmation */}
+          <ConfirmDialog
+            open={!!deleteWebhookConfirm}
+            variant="danger"
+            title="Delete Webhook"
+            message={deleteWebhookConfirm ? `Are you sure you want to delete the webhook for ${deleteWebhookConfirm.url}?` : ''}
+            confirmLabel="Delete Webhook"
+            cancelLabel="Cancel"
+            loading={deleteWebhookMut.isPending}
+            onConfirm={() => { deleteWebhookMut.mutate(deleteWebhookConfirm.id); setDeleteWebhookConfirm(null) }}
+            onCancel={() => setDeleteWebhookConfirm(null)}
+          />
         </div>
       )}
 
@@ -1317,6 +1313,19 @@ export default function PartnerDetail() {
           </div>
         </form>
       )}
+
+      {/* Suspend Partner Confirmation */}
+      <ConfirmDialog
+        open={showSuspendConfirm}
+        variant="warning"
+        title="Suspend partner?"
+        message={partner ? `Suspend partner "${partner.companyName}"?` : ''}
+        confirmLabel="Suspend"
+        cancelLabel="Cancel"
+        loading={suspendMut.isPending}
+        onConfirm={() => { suspendMut.mutate(); setShowSuspendConfirm(false) }}
+        onCancel={() => setShowSuspendConfirm(false)}
+      />
     </div>
   )
 }

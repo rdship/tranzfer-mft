@@ -15,6 +15,7 @@ import MapTestPanel from '../components/MapTestPanel'
 import SampleUploader from '../components/SampleUploader'
 import MapAssistant from '../components/MapAssistant'
 import MapPreview from '../components/MapPreview'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 const TABS = [
   { id: 'convert', label: 'Convert' },
@@ -122,6 +123,7 @@ export default function Edi() {
   const [buildMapStep, setBuildMapStep] = useState('upload') // 'upload' | 'preview' | 'refine'
   const [buildMapResult, setBuildMapResult] = useState(null)
   const [buildMapPreview, setBuildMapPreview] = useState(null)
+  const [deleteMapTarget, setDeleteMapTarget] = useState(null)
 
   // Load maps when Maps tab is selected
   useEffect(() => {
@@ -318,9 +320,14 @@ export default function Edi() {
   }
 
   // Delete partner map
-  const handleDeleteMap = async (map) => {
-    const mapId = map.mapId || map.id
-    if (!confirm(`Delete map "${map.name || mapId}"? This cannot be undone.`)) return
+  const handleDeleteMap = (map) => {
+    setDeleteMapTarget(map)
+  }
+
+  const confirmDeleteMap = async () => {
+    if (!deleteMapTarget) return
+    const mapId = deleteMapTarget.mapId || deleteMapTarget.id
+    setDeleteMapTarget(null)
     try {
       await deleteMap(mapId)
       toast.success('Map deleted')
@@ -1345,6 +1352,17 @@ export default function Edi() {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deleteMapTarget}
+        variant="danger"
+        title="Delete map?"
+        message={deleteMapTarget ? `Delete map "${deleteMapTarget.name || deleteMapTarget.mapId || deleteMapTarget.id}"? This cannot be undone.` : ''}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={confirmDeleteMap}
+        onCancel={() => setDeleteMapTarget(null)}
+      />
     </div>
   )
 }

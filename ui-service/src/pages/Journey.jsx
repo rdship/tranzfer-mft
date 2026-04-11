@@ -8,11 +8,12 @@ import DataLineageGraph from '../components/DataLineageGraph'
 import FileDownloadButton from '../components/FileDownloadButton'
 import ConfigLink from '../components/ConfigLink'
 import ConfigInlineEditor from '../components/ConfigInlineEditor'
+import ConfirmDialog from '../components/ConfirmDialog'
 import {
   MagnifyingGlassIcon, CheckCircleIcon, XCircleIcon, ClockIcon,
   ArrowRightIcon, ShieldCheckIcon, ArrowDownTrayIcon, EyeIcon,
   ChevronDownIcon, ChevronRightIcon, ArrowPathIcon, StopIcon,
-  ExclamationTriangleIcon, DocumentArrowDownIcon,
+  DocumentArrowDownIcon,
 } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
 
@@ -65,27 +66,6 @@ function FilePreviewButton({ trackId, stepIndex, direction, label, storageKey, v
       <EyeIcon className="w-3 h-3" />
       {filename.length > 22 ? filename.substring(0, 19) + '…' : filename}
     </a>
-  )
-}
-
-// ── Confirm dialog ───────────────────────────────────────────────────────────
-function ConfirmDialog({ title, message, confirmLabel, confirmClass = 'btn-danger', onConfirm, onCancel }) {
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-surface rounded-xl shadow-xl p-6 max-w-md w-full mx-4">
-        <div className="flex items-start gap-3 mb-4">
-          <ExclamationTriangleIcon className="w-6 h-6 text-yellow-500 flex-shrink-0 mt-0.5" />
-          <div>
-            <h3 className="font-semibold text-primary">{title}</h3>
-            <p className="text-sm text-secondary mt-1">{message}</p>
-          </div>
-        </div>
-        <div className="flex gap-2 justify-end">
-          <button className="btn-secondary" onClick={onCancel}>Cancel</button>
-          <button className={confirmClass} onClick={onConfirm}>{confirmLabel}</button>
-        </div>
-      </div>
-    </div>
   )
 }
 
@@ -175,29 +155,31 @@ function FlowActionBar({ trackId, status, stepSnapshots, onActionComplete }) {
         </button>
       )}
 
-      {confirm?.type === 'restart' && (
-        <ConfirmDialog
-          title={confirm.step === 0 ? 'Restart from beginning?' : `Restart from Step ${confirm.step + 1}?`}
-          message={confirm.step === 0
-            ? 'All steps will re-run using the original input file. Previous attempt is archived.'
-            : `Steps 1–${confirm.step} are skipped (already succeeded). Processing resumes at step ${confirm.step + 1}.`}
-          confirmLabel="Restart"
-          confirmClass="inline-flex items-center gap-1 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-          onConfirm={() => { restartMutation.mutate(confirm.step); setConfirm(null) }}
-          onCancel={() => setConfirm(null)}
-        />
-      )}
+      <ConfirmDialog
+        open={confirm?.type === 'restart'}
+        variant="warning"
+        title={confirm?.step === 0 ? 'Restart from beginning?' : `Restart from Step ${(confirm?.step ?? 0) + 1}?`}
+        message={confirm?.step === 0
+          ? 'All steps will re-run using the original input file. Previous attempt is archived.'
+          : `Steps 1–${confirm?.step} are skipped (already succeeded). Processing resumes at step ${(confirm?.step ?? 0) + 1}.`}
+        confirmLabel="Restart"
+        cancelLabel="Cancel"
+        loading={restartMutation.isPending}
+        onConfirm={() => { restartMutation.mutate(confirm.step); setConfirm(null) }}
+        onCancel={() => setConfirm(null)}
+      />
 
-      {confirm?.type === 'terminate' && (
-        <ConfirmDialog
-          title="Terminate this execution?"
-          message="The running agent will exit after its current step. This cannot be undone — use Restart to re-process."
-          confirmLabel="Terminate"
-          confirmClass="inline-flex items-center gap-1 px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700"
-          onConfirm={() => { terminateMutation.mutate(); setConfirm(null) }}
-          onCancel={() => setConfirm(null)}
-        />
-      )}
+      <ConfirmDialog
+        open={confirm?.type === 'terminate'}
+        variant="danger"
+        title="Terminate this execution?"
+        message="The running agent will exit after its current step. This cannot be undone — use Restart to re-process."
+        confirmLabel="Terminate"
+        cancelLabel="Cancel"
+        loading={terminateMutation.isPending}
+        onConfirm={() => { terminateMutation.mutate(); setConfirm(null) }}
+        onCancel={() => setConfirm(null)}
+      />
     </div>
   )
 }

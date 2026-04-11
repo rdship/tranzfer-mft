@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { configApi, onboardingApi, aiApi } from '../api/client'
 import { getPendingApprovals, approveStep, rejectStep } from '../api/approvals'
 import Modal from '../components/Modal'
-import LoadingSpinner from '../components/LoadingSpinner'
+import ConfirmDialog from '../components/ConfirmDialog'
+import Skeleton, { useDelayedFlag } from '../components/Skeleton'
 import EmptyState from '../components/EmptyState'
 import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer'
 import FileDownloadButton from '../components/FileDownloadButton'
@@ -617,7 +618,9 @@ export default function Flows() {
   const [drawerTrackId, setDrawerTrackId] = useState(null)     // execution detail drawer
   const [confirmDeleteFlow, setConfirmDeleteFlow] = useState(null)
   const [selectedFlows, setSelectedFlows] = useState(new Set())
-  const [showBulkFlowConfirm, setShowBulkFlowConfirm] = useState(null) // 'enable' | 'disable'
+  const [showBulkFlowConfirm, setShowBulkFlowConfirm] = useState(null) // 'enable' | 'disable' | 'delete'
+  const [bulkFlowLoading, setBulkFlowLoading] = useState(false)
+  const lastFlowClickedIdRef = useRef(null)
 
   // ─── Dynamic function catalog fetch ───
   const loadCatalog = useCallback(() => {
@@ -678,10 +681,14 @@ export default function Flows() {
   }, [importName, importRuntime, importEndpoint, importDesc, loadCatalog])
 
   // ─── Queries ───
-  const { data: flows = [], isLoading } = useQuery({
+  const { data: flowsData, isLoading } = useQuery({
     queryKey: ['flows'],
     queryFn: () => configApi.get('/api/flows').then(r => r.data).catch(() => [])
   })
+  const flows = flowsData || []
+  // Skeleton only on first fetch; 100ms flash guard (Stability).
+  const isFirstLoad = isLoading && !flowsData
+  const showSkeleton = useDelayedFlag(isFirstLoad, 100)
 
   const { data: executions = [] } = useQuery({
     queryKey: ['flow-executions'],
@@ -961,11 +968,31 @@ export default function Flows() {
     setShowAddStep(false)
   }, [])
 
-  const toggleFlowSelect = (id) => setSelectedFlows(s => {
-    const n = new Set(s)
-    n.has(id) ? n.delete(id) : n.add(id)
-    return n
-  })
+  const toggleFlowSelect = (id, event) => {
+    // Shift-click range select across currently filtered flow list (Flexibility).
+    if (event?.shiftKey && lastFlowClickedIdRef.current != null) {
+      const ids = filteredFlows.map(f => f.id)
+      const a = ids.indexOf(lastFlowClickedIdRef.current)
+      const b = ids.indexOf(id)
+      if (a !== -1 && b !== -1) {
+        const [lo, hi] = a < b ? [a, b] : [b, a]
+        const range = ids.slice(lo, hi + 1)
+        setSelectedFlows(s => {
+          const n = new Set(s)
+          range.forEach(rid => n.add(rid))
+          return n
+        })
+        lastFlowClickedIdRef.current = id
+        return
+      }
+    }
+    setSelectedFlows(s => {
+      const n = new Set(s)
+      n.has(id) ? n.delete(id) : n.add(id)
+      return n
+    })
+    lastFlowClickedIdRef.current = id
+  }
 
   const addStep = useCallback((type) => {
     const meta = STEP_TYPE_CATALOG[type]
@@ -1077,30 +1104,64 @@ export default function Flows() {
 
   const handleBulkFlowAction = async (action) => {
     const ids = [...selectedFlows]
-    // For 'enable': toggle only disabled flows; for 'disable': toggle only active flows
-    const targetFlows = ids.filter(id => {
-      const flow = flows.find(f => f.id === id)
-      return action === 'enable' ? !flow?.active : flow?.active
-    })
-    if (targetFlows.length === 0) {
-      toast.error(`No flows to ${action} -- all selected are already ${action === 'enable' ? 'active' : 'disabled'}`)
+    if (ids.length === 0) return
+    setBulkFlowLoading(true)
+    try {
+      if (action === 'delete') {
+        // NOTE: there's no dedicated /api/flows/bulk DELETE — fan out single
+        // deletes with Promise.allSettled so partial failures don't abort.
+        const results = await Promise.allSettled(
+          ids.map(id => configApi.delete(`/api/flows/${id}`).then(r => r.data))
+        )
+        const succeeded = results.filter(r => r.status === 'fulfilled').length
+        const failed = results.filter(r => r.status === 'rejected').length
+        if (failed === 0) toast.success(`Deleted ${succeeded} flow${succeeded !== 1 ? 's' : ''}`)
+        else toast.error(`Deleted ${succeeded} of ${ids.length} flows — ${failed} failed`)
+      } else {
+        // For 'enable': toggle only disabled flows; for 'disable': toggle only active flows
+        const targetFlows = ids.filter(id => {
+          const flow = flows.find(f => f.id === id)
+          return action === 'enable' ? !flow?.active : flow?.active
+        })
+        if (targetFlows.length === 0) {
+          toast.error(`No flows to ${action} — all selected are already ${action === 'enable' ? 'active' : 'disabled'}`)
+          setShowBulkFlowConfirm(null)
+          return
+        }
+        const results = await Promise.allSettled(
+          targetFlows.map(id => configApi.patch(`/api/flows/${id}/toggle`).then(r => r.data))
+        )
+        const succeeded = results.filter(r => r.status === 'fulfilled').length
+        const failed = results.filter(r => r.status === 'rejected').length
+        const label = action === 'enable' ? 'Activated' : 'Deactivated'
+        if (failed === 0) toast.success(`${label} ${succeeded} flow${succeeded !== 1 ? 's' : ''}`)
+        else toast.error(`${label} ${succeeded} of ${targetFlows.length} flows — ${failed} failed`)
+      }
+      setSelectedFlows(new Set())
       setShowBulkFlowConfirm(null)
-      return
+      qc.invalidateQueries(['flows'])
+    } finally {
+      setBulkFlowLoading(false)
     }
-    const results = await Promise.allSettled(
-      targetFlows.map(id => configApi.patch(`/api/flows/${id}/toggle`).then(r => r.data))
-    )
-    const succeeded = results.filter(r => r.status === 'fulfilled').length
-    const failed = results.filter(r => r.status === 'rejected').length
-    const label = action === 'enable' ? 'enabled' : 'disabled'
-    if (failed === 0) toast.success(`${succeeded} flow${succeeded !== 1 ? 's' : ''} ${label}`)
-    else toast.error(`${succeeded} of ${targetFlows.length} flows ${label}, ${failed} failed`)
-    setSelectedFlows(new Set())
-    setShowBulkFlowConfirm(null)
-    qc.invalidateQueries(['flows'])
   }
 
-  if (isLoading) return <LoadingSpinner />
+  // Selection-aware flags for bulk toolbar visibility (Guidance).
+  const selectedFlowObjs = useMemo(
+    () => filteredFlows.filter(f => selectedFlows.has(f.id)),
+    [filteredFlows, selectedFlows],
+  )
+  const hasInactiveFlowSelected = selectedFlowObjs.some(f => !f.active)
+  const hasActiveFlowSelected = selectedFlowObjs.some(f => f.active)
+
+  // Clear flow selection when filter or search changes (Stability).
+  useEffect(() => {
+    setSelectedFlows(new Set())
+    lastFlowClickedIdRef.current = null
+  }, [filter, search, partnerIdFilter])
+
+  // Note: removed early return for LoadingSpinner — header/filters/tabs stay
+  // visible and the flow list slot renders 9 Skeleton.Card placeholders
+  // (Speed perceived / Guidance).
 
   return (
     <div className="space-y-6">
@@ -1283,21 +1344,45 @@ export default function Flows() {
         </div>
       )}
 
-      {/* ─── Flow Bulk Actions ─── */}
+      {/* ─── Flow Bulk Actions — sticky top toolbar, visible on selection ─── */}
       {activeTab === 'flows' && selectedFlows.size > 0 && (
-        <div className="flex items-center gap-3 bg-[rgba(100,140,255,0.1)] border border-[rgba(100,140,255,0.2)] rounded-xl px-4 py-2">
-          <span className="text-sm font-medium">{selectedFlows.size} selected</span>
-          <button className="btn-secondary text-sm" onClick={() => setShowBulkFlowConfirm('enable')}>Enable All</button>
-          <button className="btn-secondary text-sm" onClick={() => setShowBulkFlowConfirm('disable')}>Disable All</button>
-          <button className="text-sm text-secondary hover:text-primary" onClick={toggleFlowSelectAll}>
-            {selectedFlows.size === filteredFlows.length ? 'Deselect All' : 'Select All'}
+        <div className="sticky top-0 z-20 flex items-center gap-3 bg-[rgba(100,140,255,0.12)] border border-[rgba(100,140,255,0.25)] rounded-xl px-4 py-2 backdrop-blur">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-[rgba(100,140,255,0.22)] text-primary">
+            {selectedFlows.size} selected
+          </span>
+          <button className="text-xs text-secondary hover:text-primary underline" onClick={toggleFlowSelectAll}>
+            {selectedFlows.size === filteredFlows.length ? 'Deselect all' : 'Select all'}
           </button>
-          <button className="text-sm text-red-400 hover:text-red-300" onClick={() => setSelectedFlows(new Set())}>Clear</button>
+          <button className="text-xs text-secondary hover:text-primary underline" onClick={() => setSelectedFlows(new Set())}>Clear</button>
+          <div className="flex-1" />
+          {hasInactiveFlowSelected && (
+            <button className="btn-secondary text-sm" onClick={() => setShowBulkFlowConfirm('enable')}>Activate</button>
+          )}
+          {hasActiveFlowSelected && (
+            <button className="btn-secondary text-sm" onClick={() => setShowBulkFlowConfirm('disable')}>Deactivate</button>
+          )}
+          <button
+            className="btn-secondary text-sm"
+            style={{ background: 'rgba(220,38,38,0.15)', color: 'rgb(248,113,113)', border: '1px solid rgba(220,38,38,0.4)' }}
+            onClick={() => setShowBulkFlowConfirm('delete')}
+          >
+            Delete
+          </button>
         </div>
       )}
 
       {/* ─── Flow List ─── */}
-      {activeTab === 'flows' && (filteredFlows.length === 0 ? (
+      {activeTab === 'flows' && isFirstLoad ? (
+        showSkeleton ? (
+          <div className="grid gap-3">
+            {Array.from({ length: 9 }).map((_, i) => (
+              <Skeleton.Card key={i} lines={2} />
+            ))}
+          </div>
+        ) : (
+          <div style={{ minHeight: '480px' }} aria-hidden="true" />
+        )
+      ) : activeTab === 'flows' && (filteredFlows.length === 0 ? (
         <div className="card">
           <EmptyState
             title={filter !== 'all' ? `No ${filter} flows` : 'No flows configured'}
@@ -1315,7 +1400,7 @@ export default function Flows() {
             <div key={flow.id} className="card hover:shadow-md transition-shadow cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => openEdit(flow)}>
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-center self-center mr-1" onClick={e => e.stopPropagation()}>
-                  <input type="checkbox" checked={selectedFlows.has(flow.id)} onChange={() => toggleFlowSelect(flow.id)} />
+                  <input type="checkbox" checked={selectedFlows.has(flow.id)} onClick={e => toggleFlowSelect(flow.id, e)} onChange={() => {}} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1643,30 +1728,47 @@ export default function Flows() {
         <DryRunModal result={dryRunResult} onClose={() => setDryRunResult(null)} />
       )}
 
-      {confirmDeleteFlow && (
-        <Modal title="Confirm Delete" onClose={() => setConfirmDeleteFlow(null)}>
-          <p className="text-secondary mb-4">Are you sure you want to delete flow <strong>{confirmDeleteFlow.name}</strong>? This will deactivate it. This action cannot be undone.</p>
-          <div className="flex gap-3 justify-end">
-            <button className="btn-secondary" onClick={() => setConfirmDeleteFlow(null)}>Cancel</button>
-            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteMut.mutate(confirmDeleteFlow.id); setConfirmDeleteFlow(null) }}>Delete</button>
-          </div>
-        </Modal>
-      )}
+      <ConfirmDialog
+        open={!!confirmDeleteFlow}
+        variant="danger"
+        title="Delete flow?"
+        message={confirmDeleteFlow ? `Are you sure you want to delete flow "${confirmDeleteFlow.name}"? This will deactivate it. This action cannot be undone.` : ''}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        loading={deleteMut.isPending}
+        onConfirm={() => { deleteMut.mutate(confirmDeleteFlow.id); setConfirmDeleteFlow(null) }}
+        onCancel={() => setConfirmDeleteFlow(null)}
+      />
 
-      {/* Bulk Flow Confirm Modal */}
-      {showBulkFlowConfirm && (
-        <Modal title={`Bulk ${showBulkFlowConfirm === 'enable' ? 'Enable' : 'Disable'} Flows`} onClose={() => setShowBulkFlowConfirm(null)}>
-          <p className="text-secondary mb-4">
-            Are you sure you want to {showBulkFlowConfirm} <strong>{selectedFlows.size}</strong> flow{selectedFlows.size !== 1 ? 's' : ''}?
-          </p>
-          <div className="flex gap-3 justify-end">
-            <button className="btn-secondary" onClick={() => setShowBulkFlowConfirm(null)}>Cancel</button>
-            <button className="btn-primary" onClick={() => handleBulkFlowAction(showBulkFlowConfirm)}>
-              {showBulkFlowConfirm === 'enable' ? 'Enable All' : 'Disable All'}
-            </button>
-          </div>
-        </Modal>
-      )}
+      {/* Bulk Flow Confirm — ConfirmDialog primitive */}
+      <ConfirmDialog
+        open={!!showBulkFlowConfirm}
+        variant={showBulkFlowConfirm === 'delete' ? 'danger' : 'warning'}
+        title={
+          showBulkFlowConfirm === 'delete'
+            ? `Delete ${selectedFlows.size} flow${selectedFlows.size !== 1 ? 's' : ''}?`
+            : showBulkFlowConfirm === 'enable'
+              ? `Activate ${selectedFlows.size} flow${selectedFlows.size !== 1 ? 's' : ''}?`
+              : showBulkFlowConfirm === 'disable'
+                ? `Deactivate ${selectedFlows.size} flow${selectedFlows.size !== 1 ? 's' : ''}?`
+                : ''
+        }
+        message={
+          showBulkFlowConfirm === 'delete'
+            ? 'This will permanently remove the selected processing flows. Any file matching these flows will fall through to the default handler.'
+            : showBulkFlowConfirm === 'enable'
+              ? 'Selected flows will start processing matching files immediately.'
+              : 'Selected flows will stop processing matching files until re-activated.'
+        }
+        confirmLabel={
+          showBulkFlowConfirm === 'delete' ? 'Delete all'
+          : showBulkFlowConfirm === 'enable' ? 'Activate all'
+          : 'Deactivate all'
+        }
+        loading={bulkFlowLoading}
+        onConfirm={() => handleBulkFlowAction(showBulkFlowConfirm)}
+        onCancel={() => setShowBulkFlowConfirm(null)}
+      />
 
       {/* Execution Detail Drawer — triggered by double-clicking an execution row */}
       <ExecutionDetailDrawer

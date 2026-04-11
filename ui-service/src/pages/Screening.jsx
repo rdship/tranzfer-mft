@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { screeningApi } from '../api/client'
 import Modal from '../components/Modal'
+import ConfirmDialog from '../components/ConfirmDialog'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import toast from 'react-hot-toast'
@@ -1119,25 +1120,29 @@ export default function Screening() {
       {tab === 'dlpRules' && renderDlpRules()}
       {tab === 'quarantineSummary' && renderQuarantineSummary()}
 
-      {confirmDeletePolicy && (
-        <Modal title="Confirm Delete" onClose={() => setConfirmDeletePolicy(null)}>
-          <p className="text-secondary mb-4">Are you sure you want to delete DLP policy <strong>{confirmDeletePolicy.name}</strong>? This action cannot be undone.</p>
-          <div className="flex gap-3 justify-end">
-            <button className="btn-secondary" onClick={() => setConfirmDeletePolicy(null)}>Cancel</button>
-            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deletePolicy.mutate(confirmDeletePolicy.id); setConfirmDeletePolicy(null) }}>Delete</button>
-          </div>
-        </Modal>
-      )}
+      <ConfirmDialog
+        open={!!confirmDeletePolicy}
+        variant="danger"
+        title="Delete DLP policy?"
+        message={confirmDeletePolicy ? `Are you sure you want to delete DLP policy "${confirmDeletePolicy.name}"? This action cannot be undone.` : ''}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        loading={deletePolicy.isPending}
+        onConfirm={() => { deletePolicy.mutate(confirmDeletePolicy.id); setConfirmDeletePolicy(null) }}
+        onCancel={() => setConfirmDeletePolicy(null)}
+      />
 
-      {confirmDeleteRule && (
-        <Modal title="Confirm Delete" onClose={() => setConfirmDeleteRule(null)}>
-          <p className="text-secondary mb-4">Are you sure you want to delete DLP rule <strong>{confirmDeleteRule.name}</strong>? This action cannot be undone.</p>
-          <div className="flex gap-3 justify-end">
-            <button className="btn-secondary" onClick={() => setConfirmDeleteRule(null)}>Cancel</button>
-            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteRule.mutate(confirmDeleteRule.id); setConfirmDeleteRule(null) }}>Delete</button>
-          </div>
-        </Modal>
-      )}
+      <ConfirmDialog
+        open={!!confirmDeleteRule}
+        variant="danger"
+        title="Delete DLP rule?"
+        message={confirmDeleteRule ? `Are you sure you want to delete DLP rule "${confirmDeleteRule.name}"? This action cannot be undone.` : ''}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        loading={deleteRule.isPending}
+        onConfirm={() => { deleteRule.mutate(confirmDeleteRule.id); setConfirmDeleteRule(null) }}
+        onCancel={() => setConfirmDeleteRule(null)}
+      />
     </div>
   )
 }

@@ -6,6 +6,7 @@ import {
   getSnapshotRetention, updateSnapshotRetention, purgeSnapshotsNow,
 } from '../api/platformSettings'
 import Modal from '../components/Modal'
+import ConfirmDialog from '../components/ConfirmDialog'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import toast from 'react-hot-toast'
@@ -693,15 +694,17 @@ export default function PlatformConfig() {
         </Modal>
       )}
 
-      {confirmDelete && (
-        <Modal title="Confirm Delete" onClose={() => setConfirmDelete(null)}>
-          <p className="text-secondary mb-4">Are you sure you want to delete <strong>{confirmDelete.settingKey}</strong>? This action cannot be undone.</p>
-          <div className="flex gap-3 justify-end">
-            <button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
-            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}>Delete</button>
-          </div>
-        </Modal>
-      )}
+      <ConfirmDialog
+        open={!!confirmDelete}
+        variant="danger"
+        title="Delete platform setting?"
+        message={confirmDelete ? `Are you sure you want to delete "${confirmDelete.settingKey}"? This action cannot be undone.` : ''}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        loading={deleteMut.isPending}
+        onConfirm={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   )
 }

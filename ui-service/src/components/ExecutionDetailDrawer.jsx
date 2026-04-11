@@ -6,13 +6,14 @@ import toast from 'react-hot-toast'
 import {
   XMarkIcon, ArrowPathIcon, StopIcon, ClipboardDocumentIcon,
   ChevronDownIcon, ChevronRightIcon, ArrowTopRightOnSquareIcon,
-  CheckCircleIcon, XCircleIcon, ExclamationTriangleIcon,
+  CheckCircleIcon, XCircleIcon,
   ForwardIcon, BoltIcon,
 } from '@heroicons/react/24/outline'
 import FileDownloadButton from './FileDownloadButton'
 import ConfigLink from './ConfigLink'
 import ConfigInlineEditor from './ConfigInlineEditor'
 import TimelineGantt from './TimelineGantt'
+import ConfirmDialog from './ConfirmDialog'
 import {
   getExecution, getFlowSteps, getFlowEvents,
   restartExecution, restartFromStep, skipStep, terminateExecution,
@@ -137,28 +138,6 @@ function DrawerSkeleton() {
       <div className="space-y-2">
         <Skeleton className="h-4 w-24" />
         {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-3 w-full" />)}
-      </div>
-    </div>
-  )
-}
-
-// ── Confirm Dialog ──────────────────────────────────────────────────────
-
-function ConfirmDialog({ title, message, confirmLabel, confirmClass = 'btn-danger', onConfirm, onCancel }) {
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60]">
-      <div className="card max-w-md w-full mx-4">
-        <div className="flex items-start gap-3 mb-4">
-          <ExclamationTriangleIcon className="w-6 h-6 text-yellow-500 flex-shrink-0 mt-0.5" />
-          <div>
-            <h3 className="font-semibold text-[rgb(var(--tx-primary))]">{title}</h3>
-            <p className="text-sm text-[rgb(var(--tx-secondary))] mt-1">{message}</p>
-          </div>
-        </div>
-        <div className="flex gap-2 justify-end">
-          <button onClick={onCancel} className="btn-secondary text-sm">Cancel</button>
-          <button onClick={onConfirm} className={`${confirmClass} text-sm`}>{confirmLabel}</button>
-        </div>
       </div>
     </div>
   )
@@ -440,40 +419,40 @@ export default function ExecutionDetailDrawer({ trackId, open, onClose, showActi
   // ── Action handlers ───────────────────────────────────────────────────
   const handleRestartFrom = (stepIndex) => {
     setConfirmAction({
+      variant: 'warning',
       title: 'Restart from step',
       message: `Re-execute from step ${stepIndex}? Previous outputs for this and subsequent steps will be overwritten.`,
       confirmLabel: 'Restart',
-      confirmClass: 'btn-primary',
       onConfirm: () => { restartFromMutation.mutate(stepIndex); setConfirmAction(null) },
     })
   }
 
   const handleSkip = (stepIndex) => {
     setConfirmAction({
+      variant: 'info',
       title: 'Skip step',
       message: `Skip step ${stepIndex} and continue with the next step? The input file will be passed through unchanged.`,
       confirmLabel: 'Skip',
-      confirmClass: 'btn-secondary',
       onConfirm: () => { skipMutation.mutate(stepIndex); setConfirmAction(null) },
     })
   }
 
   const handleRestart = () => {
     setConfirmAction({
+      variant: 'warning',
       title: 'Restart execution',
       message: 'Restart the entire execution from the beginning? This will create a new attempt.',
       confirmLabel: 'Restart',
-      confirmClass: 'btn-primary',
       onConfirm: () => { restartMutation.mutate(); setConfirmAction(null) },
     })
   }
 
   const handleTerminate = () => {
     setConfirmAction({
+      variant: 'danger',
       title: 'Terminate execution',
       message: 'Terminate this execution? This action cannot be undone.',
       confirmLabel: 'Terminate',
-      confirmClass: 'btn-danger',
       onConfirm: () => { terminateMutation.mutate(); setConfirmAction(null) },
     })
   }
@@ -784,16 +763,17 @@ export default function ExecutionDetailDrawer({ trackId, open, onClose, showActi
       </div>
 
       {/* ── Confirm Dialog ────────────────────────────────────────────── */}
-      {confirmAction && (
-        <ConfirmDialog
-          title={confirmAction.title}
-          message={confirmAction.message}
-          confirmLabel={confirmAction.confirmLabel}
-          confirmClass={confirmAction.confirmClass}
-          onConfirm={confirmAction.onConfirm}
-          onCancel={() => setConfirmAction(null)}
-        />
-      )}
+      <ConfirmDialog
+        open={!!confirmAction}
+        variant={confirmAction?.variant || 'warning'}
+        title={confirmAction?.title}
+        message={confirmAction?.message}
+        confirmLabel={confirmAction?.confirmLabel}
+        cancelLabel="Cancel"
+        loading={restartMutation.isPending || restartFromMutation.isPending || skipMutation.isPending || terminateMutation.isPending}
+        onConfirm={() => confirmAction?.onConfirm?.()}
+        onCancel={() => setConfirmAction(null)}
+      />
 
       {/* ── Config Inline Editor (slides on top of this drawer) ────── */}
       {editConfig && (

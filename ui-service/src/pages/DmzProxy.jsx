@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import Modal from '../components/Modal'
+import ConfirmDialog from '../components/ConfirmDialog'
 import StatCard from '../components/StatCard'
 import ListenerCard from '../components/dmz/ListenerCard'
 import IpRulePanel from '../components/dmz/IpRulePanel'
@@ -45,6 +46,7 @@ export default function DmzProxy() {
     qosEnabled: false, qosMaxBytesPerSecond: '', qosPerConnectionMaxBytesPerSecond: '',
     qosPriority: 5, qosBurstAllowancePercent: 20,
   })
+  const [removeMappingTarget, setRemoveMappingTarget] = useState(null)
   const [policyForm, setPolicyForm] = useState({
     securityTier: 'AI', rateLimitPerMinute: 60, maxConcurrent: 20,
   })
@@ -549,7 +551,7 @@ export default function DmzProxy() {
                             className="px-2 py-1 rounded text-xs font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors">
                             Policy
                           </button>
-                          <button onClick={() => { if (window.confirm(`Remove "${m.name}"?`)) removeMappingMut.mutate(m.name) }}
+                          <button onClick={() => setRemoveMappingTarget(m.name)}
                             disabled={removeMappingMut.isPending}
                             className="px-2 py-1 rounded text-xs font-medium bg-red-50 text-red-600 hover:bg-red-100 transition-colors disabled:opacity-50">
                             Remove
@@ -911,6 +913,19 @@ export default function DmzProxy() {
           </div>
         </Modal>
       )}
+
+      {/* Remove Mapping Confirmation */}
+      <ConfirmDialog
+        open={!!removeMappingTarget}
+        variant="danger"
+        title="Remove port mapping?"
+        message={removeMappingTarget ? `Remove "${removeMappingTarget}"?` : ''}
+        confirmLabel="Remove"
+        cancelLabel="Cancel"
+        loading={removeMappingMut.isPending}
+        onConfirm={() => { removeMappingMut.mutate(removeMappingTarget); setRemoveMappingTarget(null) }}
+        onCancel={() => setRemoveMappingTarget(null)}
+      />
     </div>
   )
 }

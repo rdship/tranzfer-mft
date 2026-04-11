@@ -8,6 +8,7 @@ import ProtocolSecurityConfig from '../components/ProtocolSecurityConfig'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { friendlyError } from '../components/FormField'
 import toast from 'react-hot-toast'
 import { PlusIcon, TrashIcon, SignalIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
@@ -469,15 +470,17 @@ export default function ExternalDestinations() {
         </Modal>
       )}
 
-      {confirmDelete && (
-        <Modal title="Confirm Delete" onClose={() => setConfirmDelete(null)}>
-          <p className="text-secondary mb-4">Are you sure you want to delete destination <strong>{confirmDelete.name}</strong>? This action cannot be undone.</p>
-          <div className="flex gap-3 justify-end">
-            <button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
-            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}>Delete</button>
-          </div>
-        </Modal>
-      )}
+      <ConfirmDialog
+        open={!!confirmDelete}
+        variant="danger"
+        title="Delete destination?"
+        message={confirmDelete ? `Are you sure you want to delete destination "${confirmDelete.name}"? This action cannot be undone.` : ''}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        loading={deleteMut.isPending}
+        onConfirm={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   )
 }

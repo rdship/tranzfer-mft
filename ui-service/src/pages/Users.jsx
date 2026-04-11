@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getUsers, updateUser, deleteUser, createUser } from '../api/accounts'
 import Modal from '../components/Modal'
+import ConfirmDialog from '../components/ConfirmDialog'
 import FormField, { validateForm, validators, friendlyError } from '../components/FormField'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
@@ -416,72 +417,33 @@ export default function Users() {
       )}
 
       {/* Role Change Confirmation */}
-      {pendingRoleChange && (
-        <Modal title="Confirm Role Change" onClose={() => setPendingRoleChange(null)}>
-          <div className="space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="p-2 rounded-full bg-[rgb(60,50,20)]">
-                <ExclamationTriangleIcon className="w-6 h-6 text-[rgb(240,200,100)]" />
-              </div>
-              <div>
-                <p className="font-medium text-primary">Change role for {pendingRoleChange.user.email}?</p>
-                <p className="text-sm text-secondary mt-1">
-                  This will change the role from <span className={`badge ${ROLE_COLORS[pendingRoleChange.user.role]}`}>{pendingRoleChange.user.role}</span> to <span className={`badge ${ROLE_COLORS[pendingRoleChange.newRole]}`}>{pendingRoleChange.newRole}</span>.
-                </p>
-                <p className="text-xs text-muted mt-2">
-                  {ROLE_DESCRIPTIONS[pendingRoleChange.newRole]}
-                </p>
-                {pendingRoleChange.newRole === 'ADMIN' && (
-                  <p className="text-xs text-[rgb(240,200,100)] mt-2 font-medium">Warning: This grants full administrative access to the platform.</p>
-                )}
-              </div>
-            </div>
-            <div className="flex gap-3 justify-end">
-              <button className="btn-secondary" onClick={() => setPendingRoleChange(null)}>Cancel</button>
-              <button className="btn-primary" onClick={confirmRoleChange} disabled={updateMut.isPending}>
-                {updateMut.isPending ? 'Updating...' : 'Confirm Change'}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
+      <ConfirmDialog
+        open={!!pendingRoleChange}
+        variant="warning"
+        title={pendingRoleChange ? `Change role for ${pendingRoleChange.user.email}?` : 'Confirm Role Change'}
+        message={pendingRoleChange
+          ? `This will change the role from ${pendingRoleChange.user.role} to ${pendingRoleChange.newRole}. ${ROLE_DESCRIPTIONS[pendingRoleChange.newRole] || ''}${pendingRoleChange.newRole === 'ADMIN' ? ' Warning: This grants full administrative access to the platform.' : ''}`
+          : ''}
+        confirmLabel="Confirm Change"
+        cancelLabel="Cancel"
+        loading={updateMut.isPending}
+        onConfirm={confirmRoleChange}
+        onCancel={() => setPendingRoleChange(null)}
+      />
 
       {/* Delete Confirmation */}
-      {deleteConfirm && (
-        <Modal title="Delete User" onClose={() => setDeleteConfirm(null)}>
-          <div className="space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="p-2 rounded-full bg-[rgb(60,20,20)]">
-                <TrashIcon className="w-6 h-6 text-[rgb(240,120,120)]" />
-              </div>
-              <div>
-                <p className="font-medium text-primary">Permanently delete {deleteConfirm.email}?</p>
-                <p className="text-sm text-secondary mt-1">
-                  This action is irreversible and will erase all user data in compliance with GDPR Article 17 (Right to Erasure).
-                </p>
-                <div className="mt-3 bg-[rgb(60,20,20)] border border-[rgb(80,30,30)] rounded-lg p-3 text-xs text-[rgb(240,120,120)]">
-                  <p className="font-medium">This will permanently delete:</p>
-                  <ul className="list-disc ml-4 mt-1 space-y-0.5">
-                    <li>User account and credentials</li>
-                    <li>Transfer history associated with this user</li>
-                    <li>Login audit records</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-3 justify-end">
-              <button className="btn-secondary" onClick={() => setDeleteConfirm(null)}>Cancel</button>
-              <button
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-[rgb(180,60,60)] text-white hover:bg-[rgb(200,70,70)] transition-colors disabled:opacity-50"
-                onClick={() => deleteMut.mutate(deleteConfirm.id)}
-                disabled={deleteMut.isPending}
-              >
-                {deleteMut.isPending ? 'Deleting...' : 'Delete Permanently'}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        variant="danger"
+        title={deleteConfirm ? `Permanently delete ${deleteConfirm.email}?` : 'Delete User'}
+        message="This action is irreversible and will erase all user data in compliance with GDPR Article 17 (Right to Erasure)."
+        evidence={'This will permanently delete:\n  - User account and credentials\n  - Transfer history associated with this user\n  - Login audit records'}
+        confirmLabel="Delete Permanently"
+        cancelLabel="Cancel"
+        loading={deleteMut.isPending}
+        onConfirm={() => deleteMut.mutate(deleteConfirm.id)}
+        onCancel={() => setDeleteConfirm(null)}
+      />
 
       {/* Reset Password Modal */}
       {resetPasswordUser && (

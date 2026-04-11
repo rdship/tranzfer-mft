@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { getPartners, createPartner, deletePartner, activatePartner, suspendPartner, getPartnerStats } from '../api/partners'
 import Modal from '../components/Modal'
-import LoadingSpinner from '../components/LoadingSpinner'
+import ConfirmDialog from '../components/ConfirmDialog'
+import Skeleton, { useDelayedFlag } from '../components/Skeleton'
 import EmptyState from '../components/EmptyState'
 import toast from 'react-hot-toast'
 import FormField, { friendlyError } from '../components/FormField'
@@ -131,7 +132,11 @@ export default function Partners() {
   const [openActions, setOpenActions] = useState(null)
   const [formErrors, setFormErrors] = useState({})
   const [selected, setSelected] = useState(new Set())
-  const [showBulkConfirm, setShowBulkConfirm] = useState(null) // 'activate' | 'suspend'
+  // 'activate' | 'suspend' | 'delete'. Phase is future — see TODO below.
+  const [showBulkConfirm, setShowBulkConfirm] = useState(null)
+  const [bulkLoading, setBulkLoading] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const lastClickedIdRef = useRef(null)
   const [sortBy, setSortBy] = useState('companyName')
   const [sortDir, setSortDir] = useState('asc')
 
@@ -139,10 +144,14 @@ export default function Partners() {
   const { isVisible, toggle: toggleColumn, resetToDefaults: resetColumns, visibleKeys: visibleColumnKeys } =
     useColumnPrefs('partners-table', PARTNER_DEFAULT_VISIBLE, PARTNER_COLUMN_KEYS)
 
-  const { data: partners = [], isLoading } = useQuery({
+  const { data: partners, isLoading } = useQuery({
     queryKey: ['partners', statusFilter],
     queryFn: () => getPartners(statusFilter || undefined),
   })
+  // Skeleton only on first fetch; 100ms flash guard (Stability).
+  const isFirstLoad = isLoading && !partners
+  const showSkeleton = useDelayedFlag(isFirstLoad, 100)
+  const partnersList = partners || []
 
   const { data: stats = {} } = useQuery({
     queryKey: ['partner-stats'],
@@ -200,7 +209,7 @@ export default function Partners() {
   }
 
   const filtered = useMemo(() => {
-    const list = partners.filter(p =>
+    const list = partnersList.filter(p =>
       p.companyName?.toLowerCase().includes(search.toLowerCase()) ||
       p.displayName?.toLowerCase().includes(search.toLowerCase())
     )
@@ -212,7 +221,7 @@ export default function Partners() {
       return sortDir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va))
     })
     return arr
-  }, [partners, search, sortBy, sortDir])
+  }, [partnersList, search, sortBy, sortDir])
 
   const handleProtocolToggle = (protocol) => {
     setForm(prev => {
@@ -242,37 +251,96 @@ export default function Partners() {
     })
   }
 
-  const toggleSelect = (id) => setSelected(s => {
-    const n = new Set(s)
-    n.has(id) ? n.delete(id) : n.add(id)
-    return n
-  })
+  // Clear selection on filter / search change (Stability — selection survives
+  // background react-query refetches, but clears on intentional filter).
+  useEffect(() => {
+    setSelected(new Set())
+    lastClickedIdRef.current = null
+  }, [statusFilter, search])
+
+  const toggleSelect = (id, event) => {
+    // Shift-click range select across the currently filtered list.
+    if (event?.shiftKey && lastClickedIdRef.current != null) {
+      const ids = filtered.map(p => p.id)
+      const a = ids.indexOf(lastClickedIdRef.current)
+      const b = ids.indexOf(id)
+      if (a !== -1 && b !== -1) {
+        const [lo, hi] = a < b ? [a, b] : [b, a]
+        const range = ids.slice(lo, hi + 1)
+        setSelected(s => {
+          const n = new Set(s)
+          range.forEach(rid => n.add(rid))
+          return n
+        })
+        lastClickedIdRef.current = id
+        return
+      }
+    }
+    setSelected(s => {
+      const n = new Set(s)
+      n.has(id) ? n.delete(id) : n.add(id)
+      return n
+    })
+    lastClickedIdRef.current = id
+  }
   const toggleSelectAll = () => {
     if (selected.size === filtered.length) setSelected(new Set())
     else setSelected(new Set(filtered.map(p => p.id)))
   }
 
+  // Selection-aware flags (Guidance): Activate visible only when something
+  // is not already active; Deactivate visible only when something is active.
+  const selectedPartners = useMemo(
+    () => filtered.filter(p => selected.has(p.id)),
+    [filtered, selected],
+  )
+  const hasNonActiveSelected = selectedPartners.some(p => p.status !== 'ACTIVE')
+  const hasActivePartnerSelected = selectedPartners.some(p => p.status === 'ACTIVE')
+
   const handleBulkAction = async (action) => {
     const ids = [...selected]
-    const results = await Promise.allSettled(
-      ids.map(id => action === 'activate' ? activatePartner(id) : suspendPartner(id))
-    )
-    const succeeded = results.filter(r => r.status === 'fulfilled').length
-    const failed = results.filter(r => r.status === 'rejected').length
-    const label = action === 'activate' ? 'activated' : 'suspended'
-    if (failed === 0) toast.success(`${succeeded} partner${succeeded !== 1 ? 's' : ''} ${label}`)
-    else toast.error(`${succeeded} of ${ids.length} partners ${label}, ${failed} failed`)
-    setSelected(new Set())
-    setShowBulkConfirm(null)
-    qc.invalidateQueries(['partners'])
-    qc.invalidateQueries(['partner-stats'])
+    if (ids.length === 0) return
+    setBulkLoading(true)
+    try {
+      let results, label
+      if (action === 'activate') {
+        results = await Promise.allSettled(ids.map(id => activatePartner(id)))
+        label = 'Activated'
+      } else if (action === 'suspend') {
+        // There is no dedicated /deactivate partner endpoint — suspendPartner
+        // (POST /api/partners/{id}/suspend) is the canonical deactivate path.
+        results = await Promise.allSettled(ids.map(id => suspendPartner(id)))
+        label = 'Suspended'
+      } else if (action === 'delete') {
+        results = await Promise.allSettled(ids.map(id => deletePartner(id)))
+        label = 'Deleted'
+      } else {
+        return
+      }
+      const succeeded = results.filter(r => r.status === 'fulfilled').length
+      const failed = results.filter(r => r.status === 'rejected').length
+      if (failed === 0) {
+        toast.success(`${label} ${succeeded} partner${succeeded !== 1 ? 's' : ''}`)
+      } else {
+        toast.error(`${label} ${succeeded} of ${ids.length} partners — ${failed} failed`)
+      }
+      setSelected(new Set())
+      setShowBulkConfirm(null)
+      qc.invalidateQueries(['partners'])
+      qc.invalidateQueries(['partner-stats'])
+    } finally {
+      setBulkLoading(false)
+    }
   }
+  // TODO(bulk): "Change phase" bulk action — intended to call
+  // PUT /api/partners/{id}/phase with a phase dropdown (ACTIVE / INACTIVE /
+  // SUSPENDED). Endpoint does not exist in api/partners.js today (only
+  // activate + suspend are exposed), so this button is intentionally skipped
+  // until the onboarding service surfaces a phase-transition route.
 
   const handleDelete = (e, id) => {
     e.stopPropagation()
-    if (window.confirm('Are you sure you want to delete this partner? This action cannot be undone.')) {
-      deleteMut.mutate(id)
-    }
+    setDeleteTarget(id)
     setOpenActions(null)
   }
 
@@ -294,7 +362,8 @@ export default function Partners() {
     setOpenActions(null)
   }
 
-  if (isLoading) return <LoadingSpinner />
+  // Note: removed early return for LoadingSpinner — header/filters stay visible
+  // and the table body renders a Skeleton.Table instead (Speed/Guidance).
 
   return (
     <div className="space-y-6">
@@ -388,16 +457,52 @@ export default function Partners() {
 
       {/* Bulk Action Bar */}
       {selected.size > 0 && (
-        <div className="flex items-center gap-3 bg-[rgba(100,140,255,0.1)] border border-[rgba(100,140,255,0.2)] rounded-xl px-4 py-2">
-          <span className="text-sm font-medium">{selected.size} selected</span>
-          <button className="btn-secondary text-sm" onClick={() => setShowBulkConfirm('activate')}>Activate All</button>
-          <button className="btn-secondary text-sm" onClick={() => setShowBulkConfirm('suspend')}>Suspend All</button>
-          <button className="text-sm text-red-400 hover:text-red-300" onClick={() => setSelected(new Set())}>Clear</button>
+        <div className="sticky top-0 z-10 flex items-center gap-3 bg-[rgba(100,140,255,0.12)] border border-[rgba(100,140,255,0.25)] rounded-xl px-4 py-2 backdrop-blur">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-[rgba(100,140,255,0.22)] text-primary">
+            {selected.size} selected
+          </span>
+          <button className="text-xs text-secondary hover:text-primary underline" onClick={() => setSelected(new Set())}>Clear</button>
+          <div className="flex-1" />
+          {hasNonActiveSelected && (
+            <button className="btn-secondary text-sm" onClick={() => setShowBulkConfirm('activate')}>Activate</button>
+          )}
+          {hasActivePartnerSelected && (
+            <button className="btn-secondary text-sm" onClick={() => setShowBulkConfirm('suspend')}>Deactivate</button>
+          )}
+          {/* Change phase intentionally disabled — backing endpoint does not
+              exist in api/partners.js yet. See TODO(bulk) above. */}
+          <button
+            className="btn-secondary text-sm"
+            disabled
+            title="Change phase — backend endpoint not yet available"
+            style={{ opacity: 0.4, cursor: 'not-allowed' }}
+          >
+            Change phase
+          </button>
+          <button
+            className="btn-secondary text-sm"
+            style={{ background: 'rgba(220,38,38,0.15)', color: 'rgb(248,113,113)', border: '1px solid rgba(220,38,38,0.4)' }}
+            onClick={() => setShowBulkConfirm('delete')}
+          >
+            Delete
+          </button>
         </div>
       )}
 
       {/* Partner Table */}
-      {filtered.length === 0 ? (
+      {isFirstLoad ? (
+        <div className="card !p-0 overflow-hidden">
+          {showSkeleton ? (
+            <Skeleton.Table
+              rows={8}
+              cols={[24, 180, 80, 140, 80, 100, 80, 60, 100, 48]}
+              rowHeight={56}
+            />
+          ) : (
+            <div style={{ minHeight: '480px' }} aria-hidden="true" />
+          )}
+        </div>
+      ) : filtered.length === 0 ? (
         <EmptyState
           title="No partners found"
           description={search || statusFilter ? 'Try adjusting your search or filter criteria.' : 'Add your first trading partner to start managing file transfers.'}
@@ -436,7 +541,7 @@ export default function Partners() {
                       className="table-row cursor-pointer"
                       onClick={() => navigate(`/partners/${partner.id}`)}
                     >
-                      <td className="table-cell" onClick={e => e.stopPropagation()}><input type="checkbox" checked={selected.has(partner.id)} onChange={() => toggleSelect(partner.id)} /></td>
+                      <td className="table-cell" onClick={e => e.stopPropagation()}><input type="checkbox" checked={selected.has(partner.id)} onClick={e => toggleSelect(partner.id, e)} onChange={() => {}} /></td>
                       {isVisible('company') && (
                         <td className="table-cell">
                           <div>
@@ -681,20 +786,51 @@ export default function Partners() {
         </Modal>
       )}
 
-      {/* Bulk Confirm Modal */}
-      {showBulkConfirm && (
-        <Modal title={`Bulk ${showBulkConfirm === 'activate' ? 'Activate' : 'Suspend'} Partners`} onClose={() => setShowBulkConfirm(null)}>
-          <p className="text-secondary mb-4">
-            Are you sure you want to {showBulkConfirm} <strong>{selected.size}</strong> partner{selected.size !== 1 ? 's' : ''}?
-          </p>
-          <div className="flex gap-3 justify-end">
-            <button className="btn-secondary" onClick={() => setShowBulkConfirm(null)}>Cancel</button>
-            <button className="btn-primary" onClick={() => handleBulkAction(showBulkConfirm)}>
-              {showBulkConfirm === 'activate' ? 'Activate All' : 'Suspend All'}
-            </button>
-          </div>
-        </Modal>
-      )}
+      {/* Bulk Confirm — danger for delete, warning for lifecycle transitions */}
+      <ConfirmDialog
+        open={!!showBulkConfirm}
+        variant={showBulkConfirm === 'delete' ? 'danger' : 'warning'}
+        title={
+          showBulkConfirm === 'delete'
+            ? `Delete ${selected.size} partner${selected.size !== 1 ? 's' : ''}?`
+            : showBulkConfirm === 'activate'
+              ? `Activate ${selected.size} partner${selected.size !== 1 ? 's' : ''}?`
+              : showBulkConfirm === 'suspend'
+                ? `Deactivate ${selected.size} partner${selected.size !== 1 ? 's' : ''}?`
+                : ''
+        }
+        message={
+          showBulkConfirm === 'delete'
+            ? 'This will permanently remove the selected partners and all their accounts, flows, and endpoints.'
+            : showBulkConfirm === 'activate'
+              ? 'Selected partners will transition to ACTIVE status and start receiving transfers.'
+              : showBulkConfirm === 'suspend'
+                ? 'Selected partners will transition to SUSPENDED status and stop receiving transfers.'
+                : ''
+        }
+        confirmLabel={
+          showBulkConfirm === 'delete' ? 'Delete all'
+          : showBulkConfirm === 'activate' ? 'Activate all'
+          : 'Deactivate all'
+        }
+        cancelLabel="Cancel"
+        loading={bulkLoading}
+        onConfirm={() => handleBulkAction(showBulkConfirm)}
+        onCancel={() => setShowBulkConfirm(null)}
+      />
+
+      {/* Delete partner */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        variant="danger"
+        title="Delete partner?"
+        message="Are you sure you want to delete this partner? This action cannot be undone."
+        confirmLabel="Delete partner"
+        cancelLabel="Keep"
+        loading={deleteMut.isPending}
+        onConfirm={() => { deleteMut.mutate(deleteTarget); setDeleteTarget(null) }}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
       {/* Close actions dropdown when clicking outside */}
       {openActions !== null && (

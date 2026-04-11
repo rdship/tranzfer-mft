@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { listFiles, uploadFile, downloadFile, deleteFile, createDirectory, renameFile } from '../api/fileManager'
 import { getAccounts } from '../api/accounts'
 import Modal from '../components/Modal'
+import ConfirmDialog from '../components/ConfirmDialog'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import toast from 'react-hot-toast'
@@ -644,40 +645,20 @@ export default function FileManager() {
         </Modal>
       )}
 
-      {/* ── Delete Confirmation Modal ── */}
-      {deleteConfirm && (
-        <Modal title="Confirm Delete" onClose={() => setDeleteConfirm(null)} size="sm">
-          <div className="space-y-4">
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-              <ExclamationTriangleIcon className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm text-primary">
-                  Are you sure you want to delete{' '}
-                  <span className="font-semibold">{deleteConfirm.name}</span>?
-                </p>
-                <p className="text-xs text-secondary mt-1">
-                  {deleteConfirm.directory
-                    ? 'This will delete the folder and all its contents. This action cannot be undone.'
-                    : 'This action cannot be undone.'}
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setDeleteConfirm(null)} className="btn-secondary">
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteConfirm}
-                disabled={deleteMut.isPending}
-                className="btn-danger"
-              >
-                <TrashIcon className="w-4 h-4" />
-                {deleteMut.isPending ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
+      {/* ── Delete Confirmation ── */}
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        variant="danger"
+        title={deleteConfirm ? `Delete ${deleteConfirm.directory ? 'folder' : 'file'}?` : 'Delete?'}
+        message={deleteConfirm
+          ? `Are you sure you want to delete "${deleteConfirm.name}"? ${deleteConfirm.directory ? 'This will delete the folder and all its contents. ' : ''}This action cannot be undone.`
+          : ''}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        loading={deleteMut.isPending}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteConfirm(null)}
+      />
     </div>
   )
 }

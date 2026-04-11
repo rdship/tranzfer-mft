@@ -4,6 +4,7 @@ import { getServerInstances, updateServerInstance } from '../api/accounts'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
+import ConfirmDialog from '../components/ConfirmDialog'
 import toast from 'react-hot-toast'
 import {
   PlusIcon, TrashIcon, PencilIcon, ArrowDownTrayIcon, ArrowUpTrayIcon,
@@ -216,7 +217,18 @@ export default function FolderTemplates() {
 
       {/* Template cards */}
       {templates.length === 0 ? (
-        <EmptyState title="No folder templates" description="Create your first folder template to define reusable directory structures for partner accounts." />
+        <EmptyState
+          title="No folder templates yet"
+          description="Templates define the default folder structure for new accounts (inbox/outbox/archive/error)."
+          action={
+            <button
+              className="btn-primary"
+              onClick={() => { setForm({ name: '', description: '', folders: [{ path: '', description: '' }] }); setShowCreate(true) }}
+            >
+              <PlusIcon className="w-4 h-4" /> New Template
+            </button>
+          }
+        />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {templates.map(t => {
@@ -634,15 +646,17 @@ export default function FolderTemplates() {
         </Modal>
       )}
 
-      {confirmDelete && (
-        <Modal title="Confirm Delete" onClose={() => setConfirmDelete(null)}>
-          <p className="text-secondary mb-4">Are you sure you want to delete template <strong>{confirmDelete.name}</strong>? Servers using it will lose their folder structure assignment.</p>
-          <div className="flex gap-3 justify-end">
-            <button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
-            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}>Delete</button>
-          </div>
-        </Modal>
-      )}
+      <ConfirmDialog
+        open={!!confirmDelete}
+        variant="danger"
+        title="Delete template?"
+        message={confirmDelete ? `Are you sure you want to delete template "${confirmDelete.name}"? Servers using it will lose their folder structure assignment.` : ''}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        loading={deleteMut.isPending}
+        onConfirm={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { configApi } from '../api/client'
 import Modal from '../components/Modal'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { friendlyError } from '../components/FormField'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
@@ -198,7 +199,15 @@ export default function Compliance() {
       </div>
 
       {loadingProfiles ? <LoadingSpinner /> : profiles.length === 0 ? (
-        <EmptyState title="No compliance profiles" description="Create a compliance profile to enforce data rules on your servers." />
+        <EmptyState
+          title="No compliance profiles yet"
+          description="Profiles capture regulatory rules (PCI, HIPAA, GDPR) that flows must enforce on the files they move."
+          action={
+            <button onClick={openCreate} className="btn btn-primary flex items-center gap-1.5">
+              <PlusIcon className="w-4 h-4" /> Create Profile
+            </button>
+          }
+        />
       ) : (
         <div className="card overflow-hidden p-0">
           <table className="w-full">
@@ -575,15 +584,17 @@ export default function Compliance() {
       {/* Profile modal */}
       {showModal && renderProfileModal()}
 
-      {confirmDelete && (
-        <Modal title="Confirm Deactivate" onClose={() => setConfirmDelete(null)}>
-          <p className="text-secondary mb-4">Are you sure you want to deactivate profile <strong>{confirmDelete.name}</strong>? This action cannot be undone.</p>
-          <div className="flex gap-3 justify-end">
-            <button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
-            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteProfile.mutate(confirmDelete.id); setConfirmDelete(null) }}>Deactivate</button>
-          </div>
-        </Modal>
-      )}
+      <ConfirmDialog
+        open={!!confirmDelete}
+        variant="warning"
+        title="Deactivate profile?"
+        message={confirmDelete ? `Are you sure you want to deactivate profile "${confirmDelete.name}"? This action cannot be undone.` : ''}
+        confirmLabel="Deactivate"
+        cancelLabel="Cancel"
+        loading={deleteProfile.isPending}
+        onConfirm={() => { deleteProfile.mutate(confirmDelete.id); setConfirmDelete(null) }}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   )
 }

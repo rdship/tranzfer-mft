@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { configApi, onboardingApi } from '../api/client'
 import Modal from '../components/Modal'
+import ConfirmDialog from '../components/ConfirmDialog'
 import LoadingSpinner from '../components/LoadingSpinner'
 import toast from 'react-hot-toast'
 import { PlusIcon, PencilSquareIcon, TrashIcon, ExclamationTriangleIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
@@ -285,7 +286,30 @@ export default function Sla() {
             </div>
           </div>
         ))}
-        {slas.length === 0 && !search && <div className="card text-center py-8 text-secondary">No SLA agreements configured</div>}
+        {slas.length === 0 && !search && (
+          <div className="card flex flex-col items-center justify-center py-16 px-4 text-center">
+            <div
+              className="w-14 h-14 rounded-full flex items-center justify-center mb-3"
+              style={{ background: 'rgba(79, 70, 229, 0.1)' }}
+            >
+              <ExclamationTriangleIcon className="w-7 h-7" style={{ color: 'rgb(var(--accent, 79 70 229))' }} />
+            </div>
+            <h3 className="text-base font-semibold mb-1" style={{ color: 'rgb(var(--tx-primary))' }}>
+              No SLA agreements yet
+            </h3>
+            <p className="text-xs max-w-md mb-4" style={{ color: 'rgb(148, 163, 184)' }}>
+              Agreements track delivery-time commitments per partner and trigger alerts on breach.
+            </p>
+            <button
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors"
+              style={{ background: 'rgb(var(--accent, 79 70 229))', color: '#fff' }}
+              onClick={openCreate}
+            >
+              <PlusIcon className="w-3.5 h-3.5" />
+              Create SLA
+            </button>
+          </div>
+        )}
       </div>
 
       {showCreate && (
@@ -306,15 +330,17 @@ export default function Sla() {
         </Modal>
       )}
 
-      {confirmDelete && (
-        <Modal title="Confirm Delete" onClose={() => setConfirmDelete(null)}>
-          <p className="text-secondary mb-4">Are you sure you want to delete SLA agreement <strong>{confirmDelete.name || confirmDelete.partnerName}</strong>? This action cannot be undone.</p>
-          <div className="flex gap-3 justify-end">
-            <button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
-            <button className="btn-primary bg-red-600 hover:bg-red-700" onClick={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}>Delete</button>
-          </div>
-        </Modal>
-      )}
+      <ConfirmDialog
+        open={!!confirmDelete}
+        variant="danger"
+        title="Delete SLA agreement?"
+        message={confirmDelete ? `Are you sure you want to delete SLA agreement "${confirmDelete.name || confirmDelete.partnerName}"? This action cannot be undone.` : ''}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        loading={deleteMut.isPending}
+        onConfirm={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null) }}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   )
 }
