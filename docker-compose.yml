@@ -85,7 +85,9 @@ services:
   # Auto-bootstrap: generates join token + registers all services.
   # Runs once then exits. No manual `bash bootstrap.sh` needed.
   spire-init:
-    image: ghcr.io/spiffe/spire-server:1.9.6
+    build:
+      context: ./spire
+      dockerfile: Dockerfile.init
     container_name: mft-spire-init
     depends_on:
       spire-server:
@@ -94,13 +96,15 @@ services:
       - ./spire/auto-bootstrap.sh:/opt/spire/auto-bootstrap.sh:ro
       - spire-server-sock:/tmp/spire-server:ro
       - spire-init-data:/tmp/spire-init
-    entrypoint: ["/bin/sh", "/opt/spire/auto-bootstrap.sh"]
+    entrypoint: ["/bin/bash", "/opt/spire/auto-bootstrap.sh"]
     restart: "no"
     networks:
       - mft-network
 
   spire-agent:
-    image: ghcr.io/spiffe/spire-agent:1.9.6
+    build:
+      context: ./spire
+      dockerfile: Dockerfile.agent
     container_name: mft-spire-agent
     depends_on:
       spire-server:

@@ -316,9 +316,55 @@ Run `./scripts/demo-stats.sh` at these moments to capture snapshots, and note an
 
 > Free-form. Screenshots welcome (drop them in `docs/demo-screenshots/` and link here).
 
-1.
-2.
-3.
+### Known issues found during full-stack demo run (2026-04-11, origin/main @ 8be5bfe)
+
+**1. SPIRE init/agent use distroless images — no /bin/sh**
+`ghcr.io/spiffe/spire-server:1.9.6` and `ghcr.io/spiffe/spire-agent:1.9.6` are distroless. The `spire-init` entrypoint `/bin/sh` fails immediately. Also `auto-bootstrap.sh` uses bash arrays so must be run with `/bin/bash`.
+_Fix applied:_ `docker-compose.yml` updated to build from `spire/Dockerfile.init` and `spire/Dockerfile.agent` (alpine + bash layer). Entrypoint changed to `/bin/bash`.
+_Files changed:_ `docker-compose.yml`, `spire/Dockerfile.init` (new), `spire/Dockerfile.agent` (new)
+
+**2. SPIRE agent docker socket path missing unix:// prefix**
+`spire/agent/agent.conf` sets `docker_socket_path = "/var/run/docker.sock"` but SPIRE requires `unix://` scheme prefix. Agent crashes with `unable to parse docker host`.
+_Fix applied:_ Changed to `"unix:///var/run/docker.sock"`.
+_File changed:_ `spire/agent/agent.conf`
+
+**3. demo-onboard.sh: wait_for_service times out on root /actuator/health**
+Spring Boot root health endpoint returns HTTP 503 when any background indicator (Kafka, RabbitMQ) is DOWN, even if the service is ready to serve requests. Script waits 60s then marks service as failed.
+_Fix applied:_ Try `/actuator/health/readiness` first, fall back to root health URL.
+_File changed:_ `scripts/demo-onboard.sh`
+
+**4. demo-onboard.sh: account creation uses wrong serverInstance IDs**
+Script uses `sftp-1`, `ftp-1`, `ftpweb-1` but seeded server instances have IDs `sftp-server-1`, `ftps-server-1`, `ftp-web-server-1`. All 225 account creation calls fail silently (output redirected to /dev/null).
+_Fix applied:_ Updated to `sftp-server-$((((i-1) % 2) + 1))`, `ftps-server-*`, `ftp-web-server-*`. Also removed stale `homeDir` field from payload (removed from `CreateAccountRequest` DTO).
+_File changed:_ `scripts/demo-onboard.sh`
+
+**5. demo-onboard.sh: fetch_account_ids returns only seed accounts (no pagination)**
+`GET /api/accounts` returns the first page (6 default seed accounts). Script needs `?size=500` and must handle both flat list and Spring Page `{"content":[...]}` responses.
+_Fix applied:_ Added `?size=500` and Python handles both shapes.
+_File changed:_ `scripts/demo-onboard.sh`
+
+**6. demo-onboard.sh: Bash 3.2 incompatibility — `${stype,,}` bad substitution**
+macOS ships Bash 3.2 which does not support `${var,,}` lowercase expansion. Used in `create_server_configs` (step 26).
+_Fix applied:_ `stype_lower=$(echo "$stype" | tr '[:upper:]' '[:lower:]')`
+_File changed:_ `scripts/demo-onboard.sh`
+
+**7. demo-traffic.sh: step_type null constraint violation**
+`fabric_checkpoints.step_type` has NOT NULL constraint. SQL uses `(ARRAY[...])[fe.current_step + 1]` — when `current_step >= 5` PostgreSQL returns NULL (out-of-bounds array access is not an error, just NULL).
+_Fix applied:_ `LEAST(fe.current_step, 4) + 1` applied to all 3 occurrences.
+_File changed:_ `scripts/demo-traffic.sh`
+
+**8. sentinel_findings / sentinel_health_scores tables missing**
+`platform-sentinel` migration `V54__sentinel_tables.sql` is never applied because the DB is at version 999 (from a "write-intents" migration) and Flyway skips all lower-numbered migrations. `demo-traffic.sh` fails with `relation "sentinel_findings" does not exist`.
+_Fix applied:_ Apply manually: `docker exec -i mft-postgres psql -U postgres -d filetransfer < platform-sentinel/src/main/resources/db/migration/V54__sentinel_tables.sql`
+_Note:_ This migration file (`V54`) is untracked — was renamed from `V49` to avoid conflict with shared-platform JAR's `V49__crypto_key_pairs.sql`.
+
+**9. Flyway V42 CREATE INDEX CONCURRENTLY hits statement timeout**
+`V42__performance_indexes.sql` uses `CREATE INDEX CONCURRENTLY` which cannot run inside a Flyway-managed transaction. PostgreSQL cancels it after the statement timeout. Affected services (onboarding-api, config-service) crash on startup.
+_Workaround:_ Restart the affected service — the index already exists from a partial run so Flyway marks V42 as success on retry.
+
+**10. mft-minio-init container keeps restarting**
+MinIO init container (`mft-minio-init`) restarts indefinitely after MinIO is healthy. Non-critical — MinIO itself (`mft-minio`) remains healthy and functional.
+_Status:_ Known, cosmetic — does not affect demo.
 
 ---
 

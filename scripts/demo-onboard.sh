@@ -149,12 +149,19 @@ SERVER_IDS=()
 fetch_account_ids() {
   log "Fetching account IDs for cross-references..."
   local resp
-  resp=$(get "$API/api/accounts")
+  resp=$(get "$API/api/accounts?size=500")
   ACCOUNT_IDS=($(echo "$resp" | python3 -c "
 import sys,json
-accounts = json.load(sys.stdin)
+data = json.load(sys.stdin)
+if isinstance(data, list):
+    accounts = data
+elif isinstance(data, dict) and 'content' in data:
+    accounts = data['content']
+else:
+    accounts = []
 for a in accounts:
-    print(a['id'])
+    if isinstance(a, dict) and 'id' in a:
+        print(a['id'])
 " 2>/dev/null || true))
   ok "Fetched ${#ACCOUNT_IDS[@]} account IDs"
 }
@@ -177,7 +184,7 @@ wait_for_service() {
   local url="$1" name="$2" max="${3:-60}"
   log "Waiting for $name ($url)..."
   for i in $(seq 1 $max); do
-    if curl -sf "$url" > /dev/null 2>&1; then
+    if curl -sf "${url}/readiness" > /dev/null 2>&1 || curl -sf "$url" > /dev/null 2>&1; then
       ok "$name is ready"
       return 0
     fi
@@ -410,18 +417,18 @@ create_accounts() {
   log "=== STEP 6a: SFTP Accounts (100) ==="
   for i in $(seq 1 100); do
     local user="sftp_user_$(printf '%03d' $i)"
-    local server="sftp-$((((i-1) % 3) + 1))"
+    local server="sftp-server-$((((i-1) % 2) + 1))"
     post "$API/api/accounts" \
-      "{\"protocol\":\"SFTP\",\"username\":\"$user\",\"password\":\"SftpPass@${i}!\",\"homeDir\":\"/data/sftp/$user\",\"serverInstance\":\"$server\",\"permissions\":{\"read\":true,\"write\":true,\"delete\":$([ $((i%5)) -eq 0 ] && echo true || echo false)}}" \
+      "{\"protocol\":\"SFTP\",\"username\":\"$user\",\"password\":\"SftpPass@${i}!\",\"serverInstance\":\"$server\",\"permissions\":{\"read\":true,\"write\":true,\"delete\":$([ $((i%5)) -eq 0 ] && echo true || echo false)}}" \
       "SFTP Account: $user" > /dev/null
   done
 
   log "=== STEP 6b: FTP Accounts (100) ==="
   for i in $(seq 1 100); do
     local user="ftp_user_$(printf '%03d' $i)"
-    local server="ftp-$((((i-1) % 3) + 1))"
+    local server="ftps-server-$((((i-1) % 2) + 1))"
     post "$API/api/accounts" \
-      "{\"protocol\":\"FTP\",\"username\":\"$user\",\"password\":\"FtpPass@${i}!\",\"homeDir\":\"/data/ftp/$user\",\"serverInstance\":\"$server\",\"permissions\":{\"read\":true,\"write\":true,\"delete\":false}}" \
+      "{\"protocol\":\"FTP\",\"username\":\"$user\",\"password\":\"FtpPass@${i}!\",\"serverInstance\":\"$server\",\"permissions\":{\"read\":true,\"write\":true,\"delete\":false}}" \
       "FTP Account: $user" > /dev/null
   done
 
@@ -429,7 +436,7 @@ create_accounts() {
   for i in $(seq 1 25); do
     local user="web_user_$(printf '%03d' $i)"
     post "$API/api/accounts" \
-      "{\"protocol\":\"FTP_WEB\",\"username\":\"$user\",\"password\":\"WebPass@${i}!\",\"homeDir\":\"/data/web/$user\",\"serverInstance\":\"ftpweb-$((((i-1) % 3) + 1))\",\"permissions\":{\"read\":true,\"write\":true,\"delete\":false}}" \
+      "{\"protocol\":\"FTP_WEB\",\"username\":\"$user\",\"password\":\"WebPass@${i}!\",\"serverInstance\":\"ftp-web-server-$((((i-1) % 2) + 1))\",\"permissions\":{\"read\":true,\"write\":true,\"delete\":false}}" \
       "FTP_WEB Account: $user" > /dev/null
   done
 }
@@ -1040,10 +1047,11 @@ create_server_configs() {
   for i in $(seq 1 26); do
     local idx=$(( (i-1) % ${#types[@]} ))
     local stype="${types[$idx]}"
-    local name="config-${stype,,}-$(printf '%02d' $i)"
+    local stype_lower=$(echo "$stype" | tr '[:upper:]' '[:lower:]')
+    local name="config-${stype_lower}-$(printf '%02d' $i)"
     local port=$((8080 + i))
     post "$CFG/api/servers" \
-      "{\"name\":\"$name\",\"serviceType\":\"$stype\",\"host\":\"${stype,,}-service\",\"port\":$port,\"properties\":{\"maxConnections\":\"500\",\"idleTimeout\":\"300\",\"bufferSize\":\"32768\"},\"active\":true}" \
+      "{\"name\":\"$name\",\"serviceType\":\"$stype\",\"host\":\"${stype_lower}-service\",\"port\":$port,\"properties\":{\"maxConnections\":\"500\",\"idleTimeout\":\"300\",\"bufferSize\":\"32768\"},\"active\":true}" \
       "ServerConfig: $name ($stype)" > /dev/null
   done
 }
