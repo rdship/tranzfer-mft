@@ -250,6 +250,16 @@ public class TrainedMapStore {
     /**
      * Get training sessions for a specific map.
      */
+    /** Lookup a single training session by its UUID (backs admin UI detail drawer). */
+    public Optional<TrainingSession> getSessionById(UUID sessionId) {
+        return sessionRepo.findById(sessionId);
+    }
+
+    /** Lookup a conversion map by its primary-key UUID. */
+    public Optional<ConversionMap> getMapById(UUID mapId) {
+        return mapRepo.findById(mapId);
+    }
+
     public List<TrainingSession> getSessionsForMap(String mapKey) {
         return sessionRepo.findByMapKeyOrderByStartedAtDesc(mapKey);
     }

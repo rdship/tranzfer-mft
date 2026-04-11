@@ -469,6 +469,52 @@ public class EdiConverterController {
     }
 
     /**
+     * Test a specific map by applying it to sample content. Used by the
+     * admin UI's MapTestPanel — the user pastes sample EDI, picks a map,
+     * clicks Test, and gets back the converted document plus any errors
+     * so they can verify the map works before activating it.
+     *
+     * Response shape on success:
+     *   { "convertedDocument": {...}, "mapId": "..." }
+     * On failure the body contains { "error": "...", "partialOutput": {...} }
+     * so the UI can still show whatever was convertible before the error.
+     */
+    @PostMapping("/maps/{mapId}/test")
+    public ResponseEntity<Map<String, Object>> testMap(
+            @PathVariable String mapId,
+            @RequestBody Map<String, String> body) {
+
+        String content = body.get("content");
+        if (content == null || content.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "content is required"));
+        }
+
+        Optional<ConversionMapDefinition> mapOpt = mapResolver.getStandardMapById(mapId);
+        if (mapOpt.isEmpty()) {
+            return ResponseEntity.status(404).body(Map.of(
+                    "error", "Map not found: " + mapId));
+        }
+
+        try {
+            EdiDocument doc = parser.parse(content);
+            Map<String, Object> converted = mapBasedConverter.convert(doc, mapOpt.get());
+            var result = new LinkedHashMap<String, Object>();
+            result.put("convertedDocument", converted);
+            result.put("mapId", mapId);
+            result.put("mapName", mapOpt.get().getName());
+            result.put("sourceType", mapOpt.get().getSourceType());
+            result.put("targetType", mapOpt.get().getTargetType());
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            Map<String, Object> err = new LinkedHashMap<>();
+            err.put("error", e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
+            err.put("mapId", mapId);
+            return ResponseEntity.status(500).body(err);
+        }
+    }
+
+    /**
      * Auto-detect the document type from content.
      * Combines format detection with transaction-set-level detection.
      * Returns types like "X12_850", "X12_837P", "EDIFACT_ORDERS", "SWIFT_MT103", "FIX_D".

@@ -100,6 +100,29 @@ public class EdiTrainingDataService {
     }
 
     /**
+     * List all samples with optional format and partner filters — backs
+     * the admin UI's Samples table which wants a single endpoint that
+     * returns a flat, filterable list. Caller passes null to skip a filter.
+     */
+    public List<TrainingSample> listSamples(String format, String partnerId) {
+        Iterable<TrainingSample> all = sampleRepo.findAll();
+        final String fmt = format == null ? null : format.toUpperCase();
+        List<TrainingSample> result = new ArrayList<>();
+        for (TrainingSample s : all) {
+            if (fmt != null
+                    && !fmt.equalsIgnoreCase(s.getSourceFormat())
+                    && !fmt.equalsIgnoreCase(s.getTargetFormat())) {
+                continue;
+            }
+            if (partnerId != null && !partnerId.equals(s.getPartnerId())) {
+                continue;
+            }
+            result.add(s);
+        }
+        return result;
+    }
+
+    /**
      * Get a single sample by ID.
      */
     public Optional<TrainingSample> getSample(UUID id) {

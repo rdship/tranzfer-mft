@@ -8,6 +8,3 @@ export const approveStep = (trackId, stepIndex, note = '') =>
 
 export const rejectStep = (trackId, stepIndex, note) =>
   onboardingApi.post(`/api/flow-executions/${trackId}/reject`, { stepIndex, note }).then(r => r.data)
-
-export const getApprovalsForTrack = (trackId) =>
-  onboardingApi.get(`/api/flow-executions/${trackId}/approvals`).then(r => r.data)

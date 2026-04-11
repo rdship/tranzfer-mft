@@ -17,10 +17,11 @@ export const quickTrain = (data) => aiApi.post('/api/v1/edi/training/quick-train
 export const getMaps = () => aiApi.get('/api/v1/edi/training/maps').then(r => r.data)
 export const getMap = (id) => aiApi.get(`/api/v1/edi/training/maps/${id}`).then(r => r.data)
 
-// Corrections
+// Corrections — backend controller uses /correction/sessions/{id}/...
+// (note the /sessions/ segment); the old UI paths without /sessions/ 404'd.
 export const getCorrectionSessions = () => aiApi.get('/api/v1/edi/correction/sessions').then(r => r.data)
-export const submitCorrection = (sessionId, data) => aiApi.post(`/api/v1/edi/correction/${sessionId}/correct`, data).then(r => r.data)
-export const approveCorrection = (sessionId) => aiApi.post(`/api/v1/edi/correction/${sessionId}/approve`).then(r => r.data)
+export const submitCorrection = (sessionId, data) => aiApi.post(`/api/v1/edi/correction/sessions/${sessionId}/correct`, data).then(r => r.data)
+export const approveCorrection = (sessionId) => aiApi.post(`/api/v1/edi/correction/sessions/${sessionId}/approve`).then(r => r.data)
 
 // Health
 export const getTrainingHealth = () => aiApi.get('/api/v1/edi/training/health').then(r => r.data)

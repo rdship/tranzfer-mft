@@ -73,6 +73,19 @@ public class EdiMapTrainingController {
         return trainingDataService.getSampleCounts();
     }
 
+    /**
+     * List all training samples with optional filters. Backs the admin UI
+     * Samples tab which needs a flat, filterable table view. Format filter
+     * matches on either source or target so "X12" shows conversions in
+     * both directions.
+     */
+    @GetMapping("/samples")
+    public List<TrainingSample> listSamples(
+            @RequestParam(required = false) String format,
+            @RequestParam(required = false) String partnerId) {
+        return trainingDataService.listSamples(format, partnerId);
+    }
+
     /** Get a sample by ID */
     @GetMapping("/samples/{id}")
     public TrainingSample getSample(@PathVariable UUID id) {
@@ -229,6 +242,14 @@ public class EdiMapTrainingController {
         return mapStore.listActiveMaps();
     }
 
+    /** Get a single trained map by its UUID (backs admin UI detail view). */
+    @GetMapping("/maps/{mapId}")
+    public ResponseEntity<ConversionMap> getMapById(@PathVariable UUID mapId) {
+        return mapStore.getMapById(mapId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     /** Get the active map for a given key (primary endpoint for edi-converter) */
     @GetMapping("/maps/lookup")
     public ResponseEntity<MapResponse> lookupMap(
@@ -297,6 +318,14 @@ public class EdiMapTrainingController {
     @GetMapping("/sessions/map")
     public List<TrainingSession> getSessionsForMap(@RequestParam String mapKey) {
         return mapStore.getSessionsForMap(mapKey);
+    }
+
+    /** Lookup a single training session detail by UUID (admin UI drill-in). */
+    @GetMapping("/sessions/{sessionId}")
+    public ResponseEntity<TrainingSession> getSessionById(@PathVariable UUID sessionId) {
+        return mapStore.getSessionById(sessionId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     // ===================================================================
