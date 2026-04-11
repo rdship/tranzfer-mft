@@ -2,10 +2,9 @@ package com.filetransfer.shared.repository;
 
 import com.filetransfer.shared.entity.FileTransferRecord;
 import com.filetransfer.shared.enums.FileTransferStatus;
-import com.filetransfer.shared.enums.Protocol;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -14,7 +13,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface FileTransferRecordRepository extends JpaRepository<FileTransferRecord, UUID> {
+public interface FileTransferRecordRepository
+        extends JpaRepository<FileTransferRecord, UUID>,
+                JpaSpecificationExecutor<FileTransferRecord> {
 
     List<FileTransferRecord> findByUploadedAtAfter(Instant since);
 
@@ -39,29 +40,12 @@ public interface FileTransferRecordRepository extends JpaRepository<FileTransfer
            "ORDER BY r.uploadedAt DESC")
     List<FileTransferRecord> findByFolderMappingSourceAccountIdOrderByUploadedAtDesc(@Param("accountId") UUID accountId);
 
-    @Query(value = "SELECT r FROM FileTransferRecord r " +
-           "JOIN FETCH r.folderMapping fm " +
-           "JOIN FETCH fm.sourceAccount sa " +
-           "LEFT JOIN FETCH fm.destinationAccount " +
-           "LEFT JOIN FETCH fm.externalDestination " +
-           "WHERE (:trackId IS NULL OR r.trackId = :trackId) " +
-           "AND (:filename IS NULL OR LOWER(r.originalFilename) LIKE LOWER(CONCAT('%', :filename, '%'))) " +
-           "AND (:status IS NULL OR r.status = :status) " +
-           "AND (:sourceUsername IS NULL OR sa.username = :sourceUsername) " +
-           "AND (:protocol IS NULL OR sa.protocol = :protocol)",
-           countQuery = "SELECT COUNT(r) FROM FileTransferRecord r " +
-           "JOIN r.folderMapping fm " +
-           "JOIN fm.sourceAccount sa " +
-           "WHERE (:trackId IS NULL OR r.trackId = :trackId) " +
-           "AND (:filename IS NULL OR LOWER(r.originalFilename) LIKE LOWER(CONCAT('%', :filename, '%'))) " +
-           "AND (:status IS NULL OR r.status = :status) " +
-           "AND (:sourceUsername IS NULL OR sa.username = :sourceUsername) " +
-           "AND (:protocol IS NULL OR sa.protocol = :protocol)")
-    Page<FileTransferRecord> searchForActivityMonitor(
-            @Param("trackId") String trackId,
-            @Param("filename") String filename,
-            @Param("status") FileTransferStatus status,
-            @Param("sourceUsername") String sourceUsername,
-            @Param("protocol") Protocol protocol,
-            Pageable pageable);
+    // NOTE: the old searchForActivityMonitor JPQL with `:param IS NULL OR ...`
+    // pattern was removed. Hibernate 6 binds null params as Types.NULL
+    // (untyped) and PostgreSQL can't infer the column type for `$1 IS NULL`
+    // when every filter is null on a default page load — producing
+    // "could not determine data type of parameter $1". The controller
+    // now builds a JpaSpecification dynamically via JpaSpecificationExecutor
+    // so null filters contribute no predicates at all. See BUG-1 in
+    // DEMO-RESULTS.md (2026-04-11).
 }

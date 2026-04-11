@@ -579,6 +579,11 @@ public class ProxyIntelligenceService {
         invalidateVerdictCache(ip);
     }
 
+    public void removeAllowIp(String ip) {
+        reputationService.removeAllowIp(ip);
+        invalidateVerdictCache(ip);
+    }
+
     public Set<String> getBlocklist() {
         return reputationService.getBlocklist();
     }

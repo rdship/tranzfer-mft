@@ -137,19 +137,42 @@ function VerdictPie({ data }) {
 // ── Tab 1: Overview ────────────────────────────────────────────────────────
 
 function OverviewTab() {
-  const { data: dashboard, isLoading } = useQuery({
+  const { data: dashboard, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['proxy-dashboard'],
     queryFn: api.getProxyDashboard,
     refetchInterval: 15000,
+    retry: 1,
   })
 
   const { data: events } = useQuery({
     queryKey: ['proxy-events'],
     queryFn: api.getProxyEvents,
     refetchInterval: 20000,
+    retry: 1,
+    onError: (e) => {
+      const msg = e?.response?.data?.message || e?.message || 'request failed'
+      toast.error(`Couldn't load proxy events: ${msg}`, { id: 'proxy-events-err' })
+    },
   })
 
   if (isLoading) return <Spinner />
+  if (isError) {
+    return (
+      <div className="bg-gray-800 rounded-lg p-6 border border-red-800/40 text-center">
+        <ExclamationTriangleIcon className="w-10 h-10 mx-auto mb-2 text-red-400" />
+        <h3 className="text-lg font-semibold text-gray-200 mb-1">Proxy Intelligence unavailable</h3>
+        <p className="text-sm text-gray-400 mb-3">
+          Couldn't reach ai-engine (:8091) — {error?.message || 'unknown error'}
+        </p>
+        <button
+          onClick={() => refetch()}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+        >
+          <ArrowPathIcon className="w-3.5 h-3.5" /> Retry
+        </button>
+      </div>
+    )
+  }
 
   const stats = dashboard?.stats || dashboard || {}
   const topBlocked = dashboard?.topBlocked || []

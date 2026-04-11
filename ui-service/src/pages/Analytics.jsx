@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getTimeSeries } from '../api/analytics'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
 import LoadingSpinner from '../components/LoadingSpinner'
+import ServiceUnavailable from '../components/ServiceUnavailable'
 import { useState } from 'react'
 
 const SERVICES = ['ALL', 'SFTP', 'FTP', 'FTP_WEB', 'GATEWAY']
@@ -9,9 +10,10 @@ const SERVICES = ['ALL', 'SFTP', 'FTP', 'FTP_WEB', 'GATEWAY']
 export default function Analytics() {
   const [service, setService] = useState('ALL')
   const [hours, setHours] = useState(24)
-  const { data: series = [], isLoading } = useQuery({
+  const { data: series = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ['timeseries', service, hours],
-    queryFn: () => getTimeSeries(service, hours)
+    queryFn: () => getTimeSeries(service, hours),
+    retry: 1,
   })
 
   const chartData = series.map(s => ({
@@ -41,7 +43,21 @@ export default function Analytics() {
         </div>
       </div>
 
-      {isLoading ? <LoadingSpinner /> : (
+      {isLoading ? <LoadingSpinner /> : isError ? (
+        <ServiceUnavailable
+          service="analytics-service"
+          port={8090}
+          error={error}
+          onRetry={refetch}
+          title="Analytics unavailable"
+          hint="Couldn't load time-series metrics from analytics-service (:8090). Start it with `docker compose up -d analytics-service`, then retry."
+        />
+      ) : series.length === 0 ? (
+        <div className="card text-center py-12">
+          <p className="text-secondary text-sm">No analytics data yet for the selected window.</p>
+          <p className="text-xs text-muted mt-2">Run `./scripts/demo-traffic.sh` to seed historical metrics, or change the window.</p>
+        </div>
+      ) : (
         <div className="space-y-6">
           <div className="card">
             <h3 className="font-semibold text-primary mb-4">Transfer Volume</h3>

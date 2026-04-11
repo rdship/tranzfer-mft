@@ -9,6 +9,7 @@ import com.filetransfer.shared.repository.FileTransferRecordRepository;
 import com.filetransfer.shared.repository.FlowExecutionRepository;
 import com.filetransfer.shared.repository.PartnerRepository;
 import com.filetransfer.shared.security.Roles;
+import jakarta.persistence.criteria.Join;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.Nullable;
 
@@ -20,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -80,9 +82,45 @@ public class ActivityMonitorController {
                         (a, b) -> a
                 ));
 
-        // Execute paginated query
-        Page<FileTransferRecord> records = transferRepo.searchForActivityMonitor(
-                trackId, filename, status, sourceUsername, protocol, pageRequest);
+        // Build a dynamic Specification. Every filter is optional — we only
+        // add a predicate when the caller supplied a non-null value, which
+        // means a default page load (all filters null) produces an unfiltered
+        // findAll() with zero parameter bindings. This side-steps BUG-1 where
+        // Hibernate 6's null-param binding as Types.NULL broke PostgreSQL's
+        // type inference on `:trackId IS NULL OR r.trackId = :trackId`.
+        final String trackIdF = trackId;
+        final String filenameF = filename;
+        final FileTransferStatus statusF = status;
+        final String sourceUsernameF = sourceUsername;
+        final Protocol protocolF = protocol;
+        Specification<FileTransferRecord> spec = (root, query, cb) -> {
+            List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
+            if (trackIdF != null && !trackIdF.isBlank()) {
+                predicates.add(cb.equal(root.get("trackId"), trackIdF));
+            }
+            if (filenameF != null && !filenameF.isBlank()) {
+                predicates.add(cb.like(
+                        cb.lower(root.get("originalFilename")),
+                        "%" + filenameF.toLowerCase() + "%"));
+            }
+            if (statusF != null) {
+                predicates.add(cb.equal(root.get("status"), statusF));
+            }
+            if (sourceUsernameF != null && !sourceUsernameF.isBlank()) {
+                Join<FileTransferRecord, FolderMapping> fmJoin = root.join("folderMapping");
+                Join<FolderMapping, TransferAccount> saJoin = fmJoin.join("sourceAccount");
+                predicates.add(cb.equal(saJoin.get("username"), sourceUsernameF));
+            }
+            if (protocolF != null) {
+                Join<FileTransferRecord, FolderMapping> fmJoin = root.join("folderMapping");
+                Join<FolderMapping, TransferAccount> saJoin = fmJoin.join("sourceAccount");
+                predicates.add(cb.equal(saJoin.get("protocol"), protocolF));
+            }
+            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        };
+
+        // Execute paginated query via Specification (no null-param bindings)
+        Page<FileTransferRecord> records = transferRepo.findAll(spec, pageRequest);
 
         // Batch-fetch flow executions for trackIds in this page
         List<String> trackIds = records.getContent().stream()

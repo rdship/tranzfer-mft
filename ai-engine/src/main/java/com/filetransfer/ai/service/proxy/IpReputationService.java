@@ -218,6 +218,14 @@ public class IpReputationService {
         getOrCreate(ip).setScore(100.0);
     }
 
+    public void removeAllowIp(String ip) {
+        allowlist.remove(ip);
+        // Don't reset the reputation score — operators may want to keep the
+        // history. Removing from allowlist just means the IP is no longer
+        // pre-trusted; its reputation still governs future verdicts.
+        log.info("IP removed from allowlist: {}", ip);
+    }
+
     public boolean isAllowed(String ip) {
         return allowlist.contains(ip);
     }

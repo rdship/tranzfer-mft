@@ -262,6 +262,25 @@ public class ProxyIntelligenceController {
         return ResponseEntity.ok(Map.of("status", "allowed", "ip", ip));
     }
 
+    @DeleteMapping("/allowlist/{ip}")
+    public ResponseEntity<Map<String, String>> removeFromAllowlist(@PathVariable String ip) {
+        intelligenceService.removeAllowIp(ip);
+        return ResponseEntity.ok(Map.of("status", "removed", "ip", ip));
+    }
+
+    /**
+     * Return recent proxy events for the admin UI activity timeline.
+     * Events and verdicts are 1:1 — each incoming event produces exactly
+     * one verdict — so we expose the verdict log as the "events" feed.
+     *
+     * This is distinct from the POST /events endpoint (batch ingest).
+     */
+    @GetMapping("/events")
+    public ResponseEntity<List<Map<String, Object>>> getRecentEvents(
+            @RequestParam(defaultValue = "50") int limit) {
+        return ResponseEntity.ok(intelligenceService.getRecentVerdicts(limit));
+    }
+
     // ── IP Intelligence ────────────────────────────────────────────────
 
     @GetMapping("/ip/{ip}")

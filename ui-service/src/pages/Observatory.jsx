@@ -5,6 +5,7 @@ import { ArrowPathIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 import { getObservatoryData, getStepLatency } from '../api/observatory'
 import { useServices } from '../context/ServiceContext'
 import LoadingSpinner from '../components/LoadingSpinner'
+import ServiceUnavailable from '../components/ServiceUnavailable'
 
 // ─── Service topology (static layout, live health from API) ──────────────────
 
@@ -544,13 +545,29 @@ export default function Observatory() {
   const { services } = useServices()
   const [latencyHours, setLatencyHours] = useState(24)
 
-  const { data, isLoading, dataUpdatedAt, refetch, isFetching } = useQuery({
+  const { data, isLoading, isError, error, dataUpdatedAt, refetch, isFetching } = useQuery({
     queryKey: ['observatory'],
     queryFn: getObservatoryData,
     refetchInterval: 30_000,
     staleTime: 25_000,
+    retry: 1,
     placeholderData: prev => prev,   // keep previous data visible during background refetch
   })
+
+  // Don't strand the user on an empty screen if analytics-service is down —
+  // render the shared unavailable card with a retry button.
+  if (isError && !data) {
+    return (
+      <ServiceUnavailable
+        service="analytics-service"
+        port={8090}
+        error={error}
+        onRetry={refetch}
+        title="Observatory unavailable"
+        hint="Couldn't reach analytics-service (:8090) to load platform topology and health data."
+      />
+    )
+  }
 
   const { data: latencyData } = useQuery({
     queryKey: ['step-latency', latencyHours],

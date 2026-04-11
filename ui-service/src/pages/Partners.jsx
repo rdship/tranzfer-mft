@@ -469,16 +469,9 @@ export default function Partners() {
           {hasActivePartnerSelected && (
             <button className="btn-secondary text-sm" onClick={() => setShowBulkConfirm('suspend')}>Deactivate</button>
           )}
-          {/* Change phase intentionally disabled — backing endpoint does not
-              exist in api/partners.js yet. See TODO(bulk) above. */}
-          <button
-            className="btn-secondary text-sm"
-            disabled
-            title="Change phase — backend endpoint not yet available"
-            style={{ opacity: 0.4, cursor: 'not-allowed' }}
-          >
-            Change phase
-          </button>
+          {/* "Change phase" bulk action is not shown: the backing endpoint
+              does not exist yet (see TODO(bulk) above). Per VIP-FORMS rule
+              13 ("Never dummy"), we hide instead of showing a disabled stub. */}
           <button
             className="btn-secondary text-sm"
             style={{ background: 'rgba(220,38,38,0.15)', color: 'rgb(248,113,113)', border: '1px solid rgba(220,38,38,0.4)' }}

@@ -699,10 +699,19 @@ export default function Flows() {
     refetchInterval: 10000
   })
 
-  const { data: pendingApprovals = [] } = useQuery({
+  // Approval queue — intentionally best-effort (sidebar badge polls it every
+  // 15s and a transient failure shouldn't drown the operator in toasts) but
+  // we surface a one-time error toast when the error state first appears so
+  // operators know why the approval inbox is empty.
+  const { data: pendingApprovals = [], isError: approvalsError } = useQuery({
     queryKey: ['pending-approvals'],
-    queryFn: () => getPendingApprovals().catch(() => []),
-    refetchInterval: 15000
+    queryFn: getPendingApprovals,
+    refetchInterval: 15000,
+    retry: 1,
+    onError: (e) => {
+      const msg = e?.response?.data?.message || e?.message || 'unknown error'
+      toast.error(`Couldn't load pending approvals — ${msg}`, { id: 'pending-approvals-error' })
+    },
   })
 
   const approveMut = useMutation({

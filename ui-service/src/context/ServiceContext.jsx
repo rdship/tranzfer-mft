@@ -91,6 +91,18 @@ const PAGE_SERVICE_MAP = {
   '/connectors': ['config'],
   '/scheduler': ['config'],
 
+  // Pages previously invisible to the gating system — they fell through
+  // to the `return true` default in isPageVisible. Listing them here makes
+  // them honour their actual backend dependency so the sidebar correctly
+  // hides them when that service is down.
+  '/2fa': ['core'],               // onboarding-api owns 2FA endpoints
+  '/api-console': ['core'],       // onboarding-api serves /actuator/*
+  '/blockchain': ['core'],        // onboarding-api owns /api/v1/blockchain
+  '/compliance': ['config'],      // config-service owns /api/compliance
+  '/folder-templates': ['config'],// config-service owns /api/folder-templates
+  '/tenants': ['core'],           // onboarding-api owns /api/v1/tenants
+  '/vfs-storage': ['config'],     // config-service owns /api/vfs
+
   // New pages
   '/storage': ['core'],
   '/cas-dedup': ['analytics'],

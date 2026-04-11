@@ -3,13 +3,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { onboardingApi } from '../api/client'
 import { getAccounts } from '../api/accounts'
 import LoadingSpinner from '../components/LoadingSpinner'
+import ServiceUnavailable from '../components/ServiceUnavailable'
 import toast from 'react-hot-toast'
 import { ShieldCheckIcon, KeyIcon } from '@heroicons/react/24/outline'
 
 export default function TwoFactor() {
   const qc = useQueryClient()
   const [selected, setSelected] = useState(null)
-  const { data: accounts = [], isLoading } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts })
+  const { data: accounts = [], isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['accounts'],
+    queryFn: getAccounts,
+    retry: 1,
+  })
 
   const enableMut = useMutation({
     mutationFn: (username) => onboardingApi.post('/api/2fa/enable', { username, method: 'TOTP_APP' }).then(r => r.data),
@@ -27,6 +32,18 @@ export default function TwoFactor() {
   })
 
   if (isLoading) return <LoadingSpinner />
+  if (isError) {
+    return (
+      <ServiceUnavailable
+        service="onboarding-api"
+        port={8080}
+        error={error}
+        onRetry={refetch}
+        title="Two-Factor Auth unavailable"
+        hint="Couldn't load transfer accounts from onboarding-api (:8080). 2FA management requires the accounts list."
+      />
+    )
+  }
   return (
     <div className="space-y-6">
       <div><h1 className="text-2xl font-bold text-primary">Two-Factor Authentication</h1>

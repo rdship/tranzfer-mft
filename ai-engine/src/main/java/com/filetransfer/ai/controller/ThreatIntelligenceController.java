@@ -245,6 +245,42 @@ public class ThreatIntelligenceController {
     }
 
     /**
+     * Delete a threat indicator by its IOC ID (UUID). The admin UI's
+     * ThreatIntelligence page needs this to prune stale indicators without
+     * needing to know the original value. Returns 404 when nothing matched.
+     */
+    @DeleteMapping("/indicators/{iocId}")
+    public ResponseEntity<Map<String, Object>> deleteIndicator(@PathVariable String iocId) {
+        log.info("DELETE /indicators/{}", iocId);
+
+        // indicatorStore is keyed by value, not by iocId — iterate once to find
+        // the matching indicator so the UI can pass the stable UUID.
+        Map.Entry<String, ThreatIndicator> match = indicatorStore.entrySet().stream()
+                .filter(e -> e.getValue().getIocId() != null
+                        && e.getValue().getIocId().toString().equalsIgnoreCase(iocId))
+                .findFirst()
+                .orElse(null);
+
+        if (match == null) {
+            return ResponseEntity.status(404).body(Map.of(
+                    "error", "Indicator not found",
+                    "iocId", iocId
+            ));
+        }
+
+        indicatorStore.remove(match.getKey());
+        // Best-effort graph cleanup — remove the node and any incoming edges
+        graphEdges.remove(match.getKey());
+        graphEdges.values().forEach(set -> set.remove(match.getKey()));
+
+        return ResponseEntity.ok(Map.of(
+                "status", "deleted",
+                "iocId", iocId,
+                "value", match.getKey()
+        ));
+    }
+
+    /**
      * Lookup a specific indicator of compromise by its value.
      *
      * @param value the IOC value (IP, domain, hash, etc.)
@@ -695,6 +731,44 @@ public class ThreatIntelligenceController {
     }
 
     /**
+     * MITRE ATT&CK mapping grouped by tactic — this is the shape the admin
+     * UI's MITRE heatmap expects: each tactic key holds a list of
+     * techniques currently mapped to at least one indicator. Returns an
+     * object of tactic -> List<technique> so the frontend can render the
+     * 14-column ATT&CK matrix without extra massaging.
+     */
+    @GetMapping("/mitre/mapping")
+    public ResponseEntity<Map<String, Object>> getMitreMapping() {
+        log.debug("GET /mitre/mapping");
+
+        Map<String, List<Map<String, Object>>> mappingByTactic = new LinkedHashMap<>();
+        for (MitreAttackMapper.Tactic tactic : MitreAttackMapper.Tactic.values()) {
+            List<MitreAttackMapper.TechniqueInfo> techniques =
+                    mitreAttackMapper.getTechniquesByTactic(tactic.getId());
+            List<Map<String, Object>> list = new ArrayList<>();
+            for (MitreAttackMapper.TechniqueInfo tech : techniques) {
+                Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("id", tech.getId());
+                entry.put("name", tech.getName());
+                entry.put("severity", tech.getSeverity());
+                // Count how many indicators currently map to this technique
+                long matchCount = indicatorStore.values().stream()
+                        .filter(ind -> ind.getMitreTechniquesList().contains(tech.getId()))
+                        .count();
+                entry.put("indicatorCount", matchCount);
+                entry.put("coverage", matchCount > 0 ? "covered" : "uncovered");
+                list.add(entry);
+            }
+            mappingByTactic.put(tactic.getName(), list);
+        }
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("mapping", mappingByTactic);
+        response.put("totalTactics", mappingByTactic.size());
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * Get details for a specific MITRE ATT&CK technique by ID.
      *
      * @param id the technique ID (e.g., T1566, T1190)
@@ -742,6 +816,52 @@ public class ThreatIntelligenceController {
      *
      * @return node count, edge count, and type distribution
      */
+    /**
+     * Dump the full knowledge graph (nodes + edges) for the admin UI's
+     * security-graph visualization. Capped at 500 nodes to keep the payload
+     * under 1 MB. Nodes beyond that are the tail of the iteration order.
+     */
+    @GetMapping("/graph")
+    public ResponseEntity<Map<String, Object>> getSecurityGraph(
+            @RequestParam(defaultValue = "500") int maxNodes) {
+
+        log.debug("GET /graph maxNodes={}", maxNodes);
+
+        List<Map<String, Object>> nodes = new ArrayList<>();
+        List<Map<String, Object>> edges = new ArrayList<>();
+
+        int nodeCount = 0;
+        for (Map.Entry<String, Set<String>> entry : graphEdges.entrySet()) {
+            if (nodeCount >= maxNodes) break;
+            String nodeId = entry.getKey();
+            Map<String, Object> node = new LinkedHashMap<>();
+            node.put("id", nodeId);
+            node.put("type", classifyNode(nodeId));
+            ThreatIndicator ind = indicatorStore.get(nodeId);
+            if (ind != null) {
+                node.put("threatLevel", ind.getThreatLevel().name());
+                node.put("confidence", ind.getEffectiveConfidence());
+            }
+            nodes.add(node);
+            nodeCount++;
+
+            for (String neighbor : entry.getValue()) {
+                Map<String, Object> edge = new LinkedHashMap<>();
+                edge.put("source", nodeId);
+                edge.put("target", neighbor);
+                edges.add(edge);
+            }
+        }
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("nodes", nodes);
+        response.put("edges", edges);
+        response.put("totalNodes", graphEdges.size());
+        response.put("returned", nodeCount);
+        response.put("truncated", graphEdges.size() > maxNodes);
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/graph/stats")
     public ResponseEntity<Map<String, Object>> getGraphStats() {
         log.debug("GET /graph/stats");

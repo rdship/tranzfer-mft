@@ -100,19 +100,34 @@ export default function Screening() {
   // ═══════════════════════════════════════════════════════════════════════
   // Queries — OFAC Screening
   // ═══════════════════════════════════════════════════════════════════════
+  // Previously every useQuery on this page used `.catch(() => [])` which
+  // silently masked a screening-service outage. Now we surface the error
+  // state via a shared toast (dedup'd via a stable toast id) and keep the
+  // default data so the rest of the page still renders.
 
-  const { data: lists } = useQuery({
+  const toastOnError = (id, label) => (e) => {
+    const msg = e?.response?.data?.message || e?.message || 'request failed'
+    toast.error(`${label}: ${msg}`, { id })
+  }
+
+  const { data: lists, isError: listsError } = useQuery({
     queryKey: ['screen-lists'],
-    queryFn: () => screeningApi.get('/api/v1/screening/lists').then(r => r.data)
+    queryFn: () => screeningApi.get('/api/v1/screening/lists').then(r => r.data),
+    retry: 1,
+    onError: toastOnError('screen-lists-err', "Couldn't load sanctions lists"),
   })
   const { data: results = [] } = useQuery({
     queryKey: ['screen-results'],
-    queryFn: () => screeningApi.get('/api/v1/screening/results').then(r => r.data).catch(() => []),
-    refetchInterval: 15000
+    queryFn: () => screeningApi.get('/api/v1/screening/results').then(r => r.data),
+    refetchInterval: 15000,
+    retry: 1,
+    onError: toastOnError('screen-results-err', "Couldn't load screening results"),
   })
   const { data: hits = [] } = useQuery({
     queryKey: ['screen-hits'],
-    queryFn: () => screeningApi.get('/api/v1/screening/hits').then(r => r.data).catch(() => [])
+    queryFn: () => screeningApi.get('/api/v1/screening/hits').then(r => r.data),
+    retry: 1,
+    onError: toastOnError('screen-hits-err', "Couldn't load sanctions hits"),
   })
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -121,14 +136,18 @@ export default function Screening() {
 
   const { data: quarantineStats = {}, isLoading: loadingStats } = useQuery({
     queryKey: ['quarantine-stats'],
-    queryFn: () => screeningApi.get('/api/v1/quarantine/stats').then(r => r.data).catch(() => ({})),
-    refetchInterval: 30000
+    queryFn: () => screeningApi.get('/api/v1/quarantine/stats').then(r => r.data),
+    refetchInterval: 30000,
+    retry: 1,
+    onError: toastOnError('quarantine-stats-err', "Couldn't load quarantine stats"),
   })
 
   const { data: quarantineItems = [], isLoading: loadingQuarantine } = useQuery({
     queryKey: ['quarantine-items'],
-    queryFn: () => screeningApi.get('/api/v1/quarantine').then(r => r.data).catch(() => []),
-    refetchInterval: 30000
+    queryFn: () => screeningApi.get('/api/v1/quarantine').then(r => r.data),
+    refetchInterval: 30000,
+    retry: 1,
+    onError: toastOnError('quarantine-items-err', "Couldn't load quarantine items"),
   })
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -137,7 +156,9 @@ export default function Screening() {
 
   const { data: dlpPolicies = [], isLoading: loadingPolicies } = useQuery({
     queryKey: ['dlp-policies'],
-    queryFn: () => screeningApi.get('/api/v1/dlp/policies').then(r => r.data).catch(() => [])
+    queryFn: () => screeningApi.get('/api/v1/dlp/policies').then(r => r.data),
+    retry: 1,
+    onError: toastOnError('dlp-policies-err', "Couldn't load DLP policies"),
   })
 
   // ═══════════════════════════════════════════════════════════════════════
