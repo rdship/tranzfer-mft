@@ -32,6 +32,7 @@ import Activity from './pages/Activity'
 import TwoFactor from './pages/TwoFactor'
 import ApiConsole from './pages/ApiConsole'
 import Edi from './pages/Edi'
+import MapBuilder from './pages/MapBuilder'
 import Tenants from './pages/Tenants'
 import Blockchain from './pages/Blockchain'
 import ServerInstances from './pages/ServerInstances'
@@ -135,7 +136,7 @@ export default function App() {
             <Route path="2fa" element={<TwoFactor />} />
             <Route path="api-console" element={<ApiConsole />} />
             <Route path="edi" element={<Edi />} />
-            <Route path="edi-mapping" element={<Edi />} />
+            <Route path="edi-mapping" element={<MapBuilder />} />
             <Route path="edi-partners" element={<Edi />} />
             <Route path="tenants" element={<Tenants />} />
             <Route path="blockchain" element={<Blockchain />} />
