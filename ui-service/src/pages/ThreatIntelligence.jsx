@@ -918,8 +918,47 @@ function AttackChainsTab() {
 export default function ThreatIntelligence() {
   const [activeTab, setActiveTab] = useState('overview')
 
+  // Top-level service health probe — drives the "service unavailable" banner.
+  // Uses the dashboard endpoint as a lightweight liveness check for the AI engine.
+  const {
+    isError: serviceDown,
+    refetch: refetchHealth,
+    isFetching: healthFetching,
+  } = useQuery({
+    queryKey: ['threat-intel-health'],
+    queryFn: threatApi.getThreatDashboard,
+    refetchInterval: 60000,
+    retry: 1,
+  })
+  const queryClient = useQueryClient()
+  const handleRetry = () => {
+    refetchHealth()
+    queryClient.invalidateQueries({ queryKey: ['threat-dashboard'] })
+    queryClient.invalidateQueries({ queryKey: ['threat-incidents'] })
+    queryClient.invalidateQueries({ queryKey: ['threat-actors'] })
+    queryClient.invalidateQueries({ queryKey: ['threat-chains-overview'] })
+  }
+
   return (
     <div className="space-y-6">
+      {serviceDown && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ExclamationTriangleIcon className="w-5 h-5 text-red-400" />
+            <span className="text-sm text-red-400">
+              AI engine unavailable — threat intelligence data may be stale or missing
+            </span>
+          </div>
+          <button
+            onClick={handleRetry}
+            disabled={healthFetching}
+            className="text-xs text-red-400 hover:text-red-300 underline disabled:opacity-50"
+          >
+            {healthFetching ? 'Retrying...' : 'Retry'}
+          </button>
+        </div>
+      )}
+
       {/* Page header */}
       <div>
         <h1 className="text-2xl font-bold text-primary">Threat Intelligence</h1>

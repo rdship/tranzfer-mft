@@ -1312,6 +1312,19 @@ function PartnerDetailTab({ partner, onBack }) {
 export default function Migration() {
   const [activeTab, setActiveTab] = useState('overview')
   const [selectedPartner, setSelectedPartner] = useState(null)
+  const queryClient = useQueryClient()
+
+  // Top-level service health probe — drives the "service unavailable" banner.
+  const {
+    isError: serviceDown,
+    refetch: refetchHealth,
+    isFetching: healthFetching,
+  } = useQuery({
+    queryKey: ['migration-health'],
+    queryFn: migrationApi.getMigrationDashboard,
+    refetchInterval: 60000,
+    retry: 1,
+  })
 
   function handleSelectPartner(partner) {
     setSelectedPartner(partner)
@@ -1323,12 +1336,37 @@ export default function Migration() {
     setActiveTab('partners')
   }
 
+  const handleRetry = () => {
+    refetchHealth()
+    queryClient.invalidateQueries({ queryKey: ['migration-dashboard'] })
+    queryClient.invalidateQueries({ queryKey: ['migration-partners'] })
+    queryClient.invalidateQueries({ queryKey: ['migration-connection-stats'] })
+  }
+
   const visibleTabs = selectedPartner
     ? TABS
     : TABS.filter(t => t.key !== 'detail')
 
   return (
     <div className="space-y-6 animate-page">
+      {serviceDown && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ExclamationTriangleIcon className="w-5 h-5 text-red-400" />
+            <span className="text-sm text-red-400">
+              Config service unavailable — migration data cannot be loaded
+            </span>
+          </div>
+          <button
+            onClick={handleRetry}
+            disabled={healthFetching}
+            className="text-xs text-red-400 hover:text-red-300 underline disabled:opacity-50"
+          >
+            {healthFetching ? 'Retrying...' : 'Retry'}
+          </button>
+        </div>
+      )}
+
       {/* ── Header ── */}
       <div className="flex items-center justify-between">
         <div>

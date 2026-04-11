@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { aiApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import StatCard from '../components/StatCard'
@@ -103,8 +104,15 @@ export default function Recommendations() {
       {recs.length === 0 ? (
         <div className="card text-center py-12">
           <ShieldCheckIcon className="w-12 h-12 text-green-400 mx-auto mb-3" />
-          <h3 className="text-lg font-semibold text-primary">All Clear</h3>
-          <p className="text-sm text-secondary mt-1">No recommendations at this time. Platform is healthy.</p>
+          <h3 className="text-lg font-semibold text-primary">No recommendations yet</h3>
+          <p className="text-sm text-secondary mt-1 max-w-md mx-auto">
+            The AI engine will populate this as it learns from your transfer history.
+            Run some traffic through the platform, then check back in a few minutes.
+          </p>
+          <Link to="/operations/activity" className="btn-secondary inline-flex items-center gap-2 mt-4">
+            <ChartBarIcon className="w-4 h-4" />
+            View transfer activity
+          </Link>
         </div>
       ) : (
         <div className="space-y-4">

@@ -786,8 +786,14 @@ function CountryRow({ countryName, connections, blocked, allowed, risk, expanded
 
 export default function ProxyIntelligence() {
   const [activeTab, setActiveTab] = useState('overview')
+  const queryClient = useQueryClient()
 
-  const { data: dashboard } = useQuery({
+  const {
+    data: dashboard,
+    isError: serviceDown,
+    refetch: refetchDashboard,
+    isFetching: dashboardFetching,
+  } = useQuery({
     queryKey: ['proxy-dashboard-header'],
     queryFn: api.getProxyDashboard,
     refetchInterval: 30000,
@@ -796,8 +802,35 @@ export default function ProxyIntelligence() {
 
   const stats = dashboard?.stats || dashboard || {}
 
+  const handleRetry = () => {
+    refetchDashboard()
+    queryClient.invalidateQueries({ queryKey: ['proxy-dashboard'] })
+    queryClient.invalidateQueries({ queryKey: ['proxy-verdicts'] })
+    queryClient.invalidateQueries({ queryKey: ['proxy-blocklist'] })
+    queryClient.invalidateQueries({ queryKey: ['proxy-allowlist'] })
+    queryClient.invalidateQueries({ queryKey: ['proxy-geo-stats'] })
+  }
+
   return (
     <div className="space-y-6">
+      {serviceDown && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ExclamationTriangleIcon className="w-5 h-5 text-red-400" />
+            <span className="text-sm text-red-400">
+              Proxy intelligence service unavailable — verdicts and lists may be stale
+            </span>
+          </div>
+          <button
+            onClick={handleRetry}
+            disabled={dashboardFetching}
+            className="text-xs text-red-400 hover:text-red-300 underline disabled:opacity-50"
+          >
+            {dashboardFetching ? 'Retrying...' : 'Retry'}
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
