@@ -1,5 +1,6 @@
 package com.filetransfer.shared.routing;
 
+import com.filetransfer.shared.audit.AuditService;
 import com.filetransfer.shared.client.EncryptionServiceClient;
 import com.filetransfer.shared.client.ForwarderServiceClient;
 import com.filetransfer.shared.client.ScreeningServiceClient;
@@ -97,6 +98,11 @@ public class FlowProcessingEngine {
     @Nullable
     private FlowFunctionRegistry functionRegistry;
 
+    /** Audit service for PCI DSS 10.x compliant logging. Optional — null if not configured. */
+    @Autowired(required = false)
+    @Nullable
+    private AuditService auditService;
+
     /**
      * Execute a specific flow for a file. Creates execution record and processes each step.
      */
@@ -132,8 +138,13 @@ public class FlowProcessingEngine {
 
         if (stageManager != null) {
             final FlowExecution sedaExec = exec;
-            stageManager.submit("INTAKE", () -> executeFlowSteps(sedaExec, flow, trackId, filename, inputPath));
-            log.info("[{}] Flow '{}' submitted to SEDA INTAKE stage", trackId, flow.getName());
+            boolean submitted = stageManager.submit("INTAKE", () -> executeFlowSteps(sedaExec, flow, trackId, filename, inputPath));
+            if (!submitted) {
+                log.error("[{}] SEDA INTAKE queue full — executing synchronously", trackId);
+                executeFlowSteps(exec, flow, trackId, filename, inputPath);
+            } else {
+                log.info("[{}] Flow '{}' submitted to SEDA INTAKE stage", trackId, flow.getName());
+            }
             return exec;
         }
 
@@ -196,13 +207,25 @@ public class FlowProcessingEngine {
                     }
                     String outputFile = processStep(step, currentFile, trackId, i);
                     long duration = System.currentTimeMillis() - start;
+                    String stepStatus = attempt > 0 ? "OK_AFTER_RETRY_" + attempt : "OK";
                     results.add(FlowExecution.StepResult.builder()
                             .stepIndex(i).stepType(step.getType())
-                            .status(attempt > 0 ? "OK_AFTER_RETRY_" + attempt : "OK")
+                            .status(stepStatus)
                             .inputFile(currentFile).outputFile(outputFile)
                             .durationMs(duration).build());
                     if (flowEventJournal != null) {
                         flowEventJournal.recordStepCompleted(trackId, exec.getId(), i, step.getType(), null, 0, duration);
+                    }
+                    // ── FlowStepEvent snapshot (PHYSICAL mode) ──
+                    eventPublisher.publishEvent(new FlowStepEvent(
+                            trackId, exec.getId(), i, step.getType(), stepStatus,
+                            currentFile, outputFile,
+                            currentFile, outputFile,
+                            0L, 0L,
+                            duration, null));
+                    // ── Audit log for step completion ──
+                    if (auditService != null) {
+                        auditService.logFlowStep(trackId, step.getType(), currentFile, outputFile, true, duration, null);
                     }
                     currentFile = outputFile;
                     exec.setCurrentStep(i + 1);
@@ -228,6 +251,17 @@ public class FlowProcessingEngine {
                             .stepIndex(i).stepType(step.getType())
                             .status("FAILED").inputFile(currentFile)
                             .durationMs(duration).error(e.getMessage()).build());
+                    // ── FlowStepEvent failure snapshot (PHYSICAL mode) ──
+                    eventPublisher.publishEvent(new FlowStepEvent(
+                            trackId, exec.getId(), i, step.getType(), "FAILED",
+                            currentFile, null,
+                            currentFile, null,
+                            0L, 0L,
+                            duration, e.getMessage()));
+                    // ── Audit log for step failure ──
+                    if (auditService != null) {
+                        auditService.logFlowStep(trackId, step.getType(), currentFile, null, false, duration, e.getMessage());
+                    }
                     exec.setStatus(FlowExecution.FlowStatus.FAILED);
                     exec.setErrorMessage("Step " + i + " (" + step.getType() + ") failed"
                             + (attempt > 0 ? " after " + (attempt + 1) + " attempts" : "")
@@ -244,6 +278,17 @@ public class FlowProcessingEngine {
                             step.getType(), e.getMessage());
                     return;
                 }
+            }
+            // ── Termination check between steps (PHYSICAL mode) ──
+            FlowExecution fresh = executionRepository.findById(exec.getId()).orElse(null);
+            if (fresh != null && fresh.isTerminationRequested()) {
+                exec.setStatus(FlowExecution.FlowStatus.CANCELLED);
+                exec.setErrorMessage("Terminated by " + fresh.getTerminatedBy() + " after step " + i);
+                exec.setStepResults(results);
+                exec.setCompletedAt(Instant.now());
+                executionRepository.save(exec);
+                log.info("[{}] Flow CANCELLED by {} after step {}", trackId, fresh.getTerminatedBy(), i);
+                return;
             }
             if (!stepSucceeded) {
                 exec.setStatus(FlowExecution.FlowStatus.FAILED);
@@ -264,6 +309,10 @@ public class FlowProcessingEngine {
             long totalDuration = exec.getStartedAt() != null
                     ? Instant.now().toEpochMilli() - exec.getStartedAt().toEpochMilli() : 0;
             flowEventJournal.recordExecutionCompleted(trackId, exec.getId(), totalDuration, results.size());
+        }
+        // ── Audit log for flow completion ──
+        if (auditService != null) {
+            auditService.logFlowComplete(trackId, flow.getName(), true, null);
         }
         dispatchFlowEvent("FLOW_COMPLETED", exec, flow);
         log.info("[{}] Flow '{}' completed successfully for '{}'", trackId, flow.getName(), filename);
@@ -595,6 +644,11 @@ public class FlowProcessingEngine {
                 throw new Exception("Screening service unreachable — blocking as configured. " + e.getMessage());
             }
             log.warn("[{}] Screening service unreachable: {} — allowing transfer (graceful degradation)", trackId, e.getMessage());
+            // ── Audit: screening bypass under graceful degradation ──
+            if (auditService != null) {
+                auditService.logAction("system", "SCREENING_BYPASSED", true, null,
+                        Map.of("trackId", trackId, "reason", "Screening service unreachable — file allowed under graceful degradation"));
+            }
         }
 
         return input.toString(); // File passes through unchanged
@@ -891,8 +945,13 @@ public class FlowProcessingEngine {
 
         if (stageManager != null) {
             final FlowExecution sedaExec = exec;
-            stageManager.submit("INTAKE", () -> executeFlowRefSteps(sedaExec, flow, trackId, filename, ref, startFromStep));
-            log.info("[{}] Flow '{}' submitted to SEDA INTAKE stage (VIRTUAL)", trackId, flow.getName());
+            boolean submitted = stageManager.submit("INTAKE", () -> executeFlowRefSteps(sedaExec, flow, trackId, filename, ref, startFromStep));
+            if (!submitted) {
+                log.error("[{}] SEDA INTAKE queue full — executing synchronously (VIRTUAL)", trackId);
+                executeFlowRefSteps(exec, flow, trackId, filename, ref, startFromStep);
+            } else {
+                log.info("[{}] Flow '{}' submitted to SEDA INTAKE stage (VIRTUAL)", trackId, flow.getName());
+            }
             return exec;
         }
 
@@ -911,6 +970,11 @@ public class FlowProcessingEngine {
         String currentPath = ref.virtualPath();
         long   currentSize = ref.sizeBytes();
         List<FlowExecution.StepResult> results = new ArrayList<>();
+
+        // ── Journal: record execution start (VIRTUAL) ──
+        if (flowEventJournal != null && startFromStep == 0) {
+            flowEventJournal.recordExecutionStarted(trackId, exec.getId(), currentKey, flow.getSteps().size());
+        }
 
         for (int i = startFromStep; i < flow.getSteps().size(); i++) {
             FileFlow.FlowStep step = flow.getSteps().get(i);
@@ -959,6 +1023,9 @@ public class FlowProcessingEngine {
                                 attempt, maxRetries, backoff);
                         Thread.sleep(Math.min(backoff, 30000));
                     }
+                    if (flowEventJournal != null) {
+                        flowEventJournal.recordStepStarted(trackId, exec.getId(), i, step.getType(), currentKey, attempt + 1);
+                    }
                     StepOutcome outcome = processStepRef(step, currentKey, currentPath,
                             currentSize, ref, trackId, i);
                     long duration = System.currentTimeMillis() - start;
@@ -967,6 +1034,13 @@ public class FlowProcessingEngine {
                             .status(attempt > 0 ? "OK_AFTER_RETRY_" + attempt : "OK")
                             .inputFile(currentPath).outputFile(outcome.virtualPath())
                             .durationMs(duration).build());
+                    if (flowEventJournal != null) {
+                        flowEventJournal.recordStepCompleted(trackId, exec.getId(), i, step.getType(), outcome.storageKey(), outcome.sizeBytes(), duration);
+                    }
+                    // ── Audit log for step completion (VIRTUAL) ──
+                    if (auditService != null) {
+                        auditService.logFlowStep(trackId, step.getType(), currentPath, outcome.virtualPath(), true, duration, null);
+                    }
                     // ── fire-and-forget snapshot (async, non-blocking) ──────────────
                     final String snapInKey  = currentKey;
                     final String snapInPath = currentPath;
@@ -991,6 +1065,10 @@ public class FlowProcessingEngine {
                 } catch (Exception e) {
                     long duration = System.currentTimeMillis() - start;
                     if (attempt < maxRetries && isRetryableStepError(e)) {
+                        if (flowEventJournal != null) {
+                            long backoff = 2000L * (1L << attempt);
+                            flowEventJournal.recordStepRetrying(trackId, exec.getId(), i, step.getType(), attempt + 2, Math.min(backoff, 30000));
+                        }
                         log.warn("[{}] Step {}/{} ({}) attempt {} failed (retryable): {}",
                                 trackId, i + 1, flow.getSteps().size(), step.getType(),
                                 attempt + 1, e.getMessage());
@@ -1007,6 +1085,14 @@ public class FlowProcessingEngine {
                             currentPath, null,
                             currentSize, 0L,
                             duration, e.getMessage()));
+                    if (flowEventJournal != null) {
+                        flowEventJournal.recordStepFailed(trackId, exec.getId(), i, step.getType(), e.getMessage(), attempt + 1);
+                        flowEventJournal.recordExecutionFailed(trackId, exec.getId(), exec.getErrorMessage());
+                    }
+                    // ── Audit log for step failure (VIRTUAL) ──
+                    if (auditService != null) {
+                        auditService.logFlowStep(trackId, step.getType(), currentPath, null, false, duration, e.getMessage());
+                    }
                     exec.setStatus(FlowExecution.FlowStatus.FAILED);
                     exec.setErrorMessage("Step " + i + " (" + step.getType() + ") failed"
                             + (attempt > 0 ? " after " + (attempt + 1) + " attempts" : "")
@@ -1046,6 +1132,15 @@ public class FlowProcessingEngine {
         exec.setStepResults(results);
         exec.setCompletedAt(Instant.now());
         executionRepository.save(exec);
+        if (flowEventJournal != null) {
+            long totalDuration = exec.getStartedAt() != null
+                    ? Instant.now().toEpochMilli() - exec.getStartedAt().toEpochMilli() : 0;
+            flowEventJournal.recordExecutionCompleted(trackId, exec.getId(), totalDuration, results.size());
+        }
+        // ── Audit log for flow completion (VIRTUAL) ──
+        if (auditService != null) {
+            auditService.logFlowComplete(trackId, flow.getName(), true, null);
+        }
         dispatchFlowEvent("FLOW_COMPLETED", exec, flow);
         log.info("[{}] Flow '{}' completed (VIRTUAL) for '{}' — final key={}",
                 trackId, flow.getName(), filename, abbrev(currentKey));
@@ -1366,6 +1461,11 @@ public class FlowProcessingEngine {
             if ("BLOCK".equals(cfg.getOrDefault("onFailure", "PASS")))
                 throw new Exception("Screening unreachable — blocking as configured: " + e.getMessage());
             log.warn("[{}] SCREEN unreachable: {} — allowing (graceful degradation)", trackId, e.getMessage());
+            // ── Audit: screening bypass under graceful degradation (VIRTUAL) ──
+            if (auditService != null) {
+                auditService.logAction("system", "SCREENING_BYPASSED", true, null,
+                        Map.of("trackId", trackId, "reason", "Screening service unreachable — file allowed under graceful degradation"));
+            }
         }
         return new StepOutcome(storageKey, virtualPath, sizeBytes);
     }

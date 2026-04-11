@@ -7,6 +7,7 @@ import com.filetransfer.edi.parser.FormatDetector;
 import com.filetransfer.edi.parser.UniversalEdiParser;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -260,6 +261,7 @@ public class ComparisonSuiteService {
                 .id(sessionId).request(request).filePairs(pairs)
                 .createdAt(Instant.now()).expiresAt(Instant.now().plus(SESSION_TTL)).build();
         sessions.put(sessionId, session);
+        log.info("Comparison session {} created (instance-local — use sticky routing or complete within one request)", sessionId);
 
         return ComparePreview.builder()
                 .sessionId(sessionId)
@@ -353,6 +355,7 @@ public class ComparisonSuiteService {
                 .id(sessionId).request(request).filePairs(pairs)
                 .createdAt(Instant.now()).expiresAt(Instant.now().plus(SESSION_TTL)).build();
         sessions.put(sessionId, session);
+        log.info("Comparison session {} created (instance-local — use sticky routing or complete within one request)", sessionId);
 
         return ComparePreview.builder()
                 .sessionId(sessionId)
@@ -1205,9 +1208,15 @@ public class ComparisonSuiteService {
         return fields.toArray(new String[0]);
     }
 
-    /** Clean up expired sessions — called periodically or on access */
+    /** Clean up expired sessions — runs every 5 minutes */
+    @Scheduled(fixedDelay = 300_000)
     public void cleanupExpiredSessions() {
         Instant now = Instant.now();
+        int before = sessions.size();
         sessions.entrySet().removeIf(e -> e.getValue().getExpiresAt().isBefore(now));
+        int removed = before - sessions.size();
+        if (removed > 0) {
+            log.info("Cleaned up {} expired comparison sessions, {} remaining", removed, sessions.size());
+        }
     }
 }

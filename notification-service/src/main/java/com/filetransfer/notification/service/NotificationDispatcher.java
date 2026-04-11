@@ -11,6 +11,7 @@ import com.filetransfer.shared.repository.NotificationLogRepository;
 import com.filetransfer.shared.repository.NotificationTemplateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -172,6 +173,7 @@ public class NotificationDispatcher {
      * Runs every 60 seconds.
      */
     @Scheduled(fixedDelayString = "${notification.retry.delay-seconds:60}000")
+    @SchedulerLock(name = "retryFailedNotifications", lockAtLeastFor = "55s", lockAtMostFor = "300s")
     public void retryFailedNotifications() {
         int maxAttempts = properties.getRetry().getMaxAttempts();
         List<NotificationLog> failedLogs = logRepository

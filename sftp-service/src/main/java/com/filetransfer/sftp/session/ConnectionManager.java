@@ -24,6 +24,9 @@ public class ConnectionManager {
     @Value("${sftp.max-connections-per-user:0}")
     private int maxConnectionsPerUser;
 
+    @Value("${sftp.replica-count:${REPLICA_COUNT:1}}")
+    private int replicaCount;
+
     private final AtomicInteger totalConnections = new AtomicInteger(0);
     private final ConcurrentHashMap<String, AtomicInteger> perUserConnections = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, SessionInfo> activeSessions = new ConcurrentHashMap<>();
@@ -41,15 +44,19 @@ public class ConnectionManager {
      * @return true if the connection is accepted, false if rejected
      */
     public boolean tryRegisterSession(String sessionId, String username, String ipAddress) {
-        // Check global limit
-        if (maxConnections > 0 && totalConnections.get() >= maxConnections) {
-            log.warn("Connection rejected: global limit reached ({}/{}), user={} ip={}",
-                    totalConnections.get(), maxConnections, username, ipAddress);
+        // Check global limit (divided by replica count so aggregate stays within bounds)
+        int effectiveMaxConnections = replicaCount > 1 ? Math.max(1, maxConnections / replicaCount) : maxConnections;
+        if (effectiveMaxConnections > 0 && totalConnections.get() >= effectiveMaxConnections) {
+            log.warn("Connection rejected: global limit reached ({}/{} effective, replicas={}), user={} ip={}",
+                    totalConnections.get(), effectiveMaxConnections, replicaCount, username, ipAddress);
             return false;
         }
 
         // Check per-user limit: QoS limit takes priority, then global config
         int effectivePerUserLimit = perUserQosLimits.getOrDefault(username, maxConnectionsPerUser);
+        if (effectivePerUserLimit > 0 && replicaCount > 1) {
+            effectivePerUserLimit = Math.max(1, effectivePerUserLimit / replicaCount);
+        }
         if (effectivePerUserLimit > 0) {
             AtomicInteger userCount = perUserConnections.computeIfAbsent(username, k -> new AtomicInteger(0));
             if (userCount.get() >= effectivePerUserLimit) {

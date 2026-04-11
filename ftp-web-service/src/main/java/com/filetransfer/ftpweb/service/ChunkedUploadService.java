@@ -4,6 +4,7 @@ import com.filetransfer.shared.entity.ChunkedUpload;
 import com.filetransfer.shared.entity.ChunkedUploadChunk;
 import com.filetransfer.shared.repository.ChunkedUploadChunkRepository;
 import com.filetransfer.shared.repository.ChunkedUploadRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,7 +40,7 @@ public class ChunkedUploadService {
     private final ChunkedUploadRepository uploadRepository;
     private final ChunkedUploadChunkRepository chunkRepository;
 
-    @Value("${ftpweb.chunked.temp-dir:/tmp/mft-chunks}")
+    @Value("${ftpweb.chunked.temp-dir:${FTPWEB_CHUNK_TEMP_DIR:${java.io.tmpdir}/mft-chunks}}")
     private String chunkTempDir;
 
     @Value("${ftpweb.chunked.default-chunk-size:5242880}")  // 5MB default
@@ -50,6 +51,11 @@ public class ChunkedUploadService {
 
     @Value("${ftpweb.chunked.expiry-hours:24}")
     private int expiryHours;
+
+    @PostConstruct
+    void init() {
+        log.info("Chunk temp directory: {} (set FTPWEB_CHUNK_TEMP_DIR for shared volume in multi-instance mode)", chunkTempDir);
+    }
 
     /**
      * Initialize a new chunked upload session.

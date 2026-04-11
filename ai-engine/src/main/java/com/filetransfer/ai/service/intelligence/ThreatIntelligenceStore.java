@@ -9,6 +9,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -771,6 +772,7 @@ public class ThreatIntelligenceStore {
      * Runs every 5 minutes to ensure data survives restarts.
      */
     @Scheduled(fixedDelay = 300_000)
+    @SchedulerLock(name = "threatIntelPersist", lockAtLeastFor = "290s", lockAtMostFor = "600s")
     public void persistToDatabase() {
         if (allIndicators.isEmpty()) {
             return;

@@ -28,6 +28,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import org.slf4j.MDC;
+
 import java.io.IOException;
 import java.nio.file.*;
 import java.time.Instant;
@@ -69,6 +71,11 @@ public class RoutingEngine {
     private final FlowExecutionRepository executionRepository;
     private final PartnerRepository partnerRepository;
 
+    /** Append-only event journal for flow execution audit trail. Optional — null if not configured. */
+    @Autowired(required = false)
+    @Nullable
+    private FlowEventJournal flowEventJournal;
+
     /**
      * Called by each service when a file upload completes.
      * 1. Assigns a Track ID
@@ -89,6 +96,19 @@ public class RoutingEngine {
                 relativeFilePath.substring(relativeFilePath.lastIndexOf('/') + 1) : relativeFilePath;
         String trackId = trackIdGenerator.generate();
 
+        // ── Set MDC for async thread correlation ──
+        MDC.put("trackId", trackId);
+        try {
+        onFileUploadedInternal(sourceAccount, relativeFilePath, absoluteSourcePath, sourceIp, filename, trackId);
+        } finally {
+            MDC.remove("trackId");
+        }
+    }
+
+    /** Internal implementation extracted to allow MDC wrapping in the @Async caller. */
+    private void onFileUploadedInternal(TransferAccount sourceAccount, String relativeFilePath,
+                                         String absoluteSourcePath, String sourceIp,
+                                         String filename, String trackId) {
         log.info("[{}] File received: account={} file={}", trackId, sourceAccount.getUsername(), filename);
 
         // Step 1: Build match context and find matching flow
@@ -119,6 +139,15 @@ public class RoutingEngine {
         CompiledFlowRule matchedRule = flowRuleRegistry.findMatch(matchContext);
         FileFlow matchedFlow = matchedRule != null
                 ? flowRepository.findById(matchedRule.flowId()).orElse(null) : null;
+
+        // ── Match decision logging ──
+        if (matchedRule != null && matchedFlow != null) {
+            log.info("[{}] Matched flow '{}' (priority={}, rule={})",
+                    trackId, matchedRule.flowName(), matchedRule.priority(), matchedRule.flowId());
+            if (flowEventJournal != null) {
+                flowEventJournal.recordFlowMatched(trackId, null, matchedRule.flowName());
+            }
+        }
 
         // ── VIRTUAL-mode accounts: FileRef-based streaming pipeline ──────────────
         if ("VIRTUAL".equals(sourceAccount.getStorageMode()) && vfsBridge != null) {
@@ -159,6 +188,26 @@ public class RoutingEngine {
                 log.warn("[{}] VIRTUAL account but no VirtualEntry for path={} — skipping",
                         trackId, relativeFilePath);
             }
+            // ── AI classification for VIRTUAL mode ──
+            if (aiClassifier != null) {
+                try {
+                    AiClassificationClient.ClassificationDecision decision =
+                            aiClassifier.classify(Paths.get(absoluteSourcePath), trackId,
+                                    absoluteSourcePath.endsWith(".enc") || absoluteSourcePath.endsWith(".pgp"));
+                    if (!decision.allowed()) {
+                        log.error("[{}] BLOCKED by AI classification (VIRTUAL): {}", trackId, decision.blockReason());
+                        auditService.logFailure(sourceAccount, trackId, "AI_BLOCKED",
+                                absoluteSourcePath, decision.blockReason());
+                        connectorDispatcher.dispatch(ConnectorDispatcher.MftEvent.builder()
+                                .eventType("AI_BLOCKED").severity("CRITICAL").trackId(trackId)
+                                .filename(filename).account(sourceAccount.getUsername())
+                                .summary("Transfer blocked: sensitive data detected without encryption (VIRTUAL)")
+                                .details(decision.blockReason()).service("routing-engine").build());
+                    }
+                } catch (Exception e) {
+                    log.debug("[{}] AI classification skipped (VIRTUAL): {}", trackId, e.getMessage());
+                }
+            }
             return; // VIRTUAL accounts: flow IS the routing; skip physical routing below
         }
 
@@ -173,6 +222,12 @@ public class RoutingEngine {
                     processedFilePath = exec.getCurrentFilePath();
                     log.info("[{}] Flow '{}' completed. Output: {}", trackId, matchedFlow.getName(),
                             processedFilePath);
+                    // ── Lifecycle event: flow completed ──
+                    connectorDispatcher.dispatch(ConnectorDispatcher.MftEvent.builder()
+                            .eventType("FLOW_COMPLETED").severity("INFO").trackId(trackId)
+                            .filename(filename).account(sourceAccount.getUsername())
+                            .summary("Flow '" + matchedFlow.getName() + "' completed successfully")
+                            .details(matchedFlow.getName()).service("routing-engine").build());
                 } else {
                     log.error("[{}] Flow '{}' failed: {}", trackId, matchedFlow.getName(),
                             exec.getErrorMessage());
@@ -268,6 +323,18 @@ public class RoutingEngine {
             record.setDestinationFilePath(sentPath.toString());
             recordRepository.save(record);
             log.info("[{}] Transfer complete: {} -> {}", record.getTrackId(), record.getOriginalFilename(), sentPath);
+
+            // ── Audit: transfer completion ──
+            if (auditService != null) {
+                auditService.logFileDownload(destAccount, record.getTrackId(),
+                        sentPath.toString(), record.getOriginalFilename(), sentPath, null, null);
+            }
+            // ── Lifecycle event: transfer completed ──
+            connectorDispatcher.dispatch(ConnectorDispatcher.MftEvent.builder()
+                    .eventType("TRANSFER_COMPLETED").severity("INFO").trackId(record.getTrackId())
+                    .filename(record.getOriginalFilename()).account(destAccount.getUsername())
+                    .summary("File " + record.getOriginalFilename() + " delivered successfully")
+                    .details(sentPath.toString()).service("routing-engine").build());
         } catch (IOException e) {
             log.error("Failed to move file to sent: record={}", record.getId(), e);
             markFailed(record, e.getMessage());
@@ -359,6 +426,13 @@ public class RoutingEngine {
         headers.setContentType(MediaType.APPLICATION_JSON);
         addInternalAuth(headers, destService.getHost());
         HttpEntity<FileForwardRequest> entity = new HttpEntity<>(req, headers);
+
+        // ── Compute destination checksum before forwarding (PCI 11.5 integrity) ──
+        try {
+            record.setDestinationChecksum(AuditService.sha256(Paths.get(sourceAbsPath)));
+        } catch (Exception e) {
+            log.warn("[{}] Could not compute destination checksum for remote route: {}", trackId, e.getMessage());
+        }
 
         ResponseEntity<Void> response = restTemplate.exchange(url, HttpMethod.POST, entity, Void.class);
         if (response.getStatusCode().is2xxSuccessful()) {

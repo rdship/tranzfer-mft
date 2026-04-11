@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
@@ -68,6 +69,7 @@ public class As2MdnCallbackController {
      * we store the callback URL and send the MDN asynchronously.
      */
     @Scheduled(fixedDelayString = "${as2.mdn.async-send-interval:30000}")
+    @SchedulerLock(name = "sendPendingAsyncMdns", lockAtLeastFor = "25s", lockAtMostFor = "120s")
     public void sendPendingAsyncMdns() {
         List<As2Message> pending = messageRepository.findByStatus("RECEIVED");
         for (As2Message msg : pending) {
