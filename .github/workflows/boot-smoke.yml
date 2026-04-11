@@ -89,6 +89,20 @@ jobs:
         run: ./scripts/boot-smoke.sh --no-teardown
         env:
           DOCKER_BUILDKIT: 1
+          # Random feature sample size — bigger on nightly runs (+ all PRs
+          # merging into main) so coverage actually accumulates over time.
+          VALIDATE_SAMPLE_N: ${{ github.event_name == 'schedule' && '100' || '30' }}
+
+      - name: Upload feature inventory + validation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: feature-inventory-and-report
+          path: |
+            tests/inventory/feature-inventory.json
+            tests/inventory/validation-report.json
+            tests/inventory/coverage-ledger.json
+          retention-days: 30
 
       - name: Capture container logs on failure
         if: failure()

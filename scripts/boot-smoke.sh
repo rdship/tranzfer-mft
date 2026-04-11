@@ -303,6 +303,27 @@ else
   skip "EDI sample missing — skip"
 fi
 
+# ── Random + deterministic feature validation ───────────────────────────
+# This is the integration testing layer the platform was missing — every
+# boot-smoke run rebuilds the feature inventory (UI routes + API endpoints
+# + DB entities) and probes a random sample plus the always-validate set.
+# Catches drift between code and UI/API/DB surfaces.
+section "Feature inventory + random validator"
+if [[ -x scripts/feature-inventory.sh && -x scripts/validate-features.sh ]]; then
+  if ./scripts/feature-inventory.sh >/dev/null 2>&1; then
+    pass "feature inventory built ($(jq -r '.summary.api_endpoints' tests/inventory/feature-inventory.json) endpoints, $(jq -r '.summary.ui_routes' tests/inventory/feature-inventory.json) ui routes)"
+  else
+    fail "feature inventory build failed"
+  fi
+  if VALIDATE_SAMPLE_N="${VALIDATE_SAMPLE_N:-20}" ./scripts/validate-features.sh; then
+    pass "random feature validation passed"
+  else
+    fail "random feature validation reported failures (see above)"
+  fi
+else
+  skip "validate-features.sh not present yet"
+fi
+
 # ── Summary ──────────────────────────────────────────────────────────────
 section "Summary"
 TOTAL=$((PASSED + FAILED + SKIPPED))
