@@ -7,14 +7,15 @@ RUN npm run build
 
 FROM nginx:alpine
 
-# Create non-root user and fix permissions for nginx to run as non-root
+# Non-root nginx must listen on an unprivileged port (>=1024). Host port
+# 3002 -> container port 8080 is wired in docker-compose.yml.
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser && \
     chown -R appuser:appgroup /usr/share/nginx/html /var/cache/nginx /var/log/nginx && \
     touch /var/run/nginx.pid && chown appuser:appgroup /var/run/nginx.pid
 
 COPY --from=builder --chown=appuser:appgroup /app/dist /usr/share/nginx/html
-RUN echo 'server { listen 80; location / { try_files $uri /index.html; } }' > /etc/nginx/conf.d/default.conf && \
+RUN echo 'server { listen 8080; location / { try_files $uri /index.html; } }' > /etc/nginx/conf.d/default.conf && \
     chown appuser:appgroup /etc/nginx/conf.d/default.conf
 
 USER appuser
-EXPOSE 80
+EXPOSE 8080

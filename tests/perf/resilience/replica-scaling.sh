@@ -14,6 +14,12 @@
 # =============================================================================
 set -uo pipefail
 
+# Portable millisecond timestamp — macOS BSD date does not support %N.
+# Prefer gdate (Homebrew coreutils) when available, fall back to python.
+ms() {
+  if command -v gdate &>/dev/null; then gdate +%s%3N
+  else python3 -c "import time; print(int(time.time()*1000))"; fi
+}
 BASE_URL="${MFT_BASE_URL:-http://localhost}"
 ADMIN_EMAIL="${MFT_ADMIN_EMAIL:-admin@filetransfer.local}"
 ADMIN_PASS="${MFT_ADMIN_PASS:-Admin@1234}"
@@ -51,11 +57,11 @@ measure_throughput() {
 
   # Simple curl-based throughput measurement (no k6 dependency for this script)
   local start_time
-  start_time=$(date +%s%3N)
+  start_time=$(ms)
   local success=0
   local total=0
   local sum_ms=0
-  local end_time=$(($(date +%s%3N) + duration_secs * 1000))
+  local end_time=$(($(ms) + duration_secs * 1000))
 
   # Get token
   local token
@@ -71,17 +77,17 @@ measure_throughput() {
   fi
 
   # Fire requests in parallel batches
-  while [[ $(date +%s%3N) -lt $end_time ]]; do
+  while [[ $(ms) -lt $end_time ]]; do
     local batch_results=()
     for i in $(seq 1 "$vus"); do
       {
         local t_start
-        t_start=$(date +%s%3N)
+        t_start=$(ms)
         local code
         code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 \
           -H "Authorization: Bearer $token" "$url" 2>/dev/null)
         local t_end
-        t_end=$(date +%s%3N)
+        t_end=$(ms)
         echo "${code} $((t_end - t_start))"
       } &
     done
@@ -93,7 +99,7 @@ measure_throughput() {
     sleep 0.5
   done
 
-  local wall_ms=$(( $(date +%s%3N) - start_time ))
+  local wall_ms=$(( $(ms) - start_time ))
   local wall_s=$((wall_ms / 1000))
 
   echo "$total $wall_s $sum_ms"
@@ -190,7 +196,7 @@ test_service_scaling() {
 
     # Quick load test using curl (fallback if k6 not available)
     local start
-    start=$(date +%s%3N)
+    start=$(ms)
     local successes=0
     local total_ms=0
     local latencies=()
@@ -206,10 +212,10 @@ test_service_scaling() {
     tmpdir=$(mktemp -d)
     for i in $(seq 1 "$LOAD_VUS"); do
       {
-        t_start=$(date +%s%3N)
+        t_start=$(ms)
         code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 \
           -H "Authorization: Bearer ${token:-}" "$url" 2>/dev/null)
-        t_end=$(date +%s%3N)
+        t_end=$(ms)
         echo "${code} $((t_end - t_start))" > "${tmpdir}/res_${i}.txt"
       } &
     done
@@ -230,7 +236,7 @@ test_service_scaling() {
       sorted_latencies=($(printf '%s\n' "${all_latencies[@]}" | sort -n))
       p95_idx=$(( ${#sorted_latencies[@]} * 95 / 100 ))
       p95="${sorted_latencies[$p95_idx]:-N/A}ms"
-      wall_s=$(( ($(date +%s%3N) - start) / 1000 ))
+      wall_s=$(( ($(ms) - start) / 1000 ))
       [[ $wall_s -gt 0 ]] && rps=$(( successes / wall_s ))
     fi
 

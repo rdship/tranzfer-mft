@@ -23,6 +23,12 @@
 # =============================================================================
 set -uo pipefail
 
+# Portable millisecond timestamp — macOS BSD date does not support %N.
+# Prefer gdate (Homebrew coreutils) when available, fall back to python.
+ms() {
+  if command -v gdate &>/dev/null; then gdate +%s%3N
+  else python3 -c "import time; print(int(time.time()*1000))"; fi
+}
 # ── Bash 4+ required (associative arrays) ─────────────────────────────────────
 if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
   for _b in /opt/homebrew/bin/bash /usr/local/bin/bash; do
@@ -227,7 +233,7 @@ else
           code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 \
             -H "Authorization: Bearer ${local_token}" \
             "${BASE_URL}:${SVC_PORT_NUM}/actuator/health" 2>/dev/null || echo "000")
-          echo "$(date +%s%3N) $code" >> "$DRAIN_LOG"
+          echo "$(ms) $code" >> "$DRAIN_LOG"
         } &
       done
       wait
@@ -242,7 +248,7 @@ fi
 # ── Step 3: Send docker stop (graceful SIGTERM) ───────────────────────────────
 echo ""
 echo -e "${RED}[3] Sending docker stop --time ${DRAIN_SECS} ${CONTAINER}...${NC}"
-STOP_START_MS=$(date +%s%3N)
+STOP_START_MS=$(ms)
 docker stop --time "$DRAIN_SECS" "$CONTAINER" &
 DOCKER_STOP_PID=$!
 echo "  docker stop started at $(date '+%H:%M:%S') (PID ${DOCKER_STOP_PID})"
@@ -272,7 +278,7 @@ while [[ $drain_elapsed_s -lt $((DRAIN_SECS + 15)) ]]; do
     token_refresh_at=$(( $(date +%s) + 270 ))
   }
 
-  drain_elapsed_s=$(( ($(date +%s%3N) - STOP_START_MS) / 1000 ))
+  drain_elapsed_s=$(( ($(ms) - STOP_START_MS) / 1000 ))
 
   result=$(probe_once "$local_token")
 
@@ -313,7 +319,7 @@ docker start "$CONTAINER" > /dev/null 2>&1
 
 echo "  Waiting for service to become healthy again..."
 if wait_for_healthy "${BASE_URL}:${SVC_PORT_NUM}/actuator/health" 120; then
-  RECOVERY_S=$(( ($(date +%s%3N) - STOP_START_MS) / 1000 ))
+  RECOVERY_S=$(( ($(ms) - STOP_START_MS) / 1000 ))
   echo "  Service healthy again at ${RECOVERY_S}s after shutdown started"
 else
   echo -e "${YELLOW}  Service did not recover within 120s${NC}"
@@ -391,7 +397,7 @@ else
 fi
 
 # Criterion 3: drain completed before SIGKILL
-ACTUAL_DRAIN_S=$(( ($(date +%s%3N) - STOP_START_MS) / 1000 ))
+ACTUAL_DRAIN_S=$(( ($(ms) - STOP_START_MS) / 1000 ))
 if [[ $ACTUAL_DRAIN_S -le $((DRAIN_SECS + 5)) ]]; then
   echo -e "${GREEN}✓ PASS — Drain completed within ${ACTUAL_DRAIN_S}s (allocated: ${DRAIN_SECS}s)${NC}"
   PASS_COUNT=$((PASS_COUNT + 1))

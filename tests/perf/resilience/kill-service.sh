@@ -11,6 +11,12 @@
 # =============================================================================
 set -uo pipefail
 
+# Portable millisecond timestamp — macOS BSD date does not support %N.
+# Prefer gdate (Homebrew coreutils) when available, fall back to python.
+ms() {
+  if command -v gdate &>/dev/null; then gdate +%s%3N
+  else python3 -c "import time; print(int(time.time()*1000))"; fi
+}
 BASE_URL="${MFT_BASE_URL:-http://localhost}"
 SENTINEL_PORT=8098
 SERVICE=""
@@ -65,13 +71,13 @@ echo ""
 echo -e "${GREEN}[1] Pre-kill baseline...${NC}"
 BEFORE_SCORE=$(curl -s --max-time 3 "${BASE_URL}:${SENTINEL_PORT}/api/v1/sentinel/health-score" \
   2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('overallScore','?'))" 2>/dev/null || echo "N/A")
-BEFORE_TIME=$(date +%s%3N)
+BEFORE_TIME=$(ms)
 echo "  Sentinel health score before kill: $BEFORE_SCORE"
 
 # ── Kill the service ──────────────────────────────────────────────────────────
 echo ""
 echo -e "${RED}[2] KILLING $CONTAINER...${NC}"
-KILL_TIME=$(date +%s%3N)
+KILL_TIME=$(ms)
 docker stop "$CONTAINER" 2>/dev/null || { echo "Container not found: $CONTAINER"; exit 1; }
 echo "  Killed at $(date '+%H:%M:%S')"
 
@@ -92,7 +98,7 @@ if [[ -n "$SERVICE_PORT" ]]; then
   for attempt in $(seq 1 30); do
     RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 2 \
       "${BASE_URL}:${SERVICE_PORT}/actuator/health" 2>/dev/null)
-    NOW_MS=$(date +%s%3N)
+    NOW_MS=$(ms)
     ELAPSED_MS=$((NOW_MS - KILL_TIME))
 
     if [[ "$RESPONSE" != "200" ]]; then
@@ -118,7 +124,7 @@ echo ""
 # ── Restart ───────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}[5] RESTARTING $CONTAINER...${NC}"
-RESTART_TIME=$(date +%s%3N)
+RESTART_TIME=$(ms)
 docker start "$CONTAINER"
 
 # ── Measure recovery time ─────────────────────────────────────────────────────
@@ -131,7 +137,7 @@ for attempt in $(seq 1 60); do
   sleep 2
   RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 \
     "${BASE_URL}:${SERVICE_PORT:-8080}/actuator/health" 2>/dev/null)
-  NOW_MS=$(date +%s%3N)
+  NOW_MS=$(ms)
 
   if [[ "$RESPONSE" == "200" ]]; then
     RECOVERY_MS=$((NOW_MS - RESTART_TIME))

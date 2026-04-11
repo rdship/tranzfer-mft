@@ -246,7 +246,12 @@ submit_concurrent_scans() {
 
   for i in $(seq 1 "$count"); do
     (
-      local track_id="${prefix}-$(date +%s%3N)-${i}-$$"
+      # Use a cross-platform millisecond timestamp (date +%s%3N is GNU-only;
+      # macOS/BSD date treats %N literally and breaks bash arithmetic).
+      local ms_now
+      if command -v gdate &>/dev/null; then ms_now=$(gdate +%s%3N)
+      else ms_now=$(python3 -c "import time; print(int(time.time()*1000))"); fi
+      local track_id="${prefix}-${ms_now}-${i}-$$"
       local code
       code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
         -X POST "${BASE_URL}:8092/api/v1/screening/scan/text" \

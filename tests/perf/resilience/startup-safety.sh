@@ -21,6 +21,12 @@
 # =============================================================================
 set -uo pipefail
 
+# Portable millisecond timestamp — macOS BSD date does not support %N.
+# Prefer gdate (Homebrew coreutils) when available, fall back to python.
+ms() {
+  if command -v gdate &>/dev/null; then gdate +%s%3N
+  else python3 -c "import time; print(int(time.time()*1000))"; fi
+}
 # ── Bash 4+ required (associative arrays) ─────────────────────────────────────
 if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
   for _b in /opt/homebrew/bin/bash /usr/local/bin/bash; do
@@ -213,7 +219,7 @@ else
       code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 \
         -H "Authorization: Bearer ${local_token}" \
         "${BASE_URL}:${SVC_PORT_NUM}/actuator/health" 2>/dev/null || echo "000")
-      echo "$(date +%s%3N) $code" >> "$POLL_LOG"
+      echo "$(ms) $code" >> "$POLL_LOG"
       sleep 2
     done
   ) &
@@ -224,20 +230,20 @@ fi
 # ── Step 3: Kill the container ────────────────────────────────────────────────
 echo ""
 echo -e "${RED}[3] KILLING ${CONTAINER}...${NC}"
-KILL_TIME_MS=$(date +%s%3N)
+KILL_TIME_MS=$(ms)
 docker stop "$CONTAINER" > /dev/null 2>&1
 echo "  Stopped at $(date '+%H:%M:%S')"
 
 # Brief wait to ensure container is fully gone
 wait_for_container_down "$CONTAINER" 15 || echo "  (container stop slow — continuing)"
 
-STOPPED_TIME_MS=$(date +%s%3N)
+STOPPED_TIME_MS=$(ms)
 echo "  Stop completed in $(( (STOPPED_TIME_MS - KILL_TIME_MS) / 1000 ))s"
 
 # ── Step 4: Restart and measure startup window ────────────────────────────────
 echo ""
 echo -e "${GREEN}[4] RESTARTING ${CONTAINER}...${NC}"
-RESTART_START_MS=$(date +%s%3N)
+RESTART_START_MS=$(ms)
 docker start "$CONTAINER" > /dev/null 2>&1
 
 echo "  Polling every 2s — watching for premature 200s and counting error types..."
@@ -246,12 +252,15 @@ printf "  %-10s %-10s %-6s %-6s %-6s %-6s\n" "Elapsed(s)" "Code" "200s" "503s" "
 printf "  %-10s %-10s %-6s %-6s %-6s %-6s\n" "──────────" "──────" "────" "────" "────" "─────"
 
 FIRST_200_AFTER_RESTART_MS=""
-MAX_STARTUP_WAIT_S=120
+# Must be >= docker-compose shared healthcheck start_period (90s) + buffer
+# for Flyway V42 CONCURRENTLY index work. R26 bumped 120 -> 180 so the
+# startup-safety test doesn't give up while the service is still booting.
+MAX_STARTUP_WAIT_S=180
 elapsed_s=0
 
 while [[ $elapsed_s -lt $MAX_STARTUP_WAIT_S ]]; do
   sleep 2
-  elapsed_s=$(( ($(date +%s%3N) - RESTART_START_MS) / 1000 ))
+  elapsed_s=$(( ($(ms) - RESTART_START_MS) / 1000 ))
 
   code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$HEALTH_URL" 2>/dev/null || echo "000")
 
@@ -259,7 +268,7 @@ while [[ $elapsed_s -lt $MAX_STARTUP_WAIT_S ]]; do
     200|201)
       status_200_count=$((status_200_count + 1))
       if [[ -z "$FIRST_200_AFTER_RESTART_MS" ]]; then
-        FIRST_200_AFTER_RESTART_MS=$(date +%s%3N)
+        FIRST_200_AFTER_RESTART_MS=$(ms)
         startup_duration_seconds=$(( (FIRST_200_AFTER_RESTART_MS - RESTART_START_MS) / 1000 ))
       fi
       ;;

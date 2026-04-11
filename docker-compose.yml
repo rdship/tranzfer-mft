@@ -44,12 +44,20 @@ x-common-env: &common-env
   FABRIC_BROKER_URL: redpanda:9092
 
 x-service-healthcheck: &healthcheck
+  # Java Spring services typically need 45-90s to finish Flyway migrations,
+  # Hibernate entity scan, and Kafka/RabbitMQ wiring on a cold boot. During
+  # `start_period`, Docker ignores failing healthchecks (they can still
+  # succeed to mark the container healthy early — the window is only an
+  # upper bound). Before R26 this was 30s, which meant on cold boot the
+  # container was marked unhealthy for a moment and dependent services
+  # with `condition: service_healthy` could never start. 90s gives
+  # V42's 8 CREATE INDEX CONCURRENTLY calls room to finish.
   healthcheck:
     test: ["CMD-SHELL", "curl -sf http://localhost:$${SERVER_PORT:-8080}/actuator/health/liveness || curl -sf http://localhost:$${SERVER_PORT:-8080}/actuator/health || exit 1"]
     interval: 10s
     timeout: 5s
-    retries: 5
-    start_period: 30s
+    retries: 8
+    start_period: 90s
 
 services:
   # ---------------------------------------------------------------------------
@@ -1094,29 +1102,52 @@ services:
       args:
         VITE_PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-PROD}
     container_name: mft-ui-service
+    # Container port is 8080 (non-root nginx) — host URL stays http://localhost:3000
     ports:
-      - "3000:80"
+      - "3000:8080"
+    # UI is a static nginx — depend only on `service_started` not
+    # `service_healthy` so the SPA can load even if backends are still
+    # warming up (R13's global QueryCache handler renders a friendly
+    # error banner per page instead of blocking the whole UI).
     depends_on:
       - onboarding-api
       - config-service
       - analytics-service
       - license-service
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ > /dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
 
   partner-portal:
     build: ./partner-portal
     container_name: mft-partner-portal
     ports:
-      - "3002:80"
+      - "3002:8080"
     depends_on:
       - onboarding-api
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ > /dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
 
   ftp-web-ui:
     build: ./ftp-web-ui
     container_name: mft-ftp-web-ui
     ports:
-      - "3001:80"
+      - "3001:8080"
     depends_on:
       - ftp-web-service
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ > /dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
 
   # ---------------------------------------------------------------------------
   # API Gateway — Single Entry Point
@@ -1125,12 +1156,17 @@ services:
     build: ./api-gateway
     container_name: mft-api-gateway
     ports:
-      - "80:80"
-      - "443:443"
+      - "80:8080"
     depends_on:
       - onboarding-api
       - config-service
       - ui-service
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ > /dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
 
 networks:
   mft-network:

@@ -1,0 +1,114 @@
+name: boot-smoke
+
+# Wholesome end-to-end check that nothing in the demo path regressed.
+# Cold-boots the FULL docker compose stack and probes every service,
+# UI proxy path, connector, and the BUG-1 Activity Monitor endpoint.
+#
+# Catches the entire class of "I touched X locally and the demo broke
+# on the test computer" bugs by exercising what an actual operator
+# would do at a fresh installation. None of the unit-test workflows
+# catch healthcheck timing, inter-container DNS, nginx port binding,
+# Flyway cold-boot timing, or UI proxy upstream resolution.
+#
+# Runs on every push to main and every pull request that touches
+# anything in docker-compose, the frontend Dockerfiles, the nginx
+# configs, or the postgres tuned config. Also runs nightly so a
+# Postgres / nginx / Java image bump caught early.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docker-compose.yml'
+      - 'docker-compose-external-demo.yml'
+      - 'config/postgres/**'
+      - 'ui-service/Dockerfile'
+      - 'ui-service/nginx.conf'
+      - 'partner-portal/Dockerfile'
+      - 'partner-portal/nginx.conf'
+      - 'ftp-web-ui/Dockerfile'
+      - 'ftp-web-ui/nginx.conf'
+      - 'api-gateway/Dockerfile'
+      - 'api-gateway/nginx.conf'
+      - 'scripts/boot-smoke.sh'
+      - 'scripts/demo-onboard.sh'
+      - 'scripts/demo-traffic.sh'
+      - '.github/workflows/boot-smoke.yml'
+  pull_request:
+    paths:
+      - 'docker-compose.yml'
+      - 'config/postgres/**'
+      - 'ui-service/Dockerfile'
+      - 'ui-service/nginx.conf'
+      - 'partner-portal/Dockerfile'
+      - 'ftp-web-ui/Dockerfile'
+      - 'api-gateway/Dockerfile'
+      - 'scripts/boot-smoke.sh'
+      - '.github/workflows/boot-smoke.yml'
+  schedule:
+    # Daily 03:00 UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  boot-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Build Java services
+        run: mvn -q -B -DskipTests package
+        env:
+          MAVEN_OPTS: "-Xmx3g"
+
+      - name: Pre-pull base images
+        run: |
+          docker pull postgres:16-alpine
+          docker pull rabbitmq:3.13-management-alpine
+          docker pull redis:7-alpine
+          docker pull docker.redpanda.com/redpandadata/redpanda:v24.1.2 || true
+          docker pull nginx:alpine
+          docker pull node:20-alpine
+
+      - name: Run boot-smoke (cold boot, full stack, all probes)
+        run: ./scripts/boot-smoke.sh --no-teardown
+        env:
+          DOCKER_BUILDKIT: 1
+
+      - name: Capture container logs on failure
+        if: failure()
+        run: |
+          mkdir -p /tmp/boot-smoke-logs
+          for c in $(docker ps -aq); do
+            name=$(docker inspect --format '{{.Name}}' "$c" | tr -d '/')
+            docker logs "$c" > "/tmp/boot-smoke-logs/$name.log" 2>&1 || true
+          done
+          docker ps -a > /tmp/boot-smoke-logs/_ps.txt
+          docker compose ps > /tmp/boot-smoke-logs/_compose-ps.txt 2>&1 || true
+
+      - name: Upload logs as artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-smoke-logs
+          path: /tmp/boot-smoke-logs/
+          retention-days: 7
+
+      - name: Teardown
+        if: always()
+        run: docker compose down -v --remove-orphans || true

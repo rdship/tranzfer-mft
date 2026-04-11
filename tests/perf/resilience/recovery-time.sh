@@ -7,6 +7,12 @@
 # =============================================================================
 set -uo pipefail
 
+# Portable millisecond timestamp — macOS BSD date does not support %N.
+# Prefer gdate (Homebrew coreutils) when available, fall back to python.
+ms() {
+  if command -v gdate &>/dev/null; then gdate +%s%3N
+  else python3 -c "import time; print(int(time.time()*1000))"; fi
+}
 BASE_URL="${MFT_BASE_URL:-http://localhost}"
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 
@@ -39,15 +45,15 @@ for svc in "${!SERVICES[@]}"; do
   fi
 
   # Kill
-  KILL_TIME=$(date +%s%3N)
+  KILL_TIME=$(ms)
   docker stop "$container" > /dev/null 2>&1
 
-  STOP_MS=$(( $(date +%s%3N) - KILL_TIME ))
+  STOP_MS=$(( $(ms) - KILL_TIME ))
 
   sleep 2  # Brief pause
 
   # Restart
-  RESTART_TIME=$(date +%s%3N)
+  RESTART_TIME=$(ms)
   docker start "$container" > /dev/null 2>&1
 
   # Wait for recovery
@@ -59,7 +65,7 @@ for svc in "${!SERVICES[@]}"; do
     code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 \
       "${BASE_URL}:${port}/actuator/health" 2>/dev/null)
     if [[ "$code" == "200" ]]; then
-      MTTR_MS=$(( $(date +%s%3N) - RESTART_TIME ))
+      MTTR_MS=$(( $(ms) - RESTART_TIME ))
       RECOVERED=true
       break
     fi

@@ -8,6 +8,12 @@
 # =============================================================================
 set -uo pipefail
 
+# Portable millisecond timestamp — macOS BSD date does not support %N.
+# Prefer gdate (Homebrew coreutils) when available, fall back to python.
+ms() {
+  if command -v gdate &>/dev/null; then gdate +%s%3N
+  else python3 -c "import time; print(int(time.time()*1000))"; fi
+}
 BASE_URL="${MFT_BASE_URL:-http://localhost}"
 ADMIN_EMAIL="${MFT_ADMIN_EMAIL:-admin@filetransfer.local}"
 ADMIN_PASS="${MFT_ADMIN_PASS:-Admin@1234}"
@@ -55,7 +61,7 @@ done
 # ── Kill PostgreSQL ───────────────────────────────────────────────────────────
 echo ""
 echo -e "${RED}[2] KILLING PostgreSQL (mft-postgres)...${NC}"
-KILL_TIME=$(date +%s%3N)
+KILL_TIME=$(ms)
 docker stop mft-postgres
 echo "  PostgreSQL stopped at $(date '+%H:%M:%S')"
 
@@ -75,7 +81,7 @@ declare -A CIRCUIT_OPEN_RESP
 
 for attempt in $(seq 1 30); do
   sleep 2
-  NOW_MS=$(date +%s%3N)
+  NOW_MS=$(ms)
   ELAPSED=$(( (NOW_MS - KILL_TIME) / 1000 ))
   printf "%-8s" "${ELAPSED}s"
 
@@ -103,21 +109,21 @@ done
 # ── Wait ──────────────────────────────────────────────────────────────────────
 echo ""
 echo "[4] DB down for ${KILL_DURATION}s total. Waiting..."
-ELAPSED_SO_FAR=$(( ($(date +%s%3N) - KILL_TIME) / 1000 ))
+ELAPSED_SO_FAR=$(( ($(ms) - KILL_TIME) / 1000 ))
 REMAINING=$((KILL_DURATION - ELAPSED_SO_FAR))
 [[ $REMAINING -gt 0 ]] && sleep $REMAINING
 
 # ── Restart PostgreSQL ────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}[5] RESTARTING PostgreSQL...${NC}"
-RESTART_TIME=$(date +%s%3N)
+RESTART_TIME=$(ms)
 docker start mft-postgres
 
 # Wait for PG to be ready
 for i in $(seq 1 30); do
   sleep 2
   if docker exec mft-postgres pg_isready -U mftuser -q 2>/dev/null; then
-    PG_READY=$(( ($(date +%s%3N) - RESTART_TIME) / 1000 ))
+    PG_READY=$(( ($(ms) - RESTART_TIME) / 1000 ))
     echo "  PostgreSQL ready after ${PG_READY}s"
     break
   fi
@@ -130,7 +136,7 @@ declare -A RECOVERY_AT
 
 for attempt in $(seq 1 60); do
   sleep 2
-  NOW_MS=$(date +%s%3N)
+  NOW_MS=$(ms)
   ELAPSED=$(( (NOW_MS - RESTART_TIME) / 1000 ))
   ALL_RECOVERED=true
 
