@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
   CircleStackIcon,
@@ -10,10 +10,17 @@ import {
   CheckCircleIcon,
   InformationCircleIcon,
   ServerStackIcon,
+  ArrowPathIcon,
+  PlayCircleIcon,
+  XCircleIcon,
+  ExclamationTriangleIcon,
+  XMarkIcon,
+  BoltIcon,
 } from '@heroicons/react/24/outline'
 import { onboardingApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ServiceUnavailable from '../components/ServiceUnavailable'
+import Modal from '../components/Modal'
 
 /**
  * DatabaseAdvisory — publishes the evidence-based Postgres tuning
@@ -50,6 +57,16 @@ async function fetchPsqlCommands() {
     responseType: 'text',
     transformResponse: r => r,
   })
+  return res.data
+}
+
+async function fetchStatus() {
+  const res = await onboardingApi.get('/api/v1/db-advisory/status')
+  return res.data
+}
+
+async function applyAdvisory(payload) {
+  const res = await onboardingApi.post('/api/v1/db-advisory/apply', payload)
   return res.data
 }
 
@@ -246,14 +263,455 @@ function ScalingTable({ rows }) {
   )
 }
 
+// ── Live status strip (current vs recommended) ─────────────────────
+
+function StatusStrip({ status, isLoading, onRefresh }) {
+  if (isLoading) {
+    return (
+      <div className="rounded-xl p-4 text-xs" style={{
+        background: 'rgb(var(--surface))',
+        border: '1px solid rgb(var(--border))',
+        color: 'rgb(var(--tx-muted))',
+      }}>Checking current Postgres settings…</div>
+    )
+  }
+  if (!status) return null
+  const pct = status.compliancePct ?? 0
+  const color = pct >= 95 ? 'rgb(34,197,94)' : pct >= 75 ? 'rgb(245,158,11)' : 'rgb(248,113,113)'
+  return (
+    <div
+      className="rounded-xl p-4"
+      style={{
+        background: 'rgb(var(--surface))',
+        border: '1px solid rgb(var(--border))',
+      }}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-12 h-12 rounded-full flex items-center justify-center"
+            style={{
+              background: `conic-gradient(${color} ${pct * 3.6}deg, rgb(var(--hover)) 0deg)`,
+            }}
+          >
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center text-[11px] font-bold"
+              style={{ background: 'rgb(var(--surface))', color }}
+            >
+              {pct}%
+            </div>
+          </div>
+          <div>
+            <p className="text-sm font-semibold" style={{ color: 'rgb(var(--tx-primary))' }}>
+              Current compliance
+            </p>
+            <p className="text-[11px]" style={{ color: 'rgb(var(--tx-muted))' }}>
+              Live comparison against the running Postgres instance
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={onRefresh}
+          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded"
+          style={{ background: 'rgb(var(--hover))', color: 'rgb(var(--tx-primary))' }}
+          title="Refresh status"
+        >
+          <ArrowPathIcon className="w-3 h-3" /> Refresh
+        </button>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+        <div>
+          <p className="text-[10px] uppercase tracking-wider" style={{ color: 'rgb(var(--tx-muted))' }}>
+            Matched
+          </p>
+          <p className="font-bold" style={{ color: 'rgb(34,197,94)' }}>
+            {status.matched} <span className="text-[10px] font-normal" style={{ color: 'rgb(var(--tx-muted))' }}>/ {status.totalSettings}</span>
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-wider" style={{ color: 'rgb(var(--tx-muted))' }}>
+            Drifted
+          </p>
+          <p className="font-bold" style={{ color: status.drifted > 0 ? 'rgb(245,158,11)' : 'rgb(var(--tx-muted))' }}>
+            {status.drifted}
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-wider" style={{ color: 'rgb(var(--tx-muted))' }}>
+            Restart required
+          </p>
+          <p className="font-bold" style={{ color: status.restartRequired > 0 ? 'rgb(100,140,255)' : 'rgb(var(--tx-muted))' }}>
+            {status.restartRequired}
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-wider" style={{ color: 'rgb(var(--tx-muted))' }}>
+            Unknown
+          </p>
+          <p className="font-bold" style={{ color: status.unknown > 0 ? 'rgb(248,113,113)' : 'rgb(var(--tx-muted))' }}>
+            {status.unknown}
+          </p>
+        </div>
+      </div>
+      {status.drifted > 0 && (
+        <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgb(var(--border))' }}>
+          <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: 'rgb(var(--tx-muted))' }}>
+            Drifted settings
+          </p>
+          <div className="space-y-1 max-h-48 overflow-y-auto">
+            {status.diffs.filter(d => !d.match && !d.restartRequired).map(d => (
+              <div key={d.name} className="flex items-center justify-between text-[11px] font-mono">
+                <span style={{ color: 'rgb(var(--tx-primary))' }}>{d.name}</span>
+                <span>
+                  <span style={{ color: 'rgb(248,113,113)' }}>{d.current || '—'}</span>
+                  <span style={{ color: 'rgb(var(--tx-muted))' }}> → </span>
+                  <span style={{ color: 'rgb(34,197,94)' }}>{d.recommended}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Apply modal ─────────────────────────────────────────────────────
+
+function ApplyModal({ onClose, onComplete }) {
+  const [useOverride, setUseOverride] = useState(false)
+  const [jdbcUrl, setJdbcUrl] = useState('jdbc:postgresql://postgres:5432/filetransfer')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [onlyDrifted, setOnlyDrifted] = useState(true)
+  const [reload, setReload] = useState(true)
+  const [confirmed, setConfirmed] = useState(false)
+  const [result, setResult] = useState(null)
+  const applyMut = useMutation({
+    mutationFn: applyAdvisory,
+    onSuccess: (data) => {
+      setResult(data)
+      const s = data.summary
+      toast.success(`Apply complete — ${s.applied} applied, ${s.restartRequired} need restart, ${s.failed} failed`)
+      onComplete?.()
+    },
+    onError: (err) => {
+      const msg = err?.response?.data?.message || err?.message || 'Apply failed'
+      toast.error(msg)
+    },
+  })
+
+  const payload = {
+    onlyDrifted,
+    reload,
+    ...(useOverride ? { jdbcUrl, username, password } : {}),
+  }
+  const canSubmit = confirmed
+    && !applyMut.isPending
+    && (!useOverride || (jdbcUrl.trim() && username.trim()))
+
+  return (
+    <Modal title="Apply recommended settings" onClose={onClose} size="xl">
+      <div className="space-y-4">
+        {!result && (
+          <>
+            <p className="text-xs" style={{ color: 'rgb(var(--tx-muted))' }}>
+              This runs <code className="font-mono">ALTER SYSTEM SET …</code> for every recommended setting against
+              the target Postgres, then calls <code className="font-mono">pg_reload_conf()</code> so reloadable
+              settings take effect immediately. Settings with <code className="font-mono">context=postmaster</code>
+              (shared_buffers, max_connections, wal_level, etc.) will be accepted but need a Postgres restart.
+            </p>
+
+            {/* Target selector */}
+            <div className="space-y-2">
+              <p className="text-[11px] uppercase tracking-wider font-semibold"
+                 style={{ color: 'rgb(var(--tx-muted))' }}>
+                Target Postgres
+              </p>
+              <label className="flex items-start gap-2 cursor-pointer p-3 rounded-lg"
+                style={{
+                  background: !useOverride ? 'rgba(100,140,255,0.08)' : 'rgb(var(--surface))',
+                  border: `1px solid ${!useOverride ? 'rgba(100,140,255,0.35)' : 'rgb(var(--border))'}`,
+                }}>
+                <input
+                  type="radio"
+                  checked={!useOverride}
+                  onChange={() => setUseOverride(false)}
+                  className="mt-0.5"
+                />
+                <div className="flex-1">
+                  <p className="text-xs font-semibold" style={{ color: 'rgb(var(--tx-primary))' }}>
+                    Use the current platform database
+                  </p>
+                  <p className="text-[11px]" style={{ color: 'rgb(var(--tx-muted))' }}>
+                    Runs the changes against the Postgres onboarding-api is already connected to,
+                    using the service's own admin credentials. Safest option for demo and typical prod.
+                  </p>
+                </div>
+              </label>
+              <label className="flex items-start gap-2 cursor-pointer p-3 rounded-lg"
+                style={{
+                  background: useOverride ? 'rgba(100,140,255,0.08)' : 'rgb(var(--surface))',
+                  border: `1px solid ${useOverride ? 'rgba(100,140,255,0.35)' : 'rgb(var(--border))'}`,
+                }}>
+                <input
+                  type="radio"
+                  checked={useOverride}
+                  onChange={() => setUseOverride(true)}
+                  className="mt-0.5"
+                />
+                <div className="flex-1">
+                  <p className="text-xs font-semibold" style={{ color: 'rgb(var(--tx-primary))' }}>
+                    Connect to a different database
+                  </p>
+                  <p className="text-[11px]" style={{ color: 'rgb(var(--tx-muted))' }}>
+                    Target another Postgres instance (standby, secondary, DBA-managed cluster)
+                    with admin-provided credentials. The backend connects directly via JDBC;
+                    the credentials are never logged or persisted.
+                  </p>
+                  {useOverride && (
+                    <div className="mt-3 space-y-2">
+                      <div>
+                        <label className="text-[10px] uppercase tracking-wider" style={{ color: 'rgb(var(--tx-muted))' }}>
+                          JDBC URL
+                        </label>
+                        <input
+                          value={jdbcUrl}
+                          onChange={e => setJdbcUrl(e.target.value)}
+                          placeholder="jdbc:postgresql://host:5432/database"
+                          className="w-full px-3 py-1.5 text-xs font-mono rounded-lg"
+                          style={{ background: 'rgb(var(--canvas))', border: '1px solid rgb(var(--border))', color: 'rgb(var(--tx-primary))' }}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] uppercase tracking-wider" style={{ color: 'rgb(var(--tx-muted))' }}>
+                            Username
+                          </label>
+                          <input
+                            value={username}
+                            onChange={e => setUsername(e.target.value)}
+                            placeholder="postgres"
+                            className="w-full px-3 py-1.5 text-xs font-mono rounded-lg"
+                            style={{ background: 'rgb(var(--canvas))', border: '1px solid rgb(var(--border))', color: 'rgb(var(--tx-primary))' }}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] uppercase tracking-wider" style={{ color: 'rgb(var(--tx-muted))' }}>
+                            Password
+                          </label>
+                          <input
+                            type="password"
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            className="w-full px-3 py-1.5 text-xs font-mono rounded-lg"
+                            style={{ background: 'rgb(var(--canvas))', border: '1px solid rgb(var(--border))', color: 'rgb(var(--tx-primary))' }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </label>
+            </div>
+
+            {/* Options */}
+            <div className="space-y-2">
+              <p className="text-[11px] uppercase tracking-wider font-semibold"
+                 style={{ color: 'rgb(var(--tx-muted))' }}>
+                Options
+              </p>
+              <label className="flex items-center gap-2 text-xs cursor-pointer">
+                <input type="checkbox" checked={onlyDrifted} onChange={e => setOnlyDrifted(e.target.checked)} />
+                <span style={{ color: 'rgb(var(--tx-primary))' }}>Only apply settings that have drifted from the recommendation</span>
+              </label>
+              <label className="flex items-center gap-2 text-xs cursor-pointer">
+                <input type="checkbox" checked={reload} onChange={e => setReload(e.target.checked)} />
+                <span style={{ color: 'rgb(var(--tx-primary))' }}>Run <code className="font-mono">pg_reload_conf()</code> after changes</span>
+              </label>
+            </div>
+
+            {/* Confirm */}
+            <div
+              className="rounded-lg p-3 flex items-start gap-2"
+              style={{
+                background: 'rgba(245, 158, 11, 0.08)',
+                border: '1px solid rgba(245, 158, 11, 0.35)',
+              }}
+            >
+              <ExclamationTriangleIcon className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: 'rgb(245, 158, 11)' }} />
+              <label className="text-xs cursor-pointer flex-1" style={{ color: 'rgb(var(--tx-primary))' }}>
+                <input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} className="mr-2" />
+                I understand this will modify Postgres server settings.
+                Changes are audited and the backend preserves the current values
+                in the result log for easy rollback.
+              </label>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                onClick={onClose}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg"
+                style={{ background: 'rgb(var(--hover))', color: 'rgb(var(--tx-primary))' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => applyMut.mutate(payload)}
+                disabled={!canSubmit}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg"
+                style={{
+                  background: canSubmit ? 'rgb(var(--accent))' : 'rgb(var(--hover))',
+                  color: canSubmit ? '#fff' : 'rgb(var(--tx-muted))',
+                  cursor: canSubmit ? 'pointer' : 'not-allowed',
+                }}
+              >
+                {applyMut.isPending ? (
+                  <>
+                    <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
+                    Applying…
+                  </>
+                ) : (
+                  <>
+                    <PlayCircleIcon className="w-3.5 h-3.5" />
+                    Apply to {useOverride ? 'the override database' : 'platform database'}
+                  </>
+                )}
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Result view */}
+        {result && <ApplyResult result={result} onClose={onClose} />}
+      </div>
+    </Modal>
+  )
+}
+
+function ApplyResult({ result, onClose }) {
+  const s = result.summary
+  const [filter, setFilter] = useState('all')
+  const filtered = result.results.filter(r => {
+    if (filter === 'all') return true
+    if (filter === 'applied') return r.status === 'APPLIED'
+    if (filter === 'restart') return r.status === 'RESTART_REQUIRED'
+    if (filter === 'skipped') return r.status === 'SKIPPED'
+    if (filter === 'failed') return r.status === 'FAILED'
+    return true
+  })
+  return (
+    <div className="space-y-3">
+      <div
+        className="rounded-xl p-4 grid grid-cols-5 gap-3 text-center"
+        style={{
+          background: 'rgb(var(--surface))',
+          border: '1px solid rgb(var(--border))',
+        }}
+      >
+        <StatPill label="Applied" count={s.applied} color="rgb(34,197,94)" active={filter === 'applied'} onClick={() => setFilter(filter === 'applied' ? 'all' : 'applied')} />
+        <StatPill label="Skipped" count={s.skipped} color="rgb(148,163,184)" active={filter === 'skipped'} onClick={() => setFilter(filter === 'skipped' ? 'all' : 'skipped')} />
+        <StatPill label="Restart required" count={s.restartRequired} color="rgb(100,140,255)" active={filter === 'restart'} onClick={() => setFilter(filter === 'restart' ? 'all' : 'restart')} />
+        <StatPill label="Failed" count={s.failed} color="rgb(248,113,113)" active={filter === 'failed'} onClick={() => setFilter(filter === 'failed' ? 'all' : 'failed')} />
+        <StatPill label="Total" count={s.totalConsidered} color="rgb(var(--tx-primary))" active={filter === 'all'} onClick={() => setFilter('all')} />
+      </div>
+      <div
+        className="rounded-xl overflow-hidden"
+        style={{ border: '1px solid rgb(var(--border))', maxHeight: 400, overflowY: 'auto' }}
+      >
+        <table className="w-full text-xs">
+          <thead className="sticky top-0" style={{ background: 'rgb(var(--hover))' }}>
+            <tr>
+              <th className="text-left px-3 py-2 font-semibold">Setting</th>
+              <th className="text-left px-3 py-2 font-semibold">Recommended</th>
+              <th className="text-left px-3 py-2 font-semibold">Current (before)</th>
+              <th className="text-left px-3 py-2 font-semibold">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map(r => {
+              const statusStyle = {
+                APPLIED:          { bg: 'rgba(34,197,94,0.12)',   fg: 'rgb(34,197,94)'  },
+                SKIPPED:          { bg: 'rgba(148,163,184,0.12)', fg: 'rgb(148,163,184)' },
+                RESTART_REQUIRED: { bg: 'rgba(100,140,255,0.12)', fg: 'rgb(100,140,255)' },
+                FAILED:           { bg: 'rgba(248,113,113,0.12)', fg: 'rgb(248,113,113)' },
+              }[r.status] || { bg: 'rgb(var(--hover))', fg: 'rgb(var(--tx-muted))' }
+              return (
+                <tr key={r.name} style={{ borderTop: '1px solid rgb(var(--border))' }}>
+                  <td className="px-3 py-2 font-mono" style={{ color: 'rgb(var(--tx-primary))' }}>{r.name}</td>
+                  <td className="px-3 py-2 font-mono" style={{ color: 'rgb(34,197,94)' }}>{r.recommended}</td>
+                  <td className="px-3 py-2 font-mono" style={{ color: 'rgb(var(--tx-muted))' }}>{r.current || '—'}</td>
+                  <td className="px-3 py-2">
+                    <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                      style={{ background: statusStyle.bg, color: statusStyle.fg }}>
+                      {r.status}
+                    </span>
+                    {r.message && (
+                      <p className="text-[10px] mt-0.5" style={{ color: 'rgb(var(--tx-muted))' }}>{r.message}</p>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
+            {filtered.length === 0 && (
+              <tr><td colSpan={4} className="px-3 py-4 text-center text-[11px]" style={{ color: 'rgb(var(--tx-muted))' }}>No rows match this filter.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex items-center justify-between text-[11px]" style={{ color: 'rgb(var(--tx-muted))' }}>
+        <span>
+          Reload: {s.reloaded ? '✓ pg_reload_conf() returned true' : '✗ not reloaded'}
+          {s.reloadError && <span style={{ color: 'rgb(248,113,113)' }}> — {s.reloadError}</span>}
+        </span>
+        <span>Connection: {s.usedOverrideConnection ? 'override credentials' : 'platform database'}</span>
+      </div>
+      <div className="flex justify-end">
+        <button
+          onClick={onClose}
+          className="px-3 py-1.5 text-xs font-semibold rounded-lg"
+          style={{ background: 'rgb(var(--accent))', color: '#fff' }}
+        >
+          Done
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function StatPill({ label, count, color, active, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="rounded-lg p-2 transition-all"
+      style={{
+        background: active ? `${color}22` : 'rgb(var(--canvas))',
+        border: `1px solid ${active ? color : 'rgb(var(--border))'}`,
+      }}
+    >
+      <p className="text-[10px] uppercase tracking-wider" style={{ color: 'rgb(var(--tx-muted))' }}>{label}</p>
+      <p className="text-xl font-bold" style={{ color }}>{count}</p>
+    </button>
+  )
+}
+
 // ── Main page ───────────────────────────────────────────────────────
 
 export default function DatabaseAdvisory() {
+  const [applyOpen, setApplyOpen] = useState(false)
+  const qc = useQueryClient()
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['db-advisory'],
     queryFn: fetchAdvisory,
     staleTime: 300_000,
     meta: { errorMessage: "Couldn't load database advisory" },
+  })
+  const statusQuery = useQuery({
+    queryKey: ['db-advisory-status'],
+    queryFn: fetchStatus,
+    refetchInterval: 60_000,
+    meta: { errorMessage: "Couldn't load live compliance status" },
   })
 
   const handleCopyConf = async () => {
@@ -337,9 +795,21 @@ export default function DatabaseAdvisory() {
         </div>
         <div className="flex flex-wrap gap-2">
           <button
+            onClick={() => setApplyOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg"
+            style={{
+              background: 'linear-gradient(135deg, rgb(var(--accent)), #8b5cf6)',
+              color: '#fff',
+              boxShadow: '0 2px 12px rgba(100, 140, 255, 0.3)',
+            }}
+          >
+            <BoltIcon className="w-3.5 h-3.5" />
+            Apply to database
+          </button>
+          <button
             onClick={handleCopyConf}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg"
-            style={{ background: 'rgb(var(--accent))', color: '#fff' }}
+            style={{ background: 'rgb(var(--hover))', color: 'rgb(var(--tx-primary))' }}
           >
             <ClipboardDocumentIcon className="w-3.5 h-3.5" />
             Copy postgresql.conf
@@ -370,6 +840,13 @@ export default function DatabaseAdvisory() {
           </button>
         </div>
       </div>
+
+      {/* Live status strip — real-time compliance vs the current DB */}
+      <StatusStrip
+        status={statusQuery.data}
+        isLoading={statusQuery.isLoading}
+        onRefresh={() => qc.invalidateQueries({ queryKey: ['db-advisory-status'] })}
+      />
 
       {/* Summary banner */}
       <div
@@ -454,6 +931,14 @@ export default function DatabaseAdvisory() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Apply modal */}
+      {applyOpen && (
+        <ApplyModal
+          onClose={() => setApplyOpen(false)}
+          onComplete={() => qc.invalidateQueries({ queryKey: ['db-advisory-status'] })}
+        />
       )}
     </div>
   )

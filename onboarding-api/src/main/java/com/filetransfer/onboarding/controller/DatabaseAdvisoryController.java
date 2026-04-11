@@ -4,9 +4,19 @@ import com.filetransfer.shared.security.Roles;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.*;
 
 /**
@@ -43,6 +53,16 @@ public class DatabaseAdvisoryController {
 
     private static final String VERSION = "1.0";
     private static final String POSTGRES_MIN_VERSION = "16";
+
+    /**
+     * Platform's own DataSource — used when the admin chooses "apply
+     * against the current database" (the common case). An override
+     * jdbcUrl+credentials in the request body bypasses this and connects
+     * directly via DriverManager so DBAs can target any Postgres they
+     * can reach from the onboarding-api network.
+     */
+    @Autowired
+    private DataSource platformDataSource;
 
     /** Main endpoint — the entire advice bundle as structured JSON. */
     @GetMapping
@@ -119,6 +139,406 @@ public class DatabaseAdvisoryController {
     @Operation(summary = "Hardware scaling matrix")
     public List<Map<String, Object>> getScalingTable() {
         return hardwareScaling();
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  APPLY + STATUS — actually makes the changes / reports the drift
+    // ════════════════════════════════════════════════════════════════════
+
+    /**
+     * Status / drift report: compare every recommended setting against
+     * what Postgres currently has live. Returns a list of
+     *   { name, recommended, current, match, restartRequired, context }
+     * so the UI can render a coloured diff view.
+     *
+     * Uses the platform's own DataSource (no override) because this is
+     * read-only — the operator just wants to see "are we in compliance".
+     * A separate endpoint for checking foreign databases can be added
+     * later if needed.
+     */
+    @GetMapping("/status")
+    @Operation(summary = "Compare current Postgres settings against the R23 recommendations")
+    public Map<String, Object> getStatus() {
+        Map<String, String> recommended = flatRecommendedSettings();
+        Map<String, String[]> currentAndContext = fetchCurrentSettings(platformDataSource, recommended.keySet());
+
+        List<Map<String, Object>> diffs = new ArrayList<>();
+        int matched = 0, drifted = 0, restartOnly = 0, unknown = 0;
+
+        for (Map.Entry<String, String> rec : recommended.entrySet()) {
+            Map<String, Object> d = new LinkedHashMap<>();
+            d.put("name", rec.getKey());
+            d.put("recommended", rec.getValue());
+            String[] cur = currentAndContext.get(rec.getKey().toLowerCase());
+            if (cur == null) {
+                d.put("current", null);
+                d.put("match", false);
+                d.put("restartRequired", false);
+                d.put("context", "unknown");
+                d.put("note", "Setting not found in pg_settings (Postgres version mismatch?)");
+                unknown++;
+            } else {
+                String currentValue = cur[0];
+                String context = cur[1];
+                boolean match = normalizeValue(currentValue).equals(normalizeValue(rec.getValue()));
+                d.put("current", currentValue);
+                d.put("match", match);
+                d.put("restartRequired", "postmaster".equals(context));
+                d.put("context", context);
+                if (match) matched++;
+                else if ("postmaster".equals(context)) restartOnly++;
+                else drifted++;
+            }
+            diffs.add(d);
+        }
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("totalSettings", recommended.size());
+        out.put("matched", matched);
+        out.put("drifted", drifted);
+        out.put("restartRequired", restartOnly);
+        out.put("unknown", unknown);
+        out.put("compliancePct", recommended.isEmpty() ? 100 : (matched * 100) / recommended.size());
+        out.put("diffs", diffs);
+        return out;
+    }
+
+    /**
+     * Apply the recommended settings to a live Postgres.
+     *
+     * Request body (all fields optional):
+     *   {
+     *     "jdbcUrl": "jdbc:postgresql://host:5432/filetransfer",  // blank = use platform DataSource
+     *     "username": "postgres",
+     *     "password": "***",
+     *     "onlyDrifted": true,        // if true, only apply settings whose
+     *                                 //   current value differs; else apply all
+     *     "reload": true              // if true, run pg_reload_conf() at the end
+     *   }
+     *
+     * Responds with one result row per setting:
+     *   {
+     *     "summary": { "applied": N, "skipped": N, "restartRequired": N, "failed": N },
+     *     "results": [
+     *       { "name": "work_mem", "recommended": "16MB", "status": "APPLIED", "message": null },
+     *       { "name": "shared_buffers", "recommended": "1GB", "status": "RESTART_REQUIRED",
+     *         "message": "ALTER SYSTEM accepted; restart Postgres to take effect" },
+     *       { "name": "max_connections", "recommended": "200", "status": "FAILED",
+     *         "message": "permission denied" },
+     *     ]
+     *   }
+     *
+     * Safety:
+     *   - Only ADMIN role can call (class-level @PreAuthorize)
+     *   - Every invocation is logged at INFO with correlation id
+     *   - If the override credentials can't connect, returns 400 BEFORE
+     *     any ALTER SYSTEM runs
+     *   - If pg_reload_conf fails, the response still reports which
+     *     statements were ALTER SYSTEM'd — DBAs can manually reload later
+     */
+    @PostMapping("/apply")
+    @Operation(summary = "Apply the recommended settings to a live Postgres (ALTER SYSTEM + pg_reload_conf)")
+    public Map<String, Object> applyAdvisory(@RequestBody(required = false) Map<String, Object> body) {
+        Map<String, Object> req = body == null ? Collections.emptyMap() : body;
+
+        String jdbcUrl  = asString(req.get("jdbcUrl"));
+        String username = asString(req.get("username"));
+        String password = asString(req.get("password"));
+        boolean onlyDrifted = Boolean.TRUE.equals(req.get("onlyDrifted"));
+        boolean reload      = req.get("reload") == null || Boolean.TRUE.equals(req.get("reload"));
+
+        boolean useOverride = jdbcUrl != null && !jdbcUrl.isBlank();
+        if (useOverride && (username == null || username.isBlank())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Override username is required when jdbcUrl is provided");
+        }
+
+        log.info("Database advisory apply requested: override={}, onlyDrifted={}, reload={}",
+                useOverride, onlyDrifted, reload);
+
+        Map<String, String> recommended = flatRecommendedSettings();
+
+        try (Connection conn = useOverride
+                ? DriverManager.getConnection(jdbcUrl, username, password)
+                : platformDataSource.getConnection()) {
+
+            // ALTER SYSTEM MUST run outside an explicit transaction. The
+            // platform DataSource (HikariCP) is configured auto-commit=false
+            // for ORM performance, so we flip it to true on this borrowed
+            // connection. The try-with-resources close will restore the
+            // default auto-commit state when we return the connection to
+            // the pool — JDBC spec guarantees Hikari resets it.
+            conn.setAutoCommit(true);
+
+            Map<String, String[]> currentAndContext = fetchCurrentSettings(conn, recommended.keySet());
+
+            int applied = 0, skipped = 0, restart = 0, failed = 0;
+            List<Map<String, Object>> results = new ArrayList<>();
+
+            for (Map.Entry<String, String> e : recommended.entrySet()) {
+                String name = e.getKey();
+                String rec  = e.getValue();
+                String[] cur = currentAndContext.get(name.toLowerCase());
+                String currentValue = cur != null ? cur[0] : null;
+                String context      = cur != null ? cur[1] : "unknown";
+                boolean isRestart   = "postmaster".equals(context);
+                boolean match = currentValue != null
+                        && normalizeValue(currentValue).equals(normalizeValue(rec));
+
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("name", name);
+                row.put("recommended", rec);
+                row.put("current", currentValue);
+                row.put("context", context);
+
+                if (match && onlyDrifted) {
+                    row.put("status", "SKIPPED");
+                    row.put("message", "Already at the recommended value");
+                    skipped++;
+                    results.add(row);
+                    continue;
+                }
+
+                // Execute ALTER SYSTEM SET name = value  (quoted properly)
+                String quoted = quoteValueForAlterSystem(rec);
+                String sql = "ALTER SYSTEM SET " + sanitizeIdentifier(name) + " = " + quoted;
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute(sql);
+                    if (isRestart) {
+                        row.put("status", "RESTART_REQUIRED");
+                        row.put("message", "ALTER SYSTEM accepted; restart Postgres to take effect (setting context=postmaster)");
+                        restart++;
+                    } else {
+                        row.put("status", "APPLIED");
+                        row.put("message", null);
+                        applied++;
+                    }
+                } catch (SQLException ex) {
+                    row.put("status", "FAILED");
+                    row.put("message", ex.getMessage());
+                    failed++;
+                    log.warn("ALTER SYSTEM failed for {}: {}", name, ex.getMessage());
+                }
+                results.add(row);
+            }
+
+            // Reload config so reloadable settings actually take effect
+            boolean reloaded = false;
+            String reloadError = null;
+            if (reload) {
+                try (Statement stmt = conn.createStatement();
+                     ResultSet rs = stmt.executeQuery("SELECT pg_reload_conf()")) {
+                    reloaded = rs.next() && rs.getBoolean(1);
+                } catch (SQLException ex) {
+                    reloadError = ex.getMessage();
+                    log.warn("pg_reload_conf() failed: {}", ex.getMessage());
+                }
+            }
+
+            Map<String, Object> summary = new LinkedHashMap<>();
+            summary.put("applied", applied);
+            summary.put("skipped", skipped);
+            summary.put("restartRequired", restart);
+            summary.put("failed", failed);
+            summary.put("totalConsidered", recommended.size());
+            summary.put("reloaded", reloaded);
+            if (reloadError != null) summary.put("reloadError", reloadError);
+            summary.put("usedOverrideConnection", useOverride);
+
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("summary", summary);
+            out.put("results", results);
+            return out;
+        } catch (SQLException ex) {
+            log.warn("Database advisory apply: connection failed: {}", ex.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Couldn't connect to the target database: " + ex.getMessage());
+        }
+    }
+
+    // ── Helpers for apply/status ────────────────────────────────────────
+
+    /** Flatten all recommended settings from categories() into one map. */
+    @SuppressWarnings("unchecked")
+    private Map<String, String> flatRecommendedSettings() {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map<String, Object> cat : categories()) {
+            List<Map<String, Object>> settings = (List<Map<String, Object>>) cat.get("settings");
+            for (Map<String, Object> s : settings) {
+                out.put((String) s.get("name"), (String) s.get("value"));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Query pg_settings for the current value + context (reloadable vs
+     * restart-required) of each recommended setting. Returns a map keyed
+     * by setting name with a String[] { currentValue, context }.
+     */
+    private Map<String, String[]> fetchCurrentSettings(DataSource ds, Collection<String> names) {
+        try (Connection conn = ds.getConnection()) {
+            return fetchCurrentSettings(conn, names);
+        } catch (SQLException ex) {
+            log.warn("fetchCurrentSettings failed: {}", ex.getMessage());
+            return Collections.emptyMap();
+        }
+    }
+
+    private Map<String, String[]> fetchCurrentSettings(Connection conn, Collection<String> names) {
+        if (names.isEmpty()) return Collections.emptyMap();
+        Map<String, String[]> out = new HashMap<>();
+        // Postgres's pg_settings is case-sensitive on `name` but the GUC
+        // parser that ALTER SYSTEM / postgresql.conf use is NOT — e.g. the
+        // canonical name is `TimeZone` but `timezone` works via SHOW. We
+        // compare via LOWER() so our recommended list doesn't have to
+        // match the exact case of pg_settings. The result is stored back
+        // keyed by the recommendation's lowercase form.
+        String placeholders = String.join(",", Collections.nCopies(names.size(), "?"));
+        String sql = "SELECT name, setting, unit, context FROM pg_settings WHERE LOWER(name) IN (" + placeholders + ")";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int i = 1;
+            for (String n : names) ps.setString(i++, n.toLowerCase());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String name = rs.getString("name");
+                    String setting = rs.getString("setting");
+                    String unit = rs.getString("unit");
+                    String context = rs.getString("context");
+                    // pg_settings returns raw integer values + unit — e.g.
+                    // shared_buffers comes back as setting=131072, unit=8kB.
+                    // We normalize to human form so diffs match the recommendations.
+                    String human = normalizePgSettingValue(setting, unit);
+                    out.put(name.toLowerCase(), new String[]{human, context});
+                }
+            }
+        } catch (SQLException ex) {
+            log.warn("fetchCurrentSettings query failed: {}", ex.getMessage());
+        }
+        return out;
+    }
+
+    /**
+     * Convert pg_settings' raw integer+unit representation to the
+     * human string we compare against the recommendations.
+     *   setting=131072, unit=8kB → "1GB"
+     *   setting=16384,  unit=kB  → "16MB"
+     *   setting=900,    unit=s   → "15min"
+     *   setting=2000,   unit=(null) → "2000"
+     *   setting=on,     unit=(null) → "on"
+     */
+    private String normalizePgSettingValue(String setting, String unit) {
+        if (setting == null) return "";
+        if (unit == null || unit.isEmpty()) return setting;
+        long raw;
+        try {
+            raw = Long.parseLong(setting);
+        } catch (NumberFormatException e) {
+            return setting;
+        }
+        // Memory units: convert to GB/MB/kB
+        if ("8kB".equals(unit)) {
+            long bytes = raw * 8L * 1024L;
+            return humanBytes(bytes);
+        }
+        if ("kB".equals(unit)) {
+            return humanBytes(raw * 1024L);
+        }
+        if ("MB".equals(unit)) {
+            return humanBytes(raw * 1024L * 1024L);
+        }
+        // Time units
+        if ("ms".equals(unit)) {
+            return raw == 0 ? "0" : humanMs(raw);
+        }
+        if ("s".equals(unit)) {
+            return raw == 0 ? "0" : humanSeconds(raw);
+        }
+        if ("min".equals(unit)) {
+            return raw == 0 ? "0" : raw + "min";
+        }
+        return setting + unit;
+    }
+
+    private String humanBytes(long bytes) {
+        if (bytes == 0) return "0";
+        if (bytes % (1024L * 1024L * 1024L) == 0) return (bytes / (1024L * 1024L * 1024L)) + "GB";
+        if (bytes % (1024L * 1024L) == 0) return (bytes / (1024L * 1024L)) + "MB";
+        if (bytes % 1024L == 0) return (bytes / 1024L) + "kB";
+        return bytes + "B";
+    }
+
+    private String humanSeconds(long s) {
+        if (s % 3600 == 0) return (s / 3600) + "h";
+        if (s % 60 == 0) return (s / 60) + "min";
+        return s + "s";
+    }
+
+    private String humanMs(long ms) {
+        if (ms % 60000 == 0) return (ms / 60000) + "min";
+        if (ms % 1000 == 0) return (ms / 1000) + "s";
+        return ms + "ms";
+    }
+
+    /**
+     * Normalize a value string for equality comparison. Handles
+     * canonical cases where the same quantity spells different:
+     *   "1GB" == "1024MB" == "1048576kB"
+     *   "15min" == "900s" == "900000ms"
+     *   "1s" == "1000ms"
+     *   "on" == "pglz" for wal_compression (Postgres auto-canonicalizes)
+     */
+    private String normalizeValue(String v) {
+        if (v == null) return "";
+        String s = v.trim().toLowerCase();
+        // Handle "on" / "off" and wal_compression synonyms.
+        // Postgres canonicalizes `on` -> `pglz` for wal_compression in
+        // pg_settings, so treat them as equal for comparison purposes.
+        if (s.equals("on") || s.equals("pglz") || s.equals("lz4")) return "on";
+        if (s.equals("off")) return "off";
+        // timezone synonyms — Postgres canonicalizes `UTC` to `Etc/UTC` on
+        // display. Treat the whole family as one canonical value.
+        if (s.equals("utc") || s.equals("etc/utc") || s.equals("gmt") || s.equals("etc/gmt")) return "utc";
+        // Try to extract number + unit
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("^(-?\\d+(?:\\.\\d+)?)(kb|mb|gb|ms|s|min|h)?$")
+                .matcher(s);
+        if (!m.matches()) return s;
+        double num = Double.parseDouble(m.group(1));
+        String unit = m.group(2);
+        if (unit == null) return String.valueOf((long) num);
+        switch (unit) {
+            case "kb": return String.valueOf((long) (num * 1024));
+            case "mb": return String.valueOf((long) (num * 1024 * 1024));
+            case "gb": return String.valueOf((long) (num * 1024 * 1024 * 1024));
+            case "ms": return String.valueOf((long) num);
+            case "s":  return String.valueOf((long) (num * 1000));
+            case "min":return String.valueOf((long) (num * 60 * 1000));
+            case "h":  return String.valueOf((long) (num * 3600 * 1000));
+            default:   return s;
+        }
+    }
+
+    /** ALTER SYSTEM requires quotes around any non-pure-number / non-boolean. */
+    private String quoteValueForAlterSystem(String value) {
+        boolean isPureNumber = value.matches("^-?\\d+(\\.\\d+)?$");
+        boolean isBoolean = value.equals("on") || value.equals("off");
+        return isPureNumber || isBoolean ? value : "'" + value + "'";
+    }
+
+    /**
+     * Only allow alphanumeric/underscore in the setting name, just to be
+     * extra safe about SQL injection even though the list is static.
+     */
+    private String sanitizeIdentifier(String name) {
+        if (!name.matches("^[a-zA-Z][a-zA-Z0-9_]*$")) {
+            throw new IllegalArgumentException("Invalid setting name: " + name);
+        }
+        return name;
+    }
+
+    private String asString(Object o) {
+        return o == null ? null : String.valueOf(o);
     }
 
     // ── Snapshot data (sourced from R23 audit) ─────────────────────────
