@@ -181,6 +181,40 @@ Notes:
 
 ---
 
+## Chaos / resilience testing (optional)
+
+### R1. Restart a flow execution from the UI
+- [ ] Clicked an Activity Monitor row → Execution Detail Drawer opens
+- [ ] **Restart** button worked (new attempt appears, previous archived in attempt history)
+- [ ] **Terminate** button worked on a PROCESSING execution (status → CANCELLED)
+- [ ] **Restart from here** worked (picked a mid-step to re-run from)
+- [ ] **Skip step** worked
+- [ ] **Bulk Restart** toolbar worked on FAILED rows
+
+Notes:
+
+### R2. Restart a service container
+- [ ] `docker compose restart sftp-service` — graceful, no data loss, service comes back healthy
+- [ ] Any active uploads during the restart? What happened to them?
+
+Notes:
+
+### R3. 🔥 Fabric crash-recovery test (the headline test)
+Walk through the full crash-recovery scenario — kill a service mid-flight and watch the platform recover.
+
+- [ ] Uploaded a medium file via File Manager
+- [ ] While it was processing: `docker kill mft-sftp-service`
+- [ ] Within ~5 min the stuck checkpoint appeared on `/fabric` Stuck Files card
+- [ ] Within ~6-7 min the checkpoint transitioned to ABANDONED and a new attempt started
+- [ ] After `docker compose up -d sftp-service`, the new attempt completed
+- [ ] `/journey` shows the full lifecycle (original attempt → abandoned → retry → completed)
+
+**Total time from kill to final completion:** ___ minutes
+
+Notes:
+
+---
+
 ## Full-stack only (skip this section if you ran tier-2)
 
 ### 21. Screening & DLP — `/screening`

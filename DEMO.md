@@ -122,6 +122,58 @@ This actually exercises the complete pipeline with real SSH, real encryption, re
    - `/journey` — search the new trackId, full step-by-step timeline
    - `/sentinel` — fresh findings within ~5 min (Sentinel analyzers run every 5 min)
 
+## Step 4b — 🔥 Chaos / resilience testing (optional but really fun)
+
+There are two layers she can restart: the running **process** (a service container), and an individual **activity** (a flow execution). Both are wired up; all she needs is a terminal and the Admin UI.
+
+### Restart a flow execution from the Admin UI
+
+1. Activity Monitor → click any row → **Execution Detail Drawer** opens
+2. Buttons in the drawer:
+   - **Restart** — re-runs all steps from the beginning (creates a new attempt; the previous attempt is archived)
+   - **Terminate** — cancels a PROCESSING execution cleanly at the next step boundary
+3. Per-step in the step list:
+   - **Restart from here** — skips steps 0..N-1, starts at step N using that step's captured input snapshot
+   - **Skip step** — passes the skipped step's input straight to step N+1 (use for "this step is permanently broken")
+4. **Bulk Restart toolbar** on Activity Monitor — select multiple FAILED rows, click Bulk Restart, confirm. The seeded data has ~24 FAILED executions to practice on.
+
+All of these call `FlowRestartService` (async — the UI returns immediately, restart runs in the background).
+
+### Restart / kill a service container
+
+```bash
+# Graceful restart (SIGTERM, clean shutdown)
+docker compose restart sftp-service
+
+# Hard kill (SIGKILL, simulates a crash)
+docker kill mft-sftp-service
+
+# Bring it back
+docker compose up -d sftp-service
+
+# Watch it come back
+docker compose logs -f sftp-service
+```
+
+**Safe to kill:** any Java service, ui-service, partner-portal, ftp-web-ui.
+**Don't kill** (will cascade and make the UI unhappy for a few minutes): postgres, rabbitmq, redpanda, redis, spire-server, spire-agent.
+
+### 🔥 The Fabric crash-recovery scenario (headline test for the new fix)
+
+This walks through the exact scenario the recent `LeaseReaperJob` fix was built for:
+
+1. File Manager → upload a moderately-sized file (50-100 MB so it takes a few seconds to process)
+2. Open `/fabric` in another tab — new checkpoint appears with `IN_PROGRESS`
+3. **While it's processing**, from a terminal: `docker kill mft-sftp-service`
+4. Wait ~5 min — the stuck item's lease expires and it moves to the **Stuck Files** card on `/fabric`
+5. Wait another ~60 sec — `LeaseReaperJob` marks the checkpoint `ABANDONED` and flips the `FlowExecution` to `FAILED` with `scheduledRetryAt=now()`
+6. Wait another ~60 sec — `ScheduledRetryExecutor` picks it up and calls `FlowRestartService.restartFromBeginning`
+7. `docker compose up -d sftp-service` to bring the killed pod back
+
+Go to `/journey` and search the trackId — you'll see the full lifecycle: original attempt → crashed mid-step → abandoned → scheduled retry → new attempt → completed. That's the new crash-recovery path end-to-end.
+
+---
+
 ## Step 5 — Capture snapshots while you test
 
 Whenever you want to record what the platform is doing right now (e.g. right after you upload a big file, or after 5 minutes of clicking):
