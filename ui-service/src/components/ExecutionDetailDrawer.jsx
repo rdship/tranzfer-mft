@@ -7,15 +7,17 @@ import {
   XMarkIcon, ArrowPathIcon, StopIcon, ClipboardDocumentIcon,
   ChevronDownIcon, ChevronRightIcon, ArrowTopRightOnSquareIcon,
   CheckCircleIcon, XCircleIcon, ExclamationTriangleIcon,
-  ForwardIcon,
+  ForwardIcon, BoltIcon,
 } from '@heroicons/react/24/outline'
 import FileDownloadButton from './FileDownloadButton'
 import ConfigLink from './ConfigLink'
 import ConfigInlineEditor from './ConfigInlineEditor'
+import TimelineGantt from './TimelineGantt'
 import {
   getExecution, getFlowSteps, getFlowEvents,
   restartExecution, restartFromStep, skipStep, terminateExecution,
 } from '../api/executions'
+import { getFabricTimeline } from '../api/fabric'
 
 // ── Constants ───────────────────────────────────────────────────────────
 
@@ -395,6 +397,15 @@ export default function ExecutionDetailDrawer({ trackId, open, onClose, showActi
     enabled: !!trackId && open,
   })
 
+  // Fabric timeline (Phase 4B — optional, backend may return 404 if fabric disabled)
+  const { data: fabricTimeline } = useQuery({
+    queryKey: ['fabric-timeline', trackId],
+    queryFn: () => getFabricTimeline(trackId),
+    enabled: !!trackId && open,
+    refetchInterval: 5000,
+    retry: 1,
+  })
+
   // ── Mutations ─────────────────────────────────────────────────────────
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['execution', trackId] })
@@ -639,6 +650,23 @@ export default function ExecutionDetailDrawer({ trackId, open, onClose, showActi
                   </div>
                 )}
               </div>
+
+              {/* ── Fabric Checkpoints (Phase 4B) ─────────────────────── */}
+              {fabricTimeline && fabricTimeline.stepCount > 0 && (
+                <div>
+                  <h3 className="section-label mb-3 flex items-center gap-2">
+                    <BoltIcon className="w-4 h-4 text-yellow-500" />
+                    Fabric Checkpoints
+                    <span className="ml-1 text-[rgb(var(--tx-muted))] font-normal normal-case tracking-normal">
+                      ({fabricTimeline.stepCount} step{fabricTimeline.stepCount !== 1 ? 's' : ''})
+                    </span>
+                  </h3>
+                  <TimelineGantt
+                    steps={fabricTimeline.steps}
+                    totalDurationMs={fabricTimeline.totalDurationMs}
+                  />
+                </div>
+              )}
 
               {/* ── Event Timeline ────────────────────────────────────── */}
               <div>

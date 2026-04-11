@@ -61,6 +61,7 @@ import Migration from './pages/Migration'
 import ThreatIntelligence from './pages/ThreatIntelligence'
 import EdiTraining from './pages/EdiTraining'
 import ProxyIntelligence from './pages/ProxyIntelligence'
+import FabricDashboard from './pages/FabricDashboard'
 import PartnerPortalLogin from './pages/PartnerPortalLogin'
 import PartnerPortalLayout from './components/PartnerPortalLayout'
 import PartnerPortalDashboard from './pages/PartnerPortalDashboard'
@@ -139,6 +140,7 @@ export default function App() {
             <Route path="threat-intelligence" element={<ThreatIntelligence />} />
             <Route path="edi-training" element={<EdiTraining />} />
             <Route path="proxy-intelligence" element={<ProxyIntelligence />} />
+            <Route path="fabric" element={<FabricDashboard />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

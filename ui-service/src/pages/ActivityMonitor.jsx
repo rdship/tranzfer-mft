@@ -44,6 +44,33 @@ const ALL_COLUMNS = [
   { key: 'downloadedAt', label: 'Downloaded At', defaultVisible: false, width: 'w-40', render: (v) => formatTimestamp(v) },
   { key: 'retryCount', label: 'Retries', defaultVisible: false, width: 'w-20', render: (v) => v != null ? v : '--' },
   { key: 'errorMessage', label: 'Error', defaultVisible: false, width: 'min-w-[200px] max-w-[300px]', render: (v) => v ? <span className="text-red-600 truncate block text-xs" title={v}>{v}</span> : '--' },
+  {
+    key: 'currentStepType',
+    label: 'Current Step',
+    defaultVisible: true,
+    width: 'min-w-[180px]',
+    render: (_v, row) => {
+      if (!row?.currentStepType) return <span className="text-muted">--</span>
+      return (
+        <div>
+          <div className="text-xs text-primary font-mono">
+            Step {row.currentStep}: {row.currentStepType}
+          </div>
+          {row.processingInstance && (
+            <div className="text-xs text-muted">on {row.processingInstance}</div>
+          )}
+          {row.isStuck && (
+            <div className="text-xs text-red-600 font-semibold">{'\u26A0 STUCK'}</div>
+          )}
+          {!row.isStuck && row.leaseRemainingMs != null && (
+            <div className="text-xs text-secondary">
+              Lease: {Math.max(0, Math.floor(row.leaseRemainingMs / 1000))}s
+            </div>
+          )}
+        </div>
+      )
+    },
+  },
 ]
 
 const DEFAULT_VISIBLE_KEYS = ALL_COLUMNS.filter(c => c.defaultVisible).map(c => c.key)
@@ -439,6 +466,7 @@ export default function ActivityMonitor() {
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [sourceUserFilter, setSourceUserFilter] = useState('')
   const [protocolFilter, setProtocolFilter] = useState('ALL')
+  const [stuckOnly, setStuckOnly] = useState(false)
 
   // UI state
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -496,9 +524,10 @@ export default function ActivityMonitor() {
     refetchInterval: autoRefresh ? 30000 : false,
   })
 
-  const rows = data?.content || []
-  const totalElements = data?.totalElements || 0
-  const totalPages = data?.totalPages || 0
+  const rawRows = data?.content || []
+  const rows = stuckOnly ? rawRows.filter(r => r.isStuck) : rawRows
+  const totalElements = stuckOnly ? rows.length : (data?.totalElements || 0)
+  const totalPages = stuckOnly ? 1 : (data?.totalPages || 0)
 
   // Sort toggle
   const handleSort = (key) => {
@@ -605,9 +634,10 @@ export default function ActivityMonitor() {
     setStatusFilter('ALL')
     setSourceUserFilter('')
     setProtocolFilter('ALL')
+    setStuckOnly(false)
   }
 
-  const hasFilters = filenameFilter || trackIdFilter || statusFilter !== 'ALL' || sourceUserFilter || protocolFilter !== 'ALL'
+  const hasFilters = filenameFilter || trackIdFilter || statusFilter !== 'ALL' || sourceUserFilter || protocolFilter !== 'ALL' || stuckOnly
 
   // CSV export
   const exportCSV = () => {
@@ -890,6 +920,24 @@ export default function ActivityMonitor() {
               <option key={p} value={p}>{p === 'ALL' ? 'All Protocols' : p}</option>
             ))}
           </select>
+
+          {/* Stuck (Fabric) toggle */}
+          <label
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border cursor-pointer transition-colors ${
+              stuckOnly
+                ? 'bg-red-50 text-red-700 border-red-200'
+                : 'bg-surface text-secondary border-border hover:bg-canvas'
+            }`}
+            title="Show only files currently stuck in the Fabric"
+          >
+            <input
+              type="checkbox"
+              checked={stuckOnly}
+              onChange={e => setStuckOnly(e.target.checked)}
+              className="rounded border-border text-red-600 focus:ring-red-500 cursor-pointer"
+            />
+            Stuck only
+          </label>
 
           {/* Clear filters */}
           {hasFilters && (

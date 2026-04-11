@@ -112,6 +112,7 @@ const navGroups = [
     items: [
       { to: '/observatory',      icon: EyeIcon,         label: 'Observatory',          role: 'ADMIN' },
       { to: '/sentinel',         icon: CpuChipIcon,     label: 'Platform Sentinel',    role: 'ADMIN' },
+      { to: '/fabric',           icon: BoltIcon,        label: 'Flow Fabric',          role: 'ADMIN' },
       { to: '/recommendations',  icon: LightBulbIcon,   label: 'AI Recommendations' },
       { to: '/analytics',        icon: ChartBarIcon,    label: 'Analytics' },
       { to: '/predictions',      icon: BeakerIcon,      label: 'Predictions' },
