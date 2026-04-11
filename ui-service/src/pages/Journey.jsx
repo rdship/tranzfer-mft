@@ -6,6 +6,7 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import EvidenceReport from '../components/EvidenceReport'
 import DataLineageGraph from '../components/DataLineageGraph'
 import FileDownloadButton from '../components/FileDownloadButton'
+import CopyButton from '../components/CopyButton'
 import ConfigLink from '../components/ConfigLink'
 import ConfigInlineEditor from '../components/ConfigInlineEditor'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -537,7 +538,10 @@ export default function Journey() {
           <div className="card">
             <div className="flex items-start justify-between mb-4 gap-4">
               <div>
-                <h2 className="text-lg font-bold text-primary font-mono">{journey.trackId}</h2>
+                <h2 className="text-lg font-bold text-primary font-mono flex items-center gap-1.5">
+                  {journey.trackId}
+                  <CopyButton value={journey.trackId} label="trackId" size="sm" />
+                </h2>
                 <p className="text-sm text-secondary">{journey.filename}</p>
                 {execDetail?.attemptNumber > 1 && (
                   <p className="text-xs text-indigo-600 mt-0.5">Attempt {execDetail.attemptNumber} · restarted by {execDetail.restartedBy}</p>
@@ -621,7 +625,12 @@ export default function Journey() {
               journey.integrityStatus === 'MISMATCH' ? 'bg-red-50 text-red-800' : 'bg-canvas text-secondary'}`}>
               <ShieldCheckIcon className="w-4 h-4" />
               <span className="font-medium">Integrity: {journey.integrityStatus}</span>
-              {journey.sourceChecksum && <span className="font-mono text-xs ml-2">SHA-256: {journey.sourceChecksum?.substring(0,16)}...</span>}
+              {journey.sourceChecksum && (
+                <span className="font-mono text-xs ml-2 inline-flex items-center gap-1">
+                  SHA-256: {journey.sourceChecksum.substring(0, 16)}…
+                  <CopyButton value={journey.sourceChecksum} label="SHA-256" size="xs" />
+                </span>
+              )}
               {journey.sourceChecksum && (
                 <FileDownloadButton
                   trackId={journey.trackId}
@@ -709,7 +718,12 @@ export default function Journey() {
               {recent.map(r => (
                 <tr key={r.trackId} className="table-row cursor-pointer hover:bg-blue-50"
                   onClick={() => { setTrackId(r.trackId); setSearchId(r.trackId) }}>
-                  <td className="table-cell font-mono text-xs font-bold text-blue-600">{r.trackId}</td>
+                  <td className="table-cell font-mono text-xs font-bold text-blue-600">
+                    <span className="inline-flex items-center gap-1">
+                      {r.trackId}
+                      <CopyButton value={r.trackId} label="trackId" size="xs" />
+                    </span>
+                  </td>
                   <td className="table-cell text-sm">{r.filename}</td>
                   <td className="table-cell">
                     <span className={`badge ${r.status === 'FAILED' ? 'badge-red' : r.status === 'IN_OUTBOX' || r.status === 'MOVED_TO_SENT' ? 'badge-green' : 'badge-yellow'}`}>

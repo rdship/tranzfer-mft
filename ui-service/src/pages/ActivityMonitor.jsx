@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { onboardingApi, configApi } from '../api/client'
 import { getFabricQueues, getFabricStuck, getFabricLatency, getFabricInstances } from '../api/fabric'
+import CopyButton from '../components/CopyButton'
+import useStickyFilters from '../hooks/useStickyFilters'
 import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
 import Skeleton, { useDelayedFlag } from '../components/Skeleton'
@@ -66,7 +68,9 @@ function describeViewFilters(v) {
 
 // ── Column Definitions ──────────────────────────────────────────────────
 const ALL_COLUMNS = [
-  { key: 'trackId', label: 'Track ID', defaultVisible: true, width: 'w-32', render: (v) => <span className="font-mono text-xs font-bold text-blue-600">{v || '--'}</span> },
+  { key: 'trackId', label: 'Track ID', defaultVisible: true, width: 'w-36', render: (v) => v
+      ? <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-blue-600">{v}<CopyButton value={v} label="trackId" size="xs" /></span>
+      : <span>--</span> },
   { key: 'filename', label: 'Filename', defaultVisible: true, width: 'min-w-[180px] max-w-[280px]', render: (v) => <span className="truncate block" title={v}>{v || '--'}</span> },
   { key: 'status', label: 'Status', defaultVisible: true, width: 'w-36', render: (v) => statusBadge(v) },
   { key: 'sourceUsername', label: 'Source User', defaultVisible: true, width: 'w-32', render: (v) => v || '--' },
@@ -510,21 +514,46 @@ export default function ActivityMonitor() {
   const urlStuckOnly  = searchParams.get('stuckOnly') === 'true'
   const urlTrackId    = searchParams.get('trackId')
 
+  // Sticky filters — restore from localStorage if the URL is empty.
+  // URL always wins on a deep-link (?status=FAILED etc). If neither is
+  // set, the user's last session's filters come back automatically.
+  const stickyFilters = useStickyFilters('activity-monitor', {
+    filenameFilter: '',
+    trackIdFilter: '',
+    statusFilter: 'ALL',
+    sourceUserFilter: '',
+    protocolFilter: 'ALL',
+    stuckOnly: false,
+    stepTypeFilter: '',
+  })
+  const hasUrlFilter = !!(urlStatus || urlStepType || urlStuckOnly || urlTrackId)
+  const stickyInitial = hasUrlFilter ? null : stickyFilters.restoreInitial()
+
   // Pagination & sort state
   const [page, setPage] = useState(0)
   const [size, setSize] = useState(25)
   const [sortBy, setSortBy] = useState('uploadedAt')
   const [sortDir, setSortDir] = useState('DESC')
 
-  // Filters — initialize from URL if present
-  const [filenameFilter, setFilenameFilter] = useState('')
-  const [trackIdFilter, setTrackIdFilter] = useState(urlTrackId || '')
-  const [statusFilter, setStatusFilter] = useState(urlStatus || 'ALL')
-  const [sourceUserFilter, setSourceUserFilter] = useState('')
-  const [protocolFilter, setProtocolFilter] = useState('ALL')
-  const [stuckOnly, setStuckOnly] = useState(urlStuckOnly)
+  // Filters — URL wins > sticky wins > default. Every filter is URL-driven
+  // for deep-linking AND sticky across reloads.
+  const [filenameFilter, setFilenameFilter]     = useState(stickyInitial?.filenameFilter    || '')
+  const [trackIdFilter, setTrackIdFilter]       = useState(urlTrackId || stickyInitial?.trackIdFilter || '')
+  const [statusFilter, setStatusFilter]         = useState(urlStatus  || stickyInitial?.statusFilter  || 'ALL')
+  const [sourceUserFilter, setSourceUserFilter] = useState(stickyInitial?.sourceUserFilter || '')
+  const [protocolFilter, setProtocolFilter]     = useState(stickyInitial?.protocolFilter   || 'ALL')
+  const [stuckOnly, setStuckOnly]               = useState(urlStuckOnly || (stickyInitial?.stuckOnly ?? false))
   // stepType filter is not a backend param (yet) — we filter client-side on fabricStatus
-  const [stepTypeFilter, setStepTypeFilter] = useState(urlStepType || '')
+  const [stepTypeFilter, setStepTypeFilter]     = useState(urlStepType || stickyInitial?.stepTypeFilter || '')
+
+  // Persist sticky filters whenever any of them change
+  useEffect(() => {
+    stickyFilters.persist({
+      filenameFilter, trackIdFilter, statusFilter,
+      sourceUserFilter, protocolFilter, stuckOnly, stepTypeFilter,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filenameFilter, trackIdFilter, statusFilter, sourceUserFilter, protocolFilter, stuckOnly, stepTypeFilter])
 
   // UI state
   const [settingsOpen, setSettingsOpen] = useState(false)

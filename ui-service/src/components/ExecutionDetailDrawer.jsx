@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, Link } from 'react-router-dom'
+import CopyButton from './CopyButton'
 import { format, formatDistanceToNow } from 'date-fns'
 import toast from 'react-hot-toast'
 import {
-  XMarkIcon, ArrowPathIcon, StopIcon, ClipboardDocumentIcon,
+  XMarkIcon, ArrowPathIcon, StopIcon,
   ChevronDownIcon, ChevronRightIcon, ArrowTopRightOnSquareIcon,
   CheckCircleIcon, XCircleIcon,
   ForwardIcon, BoltIcon,
@@ -457,13 +458,6 @@ export default function ExecutionDetailDrawer({ trackId, open, onClose, showActi
     })
   }
 
-  const copyTrackId = () => {
-    navigator.clipboard.writeText(trackId).then(
-      () => toast.success('Track ID copied'),
-      () => toast.error('Copy failed')
-    )
-  }
-
   // ── Render ────────────────────────────────────────────────────────────
   if (!open) return null
 
@@ -497,14 +491,10 @@ export default function ExecutionDetailDrawer({ trackId, open, onClose, showActi
               )}
             </div>
             <div className="flex items-center gap-2 mt-1">
-              <button
-                onClick={copyTrackId}
-                className="inline-flex items-center gap-1 text-xs font-mono text-[rgb(var(--tx-muted))] hover:text-[rgb(100,140,255)] transition-colors"
-                title="Copy track ID"
-              >
-                <ClipboardDocumentIcon className="w-3 h-3" />
+              <span className="inline-flex items-center gap-1 text-xs font-mono text-[rgb(var(--tx-muted))]">
                 {trackId?.length > 20 ? trackId.substring(0, 20) + '\u2026' : trackId}
-              </button>
+                <CopyButton value={trackId} label="trackId" size="xs" />
+              </span>
               {execution?.attempt != null && (
                 <span className="badge badge-gray">Attempt {execution.attempt}</span>
               )}

@@ -18,6 +18,7 @@ import {
   getFabricLatency,
 } from '../api/fabric'
 import { onboardingApi } from '../api/client'
+import CopyButton from '../components/CopyButton'
 
 /**
  * FabricDashboard — headline view for the Flow Fabric feature.
@@ -232,13 +233,16 @@ export default function FabricDashboard() {
                 {recentRows.map(r => (
                   <tr key={r.trackId} className="border-b border-border last:border-b-0 hover:bg-surface-hover">
                     <td className="py-2 pr-3">
-                      <Link
-                        to={`/operations/journey?trackId=${r.trackId}`}
-                        className="font-mono text-xs hover:underline"
-                        style={{ color: 'rgb(100, 140, 255)' }}
-                      >
-                        {r.trackId}
-                      </Link>
+                      <div className="inline-flex items-center gap-1">
+                        <Link
+                          to={`/operations/journey?trackId=${r.trackId}`}
+                          className="font-mono text-xs hover:underline"
+                          style={{ color: 'rgb(100, 140, 255)' }}
+                        >
+                          {r.trackId}
+                        </Link>
+                        <CopyButton value={r.trackId} label="trackId" size="xs" />
+                      </div>
                     </td>
                     <td className="py-2 pr-3 text-xs text-primary truncate max-w-xs">{r.filename}</td>
                     <td className="py-2 pr-3">
@@ -315,13 +319,16 @@ export default function FabricDashboard() {
                 className="flex items-center justify-between py-2 border-b border-border last:border-b-0"
               >
                 <div>
-                  <Link
-                    to={`/operations/journey?trackId=${s.trackId}`}
-                    className="text-sm font-mono hover:underline"
-                    style={{ color: 'rgb(100, 140, 255)' }}
-                  >
-                    {s.trackId}
-                  </Link>
+                  <span className="inline-flex items-center gap-1">
+                    <Link
+                      to={`/operations/journey?trackId=${s.trackId}`}
+                      className="text-sm font-mono hover:underline"
+                      style={{ color: 'rgb(100, 140, 255)' }}
+                    >
+                      {s.trackId}
+                    </Link>
+                    <CopyButton value={s.trackId} label="trackId" size="xs" />
+                  </span>
                   <span className="text-xs text-secondary ml-2">
                     step {s.stepIndex} ({s.stepType})
                   </span>
