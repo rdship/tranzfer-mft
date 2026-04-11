@@ -36,6 +36,9 @@ public class TransferJourneyController {
     private final AuditLogRepository auditLogRepo;
     private final FlowExecutionRepository flowExecRepo;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private FlowStepSnapshotRepository stepSnapshotRepo;
+
     /**
      * Get complete journey for a single transfer by trackId.
      */
@@ -47,11 +50,8 @@ public class TransferJourneyController {
         // Find flow execution
         var flowExec = flowExecRepo.findByTrackId(trackId).orElse(null);
 
-        // Find all audit entries for this trackId
-        var auditLogs = auditLogRepo.findAll(PageRequest.of(0, 100, Sort.by(Sort.Direction.ASC, "timestamp")))
-                .getContent().stream()
-                .filter(a -> trackId.equals(a.getTrackId()))
-                .collect(Collectors.toList());
+        // Find all audit entries for this trackId (indexed query — replaces full-table scan)
+        var auditLogs = auditLogRepo.findByTrackIdOrderByTimestampAsc(trackId);
 
         if (transfer == null && flowExec == null && auditLogs.isEmpty()) {
             return ResponseEntity.notFound().build();
@@ -181,11 +181,22 @@ public class TransferJourneyController {
             integrityStatus = transfer.getSourceChecksum().equals(transfer.getDestinationChecksum()) ? "VERIFIED" : "MISMATCH";
         }
 
+        // Enrich with per-step snapshots (input/output previews, checksums, durations)
+        List<FlowStepSnapshot> stepSnapshots = null;
+        if (stepSnapshotRepo != null) {
+            try {
+                stepSnapshots = stepSnapshotRepo.findByTrackIdOrderByStepIndex(trackId);
+            } catch (Exception e) {
+                log.debug("FlowStepSnapshot query failed for trackId={}: {}", trackId, e.getMessage());
+            }
+        }
+
         TransferJourney journey = TransferJourney.builder()
                 .trackId(trackId)
                 .filename(transfer != null ? transfer.getOriginalFilename() : flowExec != null ? flowExec.getOriginalFilename() : "unknown")
                 .overallStatus(transfer != null ? transfer.getStatus().name() : flowExec != null ? flowExec.getStatus().name() : "UNKNOWN")
                 .stages(stages)
+                .stepSnapshots(stepSnapshots)
                 .auditTrail(auditLogs.stream().map(a -> AuditEntry.builder()
                         .action(a.getAction()).success(a.isSuccess())
                         .principal(a.getPrincipal()).timestamp(a.getTimestamp())
@@ -234,6 +245,7 @@ public class TransferJourneyController {
         private String filename;
         private String overallStatus;
         private List<JourneyStage> stages;
+        private List<FlowStepSnapshot> stepSnapshots;
         private List<AuditEntry> auditTrail;
         private String integrityStatus;
         private String sourceChecksum;

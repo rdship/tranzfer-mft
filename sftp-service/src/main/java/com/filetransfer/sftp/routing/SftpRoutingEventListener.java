@@ -59,7 +59,11 @@ public class SftpRoutingEventListener implements SftpEventListener {
         Optional<TransferAccount> accountOpt = accountRepository
                 .findByUsernameAndProtocolAndActiveTrue(username, Protocol.SFTP);
 
-        if (accountOpt.isEmpty()) return;
+        if (accountOpt.isEmpty()) {
+            log.warn("SFTP upload by user '{}' ignored — no active TransferAccount found for path: {}",
+                    session.getUsername(), filePath.toAbsolutePath());
+            return;
+        }
 
         TransferAccount account = accountOpt.get();
         // filePath from rooted FS is relative (e.g. "/inbox/invoice.csv")
@@ -69,8 +73,14 @@ public class SftpRoutingEventListener implements SftpEventListener {
         String relativePath = rootedPath;
 
         if (wasWrite) {
-            log.info("SFTP upload detected: user={} relative={} absolute={}", username, relativePath, realAbsolutePath);
-            routingEngine.onFileUploaded(account, relativePath, realAbsolutePath);
+            String sourceIp = null;
+            try {
+                var clientAddr = session.getClientAddress();
+                if (clientAddr != null) sourceIp = clientAddr.toString().replace("/", "");
+            } catch (Exception e) { /* ignore */ }
+
+            log.info("SFTP upload detected: user={} relative={} absolute={} ip={}", username, relativePath, realAbsolutePath, sourceIp);
+            routingEngine.onFileUploaded(account, relativePath, realAbsolutePath, sourceIp);
         } else {
             log.info("SFTP download detected: user={} path={}", username, realAbsolutePath);
             routingEngine.onFileDownloaded(account, realAbsolutePath);

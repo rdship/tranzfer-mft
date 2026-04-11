@@ -17,6 +17,12 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
            "ORDER BY a.timestamp DESC")
     List<AuditLog> findByAccountIdOrderByTimestampDesc(@Param("accountId") UUID accountId);
 
+    /** All audit entries for a given trackId, newest first. Uses idx_audit_track_id index. */
+    List<AuditLog> findByTrackIdOrderByTimestampDesc(String trackId);
+
+    /** All audit entries for a given trackId, oldest first (journey timeline). */
+    List<AuditLog> findByTrackIdOrderByTimestampAsc(String trackId);
+
     /** GDPR: anonymize principal in audit logs for a deleted user */
     @Modifying
     @Query("UPDATE AuditLog a SET a.principal = :anonymized WHERE a.principal = :principal")

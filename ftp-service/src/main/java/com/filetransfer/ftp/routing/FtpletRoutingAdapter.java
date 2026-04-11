@@ -54,7 +54,10 @@ public class FtpletRoutingAdapter extends DefaultFtplet {
 
         Optional<TransferAccount> accountOpt = accountRepository
                 .findByUsernameAndProtocolAndActiveTrue(username, Protocol.FTP);
-        if (accountOpt.isEmpty()) return FtpletResult.DEFAULT;
+        if (accountOpt.isEmpty()) {
+            log.warn("FTP upload by user '{}' ignored — no active TransferAccount found for file: {}", username, filename);
+            return FtpletResult.DEFAULT;
+        }
 
         TransferAccount account = accountOpt.get();
         String absolutePath = account.getHomeDir() + "/" + filename;
@@ -68,14 +71,15 @@ public class FtpletRoutingAdapter extends DefaultFtplet {
         }
         long durationMs = calculateDuration(session, "upload_start_ms");
 
+        String sourceIp = extractClientIp(session);
         Map<String, Object> extras = new LinkedHashMap<>();
         extras.put("filename", filename);
         extras.put("bytes", bytes);
         extras.put("duration_ms", durationMs);
-        auditEventLogger.logEvent("UPLOAD", username, extractClientIp(session), extras);
+        auditEventLogger.logEvent("UPLOAD", username, sourceIp, extras);
 
-        log.info("FTP upload detected: user={} path={} bytes={}", username, relativePath, bytes);
-        routingEngine.onFileUploaded(account, relativePath, absolutePath);
+        log.info("FTP upload detected: user={} path={} bytes={} ip={}", username, relativePath, bytes, sourceIp);
+        routingEngine.onFileUploaded(account, relativePath, absolutePath, sourceIp);
         return FtpletResult.DEFAULT;
     }
 

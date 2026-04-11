@@ -98,6 +98,11 @@ public class FlowProcessingEngine {
     @Nullable
     private FlowFunctionRegistry functionRegistry;
 
+    /** RabbitMQ template for publishing lifecycle events. Optional — null when AMQP is not configured. */
+    @Autowired(required = false)
+    @Nullable
+    private org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate;
+
     /** Audit service for PCI DSS 10.x compliant logging. Optional — null if not configured. */
     @Autowired(required = false)
     @Nullable
@@ -345,6 +350,32 @@ public class FlowProcessingEngine {
             } catch (Exception e) {
                 log.debug("[{}] PartnerWebhookDispatcher skipped: {}", exec.getTrackId(), e.getMessage());
             }
+        }
+        // Publish lifecycle event to RabbitMQ for event-driven consumers
+        publishLifecycleEvent(eventType, exec.getTrackId(), Map.of(
+                "flowName", flowName,
+                "filename", exec.getOriginalFilename() != null ? exec.getOriginalFilename() : "",
+                "status", exec.getStatus() != null ? exec.getStatus().name() : "",
+                "error", exec.getErrorMessage() != null ? exec.getErrorMessage() : ""
+        ));
+    }
+
+    /**
+     * Publish a transfer lifecycle event to the RabbitMQ event bus.
+     * Uses the shared exchange (file-transfer.events) with routing key transfer.{eventType}.
+     * No-op when RabbitTemplate is absent (e.g. in unit tests or non-AMQP deployments).
+     */
+    private void publishLifecycleEvent(String eventType, String trackId, Map<String, Object> data) {
+        if (rabbitTemplate == null) return;
+        try {
+            Map<String, Object> event = new LinkedHashMap<>(data);
+            event.put("eventType", eventType);
+            event.put("trackId", trackId);
+            event.put("timestamp", Instant.now().toString());
+            rabbitTemplate.convertAndSend("file-transfer.events",
+                    "transfer." + eventType.toLowerCase(), event);
+        } catch (Exception e) {
+            log.debug("Failed to publish lifecycle event {}: {}", eventType, e.getMessage());
         }
     }
 
@@ -694,6 +725,14 @@ public class FlowProcessingEngine {
             Files.createDirectories(outboxPath.getParent());
             Files.copy(input, outboxPath, StandardCopyOption.REPLACE_EXISTING);
             log.info("[{}] MAILBOX: delivered locally to {} outbox: {}", trackId, destUsername, outboxPath);
+            // Audit the mailbox delivery leg
+            if (auditService != null) {
+                try {
+                    auditService.logFileRoute(trackId, input.toString(), outboxPath.toString(), outboxPath);
+                } catch (Exception e) {
+                    log.warn("[{}] Failed to create MAILBOX delivery audit record: {}", trackId, e.getMessage());
+                }
+            }
         } else {
             // Remote delivery — POST to the destination service
             ServiceRegistration svc = destService.get();
@@ -718,6 +757,14 @@ public class FlowProcessingEngine {
             restTemplate.postForEntity(url, entity, Void.class);
             log.info("[{}] MAILBOX: forwarded to {}:{} for user {}", trackId,
                     svc.getHost(), svc.getControlPort(), destUsername);
+            // Audit the remote mailbox delivery leg
+            if (auditService != null) {
+                try {
+                    auditService.logFileRoute(trackId, input.toString(), outboxPath.toString(), input);
+                } catch (Exception e) {
+                    log.warn("[{}] Failed to create MAILBOX delivery audit record: {}", trackId, e.getMessage());
+                }
+            }
         }
 
         return input.toString(); // Pass through — file delivered as side effect
@@ -788,6 +835,12 @@ public class FlowProcessingEngine {
         }
 
         log.info("[{}] FILE_DELIVERY: completed — {}/{} endpoints delivered", trackId, successCount, endpoints.size());
+
+        // Return detailed result so StepResult captures partial failure info
+        if (!failures.isEmpty()) {
+            return String.format("SUCCESS:%d,FAILED:%d|%s",
+                    successCount, failures.size(), String.join(";", failures));
+        }
         return input.toString(); // Pass through — delivery is a side effect
     }
 
