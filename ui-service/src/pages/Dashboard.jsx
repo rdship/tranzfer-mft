@@ -1,8 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { getDashboard, getPredictions, getFlowLiveStats } from '../api/analytics'
 import { getAgentsDashboard } from '../api/ai'
+import { getFabricQueues, getFabricStuck, getFabricInstances, getFabricLatency } from '../api/fabric'
+import * as sentinelApi from '../api/sentinel'
+import { onboardingApi } from '../api/client'
 import { useAuth } from '../context/AuthContext'
+import { useServices } from '../context/ServiceContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -13,7 +17,10 @@ import {
   ExclamationTriangleIcon, ArrowTrendingUpIcon, BoltIcon,
   BuildingOfficeIcon, ArrowsRightLeftIcon, CpuChipIcon,
   ClockIcon, ArrowPathIcon, ShieldCheckIcon,
-  ArrowTopRightOnSquareIcon,
+  ArrowTopRightOnSquareIcon, ArrowRightIcon, Squares2X2Icon,
+  RectangleStackIcon, FireIcon, ClockIcon as ClockOutline,
+  DocumentMagnifyingGlassIcon, KeyIcon, CircleStackIcon,
+  FolderIcon, BellAlertIcon,
 } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
 import { NavLink } from 'react-router-dom'
@@ -28,7 +35,38 @@ const quickActions = [
   { label: 'AS2 Partners',     to: '/as2-partnerships',icon: ArrowPathIcon,      color: '#fbbf24' },
   { label: 'Journey',          to: '/journey',         icon: ArrowTrendingUpIcon,color: '#f87171' },
   { label: 'Audit Logs',       to: '/logs',            icon: ClockIcon,          color: '#94a3b8' },
+  { label: 'Flow Fabric',      to: '/operations/fabric',  icon: Squares2X2Icon,          color: '#8b5cf6' },
+  { label: 'Activity Monitor', to: '/operations/activity',icon: RectangleStackIcon,      color: '#22d3ee' },
+  { label: 'Sentinel',         to: '/sentinel',           icon: ShieldCheckIcon,         color: '#f87171' },
+  { label: 'EDI Convert',      to: '/edi',                icon: DocumentMagnifyingGlassIcon, color: '#34d399' },
+  { label: 'EDI Map Editor',   to: '/edi-mapping',        icon: DocumentMagnifyingGlassIcon, color: '#fbbf24' },
+  { label: 'Keystore',         to: '/keystore',           icon: KeyIcon,                 color: '#8b5cf6' },
+  { label: 'Storage Manager',  to: '/storage',            icon: CircleStackIcon,         color: '#22d3ee' },
+  { label: 'File Manager',     to: '/file-manager',       icon: FolderIcon,              color: '#34d399' },
 ]
+
+/* Friendly labels for the service health grid (keys come from ServiceContext SERVICE_HEALTH_ENDPOINTS) */
+const SERVICE_LABELS = {
+  onboarding:   'Onboarding',
+  config:       'Config',
+  sftp:         'SFTP',
+  ftp:          'FTP',
+  ftpWeb:       'FTP Web',
+  gateway:      'Gateway',
+  encryption:   'Encryption',
+  forwarder:    'Forwarder',
+  dmz:          'DMZ Proxy',
+  license:      'License',
+  analytics:    'Analytics',
+  aiEngine:     'AI Engine',
+  screening:    'Screening',
+  keystore:     'Keystore',
+  sentinel:     'Sentinel',
+  ediConverter: 'EDI Converter',
+  notification: 'Notification',
+  storage:      'Storage',
+  as2:          'AS2',
+}
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -192,6 +230,394 @@ function LiveActivityStrip({ agentsData, flowStats, agentsLoading, flowsLoading,
   )
 }
 
+/* ────────────────────────────────────────────────────────────────────────
+   Panel A — Flow Fabric strip
+   ──────────────────────────────────────────────────────────────────────── */
+function FabricKpiCard({ to, label, value, icon: Icon, color, loading, error }) {
+  const display = loading ? '…' : error ? '—' : (value ?? '—')
+  return (
+    <Link
+      to={to}
+      className="flex items-center gap-3 p-4 rounded-xl transition-all duration-200 group"
+      style={{ background: 'rgb(var(--surface))', border: '1px solid rgb(var(--border))' }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = `${color}44`; e.currentTarget.style.boxShadow = `0 0 18px ${color}18` }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgb(var(--border))'; e.currentTarget.style.boxShadow = 'none' }}
+    >
+      <div className="p-2 rounded-lg flex-shrink-0 transition-transform duration-200 group-hover:scale-110"
+        style={{ background: `${color}18` }}>
+        <Icon className="w-4 h-4" style={{ color }} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'rgb(var(--tx-muted))' }}>
+          {label}
+        </p>
+        <p className="font-mono font-bold text-xl leading-tight" style={{ color: 'rgb(var(--tx-primary))' }}>
+          {display}
+        </p>
+      </div>
+      <ArrowRightIcon className="w-3.5 h-3.5 opacity-0 group-hover:opacity-60 transition-opacity flex-shrink-0" style={{ color }} />
+    </Link>
+  )
+}
+
+function FlowFabricStrip() {
+  const queuesQ = useQuery({
+    queryKey: ['dash-fabric-queues'],
+    queryFn: getFabricQueues,
+    refetchInterval: 10_000,
+    retry: 0,
+    staleTime: 8_000,
+  })
+  const instancesQ = useQuery({
+    queryKey: ['dash-fabric-instances'],
+    queryFn: getFabricInstances,
+    refetchInterval: 10_000,
+    retry: 0,
+    staleTime: 8_000,
+  })
+  const stuckQ = useQuery({
+    queryKey: ['dash-fabric-stuck'],
+    queryFn: () => getFabricStuck({ page: 0, size: 1 }),
+    refetchInterval: 10_000,
+    retry: 0,
+    staleTime: 8_000,
+  })
+  const latencyQ = useQuery({
+    queryKey: ['dash-fabric-latency'],
+    queryFn: () => getFabricLatency({ hours: 1, sample: 2000 }),
+    refetchInterval: 10_000,
+    retry: 0,
+    staleTime: 8_000,
+  })
+
+  const inProgress = (() => {
+    const byStep = queuesQ.data?.inProgressByStepType
+    if (!byStep) return null
+    if (Array.isArray(byStep)) {
+      return byStep.reduce((sum, row) => sum + (row?.count ?? row?.value ?? 0), 0)
+    }
+    if (typeof byStep === 'object') {
+      return Object.values(byStep).reduce((sum, v) => sum + (typeof v === 'number' ? v : (v?.count ?? 0)), 0)
+    }
+    return null
+  })()
+
+  const activeInstances = (() => {
+    const a = instancesQ.data?.active
+    if (Array.isArray(a)) return a.length
+    if (typeof a === 'number') return a
+    return null
+  })()
+
+  const stuckTotal = stuckQ.data?.totalElements ?? stuckQ.data?.total ?? null
+
+  const p95 = (() => {
+    const byStep = latencyQ.data?.byStepType
+    if (!byStep) return null
+    const rows = Array.isArray(byStep) ? byStep : Object.values(byStep)
+    if (!rows.length) return null
+    const max = rows.reduce((m, r) => {
+      const v = r?.p95 ?? r?.p95Ms ?? 0
+      return v > m ? v : m
+    }, 0)
+    return max ? `${max.toLocaleString()} ms` : '0 ms'
+  })()
+
+  const stuckColor = (stuckTotal && stuckTotal > 0) ? '#ef4444' : '#22c55e'
+
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <FabricKpiCard
+        to="/operations/fabric"
+        label="In-Progress"
+        value={inProgress?.toLocaleString?.() ?? inProgress}
+        icon={Squares2X2Icon}
+        color="#8b5cf6"
+        loading={queuesQ.isLoading}
+        error={queuesQ.isError}
+      />
+      <FabricKpiCard
+        to="/operations/fabric"
+        label="Active Instances"
+        value={activeInstances?.toLocaleString?.() ?? activeInstances}
+        icon={CpuChipIcon}
+        color="#22d3ee"
+        loading={instancesQ.isLoading}
+        error={instancesQ.isError}
+      />
+      <FabricKpiCard
+        to="/operations/activity?stuckOnly=true"
+        label="Stuck Files"
+        value={stuckTotal?.toLocaleString?.() ?? stuckTotal}
+        icon={FireIcon}
+        color={stuckColor}
+        loading={stuckQ.isLoading}
+        error={stuckQ.isError}
+      />
+      <FabricKpiCard
+        to="/operations/fabric"
+        label="p95 Latency"
+        value={p95}
+        icon={ClockOutline}
+        color="#fbbf24"
+        loading={latencyQ.isLoading}
+        error={latencyQ.isError}
+      />
+    </div>
+  )
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   Panel B — Open Sentinel Findings preview
+   ──────────────────────────────────────────────────────────────────────── */
+const SEV_ORDER = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3, INFO: 4 }
+const SEV_BADGE_COLOR = {
+  CRITICAL: { bg: 'rgb(127 29 29 / 0.35)', fg: '#fca5a5', border: '#7f1d1d' },
+  HIGH:     { bg: 'rgb(154 52 18 / 0.35)', fg: '#fdba74', border: '#9a3412' },
+  MEDIUM:   { bg: 'rgb(133 77 14 / 0.35)', fg: '#fcd34d', border: '#854d0e' },
+  LOW:      { bg: 'rgb(30 58 138 / 0.35)', fg: '#93c5fd', border: '#1e3a8a' },
+  INFO:     { bg: 'rgb(64 64 64 / 0.35)',  fg: '#d4d4d8', border: '#3f3f46' },
+}
+
+function SentinelFindingsPreview() {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['dash-sentinel-findings'],
+    queryFn: () => sentinelApi.getFindings({ status: 'OPEN', size: 5, sortBy: 'severity' }),
+    refetchInterval: 30_000,
+    retry: 1,
+    staleTime: 20_000,
+  })
+
+  const raw = Array.isArray(data?.content) ? data.content
+            : Array.isArray(data)         ? data
+            : []
+  const findings = [...raw].sort((a, b) => (SEV_ORDER[a.severity] ?? 9) - (SEV_ORDER[b.severity] ?? 9)).slice(0, 5)
+
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-3">
+        <p className="section-title flex items-center gap-2">
+          <BellAlertIcon className="w-4 h-4" style={{ color: '#f87171' }} />
+          Open Findings
+        </p>
+        <NavLink to="/sentinel" className="text-[10px] font-medium hover:underline" style={{ color: 'rgb(var(--accent))' }}>
+          View All
+        </NavLink>
+      </div>
+
+      {isLoading ? (
+        <div className="py-6 text-center text-xs" style={{ color: 'rgb(var(--tx-muted))' }}>
+          Loading findings…
+        </div>
+      ) : isError ? (
+        <div className="py-6 text-center">
+          <ExclamationTriangleIcon className="w-6 h-6 mx-auto mb-1" style={{ color: '#f87171' }} />
+          <p className="text-xs" style={{ color: '#f87171' }}>Sentinel unavailable</p>
+          <NavLink to="/sentinel" className="text-[10px] hover:underline" style={{ color: 'rgb(var(--accent))' }}>
+            Open Sentinel
+          </NavLink>
+        </div>
+      ) : findings.length === 0 ? (
+        <div className="py-6 text-center">
+          <CheckCircleIcon className="w-7 h-7 mx-auto mb-1" style={{ color: '#22c55e' }} />
+          <p className="text-xs font-medium" style={{ color: 'rgb(var(--tx-primary))' }}>All clear</p>
+          <p className="text-[10px] mt-0.5" style={{ color: 'rgb(var(--tx-muted))' }}>
+            No open findings — platform is healthy.
+          </p>
+          <NavLink to="/sentinel" className="text-[10px] hover:underline inline-block mt-1" style={{ color: 'rgb(var(--accent))' }}>
+            Open Sentinel →
+          </NavLink>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {findings.map(f => {
+            const sev = SEV_BADGE_COLOR[f.severity] || SEV_BADGE_COLOR.INFO
+            return (
+              <Link
+                key={f.id}
+                to={`/sentinel?findingId=${encodeURIComponent(f.id)}`}
+                className="flex items-start gap-2 p-2 rounded-lg transition-colors"
+                style={{ background: 'rgb(var(--hover))', border: '1px solid transparent' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgb(var(--border))' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'transparent' }}
+              >
+                <span
+                  className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide flex-shrink-0 mt-0.5"
+                  style={{ background: sev.bg, color: sev.fg, border: `1px solid ${sev.border}` }}
+                >
+                  {f.severity || 'INFO'}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium truncate" style={{ color: 'rgb(var(--tx-primary))' }}>
+                    {f.title || 'Untitled finding'}
+                  </p>
+                  {f.description && (
+                    <p className="text-[10px] truncate" style={{ color: 'rgb(var(--tx-muted))' }}>
+                      {f.description}
+                    </p>
+                  )}
+                  {f.affectedService && (
+                    <p className="text-[10px] font-mono" style={{ color: 'rgb(var(--tx-muted))' }}>
+                      {f.affectedService}
+                    </p>
+                  )}
+                </div>
+              </Link>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   Panel C — Service Health grid
+   ──────────────────────────────────────────────────────────────────────── */
+function ServiceHealthGrid() {
+  const svcCtx = useServices()
+  const services = svcCtx?.services || {}
+  const serviceList = svcCtx?.serviceList || Object.keys(SERVICE_LABELS)
+
+  // Merge list: union of known endpoints and anything present in the map
+  const keys = Array.from(new Set([...(serviceList || []), ...Object.keys(services || {})]))
+    .filter(k => k !== 'core')
+
+  const statusOf = (k) => {
+    const v = services[k]
+    if (v === true)  return 'up'
+    if (v === false) return 'down'
+    return 'unknown'
+  }
+  const COLOR = { up: '#22c55e', down: '#ef4444', degraded: '#fbbf24', unknown: '#71717a' }
+
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-3">
+        <p className="section-title flex items-center gap-2">
+          <ServerIcon className="w-4 h-4" style={{ color: '#22d3ee' }} />
+          Service Health
+        </p>
+        <NavLink to="/services" className="text-[10px] font-medium hover:underline" style={{ color: 'rgb(var(--accent))' }}>
+          View All
+        </NavLink>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+        {keys.map(k => {
+          const status = statusOf(k)
+          const color  = COLOR[status]
+          const label  = SERVICE_LABELS[k] || k
+          return (
+            <Link
+              key={k}
+              to="/services"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg transition-colors"
+              style={{ background: 'rgb(var(--hover))', border: '1px solid rgb(var(--border))' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = `${color}66` }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgb(var(--border))' }}
+              title={`${label} — ${status}`}
+            >
+              <span
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{
+                  background: color,
+                  boxShadow: status === 'up' ? `0 0 6px ${color}` : 'none',
+                }}
+              />
+              <span className="text-[11px] truncate" style={{ color: 'rgb(var(--tx-secondary))' }}>
+                {label}
+              </span>
+            </Link>
+          )
+        })}
+        {keys.length === 0 && (
+          <div className="col-span-full py-4 text-center text-xs" style={{ color: 'rgb(var(--tx-muted))' }}>
+            No services detected yet…
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   Panel E — Recent Activity strip
+   ──────────────────────────────────────────────────────────────────────── */
+function RecentActivityStrip() {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['dash-recent-activity'],
+    queryFn: () => onboardingApi
+      .get('/api/activity-monitor', { params: { page: 0, size: 5, sortBy: 'uploadedAt', sortDir: 'DESC' } })
+      .then(r => r.data),
+    refetchInterval: 5_000,
+    retry: 0,
+    staleTime: 4_000,
+  })
+
+  const rows = Array.isArray(data?.content) ? data.content
+            : Array.isArray(data)         ? data
+            : []
+
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-3">
+        <p className="section-title flex items-center gap-2">
+          <ClockIcon className="w-4 h-4" style={{ color: '#22d3ee' }} />
+          Recent Transfers
+        </p>
+        <NavLink to="/operations/activity" className="text-[10px] font-medium hover:underline" style={{ color: 'rgb(var(--accent))' }}>
+          View All
+        </NavLink>
+      </div>
+      {isLoading ? (
+        <div className="py-4 text-center text-xs" style={{ color: 'rgb(var(--tx-muted))' }}>Loading…</div>
+      ) : isError ? (
+        <div className="py-4 text-center text-xs" style={{ color: '#f87171' }}>Activity monitor unavailable</div>
+      ) : rows.length === 0 ? (
+        <div className="py-4 text-center">
+          <p className="text-xs" style={{ color: 'rgb(var(--tx-muted))' }}>No recent transfers</p>
+          <NavLink to="/operations/activity" className="text-[10px] hover:underline" style={{ color: 'rgb(var(--accent))' }}>
+            Open Activity Monitor →
+          </NavLink>
+        </div>
+      ) : (
+        <div className="space-y-1">
+          {rows.map(r => {
+            const trackId = r.trackId || r.id
+            const filename = r.filename || r.fileName || r.originalFilename || '—'
+            const status = r.status || r.state || '—'
+            const when = r.uploadedAt || r.createdAt || r.timestamp
+            const statusColor = /FAIL|ERROR|STUCK/i.test(status) ? '#f87171'
+                              : /COMPLETE|SUCCESS|DONE/i.test(status) ? '#22c55e'
+                              : '#fbbf24'
+            return (
+              <Link
+                key={trackId || `${filename}-${when}`}
+                to={trackId ? `/operations/journey?trackId=${encodeURIComponent(trackId)}` : '/operations/activity'}
+                className="flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors"
+                style={{ background: 'rgb(var(--hover))' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgb(var(--border))' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgb(var(--hover))' }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: statusColor }} />
+                <span className="text-[11px] font-mono truncate flex-1" style={{ color: 'rgb(var(--tx-primary))' }}>
+                  {filename}
+                </span>
+                <span className="text-[10px] uppercase tracking-wider flex-shrink-0" style={{ color: statusColor }}>
+                  {status}
+                </span>
+                <span className="text-[10px] flex-shrink-0" style={{ color: 'rgb(var(--tx-muted))' }}>
+                  {when ? format(new Date(when), 'HH:mm:ss') : ''}
+                </span>
+              </Link>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -233,6 +659,9 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-5 animate-page">
+
+      {/* ── Panel A: Flow Fabric strip ── */}
+      <FlowFabricStrip />
 
       {/* ── Top: greeting + timestamp ── */}
       <div className="flex items-center justify-between">
@@ -458,6 +887,15 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* ── Panels B + E: Sentinel Findings + Recent Activity ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <SentinelFindingsPreview />
+        <RecentActivityStrip />
+      </div>
+
+      {/* ── Panel C: Service Health grid ── */}
+      <ServiceHealthGrid />
 
       {/* ── Bottom Grid: Protocol + Recommendations ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
