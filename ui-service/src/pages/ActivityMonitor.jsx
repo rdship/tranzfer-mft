@@ -9,6 +9,7 @@ import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer'
 import FileDownloadButton from '../components/FileDownloadButton'
 import ConfigLink from '../components/ConfigLink'
 import ConfigInlineEditor from '../components/ConfigInlineEditor'
+import ConfirmDialog from '../components/ConfirmDialog'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import {
@@ -16,7 +17,51 @@ import {
   Cog6ToothIcon, XMarkIcon, ArrowPathIcon, ChevronUpIcon, ChevronDownIcon,
   FunnelIcon, TableCellsIcon, CheckCircleIcon, XCircleIcon, ClockIcon,
   DocumentTextIcon, ShieldCheckIcon, TruckIcon, ArrowRightIcon,
+  BookmarkIcon, TrashIcon, LightBulbIcon, PlusIcon, CheckIcon,
 } from '@heroicons/react/24/outline'
+
+// ── Saved Views (localStorage) ─────────────────────────────────────────
+// User-defined Activity Monitor filter presets. Persisted per-browser under
+// `tranzfer.activityViews`. Capped at 20 entries (oldest dropped on overflow).
+const SAVED_VIEWS_KEY = 'tranzfer.activityViews'
+const SAVED_VIEWS_MAX = 20
+
+function loadSavedViews() {
+  try {
+    const raw = localStorage.getItem(SAVED_VIEWS_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch { return [] }
+}
+
+function persistSavedViews(views) {
+  try { localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(views)) } catch { /* quota */ }
+}
+
+// Built-in views — always present, cannot be deleted. Each describes the
+// target filter state only; any field not listed resets to its default.
+const BUILT_IN_VIEWS = [
+  { id: 'builtin-all',       name: 'All transfers',      description: 'Clear all filters', filters: {} },
+  { id: 'builtin-stuck',     name: 'Stuck only',         description: 'Files past their lease', filters: { stuckOnly: true } },
+  { id: 'builtin-failed',    name: 'Failed last 24h',    description: 'Status = FAILED', filters: { statusFilter: 'FAILED' } },
+  { id: 'builtin-inflight',  name: 'In-flight',          description: 'Status = DOWNLOADED', filters: { statusFilter: 'DOWNLOADED' } },
+  { id: 'builtin-completed', name: 'Completed today',    description: 'Status = MOVED_TO_SENT', filters: { statusFilter: 'MOVED_TO_SENT' } },
+]
+
+// Short human label of what a saved view actually filters on.
+function describeViewFilters(v) {
+  const f = v.filters || {}
+  const parts = []
+  if (f.statusFilter && f.statusFilter !== 'ALL') parts.push(`status=${f.statusFilter}`)
+  if (f.stuckOnly) parts.push('stuck')
+  if (f.protocolFilter && f.protocolFilter !== 'ALL') parts.push(f.protocolFilter)
+  if (f.filenameFilter) parts.push(`file~${f.filenameFilter}`)
+  if (f.trackIdFilter) parts.push(`id~${f.trackIdFilter}`)
+  if (f.sourceUserFilter) parts.push(`user~${f.sourceUserFilter}`)
+  if (f.stepTypeFilter) parts.push(`step=${f.stepTypeFilter}`)
+  return parts.length ? parts.join(' · ') : 'no filters'
+}
 
 // ── Column Definitions ──────────────────────────────────────────────────
 const ALL_COLUMNS = [
@@ -458,7 +503,7 @@ export default function ActivityMonitor() {
   // URL-driven filter state — enables deep-linking from Flow Fabric KPI cards
   // and queue bars. Any filter the Fabric dashboard passes as a query param
   // (?status=IN_PROGRESS, ?stepType=ENCRYPT, ?stuckOnly=true) is honored on load.
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const urlStatus     = searchParams.get('status')
   const urlStepType   = searchParams.get('stepType')
   const urlStuckOnly  = searchParams.get('stuckOnly') === 'true'
@@ -478,7 +523,7 @@ export default function ActivityMonitor() {
   const [protocolFilter, setProtocolFilter] = useState('ALL')
   const [stuckOnly, setStuckOnly] = useState(urlStuckOnly)
   // stepType filter is not a backend param (yet) — we filter client-side on fabricStatus
-  const [stepTypeFilter] = useState(urlStepType || '')
+  const [stepTypeFilter, setStepTypeFilter] = useState(urlStepType || '')
 
   // UI state
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -499,6 +544,17 @@ export default function ActivityMonitor() {
 
   // Inline config editor state
   const [editConfig, setEditConfig] = useState(null)
+
+  // ── Saved views state ────────────────────────────────────────────────
+  // Dropdown panel is closed by default. savedViews is hydrated from
+  // localStorage; any mutation (save/delete) both sets state and persists.
+  const [viewsOpen, setViewsOpen] = useState(false)
+  const [savedViews, setSavedViews] = useState(() => loadSavedViews())
+  const [savingView, setSavingView] = useState(false)
+  const [newViewName, setNewViewName] = useState('')
+  const [deleteViewTarget, setDeleteViewTarget] = useState(null) // { id, name }
+  const viewsRef = useRef(null)
+  const saveInputRef = useRef(null)
 
   // Debounced text filters
   const debouncedFilename = useDebounce(filenameFilter, 300)
@@ -677,6 +733,141 @@ export default function ActivityMonitor() {
 
   const hasFilters = filenameFilter || trackIdFilter || statusFilter !== 'ALL' || sourceUserFilter || protocolFilter !== 'ALL' || stuckOnly
 
+  // ── Saved Views: apply / save / delete ────────────────────────────────
+  // applyView reseeds every filter, sort, and page-size setter from the
+  // supplied view, then syncs URL params so that deep-linking reflects the
+  // new state. Any field missing from a built-in view resets to default.
+  const applyView = useCallback((view) => {
+    const f = view.filters || {}
+    const sort = view.sort || {}
+    setFilenameFilter(f.filenameFilter || '')
+    setTrackIdFilter(f.trackIdFilter || '')
+    setStatusFilter(f.statusFilter || 'ALL')
+    setSourceUserFilter(f.sourceUserFilter || '')
+    setProtocolFilter(f.protocolFilter || 'ALL')
+    setStuckOnly(!!f.stuckOnly)
+    setStepTypeFilter(f.stepTypeFilter || '')
+    if (sort.sortBy) setSortBy(sort.sortBy)
+    if (sort.sortDir) setSortDir(sort.sortDir)
+    if (sort.size) setSize(sort.size)
+    setPage(0)
+
+    // Reflect into URL so browser back/forward + deep links still work.
+    const next = {}
+    if (f.statusFilter && f.statusFilter !== 'ALL') next.status = f.statusFilter
+    if (f.stuckOnly) next.stuckOnly = 'true'
+    if (f.trackIdFilter) next.trackId = f.trackIdFilter
+    if (f.stepTypeFilter) next.stepType = f.stepTypeFilter
+    setSearchParams(next, { replace: true })
+
+    setViewsOpen(false)
+    setSavingView(false)
+    setNewViewName('')
+    toast.success(`Applied view: ${view.name}`)
+  }, [setSearchParams])
+
+  // Persist the current filter/sort/page-size snapshot as a new saved view.
+  // Caps at SAVED_VIEWS_MAX by dropping the oldest entry (by createdAt).
+  const saveCurrentView = useCallback(() => {
+    const name = (newViewName || '').trim()
+    if (!name) { toast.error('Please name this view'); return }
+    const uuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : `v-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+    const snapshot = {
+      id: uuid,
+      name,
+      createdAt: Date.now(),
+      filters: {
+        filenameFilter,
+        trackIdFilter,
+        statusFilter,
+        sourceUserFilter,
+        protocolFilter,
+        stuckOnly,
+        stepTypeFilter,
+      },
+      sort: { sortBy, sortDir, size },
+    }
+    setSavedViews(prev => {
+      let next = [snapshot, ...prev]
+      if (next.length > SAVED_VIEWS_MAX) {
+        next = [...next].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, SAVED_VIEWS_MAX)
+      }
+      persistSavedViews(next)
+      return next
+    })
+    setSavingView(false)
+    setNewViewName('')
+    toast.success(`Saved view: ${name}`)
+  }, [newViewName, filenameFilter, trackIdFilter, statusFilter, sourceUserFilter, protocolFilter, stuckOnly, stepTypeFilter, sortBy, sortDir, size])
+
+  const confirmDeleteView = useCallback(() => {
+    if (!deleteViewTarget) return
+    setSavedViews(prev => {
+      const next = prev.filter(v => v.id !== deleteViewTarget.id)
+      persistSavedViews(next)
+      return next
+    })
+    toast.success(`Deleted view: ${deleteViewTarget.name}`)
+    setDeleteViewTarget(null)
+  }, [deleteViewTarget])
+
+  // Close the dropdown on outside click / Esc. Also auto-focus the name
+  // input when the user enters "save" mode.
+  useEffect(() => {
+    if (!viewsOpen) return
+    const onClick = (e) => {
+      if (viewsRef.current && !viewsRef.current.contains(e.target)) {
+        setViewsOpen(false)
+        setSavingView(false)
+        setNewViewName('')
+      }
+    }
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        setViewsOpen(false)
+        setSavingView(false)
+        setNewViewName('')
+      }
+    }
+    document.addEventListener('mousedown', onClick)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onClick)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [viewsOpen])
+
+  useEffect(() => {
+    if (savingView && saveInputRef.current) saveInputRef.current.focus()
+  }, [savingView])
+
+  // Which view is currently active? (shallow compare of filter state)
+  const activeViewId = useMemo(() => {
+    const cur = {
+      filenameFilter, trackIdFilter,
+      statusFilter: statusFilter === 'ALL' ? '' : statusFilter,
+      sourceUserFilter,
+      protocolFilter: protocolFilter === 'ALL' ? '' : protocolFilter,
+      stuckOnly: !!stuckOnly,
+      stepTypeFilter,
+    }
+    const match = (f) => {
+      const n = (v) => v == null ? '' : v
+      return n(f.filenameFilter) === cur.filenameFilter
+        && n(f.trackIdFilter) === cur.trackIdFilter
+        && (n(f.statusFilter) === '' ? '' : n(f.statusFilter)) === (cur.statusFilter || '')
+        && n(f.sourceUserFilter) === cur.sourceUserFilter
+        && (n(f.protocolFilter) === '' ? '' : n(f.protocolFilter)) === (cur.protocolFilter || '')
+        && !!f.stuckOnly === cur.stuckOnly
+        && n(f.stepTypeFilter) === cur.stepTypeFilter
+    }
+    for (const b of BUILT_IN_VIEWS) if (match(b.filters || {})) return b.id
+    for (const s of savedViews) if (match(s.filters || {})) return s.id
+    return null
+  }, [filenameFilter, trackIdFilter, statusFilter, sourceUserFilter, protocolFilter, stuckOnly, stepTypeFilter, savedViews])
+
   // CSV export
   const exportCSV = () => {
     const headers = visibleColumns.map(c => c.label)
@@ -803,6 +994,166 @@ export default function ActivityMonitor() {
             Export
           </button>
 
+          {/* Saved Views dropdown */}
+          <div className="relative" ref={viewsRef}>
+            <button
+              onClick={() => { setViewsOpen(o => !o); setSavingView(false); setNewViewName('') }}
+              className="btn-secondary"
+              title="Saved filter views"
+              aria-haspopup="true"
+              aria-expanded={viewsOpen}
+            >
+              <BookmarkIcon className="w-4 h-4" />
+              Views
+              {activeViewId && (
+                <span
+                  className="ml-1 w-1.5 h-1.5 rounded-full"
+                  style={{ background: 'rgb(var(--accent))' }}
+                  aria-label="active view"
+                />
+              )}
+            </button>
+
+            {viewsOpen && (
+              <div
+                className="absolute right-0 mt-2 w-[300px] rounded-lg shadow-xl z-50 overflow-hidden"
+                style={{
+                  background: 'rgb(var(--surface))',
+                  border: '1px solid rgb(30, 30, 36)',
+                }}
+                role="menu"
+              >
+                {/* Built-in views */}
+                <div className="px-3 pt-3 pb-1">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted mb-1.5">Built-in</div>
+                  {BUILT_IN_VIEWS.map(v => {
+                    const active = activeViewId === v.id
+                    return (
+                      <button
+                        key={v.id}
+                        onClick={() => applyView(v)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') applyView(v) }}
+                        className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-left hover:bg-canvas focus:outline-none focus:bg-canvas transition-colors"
+                        role="menuitem"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-medium text-primary truncate">{v.name}</div>
+                          <div className="text-[10px] text-muted truncate">{v.description}</div>
+                        </div>
+                        {active && (
+                          <CheckIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'rgb(var(--accent))' }} />
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <div style={{ borderTop: '1px solid rgb(30, 30, 36)' }} />
+
+                {/* Saved views */}
+                <div className="px-3 pt-2 pb-1">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted mb-1.5">Saved</div>
+                  {savedViews.length === 0 ? (
+                    <div className="flex items-start gap-2 px-2 py-3 text-[11px] text-muted">
+                      <LightBulbIcon className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <span>No saved views yet. Apply some filters and click 'Save current view'.</span>
+                    </div>
+                  ) : (
+                    <div className="max-h-[220px] overflow-y-auto">
+                      {[...savedViews]
+                        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+                        .map(v => {
+                          const active = activeViewId === v.id
+                          return (
+                            <div
+                              key={v.id}
+                              className="group w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-canvas transition-colors"
+                            >
+                              <button
+                                onClick={() => applyView(v)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') applyView(v) }}
+                                className="flex-1 min-w-0 text-left focus:outline-none"
+                                role="menuitem"
+                              >
+                                <div className="text-xs font-medium text-primary truncate flex items-center gap-1.5">
+                                  {v.name}
+                                  {active && (
+                                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgb(var(--accent))' }} />
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-muted truncate">{describeViewFilters(v)}</div>
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setDeleteViewTarget({ id: v.id, name: v.name }) }}
+                                className="p-1 rounded text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                                title={`Delete ${v.name}`}
+                                aria-label={`Delete ${v.name}`}
+                              >
+                                <TrashIcon className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )
+                        })}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ borderTop: '1px solid rgb(30, 30, 36)' }} />
+
+                {/* Save current view */}
+                <div className="px-3 py-2">
+                  {savingView ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        ref={saveInputRef}
+                        type="text"
+                        value={newViewName}
+                        onChange={e => setNewViewName(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') { e.preventDefault(); saveCurrentView() }
+                          else if (e.key === 'Escape') { e.preventDefault(); setSavingView(false); setNewViewName('') }
+                        }}
+                        placeholder="View name..."
+                        maxLength={60}
+                        className="flex-1 text-xs px-2 py-1.5 rounded-md text-primary focus:outline-none"
+                        style={{
+                          background: 'rgb(30, 30, 36)',
+                          border: '1px solid rgb(55, 55, 65)',
+                        }}
+                      />
+                      <button
+                        onClick={saveCurrentView}
+                        className="px-2 py-1.5 text-xs font-semibold rounded-md text-white"
+                        style={{ background: 'rgb(var(--accent))' }}
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => { setSavingView(false); setNewViewName('') }}
+                        className="p-1.5 text-muted hover:text-primary rounded-md"
+                        title="Cancel"
+                        aria-label="Cancel save"
+                      >
+                        <XMarkIcon className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setSavingView(true)}
+                      disabled={!hasFilters}
+                      className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-semibold rounded-md text-white disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                      style={{ background: 'rgb(var(--accent))' }}
+                      title={hasFilters ? 'Save current filters as a view' : 'Apply some filters first'}
+                    >
+                      <PlusIcon className="w-3.5 h-3.5" />
+                      Save current view
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Column Settings */}
           <button
             onClick={() => setSettingsOpen(true)}
@@ -813,6 +1164,18 @@ export default function ActivityMonitor() {
           </button>
         </div>
       </div>
+
+      {/* Delete saved-view confirmation */}
+      <ConfirmDialog
+        open={!!deleteViewTarget}
+        variant="danger"
+        title="Delete view?"
+        message={deleteViewTarget ? `This permanently removes the saved view "${deleteViewTarget.name}" from this browser.` : ''}
+        confirmLabel="Delete view"
+        cancelLabel="Keep"
+        onConfirm={confirmDeleteView}
+        onCancel={() => setDeleteViewTarget(null)}
+      />
 
       {/* ── Tab bar ─────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 border-b border-border pb-2">
