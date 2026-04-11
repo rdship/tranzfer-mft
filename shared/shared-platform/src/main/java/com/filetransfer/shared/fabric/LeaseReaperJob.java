@@ -2,7 +2,9 @@ package com.filetransfer.shared.fabric;
 
 import com.filetransfer.fabric.config.FabricProperties;
 import com.filetransfer.shared.entity.FabricCheckpoint;
+import com.filetransfer.shared.entity.FlowExecution;
 import com.filetransfer.shared.repository.FabricCheckpointRepository;
+import com.filetransfer.shared.repository.FlowExecutionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
@@ -12,27 +14,41 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 /**
- * Detects stuck work (IN_PROGRESS checkpoints with expired leases).
+ * Detects stuck work (IN_PROGRESS checkpoints with expired leases) and schedules
+ * crash-recovery retries through the existing {@link com.filetransfer.shared.routing.FlowRestartService}
+ * path.
  *
- * Runs every 60 seconds. For each stuck checkpoint:
- * 1. Mark as ABANDONED (transactional)
- * 2. Republish the work item to flow.pipeline so another instance picks up
- * 3. Log loudly for operator visibility
+ * <p>Runs every 60 seconds. For each stuck checkpoint:
+ * <ol>
+ *   <li>Mark the checkpoint as ABANDONED (transactional)</li>
+ *   <li>Transition the owning {@link FlowExecution} from PROCESSING → FAILED
+ *       with an error message identifying the dead instance</li>
+ *   <li>Set {@code scheduledRetryAt = now()} so {@code ScheduledRetryExecutor}
+ *       (onboarding-api) picks it up within the next minute and restarts the
+ *       flow from the beginning via the already-tested restart path</li>
+ *   <li>Log loudly for operator visibility</li>
+ * </ol>
  *
- * ShedLock ensures only one pod runs this at a time across the cluster.
- * Fabric must be enabled; otherwise this job is a no-op.
+ * <p><b>Why not republish to {@code flow.pipeline}?</b> An earlier iteration called
+ * {@code FlowFabricBridge.publishStep()} to resume at the exact stuck step. That
+ * only works if a consumer is subscribed to {@code flow.pipeline} — which none
+ * currently is, in any tier. The fabric consume path today runs whole-flow
+ * execution via {@code flow.intake → executeFlowViaFabric}, not per-step. Until
+ * a per-step pipeline consumer is built, crash recovery restarts the flow from
+ * step 0 — correct behavior for a crashed mid-flow step, and it reuses the
+ * multi-instance-safe {@code clearScheduledRetry} race guard.
  *
- * <p><b>Phase 5 note — subsumes the delayed-retry topic:</b> The original
- * Phase 5 plan called for a separate {@code flow.retry.scheduled} delayed
- * topic mechanism to handle crash-recovery retries. That work is now
- * covered here: when a pod dies mid-step, its lease expires and this job
- * republishes the work item directly to {@code flow.pipeline}. Another
- * instance picks it up through the normal consumer path — no extra
- * delayed-topic plumbing required. User-scheduled retries (UI/API driven)
- * continue to flow through {@code ScheduledRetryExecutor}, which is
- * already multi-instance safe via its own ShedLock.
+ * <p><b>Tier coverage:</b>
+ * <ul>
+ *   <li><b>Tier 1</b> (fabric off) — reaper gated off; never runs.</li>
+ *   <li><b>Tier 2</b> (in-memory fabric, no Kafka) — reaper runs, schedules DB-mediated retry. Works.</li>
+ *   <li><b>Tier 3</b> (Kafka) — reaper runs, schedules DB-mediated retry. Works.</li>
+ * </ul>
+ *
+ * <p>ShedLock ensures only one pod runs this at a time across the cluster.
  */
 @Component
 @RequiredArgsConstructor
@@ -40,7 +56,7 @@ import java.util.List;
 public class LeaseReaperJob {
 
     private final FabricCheckpointRepository checkpointRepo;
-    private final FlowFabricBridge fabricBridge;
+    private final FlowExecutionRepository executionRepo;
     private final FabricProperties properties;
 
     @Scheduled(fixedDelay = 60_000, initialDelay = 30_000)
@@ -64,7 +80,7 @@ public class LeaseReaperJob {
         log.warn("[LeaseReaper] Found {} stuck checkpoints - reaping", stuck.size());
 
         int reaped = 0;
-        int republished = 0;
+        int scheduled = 0;
 
         for (FabricCheckpoint cp : stuck) {
             try {
@@ -79,18 +95,12 @@ public class LeaseReaperJob {
                 log.warn("[LeaseReaper] Abandoned stuck checkpoint trackId={} step={} type={} instance={}",
                     cp.getTrackId(), cp.getStepIndex(), cp.getStepType(), originalInstance);
 
-                // Republish to pipeline so another instance picks it up
-                try {
-                    fabricBridge.publishStep(
-                        cp.getTrackId(),
-                        cp.getStepIndex(),
-                        cp.getStepType(),
-                        cp.getInputStorageKey()
-                    );
-                    republished++;
-                } catch (Exception e) {
-                    log.error("[LeaseReaper] Failed to republish trackId={} step={}: {}",
-                        cp.getTrackId(), cp.getStepIndex(), e.getMessage());
+                // Schedule crash-recovery restart via the existing retry path.
+                // ScheduledRetryExecutor polls scheduled_retry_at every 60s and calls
+                // FlowRestartService.restartFromBeginning — which requires the execution
+                // to be in a non-PROCESSING state, so transition it to FAILED first.
+                if (scheduleRestart(cp, originalInstance)) {
+                    scheduled++;
                 }
             } catch (Exception e) {
                 log.error("[LeaseReaper] Failed to process stuck checkpoint {}: {}",
@@ -98,6 +108,54 @@ public class LeaseReaperJob {
             }
         }
 
-        log.warn("[LeaseReaper] Completed: {} abandoned, {} republished", reaped, republished);
+        log.warn("[LeaseReaper] Completed: {} abandoned, {} scheduled for restart", reaped, scheduled);
+    }
+
+    /**
+     * Transition a stuck FlowExecution to FAILED and set scheduledRetryAt=now(),
+     * so ScheduledRetryExecutor picks it up and calls restartFromBeginning.
+     *
+     * @return true if a restart was scheduled, false if the execution is missing or already terminal
+     */
+    private boolean scheduleRestart(FabricCheckpoint cp, String deadInstance) {
+        Optional<FlowExecution> opt = executionRepo.findByTrackId(cp.getTrackId());
+        if (opt.isEmpty()) {
+            log.warn("[LeaseReaper] No FlowExecution for trackId={} - cannot schedule restart",
+                cp.getTrackId());
+            return false;
+        }
+
+        FlowExecution exec = opt.get();
+        FlowExecution.FlowStatus status = exec.getStatus();
+
+        // Already terminal or already scheduled — nothing to do
+        if (status == FlowExecution.FlowStatus.COMPLETED
+            || status == FlowExecution.FlowStatus.CANCELLED) {
+            log.info("[LeaseReaper] trackId={} already in terminal state {} - skipping restart",
+                cp.getTrackId(), status);
+            return false;
+        }
+        if (exec.getScheduledRetryAt() != null) {
+            log.info("[LeaseReaper] trackId={} already has scheduledRetryAt={} - skipping",
+                cp.getTrackId(), exec.getScheduledRetryAt());
+            return false;
+        }
+
+        // Transition PROCESSING/PENDING → FAILED so restartFromBeginning will accept it
+        exec.setStatus(FlowExecution.FlowStatus.FAILED);
+        if (exec.getErrorMessage() == null) {
+            exec.setErrorMessage("Lease expired at step " + cp.getStepIndex()
+                + " (" + cp.getStepType() + ") - instance " + deadInstance + " died mid-step");
+        }
+        if (exec.getCompletedAt() == null) {
+            exec.setCompletedAt(Instant.now());
+        }
+        exec.setScheduledRetryAt(Instant.now());
+        exec.setScheduledRetryBy("lease-reaper");
+        executionRepo.save(exec);
+
+        log.warn("[LeaseReaper] trackId={} scheduled for restart (was {}, now FAILED + scheduledRetryAt=now)",
+            cp.getTrackId(), status);
+        return true;
     }
 }
