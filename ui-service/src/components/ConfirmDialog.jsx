@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { ExclamationTriangleIcon, InformationCircleIcon, ShieldCheckIcon } from '@heroicons/react/24/outline'
+import useTimeOfDayBackdrop from '../hooks/useTimeOfDayBackdrop'
 
 /**
  * ConfirmDialog — unified confirmation modal used anywhere a destructive,
@@ -52,6 +53,7 @@ export default function ConfirmDialog({
   loading = false,
 }) {
   const confirmRef = useRef(null)
+  const backdrop = useTimeOfDayBackdrop()
   const { accent, Icon, btnBg, btnHover } = VARIANT_STYLES[variant] || VARIANT_STYLES.info
 
   // Keyboard: Esc cancels, Enter confirms (unless already loading)
@@ -72,11 +74,12 @@ export default function ConfirmDialog({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center px-4"
-      style={{ background: 'rgba(0, 0, 0, 0.72)' }}
+      style={backdrop.style}
       onClick={onCancel}
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-dialog-title"
+      data-tod={backdrop.label}
     >
       <div
         className="w-full max-w-md rounded-xl overflow-hidden shadow-2xl"

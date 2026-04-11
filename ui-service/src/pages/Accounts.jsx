@@ -514,6 +514,8 @@ export default function Accounts() {
               error={createErrors.username}
               valid={!createErrors.username && !!form.username}
               helper="The login name the partner will use to connect"
+              samples={['partner_acme', 'globalsupply_prod', 'firstfed_sftp', 'svc_pacific']}
+              onSampleClick={(val) => { setForm(f => ({ ...f, username: val })); clearFieldError('username') }}
             >
               <input
                 value={form.username}

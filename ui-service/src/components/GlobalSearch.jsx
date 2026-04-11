@@ -13,6 +13,7 @@ import {
   ShieldCheckIcon,
 } from '@heroicons/react/24/outline'
 import { onboardingApi, configApi } from '../api/client'
+import useTimeOfDayBackdrop from '../hooks/useTimeOfDayBackdrop'
 
 /**
  * GlobalSearch — Cmd+K / Ctrl+K modal overlay.
@@ -45,6 +46,7 @@ export default function GlobalSearch({ open, onClose }) {
   const [selectedIdx, setSelectedIdx] = useState(0)
   const inputRef = useRef(null)
   const navigate = useNavigate()
+  const backdrop = useTimeOfDayBackdrop()
 
   // Reset state when opened
   useEffect(() => {
@@ -181,8 +183,9 @@ export default function GlobalSearch({ open, onClose }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center pt-[12vh] px-4"
-      style={{ background: 'rgba(0, 0, 0, 0.72)' }}
+      style={backdrop.style}
       onClick={onClose}
+      data-tod={backdrop.label}
     >
       <div
         className="w-full max-w-2xl rounded-xl overflow-hidden shadow-2xl"

@@ -548,6 +548,8 @@ export default function PartnerSetup() {
           valid={!stepErrors.companyName && !!form.companyName}
           helper="How you'll recognize this partner across reports and dashboards"
           tooltip="The legal entity name. It becomes the default partner slug used in API paths and audit trails, so pick something stable."
+          samples={['ACME Trading Co', 'Global Logistics Inc', 'Pacific Supply Ltd', 'FirstFederal Bank']}
+          onSampleClick={(val) => { updateForm({ companyName: val }); clearStepFieldError('companyName') }}
         >
           <input
             type="text"
@@ -560,6 +562,8 @@ export default function PartnerSetup() {
           label="Display name"
           name="displayName"
           helper="Short name shown in dashboards — falls back to company name if you leave it empty"
+          samples={['Acme', 'GlobLog', 'Pacific', 'FirstFed']}
+          onSampleClick={(val) => updateForm({ displayName: val })}
         >
           <input
             type="text"

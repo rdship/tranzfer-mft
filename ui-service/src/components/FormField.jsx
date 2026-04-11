@@ -60,6 +60,8 @@ export default function FormField({
   children,
   name,
   className = '',
+  samples,
+  onSampleClick,
 }) {
   const autoId = useId()
   const fieldId = `ff-${autoId}`
@@ -181,6 +183,46 @@ export default function FormField({
           </span>
           <span>{error}</span>
         </p>
+      )}
+
+      {/* Sample-value chips — clickable pills below the field that prefill
+          the input with a realistic example. Helps users who stare at an
+          empty field wondering "what should I even put here?". Drawn from
+          the VIP-forms principle: never leave a user guessing. */}
+      {samples && samples.length > 0 && typeof onSampleClick === 'function' && (
+        <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+          <span
+            className="text-[10px] uppercase tracking-wide font-semibold"
+            style={{ color: 'rgb(100, 116, 139)', letterSpacing: '0.05em' }}
+          >
+            try:
+          </span>
+          {samples.map((sample) => (
+            <button
+              key={sample}
+              type="button"
+              onClick={() => onSampleClick(sample)}
+              className="text-[10px] font-mono px-1.5 py-0.5 rounded transition-all"
+              style={{
+                background: 'rgba(100, 140, 255, 0.08)',
+                color: 'rgb(150, 180, 255)',
+                border: '1px solid rgba(100, 140, 255, 0.2)',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(100, 140, 255, 0.16)'
+                e.currentTarget.style.borderColor = 'rgba(100, 140, 255, 0.4)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(100, 140, 255, 0.08)'
+                e.currentTarget.style.borderColor = 'rgba(100, 140, 255, 0.2)'
+              }}
+              title={`Click to fill in "${sample}"`}
+            >
+              {sample}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   )

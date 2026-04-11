@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { XMarkIcon } from '@heroicons/react/24/outline'
+import useTimeOfDayBackdrop from '../hooks/useTimeOfDayBackdrop'
 
 /**
  * KeyboardShortcuts — modal cheat sheet triggered by "?" (no modifier),
@@ -53,6 +54,7 @@ const SHORTCUTS = [
 ]
 
 export default function KeyboardShortcuts({ open, onClose }) {
+  const backdrop = useTimeOfDayBackdrop()
   // Close on Escape
   useEffect(() => {
     if (!open) return
@@ -68,8 +70,9 @@ export default function KeyboardShortcuts({ open, onClose }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center px-4"
-      style={{ background: 'rgba(0, 0, 0, 0.72)' }}
+      style={backdrop.style}
       onClick={onClose}
+      data-tod={backdrop.label}
     >
       <div
         className="w-full max-w-2xl rounded-xl overflow-hidden shadow-2xl max-h-[80vh] flex flex-col"

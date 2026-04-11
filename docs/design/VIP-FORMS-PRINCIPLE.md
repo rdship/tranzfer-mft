@@ -153,6 +153,73 @@ const onKeyDown = useEnterAdvances({ onSubmit: () => handleSubmit(form)(null) })
 
 Textareas are excluded — Enter in a textarea is still a newline.
 
+### 11. Sample values beat empty fields
+
+An empty input with a label is intimidating. "Company Name: [__________]" makes the user pause and think "what format am I supposed to use?" Top-tier products eliminate that hesitation by showing **clickable sample values** right below the field.
+
+The `samples` prop on `<FormField>` renders a row of clickable pills that prefill the input when clicked. Users get an instant answer to "what should I put here?" without having to read documentation.
+
+```jsx
+<FormField
+  label="Company Name"
+  required
+  name="companyName"
+  helper="How you'll recognize this partner"
+  samples={['ACME Trading Co', 'Global Logistics Inc', 'Pacific Supply Ltd']}
+  onSampleClick={(val) => setForm({ ...form, companyName: val })}
+>
+  <input ... />
+</FormField>
+```
+
+Rules for good sample values:
+- **3-4 is the sweet spot.** More than 4 clutters the field.
+- **Realistic, not cute.** Use the kind of value a real user would enter, not placeholder filler like "Foo Inc" or "Acme".
+- **Varied format.** Show different shapes (short/long, with/without suffix) so users see the range of accepted input.
+- **Never reveal real customer data.** The samples must be invented or obviously generic.
+
+### 12. Time-of-day-aware modal backdrops
+
+When a modal opens, the backdrop overlay shouldn't be a single hardcoded `rgba(0,0,0,0.72)`. Top-tier apps (macOS Dynamic Desktop, iOS Auto Dark Mode, Notion Dark Mode) subtly adjust visuals based on ambient context. We do the same for modal backdrops:
+
+- **Morning (08-12):** cool blue overlay, slightly lighter — matches alert-and-productive mode
+- **Afternoon (12-17):** neutral warm grey
+- **Evening (17-20):** amber sunset tint, slightly darker
+- **Night (20-00):** deep indigo, darker — eyes are tired, we fade the background more
+- **Late night (00-05):** near-black with blue undertone, darkest — respects the operator working at 2 AM
+- **Dawn (05-08):** soft warm peach, lightest
+
+The `useTimeOfDayBackdrop` hook returns a ready-to-spread style object. Every modal backdrop uses it. The overlay color transitions smoothly over 800 ms if the user leaves the tab open across a time boundary.
+
+```jsx
+const backdrop = useTimeOfDayBackdrop()
+
+<div
+  className="fixed inset-0 z-50 flex items-center justify-center"
+  style={backdrop.style}
+  onClick={onClose}
+  data-tod={backdrop.label}
+>
+  <div className="modal-card">...</div>
+</div>
+```
+
+### 13. Never dummy — 360° integrated
+
+**No feature in this app is ever a mock.** Every button, every panel, every count, every chart is wired to a real backend endpoint. No "coming soon" stubs, no hardcoded sample responses, no `if (env === 'dev') returnFakeData()`.
+
+This is a hard rule, not a guideline. The moment you ship a fake panel to "make the page look full," you've broken the user's trust. If a feature isn't ready for real data, hide it entirely from the sidebar and put it on the plan doc instead.
+
+The only exceptions:
+- **Keyboard shortcut cheatsheet** can label planned-but-not-yet-wired shortcuts as `(planned)` in muted text, so users know what's coming.
+- **Demo data seeder** (`scripts/demo-traffic.sh`) intentionally inserts synthetic rows into a dev environment. This is explicitly labeled and only runs against a fresh demo database.
+
+Before merging any new page, grep it for these anti-patterns:
+```bash
+grep -n "MOCK\|fakeData\|dummyData\|TODO: wire\|coming soon\|// FAKE\|// STUB" newPage.jsx
+```
+If any match, either wire the missing piece to a real endpoint or remove the panel.
+
 ## Destructive actions: prefer undo over confirm
 
 For **routine** destructive actions (archive a flow, dismiss a notification, clear a filter, soft-delete a record), use `useUndoToast` instead of `<ConfirmDialog>`. Let the action happen optimistically and show a 7-second "Undo" toast.
