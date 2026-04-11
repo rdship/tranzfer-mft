@@ -103,18 +103,76 @@ function RouteFallback() {
 }
 
 /**
- * LazyRoute — wraps any lazy-loaded element in a Suspense + the shared
- * chunk-load error boundary. Used so every lazy <Route element> gets
- * identical loading + error handling without repeating the wrapper in
- * every <Route> declaration.
+ * LazyRoute — wraps any lazy-loaded element in:
+ *   1. A ChunkLoadErrorBoundary (catches stale-HTML chunk 404s after a deploy)
+ *   2. A per-page ErrorBoundary (catches render/runtime crashes inside the
+ *      page so one broken tab doesn't wipe out the sidebar and leave the
+ *      admin stranded)
+ *   3. Suspense with a skeleton fallback
+ *
+ * The per-page boundary is the important one for the "never silently crash"
+ * goal — before R15, any render error in any page bubbled all the way to
+ * the root ErrorBoundary which replaced the entire <Layout> with a generic
+ * error card. Now the sidebar + header stay intact and only the page body
+ * shows the recovery card.
  */
+function PageCrashCard({ error }) {
+  return (
+    <div className="p-6">
+      <div
+        className="max-w-xl mx-auto rounded-xl p-6"
+        style={{
+          background: 'rgb(127, 29, 29, 0.12)',
+          border: '1px solid rgba(239, 68, 68, 0.35)',
+        }}
+      >
+        <h2 className="text-lg font-bold mb-2" style={{ color: '#f87171' }}>
+          This page crashed
+        </h2>
+        <p className="text-sm mb-3" style={{ color: 'rgb(148, 163, 184)' }}>
+          The rest of the admin UI is still running — use the sidebar to
+          navigate elsewhere, or retry this page.
+        </p>
+        <pre
+          className="text-[11px] font-mono p-2 rounded mb-3 overflow-x-auto"
+          style={{ background: 'rgb(var(--canvas))', color: 'rgb(148, 163, 184)' }}
+        >
+          {error?.message || 'Unknown error'}
+        </pre>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-3 py-1.5 text-xs font-semibold rounded-lg"
+          style={{ background: '#dc2626', color: 'white' }}
+        >
+          Reload
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function LazyRoute({ children }) {
   return (
     <ChunkLoadErrorBoundary>
-      <Suspense fallback={<RouteFallback />}>
-        {children}
-      </Suspense>
+      <ErrorBoundary fallback={(err) => <PageCrashCard error={err} />}>
+        <Suspense fallback={<RouteFallback />}>
+          {children}
+        </Suspense>
+      </ErrorBoundary>
     </ChunkLoadErrorBoundary>
+  )
+}
+
+/**
+ * EagerRoute — same per-page error isolation for eager (non-lazy) routes.
+ * Operations pages stay eager for speed but still get a local boundary so
+ * a crash on Dashboard doesn't take out Fabric + Activity + Journey.
+ */
+function EagerRoute({ children }) {
+  return (
+    <ErrorBoundary fallback={(err) => <PageCrashCard error={err} />}>
+      {children}
+    </ErrorBoundary>
   )
 }
 
@@ -136,13 +194,15 @@ export default function App() {
           <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<Navigate to="/operations" replace />} />
 
-            {/* Operations — the hot path. These stay eager (no Suspense). */}
+            {/* Operations — the hot path. These stay eager (no Suspense)
+                but get per-page ErrorBoundary isolation via EagerRoute so
+                a crash in one tab doesn't take out the rest. */}
             <Route path="operations" element={<OperationsLayout />}>
-              <Route index element={<Dashboard />} />
-              <Route path="fabric" element={<FabricDashboard />} />
-              <Route path="activity" element={<ActivityMonitor />} />
-              <Route path="live" element={<Activity />} />
-              <Route path="journey" element={<Journey />} />
+              <Route index element={<EagerRoute><Dashboard /></EagerRoute>} />
+              <Route path="fabric" element={<EagerRoute><FabricDashboard /></EagerRoute>} />
+              <Route path="activity" element={<EagerRoute><ActivityMonitor /></EagerRoute>} />
+              <Route path="live" element={<EagerRoute><Activity /></EagerRoute>} />
+              <Route path="journey" element={<EagerRoute><Journey /></EagerRoute>} />
             </Route>
 
             {/* Back-compat redirects — old URLs still work, always */}
@@ -153,7 +213,7 @@ export default function App() {
             <Route path="journey"          element={<Navigate to="/operations/journey" replace />} />
 
             {/* Sentinel stays eager — it's part of the hot path for operators */}
-            <Route path="sentinel" element={<Sentinel />} />
+            <Route path="sentinel" element={<EagerRoute><Sentinel /></EagerRoute>} />
 
             {/* Everything else is lazy. Each Route wraps its element in
                 <LazyRoute> so every route gets Suspense + chunk error handling. */}

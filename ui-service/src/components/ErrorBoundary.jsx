@@ -24,6 +24,12 @@ export default class ErrorBoundary extends Component {
 
   render() {
     if (this.state.hasError) {
+      // Render-prop style: when fallback is a function, call it with the
+      // captured error so per-page boundaries can render error details.
+      // When it's a ReactElement, render it as-is (legacy usage).
+      if (typeof this.props.fallback === 'function') {
+        return this.props.fallback(this.state.error)
+      }
       if (this.props.fallback) return this.props.fallback
 
       return (
