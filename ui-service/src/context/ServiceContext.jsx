@@ -43,7 +43,14 @@ const SERVICE_HEALTH_ENDPOINTS = {
  * 'core' means always visible if onboarding is running.
  */
 const PAGE_SERVICE_MAP = {
-  // Always visible (core platform)
+  // Operations — the unified shell for Dashboard / Fabric / Activity / Live / Journey
+  '/operations':          ['core'],
+  '/operations/fabric':   ['core'],
+  '/operations/activity': ['core'],
+  '/operations/live':     ['core'],
+  '/operations/journey':  ['core'],
+
+  // Legacy flat routes — preserved as redirect targets, visible by default
   '/dashboard': ['core'],
   '/accounts': ['core'],
   '/users': ['core'],

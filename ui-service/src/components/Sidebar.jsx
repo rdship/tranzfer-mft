@@ -44,12 +44,13 @@ import {
 
 const navGroups = [
   {
-    label: 'Overview',
+    label: 'Operations',
     items: [
-      { to: '/dashboard',        icon: HomeIcon,             label: 'Dashboard' },
-      { to: '/activity-monitor',  icon: ChartBarIcon,         label: 'Activity Monitor' },
-      { to: '/activity',          icon: WifiIcon,             label: 'Live Activity' },
-      { to: '/journey',           icon: MagnifyingGlassIcon,  label: 'Transfer Journey' },
+      { to: '/operations',           icon: HomeIcon,            label: 'Dashboard' },
+      { to: '/operations/fabric',    icon: BoltIcon,            label: 'Flow Fabric' },
+      { to: '/operations/activity',  icon: ChartBarIcon,        label: 'Activity Monitor' },
+      { to: '/operations/live',      icon: WifiIcon,            label: 'Live Activity' },
+      { to: '/operations/journey',   icon: MagnifyingGlassIcon, label: 'Transfer Journey' },
     ],
   },
   {
@@ -112,7 +113,6 @@ const navGroups = [
     items: [
       { to: '/observatory',      icon: EyeIcon,         label: 'Observatory',          role: 'ADMIN' },
       { to: '/sentinel',         icon: CpuChipIcon,     label: 'Platform Sentinel',    role: 'ADMIN' },
-      { to: '/fabric',           icon: BoltIcon,        label: 'Flow Fabric',          role: 'ADMIN' },
       { to: '/recommendations',  icon: LightBulbIcon,   label: 'AI Recommendations' },
       { to: '/analytics',        icon: ChartBarIcon,    label: 'Analytics' },
       { to: '/predictions',      icon: BeakerIcon,      label: 'Predictions' },

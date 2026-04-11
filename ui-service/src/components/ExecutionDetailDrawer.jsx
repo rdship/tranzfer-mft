@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { format, formatDistanceToNow } from 'date-fns'
 import toast from 'react-hot-toast'
 import {
@@ -689,6 +689,51 @@ export default function ExecutionDetailDrawer({ trackId, open, onClose, showActi
             </div>
           )}
         </div>
+
+        {/* ── Cross-link strip ───────────────────────────────────────────
+            Quick navigation from this execution into its Fabric context,
+            Sentinel findings, or Journey trace. Transparency + guidance.    */}
+        {showActions && execution && !isLoading && !hasError && (
+          <div className="flex flex-wrap items-center gap-2 px-4 pt-3 pb-1">
+            <span className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: 'rgb(148, 163, 184)' }}>
+              Jump to:
+            </span>
+            <Link
+              to={`/operations/journey?trackId=${trackId}`}
+              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded border transition-colors hover:bg-[rgb(var(--surface-hover))]"
+              style={{ borderColor: 'rgb(30, 30, 36)', color: 'rgb(100, 140, 255)' }}
+              title="Full step-by-step timeline for this trackId"
+            >
+              Journey →
+            </Link>
+            <Link
+              to="/operations/fabric"
+              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded border transition-colors hover:bg-[rgb(var(--surface-hover))]"
+              style={{ borderColor: 'rgb(30, 30, 36)', color: 'rgb(234, 179, 8)' }}
+              title="Flow Fabric dashboard — queue depths, instances, latency"
+            >
+              Flow Fabric →
+            </Link>
+            <Link
+              to={`/sentinel?trackId=${trackId}`}
+              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded border transition-colors hover:bg-[rgb(var(--surface-hover))]"
+              style={{ borderColor: 'rgb(30, 30, 36)', color: 'rgb(192, 132, 252)' }}
+              title="Platform Sentinel findings for this trackId"
+            >
+              Sentinel Findings →
+            </Link>
+            {execution.flow?.id && (
+              <Link
+                to={`/flows?id=${execution.flow.id}`}
+                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded border transition-colors hover:bg-[rgb(var(--surface-hover))]"
+                style={{ borderColor: 'rgb(30, 30, 36)', color: 'rgb(74, 222, 128)' }}
+                title="View the Flow definition that ran this execution"
+              >
+                Flow Definition →
+              </Link>
+            )}
+          </div>
+        )}
 
         {/* ── Action Bar (footer) ────────────────────────────────────── */}
         {showActions && execution && !isLoading && !hasError && (

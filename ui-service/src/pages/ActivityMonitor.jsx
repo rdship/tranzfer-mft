@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { onboardingApi, configApi } from '../api/client'
+import { getFabricQueues, getFabricStuck, getFabricLatency, getFabricInstances } from '../api/fabric'
 import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer'
@@ -454,19 +455,30 @@ export default function ActivityMonitor() {
   const qc = useQueryClient()
   const { visibleKeys, visibleColumns, toggle, resetToDefaults } = useColumnPreferences()
 
+  // URL-driven filter state — enables deep-linking from Flow Fabric KPI cards
+  // and queue bars. Any filter the Fabric dashboard passes as a query param
+  // (?status=IN_PROGRESS, ?stepType=ENCRYPT, ?stuckOnly=true) is honored on load.
+  const [searchParams] = useSearchParams()
+  const urlStatus     = searchParams.get('status')
+  const urlStepType   = searchParams.get('stepType')
+  const urlStuckOnly  = searchParams.get('stuckOnly') === 'true'
+  const urlTrackId    = searchParams.get('trackId')
+
   // Pagination & sort state
   const [page, setPage] = useState(0)
   const [size, setSize] = useState(25)
   const [sortBy, setSortBy] = useState('uploadedAt')
   const [sortDir, setSortDir] = useState('DESC')
 
-  // Filters
+  // Filters — initialize from URL if present
   const [filenameFilter, setFilenameFilter] = useState('')
-  const [trackIdFilter, setTrackIdFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState('ALL')
+  const [trackIdFilter, setTrackIdFilter] = useState(urlTrackId || '')
+  const [statusFilter, setStatusFilter] = useState(urlStatus || 'ALL')
   const [sourceUserFilter, setSourceUserFilter] = useState('')
   const [protocolFilter, setProtocolFilter] = useState('ALL')
-  const [stuckOnly, setStuckOnly] = useState(false)
+  const [stuckOnly, setStuckOnly] = useState(urlStuckOnly)
+  // stepType filter is not a backend param (yet) — we filter client-side on fabricStatus
+  const [stepTypeFilter] = useState(urlStepType || '')
 
   // UI state
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -525,9 +537,35 @@ export default function ActivityMonitor() {
   })
 
   const rawRows = data?.content || []
-  const rows = stuckOnly ? rawRows.filter(r => r.isStuck) : rawRows
-  const totalElements = stuckOnly ? rows.length : (data?.totalElements || 0)
-  const totalPages = stuckOnly ? 1 : (data?.totalPages || 0)
+  // Client-side filters layered on top of the server query:
+  //   stuckOnly   — hide non-stuck rows
+  //   stepType    — hide rows whose current Fabric step doesn't match
+  const rows = useMemo(() => {
+    let out = rawRows
+    if (stuckOnly)           out = out.filter(r => r.isStuck)
+    if (stepTypeFilter)      out = out.filter(r => r.currentStepType === stepTypeFilter)
+    return out
+  }, [rawRows, stuckOnly, stepTypeFilter])
+  const totalElements = (stuckOnly || stepTypeFilter) ? rows.length : (data?.totalElements || 0)
+  const totalPages    = (stuckOnly || stepTypeFilter) ? 1 : (data?.totalPages || 0)
+
+  // ── Fabric KPI strip (polled independently so it never blocks the main table) ──
+  // Gives the user at-a-glance Fabric context while they explore the Activity list.
+  // Click-through on any KPI reopens the Fabric dashboard with matching focus.
+  const { data: fabQueues }    = useQuery({ queryKey: ['am-fabric-queues'],    queryFn: getFabricQueues,    refetchInterval: 10000, retry: 0 })
+  const { data: fabInstances } = useQuery({ queryKey: ['am-fabric-instances'], queryFn: getFabricInstances, refetchInterval: 15000, retry: 0 })
+  const { data: fabStuck }     = useQuery({ queryKey: ['am-fabric-stuck'],     queryFn: getFabricStuck,     refetchInterval: 15000, retry: 0 })
+  const { data: fabLatency }   = useQuery({ queryKey: ['am-fabric-latency'],   queryFn: getFabricLatency,   refetchInterval: 30000, retry: 0 })
+  const fabInProgress = fabQueues?.inProgressByStepType
+    ? Object.values(fabQueues.inProgressByStepType).reduce((a, b) => a + b, 0)
+    : 0
+  const fabHealthyInstances = fabInstances?.active?.length || 0
+  const fabStuckCount = fabStuck?.totalElements ?? (Array.isArray(fabStuck) ? fabStuck.length : fabStuck?.items?.length ?? 0)
+  const fabP95 = (() => {
+    if (!fabLatency?.byStepType) return null
+    const max = Math.max(...Object.values(fabLatency.byStepType).map(s => s.p95 || 0), 0)
+    return max > 0 ? max : null
+  })()
 
   // Sort toggle
   const handleSort = (key) => {
@@ -677,6 +715,43 @@ export default function ActivityMonitor() {
 
   return (
     <div className="space-y-6">
+      {/* ── Fabric context strip — always visible above the table ──────────
+          Gives users at-a-glance Fabric state without leaving this page. Each
+          KPI click-through opens the Fabric dashboard scoped appropriately.   */}
+      <div
+        className="grid grid-cols-2 md:grid-cols-4 gap-3 rounded-xl p-3"
+        style={{ background: 'rgba(59, 130, 246, 0.04)', border: '1px solid rgb(30, 30, 36)' }}
+      >
+        <FabricMiniCard
+          label="In Fabric"
+          value={fabInProgress}
+          hint="In-progress steps across all instances"
+          to="/operations/fabric"
+          color="rgb(96, 165, 250)"
+        />
+        <FabricMiniCard
+          label="Healthy Pods"
+          value={fabHealthyInstances}
+          hint="Fabric instances with live heartbeat"
+          to="/operations/fabric"
+          color="rgb(74, 222, 128)"
+        />
+        <FabricMiniCard
+          label="Stuck"
+          value={fabStuckCount}
+          hint={fabStuckCount > 0 ? 'Files past lease — click to filter' : 'No stuck work'}
+          to="/operations/activity?stuckOnly=true"
+          color={fabStuckCount > 0 ? 'rgb(248, 113, 113)' : 'rgb(148, 163, 184)'}
+        />
+        <FabricMiniCard
+          label="p95 Latency"
+          value={fabP95 != null ? `${fabP95}ms` : '—'}
+          hint="Highest p95 across all step types"
+          to="/operations/fabric"
+          color="rgb(250, 204, 21)"
+        />
+      </div>
+
       {/* ── Header ───────────────────────────────────────────────── */}
       <div className="flex items-start justify-between">
         <div>
@@ -685,6 +760,20 @@ export default function ActivityMonitor() {
             {totalElements > 0 && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-semibold rounded-full ring-1 ring-inset ring-blue-600/10">
                 {totalElements.toLocaleString()} transfers
+              </span>
+            )}
+            {stepTypeFilter && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full"
+                    style={{ background: 'rgba(234, 179, 8, 0.15)', color: 'rgb(250, 204, 21)' }}>
+                Step: {stepTypeFilter}
+                <Link to="/operations/activity" className="ml-1 hover:underline">✕</Link>
+              </span>
+            )}
+            {stuckOnly && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full"
+                    style={{ background: 'rgba(239, 68, 68, 0.15)', color: 'rgb(248, 113, 113)' }}>
+                Stuck only
+                <Link to="/operations/activity" className="ml-1 hover:underline">✕</Link>
               </span>
             )}
             {isFetching && !isLoading && (
@@ -1313,5 +1402,27 @@ export default function ActivityMonitor() {
         }
       `}</style>
     </div>
+  )
+}
+
+// ── FabricMiniCard — compact KPI shown in the Activity Monitor context strip ──
+function FabricMiniCard({ label, value, hint, to, color }) {
+  return (
+    <Link
+      to={to}
+      title={hint}
+      className="flex items-center justify-between rounded-lg p-2.5 transition-colors hover:bg-surface-hover"
+      style={{ border: '1px solid rgb(30, 30, 36)' }}
+    >
+      <div>
+        <div className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: 'rgb(148, 163, 184)' }}>
+          {label}
+        </div>
+        <div className="text-xl font-bold mt-0.5" style={{ color }}>{value}</div>
+      </div>
+      <svg className="w-4 h-4 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+      </svg>
+    </Link>
   )
 }

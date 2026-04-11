@@ -67,6 +67,7 @@ import PartnerPortalLayout from './components/PartnerPortalLayout'
 import PartnerPortalDashboard from './pages/PartnerPortalDashboard'
 import PartnerPortalTransfers from './pages/PartnerPortalTransfers'
 import PartnerPortalSettings from './pages/PartnerPortalSettings'
+import OperationsLayout from './layouts/OperationsLayout'
 
 export default function App() {
   return (
@@ -84,8 +85,23 @@ export default function App() {
             <Route path="settings" element={<PartnerPortalSettings />} />
           </Route>
           <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard" element={<Dashboard />} />
+            <Route index element={<Navigate to="/operations" replace />} />
+
+            {/* Operations — Fabric, Activity, Live, Journey as one unified layout */}
+            <Route path="operations" element={<OperationsLayout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="fabric" element={<FabricDashboard />} />
+              <Route path="activity" element={<ActivityMonitor />} />
+              <Route path="live" element={<Activity />} />
+              <Route path="journey" element={<Journey />} />
+            </Route>
+
+            {/* Back-compat redirects — old URLs still work, always */}
+            <Route path="dashboard"        element={<Navigate to="/operations" replace />} />
+            <Route path="fabric"           element={<Navigate to="/operations/fabric" replace />} />
+            <Route path="activity-monitor" element={<Navigate to="/operations/activity" replace />} />
+            <Route path="activity"         element={<Navigate to="/operations/live" replace />} />
+            <Route path="journey"          element={<Navigate to="/operations/journey" replace />} />
             <Route path="partners" element={<Partners />} />
             <Route path="partners/:id" element={<PartnerDetail />} />
             <Route path="partner-setup" element={<PartnerSetup />} />
@@ -105,7 +121,6 @@ export default function App() {
             <Route path="gateway" element={<GatewayStatus />} />
             <Route path="dmz-proxy" element={<DmzProxy />} />
             <Route path="proxy-groups" element={<ProxyGroups />} />
-            <Route path="journey" element={<Journey />} />
             <Route path="keystore" element={<Keystore />} />
             <Route path="scheduler" element={<Scheduler />} />
             <Route path="sla" element={<Sla />} />
@@ -114,8 +129,6 @@ export default function App() {
             <Route path="storage" element={<Storage />} />
             <Route path="cas-dedup" element={<CasDedup />} />
             <Route path="vfs-storage" element={<VfsStorage />} />
-            <Route path="activity" element={<Activity />} />
-            <Route path="activity-monitor" element={<ActivityMonitor />} />
             <Route path="sentinel" element={<Sentinel />} />
             <Route path="circuit-breakers" element={<CircuitBreakers />} />
             <Route path="observatory" element={<Observatory />} />
@@ -142,7 +155,6 @@ export default function App() {
             <Route path="threat-intelligence" element={<ThreatIntelligence />} />
             <Route path="edi-training" element={<EdiTraining />} />
             <Route path="proxy-intelligence" element={<ProxyIntelligence />} />
-            <Route path="fabric" element={<FabricDashboard />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
