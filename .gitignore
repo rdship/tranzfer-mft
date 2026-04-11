@@ -47,6 +47,14 @@ docker-compose.override.yml
 *.key
 !*.key.example
 
+# --- SPIRE bootstrap tokens (secrets, generated at runtime) ---
+spire/join-token.txt
+
+# --- Chaos / perf test artifacts (timestamped, regenerated per run) ---
+tests/perf/results/chaos-report-*.md
+tests/perf/results/chaos-logs-*/
+tests/perf/results/perf-report-*.md
+
 # --- OS ---
 .DS_Store
 Thumbs.db

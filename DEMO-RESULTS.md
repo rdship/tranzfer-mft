@@ -270,3 +270,54 @@ Hottest by MEM: mft-config-service (736 MB), mft-ftp-web-service (713 MB), mft-s
 | 2 | All `application.yml` files | Add `management.endpoint.health.probes.enabled=true` OR verify `/actuator/health/liveness` is exposed on every service | MEDIUM |
 | 3 | Flyway V42 | Replace `CREATE INDEX CONCURRENTLY` with plain `CREATE INDEX` — CONCURRENTLY cannot run in a Flyway-managed transaction | MEDIUM |
 | 4 | Flyway V54/V999 | Resolve migration ordering — V999 "write-intents" sentinel blocks all lower-numbered migrations from ever running on a fresh DB | HIGH |
+
+## Resource snapshots
+
+### Snapshot — baseline (full) — 14:16:17
+
+```
+Containers: 39 · Total memory used: 13832 MB (~13.5 GB)
+```
+
+```
+NAME                       CPU %     MEM USAGE / LIMIT     MEM %     NET I/O
+mft-api-gateway            0.00%     9.074MiB / 23.43GiB   0.04%     96.3kB / 123kB
+mft-ftp-web-ui             0.00%     7.809MiB / 23.43GiB   0.03%     13.3kB / 126B
+mft-ui-service             0.00%     8.383MiB / 23.43GiB   0.03%     79.5kB / 345kB
+mft-dmz-proxy-internal     0.24%     244.5MiB / 23.43GiB   1.02%     285kB / 299kB
+mft-partner-portal         0.00%     7.793MiB / 23.43GiB   0.03%     14.2kB / 126B
+mft-grafana                0.01%     61.78MiB / 23.43GiB   0.26%     346kB / 12.9kB
+mft-promtail               0.55%     58.3MiB / 23.43GiB    0.24%     102kB / 920kB
+mft-platform-sentinel      0.30%     601.6MiB / 23.43GiB   2.51%     284kB / 309kB
+mft-notification-service   0.30%     672.3MiB / 23.43GiB   2.80%     415kB / 487kB
+mft-ai-engine              23.07%    603.3MiB / 23.43GiB   2.51%     852kB / 6.39MB
+mft-ftp-service-2          0.19%     529.7MiB / 23.43GiB   2.21%     174kB / 224kB
+mft-prometheus             0.53%     60.54MiB / 23.43GiB   0.25%     11.8MB / 1.07MB
+mft-ftp-service-3          0.25%     641.4MiB / 23.43GiB   2.67%     175kB / 227kB
+mft-ftp-service            0.51%     582.9MiB / 23.43GiB   2.43%     323kB / 394kB
+mft-sftp-service-2         0.49%     567.8MiB / 23.43GiB   2.37%     204kB / 251kB
+mft-screening-service      1.40%     493.1MiB / 23.43GiB   2.05%     7.36MB / 5.19MB
+mft-config-service         1.65%     605MiB / 23.43GiB     2.52%     1.87MB / 1.87MB
+mft-ftp-web-service        0.44%     595.5MiB / 23.43GiB   2.48%     311kB / 360kB
+mft-license-service        0.34%     563.4MiB / 23.43GiB   2.35%     298kB / 4.36MB
+mft-as2-service            0.43%     526MiB / 23.43GiB     2.19%     441kB / 310kB
+mft-keystore-manager       0.78%     640.2MiB / 23.43GiB   2.67%     356kB / 503kB
+mft-edi-converter          0.27%     227.6MiB / 23.43GiB   0.95%     205kB / 125kB
+mft-encryption-service     0.55%     651.2MiB / 23.43GiB   2.71%     360kB / 420kB
+mft-storage-manager        2.57%     553.3MiB / 23.43GiB   2.31%     382kB / 347kB
+mft-sftp-service           1.40%     527.5MiB / 23.43GiB   2.20%     301kB / 338kB
+mft-sftp-service-3         0.51%     615.2MiB / 23.43GiB   2.56%     178kB / 226kB
+mft-ftp-web-service-2      0.34%     469.3MiB / 23.43GiB   1.96%     139kB / 148kB
+mft-onboarding-api         3.21%     730.8MiB / 23.43GiB   3.05%     2.05MB / 2.22MB
+mft-alertmanager           0.07%     21.15MiB / 23.43GiB   0.09%     222kB / 18.3kB
+mft-gateway-service        0.40%     558.5MiB / 23.43GiB   2.33%     327kB / 302kB
+mft-forwarder-service      2.79%     578.4MiB / 23.43GiB   2.41%     272kB / 307kB
+mft-minio                  0.05%     84.15MiB / 23.43GiB   0.35%     25.2kB / 7.96kB
+mft-loki                   0.75%     111MiB / 23.43GiB     0.46%     935kB / 92.9kB
+mft-spire-agent            0.09%     23.57MiB / 23.43GiB   0.10%     1.37MB / 295kB
+mft-postgres               0.86%     201.3MiB / 23.43GiB   0.84%     10.5MB / 6.2MB
+mft-rabbitmq               0.27%     150.4MiB / 23.43GiB   0.63%     267kB / 1.16MB
+mft-redis                  0.45%     10.11MiB / 23.43GiB   0.04%     66.7kB / 249kB
+mft-spire-server           0.00%     27.43MiB / 23.43GiB   0.11%     297kB / 1.37MB
+mft-redpanda               0.47%     210.7MiB / 23.43GiB   0.88%     218kB / 136kB
+```
