@@ -2,11 +2,24 @@
 
 A one-page guide to boot the platform, poke at every feature, and send your notes back.
 
+## Two modes — pick based on your machine
+
+| Mode | When to use | Services | RAM needed | First-run time |
+|---|---|---|---|---|
+| **Tier-2** (default) | 10 GB laptops | 14 core + infra + 2 UIs (~20 containers) | ~10 GB | ~15 min |
+| **Full stack** (`--full`) | 25 GB+ laptops | Everything — all services, replicas, Grafana, Prometheus, MinIO, 4 UIs (~40 containers) | ~25 GB (Docker Desktop set to 20 GB) | ~25-30 min |
+
+Run tier-2 with `./scripts/demo-all.sh`. Run the full stack with `./scripts/demo-all.sh --full`. Everything else in this guide applies to both.
+
+**If you can run the full stack, do it** — it's a much more honest end-to-end test: real SCREEN/DLP, real EDI translation, real AS2, real DMZ proxy, real observability stack, plus the ability to watch pod replicas work-steal via Flow Fabric.
+
 ## What you need
 
 - macOS or Linux with **Docker Desktop** installed and running
-- ~**10 GB free RAM** and ~**15 GB free disk**
-- ~**15 minutes** for the first run (Docker pulls images + builds + seeds data)
+- Tier-2: ~**10 GB free RAM** and ~**15 GB free disk**
+- Full stack: ~**25 GB free RAM** and ~**25 GB free disk**
+- Docker Desktop memory allocation (Settings → Resources → Memory): **8 GB** for tier-2, **20 GB** for full stack
+- ~**15-30 minutes** for the first run (Docker pulls images + builds + seeds data)
 
 ## Step 1 — Pull the latest code
 
@@ -18,14 +31,18 @@ git pull
 ## Step 2 — Run the one-button setup
 
 ```bash
+# Tier-2 (10 GB machines)
 ./scripts/demo-all.sh
+
+# Full stack (25 GB machines)
+./scripts/demo-all.sh --full
 ```
 
-That's it. It does four things:
+Either mode does four things:
 
-1. Boots a **curated tier-2 stack** (14 core services + infra, fits ~9.5 GB) — skips replicas, observability stack, niche services. Full list in [scripts/demo-start.sh](scripts/demo-start.sh).
+1. **Boots the stack** — tier-2 boots ~20 containers in ~5 min; full stack boots ~40 containers in 10-20 min on first run. Phased boot with health gates.
 2. Seeds **1000+ entities** via `demo-onboard.sh` — partners, flows, accounts, keys, policies, etc. so every page has real data.
-3. Seeds **historical Fabric + Sentinel + Analytics data** — 150 flow executions, 750 fabric checkpoints with realistic latency distribution, 6 instance heartbeats (4 healthy + 2 dead), 12 Sentinel findings, health score time series.
+3. Seeds **historical Fabric + Sentinel + Analytics data** — 150 flow executions, 600+ fabric checkpoints with realistic latency distribution, 6 instance heartbeats (4 healthy + 2 dead), 12 Sentinel findings, health score time series.
 4. Captures a **baseline resource snapshot** to [DEMO-RESULTS.md](DEMO-RESULTS.md).
 
 If anything fails mid-run, just re-run it — the script is idempotent (demo traffic is tagged with `TRZDEMO` / `demo_` prefixes and cleaned before re-seeding).
@@ -36,7 +53,18 @@ If anything fails mid-run, just re-run it — the script is idempotent (demo tra
 - **Email:** `admin@filetransfer.local`
 - **Password:** `Tr@nzFer2026!`
 
-(Partner portal: http://localhost:3002 — different login, use "Create partner" flow from admin UI to get creds.)
+**Other entry points** (full stack only — these are dropped in tier-2):
+
+| Service | URL | Creds |
+|---|---|---|
+| Partner Portal | http://localhost:3002 | create partners via admin UI |
+| FTP Web UI | http://localhost:3001 | seeded FTP-Web accounts |
+| Grafana | http://localhost:3030 | admin / admin |
+| Prometheus | http://localhost:9090 | no auth |
+| Alertmanager | http://localhost:9093 | no auth |
+| RabbitMQ Management | http://localhost:15672 | guest / guest |
+| Redpanda Admin | http://localhost:9644 | no auth |
+| MinIO Console | http://localhost:9001 | minioadmin / minioadmin |
 
 ## Step 4 — Click around, with [DEMO-RESULTS.md](DEMO-RESULTS.md) open alongside
 
@@ -57,6 +85,42 @@ The results file has a per-page checklist. As you explore each page, tick boxes 
 | 🔎 | Analytics `/analytics` | Charts render with transfer history |
 | 🔎 | Keystore `/keystore` | Keys across types |
 | 🔎 | Everything else in the sidebar — just confirm it loads |
+
+### Full-stack-only bonus pages
+
+These are dropped in tier-2, so you'll only see them if you ran `./scripts/demo-all.sh --full`:
+
+| Page | What to verify |
+|---|---|
+| **Screening / DLP** `/screening` | DLP engine runs on real uploads (ClamAV is stubbed on ARM — that's fine) |
+| **EDI Translation** `/edi` | X12 / EDIFACT / HL7 / TRADACOMS — try translating a sample document |
+| **AS2/AS4 Partnerships** `/as2-partnerships` | 42 partnerships — real AS2 delivery works |
+| **Gateway** `/gateway` | Real gateway status including DMZ proxy |
+| **Grafana dashboards** (http://localhost:3030) | JVM, HTTP, Fabric, postgres, RabbitMQ panels |
+| **Prometheus** (http://localhost:9090) | Raw metric queries |
+| **Alertmanager** (http://localhost:9093) | Any firing alerts |
+| **MinIO Console** (http://localhost:9001) | S3-backed storage bucket contents |
+| **FTP Web UI** (http://localhost:3001) | End-user file upload interface (separate from admin UI) |
+
+### 🔥 End-to-end real SFTP test (full-stack only)
+
+This actually exercises the complete pipeline with real SSH, real encryption, real storage:
+
+1. Admin UI → **Transfer Accounts** → **New** → pick `sftp-1`, username `wife-test`, password `demo`
+2. Wait ~5 seconds (running sftp-service picks up the account via RabbitMQ/Fabric event)
+3. From a terminal:
+   ```bash
+   sftp -P 2222 wife-test@localhost
+   # password: demo
+   put any-local-file.txt
+   quit
+   ```
+4. Switch to the browser and watch in real time:
+   - `/activity` — event stream shows the upload
+   - `/activity-monitor` — new execution row, PROCESSING → COMPLETED
+   - `/fabric` — queue depths tick up, new latency sample
+   - `/journey` — search the new trackId, full step-by-step timeline
+   - `/sentinel` — fresh findings within ~5 min (Sentinel analyzers run every 5 min)
 
 ## Step 5 — Capture snapshots while you test
 
@@ -97,7 +161,10 @@ docker compose down -v
 ## Troubleshooting
 
 **`docker compose up` complains about RAM or refuses to start services**
-Check Docker Desktop preferences → Resources → Memory. It should be set to at least **10 GB**. Also close other RAM-heavy apps (Chrome with 40 tabs, IntelliJ, etc).
+Check Docker Desktop preferences → Resources → Memory. Tier-2 needs **8 GB** allocated; full stack needs **20 GB**. Also close other RAM-heavy apps (Chrome with 40 tabs, IntelliJ, etc).
+
+**Services OOM-killing on boot (full stack only) / "Exited (137)"**
+Docker Desktop memory allocation is too low for the full stack. Open Docker Desktop → Settings → Resources → Memory, set to 20 GB+, Apply & Restart, then re-run `./scripts/demo-all.sh --full`. Or drop back to tier-2 with `./scripts/demo-all.sh`.
 
 **A page shows "Fabric data unavailable" / empty state**
 That means either `demo-traffic.sh` didn't run, or the corresponding service isn't up. Run:
@@ -119,9 +186,9 @@ Something else is listening on 3000, 5432, 8080, etc. Stop it, or edit `docker-c
 **I want to see Grafana / Prometheus / the other pages that are dropped in tier-2**
 Run the full stack instead:
 ```bash
-docker compose up -d
+./scripts/demo-all.sh --full
 ```
-This needs ~14 GB RAM — don't do it on a 10 GB machine.
+This needs ~25 GB RAM on the host machine and ~20 GB allocated to Docker Desktop.
 
 ---
 

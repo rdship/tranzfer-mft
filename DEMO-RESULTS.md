@@ -7,7 +7,9 @@
 
 - **Tester name:**
 - **Date:**
-- **Machine:** (e.g. "MacBook Air M1, 10 GB RAM, 9 CPU")
+- **Machine:** (e.g. "MacBook Pro M2, 25 GB RAM, 9 CPU")
+- **Mode:** tier-2 (`demo-all.sh`) or full stack (`demo-all.sh --full`)?
+- **Docker Desktop memory allocation:** (Settings → Resources → Memory, in GB)
 - **Setup wall time:** (how long did `./scripts/demo-all.sh` take end-to-end?)
 - **Any boot errors?** (copy-paste the last lines of the script output if anything failed)
 
@@ -174,6 +176,73 @@ Notes:
 - [ ] Page loads
 - [ ] Can upload a file
 - [ ] Uploaded file triggers a live flow (verify on /fabric)
+
+Notes:
+
+---
+
+## Full-stack only (skip this section if you ran tier-2)
+
+### 21. Screening & DLP — `/screening`
+- [ ] Service reports healthy (no yellow banner)
+- [ ] DLP policies are active
+- [ ] Quarantine page `/quarantine` loads
+
+Notes:
+
+### 22. EDI Translation — `/edi` (the live service, not just config)
+- [ ] Try translating a sample X12 document
+- [ ] HL7 / EDIFACT / TRADACOMS options work
+
+Notes:
+
+### 23. AS2/AS4 Partnerships — `/as2-partnerships`
+- [ ] Can trigger a real AS2 MDN exchange (if a partnership is fully configured)
+- [ ] Partnerships list + detail pages both work
+
+Notes:
+
+### 24. Gateway — `/gateway`
+- [ ] Gateway status + DMZ proxy shown
+- [ ] External-facing ports visible
+
+Notes:
+
+### 25. Grafana — http://localhost:3030 (admin / admin)
+- [ ] Dashboards load
+- [ ] JVM / HTTP / Fabric / Postgres / RabbitMQ panels populate
+- [ ] Any panel that's broken? (note which one)
+
+Notes:
+
+### 26. Prometheus — http://localhost:9090
+- [ ] Targets page shows all services UP
+- [ ] Try a query: `sum(rate(http_server_requests_seconds_count[1m]))`
+
+Notes:
+
+### 27. Alertmanager — http://localhost:9093
+- [ ] Page loads
+- [ ] Any firing alerts? (expected: 0-2 on a fresh boot)
+
+Notes:
+
+### 28. MinIO Console — http://localhost:9001 (minioadmin / minioadmin)
+- [ ] Console loads
+- [ ] Buckets visible (used for S3-backed storage)
+
+Notes:
+
+### 29. FTP Web UI — http://localhost:3001
+- [ ] Page loads
+- [ ] Can log in with a seeded FTP-Web account
+- [ ] Can upload a file via the web UI (separate from admin UI's File Manager)
+
+Notes:
+
+### 30. API Gateway — http://localhost:80
+- [ ] Routes to the right service
+- [ ] Single entry point works
 
 Notes:
 
