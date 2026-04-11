@@ -1,7 +1,11 @@
+-- flyway:executeInTransaction:false
 -- ──────────────────────────────────────────────────────────────────────────────
 -- V42: Performance indexes for high-frequency query paths
 --
 -- All indexes use CREATE INDEX CONCURRENTLY to avoid table locks in production.
+-- CONCURRENTLY cannot run inside a Flyway transaction, so we opt out via the
+-- directive above (Flyway 9.5+). Without it, every fresh boot hits a statement
+-- timeout and onboarding-api / config-service crash on startup.
 -- Run individually if you need to monitor progress.
 -- ──────────────────────────────────────────────────────────────────────────────
 
