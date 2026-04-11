@@ -7,6 +7,8 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import toast from 'react-hot-toast'
 import FormField, { friendlyError } from '../components/FormField'
+import ColumnSettingsButton from '../components/ColumnSettingsButton'
+import useColumnPrefs from '../hooks/useColumnPrefs'
 import {
   PlusIcon,
   TrashIcon,
@@ -44,6 +46,25 @@ const STATUS_TABS = [
   { label: 'Suspended', value: 'SUSPENDED' },
   { label: 'Offboarded', value: 'OFFBOARDED' },
 ]
+
+// ── Column universe for the partner table ────────────────────────────────
+// `key` is the stable id persisted in localStorage; never rename without
+// bumping the tableKey so stale entries are invalidated.
+const PARTNER_COLUMNS = [
+  { key: 'company',    label: 'Company' },
+  { key: 'type',       label: 'Type' },
+  { key: 'protocols',  label: 'Protocols' },
+  { key: 'status',     label: 'Status' },
+  { key: 'phase',      label: 'Phase' },
+  { key: 'slaTier',    label: 'SLA Tier' },
+  { key: 'accounts',   label: 'Accounts' },
+  { key: 'createdAt',  label: 'Created' },
+  { key: 'actions',    label: 'Actions' },
+]
+const PARTNER_COLUMN_KEYS = PARTNER_COLUMNS.map(c => c.key)
+// Hide rarely-needed columns (phase, createdAt) by default — operators can
+// opt in via the gear popover. Actions column is always on by default.
+const PARTNER_DEFAULT_VISIBLE = ['company', 'type', 'protocols', 'status', 'slaTier', 'accounts', 'actions']
 
 const EMPTY_FORM = {
   companyName: '',
@@ -113,6 +134,10 @@ export default function Partners() {
   const [showBulkConfirm, setShowBulkConfirm] = useState(null) // 'activate' | 'suspend'
   const [sortBy, setSortBy] = useState('companyName')
   const [sortDir, setSortDir] = useState('asc')
+
+  // Column visibility preferences — persisted per-table via localStorage.
+  const { isVisible, toggle: toggleColumn, resetToDefaults: resetColumns, visibleKeys: visibleColumnKeys } =
+    useColumnPrefs('partners-table', PARTNER_DEFAULT_VISIBLE, PARTNER_COLUMN_KEYS)
 
   const { data: partners = [], isLoading } = useQuery({
     queryKey: ['partners', statusFilter],
@@ -341,14 +366,23 @@ export default function Partners() {
         ))}
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted pointer-events-none" />
-        <input
-          placeholder="Search by company name..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="pl-10 pr-3 py-2 text-sm border rounded-lg w-full max-w-sm"
+      {/* Search + Column settings */}
+      <div className="flex items-center gap-3">
+        <div className="relative max-w-sm flex-1">
+          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted pointer-events-none" />
+          <input
+            placeholder="Search by company name..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-10 pr-3 py-2 text-sm border rounded-lg w-full max-w-sm"
+          />
+        </div>
+        <ColumnSettingsButton
+          tableKey="partners-table"
+          columns={PARTNER_COLUMNS}
+          visibleKeys={visibleColumnKeys}
+          toggle={toggleColumn}
+          resetToDefaults={resetColumns}
         />
       </div>
 
@@ -382,15 +416,15 @@ export default function Partners() {
               <thead>
                 <tr className="border-b border-border">
                   <th className="table-header w-8"><input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleSelectAll} /></th>
-                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('companyName')} aria-sort={sortBy === 'companyName' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Company {sortBy === 'companyName' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
-                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('partnerType')} aria-sort={sortBy === 'partnerType' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Type {sortBy === 'partnerType' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
-                  <th className="table-header">Protocols</th>
-                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('status')} aria-sort={sortBy === 'status' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Status {sortBy === 'status' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
-                  <th className="table-header">Phase</th>
-                  <th className="table-header">SLA Tier</th>
-                  <th className="table-header">Accounts</th>
-                  <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('createdAt')} aria-sort={sortBy === 'createdAt' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Created {sortBy === 'createdAt' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
-                  <th className="table-header">Actions</th>
+                  {isVisible('company') && <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('companyName')} aria-sort={sortBy === 'companyName' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Company {sortBy === 'companyName' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>}
+                  {isVisible('type') && <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('partnerType')} aria-sort={sortBy === 'partnerType' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Type {sortBy === 'partnerType' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>}
+                  {isVisible('protocols') && <th className="table-header">Protocols</th>}
+                  {isVisible('status') && <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('status')} aria-sort={sortBy === 'status' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Status {sortBy === 'status' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>}
+                  {isVisible('phase') && <th className="table-header">Phase</th>}
+                  {isVisible('slaTier') && <th className="table-header">SLA Tier</th>}
+                  {isVisible('accounts') && <th className="table-header">Accounts</th>}
+                  {isVisible('createdAt') && <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('createdAt')} aria-sort={sortBy === 'createdAt' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Created {sortBy === 'createdAt' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>}
+                  {isVisible('actions') && <th className="table-header">Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -403,39 +437,56 @@ export default function Partners() {
                       onClick={() => navigate(`/partners/${partner.id}`)}
                     >
                       <td className="table-cell" onClick={e => e.stopPropagation()}><input type="checkbox" checked={selected.has(partner.id)} onChange={() => toggleSelect(partner.id)} /></td>
-                      <td className="table-cell">
-                        <div>
-                          <p className="font-semibold text-primary">{partner.companyName}</p>
-                          <p className="text-xs text-muted">{partner.slug}</p>
-                        </div>
-                      </td>
-                      <td className="table-cell">
-                        <span className={typeBadge(partner.partnerType)}>{partner.partnerType}</span>
-                      </td>
-                      <td className="table-cell">
-                        <div className="flex flex-wrap gap-1">
-                          {protocols.length > 0 ? protocols.map(proto => (
-                            <span key={proto} className="badge badge-gray text-xs">{proto}</span>
-                          )) : (
-                            <span className="text-xs text-muted">None</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="table-cell">
-                        <span className={statusBadge(partner.status)}>{partner.status}</span>
-                      </td>
-                      <td className="table-cell">
-                        <span className="text-xs text-secondary">{partner.onboardingPhase || '-'}</span>
-                      </td>
-                      <td className="table-cell">
-                        <span className={slaBadge(partner.slaTier)}>{partner.slaTier || '-'}</span>
-                      </td>
-                      <td className="table-cell text-center">
-                        <span className="text-sm text-primary">{partner.accountCount ?? 0}</span>
-                      </td>
-                      <td className="table-cell text-xs text-secondary">
-                        {partner.createdAt ? format(new Date(partner.createdAt), 'MMM d, yyyy') : '-'}
-                      </td>
+                      {isVisible('company') && (
+                        <td className="table-cell">
+                          <div>
+                            <p className="font-semibold text-primary">{partner.companyName}</p>
+                            <p className="text-xs text-muted">{partner.slug}</p>
+                          </div>
+                        </td>
+                      )}
+                      {isVisible('type') && (
+                        <td className="table-cell">
+                          <span className={typeBadge(partner.partnerType)}>{partner.partnerType}</span>
+                        </td>
+                      )}
+                      {isVisible('protocols') && (
+                        <td className="table-cell">
+                          <div className="flex flex-wrap gap-1">
+                            {protocols.length > 0 ? protocols.map(proto => (
+                              <span key={proto} className="badge badge-gray text-xs">{proto}</span>
+                            )) : (
+                              <span className="text-xs text-muted">None</span>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                      {isVisible('status') && (
+                        <td className="table-cell">
+                          <span className={statusBadge(partner.status)}>{partner.status}</span>
+                        </td>
+                      )}
+                      {isVisible('phase') && (
+                        <td className="table-cell">
+                          <span className="text-xs text-secondary">{partner.onboardingPhase || '-'}</span>
+                        </td>
+                      )}
+                      {isVisible('slaTier') && (
+                        <td className="table-cell">
+                          <span className={slaBadge(partner.slaTier)}>{partner.slaTier || '-'}</span>
+                        </td>
+                      )}
+                      {isVisible('accounts') && (
+                        <td className="table-cell text-center">
+                          <span className="text-sm text-primary">{partner.accountCount ?? 0}</span>
+                        </td>
+                      )}
+                      {isVisible('createdAt') && (
+                        <td className="table-cell text-xs text-secondary">
+                          {partner.createdAt ? format(new Date(partner.createdAt), 'MMM d, yyyy') : '-'}
+                        </td>
+                      )}
+                      {isVisible('actions') && (
                       <td className="table-cell">
                         <div className="relative">
                           <button
@@ -481,6 +532,7 @@ export default function Partners() {
                           )}
                         </div>
                       </td>
+                      )}
                     </tr>
                   )
                 })}

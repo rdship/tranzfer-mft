@@ -14,6 +14,8 @@ import SecurityTierSelector from '../components/SecurityTierSelector'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
+import ColumnSettingsButton from '../components/ColumnSettingsButton'
+import useColumnPrefs from '../hooks/useColumnPrefs'
 import { friendlyError } from '../components/FormField'
 import toast from 'react-hot-toast'
 import {
@@ -56,6 +58,24 @@ const STORAGE_MODES = [
 ]
 
 const isSshProtocol = (p) => p === 'SFTP'
+
+// ── Column universe for the server instances table ──────────────────────
+const SERVER_COLUMNS = [
+  { key: 'instance',    label: 'Instance ID' },
+  { key: 'protocol',    label: 'Protocol' },
+  { key: 'name',        label: 'Name' },
+  { key: 'storage',     label: 'Storage' },
+  { key: 'internal',    label: 'Internal' },
+  { key: 'accounts',    label: 'Accounts' },
+  { key: 'clientConn',  label: 'Client Connection' },
+  { key: 'security',    label: 'Security' },
+  { key: 'status',      label: 'Status' },
+  { key: 'actions',     label: 'Actions' },
+]
+const SERVER_COLUMN_KEYS = SERVER_COLUMNS.map(c => c.key)
+// Hide "Internal" (raw host:port) by default — mostly relevant for ops diagnosing
+// network issues. Everything else stays on because servers are high-signal.
+const SERVER_DEFAULT_VISIBLE = ['instance', 'protocol', 'name', 'storage', 'accounts', 'clientConn', 'security', 'status', 'actions']
 
 const emptyForm = {
   instanceId: '', protocol: 'SFTP', name: '', description: '',
@@ -275,6 +295,10 @@ export default function ServerInstances() {
   const [sortBy, setSortBy] = useState('name')
   const [sortDir, setSortDir] = useState('asc')
 
+  // Column visibility preferences for the server instances table.
+  const { isVisible, toggle: toggleColumn, resetToDefaults: resetColumns, visibleKeys: visibleColumnKeys } =
+    useColumnPrefs('server-instances-table', SERVER_DEFAULT_VISIBLE, SERVER_COLUMN_KEYS)
+
   // Phase 2 — URL param support: /server-instances?serverInstance=X narrows to one row.
   // Principle: Flexibility (shareable links), Speed (client filter).
   const [searchParams, setSearchParams] = useSearchParams()
@@ -421,6 +445,13 @@ export default function ServerInstances() {
             <input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Search servers..." className="pl-9 w-64" />
           </div>
+          <ColumnSettingsButton
+            tableKey="server-instances-table"
+            columns={SERVER_COLUMNS}
+            visibleKeys={visibleColumnKeys}
+            toggle={toggleColumn}
+            resetToDefaults={resetColumns}
+          />
           <button className="btn-primary" onClick={() => { setForm(emptyForm); setShowCreate(true) }}>
             <PlusIcon className="w-4 h-4" /> Add Server
           </button>
@@ -499,16 +530,16 @@ export default function ServerInstances() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
-                <th className="table-header">Instance</th>
-                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('protocol')} aria-sort={sortBy === 'protocol' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Protocol {sortBy === 'protocol' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
-                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('name')} aria-sort={sortBy === 'name' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Name {sortBy === 'name' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
-                <th className="table-header">Storage</th>
-                <th className="table-header">Internal</th>
-                <th className="table-header" title="Number of transfer accounts bound to this server instance">Accounts</th>
-                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('connections')} aria-sort={sortBy === 'connections' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Client Connection {sortBy === 'connections' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
-                <th className="table-header">Security</th>
-                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('active')} aria-sort={sortBy === 'active' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Status {sortBy === 'active' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
-                <th className="table-header">Actions</th>
+                {isVisible('instance') && <th className="table-header">Instance</th>}
+                {isVisible('protocol') && <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('protocol')} aria-sort={sortBy === 'protocol' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Protocol {sortBy === 'protocol' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>}
+                {isVisible('name') && <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('name')} aria-sort={sortBy === 'name' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Name {sortBy === 'name' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>}
+                {isVisible('storage') && <th className="table-header">Storage</th>}
+                {isVisible('internal') && <th className="table-header">Internal</th>}
+                {isVisible('accounts') && <th className="table-header" title="Number of transfer accounts bound to this server instance">Accounts</th>}
+                {isVisible('clientConn') && <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('connections')} aria-sort={sortBy === 'connections' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Client Connection {sortBy === 'connections' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>}
+                {isVisible('security') && <th className="table-header">Security</th>}
+                {isVisible('status') && <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('active')} aria-sort={sortBy === 'active' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Status {sortBy === 'active' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>}
+                {isVisible('actions') && <th className="table-header">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -519,78 +550,97 @@ export default function ServerInstances() {
                 const isVFS = s.defaultStorageMode === 'VIRTUAL'
                 return (
                   <tr key={s.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => openEdit(s)}>
-                    <td className="table-cell">
-                      <div className="flex items-center gap-2">
-                        <ServerStackIcon className="w-4 h-4 text-blue-500" />
-                        <span className="font-mono text-xs font-medium">{s.instanceId}</span>
-                      </div>
-                    </td>
-                    <td className="table-cell">
-                      <span className={`badge ${
-                        s.protocol === 'SFTP' ? 'badge-blue' :
-                        s.protocol === 'FTP' ? 'badge-green' :
-                        s.protocol === 'FTP_WEB' ? 'badge-purple' :
-                        s.protocol === 'AS2' || s.protocol === 'AS4' ? 'badge-blue' : 'badge-yellow'
-                      }`}>{PROTOCOL_LABELS[s.protocol] || s.protocol}</span>
-                    </td>
-                    <td className="table-cell">
-                      <div>
-                        <p className="font-medium text-primary">{s.name}</p>
-                        {s.description && <p className="text-xs text-muted">{s.description}</p>}
-                      </div>
-                    </td>
-                    <td className="table-cell">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
-                        isVFS ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
-                      }`}>
-                        {isVFS ? <><CircleStackIcon className="w-3 h-3" /> VFS</> : <><FolderIcon className="w-3 h-3" /> Physical</>}
-                      </span>
-                    </td>
-                    <td className="table-cell font-mono text-xs text-secondary">{s.internalHost}:{s.internalPort}</td>
+                    {isVisible('instance') && (
+                      <td className="table-cell">
+                        <div className="flex items-center gap-2">
+                          <ServerStackIcon className="w-4 h-4 text-blue-500" />
+                          <span className="font-mono text-xs font-medium">{s.instanceId}</span>
+                        </div>
+                      </td>
+                    )}
+                    {isVisible('protocol') && (
+                      <td className="table-cell">
+                        <span className={`badge ${
+                          s.protocol === 'SFTP' ? 'badge-blue' :
+                          s.protocol === 'FTP' ? 'badge-green' :
+                          s.protocol === 'FTP_WEB' ? 'badge-purple' :
+                          s.protocol === 'AS2' || s.protocol === 'AS4' ? 'badge-blue' : 'badge-yellow'
+                        }`}>{PROTOCOL_LABELS[s.protocol] || s.protocol}</span>
+                      </td>
+                    )}
+                    {isVisible('name') && (
+                      <td className="table-cell">
+                        <div>
+                          <p className="font-medium text-primary">{s.name}</p>
+                          {s.description && <p className="text-xs text-muted">{s.description}</p>}
+                        </div>
+                      </td>
+                    )}
+                    {isVisible('storage') && (
+                      <td className="table-cell">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                          isVFS ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {isVFS ? <><CircleStackIcon className="w-3 h-3" /> VFS</> : <><FolderIcon className="w-3 h-3" /> Physical</>}
+                        </span>
+                      </td>
+                    )}
+                    {isVisible('internal') && (
+                      <td className="table-cell font-mono text-xs text-secondary">{s.internalHost}:{s.internalPort}</td>
+                    )}
                     {/*
                       Phase 2 — Account count badge. Clickable link deep-links to the
                       Accounts page filtered by this server instance. If no accounts are
                       bound, renders a subtle "0" so operators can see empty slots at a
                       glance (Information transparency + Resilience — no hidden zero state).
                     */}
-                    <td className="table-cell" onClick={e => e.stopPropagation()}>
-                      {accountCountByInstance[s.instanceId] > 0 ? (
-                        <Link
-                          to={`/accounts?serverInstance=${encodeURIComponent(s.instanceId)}`}
-                          title={`View ${accountCountByInstance[s.instanceId]} account(s) bound to this server`}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors"
-                        >
-                          <UsersIcon className="w-3 h-3" />
-                          {accountCountByInstance[s.instanceId]}
-                        </Link>
-                      ) : (
-                        <span className="text-xs text-muted">0</span>
-                      )}
-                    </td>
-                    <td className="table-cell font-mono text-xs text-primary">
-                      {s.clientHost}:{s.clientPort}
-                      {s.useProxy && (
-                        <span className="ml-1 text-[10px] text-blue-500">(proxy)</span>
-                      )}
-                    </td>
-                    <td className="table-cell">
-                      <span className={`badge ${tierInfo.badge}`}>{tierInfo.label}</span>
-                    </td>
-                    <td className="table-cell">
-                      <div className="flex items-center gap-1 flex-wrap">
-                        <button onClick={(e) => { e.stopPropagation(); toggleMut.mutate({ id: s.id, active: !s.active }) }}
-                          className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
-                            s.active ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-red-50 text-red-700 hover:bg-red-100'
-                          }`}>
-                          {s.active ? <><SignalIcon className="w-3 h-3" /> Active</> : <><SignalSlashIcon className="w-3 h-3" /> Inactive</>}
-                        </button>
-                        {s.maintenanceMode && (
-                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-700">
-                            <WrenchScrewdriverIcon className="w-3 h-3" /> MAINT
-                          </span>
+                    {isVisible('accounts') && (
+                      <td className="table-cell" onClick={e => e.stopPropagation()}>
+                        {accountCountByInstance[s.instanceId] > 0 ? (
+                          <Link
+                            to={`/accounts?serverInstance=${encodeURIComponent(s.instanceId)}`}
+                            title={`View ${accountCountByInstance[s.instanceId]} account(s) bound to this server`}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors"
+                          >
+                            <UsersIcon className="w-3 h-3" />
+                            {accountCountByInstance[s.instanceId]}
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-muted">0</span>
                         )}
-                      </div>
-                    </td>
+                      </td>
+                    )}
+                    {isVisible('clientConn') && (
+                      <td className="table-cell font-mono text-xs text-primary">
+                        {s.clientHost}:{s.clientPort}
+                        {s.useProxy && (
+                          <span className="ml-1 text-[10px] text-blue-500">(proxy)</span>
+                        )}
+                      </td>
+                    )}
+                    {isVisible('security') && (
+                      <td className="table-cell">
+                        <span className={`badge ${tierInfo.badge}`}>{tierInfo.label}</span>
+                      </td>
+                    )}
+                    {isVisible('status') && (
+                      <td className="table-cell">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <button onClick={(e) => { e.stopPropagation(); toggleMut.mutate({ id: s.id, active: !s.active }) }}
+                            className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
+                              s.active ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-red-50 text-red-700 hover:bg-red-100'
+                            }`}>
+                            {s.active ? <><SignalIcon className="w-3 h-3" /> Active</> : <><SignalSlashIcon className="w-3 h-3" /> Inactive</>}
+                          </button>
+                          {s.maintenanceMode && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-700">
+                              <WrenchScrewdriverIcon className="w-3 h-3" /> MAINT
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    )}
+                    {isVisible('actions') && (
                     <td className="table-cell">
                       <div className="flex gap-1">
                         {/* Accounts button */}
@@ -623,6 +673,7 @@ export default function ServerInstances() {
                         </button>
                       </div>
                     </td>
+                    )}
                   </tr>
                 )
               })}

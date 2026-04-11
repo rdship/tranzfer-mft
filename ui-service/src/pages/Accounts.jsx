@@ -9,6 +9,8 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer'
 import FileDownloadButton from '../components/FileDownloadButton'
+import ColumnSettingsButton from '../components/ColumnSettingsButton'
+import useColumnPrefs from '../hooks/useColumnPrefs'
 import toast from 'react-hot-toast'
 import { PlusIcon, TrashIcon, PencilSquareIcon, MagnifyingGlassIcon, ArrowTopRightOnSquareIcon, ClockIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
@@ -38,6 +40,22 @@ function getQosTier(acc) {
 
 const defaultForm = { protocol: 'SFTP', username: '', password: '', confirmPassword: '', homeDir: '', serverInstance: '', qos: { ...QOS_PRESETS.MEDIUM } }
 const defaultEditQos = { uploadBytesPerSecond: '', downloadBytesPerSecond: '', maxConcurrentSessions: '', priority: '', burstAllowancePercent: '' }
+
+// ── Column universe for the accounts table ──────────────────────────────
+const ACCOUNT_COLUMNS = [
+  { key: 'username',   label: 'Username' },
+  { key: 'protocol',   label: 'Protocol' },
+  { key: 'server',     label: 'Server' },
+  { key: 'qos',        label: 'QoS Tier' },
+  { key: 'bandwidth',  label: 'Bandwidth' },
+  { key: 'sessions',   label: 'Sessions' },
+  { key: 'active',     label: 'Status' },
+  { key: 'createdAt',  label: 'Created' },
+  { key: 'actions',    label: 'Actions' },
+]
+const ACCOUNT_COLUMN_KEYS = ACCOUNT_COLUMNS.map(c => c.key)
+// Hide verbose QoS detail columns by default — they're available via the edit dialog.
+const ACCOUNT_DEFAULT_VISIBLE = ['username', 'protocol', 'server', 'qos', 'active', 'actions']
 
 export default function Accounts() {
   const navigate = useNavigate()
@@ -69,6 +87,10 @@ export default function Accounts() {
   const { data: accounts = [], isLoading } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts })
   const { data: serverInstances = [] } = useQuery({ queryKey: ['server-instances-active'], queryFn: getServerInstancesActive })
   const [createErrors, setCreateErrors] = useState({})
+
+  // Column visibility preferences for the accounts table.
+  const { isVisible, toggle: toggleColumn, resetToDefaults: resetColumns, visibleKeys: visibleColumnKeys } =
+    useColumnPrefs('accounts-table', ACCOUNT_DEFAULT_VISIBLE, ACCOUNT_COLUMN_KEYS)
   const createMut = useMutation({ mutationFn: createAccount,
     onSuccess: () => { qc.invalidateQueries(['accounts']); setShowCreate(false); setForm({ ...defaultForm }); setCreateErrors({}); toast.success('Account created') },
     onError: err => toast.error(friendlyError(err)) })
@@ -184,11 +206,18 @@ export default function Accounts() {
       </div>
 
       <div className="card">
-        <div className="mb-4">
-          <div className="relative max-w-sm">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="relative max-w-sm flex-1">
             <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted pointer-events-none" />
             <input placeholder="Search by username or protocol..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 pr-3 py-2 text-sm border rounded-lg w-full focus:ring-2 focus:ring-accent" />
           </div>
+          <ColumnSettingsButton
+            tableKey="accounts-table"
+            columns={ACCOUNT_COLUMNS}
+            visibleKeys={visibleColumnKeys}
+            toggle={toggleColumn}
+            resetToDefaults={resetColumns}
+          />
         </div>
 
         {/*
@@ -239,15 +268,15 @@ export default function Accounts() {
             <thead>
               <tr className="border-b border-border">
                 <th className="table-header w-8"><input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleSelectAll} /></th>
-                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('username')} aria-sort={sortBy === 'username' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Username {sortBy === 'username' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
-                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('protocol')} aria-sort={sortBy === 'protocol' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Protocol {sortBy === 'protocol' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
-                <th className="table-header">Server</th>
-                <th className="table-header">QoS</th>
-                <th className="table-header">Bandwidth</th>
-                <th className="table-header">Sessions</th>
-                <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('active')} aria-sort={sortBy === 'active' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Status {sortBy === 'active' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
-                <th className="table-header">Created</th>
-                <th className="table-header">Actions</th>
+                {isVisible('username') && <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('username')} aria-sort={sortBy === 'username' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Username {sortBy === 'username' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>}
+                {isVisible('protocol') && <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('protocol')} aria-sort={sortBy === 'protocol' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Protocol {sortBy === 'protocol' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>}
+                {isVisible('server') && <th className="table-header">Server</th>}
+                {isVisible('qos') && <th className="table-header">QoS</th>}
+                {isVisible('bandwidth') && <th className="table-header">Bandwidth</th>}
+                {isVisible('sessions') && <th className="table-header">Sessions</th>}
+                {isVisible('active') && <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('active')} aria-sort={sortBy === 'active' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Status {sortBy === 'active' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>}
+                {isVisible('createdAt') && <th className="table-header">Created</th>}
+                {isVisible('actions') && <th className="table-header">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -261,41 +290,50 @@ export default function Accounts() {
                     deep-link back to PartnerDetail. Falls through to plain username otherwise
                     so we never break layouts on accounts that aren't partner-bound.
                   */}
-                  <td className="table-cell font-medium">
-                    {acc.partnerId ? (
-                      <span className="flex items-center gap-2">
-                        <span>{acc.username}</span>
-                        <Link
-                          to={`/partners/${acc.partnerId}`}
-                          onClick={e => e.stopPropagation()}
-                          title="Open partner detail"
-                          className="text-[11px] font-normal text-blue-500 hover:text-blue-400 hover:underline"
-                        >
-                          partner ↗
-                        </Link>
-                      </span>
-                    ) : (
-                      acc.username
-                    )}
-                  </td>
-                  <td className="table-cell"><span className="badge badge-blue">{acc.protocol}</span></td>
-                  <td className="table-cell text-xs text-secondary">{acc.serverInstance || <span className="text-muted">Any</span>}</td>
-                  <td className="table-cell"><span className={`badge ${tier.color}`}>{tier.label}</span></td>
-                  <td className="table-cell text-xs text-secondary">
-                    <span title="Upload">&uarr;{formatBps(acc.qosUploadBytesPerSecond)}</span>
-                    {' / '}
-                    <span title="Download">&darr;{formatBps(acc.qosDownloadBytesPerSecond)}</span>
-                  </td>
-                  <td className="table-cell text-xs text-secondary">
-                    {acc.qosMaxConcurrentSessions || '-'}
-                  </td>
-                  <td className="table-cell">
-                    <button onClick={(e) => { e.stopPropagation(); toggleMut.mutate({ id: acc.id, active: !acc.active }) }}
-                      className={`badge cursor-pointer ${acc.active ? 'badge-green' : 'badge-red'}`}>
-                      {acc.active ? 'Active' : 'Disabled'}
-                    </button>
-                  </td>
-                  <td className="table-cell text-secondary text-xs">{acc.createdAt ? format(new Date(acc.createdAt), 'MMM d, yyyy') : '-'}</td>
+                  {isVisible('username') && (
+                    <td className="table-cell font-medium">
+                      {acc.partnerId ? (
+                        <span className="flex items-center gap-2">
+                          <span>{acc.username}</span>
+                          <Link
+                            to={`/partners/${acc.partnerId}`}
+                            onClick={e => e.stopPropagation()}
+                            title="Open partner detail"
+                            className="text-[11px] font-normal text-blue-500 hover:text-blue-400 hover:underline"
+                          >
+                            partner ↗
+                          </Link>
+                        </span>
+                      ) : (
+                        acc.username
+                      )}
+                    </td>
+                  )}
+                  {isVisible('protocol') && <td className="table-cell"><span className="badge badge-blue">{acc.protocol}</span></td>}
+                  {isVisible('server') && <td className="table-cell text-xs text-secondary">{acc.serverInstance || <span className="text-muted">Any</span>}</td>}
+                  {isVisible('qos') && <td className="table-cell"><span className={`badge ${tier.color}`}>{tier.label}</span></td>}
+                  {isVisible('bandwidth') && (
+                    <td className="table-cell text-xs text-secondary">
+                      <span title="Upload">&uarr;{formatBps(acc.qosUploadBytesPerSecond)}</span>
+                      {' / '}
+                      <span title="Download">&darr;{formatBps(acc.qosDownloadBytesPerSecond)}</span>
+                    </td>
+                  )}
+                  {isVisible('sessions') && (
+                    <td className="table-cell text-xs text-secondary">
+                      {acc.qosMaxConcurrentSessions || '-'}
+                    </td>
+                  )}
+                  {isVisible('active') && (
+                    <td className="table-cell">
+                      <button onClick={(e) => { e.stopPropagation(); toggleMut.mutate({ id: acc.id, active: !acc.active }) }}
+                        className={`badge cursor-pointer ${acc.active ? 'badge-green' : 'badge-red'}`}>
+                        {acc.active ? 'Active' : 'Disabled'}
+                      </button>
+                    </td>
+                  )}
+                  {isVisible('createdAt') && <td className="table-cell text-secondary text-xs">{acc.createdAt ? format(new Date(acc.createdAt), 'MMM d, yyyy') : '-'}</td>}
+                  {isVisible('actions') && (
                   <td className="table-cell">
                     <div className="flex gap-1">
                       {/*
@@ -322,6 +360,7 @@ export default function Accounts() {
                       </button>
                     </div>
                   </td>
+                  )}
                 </tr>
               )})}
             </tbody>
