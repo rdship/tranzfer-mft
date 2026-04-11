@@ -829,6 +829,12 @@ services:
       retries: 5
 
   # Creates the mft-storage bucket on first start (idempotent).
+  # Runs once on each `compose up` and exits.
+  # IMPORTANT: `restart: "no"` (quoted) — an init container must NOT restart
+  # on failure, otherwise a single bad config loop-spams the logs forever.
+  # The wife's demo surfaced this as "mft-minio-init keeps restarting" in
+  # DEMO-RESULTS.md issue #10. Previous value was `on-failure` which
+  # retried every 1-2s if mc returned any non-zero exit.
   mft-minio-init:
     image: minio/mc:latest
     container_name: mft-minio-init
@@ -837,16 +843,20 @@ services:
     depends_on:
       mft-minio:
         condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-        mc alias set myminio http://mft-minio:9000
-          $${MINIO_ROOT_USER:-minioadmin}
-          $${MINIO_ROOT_PASSWORD:-minioadmin} &&
-        mc mb --ignore-existing myminio/$${STORAGE_S3_BUCKET:-mft-storage} &&
-        mc anonymous set none myminio/$${STORAGE_S3_BUCKET:-mft-storage} &&
-        echo 'MinIO bucket ready: '$${STORAGE_S3_BUCKET:-mft-storage}
-      "
-    restart: on-failure
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        # Wait a moment beyond healthcheck for full readiness
+        sleep 2
+        mc alias set myminio http://mft-minio:9000 \
+          "$${MINIO_ROOT_USER:-minioadmin}" \
+          "$${MINIO_ROOT_PASSWORD:-minioadmin}"
+        mc mb --ignore-existing myminio/"$${STORAGE_S3_BUCKET:-mft-storage}"
+        mc anonymous set none       myminio/"$${STORAGE_S3_BUCKET:-mft-storage}"
+        echo "MinIO bucket ready: $${STORAGE_S3_BUCKET:-mft-storage}"
+    restart: "no"
 
   edi-converter:
     build: ./edi-converter
