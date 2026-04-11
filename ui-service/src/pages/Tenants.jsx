@@ -4,16 +4,23 @@ import { onboardingApi } from '../api/client'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
 import LoadingSpinner from '../components/LoadingSpinner'
+import SaveFailBanner from '../components/SaveFailBanner'
 import toast from 'react-hot-toast'
 import { PlusIcon, PencilSquareIcon, TrashIcon, BuildingOffice2Icon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
+import { useFormDraft } from '../hooks/useFormDraft'
+
+const TENANT_DEFAULTS = { slug: '', companyName: '', email: '' }
 
 export default function Tenants() {
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
   const [editingTenant, setEditingTenant] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
-  const [form, setForm] = useState({ slug: '', companyName: '', email: '' })
+  const [saveError, setSaveError] = useState(null)
+  // R21: useFormDraft persists the create form to localStorage so
+  // accidental close + failed save never lose the operator's typing.
+  const { form, setForm, clearDraft } = useFormDraft('tenant-create', TENANT_DEFAULTS)
 
   const { data: tenants = [], isLoading, isError, refetch } = useQuery({ queryKey: ['tenants'],
     queryFn: () => onboardingApi.get('/api/v1/tenants').then(r => r.data),
@@ -21,12 +28,28 @@ export default function Tenants() {
 
   const createMut = useMutation({
     mutationFn: (d) => onboardingApi.post('/api/v1/tenants/signup', d).then(r => r.data),
-    onSuccess: (d) => { qc.invalidateQueries(['tenants']); setShowCreate(false); setForm({ slug: '', companyName: '', email: '' }); toast.success('Tenant created: ' + d.domain) },
-    onError: err => toast.error(err.response?.data?.error || 'Failed')
+    onSuccess: (d) => {
+      qc.invalidateQueries(['tenants'])
+      setShowCreate(false)
+      setSaveError(null)
+      clearDraft() // only clear the draft AFTER a successful save
+      toast.success('Tenant created: ' + d.domain)
+    },
+    onError: (err) => {
+      // Form state is preserved by useFormDraft — nothing to re-type.
+      // Surface the backend error via the inline banner so the user can
+      // fix + retry without closing the modal.
+      setSaveError(err)
+    },
   })
   const updateMut = useMutation({
     mutationFn: ({ id, data }) => onboardingApi.put(`/api/v1/tenants/${id}`, data).then(r => r.data),
-    onSuccess: () => { qc.invalidateQueries(['tenants']); setEditingTenant(null); setForm({ slug: '', companyName: '', email: '' }); toast.success('Tenant updated') },
+    onSuccess: () => {
+      qc.invalidateQueries(['tenants'])
+      setEditingTenant(null)
+      setForm(TENANT_DEFAULTS)
+      toast.success('Tenant updated')
+    },
     onError: err => toast.error(err.response?.data?.error || 'Failed')
   })
   const deleteMut = useMutation({
@@ -139,7 +162,12 @@ export default function Tenants() {
 
       {showCreate && (
         <Modal title="Create Tenant" onClose={() => setShowCreate(false)}>
-          <form onSubmit={e => { e.preventDefault(); createMut.mutate(form) }} className="space-y-4">
+          <form onSubmit={e => { e.preventDefault(); setSaveError(null); createMut.mutate(form) }} className="space-y-4">
+            <SaveFailBanner
+              error={saveError}
+              onRetry={() => { setSaveError(null); createMut.mutate(form) }}
+              onDismiss={() => setSaveError(null)}
+            />
             <div><label>Company Name</label><input value={form.companyName} onChange={e => setForm(f => ({...f, companyName: e.target.value}))} required placeholder="ACME Corporation" /></div>
             <div><label>Slug (URL-safe)</label><input value={form.slug} onChange={e => setForm(f => ({...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')}))} required placeholder="acme-corp" />
               <p className="text-xs text-muted mt-1">{form.slug || 'slug'}.tranzfer.io</p></div>
