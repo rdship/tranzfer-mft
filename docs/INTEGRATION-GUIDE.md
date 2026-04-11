@@ -2945,11 +2945,49 @@ Quick reference for all service ports:
 | Redis | 6379 |
 | RabbitMQ (AMQP) | 5672 |
 | RabbitMQ (Management) | 15672 |
+| Redpanda (Kafka API) | 9092 |
+| Redpanda (Admin) | 9644 |
 | Prometheus | 9090 |
 | Grafana | 3030 |
 | Loki | 3100 |
 | AlertManager | 9093 |
 | MinIO (optional) | 9000 / 9001 |
+
+---
+
+## Dynamic Flow Fabric
+
+TranzFer ships with a Kafka-compatible event fabric (Redpanda by default) that runs in parallel with RabbitMQ. Which one is used depends on the deployment tier — both are production paths and the platform dual-publishes critical events so you can migrate consumers independently.
+
+**When Fabric is active:**
+- Every flow step writes a checkpoint (`fabric_checkpoints`) with a 5-minute lease
+- Pod heartbeats land in `fabric_instances` every 30s
+- Crash recovery: `LeaseReaperJob` detects expired leases and schedules `FlowRestartService.restartFromBeginning` via the existing `scheduledRetryAt` column — multi-instance safe, no double-fire
+- Poison messages go to `<topic>.dlq` after 5 attempts (configurable)
+
+**Controlling Fabric from environment:**
+
+| Variable | Default | Notes |
+|---|---|---|
+| `FABRIC_ENABLED` | `true` | Master switch. `false` → pure RabbitMQ, Tier 1 behavior |
+| `FABRIC_BROKER_URL` | `redpanda:9092` | Kafka bootstrap servers |
+| `FABRIC_FLOW_PARTITION_COUNT` | `32` | Partition count applied when topics are auto-created |
+| `FABRIC_CONSUMER_MAX_DELIVERY_ATTEMPTS` | `5` | Redelivery attempts before routing to `<topic>.dlq`. Set `0` to disable DLQ |
+| `FABRIC_FLOW_LEASE_DURATION_SECONDS` | `300` | Per-step lease duration |
+
+**Graceful fallback:** if the broker is unreachable at startup, services fall back to an in-memory fabric client and continue to boot. They log a warning and retry health on subsequent publishes. Services never crash because of broker trouble.
+
+**Observability endpoints** (onboarding-api, role=OPERATOR):
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/fabric/track/{trackId}/timeline` | Full per-step timeline for a trackId |
+| `GET /api/fabric/queues` | In-progress count per step type |
+| `GET /api/fabric/instances` | Active and dead instances from heartbeats |
+| `GET /api/fabric/stuck?page=&size=` | Paginated list of stuck work items (IN_PROGRESS with expired lease) |
+| `GET /api/fabric/latency?hours=1&sample=10000` | p50/p95/p99 step latency over a bounded time window |
+
+The admin UI exposes all of the above on the `/fabric` page (Intelligence group in the sidebar).
 
 ---
 

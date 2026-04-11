@@ -2585,9 +2585,27 @@ platform:
 
 ### Event System
 
+Two parallel transports run side-by-side. Both are idempotent, so services can be migrated independently and dual-publishes are safe.
+
+**RabbitMQ (always on, Tier 1 backbone)**
 - **Exchange**: `file-transfer.events` (topic exchange)
 - **Binding Key**: `account.*` (e.g., `account.transfer.completed`, `account.file.received`)
 - **Consumers**: config-service (live activity), analytics-service, notification-service, ai-engine
+
+**Dynamic Flow Fabric (Redpanda/Kafka, Tier 2/3)**
+- **Broker**: `redpanda:9092` (single Kafka-compatible broker in docker-compose)
+- **Feature flag**: `fabric.enabled=true` (default). Services fall back to an in-memory client if the broker is unreachable at startup — they never fail to boot.
+- **Topics**:
+  - `flow.intake` — new flow execution, competing-consumer load balance across service replicas
+  - `events.account` — account lifecycle (load balance per service)
+  - `events.flow-rule` — flow-rule hot reload (fanout: every replica receives every change)
+  - `events.notification` — notification events (load balance)
+  - `<topic>.dlq` — auto-created dead-letter topic for poison messages (default: 5 delivery attempts, configurable via `fabric.consumer.max-delivery-attempts`)
+- **Partitions**: configured by `fabric.flow.partition-count` (default 32). Topics are auto-created on first publish/subscribe with the configured partition count.
+- **Consumer groups**: named `fabric.{service}.{topic}` for load-balanced subscriptions and `fabric.{service}.{topic}.{instance}` for fanout. See `FabricGroupIds` utility.
+- **Checkpoints**: every step writes a row to `fabric_checkpoints` with a 5-minute lease. `LeaseReaperJob` runs every 60s — any expired IN_PROGRESS checkpoint marks its `FlowExecution` FAILED with `scheduledRetryAt=now()`, and the existing `ScheduledRetryExecutor` restarts it through `FlowRestartService.restartFromBeginning`. Crash recovery works in all tiers.
+- **Instance heartbeat**: `InstanceHeartbeatJob` upserts a row to `fabric_instances` every 30s per pod, enabling the Flow Fabric dashboard's live instance view.
+- **Observability**: `/api/fabric/track/{trackId}/timeline`, `/queues`, `/instances`, `/stuck?page=&size=`, `/latency?hours=&sample=` on onboarding-api. UI page at `/fabric` in the admin console.
 
 ### Database
 
