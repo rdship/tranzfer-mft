@@ -40,6 +40,8 @@ x-common-env: &common-env
   PROXY_PORT: ${PROXY_PORT:-8088}
   PROXY_NO_PROXY_HOSTS: ${PROXY_NO_PROXY_HOSTS:-localhost,127.0.0.1,postgres,rabbitmq}
   SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+  FABRIC_ENABLED: "true"
+  FABRIC_BROKER_URL: redpanda:9092
 
 x-service-healthcheck: &healthcheck
   healthcheck:
@@ -202,6 +204,35 @@ services:
       timeout: 5s
       retries: 5
 
+  redpanda:
+    image: redpandadata/redpanda:v24.1.7
+    container_name: mft-redpanda
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --memory=512M
+      - --reserve-memory=0M
+      - --overprovisioned
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:9092
+      - --rpc-addr=0.0.0.0:33145
+      - --advertise-rpc-addr=redpanda:33145
+    ports:
+      - "9092:9092"
+      - "9644:9644"
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health 2>&1 | grep -q 'Healthy:.*true' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
   # ---------------------------------------------------------------------------
   # Core Services
   # ---------------------------------------------------------------------------
@@ -224,6 +255,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      redpanda:
+        condition: service_healthy
 
   sftp-service:
     build: ./sftp-service
@@ -245,6 +278,8 @@ services:
       postgres:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redpanda:
         condition: service_healthy
 
   sftp-service-2:
@@ -293,6 +328,8 @@ services:
       postgres:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redpanda:
         condition: service_healthy
 
   ftp-service-2:
@@ -390,6 +427,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      redpanda:
+        condition: service_healthy
 
   ftp-web-service-2:
     build: ./ftp-web-service
@@ -428,6 +467,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      redpanda:
+        condition: service_healthy
 
   gateway-service:
     build: ./gateway-service
@@ -456,6 +497,8 @@ services:
       postgres:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redpanda:
         condition: service_healthy
 
   encryption-service:
@@ -648,6 +691,8 @@ services:
       rabbitmq:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      redpanda:
         condition: service_healthy
 
   ai-engine:
@@ -866,6 +911,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      redpanda:
+        condition: service_healthy
 
   platform-sentinel:
     build: ./platform-sentinel
@@ -885,6 +932,8 @@ services:
       postgres:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redpanda:
         condition: service_healthy
 
   # ---------------------------------------------------------------------------
@@ -1062,6 +1111,8 @@ volumes:
   minio_data:      # MinIO object storage — shared across all storage-manager replicas (profile=minio)
   postgres_data:
   rabbitmq_data:
+  redpanda_data:
+    driver: local
   sftp_data:       # Shared across all SFTP replicas
   ftp_data:        # Shared across all FTP replicas
   storage_data:

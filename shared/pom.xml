@@ -17,5 +17,6 @@
         <module>shared-core</module>
         <module>shared-platform</module>
         <module>shared-tunnel</module>
+        <module>shared-fabric</module>
     </modules>
 </project>
