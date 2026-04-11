@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import * as sentinelApi from '../api/sentinel'
 import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer'
 import FileDownloadButton from '../components/FileDownloadButton'
@@ -151,7 +151,7 @@ function OverviewTab() {
               <span className="text-gray-300 text-sm flex-1 truncate">{f.title}</span>
               {f.trackId && (
                 <button
-                  onClick={() => navigate(`/journey?trackId=${encodeURIComponent(f.trackId)}`)}
+                  onClick={() => navigate(`/operations/journey?trackId=${encodeURIComponent(f.trackId)}`)}
                   className="text-blue-400 hover:text-blue-300 hover:underline font-mono text-xs flex-shrink-0"
                   title={`View journey: ${f.trackId}`}
                 >
@@ -248,7 +248,7 @@ function FindingsTab() {
                   <td className="px-4 py-2">
                     {f.trackId ? (
                       <button
-                        onClick={() => navigate(`/journey?trackId=${encodeURIComponent(f.trackId)}`)}
+                        onClick={() => navigate(`/operations/journey?trackId=${encodeURIComponent(f.trackId)}`)}
                         className="text-blue-400 hover:text-blue-300 hover:underline font-mono text-xs truncate max-w-[100px] block"
                         title={f.trackId}
                       >
@@ -315,15 +315,41 @@ function FindingsTab() {
                           <DocumentTextIcon className="w-3 h-3 inline" />
                         </button>
                       )}
+                      {/*
+                        Phase 2 — Sentinel cross-links to unified /operations/* routes.
+                        Principle: Guidance (analysts can jump from finding → journey →
+                        activity monitor → service page in one click); Minimalism (compact
+                        text buttons, subtle borders so the card isn't dominated by CTAs).
+                      */}
                       {f.trackId && (
-                        <button
-                          onClick={() => navigate(`/journey?trackId=${encodeURIComponent(f.trackId)}`)}
-                          title="View Journey"
-                          aria-label="View Journey"
+                        <Link
+                          to={`/operations/activity?trackId=${encodeURIComponent(f.trackId)}`}
+                          title="Open Activity Monitor for this track ID"
+                          aria-label="Open Activity Monitor"
                           className="text-xs px-2 py-0.5 bg-blue-600/20 text-blue-400 rounded hover:bg-blue-600/30"
                         >
-                          <MagnifyingGlassIcon className="w-3 h-3 inline" />
+                          Activity
+                        </Link>
+                      )}
+                      {f.trackId && (
+                        <button
+                          onClick={() => navigate(`/operations/journey?trackId=${encodeURIComponent(f.trackId)}`)}
+                          title="Open Journey for this track ID"
+                          aria-label="Open Journey"
+                          className="text-xs px-2 py-0.5 bg-blue-600/20 text-blue-400 rounded hover:bg-blue-600/30"
+                        >
+                          <MagnifyingGlassIcon className="w-3 h-3 inline" /> Journey
                         </button>
+                      )}
+                      {f.affectedService && (
+                        <Link
+                          to={`/observatory?service=${encodeURIComponent(f.affectedService)}`}
+                          title={`Open ${f.affectedService} in Observatory`}
+                          aria-label={`Open ${f.affectedService}`}
+                          className="text-xs px-2 py-0.5 bg-indigo-600/20 text-indigo-300 rounded hover:bg-indigo-600/30"
+                        >
+                          {f.affectedService}
+                        </Link>
                       )}
                       {f.status === 'OPEN' && (
                         <>

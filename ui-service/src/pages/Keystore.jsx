@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { format, formatDistanceToNow } from 'date-fns'
 import Modal from '../components/Modal'
@@ -407,6 +407,24 @@ export default function Keystore() {
                     </td>
                     <td className="table-cell text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
+                        {/*
+                          Phase 2 — "View Usage" deep-link. Points at the Accounts page
+                          filtered by keyAlias so operators can audit which accounts reference
+                          the key before rotating or deactivating it (Guidance + Information
+                          transparency).
+                          TODO: when keystore-manager exposes a usage-count endpoint (e.g.
+                          GET /api/keys/{alias}/usage), show a badge with the live reference
+                          count next to this link. Today no such endpoint exists, so we avoid
+                          an inaccurate mock count (principle #2 — Accuracy over guessing).
+                        */}
+                        <Link
+                          to={`/accounts?keyAlias=${encodeURIComponent(k.alias)}`}
+                          title="View accounts referencing this key"
+                          aria-label="View usage"
+                          className="p-1.5 rounded-lg hover:bg-hover text-muted hover:text-purple-600"
+                        >
+                          <MagnifyingGlassIcon className="w-4 h-4" />
+                        </Link>
                         {k.publicKeyMaterial && (
                           <button onClick={() => viewPublicKey(k.alias)}
                             className="p-1.5 rounded-lg hover:bg-hover text-muted hover:text-blue-600" title="View Public Key" aria-label="View Public Key">

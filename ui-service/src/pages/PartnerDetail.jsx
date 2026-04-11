@@ -25,6 +25,7 @@ import {
   BellAlertIcon,
   CheckCircleIcon,
   XCircleIcon,
+  KeyIcon,
 } from '@heroicons/react/24/outline'
 import {
   getPartner,
@@ -366,6 +367,38 @@ export default function PartnerDetail() {
             ) : null}
           </div>
         </div>
+      </div>
+
+      {/*
+        Cross-link strip — Phase 2 entity cross-linking.
+        Principles: Guidance (every entity has a direct CTA), Information transparency
+        (counts shown when available), Speed (reuses detail.* counts — no extra fetch),
+        Minimalism (single accent per badge, whitespace over decoration).
+        Links target the unified /operations/activity path introduced in Phase 1.
+      */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {[
+          { to: `/accounts?partnerId=${id}`, icon: UserIcon, label: 'Accounts', count: accountCount, entity: 'accounts' },
+          { to: `/flows?partnerId=${id}`, icon: ArrowsRightLeftIcon, label: 'Flows', count: flowCount, entity: 'flows' },
+          { to: `/operations/activity?partnerId=${id}`, icon: ClockIcon, label: 'Recent Executions', count: null, entity: 'executions' },
+          { to: `/folder-mappings?partnerId=${id}`, icon: FolderIcon, label: 'Folder Mappings', count: null, entity: 'folder mappings' },
+          { to: `/keystore?partnerId=${id}`, icon: KeyIcon, label: 'Keys in Use', count: null, entity: 'keys' },
+        ].map(({ to, icon: Icon, label, count, entity }) => (
+          <Link
+            key={label}
+            to={to}
+            title={count !== null ? `View all ${count} ${entity} for this partner` : `View ${entity} for this partner`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-surface text-secondary hover:text-primary hover:border-blue-500 hover:bg-[rgba(100,140,255,0.06)] transition-colors"
+          >
+            <Icon className="w-3.5 h-3.5" />
+            <span>{label}</span>
+            {count !== null && count !== undefined && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">
+                {count}
+              </span>
+            )}
+          </Link>
+        ))}
       </div>
 
       {/* Tab Navigation */}

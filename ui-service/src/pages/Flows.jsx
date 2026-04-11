@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { configApi, onboardingApi, aiApi } from '../api/client'
 import { getPendingApprovals, approveStep, rejectStep } from '../api/approvals'
@@ -586,6 +587,15 @@ function ApprovalRow({ ap, onApprove, onReject, busy }) {
 // ═══════════════════════════════════════════════════════════════════════
 export default function Flows() {
   const qc = useQueryClient()
+  // Phase 2 — URL param filter: /flows?partnerId=X deep-links from PartnerDetail.
+  // Principle: Flexibility (shareable URLs), Speed (client-side filter, no refetch).
+  const [searchParams, setSearchParams] = useSearchParams()
+  const partnerIdFilter = searchParams.get('partnerId')
+  const clearPartnerFilter = () => {
+    const next = new URLSearchParams(searchParams)
+    next.delete('partnerId')
+    setSearchParams(next, { replace: true })
+  }
   const [showEditor, setShowEditor] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState({ ...defaultForm })
@@ -1016,6 +1026,20 @@ export default function Flows() {
     let result = flows
     if (filter === 'active') result = result.filter(f => f.active)
     if (filter === 'inactive') result = result.filter(f => !f.active)
+    // Phase 2 — /flows?partnerId=X filter. Best effort: flows carry partnerId via the
+    // flow payload (see flow.partnerId usage around line 1317). Falls back to substring
+    // match on name/description when the partner entity isn't directly joined.
+    // TODO: once flow source/destination are fully partner-resolved server-side, prefer
+    // matching against partner slug/displayName lists instead of substring.
+    if (partnerIdFilter) {
+      const partnerObj = partners.find(p => String(p.id) === String(partnerIdFilter))
+      const partnerName = (partnerObj?.companyName || partnerObj?.name || '').toLowerCase()
+      result = result.filter(f => {
+        if (String(f.partnerId || '') === String(partnerIdFilter)) return true
+        if (partnerName && (f.name?.toLowerCase().includes(partnerName) || f.description?.toLowerCase().includes(partnerName))) return true
+        return false
+      })
+    }
     if (search) {
       const q = search.toLowerCase()
       result = result.filter(f =>
@@ -1031,7 +1055,7 @@ export default function Flows() {
       return sortDir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va))
     })
     return arr
-  }, [flows, filter, search, sortBy, sortDir])
+  }, [flows, filter, search, sortBy, sortDir, partnerIdFilter, partners])
 
   // ─── Execution counts per flow ───
   const executionCountByFlowId = useMemo(() => {
@@ -1120,7 +1144,7 @@ export default function Flows() {
 
       {/* ─── Filter bar (flows tab only) ─── */}
       {activeTab === 'flows' && (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <FunnelIcon className="w-4 h-4 text-muted" />
         {[
           { key: 'all', label: `All (${flows.length})` },
@@ -1134,6 +1158,18 @@ export default function Flows() {
             {f.label}
           </button>
         ))}
+        {/* Phase 2 — active cross-link chip. Transparency: user sees why the list is
+            restricted and can clear it in one click (Resilience). */}
+        {partnerIdFilter && (
+          <button
+            onClick={clearPartnerFilter}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700 hover:bg-purple-200"
+            title="Clear partner filter"
+          >
+            Partner: <span className="font-mono">{(partners.find(p => String(p.id) === String(partnerIdFilter))?.companyName) || partnerIdFilter}</span>
+            <span className="ml-0.5">×</span>
+          </button>
+        )}
       </div>
       )}
 
@@ -1352,6 +1388,18 @@ export default function Flows() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  {/* Phase 2 — "View Executions" deep-link to unified Activity Monitor.
+                      Guidance: every flow has a direct path to its execution history. */}
+                  <Link
+                    to={`/operations/activity?flowId=${encodeURIComponent(flow.id)}`}
+                    onClick={e => e.stopPropagation()}
+                    title="View recent executions for this flow"
+                    aria-label="View recent executions for this flow"
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                  >
+                    <ClockIcon className="w-3.5 h-3.5" />
+                    Executions
+                  </Link>
                   <button
                     onClick={(e) => { e.stopPropagation(); setDryRunPrompt({ flowId: flow.id, flowName: flow.name }); setDryRunFilename('') }}
                     disabled={dryRunMut.isPending}

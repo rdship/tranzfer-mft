@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getServerInstances, createServerInstance, updateServerInstance, deleteServerInstance } from '../api/accounts'
+import { Link, useSearchParams } from 'react-router-dom'
+import { getServerInstances, getAccounts, createServerInstance, updateServerInstance, deleteServerInstance } from '../api/accounts'
 import {
   getServerAccounts, revokeServerAccess,
   updateServerAssignment, toggleMaintenance,
@@ -274,7 +275,30 @@ export default function ServerInstances() {
   const [sortBy, setSortBy] = useState('name')
   const [sortDir, setSortDir] = useState('asc')
 
+  // Phase 2 — URL param support: /server-instances?serverInstance=X narrows to one row.
+  // Principle: Flexibility (shareable links), Speed (client filter).
+  const [searchParams, setSearchParams] = useSearchParams()
+  const serverInstanceParam = searchParams.get('serverInstance')
+  const clearServerInstanceFilter = () => {
+    const next = new URLSearchParams(searchParams)
+    next.delete('serverInstance')
+    setSearchParams(next, { replace: true })
+  }
+
   const { data: servers = [], isLoading } = useQuery({ queryKey: ['server-instances'], queryFn: getServerInstances })
+
+  // Phase 2 — Fetch accounts once to compute per-server-instance account counts.
+  // Principle: Information transparency (operators see binding counts at a glance),
+  // Speed (single /api/accounts fetch, memoised aggregation, no N+1).
+  const { data: allAccounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts })
+  const accountCountByInstance = useMemo(() => {
+    const map = {}
+    allAccounts.forEach(a => {
+      const inst = a.serverInstance
+      if (inst) map[inst] = (map[inst] || 0) + 1
+    })
+    return map
+  }, [allAccounts])
 
   const createMut = useMutation({
     mutationFn: createServerInstance,
@@ -355,6 +379,8 @@ export default function ServerInstances() {
       ? servers
       : servers.filter(s => s.protocol === protocolFilter)
     ).filter(s => {
+      // Phase 2 — narrow to a single instance when arriving via deep link
+      if (serverInstanceParam && String(s.instanceId) !== String(serverInstanceParam)) return false
       if (!search) return true
       const q = search.toLowerCase()
       return s.name?.toLowerCase().includes(q) || s.internalHost?.toLowerCase().includes(q) || s.instanceId?.toLowerCase().includes(q) || s.protocol?.toLowerCase().includes(q)
@@ -373,7 +399,7 @@ export default function ServerInstances() {
       return sortDir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va))
     })
     return arr
-  }, [servers, protocolFilter, search, sortBy, sortDir])
+  }, [servers, protocolFilter, search, sortBy, sortDir, serverInstanceParam])
 
   const protocolCounts = PROTOCOLS.reduce((acc, p) => {
     acc[p] = servers.filter(s => s.protocol === p).length
@@ -425,6 +451,24 @@ export default function ServerInstances() {
         </div>
       </div>
 
+      {/*
+        Phase 2 — active URL-param filter chip. Shown above the protocol tabs so operators
+        instantly see why the list is restricted to one instance and can clear it.
+      */}
+      {serverInstanceParam && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted">Active filter:</span>
+          <button
+            onClick={clearServerInstanceFilter}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200"
+            title="Clear server instance filter"
+          >
+            Instance: <span className="font-mono">{serverInstanceParam}</span>
+            <XMarkIcon className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+
       {/* Protocol filter tabs */}
       <div className="flex gap-2 flex-wrap">
         <button
@@ -460,6 +504,7 @@ export default function ServerInstances() {
                 <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('name')} aria-sort={sortBy === 'name' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Name {sortBy === 'name' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                 <th className="table-header">Storage</th>
                 <th className="table-header">Internal</th>
+                <th className="table-header" title="Number of transfer accounts bound to this server instance">Accounts</th>
                 <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('connections')} aria-sort={sortBy === 'connections' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Client Connection {sortBy === 'connections' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
                 <th className="table-header">Security</th>
                 <th className="table-header cursor-pointer select-none" onClick={() => toggleSort('active')} aria-sort={sortBy === 'active' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>Status {sortBy === 'active' && (sortDir === 'asc' ? '\u2191' : '\u2193')}</th>
@@ -502,6 +547,26 @@ export default function ServerInstances() {
                       </span>
                     </td>
                     <td className="table-cell font-mono text-xs text-secondary">{s.internalHost}:{s.internalPort}</td>
+                    {/*
+                      Phase 2 — Account count badge. Clickable link deep-links to the
+                      Accounts page filtered by this server instance. If no accounts are
+                      bound, renders a subtle "0" so operators can see empty slots at a
+                      glance (Information transparency + Resilience — no hidden zero state).
+                    */}
+                    <td className="table-cell" onClick={e => e.stopPropagation()}>
+                      {accountCountByInstance[s.instanceId] > 0 ? (
+                        <Link
+                          to={`/accounts?serverInstance=${encodeURIComponent(s.instanceId)}`}
+                          title={`View ${accountCountByInstance[s.instanceId]} account(s) bound to this server`}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors"
+                        >
+                          <UsersIcon className="w-3 h-3" />
+                          {accountCountByInstance[s.instanceId]}
+                        </Link>
+                      ) : (
+                        <span className="text-xs text-muted">0</span>
+                      )}
+                    </td>
                     <td className="table-cell font-mono text-xs text-primary">
                       {s.clientHost}:{s.clientPort}
                       {s.useProxy && (

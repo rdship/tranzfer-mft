@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { getAccounts, createAccount, updateAccount, deleteAccount, toggleAccount, getServerInstancesActive } from '../api/accounts'
 import { onboardingApi } from '../api/client'
 import Modal from '../components/Modal'
@@ -10,7 +10,7 @@ import EmptyState from '../components/EmptyState'
 import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer'
 import FileDownloadButton from '../components/FileDownloadButton'
 import toast from 'react-hot-toast'
-import { PlusIcon, TrashIcon, PencilSquareIcon, MagnifyingGlassIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, TrashIcon, PencilSquareIcon, MagnifyingGlassIcon, ArrowTopRightOnSquareIcon, ClockIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
 
 const PROTOCOLS = ['SFTP', 'FTP', 'FTP_WEB']
@@ -42,6 +42,17 @@ const defaultEditQos = { uploadBytesPerSecond: '', downloadBytesPerSecond: '', m
 export default function Accounts() {
   const navigate = useNavigate()
   const qc = useQueryClient()
+  // URL params for entity cross-linking (Phase 2): /accounts?partnerId=X or ?serverInstance=Y
+  // Principle: Flexibility — filters bound to URL so Partner Detail / Server Instances links share state.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const partnerIdFilter = searchParams.get('partnerId')
+  const serverInstanceFilter = searchParams.get('serverInstance')
+  const keyAliasFilter = searchParams.get('keyAlias')
+  const clearUrlFilter = (key) => {
+    const next = new URLSearchParams(searchParams)
+    next.delete(key)
+    setSearchParams(next, { replace: true })
+  }
   const [showCreate, setShowCreate] = useState(false)
   const [editAccount, setEditAccount] = useState(null)
   const [detailAccount, setDetailAccount] = useState(null)
@@ -76,9 +87,18 @@ export default function Accounts() {
   }
 
   const filtered = useMemo(() => {
-    const list = accounts.filter(a =>
-      a.username?.toLowerCase().includes(search.toLowerCase()) ||
-      a.protocol?.toLowerCase().includes(search.toLowerCase()))
+    // Phase 2 cross-link filters applied client-side (Speed principle — no refetch).
+    // If the account payload doesn't carry a matching field we silently fall through
+    // rather than hiding everything (Stability — never white-screen via over-filter).
+    const list = accounts.filter(a => {
+      if (partnerIdFilter && a.partnerId && String(a.partnerId) !== String(partnerIdFilter)) return false
+      if (serverInstanceFilter && a.serverInstance && String(a.serverInstance) !== String(serverInstanceFilter)) return false
+      if (keyAliasFilter && a.keyAlias && String(a.keyAlias) !== String(keyAliasFilter)) return false
+      return (
+        a.username?.toLowerCase().includes(search.toLowerCase()) ||
+        a.protocol?.toLowerCase().includes(search.toLowerCase())
+      )
+    })
     const arr = [...list]
     arr.sort((a, b) => {
       let va, vb
@@ -93,7 +113,7 @@ export default function Accounts() {
       return sortDir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va))
     })
     return arr
-  }, [accounts, search, sortBy, sortDir])
+  }, [accounts, search, sortBy, sortDir, partnerIdFilter, serverInstanceFilter, keyAliasFilter])
 
   const toggleSelect = (id) => setSelected(s => {
     const n = new Set(s)
@@ -171,6 +191,35 @@ export default function Accounts() {
           </div>
         </div>
 
+        {/*
+          Phase 2 — URL-param filter chips. Shown only when incoming cross-link is active
+          (Information transparency + Resilience — user always sees why the list is filtered
+          and gets a visible ✕ to clear it).
+        */}
+        {(partnerIdFilter || serverInstanceFilter || keyAliasFilter) && (
+          <div className="flex items-center gap-2 flex-wrap mb-4">
+            <span className="text-xs text-muted">Active filters:</span>
+            {partnerIdFilter && (
+              <button onClick={() => clearUrlFilter('partnerId')} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200" title="Clear partner filter">
+                Partner: <span className="font-mono">{partnerIdFilter}</span>
+                <XMarkIcon className="w-3 h-3" />
+              </button>
+            )}
+            {serverInstanceFilter && (
+              <button onClick={() => clearUrlFilter('serverInstance')} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200" title="Clear server filter">
+                Server: <span className="font-mono">{serverInstanceFilter}</span>
+                <XMarkIcon className="w-3 h-3" />
+              </button>
+            )}
+            {keyAliasFilter && (
+              <button onClick={() => clearUrlFilter('keyAlias')} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200" title="Clear key filter">
+                Key: <span className="font-mono">{keyAliasFilter}</span>
+                <XMarkIcon className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Bulk Action Bar */}
         {selected.size > 0 && (
           <div className="flex items-center gap-3 bg-[rgba(100,140,255,0.1)] border border-[rgba(100,140,255,0.2)] rounded-xl px-4 py-2 mb-4">
@@ -207,7 +256,28 @@ export default function Accounts() {
                 return (
                 <tr key={acc.id} className="table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)]" onClick={() => setDetailAccount(acc)} onDoubleClick={(e) => { e.stopPropagation(); openEdit(acc) }}>
                   <td className="table-cell" onClick={e => e.stopPropagation()}><input type="checkbox" checked={selected.has(acc.id)} onChange={() => toggleSelect(acc.id)} /></td>
-                  <td className="table-cell font-medium">{acc.username}</td>
+                  {/*
+                    Phase 2 — If the account payload carries a partnerId, surface it as a
+                    deep-link back to PartnerDetail. Falls through to plain username otherwise
+                    so we never break layouts on accounts that aren't partner-bound.
+                  */}
+                  <td className="table-cell font-medium">
+                    {acc.partnerId ? (
+                      <span className="flex items-center gap-2">
+                        <span>{acc.username}</span>
+                        <Link
+                          to={`/partners/${acc.partnerId}`}
+                          onClick={e => e.stopPropagation()}
+                          title="Open partner detail"
+                          className="text-[11px] font-normal text-blue-500 hover:text-blue-400 hover:underline"
+                        >
+                          partner ↗
+                        </Link>
+                      </span>
+                    ) : (
+                      acc.username
+                    )}
+                  </td>
                   <td className="table-cell"><span className="badge badge-blue">{acc.protocol}</span></td>
                   <td className="table-cell text-xs text-secondary">{acc.serverInstance || <span className="text-muted">Any</span>}</td>
                   <td className="table-cell"><span className={`badge ${tier.color}`}>{tier.label}</span></td>
@@ -228,6 +298,20 @@ export default function Accounts() {
                   <td className="table-cell text-secondary text-xs">{acc.createdAt ? format(new Date(acc.createdAt), 'MMM d, yyyy') : '-'}</td>
                   <td className="table-cell">
                     <div className="flex gap-1">
+                      {/*
+                        Phase 2 — "View Executions" deep-link: jumps to the unified
+                        /operations/activity monitor filtered by this account's username.
+                        Uses ClockIcon for quick visual language consistency.
+                      */}
+                      <Link
+                        to={`/operations/activity?sourceUsername=${encodeURIComponent(acc.username || '')}`}
+                        onClick={e => e.stopPropagation()}
+                        title="View recent executions for this account"
+                        aria-label="View recent executions for this account"
+                        className="p-1.5 rounded hover:bg-[rgba(100,140,255,0.1)] text-blue-400 hover:text-blue-300 transition-colors"
+                      >
+                        <ClockIcon className="w-4 h-4" />
+                      </Link>
                       <button onClick={(e) => { e.stopPropagation(); openEdit(acc) }} title="Edit account" aria-label="Edit account"
                         className="p-1.5 rounded hover:bg-accent-soft text-accent hover:text-accent transition-colors">
                         <PencilSquareIcon className="w-4 h-4" />
