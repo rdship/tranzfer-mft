@@ -8,8 +8,9 @@ import {
   submitMapFeedback,
 } from '../api/ediConverter'
 import {
-  SparklesIcon, XMarkIcon,
+  SparklesIcon, XMarkIcon, ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline'
+import { useServices } from '../context/ServiceContext'
 import MapEditor from '../components/MapEditor'
 import MapTestPanel from '../components/MapTestPanel'
 import SampleUploader from '../components/SampleUploader'
@@ -72,6 +73,9 @@ export default function Edi() {
     pathname === '/edi-mapping'  ? 'maps' :
     pathname === '/edi-partners' ? 'partners' :
                                    'convert'
+
+  const { isServiceRunning, loading: servicesLoading } = useServices()
+  const ediDown = !servicesLoading && !isServiceRunning('ediConverter')
 
   const [content, setContent] = useState('')
   const [content2, setContent2] = useState('')
@@ -375,6 +379,32 @@ export default function Edi() {
           Build Map
         </button>
       </div>
+
+      {/* Service-down warning banner — non-blocking so the user can still
+          browse tabs while the converter comes back up. When readiness is
+          DOWN, calls will fail fast and each panel's toast will explain why. */}
+      {ediDown && (
+        <div
+          className="rounded-xl px-4 py-3 flex items-start gap-3"
+          style={{
+            background: 'rgba(245, 158, 11, 0.08)',
+            border: '1px solid rgba(245, 158, 11, 0.35)',
+          }}
+        >
+          <ExclamationTriangleIcon
+            className="w-5 h-5 flex-shrink-0 mt-0.5"
+            style={{ color: 'rgb(245, 158, 11)' }}
+          />
+          <div className="flex-1 text-xs" style={{ color: 'rgb(var(--tx-primary))' }}>
+            <div className="font-semibold mb-0.5">EDI Converter service is not responding</div>
+            <div style={{ color: 'rgb(148, 163, 184)' }}>
+              Couldn't reach edi-converter (:8095) on its readiness probe. You can still
+              browse tabs, but Convert / Maps / NL Create calls will fail until the service
+              comes back. Start it with <code className="font-mono text-[11px] px-1 rounded" style={{ background: 'rgb(30, 30, 36)' }}>docker compose up -d edi-converter</code>.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex border-b border-border gap-1 overflow-x-auto">

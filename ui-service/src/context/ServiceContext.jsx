@@ -32,7 +32,12 @@ const SERVICE_HEALTH_ENDPOINTS = {
   screening: { url: 'http://localhost:8092/api/v1/screening/health', port: 8092 },
   keystore: { url: 'http://localhost:8093/api/v1/keys/health', port: 8093 },
   sentinel: { url: 'http://localhost:8098/api/v1/sentinel/health', port: 8098 },
-  ediConverter: { url: 'http://localhost:8095/actuator/health', port: 8095 },
+  // Using /actuator/health/readiness (not root /health) because Spring Boot's
+  // root health aggregates every indicator — a single transient Kafka or
+  // RabbitMQ blip flips the whole thing to DOWN even when the service is
+  // actually serving traffic. Readiness is what the demo-onboard.sh wait
+  // function settled on after hitting exactly this bug.
+  ediConverter: { url: 'http://localhost:8095/actuator/health/readiness', port: 8095 },
   notification: { url: 'http://localhost:8097/actuator/health', port: 8097 },
   storage: { url: 'http://localhost:8096/actuator/health', port: 8096 },
   as2: { url: 'http://localhost:8094/actuator/health', port: 8094 },

@@ -25,6 +25,7 @@ import {
   TagIcon,
 } from '@heroicons/react/24/outline'
 import LoadingSpinner from '../components/LoadingSpinner'
+import { useServices } from '../context/ServiceContext'
 
 const iconMap = {
   UserGroupIcon,
@@ -42,24 +43,28 @@ const iconMap = {
   CircleStackIcon,
 }
 
+// overrideKey maps each row to the key ServiceContext uses in its
+// SERVICE_HEALTH_ENDPOINTS map + PAGE_SERVICE_MAP. When you toggle the
+// override here, the rest of the UI (sidebar, route guards, Edi page banner)
+// will honour the forced value immediately.
 const SERVICES = [
-  { id: 'onboarding-api', name: 'Onboarding API', description: 'Authentication, accounts, partner management', port: 8080, category: 'Core', icon: 'UserGroupIcon' },
-  { id: 'sftp-service', name: 'SFTP Service', description: 'Secure file transfer over SSH', port: 8081, category: 'Protocol', icon: 'ServerStackIcon' },
-  { id: 'ftp-service', name: 'FTP Service', description: 'Classic file transfer protocol', port: 8082, category: 'Protocol', icon: 'ServerStackIcon' },
-  { id: 'ftp-web-service', name: 'FTP Web Service', description: 'HTTP-based file upload/download', port: 8083, category: 'Protocol', icon: 'GlobeAltIcon' },
-  { id: 'config-service', name: 'Config Service', description: 'Flows, endpoints, connectors', port: 8084, category: 'Core', icon: 'Cog6ToothIcon' },
-  { id: 'gateway-service', name: 'Gateway Service', description: 'Protocol gateway and routing', port: 8085, category: 'Infrastructure', icon: 'BoltIcon' },
-  { id: 'encryption-service', name: 'Encryption Service', description: 'AES/PGP file encryption', port: 8086, category: 'Security', icon: 'KeyIcon' },
-  { id: 'external-forwarder', name: 'External Forwarder', description: 'File delivery to external destinations', port: 8087, category: 'Core', icon: 'ArrowUpTrayIcon' },
-  { id: 'dmz-proxy', name: 'DMZ Proxy', description: 'AI-powered security proxy', port: 8088, category: 'Security', icon: 'ShieldCheckIcon' },
-  { id: 'license-service', name: 'License Service', description: 'License management and validation', port: 8089, category: 'Administration', icon: 'KeyIcon' },
-  { id: 'analytics-service', name: 'Analytics Service', description: 'Metrics, dashboards, predictions', port: 8090, category: 'Observability', icon: 'ChartBarIcon' },
-  { id: 'ai-engine', name: 'AI Engine', description: 'Data classification, threat detection, routing AI', port: 8091, category: 'Intelligence', icon: 'CpuChipIcon' },
-  { id: 'screening-service', name: 'Screening Service', description: 'OFAC/AML sanctions screening', port: 8092, category: 'Compliance', icon: 'ShieldCheckIcon' },
-  { id: 'keystore-manager', name: 'Keystore Manager', description: 'Cryptographic key and certificate management', port: 8093, category: 'Security', icon: 'KeyIcon' },
-  { id: 'as2-service', name: 'AS2 Service', description: 'AS2/AS4 B2B messaging protocol', port: 8094, category: 'Protocol', icon: 'ArrowsRightLeftIcon' },
-  { id: 'edi-converter', name: 'EDI Converter', description: 'EDI format detection and conversion', port: 8095, category: 'Intelligence', icon: 'DocumentTextIcon' },
-  { id: 'storage-manager', name: 'Storage Manager', description: 'Tiered storage with lifecycle management', port: 8096, category: 'Infrastructure', icon: 'CircleStackIcon' },
+  { id: 'onboarding-api', overrideKey: 'onboarding', name: 'Onboarding API', description: 'Authentication, accounts, partner management', port: 8080, category: 'Core', icon: 'UserGroupIcon' },
+  { id: 'sftp-service', overrideKey: 'sftp', name: 'SFTP Service', description: 'Secure file transfer over SSH', port: 8081, category: 'Protocol', icon: 'ServerStackIcon' },
+  { id: 'ftp-service', overrideKey: 'ftp', name: 'FTP Service', description: 'Classic file transfer protocol', port: 8082, category: 'Protocol', icon: 'ServerStackIcon' },
+  { id: 'ftp-web-service', overrideKey: 'ftpWeb', name: 'FTP Web Service', description: 'HTTP-based file upload/download', port: 8083, category: 'Protocol', icon: 'GlobeAltIcon' },
+  { id: 'config-service', overrideKey: 'config', name: 'Config Service', description: 'Flows, endpoints, connectors', port: 8084, category: 'Core', icon: 'Cog6ToothIcon' },
+  { id: 'gateway-service', overrideKey: 'gateway', name: 'Gateway Service', description: 'Protocol gateway and routing', port: 8085, category: 'Infrastructure', icon: 'BoltIcon' },
+  { id: 'encryption-service', overrideKey: 'encryption', name: 'Encryption Service', description: 'AES/PGP file encryption', port: 8086, category: 'Security', icon: 'KeyIcon' },
+  { id: 'external-forwarder', overrideKey: 'forwarder', name: 'External Forwarder', description: 'File delivery to external destinations', port: 8087, category: 'Core', icon: 'ArrowUpTrayIcon' },
+  { id: 'dmz-proxy', overrideKey: 'dmz', name: 'DMZ Proxy', description: 'AI-powered security proxy', port: 8088, category: 'Security', icon: 'ShieldCheckIcon' },
+  { id: 'license-service', overrideKey: 'license', name: 'License Service', description: 'License management and validation', port: 8089, category: 'Administration', icon: 'KeyIcon' },
+  { id: 'analytics-service', overrideKey: 'analytics', name: 'Analytics Service', description: 'Metrics, dashboards, predictions', port: 8090, category: 'Observability', icon: 'ChartBarIcon' },
+  { id: 'ai-engine', overrideKey: 'aiEngine', name: 'AI Engine', description: 'Data classification, threat detection, routing AI', port: 8091, category: 'Intelligence', icon: 'CpuChipIcon' },
+  { id: 'screening-service', overrideKey: 'screening', name: 'Screening Service', description: 'OFAC/AML sanctions screening', port: 8092, category: 'Compliance', icon: 'ShieldCheckIcon' },
+  { id: 'keystore-manager', overrideKey: 'keystore', name: 'Keystore Manager', description: 'Cryptographic key and certificate management', port: 8093, category: 'Security', icon: 'KeyIcon' },
+  { id: 'as2-service', overrideKey: 'as2', name: 'AS2 Service', description: 'AS2/AS4 B2B messaging protocol', port: 8094, category: 'Protocol', icon: 'ArrowsRightLeftIcon' },
+  { id: 'edi-converter', overrideKey: 'ediConverter', name: 'EDI Converter', description: 'EDI format detection and conversion', port: 8095, category: 'Intelligence', icon: 'DocumentTextIcon' },
+  { id: 'storage-manager', overrideKey: 'storage', name: 'Storage Manager', description: 'Tiered storage with lifecycle management', port: 8096, category: 'Infrastructure', icon: 'CircleStackIcon' },
 ]
 
 const CATEGORIES = ['All', 'Core', 'Protocol', 'Security', 'Infrastructure', 'Compliance', 'Intelligence', 'Observability', 'Administration']
@@ -93,8 +98,12 @@ const checkServiceHealth = async (port) => {
 
 export default function ServiceManagement() {
   const queryClient = useQueryClient()
+  const { overrides, toggleOverride, clearOverrides } = useServices()
   const [categoryFilter, setCategoryFilter] = useState('All')
   const [detailModal, setDetailModal] = useState(null)
+  // Count only keys whose value is explicitly true/false — Auto clears by
+  // setting undefined, but the key may still be present in the state object.
+  const overrideCount = Object.values(overrides || {}).filter(v => v === true || v === false).length
 
   const { data: healthMap = {}, isLoading, dataUpdatedAt } = useQuery({
     queryKey: ['service-health'],
@@ -139,12 +148,48 @@ export default function ServiceManagement() {
               Last checked: {format(new Date(dataUpdatedAt), 'HH:mm:ss')}
             </span>
           )}
+          {overrideCount > 0 && (
+            <button
+              className="btn-secondary flex items-center gap-2 text-xs"
+              onClick={() => { clearOverrides(); toast.success('Cleared all service overrides') }}
+              title="Remove all manual overrides and fall back to detected health state"
+            >
+              <XMarkIcon className="h-4 w-4" />
+              Clear {overrideCount} override{overrideCount === 1 ? '' : 's'}
+            </button>
+          )}
           <button className="btn-primary flex items-center gap-2" onClick={handleRefresh}>
             <ArrowPathIcon className="h-4 w-4" />
             Refresh
           </button>
         </div>
       </div>
+
+      {/* Override explainer — only shown when overrides are active so the
+          admin immediately knows why the sidebar looks different from reality. */}
+      {overrideCount > 0 && (
+        <div
+          className="rounded-xl px-4 py-3 flex items-start gap-3"
+          style={{
+            background: 'rgba(245, 158, 11, 0.08)',
+            border: '1px solid rgba(245, 158, 11, 0.35)',
+          }}
+        >
+          <ExclamationTriangleIcon
+            className="w-5 h-5 flex-shrink-0 mt-0.5"
+            style={{ color: 'rgb(245, 158, 11)' }}
+          />
+          <div className="flex-1 text-xs" style={{ color: 'rgb(var(--tx-primary))' }}>
+            <div className="font-semibold mb-0.5">
+              {overrideCount} manual override{overrideCount === 1 ? '' : 's'} active
+            </div>
+            <div style={{ color: 'rgb(148, 163, 184)' }}>
+              Page visibility is being forced instead of following detected health.
+              Use per-card Visibility controls to change them, or Clear to revert.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Summary Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -267,6 +312,45 @@ export default function ServiceManagement() {
                     Service is not responding on port {svc.port}
                   </p>
                 )}
+              </div>
+
+              {/* Sidebar visibility override — forces pages for this service
+                  visible (true) or hidden (false) regardless of health probe,
+                  or Auto to fall back to detected state. */}
+              <div className="mb-3 flex items-center gap-2 text-xs">
+                <span className="text-muted flex-shrink-0">Sidebar visibility:</span>
+                <div className="flex rounded-lg overflow-hidden border border-border">
+                  {[
+                    { value: 'auto', label: 'Auto', active: overrides[svc.overrideKey] === undefined },
+                    { value: 'on',   label: 'Force on', active: overrides[svc.overrideKey] === true },
+                    { value: 'off',  label: 'Force off', active: overrides[svc.overrideKey] === false },
+                  ].map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => {
+                        // toggleOverride stores { key: undefined } in state;
+                        // JSON.stringify drops undefined keys, and the
+                        // isServiceRunning check treats it as "no override"
+                        // (neither === true nor === false), so Auto just
+                        // falls back to detected health.
+                        if (opt.value === 'auto') {
+                          toggleOverride(svc.overrideKey, undefined)
+                          toast.success(`${svc.name} follows detected health`)
+                        } else {
+                          toggleOverride(svc.overrideKey, opt.value === 'on')
+                          toast.success(`${svc.name} forced ${opt.value === 'on' ? 'visible' : 'hidden'}`)
+                        }
+                      }}
+                      className={`px-2 py-1 text-[11px] transition-colors ${
+                        opt.active
+                          ? 'bg-blue-600 text-white font-semibold'
+                          : 'bg-hover text-secondary hover:bg-gray-200'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Action buttons */}

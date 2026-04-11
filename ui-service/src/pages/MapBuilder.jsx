@@ -3,12 +3,13 @@ import { useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
   PlusIcon, ArrowPathIcon, MagnifyingGlassIcon,
-  DocumentDuplicateIcon, CheckCircleIcon, ExclamationTriangleIcon,
+  DocumentDuplicateIcon, CheckCircleIcon,
 } from '@heroicons/react/24/outline'
 import { getAvailableMaps, getMapDetail, updateMap } from '../api/ediConverter'
 import MapEditor from '../components/MapEditor'
 import MapTestPanel from '../components/MapTestPanel'
 import MapAssistant from '../components/MapAssistant'
+import ServiceUnavailable from '../components/ServiceUnavailable'
 
 const CATEGORY_ORDER = ['STANDARD', 'TRAINED', 'PARTNER']
 
@@ -189,30 +190,19 @@ export default function MapBuilder() {
   const canSave = !!mapDef && !isStandardMap && (dirty || isNewMap) && !saving
 
   // ── Service-unavailable state ──────────────────────────────────────────────
+  // Uses the shared ServiceUnavailable primitive so the card matches every
+  // other backend-down screen across the admin UI (same copy, same retry UX).
   if (mapsError && maps.length === 0 && !mapsLoading) {
     return (
-      <div className="h-full w-full flex items-center justify-center p-8" style={{ background: 'rgb(var(--canvas))' }}>
-        <div className="max-w-md w-full text-center p-8 rounded-lg"
-          style={{ background: 'rgb(var(--surface))', border: '1px solid rgb(var(--border))' }}>
-          <ExclamationTriangleIcon className="w-12 h-12 mx-auto mb-4" style={{ color: '#f59e0b' }} />
-          <h2 className="text-lg font-bold mb-2" style={{ color: 'rgb(var(--tx-primary))' }}>
-            EDI Converter service unavailable
-          </h2>
-          <p className="text-sm mb-4" style={{ color: 'rgb(var(--tx-secondary))' }}>
-            Couldn't load maps from edi-converter (:8095). Check that the service is running, then retry.
-          </p>
-          <p className="text-xs font-mono mb-6 px-3 py-2 rounded"
-            style={{ background: 'rgb(var(--canvas))', color: 'rgb(var(--tx-muted))', border: '1px solid rgb(var(--border))' }}>
-            {mapsError}
-          </p>
-          <button
-            onClick={loadMaps}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
-            style={{ background: '#1e3a8a', color: '#e0e7ff', border: '1px solid #1e40af' }}>
-            <ArrowPathIcon className="w-4 h-4" />
-            Retry
-          </button>
-        </div>
+      <div className="h-full w-full flex items-center justify-center" style={{ background: 'rgb(var(--canvas))' }}>
+        <ServiceUnavailable
+          service="edi-converter"
+          port={8095}
+          error={mapsError}
+          onRetry={loadMaps}
+          title="EDI Map Builder unavailable"
+          hint="Couldn't load maps from edi-converter (:8095). Start the service with `docker compose up -d edi-converter`, then retry."
+        />
       </div>
     )
   }

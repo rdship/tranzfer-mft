@@ -1,5 +1,27 @@
 server:
   port: 8095
+
+# Expose Spring Boot's liveness/readiness probes so /actuator/health/readiness
+# is reachable. Without this the readiness endpoint 404s and the UI's
+# ServiceContext health probe (which the rest of the platform uses for
+# sidebar visibility) would always flag edi-converter as down.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always
+      group:
+        readiness:
+          include: readinessState
+  health:
+    defaults:
+      enabled: true
+
 spring:
   servlet:
     multipart:
