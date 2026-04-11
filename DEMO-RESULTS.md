@@ -5,6 +5,32 @@
 
 ---
 
+## Fix Status — R11 through R15 (2026-04-11)
+
+After the bug report below, Roshan ran an autonomous 2-hour fix sprint. All
+of the known bugs plus a deep silent-failure sweep were addressed in five
+commits on main:
+
+| Round | Commit | What changed |
+|-------|--------|---|
+| R11 | `4b16e58` | BUG-1 fix (JpaSpecification); fix CRITICAL silent failures on Analytics/Predictions/Observatory/TwoFactor; fix HIGH swallowed errors on Flows/Screening/ProxyIntelligence; PAGE_SERVICE_MAP for 7 ungated pages; remove Rule-13 violating disabled button on Partners; add 3 missing ai-engine ThreatIntelligence endpoints and 2 missing ProxyIntelligence endpoints |
+| R12 | `fb9a46e` | Add 3 missing EdiMapTraining endpoints (/samples, /sessions/{id}, /maps/{id}); add POST /api/v1/convert/maps/{mapId}/test to edi-converter; fix ediTraining correction UI paths (/sessions/{id}/correct); remove dead getApprovalsForTrack helper |
+| R13 | `989223e` | Global QueryCache + MutationCache onError handlers at QueryClient root; strip 26 `.catch(() => [])` silent swallows across 13 pages; replace 5 Compliance.jsx catch-swallows with per-query onError toasts |
+| R14 | `b208c3c` | Tenants.jsx quota progress bars (wires the /usage endpoint); final silent-swallow cleanup on Edi/Screening/Partnerships |
+| R15 | `72619e0` | Per-page ErrorBoundary isolation on every route (lazy and eager) with PageCrashCard; ErrorBoundary render-prop fallback support |
+
+**Verification:**
+- `mvn test` for shared-platform (293), onboarding-api (65), ai-engine (215), edi-converter (554) — **1,127 tests passing**
+- `vite build` clean after each round
+- Live smoke test: edi-converter readiness probe + `/api/v1/convert/maps` both still 200 OK
+
+**BUG-1 status:** fixed in R11 (`4b16e58`). `ActivityMonitorController` now builds a dynamic `Specification<FileTransferRecord>` in the controller, which means null filter params contribute zero predicates instead of producing untyped `$1 IS NULL` bindings. The repository still has its `searchForActivityMonitor` JPQL removed and is marked `extends JpaSpecificationExecutor<FileTransferRecord>` instead. Activity Monitor on `/operations/activity` should now render the 150 seeded transfers on default (unfiltered) page load.
+
+---
+
+
+---
+
 ## Summary
 
 | Category | Count |
