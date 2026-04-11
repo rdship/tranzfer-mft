@@ -69,7 +69,9 @@ public class AccountEventConsumer {
         if (eventFabricBridge == null || injectedObjectMapper == null) return;
         String serviceName = System.getenv().getOrDefault("SERVICE_NAME", "sftp-service");
         try {
-            eventFabricBridge.subscribeAccountEvents(serviceName, event -> {
+            // Shared group — load-balance account events across sftp replicas
+            String groupId = com.filetransfer.shared.fabric.FabricGroupIds.shared(serviceName, "events.account");
+            eventFabricBridge.subscribeAccountEvents(groupId, event -> {
                 try {
                     Map<String, Object> payload = event.payloadAsMap(injectedObjectMapper);
                     if (payload != null) {

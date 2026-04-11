@@ -52,8 +52,9 @@ public class FlowRuleEventListener {
         if (eventFabricBridge == null || objectMapper == null) return;
         String serviceName = System.getenv().getOrDefault("SERVICE_NAME", "flow-rule-listener");
         try {
-            // Each instance needs all events — use hostname to ensure unique consumer group
-            String groupId = serviceName + "-" + System.getenv().getOrDefault("HOSTNAME", UUID.randomUUID().toString().substring(0, 8));
+            // Fanout group — every pod must receive every flow-rule change (hot reload)
+            String groupId = com.filetransfer.shared.fabric.FabricGroupIds.fanout(
+                serviceName, "events.flow-rule");
             eventFabricBridge.subscribeFlowRuleEvents(groupId, event -> {
                 try {
                     Map<String, Object> payload = event.payloadAsMap(objectMapper);

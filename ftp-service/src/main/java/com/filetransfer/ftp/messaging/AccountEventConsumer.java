@@ -63,7 +63,9 @@ public class AccountEventConsumer {
         if (eventFabricBridge == null || objectMapper == null) return;
         String serviceName = System.getenv().getOrDefault("SERVICE_NAME", "ftp-service");
         try {
-            eventFabricBridge.subscribeAccountEvents(serviceName, event -> {
+            eventFabricBridge.subscribeAccountEvents(
+                com.filetransfer.shared.fabric.FabricGroupIds.shared(serviceName, "events.account"),
+                event -> {
                 try {
                     Map<String, Object> payload = event.payloadAsMap(objectMapper);
                     if (payload != null) {

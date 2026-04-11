@@ -53,7 +53,8 @@ public class FlowFabricConsumer {
         }
 
         String serviceName = System.getenv().getOrDefault("SERVICE_NAME", "onboarding-api");
-        String groupId = serviceName + "-flow-engine";
+        // Shared group — all pods of this service compete for intake partitions (load balance)
+        String groupId = FabricGroupIds.shared(serviceName, FlowFabricBridge.TOPIC_FLOW_INTAKE);
 
         try {
             fabricBridge.subscribeIntake(groupId, this::onIntakeMessage);

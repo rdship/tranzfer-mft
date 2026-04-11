@@ -42,7 +42,9 @@ public class NotificationEventConsumer {
         if (eventFabricBridge == null) return;
         String serviceName = System.getenv().getOrDefault("SERVICE_NAME", "notification-service");
         try {
-            eventFabricBridge.subscribeNotificationEvents(serviceName, event -> {
+            eventFabricBridge.subscribeNotificationEvents(
+                com.filetransfer.shared.fabric.FabricGroupIds.shared(serviceName, "events.notification"),
+                event -> {
                 try {
                     Map<String, Object> payload = event.payloadAsMap(objectMapper);
                     if (payload != null) {
