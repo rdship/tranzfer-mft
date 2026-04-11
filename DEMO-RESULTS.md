@@ -372,3 +372,62 @@ mft-redis                  0.35%     20.54MiB / 23.43GiB   0.09%     55.7kB / 17
 mft-spire-server           0.36%     29.52MiB / 23.43GiB   0.12%     592kB / 2.7MB
 mft-redpanda               0.30%     430MiB / 23.43GiB     1.79%     106kB / 94.6kB
 ```
+
+---
+
+## ⚠ CTO ACTION REQUIRED — Verify BUG-G (public port exposure) — 2026-04-11
+
+**Context:** During the 2026-04-11 full-stack run (`./scripts/demo-all.sh --full` against release `dc3b073`, full detail in [`docs/run-reports/2026-04-11-post-release-run.md`](docs/run-reports/2026-04-11-post-release-run.md)), I flagged BUG-G: every service in `docker-compose.yml` binds to `0.0.0.0` instead of `127.0.0.1`, meaning ports are reachable beyond the local host.
+
+The operator (akankshasrivastava) said the laptop sits behind an outbound proxy that handles inbound traffic, so the run would be protected. I downgraded the severity from CRITICAL to "informational" on her word.
+
+**I need you to verify that claim is actually true, because the nginx access log contradicts it.**
+
+### Evidence — nginx access log from `mft-api-gateway`, 2026-04-11 23:10 UTC (captured during the run, before the defensive `docker compose stop`)
+
+```
+2026/04/11 23:10:00 [error] 29#29: *1 connect() failed (111: Connection refused)
+while connecting to upstream, client: 151.101.210.132, server: _,
+request: "POST /reader-update HTTP/1.1",
+upstream: "http://172.19.0.37:80/reader-update", host: "www.entryway.world"
+
+151.101.210.132 - - [11/Apr/2026:23:10:00 +0000] "POST /reader-update HTTP/1.1"
+502 157 "-" "Python-urllib/3.7" "-"
+```
+
+The same pattern repeats at `23:10:16`, `23:10:31`, `23:10:45`, `23:11:00`, `23:11:15`, `23:11:30` — roughly once every 15 seconds, like a scan loop.
+
+### What the evidence implies
+
+- **`151.101.210.132` is in Fastly's public address range** (AS54113 — used by Fastly's shared-IP edge). It is not on any private RFC1918 subnet. It is not the operator's home IP.
+- **The TCP handshake completed.** nginx would not log the request line or emit a 502 if the connection had been dropped by a firewall, proxy, or NAT. The request reached nginx at layer 7.
+- **The `Host: www.entryway.world` header + `/reader-update` path** is a classic opportunistic vuln scan. Some bot somewhere on the internet is running through port-80 IPs looking for this endpoint. The fact that it *reached* our container means our port 80 is advertised somewhere that internet scanners can see it.
+- The upstream 502 is unrelated — that's just nginx's proxy target being down (see BUG-F). The security-relevant fact is that the scan's inbound packets arrived at `mft-api-gateway` at all.
+
+### What the CTO should check
+
+Please confirm (or refute) each of these, with evidence, before closing BUG-G:
+
+1. **Was akankshasrivastava's outbound proxy actually in front of inbound traffic to her laptop at 23:10 UTC on 2026-04-11?**
+   Most home proxies are outbound-only — they route the host's outgoing requests through the proxy, but they do NOT filter inbound TCP on the host's listening ports. If the proxy is only outbound (Charles, Proxyman, a corporate VPN outbound-proxy), **it would have provided zero protection against this connection**, and BUG-G is effectively a real exposure.
+
+2. **If the proxy is genuinely inbound-filtering** (e.g. a hardware firewall, a reverse proxy on the gateway, Cloudflare Tunnel, a pfSense/OPNsense box), **why did this request get through?** Either:
+   - The proxy rule set allows `POST /reader-update` from Fastly IP space → misconfig, needs tightening.
+   - The proxy is routing all `:80` traffic to the laptop unconditionally → the proxy is a transparent forwarder, not a filter, and BUG-G is still real.
+
+3. **Is `mft-api-gateway` actually publishing port 80 to the internet via some tunnel** the operator didn't mention? Check for `cloudflared`, `ngrok`, `tailscale funnel`, or similar. A transient tunnel could explain the Fastly-sourced packet without a conventional port forward.
+
+4. **Check the router NAT table / upstream firewall.** If the home router is forwarding port 80 to this Mac (UPnP auto-created a rule, or a legacy manual rule), that's the real cause and needs to be removed.
+
+5. **Repro test:** from *any* off-LAN host you control (e.g. a phone on cellular, or a cloud VM), run `curl -v http://<operator-public-ip>:80/`. If you get a response (even a 502), the port is genuinely exposed and BUG-G must be reclassified.
+
+### Proposed resolution path
+
+- **If any of checks 1–5 show the port is actually reachable:** BUG-G is at minimum HIGH-severity, regardless of whether this specific scanner succeeded. Change the default in `docker-compose.yml` to `127.0.0.1:<host_port>:<container_port>` for every service, and wrap the 0.0.0.0 binding behind an opt-in env var (`MFT_EXPOSE_ALL_INTERFACES=1`) for operators who explicitly want external access.
+- **If checks 1–5 prove the proxy really is inbound-filtering and the scanner hit was an anomaly:** downgrade BUG-G to "informational / hardening", but *still* consider the 127.0.0.1 default, because the next operator to run this on a less-protected network (corporate dev laptop, conference wifi, VM in a cloud without a firewall) will not have the same protection.
+
+### Why this matters enough to flag separately
+
+The operator said "I have a proxy, it's fine" and I accepted that on good faith. **That's exactly the kind of assurance that needs independent verification in a security context**, because (a) most operators conflate "I have a proxy" with "I'm protected from inbound" without checking the proxy's actual direction, and (b) a default-unsafe binding in a shipped `docker-compose.yml` affects every future operator, not just the one who happened to flag it.
+
+I did not want to override the operator's self-assessment mid-run. That's your call to make with better context than I have.
