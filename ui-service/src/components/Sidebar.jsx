@@ -1,9 +1,11 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useBranding } from '../context/BrandingContext'
 import { useServices } from '../context/ServiceContext'
 import { useAuth } from '../context/AuthContext'
-import { configApi } from '../api/client'
+import { useRecentlyViewed } from '../hooks/useRecentlyViewed'
+import { configApi, onboardingApi } from '../api/client'
+import { getFabricStuck } from '../api/fabric'
 import {
   HomeIcon,
   BuildingOfficeIcon,
@@ -47,7 +49,7 @@ const navGroups = [
     label: 'Operations',
     items: [
       { to: '/operations',           icon: HomeIcon,            label: 'Dashboard' },
-      { to: '/operations/fabric',    icon: BoltIcon,            label: 'Flow Fabric' },
+      { to: '/operations/fabric',    icon: BoltIcon,            label: 'Flow Fabric',      badge: 'fabricStuck' },
       { to: '/operations/activity',  icon: ChartBarIcon,        label: 'Activity Monitor' },
       { to: '/operations/live',      icon: WifiIcon,            label: 'Live Activity' },
       { to: '/operations/journey',   icon: MagnifyingGlassIcon, label: 'Transfer Journey' },
@@ -98,8 +100,8 @@ const navGroups = [
       { to: '/security-profiles',   icon: ShieldCheckIcon,         label: 'Security Profiles',   role: 'ADMIN' },
       { to: '/keystore',            icon: KeyIcon,                 label: 'Keystore Manager',    role: 'ADMIN' },
       { to: '/screening',           icon: MagnifyingGlassIcon,     label: 'Screening & DLP' },
-      { to: '/quarantine',          icon: ExclamationTriangleIcon, label: 'Quarantine',          role: 'ADMIN' },
-      { to: '/sentinel',            icon: CpuChipIcon,             label: 'Platform Sentinel',   role: 'ADMIN' },
+      { to: '/quarantine',          icon: ExclamationTriangleIcon, label: 'Quarantine',          role: 'ADMIN', badge: 'quarantine' },
+      { to: '/sentinel',            icon: CpuChipIcon,             label: 'Platform Sentinel',   role: 'ADMIN', badge: 'sentinel' },
       { to: '/threat-intelligence', icon: ShieldCheckIcon,         label: 'Threat Intel',        role: 'ADMIN' },
       { to: '/proxy-intelligence',  icon: GlobeAltIcon,            label: 'Proxy Intel',         role: 'ADMIN' },
       { to: '/2fa',                 icon: ShieldCheckIcon,         label: 'Two-Factor Auth' },
@@ -154,7 +156,7 @@ const navGroups = [
       { to: '/circuit-breakers',icon: ArrowPathIcon,             label: 'Circuit Breakers',   role: 'ADMIN' },
       { to: '/migration',       icon: ArrowPathIcon,             label: 'Migration Center',   role: 'ADMIN' },
       { to: '/logs',            icon: DocumentTextIcon,          label: 'Logs' },
-      { to: '/dlq',             icon: InboxStackIcon,            label: 'Dead Letter Queue',  role: 'ADMIN' },
+      { to: '/dlq',             icon: InboxStackIcon,            label: 'Dead Letter Queue',  role: 'ADMIN', badge: 'dlq' },
     ],
   },
 ]
@@ -163,14 +165,78 @@ export default function Sidebar() {
   const { branding }               = useBranding()
   const { isPageVisible, loading } = useServices()
   const { user, logout }           = useAuth()
+  const { entries: recentEntries } = useRecentlyViewed()
   const userRole                   = user?.role || 'USER'
   const initials                   = (user?.email?.[0] || 'A').toUpperCase()
 
+  // ── Live notification counts — drive the colored badges on nav items ──
+  // All fetches are best-effort; a backend outage just means the badge disappears
+  // for that item. No error UI, no retries (Sidebar must never block rendering).
   const { data: complianceCount } = useQuery({
-    queryKey: ['compliance-violation-count-sidebar'],
+    queryKey: ['sidebar-compliance-count'],
     queryFn: () => configApi.get('/api/compliance/violations/count').then(r => r.data?.unresolved || 0).catch(() => 0),
-    refetchInterval: 30000
+    refetchInterval: 30000,
+    retry: 0,
   })
+
+  const { data: sentinelOpenCount } = useQuery({
+    queryKey: ['sidebar-sentinel-count'],
+    queryFn: () =>
+      onboardingApi.get('/api/v1/sentinel/findings', { params: { status: 'OPEN', size: 1 } })
+        .then(r => r.data?.totalElements ?? r.data?.total ?? (Array.isArray(r.data) ? r.data.length : 0))
+        .catch(() => 0),
+    refetchInterval: 60000,
+    retry: 0,
+  })
+
+  const { data: fabricStuckCount } = useQuery({
+    queryKey: ['sidebar-fabric-stuck'],
+    queryFn: () =>
+      getFabricStuck({ page: 0, size: 1 })
+        .then(r => r?.totalElements ?? (Array.isArray(r) ? r.length : r?.items?.length ?? 0))
+        .catch(() => 0),
+    refetchInterval: 15000,
+    retry: 0,
+  })
+
+  const { data: dlqCount } = useQuery({
+    queryKey: ['sidebar-dlq-count'],
+    queryFn: () =>
+      onboardingApi.get('/api/dlq', { params: { size: 1 } })
+        .then(r => r.data?.totalElements ?? r.data?.total ?? 0)
+        .catch(() => 0),
+    refetchInterval: 60000,
+    retry: 0,
+  })
+
+  const { data: quarantineCount } = useQuery({
+    queryKey: ['sidebar-quarantine-count'],
+    queryFn: () =>
+      onboardingApi.get('/api/quarantine', { params: { size: 1 } })
+        .then(r => r.data?.totalElements ?? r.data?.total ?? 0)
+        .catch(() => 0),
+    refetchInterval: 60000,
+    retry: 0,
+  })
+
+  // Map badge kind → numeric count. Nav items reference by `badge: 'kind'`.
+  const badgeCountByKind = {
+    compliance:  complianceCount ?? 0,
+    sentinel:    sentinelOpenCount ?? 0,
+    fabricStuck: fabricStuckCount ?? 0,
+    dlq:         dlqCount ?? 0,
+    quarantine:  quarantineCount ?? 0,
+  }
+
+  // Colors per badge kind — severity-ish mapping so the sidebar "breathes"
+  // with the platform. Red = needs attention, yellow = informational.
+  const badgeStyleByKind = {
+    compliance:  { bg: 'rgb(239, 68, 68)',   color: '#fff' }, // red
+    sentinel:    { bg: 'rgb(192, 132, 252)', color: '#fff' }, // purple (Sentinel brand)
+    fabricStuck: { bg: 'rgb(234, 179, 8)',   color: '#0b0b0e' }, // yellow
+    dlq:         { bg: 'rgb(100, 116, 139)', color: '#fff' }, // slate (just informational)
+    quarantine:  { bg: 'rgb(248, 113, 113)', color: '#0b0b0e' }, // red-ish
+  }
 
   const visibleGroups = navGroups
     .map(g => ({
@@ -210,6 +276,40 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-5">
+        {/* ── Recently Viewed — the last 5 pages the user visited ──
+            Speeds up common workflows: finance team jumps to partners,
+            then flows, then back to partners. No scroll-hunting. */}
+        {recentEntries && recentEntries.length > 0 && (
+          <div>
+            <p
+              className="px-2 mb-1.5 flex items-center gap-1.5"
+              style={{
+                fontSize: '0.6rem',
+                fontWeight: 700,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                color: 'rgb(70, 75, 85)',
+              }}
+            >
+              <ClockIcon className="w-3 h-3" />
+              Recently Viewed
+            </p>
+            <div className="space-y-0.5">
+              {recentEntries.slice(0, 5).map(e => (
+                <Link
+                  key={e.path}
+                  to={e.path}
+                  className="sidebar-nav-item"
+                  title={e.path}
+                >
+                  <span className="w-[15px] flex-shrink-0" />
+                  <span className="truncate text-[12px]">{labelForPath(e.path)}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div className="flex items-center justify-center py-10">
             <div
@@ -234,7 +334,10 @@ export default function Sidebar() {
               </p>
               <div className="space-y-0.5">
                 {group.items.map(item => {
-                  const badgeCount = item.badge === 'compliance' ? complianceCount : null
+                  // Live count driven by one of the polling queries above.
+                  // null means "no badge ever"; 0 means "no badge right now".
+                  const badgeCount = item.badge ? badgeCountByKind[item.badge] : null
+                  const badgeStyle = item.badge ? badgeStyleByKind[item.badge] : null
                   return (
                     <NavLink
                       key={item.to}
@@ -244,9 +347,12 @@ export default function Sidebar() {
                     >
                       <item.icon className="w-[15px] h-[15px] flex-shrink-0" />
                       <span className="truncate">{item.label}</span>
-                      {badgeCount > 0 && (
-                        <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">
-                          {badgeCount}
+                      {badgeCount > 0 && badgeStyle && (
+                        <span
+                          className="ml-auto text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none"
+                          style={{ background: badgeStyle.bg, color: badgeStyle.color }}
+                        >
+                          {badgeCount > 99 ? '99+' : badgeCount}
                         </span>
                       )}
                     </NavLink>
@@ -293,4 +399,28 @@ export default function Sidebar() {
       </div>
     </aside>
   )
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────
+// Fallback label resolver for Recently Viewed. Walks the same navGroups
+// array used for the sidebar so labels stay in sync. For detail routes
+// like /partners/:id, falls back to a prettified segment.
+function labelForPath(path) {
+  // Strip querystring first — recent-viewed tracks pathname only, but
+  // be defensive in case something ever changes upstream.
+  const clean = path.split('?')[0]
+  for (const g of navGroups) {
+    for (const it of g.items) {
+      if (it.to === clean) return it.label
+    }
+  }
+  // Detail-page fallback: /partners/abc12345 → "Partner abc12345"
+  const segs = clean.split('/').filter(Boolean)
+  if (segs.length === 2 && /^[0-9a-f]{8,}$/i.test(segs[1])) {
+    const parent = segs[0].replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+    const singular = parent.endsWith('s') ? parent.slice(0, -1) : parent
+    return `${singular} ${segs[1].slice(0, 8)}`
+  }
+  // Generic fallback
+  return clean.replace(/-/g, ' ').replace(/^\/+/, '').replace(/\b\w/g, c => c.toUpperCase()) || 'Home'
 }
