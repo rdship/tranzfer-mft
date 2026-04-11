@@ -3,10 +3,12 @@ package com.filetransfer.notification.messaging;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.filetransfer.notification.dto.NotificationEvent;
 import com.filetransfer.notification.service.NotificationDispatcher;
+import com.filetransfer.shared.fabric.EventFabricBridge;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -19,6 +21,10 @@ import java.util.Map;
  * Graceful degradation: if processing fails, the event is logged but
  * never blocks the originating service. Failed notifications are retried
  * by the scheduled retry mechanism.
+ *
+ * Dual-subscribes to Fabric (events.notification topic) when
+ * EventFabricBridge is available. Duplicate delivery is safe because
+ * the dispatcher dedupes by trackId + eventType.
  */
 @Slf4j
 @Component
@@ -28,6 +34,30 @@ public class NotificationEventConsumer {
     private final NotificationDispatcher dispatcher;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    @Autowired(required = false)
+    private EventFabricBridge eventFabricBridge;
+
+    @jakarta.annotation.PostConstruct
+    void subscribeFabricEvents() {
+        if (eventFabricBridge == null) return;
+        String serviceName = System.getenv().getOrDefault("SERVICE_NAME", "notification-service");
+        try {
+            eventFabricBridge.subscribeNotificationEvents(serviceName, event -> {
+                try {
+                    Map<String, Object> payload = event.payloadAsMap(objectMapper);
+                    if (payload != null) {
+                        handleEvent(payload, event.getKey());
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to process fabric notification event: {}", e.getMessage(), e);
+                    throw new RuntimeException(e);
+                }
+            });
+        } catch (Exception e) {
+            log.warn("[Notification] Failed to subscribe to fabric notification events: {}", e.getMessage());
+        }
+    }
+
     @RabbitListener(queues = "${rabbitmq.queue.notification-events:notification.events}")
     public void handleEvent(Message message) {
         try {
@@ -35,10 +65,25 @@ public class NotificationEventConsumer {
             Map<String, Object> eventData = objectMapper.readValue(message.getBody(), Map.class);
 
             String routingKey = message.getMessageProperties().getReceivedRoutingKey();
-            String eventType = extractEventType(eventData, routingKey);
+            handleEvent(eventData, routingKey);
+
+        } catch (Exception e) {
+            // Graceful degradation: log and continue, never block the producer
+            log.warn("Failed to process notification event: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Idempotent handler shared between RabbitMQ and Fabric paths.
+     * For the fabric path, the "routing key fallback" is the partition key
+     * (which the publisher sets to the event type).
+     */
+    private void handleEvent(Map<String, Object> eventData, String routingKeyOrFallback) {
+        try {
+            String eventType = extractEventType(eventData, routingKeyOrFallback);
 
             if (eventType == null || eventType.isBlank()) {
-                log.debug("Ignoring event with no identifiable type, routing key: {}", routingKey);
+                log.debug("Ignoring event with no identifiable type, fallback: {}", routingKeyOrFallback);
                 return;
             }
 
@@ -55,12 +100,11 @@ public class NotificationEventConsumer {
                     .build();
 
             log.info("Received event: type={} trackId={} routingKey={}",
-                    eventType, event.getTrackId(), routingKey);
+                    eventType, event.getTrackId(), routingKeyOrFallback);
 
             dispatcher.processEvent(event);
 
         } catch (Exception e) {
-            // Graceful degradation: log and continue, never block the producer
             log.warn("Failed to process notification event: {}", e.getMessage());
         }
     }

@@ -1,5 +1,7 @@
 package com.filetransfer.ftpweb.messaging;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.filetransfer.shared.fabric.EventFabricBridge;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Binding;
@@ -8,6 +10,7 @@ import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,6 +24,12 @@ import java.util.Map;
 @Configuration
 @RequiredArgsConstructor
 public class AccountEventConsumer {
+
+    @Autowired(required = false)
+    private EventFabricBridge eventFabricBridge;
+
+    @Autowired(required = false)
+    private ObjectMapper objectMapper;
 
     @Value("${rabbitmq.exchange}")
     private String exchange;
@@ -46,8 +55,36 @@ public class AccountEventConsumer {
         return BindingBuilder.bind(ftpWebEventsQueue).to(ftpWebExchange).with("account.*");
     }
 
+    @jakarta.annotation.PostConstruct
+    void subscribeFabricEvents() {
+        if (eventFabricBridge == null || objectMapper == null) return;
+        String serviceName = System.getenv().getOrDefault("SERVICE_NAME", "ftp-web-service");
+        try {
+            eventFabricBridge.subscribeAccountEvents(serviceName, event -> {
+                try {
+                    Map<String, Object> payload = event.payloadAsMap(objectMapper);
+                    if (payload != null) {
+                        handleEvent(payload);
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to process fabric account event: {}", e.getMessage(), e);
+                    throw new RuntimeException(e);
+                }
+            });
+        } catch (Exception e) {
+            log.warn("[FTP-Web] Failed to subscribe to fabric account events: {}", e.getMessage());
+        }
+    }
+
     @RabbitListener(queues = "${rabbitmq.queue.ftpweb-events}")
     public void handleAccountEvent(Map<String, Object> event) {
+        handleEvent(event);
+    }
+
+    /**
+     * Idempotent event handler shared by RabbitMQ and Fabric paths.
+     */
+    private void handleEvent(Map<String, Object> event) {
         String eventType = (String) event.get("eventType");
         String username = (String) event.get("username");
         String homeDir = (String) event.get("homeDir");
