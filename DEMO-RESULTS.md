@@ -225,8 +225,19 @@ Notes:
 Notes:
 
 ### 22. EDI Translation — `/edi` (the live service, not just config)
-- [ ] Try translating a sample X12 document
-- [ ] HL7 / EDIFACT / TRADACOMS options work
+
+Use the samples in [scripts/demo-edi-samples/](scripts/demo-edi-samples/) — or run them all from the terminal with `./scripts/demo-edi.sh`.
+
+- [ ] `./scripts/demo-edi.sh` ran clean and printed conversions for all 4 samples
+- [ ] X12 850 Purchase Order → JSON via UI Convert tab
+- [ ] X12 850 → EDIFACT ORDERS (US ↔ international format conversion)
+- [ ] EDIFACT ORDERS → X12 850 (reverse direction)
+- [ ] HL7 ADT^A01 → JSON
+- [ ] **Explain** tab produced a plain-English description of a sample
+- [ ] **Validate** tab found at least one issue when given a deliberately broken sample
+- [ ] **Heal** tab auto-fixed a broken sample
+- [ ] **Diff** tab showed semantic differences between two samples
+- [ ] **Compliance** tab returned a 0-100 score
 
 Notes:
 

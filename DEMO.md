@@ -93,7 +93,7 @@ These are dropped in tier-2, so you'll only see them if you ran `./scripts/demo-
 | Page | What to verify |
 |---|---|
 | **Screening / DLP** `/screening` | DLP engine runs on real uploads (ClamAV is stubbed on ARM — that's fine) |
-| **EDI Translation** `/edi` | X12 / EDIFACT / HL7 / TRADACOMS — try translating a sample document |
+| **EDI Translation** `/edi` | X12 / EDIFACT / HL7 conversion — see "EDI conversion examples" below |
 | **AS2/AS4 Partnerships** `/as2-partnerships` | 42 partnerships — real AS2 delivery works |
 | **Gateway** `/gateway` | Real gateway status including DMZ proxy |
 | **Grafana dashboards** (http://localhost:3030) | JVM, HTTP, Fabric, postgres, RabbitMQ panels |
@@ -121,6 +121,48 @@ This actually exercises the complete pipeline with real SSH, real encryption, re
    - `/fabric` — queue depths tick up, new latency sample
    - `/journey` — search the new trackId, full step-by-step timeline
    - `/sentinel` — fresh findings within ~5 min (Sentinel analyzers run every 5 min)
+
+## Step 4a — EDI conversion examples (full-stack only)
+
+Four ready-to-run EDI/healthcare sample documents live in [scripts/demo-edi-samples/](scripts/demo-edi-samples/):
+
+| File | Format | What it is |
+|---|---|---|
+| `x12-850-purchase-order.edi` | X12 850 | Retail purchase order |
+| `x12-810-invoice.edi` | X12 810 | Invoice for that purchase order |
+| `edifact-orders.edi` | EDIFACT D.96A | Same purchase order in international EDIFACT format |
+| `hl7-adt-admission.hl7` | HL7 v2.5 | Patient admission record (ADT^A01) |
+
+**Run them all from the terminal in one shot** (purely read-only — no DB writes):
+
+```bash
+./scripts/demo-edi.sh
+```
+
+That hits the live `edi-converter` REST API (port 8095), auto-detects each format, converts to JSON, and prints the before/after.
+
+**Or try them from the UI:**
+
+1. Admin UI → **EDI Translation** (`/edi`) → **Convert** tab
+2. Open any sample file in a text editor, copy contents, paste into the "EDI Content" textarea
+3. Click **Detect** — source type auto-populates
+4. Pick a target type from the dropdown — interesting pairings:
+   - X12 850 → **JSON** (parsed structured data)
+   - X12 850 → **EDIFACT_ORDERS** (US ↔ international format conversion)
+   - EDIFACT ORDERS → **X12_850** (reverse direction)
+   - HL7 ADT → **JSON** (HL7 segments → structured object)
+5. Click **Convert** — result renders in the right panel
+
+**Other tabs on `/edi` worth exploring with the same samples:**
+- **Explain** — paste any sample, get a plain-English description of the document
+- **Validate** — paste, get validation issues + suggested fixes
+- **Heal** — break the sample (delete a segment, change a date), paste, watch auto-heal fix it
+- **Diff** — paste two samples side-by-side for semantic field-level comparison
+- **Compliance** — scores the sample 0-100 against the EDI standard
+
+Full walkthrough in [scripts/demo-edi-samples/README.md](scripts/demo-edi-samples/README.md).
+
+---
 
 ## Step 4b — 🔥 Chaos / resilience testing (optional but really fun)
 
