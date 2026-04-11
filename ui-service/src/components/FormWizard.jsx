@@ -148,7 +148,7 @@ export default function FormWizard({
       {/* ── Stepper header ─────────────────────────────────────────── */}
       <div
         className="px-6 py-4 flex-shrink-0"
-        style={{ borderBottom: '1px solid rgb(30, 30, 36)' }}
+        style={{ borderBottom: '1px solid rgb(var(--border))' }}
       >
         <div className="flex items-center justify-between mb-3">
           <div>
@@ -165,7 +165,7 @@ export default function FormWizard({
             <button
               type="button"
               onClick={onCancel}
-              className="p-1 rounded hover:bg-[rgb(30,30,36)] transition-colors"
+              className="p-1 rounded hover:bg-[rgb(var(--border))] transition-colors"
               style={{ color: 'rgb(148, 163, 184)' }}
               aria-label="Cancel"
               title="Cancel and close"
@@ -207,7 +207,7 @@ export default function FormWizard({
                         ? 'rgb(var(--accent, 79 70 229))'
                         : isDone
                           ? 'rgba(74, 222, 128, 0.15)'
-                          : 'rgb(30, 30, 36)',
+                          : 'rgb(var(--border))',
                       color: isCurrent
                         ? '#fff'
                         : isDone
@@ -225,7 +225,7 @@ export default function FormWizard({
                   <div
                     className="flex-1 h-px mx-2 min-w-[12px]"
                     style={{
-                      background: isDone ? 'rgb(74, 222, 128)' : 'rgb(30, 30, 36)',
+                      background: isDone ? 'rgb(74, 222, 128)' : 'rgb(var(--border))',
                       transition: 'background 200ms ease',
                     }}
                   />
@@ -245,7 +245,7 @@ export default function FormWizard({
       <div
         className="px-6 py-4 flex items-center justify-between flex-shrink-0"
         style={{
-          borderTop: '1px solid rgb(30, 30, 36)',
+          borderTop: '1px solid rgb(var(--border))',
           background: 'rgb(14, 14, 18)',
         }}
       >
@@ -276,7 +276,7 @@ export default function FormWizard({
           disabled={loading}
           className="flex items-center gap-1 px-4 py-1.5 text-xs font-semibold rounded-lg transition-colors"
           style={{
-            background: loading ? 'rgb(30, 30, 36)' : 'rgb(var(--accent, 79 70 229))',
+            background: loading ? 'rgb(var(--border))' : 'rgb(var(--accent, 79 70 229))',
             color: '#fff',
             cursor: loading ? 'wait' : 'pointer',
           }}

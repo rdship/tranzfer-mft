@@ -265,12 +265,16 @@ function FabricKpiCard({ to, label, value, icon: Icon, color, loading, error }) 
 }
 
 function FlowFabricStrip() {
+  // The fabric strip is a cosmetic snapshot — if the analytics service
+  // isn't ready yet (fast page load during boot), these queries shouldn't
+  // toast. meta.silent opts them out of the global onError handler.
   const queuesQ = useQuery({
     queryKey: ['dash-fabric-queues'],
     queryFn: getFabricQueues,
     refetchInterval: 10_000,
     retry: 0,
     staleTime: 8_000,
+    meta: { silent: true },
   })
   const instancesQ = useQuery({
     queryKey: ['dash-fabric-instances'],
@@ -278,6 +282,7 @@ function FlowFabricStrip() {
     refetchInterval: 10_000,
     retry: 0,
     staleTime: 8_000,
+    meta: { silent: true },
   })
   const stuckQ = useQuery({
     queryKey: ['dash-fabric-stuck'],
@@ -285,6 +290,7 @@ function FlowFabricStrip() {
     refetchInterval: 10_000,
     retry: 0,
     staleTime: 8_000,
+    meta: { silent: true },
   })
   const latencyQ = useQuery({
     queryKey: ['dash-fabric-latency'],
@@ -292,6 +298,7 @@ function FlowFabricStrip() {
     refetchInterval: 10_000,
     retry: 0,
     staleTime: 8_000,
+    meta: { silent: true },
   })
 
   const inProgress = (() => {
@@ -556,6 +563,9 @@ function RecentActivityStrip() {
     refetchInterval: 5_000,
     retry: 0,
     staleTime: 4_000,
+    // Cosmetic strip — the page itself handles isError via an inline
+    // message, so the global toast handler is redundant noise.
+    meta: { silent: true },
   })
 
   const rows = Array.isArray(data?.content) ? data.content

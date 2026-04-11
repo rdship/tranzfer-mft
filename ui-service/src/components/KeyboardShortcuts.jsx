@@ -77,22 +77,22 @@ export default function KeyboardShortcuts({ open, onClose }) {
       <div
         className="w-full max-w-2xl rounded-xl overflow-hidden shadow-2xl max-h-[80vh] flex flex-col"
         style={{
-          background: 'rgb(18, 18, 22)',
-          border: '1px solid rgb(30, 30, 36)',
+          background: 'rgb(var(--canvas))',
+          border: '1px solid rgb(var(--border))',
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div
           className="flex items-center justify-between px-5 py-4 flex-shrink-0"
-          style={{ borderBottom: '1px solid rgb(30, 30, 36)' }}
+          style={{ borderBottom: '1px solid rgb(var(--border))' }}
         >
           <h2 className="text-base font-bold" style={{ color: 'rgb(var(--tx-primary))' }}>
             Keyboard Shortcuts
           </h2>
           <button
             onClick={onClose}
-            className="p-1 rounded transition-colors hover:bg-[rgb(30,30,36)]"
+            className="p-1 rounded transition-colors hover:bg-[rgb(var(--border))]"
             style={{ color: 'rgb(148, 163, 184)' }}
             title="Close (Esc)"
           >
@@ -128,7 +128,7 @@ export default function KeyboardShortcuts({ open, onClose }) {
                             key={j}
                             className="font-mono text-[10px] px-1.5 py-0.5 rounded border"
                             style={{
-                              background: 'rgb(30, 30, 36)',
+                              background: 'rgb(var(--border))',
                               borderColor: 'rgb(48, 48, 56)',
                               color: 'rgb(var(--tx-primary))',
                             }}
@@ -149,11 +149,11 @@ export default function KeyboardShortcuts({ open, onClose }) {
         <div
           className="px-5 py-3 text-[11px] flex-shrink-0"
           style={{
-            borderTop: '1px solid rgb(30, 30, 36)',
+            borderTop: '1px solid rgb(var(--border))',
             color: 'rgb(107, 114, 128)',
           }}
         >
-          Press <kbd className="font-mono px-1 rounded" style={{ background: 'rgb(30, 30, 36)' }}>?</kbd> anytime to reopen this sheet.
+          Press <kbd className="font-mono px-1 rounded" style={{ background: 'rgb(var(--border))' }}>?</kbd> anytime to reopen this sheet.
           Items marked <em>planned</em> are coming soon.
         </div>
       </div>

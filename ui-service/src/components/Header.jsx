@@ -194,7 +194,7 @@ export default function Header() {
           style={{
             width: '320px',
             maxWidth: '100%',
-            background: 'rgb(18, 18, 22)',
+            background: 'rgb(var(--canvas))',
             border: '1px solid rgb(48, 48, 56)',
             color: 'rgb(148, 163, 184)',
           }}
@@ -205,7 +205,7 @@ export default function Header() {
           <span className="text-xs flex-1 text-left">Search everywhere...</span>
           <kbd
             className="font-mono px-1.5 py-0.5 rounded text-[9px]"
-            style={{ background: 'rgb(30, 30, 36)', color: 'rgb(148, 163, 184)' }}
+            style={{ background: 'rgb(var(--border))', color: 'rgb(148, 163, 184)' }}
           >
             ⌘K
           </kbd>
@@ -264,13 +264,13 @@ export default function Header() {
               className="absolute right-0 mt-2 rounded-lg shadow-lg z-40 animate-in fade-in slide-in-from-top-1 duration-150"
               style={{
                 width: '340px',
-                background: 'rgb(18, 18, 22)',
-                border: '1px solid rgb(30, 30, 36)',
+                background: 'rgb(var(--canvas))',
+                border: '1px solid rgb(var(--border))',
               }}
             >
               <div
                 className="px-4 py-2.5 flex items-center justify-between"
-                style={{ borderBottom: '1px solid rgb(30, 30, 36)' }}
+                style={{ borderBottom: '1px solid rgb(var(--border))' }}
               >
                 <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgb(var(--tx-primary))' }}>
                   Sentinel findings
@@ -298,7 +298,7 @@ export default function Header() {
                         onClick={() => setBellOpen(false)}
                         className="flex items-start gap-2 px-4 py-2.5 transition-colors"
                         style={{
-                          borderBottom: i < Math.min(4, sentinelItems.length - 1) ? '1px solid rgb(30, 30, 36)' : 'none',
+                          borderBottom: i < Math.min(4, sentinelItems.length - 1) ? '1px solid rgb(var(--border))' : 'none',
                         }}
                         onMouseEnter={e => { e.currentTarget.style.background = 'rgb(var(--hover))' }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
@@ -326,7 +326,7 @@ export default function Header() {
                 onClick={() => setBellOpen(false)}
                 className="block px-4 py-2.5 text-center text-xs font-semibold transition-colors"
                 style={{
-                  borderTop: '1px solid rgb(30, 30, 36)',
+                  borderTop: '1px solid rgb(var(--border))',
                   color: 'rgb(var(--accent))',
                 }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'rgb(var(--hover))' }}
@@ -378,11 +378,11 @@ export default function Header() {
               className="absolute right-0 mt-2 rounded-lg shadow-lg z-40 animate-in fade-in slide-in-from-top-1 duration-150"
               style={{
                 width: '260px',
-                background: 'rgb(18, 18, 22)',
-                border: '1px solid rgb(30, 30, 36)',
+                background: 'rgb(var(--canvas))',
+                border: '1px solid rgb(var(--border))',
               }}
             >
-              <div className="px-4 py-3" style={{ borderBottom: '1px solid rgb(30, 30, 36)' }}>
+              <div className="px-4 py-3" style={{ borderBottom: '1px solid rgb(var(--border))' }}>
                 <p className="text-xs font-medium truncate" style={{ color: 'rgb(var(--tx-primary))' }}>
                   {user?.email || 'admin@localhost'}
                 </p>
@@ -403,7 +403,7 @@ export default function Header() {
                 Profile &amp; Settings
               </Link>
 
-              <div className="h-px mx-3" style={{ background: 'rgb(30, 30, 36)' }} />
+              <div className="h-px mx-3" style={{ background: 'rgb(var(--border))' }} />
 
               <button
                 type="button"
@@ -417,13 +417,13 @@ export default function Header() {
                 Keyboard shortcuts
                 <kbd
                   className="ml-auto font-mono px-1.5 py-0.5 rounded text-[9px]"
-                  style={{ background: 'rgb(30, 30, 36)', color: 'rgb(var(--tx-muted))' }}
+                  style={{ background: 'rgb(var(--border))', color: 'rgb(var(--tx-muted))' }}
                 >
                   ?
                 </kbd>
               </button>
 
-              <div className="h-px mx-3" style={{ background: 'rgb(30, 30, 36)' }} />
+              <div className="h-px mx-3" style={{ background: 'rgb(var(--border))' }} />
 
               <button
                 type="button"

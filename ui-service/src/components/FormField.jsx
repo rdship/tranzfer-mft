@@ -116,7 +116,7 @@ export default function FormField({
               className="text-[9px] uppercase tracking-wide font-bold px-1.5 py-0.5 rounded-full"
               style={{
                 color: 'rgb(148, 163, 184)',
-                background: 'rgb(30, 30, 36)',
+                background: 'rgb(var(--border))',
                 letterSpacing: '0.08em',
               }}
               aria-label="required"
@@ -272,7 +272,7 @@ export function InfoHint({ text }) {
         <span
           className="absolute left-0 top-full mt-1 z-20 w-64 p-2 rounded-lg text-[11px] shadow-lg"
           style={{
-            background: 'rgb(18, 18, 22)',
+            background: 'rgb(var(--canvas))',
             border: '1px solid rgb(48, 48, 56)',
             color: 'rgb(var(--tx-primary))',
           }}

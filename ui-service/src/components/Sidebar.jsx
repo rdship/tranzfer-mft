@@ -270,10 +270,10 @@ export default function Sidebar() {
   return (
     <aside
       className="w-56 flex flex-col overflow-hidden flex-shrink-0"
-      style={{ background: 'rgb(12, 12, 15)' }}
+      style={{ background: 'rgb(var(--canvas))' }}
     >
       {/* Brand */}
-      <div className="px-4 py-4 flex items-center gap-2.5" style={{ borderBottom: '1px solid rgb(30, 30, 36)' }}>
+      <div className="px-4 py-4 flex items-center gap-2.5" style={{ borderBottom: '1px solid rgb(var(--border))' }}>
         {branding.logoUrl ? (
           <img src={branding.logoUrl} alt={branding.companyName} className="h-7 object-contain" />
         ) : (
@@ -383,7 +383,7 @@ export default function Sidebar() {
       </nav>
 
       {/* User Footer */}
-      <div className="px-3 py-3 flex items-center gap-2.5 flex-shrink-0" style={{ borderTop: '1px solid rgb(30, 30, 36)' }}>
+      <div className="px-3 py-3 flex items-center gap-2.5 flex-shrink-0" style={{ borderTop: '1px solid rgb(var(--border))' }}>
         {/* Avatar */}
         <div
           className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-white font-semibold text-xs"

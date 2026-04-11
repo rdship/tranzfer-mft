@@ -411,7 +411,7 @@ function ChartPanel({ panel, window }) {
             <XAxis dataKey="time" tick={{ fontSize: 10, fill: 'rgb(148, 163, 184)' }} interval="preserveStartEnd" />
             <YAxis tick={{ fontSize: 10, fill: 'rgb(148, 163, 184)' }} />
             <Tooltip
-              contentStyle={{ background: 'rgb(23, 23, 28)', border: '1px solid rgb(40, 40, 48)', fontSize: 11 }}
+              contentStyle={{ background: 'rgb(var(--surface))', border: '1px solid rgb(var(--border))', fontSize: 11 }}
               labelStyle={{ color: 'rgb(230, 232, 236)' }}
             />
             <Area type="monotone" dataKey="value" stroke={panel.color} fill={`url(#g-${panel.id})`} strokeWidth={1.5} name={panel.yLabel || 'value'} />
@@ -570,7 +570,7 @@ function LogsTab({ window }) {
       <div
         className="rounded-lg font-mono text-[11px] overflow-auto"
         style={{
-          background: 'rgb(12, 12, 15)',
+          background: 'rgb(var(--canvas))',
           border: '1px solid rgb(var(--border))',
           maxHeight: 520,
         }}
@@ -672,7 +672,11 @@ const WINDOWS = ['5m', '15m', '1h', '6h', '24h', '7d']
 
 export default function Monitoring() {
   const [categoryId, setCategoryId] = useState('overview')
-  const [window, setWindow] = useState('1h')
+  // Default to 6h so a fresh boot has enough scrape samples to render
+  // plots. Prometheus defaults to 15s scrape interval, so 1h gives
+  // only 240 points per series — and the first ~5 min after boot show
+  // zero samples, which looks broken. 6h always has something to draw.
+  const [window, setWindow] = useState('6h')
   const [search, setSearch] = useState('')
   const category = CATEGORIES.find(c => c.id === categoryId)
 

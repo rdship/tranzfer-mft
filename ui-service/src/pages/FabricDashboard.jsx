@@ -110,7 +110,7 @@ export default function FabricDashboard() {
           <Link
             to="/operations/activity"
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border transition-colors"
-            style={{ borderColor: 'rgb(30, 30, 36)', color: 'rgb(160, 165, 175)' }}
+            style={{ borderColor: 'rgb(var(--border))', color: 'rgb(160, 165, 175)' }}
             title="Open full Activity Monitor with search, filters, and bulk actions"
           >
             <ChartBarIcon className="w-4 h-4" />
@@ -180,7 +180,7 @@ export default function FabricDashboard() {
                     navigate(`/operations/activity?stepType=${encodeURIComponent(type)}&status=IN_PROGRESS`)
                   }
                   className="w-full flex items-center justify-between py-2 px-2 rounded transition-colors hover:bg-surface-hover text-left"
-                  style={{ borderBottom: '1px solid rgb(30, 30, 36)' }}
+                  style={{ borderBottom: '1px solid rgb(var(--border))' }}
                   title={`Filter Activity Monitor by ${type}`}
                 >
                   <span className="text-sm font-mono text-primary">{type}</span>
@@ -452,7 +452,7 @@ function EmptyState({ title, hint, action }) {
         <Link
           to={action.to}
           className="inline-block mt-3 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors hover:bg-surface-hover"
-          style={{ borderColor: 'rgb(30, 30, 36)', color: 'rgb(100, 140, 255)' }}
+          style={{ borderColor: 'rgb(var(--border))', color: 'rgb(100, 140, 255)' }}
         >
           {action.label} →
         </Link>

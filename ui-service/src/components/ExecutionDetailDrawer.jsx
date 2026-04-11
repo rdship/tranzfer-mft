@@ -670,7 +670,7 @@ export default function ExecutionDetailDrawer({ trackId, open, onClose, showActi
             <Link
               to={`/operations/journey?trackId=${trackId}`}
               className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded border transition-colors hover:bg-[rgb(var(--surface-hover))]"
-              style={{ borderColor: 'rgb(30, 30, 36)', color: 'rgb(100, 140, 255)' }}
+              style={{ borderColor: 'rgb(var(--border))', color: 'rgb(100, 140, 255)' }}
               title="Full step-by-step timeline for this trackId"
             >
               Journey →
@@ -678,7 +678,7 @@ export default function ExecutionDetailDrawer({ trackId, open, onClose, showActi
             <Link
               to="/operations/fabric"
               className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded border transition-colors hover:bg-[rgb(var(--surface-hover))]"
-              style={{ borderColor: 'rgb(30, 30, 36)', color: 'rgb(234, 179, 8)' }}
+              style={{ borderColor: 'rgb(var(--border))', color: 'rgb(234, 179, 8)' }}
               title="Flow Fabric dashboard — queue depths, instances, latency"
             >
               Flow Fabric →
@@ -686,7 +686,7 @@ export default function ExecutionDetailDrawer({ trackId, open, onClose, showActi
             <Link
               to={`/sentinel?trackId=${trackId}`}
               className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded border transition-colors hover:bg-[rgb(var(--surface-hover))]"
-              style={{ borderColor: 'rgb(30, 30, 36)', color: 'rgb(192, 132, 252)' }}
+              style={{ borderColor: 'rgb(var(--border))', color: 'rgb(192, 132, 252)' }}
               title="Platform Sentinel findings for this trackId"
             >
               Sentinel Findings →
@@ -695,7 +695,7 @@ export default function ExecutionDetailDrawer({ trackId, open, onClose, showActi
               <Link
                 to={`/flows?id=${execution.flow.id}`}
                 className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded border transition-colors hover:bg-[rgb(var(--surface-hover))]"
-                style={{ borderColor: 'rgb(30, 30, 36)', color: 'rgb(74, 222, 128)' }}
+                style={{ borderColor: 'rgb(var(--border))', color: 'rgb(74, 222, 128)' }}
                 title="View the Flow definition that ran this execution"
               >
                 Flow Definition →

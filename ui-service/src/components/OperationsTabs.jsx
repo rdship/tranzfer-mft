@@ -36,7 +36,7 @@ export default function OperationsTabs() {
     <div
       className="flex items-center gap-1 overflow-x-auto pb-0.5"
       style={{
-        borderBottom: '1px solid rgb(30, 30, 36)',
+        borderBottom: '1px solid rgb(var(--border))',
         marginBottom: '1rem',
       }}
     >

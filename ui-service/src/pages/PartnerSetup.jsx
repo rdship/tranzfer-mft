@@ -667,7 +667,7 @@ export default function PartnerSetup() {
         <h2 className="text-xl font-bold text-primary">Protocol Selection</h2>
         <span
           className="text-[9px] uppercase tracking-wide font-bold px-1.5 py-0.5 rounded-full"
-          style={{ color: 'rgb(148, 163, 184)', background: 'rgb(30, 30, 36)', letterSpacing: '0.08em' }}
+          style={{ color: 'rgb(148, 163, 184)', background: 'rgb(var(--border))', letterSpacing: '0.08em' }}
         >
           required
         </span>

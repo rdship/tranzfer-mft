@@ -168,7 +168,7 @@ export default function ConfigExport() {
                 <label
                   key={key}
                   className="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors hover:bg-surface-hover"
-                  style={{ border: '1px solid rgb(30, 30, 36)' }}
+                  style={{ border: '1px solid rgb(var(--border))' }}
                 >
                   <input
                     type="checkbox"
@@ -182,7 +182,7 @@ export default function ConfigExport() {
                       <span className="text-sm font-semibold text-primary">{def.label}</span>
                       <span
                         className="text-[10px] font-mono px-1.5 py-0.5 rounded"
-                        style={{ background: 'rgb(30, 30, 36)', color: 'rgb(148, 163, 184)' }}
+                        style={{ background: 'rgb(var(--border))', color: 'rgb(148, 163, 184)' }}
                       >
                         {count.toLocaleString()}
                       </span>
@@ -195,7 +195,7 @@ export default function ConfigExport() {
           </div>
         )}
 
-        <div className="flex items-center justify-between mt-4 pt-4" style={{ borderTop: '1px solid rgb(30, 30, 36)' }}>
+        <div className="flex items-center justify-between mt-4 pt-4" style={{ borderTop: '1px solid rgb(var(--border))' }}>
           <div className="text-xs text-secondary">
             <span className="text-primary font-semibold">{selected.size}</span> type{selected.size === 1 ? '' : 's'} ·{' '}
             <span className="text-primary font-semibold">{selectedCount.toLocaleString()}</span> records
@@ -205,7 +205,7 @@ export default function ConfigExport() {
             disabled={!hasSelection || buildMutation.isPending}
             className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors"
             style={{
-              background: hasSelection && !buildMutation.isPending ? 'rgb(var(--accent, 79 70 229))' : 'rgb(30, 30, 36)',
+              background: hasSelection && !buildMutation.isPending ? 'rgb(var(--accent, 79 70 229))' : 'rgb(var(--border))',
               color: hasSelection && !buildMutation.isPending ? '#fff' : 'rgb(148, 163, 184)',
               cursor: hasSelection && !buildMutation.isPending ? 'pointer' : 'not-allowed',
             }}

@@ -10,7 +10,7 @@
  * Default export: Skeleton = { Block, Row, Table, Card }.
  *
  * Shimmer: linear-gradient + animated background-position-x.
- * Dark palette: base rgb(30,30,36) -> highlight rgb(60,60,68).
+ * Dark palette: base rgb(var(--border)) -> highlight rgb(60,60,68).
  * Keyframes are injected once into <head> on first render (module-level flag),
  * so we don't pollute index.css.
  *
@@ -50,14 +50,14 @@ function ensureSkeletonStyles() {
       to   { background-position: 200% 0; }
     }
     .skeleton-base {
-      background-color: rgb(30, 30, 36);
+      background-color: rgb(var(--border));
       background-image: linear-gradient(
         90deg,
-        rgb(30, 30, 36) 0%,
+        rgb(var(--border)) 0%,
         rgb(48, 48, 56) 40%,
         rgb(60, 60, 68) 50%,
         rgb(48, 48, 56) 60%,
-        rgb(30, 30, 36) 100%
+        rgb(var(--border)) 100%
       );
       background-size: 200% 100%;
       background-repeat: no-repeat;

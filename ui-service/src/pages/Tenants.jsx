@@ -107,7 +107,7 @@ export default function Tenants() {
               <p className="text-xs text-secondary truncate">{t.slug}.tranzfer.io — {t.contactEmail}</p>
               {pct !== null && (
                 <div className="mt-1.5 flex items-center gap-2">
-                  <div className="h-1.5 flex-1 rounded-full bg-[rgb(30,30,36)] overflow-hidden max-w-[240px]">
+                  <div className="h-1.5 flex-1 rounded-full bg-[rgb(var(--border))] overflow-hidden max-w-[240px]">
                     <div
                       className="h-full rounded-full transition-all"
                       style={{

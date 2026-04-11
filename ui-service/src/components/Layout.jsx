@@ -85,7 +85,7 @@ export default function Layout() {
           onClick={() => setShortcutsOpen(true)}
           className="flex items-center justify-center w-8 h-8 rounded-full text-xs font-semibold shadow-lg transition-all hover:scale-105"
           style={{
-            background: 'rgb(18, 18, 22)',
+            background: 'rgb(var(--canvas))',
             border: '1px solid rgb(48, 48, 56)',
             color: 'rgb(148, 163, 184)',
           }}
@@ -97,7 +97,7 @@ export default function Layout() {
           onClick={() => setSearchOpen(true)}
           className="flex items-center gap-2 px-3 py-2 rounded-full text-xs font-semibold shadow-lg transition-all hover:scale-105"
           style={{
-            background: 'rgb(18, 18, 22)',
+            background: 'rgb(var(--canvas))',
             border: '1px solid rgb(48, 48, 56)',
             color: 'rgb(148, 163, 184)',
           }}
@@ -107,7 +107,7 @@ export default function Layout() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           Search
-          <kbd className="font-mono px-1 rounded text-[9px]" style={{ background: 'rgb(30, 30, 36)' }}>⌘K</kbd>
+          <kbd className="font-mono px-1 rounded text-[9px]" style={{ background: 'rgb(var(--border))' }}>⌘K</kbd>
         </button>
       </div>
     </div>

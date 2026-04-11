@@ -620,6 +620,7 @@ export default function ActivityMonitor() {
     queryFn: () => onboardingApi.get('/api/activity-monitor', { params: queryParams }).then(r => r.data),
     placeholderData: keepPreviousData,
     refetchInterval: autoRefresh ? 30000 : false,
+    meta: { errorMessage: "Couldn't load transfers" },
   })
 
   // Skeleton only shows on the first fetch (no data yet), and only if the
@@ -643,10 +644,13 @@ export default function ActivityMonitor() {
   // ── Fabric KPI strip (polled independently so it never blocks the main table) ──
   // Gives the user at-a-glance Fabric context while they explore the Activity list.
   // Click-through on any KPI reopens the Fabric dashboard with matching focus.
-  const { data: fabQueues }    = useQuery({ queryKey: ['am-fabric-queues'],    queryFn: getFabricQueues,    refetchInterval: 10000, retry: 0 })
-  const { data: fabInstances } = useQuery({ queryKey: ['am-fabric-instances'], queryFn: getFabricInstances, refetchInterval: 15000, retry: 0 })
-  const { data: fabStuck }     = useQuery({ queryKey: ['am-fabric-stuck'],     queryFn: getFabricStuck,     refetchInterval: 15000, retry: 0 })
-  const { data: fabLatency }   = useQuery({ queryKey: ['am-fabric-latency'],   queryFn: getFabricLatency,   refetchInterval: 30000, retry: 0 })
+  // Fabric KPI queries are cosmetic strips — they MUST NOT throw toasts
+  // on fast-boot because the fabric backend may not be ready yet.
+  // `meta: { silent: true }` opts out of the global QueryCache onError.
+  const { data: fabQueues }    = useQuery({ queryKey: ['am-fabric-queues'],    queryFn: getFabricQueues,    refetchInterval: 10000, retry: 0, meta: { silent: true } })
+  const { data: fabInstances } = useQuery({ queryKey: ['am-fabric-instances'], queryFn: getFabricInstances, refetchInterval: 15000, retry: 0, meta: { silent: true } })
+  const { data: fabStuck }     = useQuery({ queryKey: ['am-fabric-stuck'],     queryFn: getFabricStuck,     refetchInterval: 15000, retry: 0, meta: { silent: true } })
+  const { data: fabLatency }   = useQuery({ queryKey: ['am-fabric-latency'],   queryFn: getFabricLatency,   refetchInterval: 30000, retry: 0, meta: { silent: true } })
   const fabInProgress = fabQueues?.inProgressByStepType
     ? Object.values(fabQueues.inProgressByStepType).reduce((a, b) => a + b, 0)
     : 0
@@ -946,7 +950,7 @@ export default function ActivityMonitor() {
           KPI click-through opens the Fabric dashboard scoped appropriately.   */}
       <div
         className="grid grid-cols-2 md:grid-cols-4 gap-3 rounded-xl p-3"
-        style={{ background: 'rgba(59, 130, 246, 0.04)', border: '1px solid rgb(30, 30, 36)' }}
+        style={{ background: 'rgba(59, 130, 246, 0.04)', border: '1px solid rgb(var(--border))' }}
       >
         <FabricMiniCard
           label="In Fabric"
@@ -1054,7 +1058,7 @@ export default function ActivityMonitor() {
                 className="absolute right-0 mt-2 w-[300px] rounded-lg shadow-xl z-50 overflow-hidden"
                 style={{
                   background: 'rgb(var(--surface))',
-                  border: '1px solid rgb(30, 30, 36)',
+                  border: '1px solid rgb(var(--border))',
                 }}
                 role="menu"
               >
@@ -1083,7 +1087,7 @@ export default function ActivityMonitor() {
                   })}
                 </div>
 
-                <div style={{ borderTop: '1px solid rgb(30, 30, 36)' }} />
+                <div style={{ borderTop: '1px solid rgb(var(--border))' }} />
 
                 {/* Saved views */}
                 <div className="px-3 pt-2 pb-1">
@@ -1133,7 +1137,7 @@ export default function ActivityMonitor() {
                   )}
                 </div>
 
-                <div style={{ borderTop: '1px solid rgb(30, 30, 36)' }} />
+                <div style={{ borderTop: '1px solid rgb(var(--border))' }} />
 
                 {/* Save current view */}
                 <div className="px-3 py-2">
@@ -1152,7 +1156,7 @@ export default function ActivityMonitor() {
                         maxLength={60}
                         className="flex-1 text-xs px-2 py-1.5 rounded-md text-primary focus:outline-none"
                         style={{
-                          background: 'rgb(30, 30, 36)',
+                          background: 'rgb(var(--border))',
                           border: '1px solid rgb(55, 55, 65)',
                         }}
                       />
@@ -1793,7 +1797,7 @@ function FabricMiniCard({ label, value, hint, to, color }) {
       to={to}
       title={hint}
       className="flex items-center justify-between rounded-lg p-2.5 transition-colors hover:bg-surface-hover"
-      style={{ border: '1px solid rgb(30, 30, 36)' }}
+      style={{ border: '1px solid rgb(var(--border))' }}
     >
       <div>
         <div className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: 'rgb(148, 163, 184)' }}>

@@ -190,15 +190,15 @@ export default function GlobalSearch({ open, onClose }) {
       <div
         className="w-full max-w-2xl rounded-xl overflow-hidden shadow-2xl"
         style={{
-          background: 'rgb(18, 18, 22)',
-          border: '1px solid rgb(30, 30, 36)',
+          background: 'rgb(var(--canvas))',
+          border: '1px solid rgb(var(--border))',
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search input */}
         <div
           className="flex items-center gap-3 px-4 py-3"
-          style={{ borderBottom: '1px solid rgb(30, 30, 36)' }}
+          style={{ borderBottom: '1px solid rgb(var(--border))' }}
         >
           <MagnifyingGlassIcon className="w-5 h-5 flex-shrink-0" style={{ color: 'rgb(148, 163, 184)' }} />
           <input
@@ -213,7 +213,7 @@ export default function GlobalSearch({ open, onClose }) {
             onClick={onClose}
             className="text-[10px] font-mono px-1.5 py-0.5 rounded"
             style={{
-              background: 'rgb(30, 30, 36)',
+              background: 'rgb(var(--border))',
               color: 'rgb(148, 163, 184)',
               border: '1px solid rgb(48, 48, 56)',
             }}
@@ -229,10 +229,10 @@ export default function GlobalSearch({ open, onClose }) {
             <div className="px-4 py-8 text-center text-xs" style={{ color: 'rgb(148, 163, 184)' }}>
               Type at least 2 characters to search across the platform.
               <div className="mt-2 text-[10px]">
-                Use <kbd className="font-mono px-1 rounded" style={{ background: 'rgb(30, 30, 36)' }}>↑</kbd>{' '}
-                <kbd className="font-mono px-1 rounded" style={{ background: 'rgb(30, 30, 36)' }}>↓</kbd>{' '}
+                Use <kbd className="font-mono px-1 rounded" style={{ background: 'rgb(var(--border))' }}>↑</kbd>{' '}
+                <kbd className="font-mono px-1 rounded" style={{ background: 'rgb(var(--border))' }}>↓</kbd>{' '}
                 to navigate,{' '}
-                <kbd className="font-mono px-1 rounded" style={{ background: 'rgb(30, 30, 36)' }}>Enter</kbd>{' '}
+                <kbd className="font-mono px-1 rounded" style={{ background: 'rgb(var(--border))' }}>Enter</kbd>{' '}
                 to open.
               </div>
             </div>
@@ -271,7 +271,7 @@ export default function GlobalSearch({ open, onClose }) {
                 </div>
                 <div
                   className="text-[9px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded"
-                  style={{ background: 'rgb(30, 30, 36)', color: 'rgb(148, 163, 184)' }}
+                  style={{ background: 'rgb(var(--border))', color: 'rgb(148, 163, 184)' }}
                 >
                   {r.type}
                 </div>
@@ -284,13 +284,13 @@ export default function GlobalSearch({ open, onClose }) {
         <div
           className="px-4 py-2 flex items-center justify-between text-[10px]"
           style={{
-            borderTop: '1px solid rgb(30, 30, 36)',
+            borderTop: '1px solid rgb(var(--border))',
             color: 'rgb(107, 114, 128)',
           }}
         >
           <span>
-            <kbd className="font-mono px-1 rounded" style={{ background: 'rgb(30, 30, 36)' }}>⌘K</kbd> or{' '}
-            <kbd className="font-mono px-1 rounded" style={{ background: 'rgb(30, 30, 36)' }}>Ctrl+K</kbd> to reopen
+            <kbd className="font-mono px-1 rounded" style={{ background: 'rgb(var(--border))' }}>⌘K</kbd> or{' '}
+            <kbd className="font-mono px-1 rounded" style={{ background: 'rgb(var(--border))' }}>Ctrl+K</kbd> to reopen
           </span>
           <span>{results.length} result{results.length === 1 ? '' : 's'}</span>
         </div>

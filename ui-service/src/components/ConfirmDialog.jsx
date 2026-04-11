@@ -83,7 +83,7 @@ export default function ConfirmDialog({
     >
       <div
         className="w-full max-w-md rounded-xl overflow-hidden shadow-2xl"
-        style={{ background: 'rgb(18, 18, 22)', border: '1px solid rgb(30, 30, 36)' }}
+        style={{ background: 'rgb(var(--canvas))', border: '1px solid rgb(var(--border))' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Body */}
@@ -121,7 +121,7 @@ export default function ConfirmDialog({
         {/* Footer */}
         <div
           className="flex items-center justify-end gap-2 px-5 py-3"
-          style={{ borderTop: '1px solid rgb(30, 30, 36)', background: 'rgb(14, 14, 18)' }}
+          style={{ borderTop: '1px solid rgb(var(--border))', background: 'rgb(14, 14, 18)' }}
         >
           <button
             onClick={onCancel}

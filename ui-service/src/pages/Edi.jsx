@@ -400,7 +400,7 @@ export default function Edi() {
             <div style={{ color: 'rgb(148, 163, 184)' }}>
               Couldn't reach edi-converter (:8095) on its readiness probe. You can still
               browse tabs, but Convert / Maps / NL Create calls will fail until the service
-              comes back. Start it with <code className="font-mono text-[11px] px-1 rounded" style={{ background: 'rgb(30, 30, 36)' }}>docker compose up -d edi-converter</code>.
+              comes back. Start it with <code className="font-mono text-[11px] px-1 rounded" style={{ background: 'rgb(var(--border))' }}>docker compose up -d edi-converter</code>.
             </div>
           </div>
         </div>
