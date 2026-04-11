@@ -15,6 +15,18 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
+      # CI Postgres — GitHub Actions services: block doesn't support a
+      # `command:` override, so we can't inline the full R23 tuning here.
+      # That's OK because:
+      #   - statement_timeout, idle_in_transaction_session_timeout, lock_timeout
+      #     all default to 0 in postgres:16-alpine, which matches the BUG-2/R18
+      #     safety requirements out of the box.
+      #   - Tests run against small data sets so memory tuning is immaterial.
+      #   - The "ci-postgres-tune" step below applies the few settings that
+      #     must match production via ALTER SYSTEM + pg_reload_conf.
+      # For deployments that need the full tuning, see
+      # docs/operations/DATABASE-TUNING.md or fetch
+      # GET /api/v1/db-advisory from a running onboarding-api.
       postgres:
         image: postgres:16-alpine
         env:
@@ -39,6 +51,23 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: 'maven'
+
+      - name: ci-postgres-tune
+        # Apply the few R23 settings that MUST be set for the Flyway bootstrap
+        # (V42 CREATE INDEX CONCURRENTLY) plus the handful that improve test
+        # feedback time. All non-memory tuning — avoids bumping shared_buffers
+        # which would require a postgres restart.
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d filetransfer <<'SQL'
+          ALTER SYSTEM SET statement_timeout = 0;
+          ALTER SYSTEM SET idle_in_transaction_session_timeout = 0;
+          ALTER SYSTEM SET lock_timeout = '10s';
+          ALTER SYSTEM SET log_min_duration_statement = 500;
+          ALTER SYSTEM SET log_lock_waits = on;
+          ALTER SYSTEM SET log_checkpoints = on;
+          ALTER SYSTEM SET autovacuum_vacuum_cost_limit = 2000;
+          SELECT pg_reload_conf();
+          SQL
 
       - name: Build all modules
         run: mvn clean package -B

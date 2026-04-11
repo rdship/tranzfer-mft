@@ -87,6 +87,7 @@ const EdiTraining        = lazy(() => import('./pages/EdiTraining'))
 const ProxyIntelligence  = lazy(() => import('./pages/ProxyIntelligence'))
 const ConfigExport       = lazy(() => import('./pages/ConfigExport'))
 const Monitoring         = lazy(() => import('./pages/Monitoring'))
+const DatabaseAdvisory   = lazy(() => import('./pages/DatabaseAdvisory'))
 
 /**
  * RouteFallback — shown while a lazy route chunk is being fetched.
@@ -274,6 +275,7 @@ export default function App() {
             <Route path="proxy-intelligence"    element={<LazyRoute><ProxyIntelligence /></LazyRoute>} />
             <Route path="config-export"         element={<LazyRoute><ConfigExport /></LazyRoute>} />
             <Route path="monitoring"            element={<LazyRoute><Monitoring /></LazyRoute>} />
+            <Route path="db-advisory"           element={<LazyRoute><DatabaseAdvisory /></LazyRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/operations" replace />} />
         </Routes>

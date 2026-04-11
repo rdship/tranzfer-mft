@@ -167,6 +167,7 @@ const navGroups = [
       { to: '/circuit-breakers',icon: ArrowPathIcon,             label: 'Circuit Breakers',   role: 'ADMIN' },
       { to: '/migration',       icon: ArrowPathIcon,             label: 'Migration Center',   role: 'ADMIN' },
       { to: '/config-export',   icon: DocumentTextIcon,          label: 'Configuration Export', role: 'ADMIN' },
+      { to: '/db-advisory',     icon: CircleStackIcon,           label: 'Database Advisory',  role: 'ADMIN' },
       { to: '/logs',            icon: DocumentTextIcon,          label: 'Logs' },
       { to: '/dlq',             icon: InboxStackIcon,            label: 'Dead Letter Queue',  role: 'ADMIN', badge: 'dlq' },
     ],

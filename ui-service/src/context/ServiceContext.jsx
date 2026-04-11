@@ -153,6 +153,10 @@ const PAGE_SERVICE_MAP = {
   // and renders a fallback card when one is down. It's valuable to
   // the admin even when all services are down (shows what's missing).
   '/monitoring': ['core'],
+
+  // Database Advisory — published Postgres tuning recommendations
+  // backed by R23 workload audit. Always visible to admins.
+  '/db-advisory': ['core'],
 }
 
 const ServiceContext = createContext(null)

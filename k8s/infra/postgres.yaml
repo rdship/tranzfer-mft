@@ -30,20 +30,52 @@ spec:
       containers:
       - name: postgres
         image: postgres:16-alpine
+        # Tuned postgres config — mirrors config/postgres/postgresql.tuned.conf
+        # and docker-compose.yml postgres block. Keep all three deployment
+        # surfaces in sync (R23). Rationale per setting: docs/operations/DATABASE-TUNING.md
+        # Also published as JSON at GET /api/v1/db-advisory on onboarding-api.
         args:
           - postgres
-          - -c max_connections=300
-          - -c shared_buffers=256MB
-          - -c effective_cache_size=512MB
-          - -c work_mem=4MB
-          - -c maintenance_work_mem=64MB
+          - -c max_connections=200
+          - -c superuser_reserved_connections=5
+          - -c shared_buffers=2GB          # k8s default request is bigger than demo
+          - -c effective_cache_size=6GB    # matches 16 GB RAM pod limit
+          - -c work_mem=16MB
+          - -c maintenance_work_mem=512MB
+          - -c temp_buffers=16MB
+          - -c wal_buffers=32MB
+          - -c max_wal_size=4GB
+          - -c min_wal_size=1GB
+          - -c checkpoint_timeout=15min
           - -c checkpoint_completion_target=0.9
-          - -c wal_buffers=16MB
+          - -c wal_compression=on
           - -c random_page_cost=1.1
+          - -c seq_page_cost=1.0
           - -c effective_io_concurrency=200
-          - -c log_min_duration_statement=1000
-          - -c idle_in_transaction_session_timeout=60000
-          - -c statement_timeout=30000
+          - -c default_statistics_target=200
+          - -c max_worker_processes=8
+          - -c max_parallel_workers=6
+          - -c max_parallel_workers_per_gather=2
+          - -c max_parallel_maintenance_workers=2
+          - -c autovacuum=on
+          - -c autovacuum_max_workers=4
+          - -c autovacuum_naptime=30s
+          - -c autovacuum_vacuum_scale_factor=0.1
+          - -c autovacuum_analyze_scale_factor=0.05
+          - -c autovacuum_vacuum_cost_limit=2000
+          - -c statement_timeout=0
+          - -c idle_in_transaction_session_timeout=0
+          - -c lock_timeout=10s
+          - -c deadlock_timeout=1s
+          - -c log_min_duration_statement=500
+          - -c log_checkpoints=on
+          - -c log_lock_waits=on
+          - -c log_autovacuum_min_duration=1s
+          - -c log_temp_files=4MB
+          - -c jit=on
+          - -c jit_above_cost=100000
+          - -c timezone=UTC
+          - -c log_timezone=UTC
         env:
         - {name: POSTGRES_DB,       value: filetransfer}
         - {name: POSTGRES_USER,     value: postgres}
@@ -52,9 +84,13 @@ spec:
             secretKeyRef: {name: mft-secrets, key: DB_PASSWORD}
         ports:
         - {containerPort: 5432}
+        # Resource profile matches the k8s row of the hardware scaling
+        # table in DATABASE-TUNING.md (shared_buffers=2GB implies ~8GB
+        # RAM for headroom). Bump both limits + requests proportionally
+        # if you move to a larger pod class.
         resources:
-          requests: {memory: "512Mi", cpu: "500m"}
-          limits:   {memory: "2Gi",   cpu: "2000m"}
+          requests: {memory: "4Gi", cpu: "1000m"}
+          limits:   {memory: "8Gi", cpu: "4000m"}
         readinessProbe:
           exec:
             command: ["pg_isready", "-U", "postgres", "-d", "filetransfer"]
