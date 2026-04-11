@@ -75,6 +75,8 @@ const navGroups = [
     ],
   },
   {
+    // Infrastructure — the boxes everything runs on. Observatory lives here
+    // because it's a service-topology view, not an intelligence product.
     label: 'Servers & Infrastructure',
     items: [
       { to: '/server-instances',  icon: ServerStackIcon,    label: 'Server Instances',  role: 'ADMIN' },
@@ -85,18 +87,23 @@ const navGroups = [
       { to: '/vfs-storage',       icon: CircleStackIcon,    label: 'VFS Storage',       role: 'ADMIN' },
       { to: '/cas-dedup',         icon: CircleStackIcon,    label: 'CAS Dedup',         role: 'ADMIN' },
       { to: '/cluster',           icon: ShareIcon,          label: 'Cluster',           role: 'ADMIN' },
+      { to: '/observatory',       icon: EyeIcon,            label: 'Observatory',       role: 'ADMIN' },
     ],
   },
   {
+    // Security — includes threat/proxy intelligence + sentinel (all security signals)
     label: 'Security & Compliance',
     items: [
-      { to: '/compliance',        icon: ShieldCheckIcon,     label: 'Compliance Profiles', role: 'ADMIN', badge: 'compliance' },
-      { to: '/security-profiles', icon: ShieldCheckIcon,     label: 'Security Profiles',   role: 'ADMIN' },
-      { to: '/keystore',          icon: KeyIcon,             label: 'Keystore Manager',    role: 'ADMIN' },
-      { to: '/screening',         icon: MagnifyingGlassIcon, label: 'Screening & DLP' },
-      { to: '/quarantine',        icon: ExclamationTriangleIcon, label: 'Quarantine',    role: 'ADMIN' },
-      { to: '/2fa',               icon: ShieldCheckIcon,     label: 'Two-Factor Auth' },
-      { to: '/blockchain',        icon: FingerPrintIcon,     label: 'Blockchain Proof' },
+      { to: '/compliance',          icon: ShieldCheckIcon,         label: 'Compliance Profiles', role: 'ADMIN', badge: 'compliance' },
+      { to: '/security-profiles',   icon: ShieldCheckIcon,         label: 'Security Profiles',   role: 'ADMIN' },
+      { to: '/keystore',            icon: KeyIcon,                 label: 'Keystore Manager',    role: 'ADMIN' },
+      { to: '/screening',           icon: MagnifyingGlassIcon,     label: 'Screening & DLP' },
+      { to: '/quarantine',          icon: ExclamationTriangleIcon, label: 'Quarantine',          role: 'ADMIN' },
+      { to: '/sentinel',            icon: CpuChipIcon,             label: 'Platform Sentinel',   role: 'ADMIN' },
+      { to: '/threat-intelligence', icon: ShieldCheckIcon,         label: 'Threat Intel',        role: 'ADMIN' },
+      { to: '/proxy-intelligence',  icon: GlobeAltIcon,            label: 'Proxy Intel',         role: 'ADMIN' },
+      { to: '/2fa',                 icon: ShieldCheckIcon,         label: 'Two-Factor Auth' },
+      { to: '/blockchain',          icon: FingerPrintIcon,         label: 'Blockchain Proof' },
     ],
   },
   {
@@ -109,24 +116,15 @@ const navGroups = [
     ],
   },
   {
-    label: 'Intelligence',
+    // Data + AI — everything that learns from / reports on platform state.
+    // Dissolved the old "Intelligence" junk drawer; only AI/analytics left here.
+    label: 'AI & Analytics',
     items: [
-      { to: '/observatory',      icon: EyeIcon,         label: 'Observatory',          role: 'ADMIN' },
-      { to: '/sentinel',         icon: CpuChipIcon,     label: 'Platform Sentinel',    role: 'ADMIN' },
-      { to: '/recommendations',  icon: LightBulbIcon,   label: 'AI Recommendations' },
-      { to: '/analytics',        icon: ChartBarIcon,    label: 'Analytics' },
-      { to: '/predictions',      icon: BeakerIcon,      label: 'Predictions' },
-      { to: '/circuit-breakers', icon: ArrowPathIcon,   label: 'Circuit Breakers',     role: 'ADMIN' },
-      { to: '/auto-onboarding', icon: SparklesIcon,    label: 'Auto-Onboarding',      role: 'ADMIN' },
-      { to: '/threat-intelligence', icon: ShieldCheckIcon, label: 'Threat Intel',    role: 'ADMIN' },
-      { to: '/proxy-intelligence',  icon: GlobeAltIcon,    label: 'Proxy Intel',     role: 'ADMIN' },
-    ],
-  },
-  {
-    label: 'Expert',
-    items: [
-      { to: '/migration',     icon: ArrowPathIcon,    label: 'Migration Center',  role: 'ADMIN' },
-      { to: '/edi-training',  icon: SparklesIcon,     label: 'EDI AI Training',   role: 'ADMIN' },
+      { to: '/analytics',       icon: ChartBarIcon,  label: 'Analytics' },
+      { to: '/predictions',     icon: BeakerIcon,    label: 'Predictions' },
+      { to: '/recommendations', icon: LightBulbIcon, label: 'AI Recommendations' },
+      { to: '/auto-onboarding', icon: SparklesIcon,  label: 'Auto-Onboarding',   role: 'ADMIN' },
+      { to: '/edi-training',    icon: SparklesIcon,  label: 'EDI AI Training',   role: 'ADMIN' },
     ],
   },
   {
@@ -141,18 +139,22 @@ const navGroups = [
     label: 'Tools',
     items: [
       { to: '/api-console', icon: CodeBracketIcon,  label: 'API Console' },
-      { to: '/terminal',    icon: CommandLineIcon,   label: 'Terminal',        role: 'ADMIN' },
+      { to: '/terminal',    icon: CommandLineIcon,  label: 'Terminal',        role: 'ADMIN' },
     ],
   },
   {
+    // Administration — platform-level ops, not product features.
+    // Migration + Circuit Breakers live here because they're ops affordances.
     label: 'Administration',
     items: [
-      { to: '/platform-config', icon: AdjustmentsHorizontalIcon, label: 'Platform Config', role: 'ADMIN' },
-      { to: '/tenants',          icon: ServerStackIcon,           label: 'Multi-Tenant',    role: 'ADMIN' },
-      { to: '/license',          icon: KeyIcon,                   label: 'License',         role: 'ADMIN' },
-      { to: '/services',         icon: CircleStackIcon,           label: 'Service Health',  role: 'ADMIN' },
-      { to: '/logs',             icon: DocumentTextIcon,          label: 'Logs' },
-      { to: '/dlq',              icon: InboxStackIcon,            label: 'Dead Letter Queue', role: 'ADMIN' },
+      { to: '/platform-config', icon: AdjustmentsHorizontalIcon, label: 'Platform Config',    role: 'ADMIN' },
+      { to: '/tenants',         icon: ServerStackIcon,           label: 'Multi-Tenant',       role: 'ADMIN' },
+      { to: '/license',         icon: KeyIcon,                   label: 'License',            role: 'ADMIN' },
+      { to: '/services',        icon: CircleStackIcon,           label: 'Service Health',     role: 'ADMIN' },
+      { to: '/circuit-breakers',icon: ArrowPathIcon,             label: 'Circuit Breakers',   role: 'ADMIN' },
+      { to: '/migration',       icon: ArrowPathIcon,             label: 'Migration Center',   role: 'ADMIN' },
+      { to: '/logs',            icon: DocumentTextIcon,          label: 'Logs' },
+      { to: '/dlq',             icon: InboxStackIcon,            label: 'Dead Letter Queue',  role: 'ADMIN' },
     ],
   },
 ]
