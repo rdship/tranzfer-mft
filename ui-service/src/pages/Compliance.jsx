@@ -67,23 +67,18 @@ export default function Compliance() {
   // silently hid config-service outages. We now surface errors via a
   // dedup'd toast so the operator is told why their list is empty.
 
-  const toastOnError = (id, label) => (e) => {
-    const msg = e?.response?.data?.message || e?.message || 'request failed'
-    toast.error(`${label}: ${msg}`, { id })
-  }
-
   const { data: profiles = [], isLoading: loadingProfiles } = useQuery({
     queryKey: ['compliance-profiles'],
     queryFn: () => configApi.get('/api/compliance/profiles').then(r => r.data),
     retry: 1,
-    onError: toastOnError('compliance-profiles-err', "Couldn't load compliance profiles"),
+    meta: { errorMessage: "Couldn't load compliance profiles" },
   })
 
   const { data: allProfiles = [] } = useQuery({
     queryKey: ['compliance-profiles-all'],
     queryFn: () => configApi.get('/api/compliance/profiles/all').then(r => r.data),
     retry: 1,
-    onError: toastOnError('compliance-profiles-all-err', "Couldn't load full profile list"),
+    meta: { errorMessage: "Couldn't load full profile list" },
   })
 
   const violationParams = new URLSearchParams()
@@ -105,7 +100,7 @@ export default function Compliance() {
     },
     refetchInterval: 15000,
     retry: 1,
-    onError: toastOnError('compliance-violations-err', "Couldn't load violations"),
+    meta: { errorMessage: "Couldn't load violations" },
   })
 
   const { data: violationCount = {} } = useQuery({
@@ -113,15 +108,16 @@ export default function Compliance() {
     queryFn: () => configApi.get('/api/compliance/violations/count').then(r => r.data),
     refetchInterval: 15000,
     retry: 1,
-    // Count query — keep silent to avoid toast storm, sidebar badge disappears
-    // which is its own signal.
+    // Count query — meta.silent opts out of the global toast handler.
+    // Count badge disappears as its own failure signal.
+    meta: { silent: true },
   })
 
   const { data: servers = [] } = useQuery({
     queryKey: ['server-instances'],
     queryFn: () => configApi.get('/api/servers').then(r => r.data),
     retry: 1,
-    onError: toastOnError('servers-err', "Couldn't load server instances"),
+    meta: { errorMessage: "Couldn't load server instances" },
   })
 
   // ── Mutations ──

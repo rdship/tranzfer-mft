@@ -699,19 +699,16 @@ export default function Flows() {
     refetchInterval: 10000
   })
 
-  // Approval queue — intentionally best-effort (sidebar badge polls it every
-  // 15s and a transient failure shouldn't drown the operator in toasts) but
-  // we surface a one-time error toast when the error state first appears so
-  // operators know why the approval inbox is empty.
+  // Approval queue — the global query error handler will surface a toast
+  // when this fails (deduplicated by the `pending-approvals` query key).
+  // Per-query onError was removed in React Query v5; meta.errorMessage is
+  // how the global handler picks up a contextual label per query.
   const { data: pendingApprovals = [], isError: approvalsError } = useQuery({
     queryKey: ['pending-approvals'],
     queryFn: getPendingApprovals,
     refetchInterval: 15000,
     retry: 1,
-    onError: (e) => {
-      const msg = e?.response?.data?.message || e?.message || 'unknown error'
-      toast.error(`Couldn't load pending approvals — ${msg}`, { id: 'pending-approvals-error' })
-    },
+    meta: { errorMessage: "Couldn't load pending approvals" },
   })
 
   const approveMut = useMutation({

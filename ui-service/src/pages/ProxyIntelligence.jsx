@@ -149,10 +149,10 @@ function OverviewTab() {
     queryFn: api.getProxyEvents,
     refetchInterval: 20000,
     retry: 1,
-    onError: (e) => {
-      const msg = e?.response?.data?.message || e?.message || 'request failed'
-      toast.error(`Couldn't load proxy events: ${msg}`, { id: 'proxy-events-err' })
-    },
+    // React Query v5 removed per-query onError — use meta.errorMessage
+    // instead, which is read by the global QueryCache onError handler
+    // in main.jsx.
+    meta: { errorMessage: "Couldn't load proxy events" },
   })
 
   if (isLoading) return <Spinner />

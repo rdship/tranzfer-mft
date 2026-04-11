@@ -105,29 +105,24 @@ export default function Screening() {
   // state via a shared toast (dedup'd via a stable toast id) and keep the
   // default data so the rest of the page still renders.
 
-  const toastOnError = (id, label) => (e) => {
-    const msg = e?.response?.data?.message || e?.message || 'request failed'
-    toast.error(`${label}: ${msg}`, { id })
-  }
-
   const { data: lists, isError: listsError } = useQuery({
     queryKey: ['screen-lists'],
     queryFn: () => screeningApi.get('/api/v1/screening/lists').then(r => r.data),
     retry: 1,
-    onError: toastOnError('screen-lists-err', "Couldn't load sanctions lists"),
+    meta: { errorMessage: "Couldn't load sanctions lists" },
   })
   const { data: results = [] } = useQuery({
     queryKey: ['screen-results'],
     queryFn: () => screeningApi.get('/api/v1/screening/results').then(r => r.data),
     refetchInterval: 15000,
     retry: 1,
-    onError: toastOnError('screen-results-err', "Couldn't load screening results"),
+    meta: { errorMessage: "Couldn't load screening results" },
   })
   const { data: hits = [] } = useQuery({
     queryKey: ['screen-hits'],
     queryFn: () => screeningApi.get('/api/v1/screening/hits').then(r => r.data),
     retry: 1,
-    onError: toastOnError('screen-hits-err', "Couldn't load sanctions hits"),
+    meta: { errorMessage: "Couldn't load sanctions hits" },
   })
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -139,7 +134,7 @@ export default function Screening() {
     queryFn: () => screeningApi.get('/api/v1/quarantine/stats').then(r => r.data),
     refetchInterval: 30000,
     retry: 1,
-    onError: toastOnError('quarantine-stats-err', "Couldn't load quarantine stats"),
+    meta: { errorMessage: "Couldn't load quarantine stats" },
   })
 
   const { data: quarantineItems = [], isLoading: loadingQuarantine } = useQuery({
@@ -147,7 +142,7 @@ export default function Screening() {
     queryFn: () => screeningApi.get('/api/v1/quarantine').then(r => r.data),
     refetchInterval: 30000,
     retry: 1,
-    onError: toastOnError('quarantine-items-err', "Couldn't load quarantine items"),
+    meta: { errorMessage: "Couldn't load quarantine items" },
   })
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -158,7 +153,7 @@ export default function Screening() {
     queryKey: ['dlp-policies'],
     queryFn: () => screeningApi.get('/api/v1/dlp/policies').then(r => r.data),
     retry: 1,
-    onError: toastOnError('dlp-policies-err', "Couldn't load DLP policies"),
+    meta: { errorMessage: "Couldn't load DLP policies" },
   })
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -231,7 +226,7 @@ export default function Screening() {
     queryKey: ['dlp-rules'],
     queryFn: () => screeningApi.get('/api/v1/dlp/policies').then(r => r.data),
     retry: 1,
-    onError: toastOnError('dlp-rules-err', "Couldn't load DLP rules"),
+    meta: { errorMessage: "Couldn't load DLP rules" },
   })
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -244,7 +239,7 @@ export default function Screening() {
       .then(r => r.data?.content || r.data || []),
     refetchInterval: 30000,
     retry: 1,
-    onError: toastOnError('screening-quarantine-err', "Couldn't load screening quarantine"),
+    meta: { errorMessage: "Couldn't load screening quarantine" },
   })
 
   // ═══════════════════════════════════════════════════════════════════════

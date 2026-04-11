@@ -26,12 +26,16 @@ const queryClient = new QueryClient({
   },
   queryCache: new QueryCache({
     onError: (err, query) => {
-      // Per-query onError still wins — this global handler only fires when
-      // the component didn't set one. Queries marked `meta: { silent: true }`
-      // opt out (sidebar badge counters, background refreshes, etc.).
+      // React Query v5 removed useQuery's per-query onError option, so ALL
+      // query error handling happens here. Queries opt out with
+      // `meta: { silent: true }` (sidebar badge counters, background
+      // refreshes). Queries can provide a contextual label via
+      // `meta: { errorMessage: "Couldn't load X" }` which is shown to the
+      // operator instead of the generic default.
       if (query?.meta?.silent) return
       const key = Array.isArray(query?.queryKey) ? query.queryKey.join('-') : 'query-error'
-      toast.error(`Couldn't load data: ${extractMessage(err)}`, { id: `qerr-${key}` })
+      const label = query?.meta?.errorMessage || "Couldn't load data"
+      toast.error(`${label}: ${extractMessage(err)}`, { id: `qerr-${key}` })
     },
   }),
   mutationCache: new MutationCache({
