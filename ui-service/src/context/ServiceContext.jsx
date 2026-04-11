@@ -127,6 +127,9 @@ const PAGE_SERVICE_MAP = {
 
   // Notifications
   '/notifications': ['notification'],
+
+  // Config Export (Phase 1 — read-only export side)
+  '/config-export': ['onboarding'],
 }
 
 const ServiceContext = createContext(null)

@@ -4,11 +4,12 @@ import { useNavigate, Link } from 'react-router-dom'
 import * as sentinelApi from '../api/sentinel'
 import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer'
 import FileDownloadButton from '../components/FileDownloadButton'
+import toast from 'react-hot-toast'
 import {
   ShieldCheckIcon, ExclamationTriangleIcon, ChartBarIcon,
   AdjustmentsHorizontalIcon, ArrowPathIcon, CheckCircleIcon,
   LinkIcon, BoltIcon, CpuChipIcon, PlusIcon, TrashIcon, XMarkIcon,
-  ArrowTopRightOnSquareIcon, NoSymbolIcon, DocumentTextIcon,
+  NoSymbolIcon, DocumentTextIcon,
   MagnifyingGlassIcon, ShieldExclamationIcon
 } from '@heroicons/react/24/outline'
 import { dmzApi } from '../api/client'
@@ -467,7 +468,7 @@ function RulesTab() {
       setConfirmDelete(null)
     },
     onError: (err) => {
-      alert(err?.response?.data?.error || 'Failed to delete rule')
+      toast.error(err?.response?.data?.error || 'Failed to delete rule')
       setConfirmDelete(null)
     }
   })

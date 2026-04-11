@@ -84,6 +84,7 @@ const Migration          = lazy(() => import('./pages/Migration'))
 const ThreatIntelligence = lazy(() => import('./pages/ThreatIntelligence'))
 const EdiTraining        = lazy(() => import('./pages/EdiTraining'))
 const ProxyIntelligence  = lazy(() => import('./pages/ProxyIntelligence'))
+const ConfigExport       = lazy(() => import('./pages/ConfigExport'))
 
 /**
  * RouteFallback — shown while a lazy route chunk is being fetched.
@@ -208,6 +209,7 @@ export default function App() {
             <Route path="threat-intelligence"   element={<LazyRoute><ThreatIntelligence /></LazyRoute>} />
             <Route path="edi-training"          element={<LazyRoute><EdiTraining /></LazyRoute>} />
             <Route path="proxy-intelligence"    element={<LazyRoute><ProxyIntelligence /></LazyRoute>} />
+            <Route path="config-export"         element={<LazyRoute><ConfigExport /></LazyRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/operations" replace />} />
         </Routes>

@@ -13,7 +13,7 @@ import FileDownloadButton from '../components/FileDownloadButton'
 import ColumnSettingsButton from '../components/ColumnSettingsButton'
 import useColumnPrefs from '../hooks/useColumnPrefs'
 import toast from 'react-hot-toast'
-import { PlusIcon, TrashIcon, PencilSquareIcon, MagnifyingGlassIcon, ArrowTopRightOnSquareIcon, ClockIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, TrashIcon, PencilSquareIcon, MagnifyingGlassIcon, ClockIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
 
 const PROTOCOLS = ['SFTP', 'FTP', 'FTP_WEB']

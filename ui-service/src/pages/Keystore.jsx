@@ -6,6 +6,7 @@ import { format, formatDistanceToNow } from 'date-fns'
 import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
+import CopyButton from '../components/CopyButton'
 import {
   KeyIcon, PlusIcon, ArrowPathIcon, ArrowDownTrayIcon,
   MagnifyingGlassIcon, ShieldCheckIcon, ExclamationTriangleIcon,
@@ -679,10 +680,7 @@ export default function Keystore() {
                     <code className="text-xs bg-hover px-3 py-2 rounded-lg font-mono text-primary flex-1 break-all">
                       {k.fingerprint}
                     </code>
-                    <button onClick={() => copyToClipboard(k.fingerprint)}
-                      className="p-2 rounded-lg hover:bg-hover text-muted hover:text-blue-600" title="Copy" aria-label="Copy">
-                      <ClipboardDocumentIcon className="w-4 h-4" />
-                    </button>
+                    <CopyButton value={k.fingerprint} label="fingerprint" size="md" />
                   </div>
                 </div>
 
@@ -691,10 +689,7 @@ export default function Keystore() {
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <p className="text-xs text-secondary">Public Key</p>
-                      <button onClick={() => copyToClipboard(k.publicKeyMaterial)}
-                        className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1">
-                        <ClipboardDocumentIcon className="w-3.5 h-3.5" /> Copy
-                      </button>
+                      <CopyButton value={k.publicKeyMaterial} label="public key" size="sm" />
                     </div>
                     <pre className="text-xs bg-hover px-3 py-2 rounded-lg font-mono text-secondary max-h-32 overflow-auto whitespace-pre-wrap break-all">
                       {k.publicKeyMaterial}

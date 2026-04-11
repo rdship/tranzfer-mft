@@ -11,8 +11,8 @@ import ConfigLink from '../components/ConfigLink'
 import ConfigInlineEditor from '../components/ConfigInlineEditor'
 import ConfirmDialog from '../components/ConfirmDialog'
 import {
-  MagnifyingGlassIcon, CheckCircleIcon, XCircleIcon, ClockIcon,
-  ArrowRightIcon, ShieldCheckIcon, ArrowDownTrayIcon, EyeIcon,
+  MagnifyingGlassIcon,
+  ArrowRightIcon, ShieldCheckIcon, EyeIcon,
   ChevronDownIcon, ChevronRightIcon, ArrowPathIcon, StopIcon,
   DocumentArrowDownIcon,
 } from '@heroicons/react/24/outline'

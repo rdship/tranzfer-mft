@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, Link } from 'react-router-dom'
 import { getDashboard, getPredictions, getFlowLiveStats } from '../api/analytics'
@@ -8,10 +9,27 @@ import { onboardingApi } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { useServices } from '../context/ServiceContext'
 import LoadingSpinner from '../components/LoadingSpinner'
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell,
-} from 'recharts'
+
+// Lazy-load the chart sub-components so `recharts` is split out of the main
+// bundle (it was the biggest single dependency at ~87 kB gzipped). On first
+// paint, users see a lightweight spinner in place of the charts; once the
+// chunk lands (~100 ms) the chart renders. Huge win for fresh-boot demo load
+// time. See docs/plans/CONFIG-EXPORT-IMPORT.md and round-6 for context.
+const DashboardVolumeChart = lazy(() => import('../components/dashboard/DashboardVolumeChart'))
+const DashboardProtocolPie = lazy(() => import('../components/dashboard/DashboardProtocolPie'))
+
+function ChartFallback({ height = 220 }) {
+  return (
+    <div
+      className="flex items-center justify-center animate-pulse rounded-lg"
+      style={{ height, background: 'rgba(139, 92, 246, 0.05)' }}
+    >
+      <div className="text-[10px]" style={{ color: 'rgb(var(--tx-muted))' }}>
+        Loading chart…
+      </div>
+    </div>
+  )
+}
 import {
   ArrowUpTrayIcon, CheckCircleIcon, ServerIcon, ChartBarIcon,
   ExclamationTriangleIcon, ArrowTrendingUpIcon, BoltIcon,
@@ -76,23 +94,9 @@ function getGreeting() {
   return 'Good evening'
 }
 
-/* Custom dark tooltip for charts */
-function DarkTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null
-  return (
-    <div style={{
-      background: '#18181b', border: '1px solid #3f3f46',
-      borderRadius: '8px', padding: '8px 12px', fontSize: '12px',
-    }}>
-      <p style={{ color: '#a1a1aa', marginBottom: 2 }}>{label}</p>
-      {payload.map(p => (
-        <p key={p.dataKey} style={{ color: p.color || '#8b5cf6', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>
-          {p.value?.toLocaleString()}
-        </p>
-      ))}
-    </div>
-  )
-}
+// DarkTooltip lives inside DashboardVolumeChart.jsx / DashboardProtocolPie.jsx
+// now so it can import from recharts in the lazy chunk instead of the main
+// bundle. Don't re-add it here.
 
 /* KPI tile — supports optional `to` prop for clickable navigation */
 function KpiTile({ label, value, icon: Icon, color, sub, to, navigate }) {
@@ -809,38 +813,9 @@ export default function Dashboard() {
           </div>
 
           {transferData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={transferData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="gradViolet" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%"   stopColor="#8b5cf6" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border))" vertical={false} />
-                <XAxis
-                  dataKey="hour"
-                  tick={{ fontSize: 10, fill: 'rgb(var(--tx-muted))' }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fontSize: 10, fill: 'rgb(var(--tx-muted))' }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <Tooltip content={<DarkTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="transfers"
-                  stroke="#8b5cf6"
-                  strokeWidth={2.5}
-                  fill="url(#gradViolet)"
-                  dot={false}
-                  activeDot={{ r: 4, fill: '#8b5cf6', strokeWidth: 0 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            <Suspense fallback={<ChartFallback height={220} />}>
+              <DashboardVolumeChart data={transferData} />
+            </Suspense>
           ) : (
             <div className="h-52 flex flex-col items-center justify-center gap-2">
               <ChartBarIcon className="w-8 h-8" style={{ color: 'rgb(var(--tx-muted))' }} />
@@ -910,22 +885,9 @@ export default function Dashboard() {
           </div>
           {protocolData.length > 0 ? (
             <>
-              <ResponsiveContainer width="100%" height={150}>
-                <PieChart>
-                  <Pie
-                    data={protocolData}
-                    cx="50%" cy="50%"
-                    innerRadius={42} outerRadius={68}
-                    dataKey="value"
-                    strokeWidth={0}
-                  >
-                    {protocolData.map((_, i) => (
-                      <Cell key={i} fill={NEON[i % NEON.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<DarkTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
+              <Suspense fallback={<ChartFallback height={150} />}>
+                <DashboardProtocolPie data={protocolData} />
+              </Suspense>
               <div className="space-y-2 mt-2">
                 {protocolData.map((p, i) => (
                   <div key={p.name} className="flex items-center justify-between text-xs">
