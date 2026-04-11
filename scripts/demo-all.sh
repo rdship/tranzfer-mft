@@ -63,7 +63,7 @@ G=$'\e[1;32m'; B=$'\e[1m'; R=$'\e[0m'
 cat <<EOF
 
 ${G}================================================================${R}
-  ${B}${MODE^^} mode ready${R} (took ${MIN}m ${SEC}s)
+  ${B}$(echo "$MODE" | tr '[:lower:]' '[:upper:]') mode ready${R} (took ${MIN}m ${SEC}s)
 
   ${B}Admin UI${R}        http://localhost:3000
   ${B}Partner Portal${R}  http://localhost:3002

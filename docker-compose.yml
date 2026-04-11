@@ -45,7 +45,7 @@ x-common-env: &common-env
 
 x-service-healthcheck: &healthcheck
   healthcheck:
-    test: ["CMD-SHELL", "curl -sf http://localhost:$${SERVER_PORT:-8080}/actuator/health/liveness || exit 1"]
+    test: ["CMD-SHELL", "curl -sf http://localhost:$${SERVER_PORT:-8080}/actuator/health/liveness || curl -sf http://localhost:$${SERVER_PORT:-8080}/actuator/health || exit 1"]
     interval: 10s
     timeout: 5s
     retries: 5
@@ -159,7 +159,7 @@ services:
       -c effective_io_concurrency=200
       -c log_min_duration_statement=1000
       -c idle_in_transaction_session_timeout=60000
-      -c statement_timeout=30000
+      -c statement_timeout=0
     ports:
       - "5432:5432"
     volumes:

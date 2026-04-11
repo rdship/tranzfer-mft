@@ -371,3 +371,102 @@ _Status:_ Known, cosmetic — does not affect demo.
 ## Resource snapshots
 
 (This section is auto-populated by `./scripts/demo-stats.sh` — leave it at the bottom.)
+
+### Snapshot — baseline (full) — 09:01:14
+
+```
+Containers: 37 · Total memory used: 13627 MB (~13.3 GB)
+```
+
+```
+NAME                       CPU %     MEM USAGE / LIMIT     MEM %     NET I/O
+mft-api-gateway            0.00%     9.328MiB / 23.43GiB   0.04%     183kB / 229kB
+mft-ui-service             0.00%     10.34MiB / 23.43GiB   0.04%     125kB / 80.1kB
+mft-ftp-web-ui             0.00%     7.848MiB / 23.43GiB   0.03%     25.9kB / 126B
+mft-dmz-proxy-internal     0.22%     255MiB / 23.43GiB     1.06%     11.6kB / 9.31kB
+mft-grafana                0.70%     180.4MiB / 23.43GiB   0.75%     392kB / 25.8kB
+mft-partner-portal         0.00%     8.25MiB / 23.43GiB    0.03%     26.2kB / 126B
+mft-promtail               1.28%     118.4MiB / 23.43GiB   0.49%     188kB / 1.86MB
+mft-minio-init             0.00%     0B / 0B               0.00%     0B / 0B
+mft-notification-service   0.18%     642.5MiB / 23.43GiB   2.68%     455kB / 556kB
+mft-ai-engine-2            2.55%     610.9MiB / 23.43GiB   2.55%     468kB / 10.8MB
+mft-ai-engine              0.56%     679MiB / 23.43GiB     2.83%     639kB / 11.1MB
+mft-prometheus             0.84%     133.7MiB / 23.43GiB   0.56%     33.8MB / 1.8MB
+mft-ftp-service-3          2.44%     564.6MiB / 23.43GiB   2.35%     315kB / 414kB
+mft-config-service         3.24%     736.7MiB / 23.43GiB   3.07%     2.11MB / 2.16MB
+mft-analytics-service      0.26%     655.7MiB / 23.43GiB   2.73%     1.03MB / 9.64MB
+mft-sftp-service-2         1.47%     568.8MiB / 23.43GiB   2.37%     332kB / 420kB
+mft-ftp-service-2          0.19%     555.8MiB / 23.43GiB   2.32%     323kB / 410kB
+mft-ftp-service            6.03%     594.2MiB / 23.43GiB   2.48%     791kB / 840kB
+mft-gateway-service        0.29%     556.4MiB / 23.43GiB   2.32%     118kB / 82kB
+mft-as2-service            0.22%     634.3MiB / 23.43GiB   2.64%     1.2MB / 810kB
+mft-keystore-manager       0.51%     657.2MiB / 23.43GiB   2.74%     625kB / 843kB
+mft-storage-manager        0.27%     592.3MiB / 23.43GiB   2.47%     625kB / 608kB
+mft-license-service        0.53%     555.3MiB / 23.43GiB   2.31%     70.3kB / 533kB
+mft-ftp-web-service        0.36%     713.4MiB / 23.43GiB   2.97%     618kB / 712kB
+mft-ftp-web-service-2      0.91%     580MiB / 23.43GiB     2.42%     284kB / 340kB
+mft-onboarding-api         0.24%     661.8MiB / 23.43GiB   2.76%     2.12MB / 2.37MB
+mft-screening-service      5.04%     699.5MiB / 23.43GiB   2.91%     7.75MB / 5.65MB
+mft-edi-converter          3.12%     309.9MiB / 23.43GiB   1.29%     402kB / 239kB
+mft-alertmanager           0.06%     43.69MiB / 23.43GiB   0.18%     406kB / 34.8kB
+mft-loki                   0.30%     228.8MiB / 23.43GiB   0.95%     1.89MB / 166kB
+mft-minio                  0.00%     130.5MiB / 23.43GiB   0.54%     66.6kB / 83kB
+mft-spire-agent            4.68%     22.02MiB / 23.43GiB   0.09%     1.91MB / 421kB
+mft-postgres               0.34%     192.6MiB / 23.43GiB   0.80%     12.8MB / 7.77MB
+mft-rabbitmq               33.21%    171.4MiB / 23.43GiB   0.71%     408kB / 2.12MB
+mft-redis                  0.31%     20.55MiB / 23.43GiB   0.09%     144kB / 474kB
+mft-spire-server           0.03%     93.02MiB / 23.43GiB   0.39%     423kB / 1.91MB
+mft-redpanda               0.36%     432.7MiB / 23.43GiB   1.80%     245kB / 159kB
+```
+
+### Snapshot — baseline (full) — 09:39:37
+
+```
+Containers: 41 · Total memory used: 14857 MB (~14.5 GB)
+```
+
+```
+NAME                       CPU %     MEM USAGE / LIMIT     MEM %     NET I/O
+mft-edi-converter          0.15%     271.1MiB / 23.43GiB   1.13%     83kB / 55.3kB
+mft-api-gateway            0.00%     9.113MiB / 23.43GiB   0.04%     128kB / 155kB
+mft-ui-service             0.00%     8.324MiB / 23.43GiB   0.03%     93.4kB / 666kB
+mft-dmz-proxy-internal     0.77%     291.8MiB / 23.43GiB   1.22%     179kB / 165kB
+mft-ftp-web-ui             0.00%     7.762MiB / 23.43GiB   0.03%     22.5kB / 126B
+mft-grafana                0.02%     65.1MiB / 23.43GiB    0.27%     373kB / 16.8kB
+mft-partner-portal         0.00%     7.797MiB / 23.43GiB   0.03%     23.5kB / 126B
+mft-promtail               1.57%     56.96MiB / 23.43GiB   0.24%     136kB / 1.4MB
+mft-minio-init             0.00%     0B / 0B               0.00%     0B / 0B
+mft-platform-sentinel      0.48%     498.7MiB / 23.43GiB   2.08%     53.2kB / 63.5kB
+mft-notification-service   0.36%     661.7MiB / 23.43GiB   2.76%     378kB / 468kB
+mft-ai-engine-2            0.44%     497.8MiB / 23.43GiB   2.07%     127kB / 2.6MB
+mft-ai-engine              0.26%     494.1MiB / 23.43GiB   2.06%     127kB / 2.63MB
+mft-ftp-service-3          0.35%     603MiB / 23.43GiB     2.51%     233kB / 301kB
+mft-ftp-service-2          0.28%     468.6MiB / 23.43GiB   1.95%     108kB / 118kB
+mft-ftp-service            0.27%     476.8MiB / 23.43GiB   1.99%     113kB / 122kB
+mft-forwarder-service      3.08%     611.8MiB / 23.43GiB   2.55%     276kB / 333kB
+mft-sftp-service-2         0.35%     554.5MiB / 23.43GiB   2.31%     258kB / 320kB
+mft-screening-service      0.38%     677.9MiB / 23.43GiB   2.83%     7.51MB / 5.32MB
+mft-sftp-service-3         0.40%     565.2MiB / 23.43GiB   2.36%     258kB / 314kB
+mft-license-service        0.48%     590MiB / 23.43GiB     2.46%     272kB / 5.07MB
+mft-prometheus             0.00%     65.31MiB / 23.43GiB   0.27%     17.6MB / 1.27MB
+mft-gateway-service        1.35%     696.7MiB / 23.43GiB   2.90%     335kB / 374kB
+mft-storage-manager        0.84%     586.7MiB / 23.43GiB   2.45%     257kB / 283kB
+mft-ftp-web-service        0.44%     669.8MiB / 23.43GiB   2.79%     254kB / 299kB
+mft-as2-service            0.27%     591.7MiB / 23.43GiB   2.47%     477kB / 431kB
+mft-ftp-web-service-2      0.21%     551.8MiB / 23.43GiB   2.30%     205kB / 252kB
+mft-keystore-manager       0.26%     597.8MiB / 23.43GiB   2.49%     342kB / 511kB
+mft-config-service         0.38%     510.4MiB / 23.43GiB   2.13%     1.55MB / 1.51MB
+mft-sftp-service           0.39%     565.7MiB / 23.43GiB   2.36%     283kB / 345kB
+mft-onboarding-api         0.32%     535.4MiB / 23.43GiB   2.23%     1.37MB / 1.77MB
+mft-encryption-service     2.94%     685.6MiB / 23.43GiB   2.86%     276kB / 343kB
+mft-analytics-service      1.28%     571.3MiB / 23.43GiB   2.38%     376kB / 5.78MB
+mft-alertmanager           0.07%     20.41MiB / 23.43GiB   0.09%     260kB / 18.1kB
+mft-minio                  0.06%     87.76MiB / 23.43GiB   0.37%     52.6kB / 60.3kB
+mft-loki                   0.37%     104.1MiB / 23.43GiB   0.43%     1.42MB / 117kB
+mft-spire-agent            0.09%     23.55MiB / 23.43GiB   0.10%     1.46MB / 315kB
+mft-rabbitmq               0.28%     151.6MiB / 23.43GiB   0.63%     335kB / 1.46MB
+mft-postgres               0.40%     169.3MiB / 23.43GiB   0.71%     11.5MB / 6.4MB
+mft-redis                  0.54%     10.11MiB / 23.43GiB   0.04%     45.1kB / 61.3kB
+mft-spire-server           0.00%     29.67MiB / 23.43GiB   0.12%     317kB / 1.46MB
+mft-redpanda               0.61%     208.4MiB / 23.43GiB   0.87%     241kB / 153kB
+```

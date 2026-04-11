@@ -51,7 +51,8 @@ if ! command -v jq >/dev/null; then
   die "jq is required for response assertions. Install with: brew install jq"
 fi
 
-if ! curl -sf "${EDI_URL}/actuator/health/liveness" >/dev/null 2>&1; then
+if ! curl -sf "${EDI_URL}/actuator/health/liveness" >/dev/null 2>&1 && \
+   ! curl -sf "${EDI_URL}/actuator/health" >/dev/null 2>&1; then
   die "edi-converter not reachable at ${EDI_URL}. Boot the full stack first: ./scripts/demo-all.sh --full"
 fi
 

@@ -107,6 +107,16 @@ docker compose build ui-service partner-portal ftp-web-ui api-gateway 2>&1 | tai
 # Include minio via its profile so the S3 gateway is available
 COMPOSE_PROFILES="${COMPOSE_PROFILES:-minio}" docker compose --profile minio up -d
 
+# --- Pre-Phase 3: apply missing migrations that Flyway skips (V999 barrier) --
+# V54 creates sentinel_findings, sentinel_health_scores, sentinel_rules, and
+# sentinel_correlation_groups. These tables are required by platform-sentinel
+# at startup but the V54 migration is never run by Flyway because the DB is
+# already at V999 (write-intents migration). Apply manually every cold boot.
+log "Applying V54 sentinel tables (Flyway skip workaround)..."
+docker exec -i mft-postgres psql -U postgres -d filetransfer \
+  < "$(dirname "$0")/../platform-sentinel/src/main/resources/db/migration/V54__sentinel_tables.sql" \
+  2>&1 | grep -v "^$" || true
+
 # --- Phase 3: wait for onboarding-api + best-effort key services -------------
 log "Phase 3/3 — Waiting for onboarding-api (up to 10 min)..."
 wait_http http://localhost:8080/actuator/health/readiness 600

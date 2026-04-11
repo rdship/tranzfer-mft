@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS sentinel_rules (
     name VARCHAR(100) NOT NULL UNIQUE,
     description VARCHAR(500),
     enabled BOOLEAN NOT NULL DEFAULT true,
+    builtin BOOLEAN NOT NULL DEFAULT false,
     severity VARCHAR(20) NOT NULL DEFAULT 'MEDIUM',
     threshold_value DOUBLE PRECISION,
     window_minutes INTEGER DEFAULT 60,
