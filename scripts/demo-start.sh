@@ -118,8 +118,11 @@ for port in 8084 8085 8086 8089 8090 8091 8093 8096 8097 8098; do
 done
 
 # --- Phase 3: UIs ------------------------------------------------------------
-log "Phase 3/3 — Starting admin UI and partner portal..."
-docker compose up -d "${UIS[@]}"
+# --build forces a fresh build of ui-service + partner-portal so any old cached
+# image (e.g., from before an Observatory.jsx or similar fix) is replaced.
+# Java services skip rebuild because their cached images are pinned by source.
+log "Phase 3/3 — Building and starting admin UI and partner portal..."
+docker compose up -d --build "${UIS[@]}"
 sleep 5
 
 # --- Summary -----------------------------------------------------------------

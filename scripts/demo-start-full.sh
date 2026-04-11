@@ -99,6 +99,11 @@ wait_healthy mft-redpanda 120
 # --- Phase 2: everything else (compose resolves dependencies) ---------------
 log "Phase 2/3 — Starting all remaining services (Java + UIs + observability + MinIO)..."
 log "First run pulls images and builds ~26 service JARs. Expect 10-20 minutes."
+# Force-rebuild the Node UIs so any stale cached image (e.g. from before an
+# Observatory.jsx fix) is replaced. Java images are left cached — they're
+# expensive to rebuild and pinned by source.
+log "    Rebuilding ui-service + partner-portal + ftp-web-ui + api-gateway..."
+docker compose build ui-service partner-portal ftp-web-ui api-gateway 2>&1 | tail -5 || true
 # Include minio via its profile so the S3 gateway is available
 COMPOSE_PROFILES="${COMPOSE_PROFILES:-minio}" docker compose --profile minio up -d
 
