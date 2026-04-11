@@ -4,10 +4,16 @@ import com.filetransfer.onboarding.dto.response.ActivityMonitorEntry;
 import com.filetransfer.shared.entity.*;
 import com.filetransfer.shared.enums.FileTransferStatus;
 import com.filetransfer.shared.enums.Protocol;
+import com.filetransfer.shared.repository.FabricCheckpointRepository;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;
 import com.filetransfer.shared.repository.FlowExecutionRepository;
 import com.filetransfer.shared.repository.PartnerRepository;
 import com.filetransfer.shared.security.Roles;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.Nullable;
+
+import java.time.Duration;
+import java.time.Instant;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +42,11 @@ public class ActivityMonitorController {
     private final FileTransferRecordRepository transferRepo;
     private final FlowExecutionRepository flowExecRepo;
     private final PartnerRepository partnerRepo;
+
+    /** Optional — null when shared-fabric not configured. Used for activity enrichment. */
+    @Autowired(required = false)
+    @Nullable
+    private FabricCheckpointRepository fabricCheckpointRepo;
 
     @GetMapping
     @Operation(summary = "Search and list file transfers with optional filters")
@@ -84,13 +95,28 @@ public class ActivityMonitorController {
                 : flowExecRepo.findByTrackIdIn(trackIds).stream()
                         .collect(Collectors.toMap(FlowExecution::getTrackId, Function.identity(), (a, b) -> a));
 
+        // Batch-fetch fabric checkpoints (latest per trackId). Only when fabric is wired.
+        final Map<String, FabricCheckpoint> latestCpByTrackId = new HashMap<>();
+        if (fabricCheckpointRepo != null && !trackIds.isEmpty()) {
+            try {
+                List<FabricCheckpoint> all = fabricCheckpointRepo.findLatestByTrackIds(trackIds);
+                for (FabricCheckpoint cp : all) {
+                    latestCpByTrackId.merge(cp.getTrackId(), cp,
+                            (a, b) -> a.getStepIndex() >= b.getStepIndex() ? a : b);
+                }
+            } catch (Exception ignore) {
+                // Fabric enrichment is best-effort — never break the activity monitor
+            }
+        }
+
         // Map to DTOs
-        return records.map(r -> toEntry(r, partnerMap, flowMap));
+        return records.map(r -> toEntry(r, partnerMap, flowMap, latestCpByTrackId));
     }
 
     private ActivityMonitorEntry toEntry(FileTransferRecord r,
                                          Map<UUID, String> partnerMap,
-                                         Map<String, FlowExecution> flowMap) {
+                                         Map<String, FlowExecution> flowMap,
+                                         Map<String, FabricCheckpoint> latestCpByTrackId) {
         FolderMapping fm = r.getFolderMapping();
         TransferAccount src = fm.getSourceAccount();
         TransferAccount dest = fm.getDestinationAccount();
@@ -104,6 +130,26 @@ public class ActivityMonitorController {
 
         // Flow enrichment
         FlowExecution flowExec = flowMap.get(r.getTrackId());
+
+        // Fabric enrichment (optional — null when fabric off or no checkpoint yet)
+        FabricCheckpoint latestCp = latestCpByTrackId != null ? latestCpByTrackId.get(r.getTrackId()) : null;
+        Integer fabricCurrentStep = null;
+        String fabricCurrentStepType = null;
+        String fabricProcessingInstance = null;
+        Long fabricLeaseRemainingMs = null;
+        Boolean fabricIsStuck = null;
+        String fabricStatus = null;
+        if (latestCp != null) {
+            fabricCurrentStep = latestCp.getStepIndex();
+            fabricCurrentStepType = latestCp.getStepType();
+            fabricProcessingInstance = latestCp.getProcessingInstance();
+            fabricStatus = latestCp.getStatus();
+            if (latestCp.getLeaseExpiresAt() != null && "IN_PROGRESS".equals(latestCp.getStatus())) {
+                long remain = Duration.between(Instant.now(), latestCp.getLeaseExpiresAt()).toMillis();
+                fabricLeaseRemainingMs = remain;
+                fabricIsStuck = remain < 0;
+            }
+        }
 
         return ActivityMonitorEntry.builder()
                 .trackId(r.getTrackId())
@@ -139,6 +185,13 @@ public class ActivityMonitorController {
                 // Error & retry
                 .retryCount(r.getRetryCount())
                 .errorMessage(r.getErrorMessage())
+                // Fabric enrichment
+                .currentStep(fabricCurrentStep)
+                .currentStepType(fabricCurrentStepType)
+                .processingInstance(fabricProcessingInstance)
+                .leaseRemainingMs(fabricLeaseRemainingMs)
+                .isStuck(fabricIsStuck)
+                .fabricStatus(fabricStatus)
                 .build();
     }
 }

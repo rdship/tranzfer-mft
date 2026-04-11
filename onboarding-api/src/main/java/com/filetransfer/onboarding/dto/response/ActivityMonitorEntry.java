@@ -54,4 +54,12 @@ public class ActivityMonitorEntry {
     // Error & retry
     private int retryCount;
     private String errorMessage;
+
+    // Fabric checkpoint enrichment (null when fabric disabled / no checkpoint yet)
+    private Integer currentStep;
+    private String currentStepType;
+    private String processingInstance;
+    private Long leaseRemainingMs;
+    private Boolean isStuck;
+    private String fabricStatus;
 }

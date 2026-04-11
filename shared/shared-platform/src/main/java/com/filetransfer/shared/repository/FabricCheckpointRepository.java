@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -53,4 +54,12 @@ public interface FabricCheckpointRepository extends JpaRepository<FabricCheckpoi
            "WHERE c.status = 'COMPLETED' AND c.completedAt > :since " +
            "ORDER BY c.completedAt DESC")
     List<FabricCheckpoint> findRecentCompleted(@Param("since") Instant since);
+
+    /**
+     * Batch-fetch all checkpoints for a set of trackIds.
+     * Callers reduce to "latest per trackId" in memory. Used by
+     * ActivityMonitorController for N-free fabric enrichment.
+     */
+    @Query("SELECT c FROM FabricCheckpoint c WHERE c.trackId IN :trackIds ORDER BY c.stepIndex DESC")
+    List<FabricCheckpoint> findLatestByTrackIds(@Param("trackIds") Collection<String> trackIds);
 }

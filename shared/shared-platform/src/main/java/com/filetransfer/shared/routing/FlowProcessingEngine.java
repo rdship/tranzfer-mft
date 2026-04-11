@@ -119,6 +119,14 @@ public class FlowProcessingEngine {
     private com.filetransfer.shared.fabric.FlowFabricBridge fabricBridge;
 
     /**
+     * Fabric configuration properties. Optional — null when shared-fabric not configured.
+     * Used to gate checkpoint writes on fabric.checkpoint.enabled.
+     */
+    @Autowired(required = false)
+    @Nullable
+    private com.filetransfer.fabric.config.FabricProperties fabricProperties;
+
+    /**
      * Execute a specific flow for a file. Creates execution record and processes each step.
      */
     @Transactional
@@ -262,6 +270,27 @@ public class FlowProcessingEngine {
 
             for (int attempt = 0; attempt <= maxStepRetries; attempt++) {
                 long start = System.currentTimeMillis();
+                // ── Fabric checkpoint start (best-effort, never breaks execution) ──
+                UUID fabricCheckpointId = null;
+                if (fabricBridge != null && fabricProperties != null
+                        && fabricProperties.getCheckpoint().isEnabled()) {
+                    try {
+                        long inputSize = -1L;
+                        try {
+                            if (currentFile != null) {
+                                java.nio.file.Path p = java.nio.file.Paths.get(currentFile);
+                                if (java.nio.file.Files.exists(p)) {
+                                    inputSize = java.nio.file.Files.size(p);
+                                }
+                            }
+                        } catch (Exception ignore) {}
+                        fabricCheckpointId = fabricBridge.startStep(
+                                trackId, i, step.getType(), null,
+                                inputSize >= 0 ? inputSize : null);
+                    } catch (Exception cpEx) {
+                        log.debug("[{}] Fabric checkpoint start failed: {}", trackId, cpEx.getMessage());
+                    }
+                }
                 try {
                     if (attempt > 0) {
                         // Exponential backoff between step retries: 2s, 4s, 8s...
@@ -276,6 +305,24 @@ public class FlowProcessingEngine {
                     }
                     String outputFile = processStep(step, currentFile, trackId, i);
                     long duration = System.currentTimeMillis() - start;
+                    // ── Fabric checkpoint complete ──
+                    if (fabricCheckpointId != null) {
+                        try {
+                            long outSize = -1L;
+                            try {
+                                if (outputFile != null) {
+                                    java.nio.file.Path p = java.nio.file.Paths.get(outputFile);
+                                    if (java.nio.file.Files.exists(p)) {
+                                        outSize = java.nio.file.Files.size(p);
+                                    }
+                                }
+                            } catch (Exception ignore) {}
+                            fabricBridge.completeStep(fabricCheckpointId, null,
+                                    outSize >= 0 ? outSize : null);
+                        } catch (Exception cpEx) {
+                            log.debug("[{}] Fabric checkpoint complete failed: {}", trackId, cpEx.getMessage());
+                        }
+                    }
                     String stepStatus = attempt > 0 ? "OK_AFTER_RETRY_" + attempt : "OK";
                     results.add(FlowExecution.StepResult.builder()
                             .stepIndex(i).stepType(step.getType())
@@ -306,6 +353,14 @@ public class FlowProcessingEngine {
                     break;
                 } catch (Exception e) {
                     long duration = System.currentTimeMillis() - start;
+                    // ── Fabric checkpoint fail (best-effort) ──
+                    if (fabricCheckpointId != null) {
+                        try {
+                            fabricBridge.failStep(fabricCheckpointId, classifyError(e), e.getMessage());
+                        } catch (Exception cpEx) {
+                            log.debug("[{}] Fabric checkpoint fail failed: {}", trackId, cpEx.getMessage());
+                        }
+                    }
                     if (attempt < maxStepRetries && isRetryableStepError(e)) {
                         if (flowEventJournal != null) {
                             long backoff = 2000L * (1L << attempt);
@@ -925,6 +980,21 @@ public class FlowProcessingEngine {
         return true;
     }
 
+    /**
+     * Classify an exception for fabric checkpoint error tracking.
+     * Maps exception type / message keywords to a short category token.
+     */
+    private String classifyError(Throwable e) {
+        if (e == null) return "UNKNOWN";
+        String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+        if (msg.contains("auth") || msg.contains("credential")) return "AUTH";
+        if (msg.contains("key") || msg.contains("expired")) return "KEY_EXPIRED";
+        if (msg.contains("network") || msg.contains("connection") || msg.contains("timeout")) return "NETWORK";
+        if (msg.contains("permission") || msg.contains("denied")) return "PERMISSION";
+        if (msg.contains("format") || msg.contains("parse")) return "FORMAT";
+        return "UNKNOWN";
+    }
+
     private void addInternalAuth(HttpHeaders headers, String targetService) {
         if (spiffeWorkloadClient != null && spiffeWorkloadClient.isAvailable()) {
             String token = spiffeWorkloadClient.getJwtSvidFor(targetService);
@@ -1144,6 +1214,18 @@ public class FlowProcessingEngine {
 
             for (int attempt = 0; attempt <= maxRetries; attempt++) {
                 long start = System.currentTimeMillis();
+                // ── Fabric checkpoint start (VIRTUAL mode) ──
+                UUID fabricCheckpointId = null;
+                if (fabricBridge != null && fabricProperties != null
+                        && fabricProperties.getCheckpoint().isEnabled()) {
+                    try {
+                        fabricCheckpointId = fabricBridge.startStep(
+                                trackId, i, step.getType(), currentKey,
+                                currentSize >= 0 ? currentSize : null);
+                    } catch (Exception cpEx) {
+                        log.debug("[{}] Fabric checkpoint start failed: {}", trackId, cpEx.getMessage());
+                    }
+                }
                 try {
                     if (attempt > 0) {
                         long backoff = 2000L * (1L << (attempt - 1));
@@ -1158,6 +1240,16 @@ public class FlowProcessingEngine {
                     StepOutcome outcome = processStepRef(step, currentKey, currentPath,
                             currentSize, ref, trackId, i);
                     long duration = System.currentTimeMillis() - start;
+                    // ── Fabric checkpoint complete (VIRTUAL mode) ──
+                    if (fabricCheckpointId != null) {
+                        try {
+                            fabricBridge.completeStep(fabricCheckpointId,
+                                    outcome.storageKey(),
+                                    outcome.sizeBytes() >= 0 ? outcome.sizeBytes() : null);
+                        } catch (Exception cpEx) {
+                            log.debug("[{}] Fabric checkpoint complete failed: {}", trackId, cpEx.getMessage());
+                        }
+                    }
                     results.add(FlowExecution.StepResult.builder()
                             .stepIndex(i).stepType(step.getType())
                             .status(attempt > 0 ? "OK_AFTER_RETRY_" + attempt : "OK")
@@ -1193,6 +1285,14 @@ public class FlowProcessingEngine {
                     break;
                 } catch (Exception e) {
                     long duration = System.currentTimeMillis() - start;
+                    // ── Fabric checkpoint fail (VIRTUAL mode) ──
+                    if (fabricCheckpointId != null) {
+                        try {
+                            fabricBridge.failStep(fabricCheckpointId, classifyError(e), e.getMessage());
+                        } catch (Exception cpEx) {
+                            log.debug("[{}] Fabric checkpoint fail failed: {}", trackId, cpEx.getMessage());
+                        }
+                    }
                     if (attempt < maxRetries && isRetryableStepError(e)) {
                         if (flowEventJournal != null) {
                             long backoff = 2000L * (1L << attempt);
