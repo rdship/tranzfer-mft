@@ -26,11 +26,18 @@ export default function Partnerships() {
   const [keystoreCerts, setKeystoreCerts] = useState([])
   const [selectedCert, setSelectedCert] = useState('')
 
-  // Fetch TLS certificates from Keystore Manager for partner cert selection
+  // Fetch TLS certificates from Keystore Manager for partner cert selection.
+  // Surface failures via toast — an empty keystore dropdown with no error
+  // message makes operators think "no certs configured" when really the
+  // keystore service is unreachable.
   useEffect(() => {
     keystoreApi.get('/api/v1/keys?type=TLS_CERTIFICATE')
       .then(r => setKeystoreCerts(Array.isArray(r.data) ? r.data : []))
-      .catch(() => setKeystoreCerts([]))
+      .catch(e => {
+        setKeystoreCerts([])
+        const msg = e?.response?.data?.message || e?.message || 'unknown error'
+        toast.error(`Couldn't load TLS certificates: ${msg}`, { id: 'tls-certs-err' })
+      })
   }, [])
 
   const { data: partners = [] } = useQuery({

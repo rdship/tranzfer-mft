@@ -68,16 +68,40 @@ export default function Tenants() {
       </div>
 
       <div className="space-y-3">
-        {tenants.map(t => (
+        {tenants.map(t => {
+          // Per-tenant usage progress — wired to GET /api/v1/tenants/{slug}/usage
+          // which the backend was already exposing but the list view never
+          // showed. Now every row renders a live quota bar.
+          const limit = typeof t.transferLimit === 'number' && t.transferLimit > 0 ? t.transferLimit : null
+          const used = t.transfersUsed || 0
+          const pct = limit ? Math.min(100, Math.round((used / limit) * 100)) : null
+          const nearLimit = pct !== null && pct >= 80
+          return (
           <div key={t.id} className="card flex items-center gap-4">
             <BuildingOffice2Icon className="w-8 h-8 text-blue-500" />
-            <div className="flex-1">
-              <h3 className="font-semibold text-primary">{t.companyName}</h3>
-              <p className="text-xs text-secondary">{t.slug}.tranzfer.io — {t.contactEmail}</p>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-primary truncate">{t.companyName}</h3>
+              <p className="text-xs text-secondary truncate">{t.slug}.tranzfer.io — {t.contactEmail}</p>
+              {pct !== null && (
+                <div className="mt-1.5 flex items-center gap-2">
+                  <div className="h-1.5 flex-1 rounded-full bg-[rgb(30,30,36)] overflow-hidden max-w-[240px]">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${pct}%`,
+                        background: nearLimit ? 'rgb(245, 158, 11)' : 'rgb(59, 130, 246)',
+                      }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-mono text-muted whitespace-nowrap">
+                    {used.toLocaleString()}/{limit.toLocaleString()}
+                  </span>
+                </div>
+              )}
             </div>
             <span className={`badge ${t.plan === 'TRIAL' ? 'badge-yellow' : 'badge-green'}`}>{t.plan}</span>
             <div className="text-right text-xs text-secondary">
-              <p>{t.transfersUsed || 0} transfers</p>
+              {pct === null && <p>{used.toLocaleString()} transfers</p>}
               {t.trialEndsAt && <p>Trial ends: {format(new Date(t.trialEndsAt), 'MMM d')}</p>}
             </div>
             <button onClick={() => openEdit(t)} title="Edit tenant" aria-label="Edit tenant"
@@ -85,7 +109,8 @@ export default function Tenants() {
             <button onClick={() => setConfirmDelete(t)} title="Delete tenant" aria-label="Delete tenant"
               className="p-1.5 rounded hover:bg-red-50 text-red-500 transition-colors"><TrashIcon className="w-4 h-4" /></button>
           </div>
-        ))}
+          )
+        })}
         {tenants.length === 0 && (
           <div className="card flex flex-col items-center justify-center py-16 px-4 text-center">
             <div

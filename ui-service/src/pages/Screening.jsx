@@ -229,7 +229,9 @@ export default function Screening() {
 
   const { data: dlpRules = [], isLoading: loadingRules } = useQuery({
     queryKey: ['dlp-rules'],
-    queryFn: () => screeningApi.get('/api/v1/dlp/policies').then(r => r.data).catch(() => [])
+    queryFn: () => screeningApi.get('/api/v1/dlp/policies').then(r => r.data),
+    retry: 1,
+    onError: toastOnError('dlp-rules-err', "Couldn't load DLP rules"),
   })
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -239,8 +241,10 @@ export default function Screening() {
   const { data: screeningQuarantine = [], isLoading: loadingScreeningQ } = useQuery({
     queryKey: ['screening-quarantine'],
     queryFn: () => screeningApi.get('/api/v1/quarantine', { params: { page: 0, size: 10 } })
-      .then(r => r.data?.content || r.data || []).catch(() => []),
-    refetchInterval: 30000
+      .then(r => r.data?.content || r.data || []),
+    refetchInterval: 30000,
+    retry: 1,
+    onError: toastOnError('screening-quarantine-err', "Couldn't load screening quarantine"),
   })
 
   // ═══════════════════════════════════════════════════════════════════════

@@ -298,7 +298,7 @@ export default function Edi() {
     setMapsLoading(true)
     getAvailableMaps()
       .then(data => setMaps(Array.isArray(data) ? data : data?.maps || []))
-      .catch(() => {})
+      .catch(e => toast.error('Failed to refresh map list: ' + (e?.response?.data?.message || e?.message || 'unknown error')))
       .finally(() => setMapsLoading(false))
   }
 
