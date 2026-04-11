@@ -122,6 +122,8 @@ export default function App() {
             <Route path="2fa" element={<TwoFactor />} />
             <Route path="api-console" element={<ApiConsole />} />
             <Route path="edi" element={<Edi />} />
+            <Route path="edi-mapping" element={<Edi />} />
+            <Route path="edi-partners" element={<Edi />} />
             <Route path="tenants" element={<Tenants />} />
             <Route path="blockchain" element={<Blockchain />} />
             <Route path="compliance" element={<Compliance />} />

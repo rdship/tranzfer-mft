@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { ediApi as api } from '../api/client'
 import {
@@ -60,6 +61,17 @@ GE*1*1~
 IEA*1*000000001~`
 
 export default function Edi() {
+  // Route-driven initial tab — sidebar has 3 entries that all render this page
+  // but land on different tabs via the path:
+  //   /edi           → convert (default)
+  //   /edi-mapping   → maps    (visual map editor)
+  //   /edi-partners  → partners
+  const { pathname } = useLocation()
+  const initialTab =
+    pathname === '/edi-mapping'  ? 'maps' :
+    pathname === '/edi-partners' ? 'partners' :
+                                   'convert'
+
   const [content, setContent] = useState('')
   const [content2, setContent2] = useState('')
   const [nlText, setNlText] = useState('')
@@ -68,7 +80,7 @@ export default function Edi() {
   const [partnerId, setPartnerId] = useState('')
   const [partnerName, setPartnerName] = useState('')
   const [result, setResult] = useState(null)
-  const [tab, setTab] = useState('convert')
+  const [tab, setTab] = useState(initialTab)
   const [target, setTarget] = useState('JSON')
   const [loading, setLoading] = useState(false)
 

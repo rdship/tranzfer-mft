@@ -130,9 +130,16 @@ const navGroups = [
     ],
   },
   {
+    label: 'EDI',
+    items: [
+      { to: '/edi',           icon: DocumentTextIcon,    label: 'EDI Convert' },
+      { to: '/edi-mapping',   icon: ArrowsRightLeftIcon, label: 'EDI Map Editor' },
+      { to: '/edi-partners',  icon: BuildingOfficeIcon,  label: 'EDI Partners' },
+    ],
+  },
+  {
     label: 'Tools',
     items: [
-      { to: '/edi',         icon: DocumentTextIcon, label: 'EDI Translation' },
       { to: '/api-console', icon: CodeBracketIcon,  label: 'API Console' },
       { to: '/terminal',    icon: CommandLineIcon,   label: 'Terminal',        role: 'ADMIN' },
     ],

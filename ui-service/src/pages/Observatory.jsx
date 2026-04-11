@@ -240,8 +240,6 @@ const ActivityHeatmap = memo(function ActivityHeatmap({ heatmapData }) {
       </div>
     </div>
   )
-}
-
 })
 
 // ─── Domain Groups ────────────────────────────────────────────────────────────
@@ -336,8 +334,6 @@ const DomainGroups = memo(function DomainGroups({ domainGroups }) {
       </div>
     </div>
   )
-}
-
 })
 
 // ─── Step Latency Heatmap ─────────────────────────────────────────────────────
