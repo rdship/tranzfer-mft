@@ -109,6 +109,16 @@ public class FlowProcessingEngine {
     private AuditService auditService;
 
     /**
+     * Dynamic Flow Fabric bridge. Optional — null when shared-fabric not on classpath
+     * or fabric is disabled. When non-null and active, executeFlow/executeFlowRef publish
+     * to the flow.intake topic instead of submitting to SEDA. A FlowFabricConsumer elsewhere
+     * picks up the message and calls {@link #executeFlowViaFabric}/{@link #executeFlowRefViaFabric}.
+     */
+    @Autowired(required = false)
+    @Nullable
+    private com.filetransfer.shared.fabric.FlowFabricBridge fabricBridge;
+
+    /**
      * Execute a specific flow for a file. Creates execution record and processes each step.
      */
     @Transactional
@@ -141,6 +151,18 @@ public class FlowProcessingEngine {
             flowEventJournal.recordExecutionStarted(trackId, exec.getId(), null, flow.getSteps().size());
         }
 
+        // ── Dynamic Flow Fabric: publish to flow.intake, let consumer pick it up ──
+        if (fabricBridge != null && fabricBridge.isFabricActive()) {
+            try {
+                fabricBridge.publishIntake(exec, flow);
+                log.info("[{}] Published flow '{}' to fabric flow.intake (fabric mode)", trackId, flow.getName());
+                return exec;
+            } catch (Exception e) {
+                log.warn("[{}] Fabric publish failed, falling back to SEDA: {}", trackId, e.getMessage());
+                // Fall through to existing SEDA path
+            }
+        }
+
         if (stageManager != null) {
             final FlowExecution sedaExec = exec;
             boolean submitted = stageManager.submit("INTAKE", () -> executeFlowSteps(sedaExec, flow, trackId, filename, inputPath));
@@ -156,6 +178,48 @@ public class FlowProcessingEngine {
         // ── Synchronous fallback (no SEDA) ──
         executeFlowSteps(exec, flow, trackId, filename, inputPath);
         return exec;
+    }
+
+    /**
+     * Entry point invoked by {@link com.filetransfer.shared.fabric.FlowFabricConsumer}
+     * when a flow.intake message is received from the fabric. Routes to the correct
+     * step-execution path (PHYSICAL vs VIRTUAL) based on whether the execution carries
+     * a storage key or a local file path — WITHOUT re-publishing to the fabric.
+     *
+     * This method does the exact same work as the SEDA worker runnable; the only
+     * difference is dispatch (fabric consumer thread vs SEDA pool).
+     */
+    public void executeFlowViaFabric(FlowExecution exec, FileFlow flow) {
+        String trackId = exec.getTrackId();
+        String filename = exec.getOriginalFilename();
+        log.info("[{}] Executing flow '{}' via fabric consumer", trackId, flow.getName());
+
+        // VIRTUAL mode: execution carries a storage key — no local path
+        if (exec.getCurrentStorageKey() != null) {
+            // Reconstruct a minimal FileRef from execution state.
+            // Size is unknown here (-1) — executeFlowRefSteps re-reads from storage as needed.
+            UUID accountId = null;
+            try {
+                if (flow.getSourceAccount() != null) {
+                    accountId = flow.getSourceAccount().getId();
+                }
+            } catch (Exception ignore) {}
+            FileRef ref = new FileRef(
+                exec.getCurrentStorageKey(),
+                "/" + (filename != null ? filename : "unknown"),
+                accountId,
+                -1L,
+                trackId,
+                null,
+                "STANDARD"
+            );
+            executeFlowRefSteps(exec, flow, trackId, filename, ref, exec.getCurrentStep());
+            return;
+        }
+
+        // PHYSICAL mode: execution carries a local file path
+        String inputPath = exec.getCurrentFilePath();
+        executeFlowSteps(exec, flow, trackId, filename, inputPath);
     }
 
     /**
@@ -995,6 +1059,18 @@ public class FlowProcessingEngine {
                     .build();
         }
         exec = executionRepository.save(exec);
+
+        // ── Dynamic Flow Fabric: publish to flow.intake, consumer executes via executeFlowRefViaFabric ──
+        if (fabricBridge != null && fabricBridge.isFabricActive() && startFromStep == 0) {
+            try {
+                fabricBridge.publishIntake(exec, flow);
+                log.info("[{}] Published flow '{}' to fabric flow.intake (VIRTUAL, fabric mode)", trackId, flow.getName());
+                return exec;
+            } catch (Exception e) {
+                log.warn("[{}] Fabric publish failed (VIRTUAL), falling back to SEDA: {}", trackId, e.getMessage());
+                // Fall through to existing SEDA path
+            }
+        }
 
         if (stageManager != null) {
             final FlowExecution sedaExec = exec;
