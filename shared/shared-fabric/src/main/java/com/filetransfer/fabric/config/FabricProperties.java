@@ -57,6 +57,12 @@ public class FabricProperties {
         private int maxPollRecords = 100;
         private int sessionTimeoutMs = 30000;
         private int heartbeatIntervalMs = 10000;
+        /**
+         * Max redelivery attempts before a poison message is routed to
+         * {@code <topic>.dlq} and the offset advances. Set to 0 to disable DLQ
+         * (consumers will retry forever on poison messages — the old behavior).
+         */
+        private int maxDeliveryAttempts = 5;
     }
 
     @Data

@@ -7,6 +7,7 @@ import com.filetransfer.fabric.config.FabricProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -23,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -37,6 +39,9 @@ public class KafkaFabricClient implements FabricClient {
     private final ObjectMapper mapper;
     private final KafkaProducer<String, String> producer;
     private final List<Thread> consumerThreads = new ArrayList<>();
+    private final Set<String> ensuredTopics = ConcurrentHashMap.newKeySet();
+    /** Per-record delivery attempt counter, keyed by "topic:partition:offset". */
+    private final Map<String, Integer> deliveryAttempts = new ConcurrentHashMap<>();
     private volatile boolean running = true;
     private volatile boolean healthy;
 
@@ -81,6 +86,7 @@ public class KafkaFabricClient implements FabricClient {
             log.warn("[Fabric/Kafka] Publish skipped for {} (broker unhealthy)", topic);
             return;
         }
+        ensureTopic(topic);
         try {
             String jsonValue = mapper.writeValueAsString(value);
             ProducerRecord<String, String> record = new ProducerRecord<>(topic, key, jsonValue);
@@ -102,6 +108,7 @@ public class KafkaFabricClient implements FabricClient {
             log.warn("[Fabric/Kafka] Subscribe skipped for {} (broker unhealthy)", topic);
             return;
         }
+        ensureTopic(topic);
 
         Properties consumerProps = new Properties();
         consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, props.getBrokerUrl());
@@ -125,11 +132,14 @@ public class KafkaFabricClient implements FabricClient {
     private void runConsumer(String topic, String groupId, MessageHandler handler, Properties consumerProps) {
         try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(consumerProps)) {
             consumer.subscribe(Collections.singleton(topic));
+            int maxAttempts = Math.max(0, props.getConsumer().getMaxDeliveryAttempts());
 
             while (running) {
                 try {
                     ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
+                    boolean batchHadPoison = false;
                     for (ConsumerRecord<String, String> record : records) {
+                        String recordKey = record.topic() + ":" + record.partition() + ":" + record.offset();
                         try {
                             Map<String, String> headers = new HashMap<>();
                             for (Header h : record.headers()) {
@@ -146,15 +156,26 @@ public class KafkaFabricClient implements FabricClient {
                                 .build();
 
                             handler.handle(event);
+                            deliveryAttempts.remove(recordKey);
                         } catch (Exception e) {
-                            log.error("[Fabric/Kafka] Handler failed for topic={} offset={}: {}",
-                                record.topic(), record.offset(), e.getMessage());
-                            // Do NOT commit — message will be redelivered
-                            continue;
+                            int attempts = deliveryAttempts.merge(recordKey, 1, Integer::sum);
+                            log.error("[Fabric/Kafka] Handler failed for topic={} offset={} attempt={}/{}: {}",
+                                record.topic(), record.offset(), attempts, maxAttempts, e.getMessage());
+
+                            if (maxAttempts > 0 && attempts >= maxAttempts) {
+                                if (sendToDlq(record, e, attempts)) {
+                                    deliveryAttempts.remove(recordKey);
+                                    // DLQ succeeded — fall through to commit so we advance past this record
+                                    continue;
+                                }
+                            }
+                            // Either DLQ disabled, or DLQ publish failed — halt the batch so Kafka redelivers
+                            batchHadPoison = true;
+                            break;
                         }
                     }
-                    // Commit after batch
-                    if (!records.isEmpty()) {
+                    // Commit after batch (unless a poison message is blocking us)
+                    if (!records.isEmpty() && !batchHadPoison) {
                         consumer.commitSync();
                     }
                 } catch (Exception e) {
@@ -162,6 +183,46 @@ public class KafkaFabricClient implements FabricClient {
                     try { Thread.sleep(1000); } catch (InterruptedException ie) { break; }
                 }
             }
+        }
+    }
+
+    /**
+     * Publish a poison message to {@code <topic>.dlq} with failure metadata in headers.
+     * Returns true if the DLQ publish succeeded (so the offset can be advanced).
+     */
+    private boolean sendToDlq(ConsumerRecord<String, String> record, Exception failure, int attempts) {
+        String dlqTopic = record.topic() + ".dlq";
+        try {
+            ensureTopic(dlqTopic);
+            ProducerRecord<String, String> dlqRecord = new ProducerRecord<>(dlqTopic, record.key(), record.value());
+            // Preserve original headers
+            for (Header h : record.headers()) {
+                dlqRecord.headers().add(h.key(), h.value());
+            }
+            // Add failure metadata
+            dlqRecord.headers().add("x-fabric-dlq-source-topic", record.topic().getBytes(StandardCharsets.UTF_8));
+            dlqRecord.headers().add("x-fabric-dlq-source-partition",
+                String.valueOf(record.partition()).getBytes(StandardCharsets.UTF_8));
+            dlqRecord.headers().add("x-fabric-dlq-source-offset",
+                String.valueOf(record.offset()).getBytes(StandardCharsets.UTF_8));
+            dlqRecord.headers().add("x-fabric-dlq-attempts",
+                String.valueOf(attempts).getBytes(StandardCharsets.UTF_8));
+            dlqRecord.headers().add("x-fabric-dlq-failure-class",
+                failure.getClass().getName().getBytes(StandardCharsets.UTF_8));
+            String msg = failure.getMessage() != null ? failure.getMessage() : "";
+            dlqRecord.headers().add("x-fabric-dlq-failure-message",
+                msg.getBytes(StandardCharsets.UTF_8));
+            dlqRecord.headers().add("x-fabric-dlq-timestamp",
+                Instant.now().toString().getBytes(StandardCharsets.UTF_8));
+
+            producer.send(dlqRecord).get(5, TimeUnit.SECONDS);
+            log.warn("[Fabric/Kafka] Poison message routed to DLQ: topic={} offset={} → {} ({})",
+                record.topic(), record.offset(), dlqTopic, failure.getClass().getSimpleName());
+            return true;
+        } catch (Exception dlqEx) {
+            log.error("[Fabric/Kafka] DLQ publish failed for topic={} offset={}: {}",
+                record.topic(), record.offset(), dlqEx.getMessage());
+            return false;
         }
     }
 
@@ -173,6 +234,41 @@ public class KafkaFabricClient implements FabricClient {
     @Override
     public boolean isDistributed() {
         return healthy;
+    }
+
+    /**
+     * Idempotently ensure a topic exists with the configured partition count.
+     * Called lazily on first publish/subscribe. Deduped in-process via {@code ensuredTopics}.
+     * Safe to call repeatedly across processes — AdminClient.createTopics rejects duplicates
+     * with TopicExistsException which we swallow.
+     */
+    private void ensureTopic(String topic) {
+        if (!ensuredTopics.add(topic)) return;
+
+        int partitions = Math.max(1, props.getFlow().getPartitionCount());
+        short replicationFactor = 1; // Redpanda single-broker; cluster deployments override via broker defaults
+
+        Properties adminProps = new Properties();
+        adminProps.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, props.getBrokerUrl());
+        adminProps.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, (int) props.getHealthCheckTimeoutMs());
+
+        try (AdminClient admin = AdminClient.create(adminProps)) {
+            NewTopic newTopic = new NewTopic(topic, partitions, replicationFactor);
+            admin.createTopics(Collections.singleton(newTopic)).all()
+                .get(props.getHealthCheckTimeoutMs(), TimeUnit.MILLISECONDS);
+            log.info("[Fabric/Kafka] Created topic {} ({} partitions)", topic, partitions);
+        } catch (Exception e) {
+            // TopicExistsException is expected on restart — only log unexpected failures
+            String msg = e.getCause() != null ? e.getCause().getClass().getSimpleName() : e.getClass().getSimpleName();
+            if (msg.contains("TopicExists")) {
+                log.debug("[Fabric/Kafka] Topic {} already exists", topic);
+            } else {
+                log.warn("[Fabric/Kafka] Topic ensure failed for {}: {} (relying on auto-create)",
+                    topic, e.getMessage());
+                // Let caller proceed — Redpanda auto-create will handle it if enabled
+                ensuredTopics.remove(topic); // retry on next call
+            }
+        }
     }
 
     public void shutdown() {
