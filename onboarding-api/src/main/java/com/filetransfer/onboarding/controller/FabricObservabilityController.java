@@ -6,6 +6,8 @@ import com.filetransfer.shared.repository.FabricCheckpointRepository;
 import com.filetransfer.shared.repository.FabricInstanceRepository;
 import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -141,13 +143,18 @@ public class FabricObservabilityController {
     }
 
     /**
-     * Find stuck work items (lease expired but still IN_PROGRESS).
+     * Find stuck work items (lease expired but still IN_PROGRESS), paginated.
+     * Defaults: page=0, size=50. Max size clamped at 500 to avoid unbounded dumps.
      */
     @GetMapping("/stuck")
-    public List<Map<String, Object>> stuck() {
-        List<FabricCheckpoint> stuckCps = checkpointRepo.findStuckCheckpoints(Instant.now());
-        List<Map<String, Object>> result = new ArrayList<>();
-        for (FabricCheckpoint cp : stuckCps) {
+    public Map<String, Object> stuck(@RequestParam(defaultValue = "0") int page,
+                                     @RequestParam(defaultValue = "50") int size) {
+        int clampedSize = Math.max(1, Math.min(size, 500));
+        Page<FabricCheckpoint> stuckPage = checkpointRepo.findStuckCheckpoints(
+            Instant.now(), PageRequest.of(Math.max(0, page), clampedSize));
+
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (FabricCheckpoint cp : stuckPage.getContent()) {
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("trackId", cp.getTrackId());
             entry.put("stepIndex", cp.getStepIndex());
@@ -158,21 +165,40 @@ public class FabricObservabilityController {
             if (cp.getLeaseExpiresAt() != null) {
                 entry.put("stuckForMs", Duration.between(cp.getLeaseExpiresAt(), Instant.now()).toMillis());
             }
-            result.add(entry);
+            items.add(entry);
         }
-        return result;
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("items", items);
+        out.put("page", stuckPage.getNumber());
+        out.put("size", stuckPage.getSize());
+        out.put("totalElements", stuckPage.getTotalElements());
+        out.put("totalPages", stuckPage.getTotalPages());
+        return out;
     }
 
     /**
-     * Recent latency summary (last hour).
+     * Recent latency summary. Bounds the sample size to avoid loading millions of rows
+     * into memory on large deployments. Default sample cap is 10k rows from the last hour.
+     *
+     * @param hours  time window in hours (default 1, clamped to 1..24)
+     * @param sample max sample rows to include in percentile calculation (default 10000, clamped to 100..50000)
      */
     @GetMapping("/latency")
-    public Map<String, Object> latency() {
-        List<FabricCheckpoint> recent = checkpointRepo.findRecentCompleted(Instant.now().minus(1, ChronoUnit.HOURS));
+    public Map<String, Object> latency(@RequestParam(defaultValue = "1") int hours,
+                                       @RequestParam(defaultValue = "10000") int sample) {
+        int clampedHours = Math.max(1, Math.min(hours, 24));
+        int clampedSample = Math.max(100, Math.min(sample, 50_000));
+        Instant since = Instant.now().minus(clampedHours, ChronoUnit.HOURS);
+
+        Page<FabricCheckpoint> recentPage = checkpointRepo.findRecentCompleted(
+            since, PageRequest.of(0, clampedSample));
+        List<FabricCheckpoint> recent = recentPage.getContent();
 
         if (recent.isEmpty()) {
             Map<String, Object> empty = new LinkedHashMap<>();
             empty.put("sampleCount", 0);
+            empty.put("totalInWindow", recentPage.getTotalElements());
             empty.put("message", "No recent completed steps");
             return empty;
         }
@@ -201,8 +227,10 @@ public class FabricObservabilityController {
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("sampleCount", recent.size());
+        out.put("totalInWindow", recentPage.getTotalElements());
         out.put("byStepType", stats);
-        out.put("since", Instant.now().minus(1, ChronoUnit.HOURS));
+        out.put("since", since);
+        out.put("windowHours", clampedHours);
         return out;
     }
 }

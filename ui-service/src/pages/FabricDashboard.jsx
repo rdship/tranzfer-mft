@@ -53,7 +53,8 @@ export default function FabricDashboard() {
 
   const activeInstances = instances?.active?.length || 0
   const deadInstances = instances?.dead?.length || 0
-  const stuckCount = Array.isArray(stuck) ? stuck.length : 0
+  const stuckItems = Array.isArray(stuck) ? stuck : (stuck?.items || [])
+  const stuckCount = stuck?.totalElements ?? stuckItems.length
 
   return (
     <div className="space-y-6">
@@ -166,7 +167,7 @@ export default function FabricDashboard() {
             Stuck Files ({stuckCount})
           </h2>
           <div className="space-y-2">
-            {stuck.map(s => (
+            {stuckItems.map(s => (
               <div
                 key={`${s.trackId}-${s.stepIndex}`}
                 className="flex items-center justify-between py-2 border-b border-border last:border-b-0"

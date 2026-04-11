@@ -1,6 +1,8 @@
 package com.filetransfer.shared.repository;
 
 import com.filetransfer.shared.entity.FabricCheckpoint;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -35,6 +37,12 @@ public interface FabricCheckpointRepository extends JpaRepository<FabricCheckpoi
            "WHERE c.status = 'IN_PROGRESS' AND c.leaseExpiresAt < :now")
     List<FabricCheckpoint> findStuckCheckpoints(@Param("now") Instant now);
 
+    /** Paginated variant for the observability /stuck endpoint. */
+    @Query("SELECT c FROM FabricCheckpoint c " +
+           "WHERE c.status = 'IN_PROGRESS' AND c.leaseExpiresAt < :now " +
+           "ORDER BY c.leaseExpiresAt ASC")
+    Page<FabricCheckpoint> findStuckCheckpoints(@Param("now") Instant now, Pageable pageable);
+
     /**
      * All in-flight work for a given instance (for dead-pod detection).
      */
@@ -54,6 +62,12 @@ public interface FabricCheckpointRepository extends JpaRepository<FabricCheckpoi
            "WHERE c.status = 'COMPLETED' AND c.completedAt > :since " +
            "ORDER BY c.completedAt DESC")
     List<FabricCheckpoint> findRecentCompleted(@Param("since") Instant since);
+
+    /** Paginated variant for the observability /latency endpoint. */
+    @Query("SELECT c FROM FabricCheckpoint c " +
+           "WHERE c.status = 'COMPLETED' AND c.completedAt > :since " +
+           "ORDER BY c.completedAt DESC")
+    Page<FabricCheckpoint> findRecentCompleted(@Param("since") Instant since, Pageable pageable);
 
     /**
      * Batch-fetch all checkpoints for a set of trackIds.
