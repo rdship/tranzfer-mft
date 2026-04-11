@@ -7,6 +7,9 @@ import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import CopyButton from '../components/CopyButton'
+import FormField from '../components/FormField'
+import useGentleValidation from '../hooks/useGentleValidation'
+import useEnterAdvances from '../hooks/useEnterAdvances'
 import {
   KeyIcon, PlusIcon, ArrowPathIcon, ArrowDownTrayIcon,
   MagnifyingGlassIcon, ShieldCheckIcon, ExclamationTriangleIcon,
@@ -180,6 +183,53 @@ export default function Keystore() {
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Deactivation failed')
   })
+
+  // ── Gentle validation: Import Key ──
+  const importValidation = useGentleValidation({
+    rules: [
+      { field: 'alias', label: 'Alias', required: true },
+      { field: 'keyType', label: 'Type', required: true },
+      { field: 'keyMaterial', label: 'Key material', required: true },
+    ],
+    onValid: (data) => importMut.mutate(data),
+    recordKind: 'key',
+  })
+  const importErrors = importValidation.errors
+  const onImportKeyDown = useEnterAdvances({ onSubmit: () => importValidation.handleSubmit(importForm)(null) })
+
+  // ── Gentle validation: Generate Key ──
+  // Rules are derived from the currently-selected generation type. We always
+  // require the alias; if the type definition contains a keySize-ish field
+  // we also mark that required (spec rule: "key size required").
+  const genRules = useMemo(() => {
+    const rules = [
+      { field: 'alias', label: 'Alias', required: true },
+      { field: '__genType', label: 'Type', required: true },
+    ]
+    const def = GEN_TYPES.find(t => t.id === genType)
+    if (def) {
+      def.fields.forEach(f => {
+        if (f.name === 'alias') return
+        if (f.required) rules.push({ field: f.name, label: f.label, required: true })
+        // Treat a "Key Size"-style select as required even if not flagged
+        if (/size/i.test(f.label) && !f.required) {
+          rules.push({ field: f.name, label: f.label, required: true })
+        }
+      })
+    }
+    return rules
+  }, [genType])
+
+  const generateValidation = useGentleValidation({
+    rules: genRules,
+    onValid: (data) => generateMut.mutate({ type: genType, data }),
+    recordKind: 'key',
+  })
+  const generateErrors = generateValidation.errors
+  // Build the form payload including the synthetic __genType gate, so the
+  // validator treats "no type picked yet" as a friendly toast.
+  const generateFormFull = { ...genForm, __genType: genType || '' }
+  const onGenerateKeyDown = useEnterAdvances({ onSubmit: () => generateValidation.handleSubmit(generateFormFull)(null) })
 
   const toggleSort = (col) => {
     if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -493,33 +543,56 @@ export default function Keystore() {
             </div>
           ) : (
             /* Step 2: Fill form */
-            <form onSubmit={e => { e.preventDefault(); generateMut.mutate({ type: genType, data: genForm }) }} className="space-y-4">
-              <button type="button" onClick={() => { setGenType(null); setGenForm({}) }} className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1">
+            <form
+              onSubmit={generateValidation.handleSubmit(generateFormFull)}
+              onKeyDown={onGenerateKeyDown}
+              className="space-y-4"
+            >
+              <button type="button" onClick={() => { setGenType(null); setGenForm({}); generateValidation.clearAllErrors() }} className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1">
                 ← Back to key types
               </button>
-              {GEN_TYPES.find(t => t.id === genType)?.fields.map(f => (
-                <div key={f.name}>
-                  <label className="block text-sm font-medium text-primary mb-1">
-                    {f.label} {f.required && <span className="text-red-500">*</span>}
-                  </label>
-                  {f.type === 'select' ? (
-                    <select value={genForm[f.name] || f.options[f.options.length - 1]}
-                      onChange={e => setGenForm(p => ({ ...p, [f.name]: e.target.value }))}>
-                      {f.options.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                  ) : (
-                    <input
-                      type={f.type || 'text'}
-                      value={genForm[f.name] || ''}
-                      onChange={e => setGenForm(p => ({ ...p, [f.name]: e.target.value }))}
-                      placeholder={f.placeholder}
-                      required={f.required}
-                    />
-                  )}
-                </div>
-              ))}
+              {GEN_TYPES.find(t => t.id === genType)?.fields.map(f => {
+                const isKeySize = /size/i.test(f.label)
+                const helper = f.name === 'alias'
+                  ? 'How accounts and flows will reference this key'
+                  : isKeySize
+                    ? 'Larger key sizes are stronger but slightly slower'
+                    : undefined
+                const tooltip = f.name === 'alias'
+                  ? undefined
+                  : undefined
+                const required = !!f.required || isKeySize
+                return (
+                  <FormField
+                    key={f.name}
+                    label={f.label}
+                    required={required}
+                    name={f.name}
+                    error={generateErrors[f.name]}
+                    valid={!generateErrors[f.name] && !!genForm[f.name]}
+                    helper={helper}
+                    tooltip={tooltip}
+                  >
+                    {f.type === 'select' ? (
+                      <select
+                        value={genForm[f.name] || f.options[f.options.length - 1]}
+                        onChange={e => { setGenForm(p => ({ ...p, [f.name]: e.target.value })); generateValidation.clearFieldError(f.name) }}
+                      >
+                        {f.options.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    ) : (
+                      <input
+                        type={f.type || 'text'}
+                        value={genForm[f.name] || ''}
+                        onChange={e => { setGenForm(p => ({ ...p, [f.name]: e.target.value })); generateValidation.clearFieldError(f.name) }}
+                        placeholder={f.placeholder}
+                      />
+                    )}
+                  </FormField>
+                )
+              })}
               <div className="flex gap-3 justify-end pt-3 border-t">
-                <button type="button" className="btn-secondary" onClick={() => { setShowGenerate(false); setGenType(null); setGenForm({}) }}>Cancel</button>
+                <button type="button" className="btn-secondary" onClick={() => { setShowGenerate(false); setGenType(null); setGenForm({}); generateValidation.clearAllErrors() }}>Cancel</button>
                 <button type="submit" className="btn-primary" disabled={generateMut.isPending}>
                   {generateMut.isPending ? (
                     <><ArrowPathIcon className="w-4 h-4 animate-spin" /> Generating...</>
@@ -537,74 +610,107 @@ export default function Keystore() {
           MODAL: Import Key
          ═══════════════════════════════════════════════════════════════ */}
       {showImport && (
-        <Modal title="Import Key" onClose={() => setShowImport(false)} size="lg">
-          <form onSubmit={e => { e.preventDefault(); importMut.mutate(importForm) }} className="space-y-4">
+        <Modal title="Import Key" onClose={() => { setShowImport(false); importValidation.clearAllErrors() }} size="lg">
+          <form
+            onSubmit={importValidation.handleSubmit(importForm)}
+            onKeyDown={onImportKeyDown}
+            className="space-y-4"
+          >
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">Key Alias <span className="text-red-500">*</span></label>
-                <input value={importForm.alias} onChange={e => setImportForm(p => ({ ...p, alias: e.target.value }))}
-                  placeholder="partner-acme-pgp-pub" required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">Key Type <span className="text-red-500">*</span></label>
-                <select value={importForm.keyType} onChange={e => setImportForm(p => ({ ...p, keyType: e.target.value }))}>
+              <FormField
+                label="Alias"
+                required
+                name="alias"
+                error={importErrors.alias}
+                valid={!importErrors.alias && !!importForm.alias}
+                helper="How accounts and flows will reference this key"
+              >
+                <input
+                  value={importForm.alias}
+                  onChange={e => { setImportForm(p => ({ ...p, alias: e.target.value })); importValidation.clearFieldError('alias') }}
+                  placeholder="partner-acme-pgp-pub"
+                />
+              </FormField>
+              <FormField
+                label="Type"
+                required
+                name="keyType"
+                error={importErrors.keyType}
+                valid={!importErrors.keyType && !!importForm.keyType}
+                tooltip="SSH = host or user key for SFTP. TLS = cert+key pair. PGP = partner encryption. AES = flow-level symmetric encryption. HMAC = webhook signing."
+                helper="What kind of cryptographic material this is"
+              >
+                <select
+                  value={importForm.keyType}
+                  onChange={e => { setImportForm(p => ({ ...p, keyType: e.target.value })); importValidation.clearFieldError('keyType') }}
+                >
                   {IMPORT_TYPES.map(t => (
                     <option key={t} value={t}>{KEY_TYPE_META[t]?.label || t}</option>
                   ))}
                 </select>
-              </div>
+              </FormField>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-primary mb-1">
-                Key Material <span className="text-red-500">*</span>
-              </label>
-              <p className="text-xs text-muted mb-2">Paste PEM-encoded key, certificate, or Base64 material</p>
+            <FormField
+              label="Key Material"
+              required
+              name="keyMaterial"
+              error={importErrors.keyMaterial}
+              valid={!importErrors.keyMaterial && !!importForm.keyMaterial}
+              helper="Paste the PEM-encoded private key here. Never shown again after import."
+            >
               <textarea
                 value={importForm.keyMaterial}
-                onChange={e => setImportForm(p => ({ ...p, keyMaterial: e.target.value }))}
+                onChange={e => { setImportForm(p => ({ ...p, keyMaterial: e.target.value })); importValidation.clearFieldError('keyMaterial') }}
                 rows={8}
                 className="font-mono text-xs"
                 placeholder={"-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...\n-----END PUBLIC KEY-----"}
-                required
               />
-              <div className="mt-2">
-                <label className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 cursor-pointer">
-                  <DocumentArrowUpIcon className="w-4 h-4" />
-                  <span>Or upload a file</span>
-                  <input type="file" className="hidden" accept=".pem,.pub,.key,.crt,.cer,.asc,.gpg,.p12,.jks"
-                    onChange={e => {
-                      const file = e.target.files?.[0]
-                      if (!file) return
-                      const reader = new FileReader()
-                      reader.onload = () => {
-                        const text = reader.result
-                        setImportForm(p => ({ ...p, keyMaterial: text, alias: p.alias || file.name.replace(/\.[^.]+$/, '') }))
-                      }
-                      reader.readAsText(file)
-                    }}
-                  />
-                </label>
-              </div>
-            </div>
+            </FormField>
             <div>
-              <label className="block text-sm font-medium text-primary mb-1">Description</label>
-              <input value={importForm.description} onChange={e => setImportForm(p => ({ ...p, description: e.target.value }))}
-                placeholder="PGP public key from ACME Corp" />
+              <label className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 cursor-pointer">
+                <DocumentArrowUpIcon className="w-4 h-4" />
+                <span>Or upload a file</span>
+                <input type="file" className="hidden" accept=".pem,.pub,.key,.crt,.cer,.asc,.gpg,.p12,.jks"
+                  onChange={e => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    const reader = new FileReader()
+                    reader.onload = () => {
+                      const text = reader.result
+                      setImportForm(p => ({ ...p, keyMaterial: text, alias: p.alias || file.name.replace(/\.[^.]+$/, '') }))
+                      importValidation.clearFieldError('keyMaterial')
+                      importValidation.clearFieldError('alias')
+                    }
+                    reader.readAsText(file)
+                  }}
+                />
+              </label>
             </div>
+            <FormField label="Description" name="description" helper="Optional note about where this key came from">
+              <input
+                value={importForm.description}
+                onChange={e => setImportForm(p => ({ ...p, description: e.target.value }))}
+                placeholder="PGP public key from ACME Corp"
+              />
+            </FormField>
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">Owner Service</label>
-                <input value={importForm.ownerService} onChange={e => setImportForm(p => ({ ...p, ownerService: e.target.value }))}
-                  placeholder="sftp-service" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">Partner Account</label>
-                <input value={importForm.partnerAccount} onChange={e => setImportForm(p => ({ ...p, partnerAccount: e.target.value }))}
-                  placeholder="acme-corp" />
-              </div>
+              <FormField label="Owner Service" name="ownerService" helper="Which platform service uses this key">
+                <input
+                  value={importForm.ownerService}
+                  onChange={e => setImportForm(p => ({ ...p, ownerService: e.target.value }))}
+                  placeholder="sftp-service"
+                />
+              </FormField>
+              <FormField label="Partner Account" name="partnerAccount" helper="Partner this key belongs to, if any">
+                <input
+                  value={importForm.partnerAccount}
+                  onChange={e => setImportForm(p => ({ ...p, partnerAccount: e.target.value }))}
+                  placeholder="acme-corp"
+                />
+              </FormField>
             </div>
             <div className="flex gap-3 justify-end pt-3 border-t">
-              <button type="button" className="btn-secondary" onClick={() => setShowImport(false)}>Cancel</button>
+              <button type="button" className="btn-secondary" onClick={() => { setShowImport(false); importValidation.clearAllErrors() }}>Cancel</button>
               <button type="submit" className="btn-primary" disabled={importMut.isPending}>
                 {importMut.isPending ? (
                   <><ArrowPathIcon className="w-4 h-4 animate-spin" /> Importing...</>

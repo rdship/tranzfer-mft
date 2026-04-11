@@ -6,6 +6,9 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import StoragePerformanceEstimator from '../components/StoragePerformanceEstimator'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
+import FormField from '../components/FormField'
+import useGentleValidation from '../hooks/useGentleValidation'
+import useEnterAdvances from '../hooks/useEnterAdvances'
 import toast from 'react-hot-toast'
 import {
   PlusIcon, TrashIcon, PencilSquareIcon, ArrowRightIcon,
@@ -263,9 +266,32 @@ export default function FolderMappings() {
     if (srcProto) protocolCounts[srcProto] = (protocolCounts[srcProto] || 0) + 1
   })
 
+  // Gentle validation for create + edit mapping form
+  const mappingRules = useMemo(() => ([
+    { field: 'sourceAccountId', label: 'Source account', required: true },
+    { field: 'destinationAccountId', label: 'Destination account', required: true },
+    { field: 'sourcePath', label: 'Source directory', required: true },
+    { field: 'destinationPath', label: 'Destination directory', required: true },
+  ]), [])
+
+  const mappingCreate = useGentleValidation({
+    rules: mappingRules,
+    onValid: (data) => createMut.mutate(data),
+    recordKind: 'mapping',
+  })
+  const mappingEdit = useGentleValidation({
+    rules: mappingRules,
+    onValid: (data) => { if (editingMapping) updateMut.mutate({ id: editingMapping.id, data }) },
+    recordKind: 'mapping',
+  })
+  const onCreateKeyDown = useEnterAdvances({ onSubmit: () => mappingCreate.handleSubmit(form)(null) })
+  const onEditKeyDown = useEnterAdvances({ onSubmit: () => mappingEdit.handleSubmit(form)(null) })
+
   if (isLoading) return <LoadingSpinner />
 
-  const renderForm = (onSubmit, isPending, submitLabel, pendingLabel) => {
+  const renderForm = (validation, onKeyDown, isPending, submitLabel, pendingLabel, onCancel) => {
+    const { errors, handleSubmit, clearFieldError } = validation
+
     // Group accounts by protocol for easier selection
     const groupedAccounts = {}
     accounts.forEach(a => {
@@ -275,14 +301,24 @@ export default function FolderMappings() {
     const protocols = Object.keys(groupedAccounts).sort()
 
     return (
-      <form onSubmit={onSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit(form)} onKeyDown={onKeyDown} className="space-y-4">
         <div className="grid grid-cols-2 gap-6">
           <div className="space-y-3">
             <h4 className="font-semibold text-primary flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-blue-500" /> Source
             </h4>
-            <div><label>Account</label>
-              <select value={form.sourceAccountId} onChange={e => setForm(f => ({...f, sourceAccountId: e.target.value}))} required>
+            <FormField
+              label="Account"
+              required
+              name="sourceAccountId"
+              error={errors.sourceAccountId}
+              valid={!errors.sourceAccountId && !!form.sourceAccountId}
+              helper="The account whose inbox we'll watch for new files"
+            >
+              <select
+                value={form.sourceAccountId}
+                onChange={e => { setForm(f => ({...f, sourceAccountId: e.target.value})); clearFieldError('sourceAccountId') }}
+              >
                 <option value="">Select source account...</option>
                 {protocols.map(proto => (
                   <optgroup key={proto} label={proto}>
@@ -291,16 +327,41 @@ export default function FolderMappings() {
                     ))}
                   </optgroup>
                 ))}
-              </select></div>
-            <div><label>Path</label>
-              <input value={form.sourcePath} onChange={e => setForm(f => ({...f, sourcePath: e.target.value}))} placeholder="/inbox" className="font-mono text-sm" /></div>
+              </select>
+            </FormField>
+            <FormField
+              label="Directory"
+              required
+              name="sourcePath"
+              error={errors.sourcePath}
+              valid={!errors.sourcePath && !!form.sourcePath}
+              tooltip="Usually /inbox or /uploads. Files landing here trigger the mapping."
+              helper="Path on the source account we'll poll for files"
+            >
+              <input
+                value={form.sourcePath}
+                onChange={e => { setForm(f => ({...f, sourcePath: e.target.value})); clearFieldError('sourcePath') }}
+                placeholder="/inbox"
+                className="font-mono text-sm"
+              />
+            </FormField>
           </div>
           <div className="space-y-3">
             <h4 className="font-semibold text-primary flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-green-500" /> Destination
             </h4>
-            <div><label>Account</label>
-              <select value={form.destinationAccountId} onChange={e => setForm(f => ({...f, destinationAccountId: e.target.value}))} required>
+            <FormField
+              label="Account"
+              required
+              name="destinationAccountId"
+              error={errors.destinationAccountId}
+              valid={!errors.destinationAccountId && !!form.destinationAccountId}
+              helper="Where files will be delivered after flow processing"
+            >
+              <select
+                value={form.destinationAccountId}
+                onChange={e => { setForm(f => ({...f, destinationAccountId: e.target.value})); clearFieldError('destinationAccountId') }}
+              >
                 <option value="">Select destination account...</option>
                 {protocols.map(proto => (
                   <optgroup key={proto} label={proto}>
@@ -309,23 +370,55 @@ export default function FolderMappings() {
                     ))}
                   </optgroup>
                 ))}
-              </select></div>
-            <div><label>Path</label>
-              <input value={form.destinationPath} onChange={e => setForm(f => ({...f, destinationPath: e.target.value}))} placeholder="/outbox" className="font-mono text-sm" /></div>
+              </select>
+            </FormField>
+            <FormField
+              label="Directory"
+              required
+              name="destinationPath"
+              error={errors.destinationPath}
+              valid={!errors.destinationPath && !!form.destinationPath}
+              helper="Where files land on the destination account"
+            >
+              <input
+                value={form.destinationPath}
+                onChange={e => { setForm(f => ({...f, destinationPath: e.target.value})); clearFieldError('destinationPath') }}
+                placeholder="/outbox"
+                className="font-mono text-sm"
+              />
+            </FormField>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <div><label>Filename Pattern (regex, empty=all)</label>
-            <input value={form.filenamePattern} onChange={e => setForm(f => ({...f, filenamePattern: e.target.value}))} placeholder=".*\.csv$" className="font-mono text-xs" /></div>
-          <div><label>Encryption</label>
-            <select value={form.encryptionOption} onChange={e => setForm(f => ({...f, encryptionOption: e.target.value}))}>
+          <FormField
+            label="Filename Pattern"
+            name="filenamePattern"
+            helper="Optional regex — leave blank to match every file"
+          >
+            <input
+              value={form.filenamePattern}
+              onChange={e => setForm(f => ({...f, filenamePattern: e.target.value}))}
+              placeholder=".*\.csv$"
+              className="font-mono text-xs"
+            />
+          </FormField>
+          <FormField
+            label="Encryption"
+            name="encryptionOption"
+            helper="Apply PGP encryption or decryption in-flight"
+          >
+            <select
+              value={form.encryptionOption}
+              onChange={e => setForm(f => ({...f, encryptionOption: e.target.value}))}
+            >
               <option value="NONE">None</option>
               <option value="ENCRYPT_BEFORE_FORWARD">Encrypt before forward</option>
               <option value="DECRYPT_THEN_FORWARD">Decrypt then forward</option>
-            </select></div>
+            </select>
+          </FormField>
         </div>
         <div className="flex gap-3 justify-end pt-2">
-          <button type="button" className="btn-secondary" onClick={() => { setShowCreate(false); setEditingMapping(null) }}>Cancel</button>
+          <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>
           <button type="submit" className="btn-primary" disabled={isPending}>{isPending ? pendingLabel : submitLabel}</button>
         </div>
       </form>
@@ -568,8 +661,12 @@ export default function FolderMappings() {
       {showCreate && (
         <Modal title="Create Folder Mapping" size="lg" onClose={() => setShowCreate(false)}>
           {renderForm(
-            e => { e.preventDefault(); createMut.mutate(form) },
-            createMut.isPending, 'Create Mapping', 'Creating...'
+            mappingCreate,
+            onCreateKeyDown,
+            createMut.isPending,
+            'Create Mapping',
+            'Creating...',
+            () => { setShowCreate(false); mappingCreate.clearAllErrors() }
           )}
         </Modal>
       )}
@@ -577,8 +674,12 @@ export default function FolderMappings() {
       {editingMapping && (
         <Modal title="Edit Folder Mapping" size="lg" onClose={() => setEditingMapping(null)}>
           {renderForm(
-            e => { e.preventDefault(); updateMut.mutate({ id: editingMapping.id, data: form }) },
-            updateMut.isPending, 'Save Changes', 'Saving...'
+            mappingEdit,
+            onEditKeyDown,
+            updateMut.isPending,
+            'Save Changes',
+            'Saving...',
+            () => { setEditingMapping(null); mappingEdit.clearAllErrors() }
           )}
         </Modal>
       )}

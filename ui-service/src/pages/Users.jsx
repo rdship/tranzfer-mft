@@ -3,7 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getUsers, updateUser, deleteUser, createUser } from '../api/accounts'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
-import FormField, { validateForm, validators, friendlyError } from '../components/FormField'
+import FormField, { validators, friendlyError } from '../components/FormField'
+import useGentleValidation from '../hooks/useGentleValidation'
+import useEnterAdvances from '../hooks/useEnterAdvances'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import toast from 'react-hot-toast'
@@ -45,7 +47,6 @@ export default function Users() {
   const [sortDir, setSortDir] = useState('asc')
   const [showCreate, setShowCreate] = useState(false)
   const [createForm, setCreateForm] = useState({ ...EMPTY_CREATE_FORM })
-  const [createErrors, setCreateErrors] = useState({})
   const [pendingRoleChange, setPendingRoleChange] = useState(null)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [resetPasswordUser, setResetPasswordUser] = useState(null)
@@ -66,11 +67,32 @@ export default function Users() {
       qc.invalidateQueries(['users'])
       setShowCreate(false)
       setCreateForm({ ...EMPTY_CREATE_FORM })
-      setCreateErrors({})
+      createValidation.clearAllErrors()
       toast.success('User created successfully')
     },
     onError: err => toast.error(friendlyError(err))
   })
+
+  // Gentle validation for create user form
+  const createValidation = useGentleValidation({
+    rules: [
+      { field: 'email', label: 'Email', required: true, validate: validators.email },
+      { field: 'password', label: 'Password', required: true, validate: validators.password },
+      { field: 'role', label: 'Role', required: true },
+    ],
+    onValid: (data) => {
+      // Confirm password is a non-blocking sanity check — keep it out of the rules
+      // array so useGentleValidation can't report it, but still guard here.
+      if (data.confirmPassword && data.password !== data.confirmPassword) {
+        createValidation.setErrors({ confirmPassword: 'Match this to the password above' })
+        return
+      }
+      createMut.mutate({ email: data.email, password: data.password, role: data.role })
+    },
+    recordKind: 'user',
+  })
+  const createErrors = createValidation.errors
+  const onCreateUserKeyDown = useEnterAdvances({ onSubmit: () => createValidation.handleSubmit(createForm)(null) })
 
   const deleteMut = useMutation({
     mutationFn: (id) => deleteUser(id),
@@ -138,28 +160,6 @@ export default function Users() {
     setPendingRoleChange(null)
   }
 
-  // Create user validation
-  const validateCreate = () => {
-    const errs = validateForm(createForm, [
-      { field: 'email', label: 'Email', required: true, validate: validators.email },
-      { field: 'password', label: 'Password', required: true, validate: validators.password },
-    ])
-    if (createForm.password && createForm.confirmPassword && createForm.password !== createForm.confirmPassword) {
-      errs.confirmPassword = 'Passwords do not match'
-    }
-    if (createForm.password && !createForm.confirmPassword) {
-      errs.confirmPassword = 'Please confirm the password'
-    }
-    setCreateErrors(errs)
-    return Object.keys(errs).length === 0
-  }
-
-  const handleCreateSubmit = (e) => {
-    e.preventDefault()
-    if (!validateCreate()) return
-    createMut.mutate({ email: createForm.email, password: createForm.password })
-  }
-
   // Stats
   const adminCount = users.filter(u => u.role === 'ADMIN').length
   const activeCount = users.filter(u => u.enabled !== false).length
@@ -175,7 +175,7 @@ export default function Users() {
           <h1 className="text-2xl font-bold text-primary">User Management</h1>
           <p className="text-secondary text-sm">{users.length} registered users ({activeCount} active, {disabledCount} disabled)</p>
         </div>
-        <button className="btn-primary" onClick={() => { setCreateForm({ ...EMPTY_CREATE_FORM }); setCreateErrors({}); setShowCreate(true) }}>
+        <button className="btn-primary" onClick={() => { setCreateForm({ ...EMPTY_CREATE_FORM }); createValidation.clearAllErrors(); setShowCreate(true) }}>
           <PlusIcon className="w-4 h-4" /> Create User
         </button>
       </div>
@@ -363,42 +363,70 @@ export default function Users() {
 
       {/* Create User Modal */}
       {showCreate && (
-        <Modal title="Create New User" onClose={() => { setShowCreate(false); setCreateErrors({}) }}>
-          <form onSubmit={handleCreateSubmit} className="space-y-4">
-            <FormField label="Email" required error={createErrors.email} helper="The user will log in with this email address.">
+        <Modal title="Create New User" onClose={() => { setShowCreate(false); createValidation.clearAllErrors() }}>
+          <form
+            onSubmit={createValidation.handleSubmit(createForm)}
+            onKeyDown={onCreateUserKeyDown}
+            className="space-y-4"
+          >
+            <FormField
+              label="Email"
+              required
+              name="email"
+              error={createErrors.email}
+              valid={!createErrors.email && !!createForm.email}
+              helper="Their login — use a real address so password resets work"
+            >
               <input
                 type="email"
                 value={createForm.email}
-                onChange={e => { setCreateForm(f => ({ ...f, email: e.target.value })); setCreateErrors(prev => { const n = {...prev}; delete n.email; return n }) }}
+                onChange={e => { setCreateForm(f => ({ ...f, email: e.target.value })); createValidation.clearFieldError('email') }}
                 placeholder="user@company.com"
-                className={createErrors.email ? 'border-red-300 focus:ring-red-500' : ''}
               />
             </FormField>
 
-            <FormField label="Password" required error={createErrors.password} helper="Minimum 8 characters. Use a mix of letters, numbers, and symbols.">
+            <FormField
+              label="Password"
+              required
+              name="password"
+              error={createErrors.password}
+              valid={!createErrors.password && !!createForm.password}
+              tooltip="Must be at least 8 characters. We'll never show it again after create."
+              helper="Give the user a starter password — they can change it later"
+            >
               <input
                 type="password"
                 value={createForm.password}
-                onChange={e => { setCreateForm(f => ({ ...f, password: e.target.value })); setCreateErrors(prev => { const n = {...prev}; delete n.password; return n }) }}
+                onChange={e => { setCreateForm(f => ({ ...f, password: e.target.value })); createValidation.clearFieldError('password') }}
                 placeholder="Enter a strong password"
-                className={createErrors.password ? 'border-red-300 focus:ring-red-500' : ''}
               />
             </FormField>
 
-            <FormField label="Confirm Password" required error={createErrors.confirmPassword}>
+            <FormField
+              label="Confirm Password"
+              name="confirmPassword"
+              error={createErrors.confirmPassword}
+              helper="Type the password once more to be sure"
+            >
               <input
                 type="password"
                 value={createForm.confirmPassword}
-                onChange={e => { setCreateForm(f => ({ ...f, confirmPassword: e.target.value })); setCreateErrors(prev => { const n = {...prev}; delete n.confirmPassword; return n }) }}
+                onChange={e => { setCreateForm(f => ({ ...f, confirmPassword: e.target.value })); createValidation.clearFieldError('confirmPassword') }}
                 placeholder="Re-enter password"
-                className={createErrors.confirmPassword ? 'border-red-300 focus:ring-red-500' : ''}
               />
             </FormField>
 
-            <FormField label="Role" helper={ROLE_DESCRIPTIONS[createForm.role]}>
+            <FormField
+              label="Role"
+              required
+              name="role"
+              error={createErrors.role}
+              valid={!createErrors.role && !!createForm.role}
+              helper="ADMIN can manage everything. OPERATOR handles day-to-day. VIEWER is read-only."
+            >
               <select
                 value={createForm.role}
-                onChange={e => setCreateForm(f => ({ ...f, role: e.target.value }))}
+                onChange={e => { setCreateForm(f => ({ ...f, role: e.target.value })); createValidation.clearFieldError('role') }}
               >
                 {ALL_ROLES.filter(r => r !== 'SYSTEM').map(r => (
                   <option key={r} value={r}>{r}</option>
@@ -407,7 +435,7 @@ export default function Users() {
             </FormField>
 
             <div className="flex gap-3 justify-end pt-4 border-t border-border">
-              <button type="button" className="btn-secondary" onClick={() => { setShowCreate(false); setCreateErrors({}) }}>Cancel</button>
+              <button type="button" className="btn-secondary" onClick={() => { setShowCreate(false); createValidation.clearAllErrors() }}>Cancel</button>
               <button type="submit" className="btn-primary" disabled={createMut.isPending}>
                 {createMut.isPending ? 'Creating...' : 'Create User'}
               </button>

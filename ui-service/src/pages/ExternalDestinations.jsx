@@ -9,10 +9,12 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { friendlyError } from '../components/FormField'
+import FormField, { friendlyError, validators } from '../components/FormField'
+import useGentleValidation from '../hooks/useGentleValidation'
+import useEnterAdvances from '../hooks/useEnterAdvances'
 import toast from 'react-hot-toast'
 import { PlusIcon, TrashIcon, SignalIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 export default function ExternalDestinations() {
   const qc = useQueryClient()
@@ -60,7 +62,7 @@ export default function ExternalDestinations() {
       bearerToken: '',
       protocolCredentials: {},
     }))
-    setCreateErrors({})
+    destValidation.clearAllErrors()
   }
 
   const testConnection = async () => {
@@ -81,12 +83,35 @@ export default function ExternalDestinations() {
   }
 
   const { data: dests = [], isLoading } = useQuery({ queryKey: ['ext-dests'], queryFn: getExternalDestinations })
-  const [createErrors, setCreateErrors] = useState({})
   const createMut = useMutation({ mutationFn: createExternalDestination,
-    onSuccess: () => { qc.invalidateQueries(['ext-dests']); setShowCreate(false); setCreateErrors({}); toast.success('Destination created') },
+    onSuccess: () => { qc.invalidateQueries(['ext-dests']); setShowCreate(false); destValidation.clearAllErrors(); toast.success('Destination created') },
     onError: err => toast.error(friendlyError(err)) })
   const deleteMut = useMutation({ mutationFn: deleteExternalDestination,
     onSuccess: () => { qc.invalidateQueries(['ext-dests']); toast.success('Deleted') } })
+
+  // Gentle validation for new destination form. Host/port are only required
+  // for socket-based protocols (SFTP/FTP/FTPS). URL-based protocols
+  // (HTTP/HTTPS/API) require `url` instead since host/port aren't exposed.
+  const destRules = useMemo(() => {
+    const base = [
+      { field: 'name', label: 'Destination name', required: true },
+      { field: 'type', label: 'Protocol', required: true },
+    ]
+    if (['SFTP', 'FTP', 'FTPS'].includes(form.type)) {
+      base.push({ field: 'host', label: 'Host', required: true })
+      base.push({ field: 'port', label: 'Port', required: true, validate: validators.port })
+    } else {
+      base.push({ field: 'url', label: 'URL', required: true, validate: validators.url })
+    }
+    return base
+  }, [form.type])
+  const destValidation = useGentleValidation({
+    rules: destRules,
+    onValid: (data) => createMut.mutate(data),
+    recordKind: 'destination',
+  })
+  const createErrors = destValidation.errors
+  const onDestKeyDown = useEnterAdvances({ onSubmit: () => destValidation.handleSubmit(form)(null) })
 
   if (isLoading) return <LoadingSpinner />
   return (
@@ -133,32 +158,36 @@ export default function ExternalDestinations() {
         </div>
       )}
       {showCreate && (
-        <Modal title="Add External Destination" onClose={() => setShowCreate(false)} size="lg">
-          <form onSubmit={e => {
-            e.preventDefault()
-            const errs = {}
-            if (!form.name.trim()) errs.name = 'Destination name is required'
-            if (['SFTP', 'FTP', 'FTPS'].includes(form.type)) {
-              if (!form.host.trim()) errs.host = 'Host is required'
-              if (!form.username.trim()) errs.username = 'Username is required'
-              if (!form.encryptedPassword.trim() && !form.sshKeyAlias) errs.password = 'Password or SSH key is required'
-            }
-            if (['HTTPS', 'HTTP', 'API'].includes(form.type)) {
-              if (!form.url.trim()) errs.url = 'URL is required'
-            }
-            setCreateErrors(errs)
-            if (Object.keys(errs).length > 0) return
-            createMut.mutate(form)
-          }} className="space-y-4">
+        <Modal title="Add External Destination" onClose={() => { setShowCreate(false); destValidation.clearAllErrors() }} size="lg">
+          <form
+            onSubmit={destValidation.handleSubmit(form)}
+            onKeyDown={onDestKeyDown}
+            className="space-y-4"
+          >
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label>Name <span className="text-[rgb(240,120,120)]">*</span></label>
-                <input value={form.name} onChange={e => { setForm(f => ({...f, name: e.target.value})); setCreateErrors(prev => { const n = {...prev}; delete n.name; return n }) }}
-                  placeholder="partner-acme-sftp" className={createErrors.name ? 'border-red-300 focus:ring-red-500' : ''} />
-                {createErrors.name ? <p className="mt-1 text-xs text-[rgb(240,120,120)]">{createErrors.name}</p> : <p className="mt-1 text-xs text-muted">Unique identifier for this destination.</p>}
-              </div>
-              <div>
-                <label>Type</label>
+              <FormField
+                label="Name"
+                required
+                name="name"
+                error={createErrors.name}
+                valid={!createErrors.name && !!form.name}
+                helper="How you'll identify this destination across flows"
+              >
+                <input
+                  value={form.name}
+                  onChange={e => { setForm(f => ({...f, name: e.target.value})); destValidation.clearFieldError('name') }}
+                  placeholder="partner-acme-sftp"
+                />
+              </FormField>
+              <FormField
+                label="Protocol"
+                required
+                name="type"
+                error={createErrors.type}
+                valid={!createErrors.type && !!form.type}
+                tooltip="SFTP = files over SSH, FTPS = files over TLS, KAFKA = streaming events, S3 = object storage"
+                helper="Pick how we'll reach this destination"
+              >
                 <select value={form.type} onChange={e => handleTypeChange(e.target.value)}>
                   <option value="SFTP">SFTP</option>
                   <option value="FTP">FTP</option>
@@ -167,57 +196,106 @@ export default function ExternalDestinations() {
                   <option value="HTTPS">HTTPS</option>
                   <option value="API">API</option>
                 </select>
-                <p className="mt-1 text-xs text-muted">Protocol used to connect to the external system.</p>
-              </div>
+              </FormField>
             </div>
 
             {/* ── SFTP-specific fields ── */}
             {form.type === 'SFTP' && (
               <>
                 <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label>Host <span className="text-[rgb(240,120,120)]">*</span></label>
-                    <input value={form.host} onChange={e => { setForm(f => ({...f, host: e.target.value})); setCreateErrors(prev => { const n = {...prev}; delete n.host; return n }) }}
-                      placeholder="sftp.partner.com" className={createErrors.host ? 'border-red-300 focus:ring-red-500' : ''} />
-                    {createErrors.host && <p className="mt-1 text-xs text-[rgb(240,120,120)]">{createErrors.host}</p>}
-                  </div>
-                  <div><label>Port</label><input type="number" value={form.port} onChange={e => setForm(f => ({...f, port: parseInt(e.target.value) || 22}))} /></div>
-                  <div><label>Remote Path</label><input value={form.remotePath} onChange={e => setForm(f => ({...f, remotePath: e.target.value}))} placeholder="/incoming" /></div>
+                  <FormField
+                    label="Host"
+                    required
+                    name="host"
+                    error={createErrors.host}
+                    valid={!createErrors.host && !!form.host}
+                    helper="The server hostname or IP address (no scheme)"
+                  >
+                    <input
+                      value={form.host}
+                      onChange={e => { setForm(f => ({...f, host: e.target.value})); destValidation.clearFieldError('host') }}
+                      placeholder="sftp.partner.com"
+                    />
+                  </FormField>
+                  <FormField
+                    label="Port"
+                    required
+                    name="port"
+                    error={createErrors.port}
+                    valid={!createErrors.port && !!form.port}
+                    tooltip="22 for SFTP, 990 for FTPS implicit, 21 for FTPS explicit, 443 for HTTPS-based"
+                  >
+                    <input
+                      type="number"
+                      value={form.port}
+                      onChange={e => { setForm(f => ({...f, port: parseInt(e.target.value) || 22})); destValidation.clearFieldError('port') }}
+                    />
+                  </FormField>
+                  <FormField
+                    label="Remote Path"
+                    name="remotePath"
+                    helper="Where files land on the destination"
+                  >
+                    <input
+                      value={form.remotePath}
+                      onChange={e => setForm(f => ({...f, remotePath: e.target.value}))}
+                      placeholder="/incoming"
+                    />
+                  </FormField>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label>Username <span className="text-[rgb(240,120,120)]">*</span></label>
-                    <input value={form.username} onChange={e => { setForm(f => ({...f, username: e.target.value})); setCreateErrors(prev => { const n = {...prev}; delete n.username; return n }) }}
-                      className={createErrors.username ? 'border-red-300 focus:ring-red-500' : ''} />
-                    {createErrors.username && <p className="mt-1 text-xs text-[rgb(240,120,120)]">{createErrors.username}</p>}
-                  </div>
-                  <div>
-                    <label>Password {!form.sshKeyAlias && <span className="text-[rgb(240,120,120)]">*</span>}</label>
-                    <input type="password" value={form.encryptedPassword} onChange={e => { setForm(f => ({...f, encryptedPassword: e.target.value})); setCreateErrors(prev => { const n = {...prev}; delete n.password; return n }) }}
-                      className={createErrors.password ? 'border-red-300 focus:ring-red-500' : ''} />
-                    {createErrors.password && <p className="mt-1 text-xs text-[rgb(240,120,120)]">{createErrors.password}</p>}
-                  </div>
+                  <FormField
+                    label="Username"
+                    name="username"
+                    helper="SFTP login name on the partner system"
+                  >
+                    <input
+                      value={form.username}
+                      onChange={e => setForm(f => ({...f, username: e.target.value}))}
+                    />
+                  </FormField>
+                  <FormField
+                    label="Password"
+                    name="encryptedPassword"
+                    helper="Use a password or select an SSH key below"
+                  >
+                    <input
+                      type="password"
+                      value={form.encryptedPassword}
+                      onChange={e => setForm(f => ({...f, encryptedPassword: e.target.value}))}
+                    />
+                  </FormField>
                 </div>
-                <div>
-                  <label>SSH Key <span className="text-xs font-normal opacity-60">(from keystore — optional if password provided)</span></label>
-                  <select value={form.sshKeyAlias} onChange={e => { setForm(f => ({...f, sshKeyAlias: e.target.value})); setCreateErrors(prev => { const n = {...prev}; delete n.password; return n }) }}>
+                <FormField
+                  label="SSH Key"
+                  name="sshKeyAlias"
+                  helper="Optional — pick a key from Keystore Manager to use public-key auth instead of a password"
+                >
+                  <select value={form.sshKeyAlias} onChange={e => setForm(f => ({...f, sshKeyAlias: e.target.value}))}>
                     <option value="">-- None (password auth) --</option>
                     {sshKeys.map(k => <option key={k.alias || k.id} value={k.alias}>{k.alias}{k.algorithm ? ` (${k.algorithm})` : ''}</option>)}
                   </select>
-                  <p className="mt-1 text-xs text-muted">Select an SSH private key from the Keystore Manager for public-key authentication.</p>
-                </div>
+                </FormField>
               </>
             )}
 
             {/* ── HTTPS-specific fields ── */}
             {form.type === 'HTTPS' && (
               <>
-                <div>
-                  <label>URL <span className="text-[rgb(240,120,120)]">*</span></label>
-                  <input value={form.url} onChange={e => { setForm(f => ({...f, url: e.target.value})); setCreateErrors(prev => { const n = {...prev}; delete n.url; return n }) }}
-                    placeholder="https://api.partner.com/upload" className={createErrors.url ? 'border-red-300 focus:ring-red-500' : ''} />
-                  {createErrors.url && <p className="mt-1 text-xs text-[rgb(240,120,120)]">{createErrors.url}</p>}
-                </div>
+                <FormField
+                  label="URL"
+                  required
+                  name="url"
+                  error={createErrors.url}
+                  valid={!createErrors.url && !!form.url}
+                  helper="Full https:// endpoint we'll POST files to"
+                >
+                  <input
+                    value={form.url}
+                    onChange={e => { setForm(f => ({...f, url: e.target.value})); destValidation.clearFieldError('url') }}
+                    placeholder="https://api.partner.com/upload"
+                  />
+                </FormField>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label>Auth Type</label>
@@ -266,28 +344,45 @@ export default function ExternalDestinations() {
             {form.type === 'FTP' && (
               <>
                 <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label>Host <span className="text-[rgb(240,120,120)]">*</span></label>
-                    <input value={form.host} onChange={e => { setForm(f => ({...f, host: e.target.value})); setCreateErrors(prev => { const n = {...prev}; delete n.host; return n }) }}
-                      placeholder="ftp.partner.com" className={createErrors.host ? 'border-red-300 focus:ring-red-500' : ''} />
-                    {createErrors.host && <p className="mt-1 text-xs text-[rgb(240,120,120)]">{createErrors.host}</p>}
-                  </div>
-                  <div><label>Port</label><input type="number" value={form.port} onChange={e => setForm(f => ({...f, port: parseInt(e.target.value) || 21}))} /></div>
-                  <div><label>Remote Path</label><input value={form.remotePath} onChange={e => setForm(f => ({...f, remotePath: e.target.value}))} placeholder="/incoming" /></div>
+                  <FormField
+                    label="Host"
+                    required
+                    name="host"
+                    error={createErrors.host}
+                    valid={!createErrors.host && !!form.host}
+                    helper="The server hostname or IP address (no scheme)"
+                  >
+                    <input
+                      value={form.host}
+                      onChange={e => { setForm(f => ({...f, host: e.target.value})); destValidation.clearFieldError('host') }}
+                      placeholder="ftp.partner.com"
+                    />
+                  </FormField>
+                  <FormField
+                    label="Port"
+                    required
+                    name="port"
+                    error={createErrors.port}
+                    valid={!createErrors.port && !!form.port}
+                    tooltip="22 for SFTP, 990 for FTPS implicit, 21 for FTPS explicit, 443 for HTTPS-based"
+                  >
+                    <input
+                      type="number"
+                      value={form.port}
+                      onChange={e => { setForm(f => ({...f, port: parseInt(e.target.value) || 21})); destValidation.clearFieldError('port') }}
+                    />
+                  </FormField>
+                  <FormField label="Remote Path" name="remotePath" helper="Where files land on the destination">
+                    <input value={form.remotePath} onChange={e => setForm(f => ({...f, remotePath: e.target.value}))} placeholder="/incoming" />
+                  </FormField>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label>Username <span className="text-[rgb(240,120,120)]">*</span></label>
-                    <input value={form.username} onChange={e => { setForm(f => ({...f, username: e.target.value})); setCreateErrors(prev => { const n = {...prev}; delete n.username; return n }) }}
-                      className={createErrors.username ? 'border-red-300 focus:ring-red-500' : ''} />
-                    {createErrors.username && <p className="mt-1 text-xs text-[rgb(240,120,120)]">{createErrors.username}</p>}
-                  </div>
-                  <div>
-                    <label>Password <span className="text-[rgb(240,120,120)]">*</span></label>
-                    <input type="password" value={form.encryptedPassword} onChange={e => { setForm(f => ({...f, encryptedPassword: e.target.value})); setCreateErrors(prev => { const n = {...prev}; delete n.password; return n }) }}
-                      className={createErrors.password ? 'border-red-300 focus:ring-red-500' : ''} />
-                    {createErrors.password && <p className="mt-1 text-xs text-[rgb(240,120,120)]">{createErrors.password}</p>}
-                  </div>
+                  <FormField label="Username" name="username" helper="FTP login name">
+                    <input value={form.username} onChange={e => setForm(f => ({...f, username: e.target.value}))} />
+                  </FormField>
+                  <FormField label="Password" name="encryptedPassword" helper="Password for FTP auth">
+                    <input type="password" value={form.encryptedPassword} onChange={e => setForm(f => ({...f, encryptedPassword: e.target.value}))} />
+                  </FormField>
                 </div>
                 <div className="flex items-center gap-2">
                   <input type="checkbox" id="passiveMode" checked={form.passiveMode}
@@ -303,28 +398,45 @@ export default function ExternalDestinations() {
             {form.type === 'FTPS' && (
               <>
                 <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label>Host <span className="text-[rgb(240,120,120)]">*</span></label>
-                    <input value={form.host} onChange={e => { setForm(f => ({...f, host: e.target.value})); setCreateErrors(prev => { const n = {...prev}; delete n.host; return n }) }}
-                      placeholder="ftps.partner.com" className={createErrors.host ? 'border-red-300 focus:ring-red-500' : ''} />
-                    {createErrors.host && <p className="mt-1 text-xs text-[rgb(240,120,120)]">{createErrors.host}</p>}
-                  </div>
-                  <div><label>Port</label><input type="number" value={form.port} onChange={e => setForm(f => ({...f, port: parseInt(e.target.value) || 990}))} /></div>
-                  <div><label>Remote Path</label><input value={form.remotePath} onChange={e => setForm(f => ({...f, remotePath: e.target.value}))} placeholder="/incoming" /></div>
+                  <FormField
+                    label="Host"
+                    required
+                    name="host"
+                    error={createErrors.host}
+                    valid={!createErrors.host && !!form.host}
+                    helper="The server hostname or IP address (no scheme)"
+                  >
+                    <input
+                      value={form.host}
+                      onChange={e => { setForm(f => ({...f, host: e.target.value})); destValidation.clearFieldError('host') }}
+                      placeholder="ftps.partner.com"
+                    />
+                  </FormField>
+                  <FormField
+                    label="Port"
+                    required
+                    name="port"
+                    error={createErrors.port}
+                    valid={!createErrors.port && !!form.port}
+                    tooltip="22 for SFTP, 990 for FTPS implicit, 21 for FTPS explicit, 443 for HTTPS-based"
+                  >
+                    <input
+                      type="number"
+                      value={form.port}
+                      onChange={e => { setForm(f => ({...f, port: parseInt(e.target.value) || 990})); destValidation.clearFieldError('port') }}
+                    />
+                  </FormField>
+                  <FormField label="Remote Path" name="remotePath" helper="Where files land on the destination">
+                    <input value={form.remotePath} onChange={e => setForm(f => ({...f, remotePath: e.target.value}))} placeholder="/incoming" />
+                  </FormField>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label>Username <span className="text-[rgb(240,120,120)]">*</span></label>
-                    <input value={form.username} onChange={e => { setForm(f => ({...f, username: e.target.value})); setCreateErrors(prev => { const n = {...prev}; delete n.username; return n }) }}
-                      className={createErrors.username ? 'border-red-300 focus:ring-red-500' : ''} />
-                    {createErrors.username && <p className="mt-1 text-xs text-[rgb(240,120,120)]">{createErrors.username}</p>}
-                  </div>
-                  <div>
-                    <label>Password <span className="text-[rgb(240,120,120)]">*</span></label>
-                    <input type="password" value={form.encryptedPassword} onChange={e => { setForm(f => ({...f, encryptedPassword: e.target.value})); setCreateErrors(prev => { const n = {...prev}; delete n.password; return n }) }}
-                      className={createErrors.password ? 'border-red-300 focus:ring-red-500' : ''} />
-                    {createErrors.password && <p className="mt-1 text-xs text-[rgb(240,120,120)]">{createErrors.password}</p>}
-                  </div>
+                  <FormField label="Username" name="username" helper="FTPS login name">
+                    <input value={form.username} onChange={e => setForm(f => ({...f, username: e.target.value}))} />
+                  </FormField>
+                  <FormField label="Password" name="encryptedPassword" helper="Password for FTPS auth">
+                    <input type="password" value={form.encryptedPassword} onChange={e => setForm(f => ({...f, encryptedPassword: e.target.value}))} />
+                  </FormField>
                 </div>
               </>
             )}
@@ -332,26 +444,46 @@ export default function ExternalDestinations() {
             {/* ── HTTP-specific fields ── */}
             {form.type === 'HTTP' && (
               <>
-                <div>
-                  <label>URL <span className="text-[rgb(240,120,120)]">*</span></label>
-                  <input value={form.url} onChange={e => { setForm(f => ({...f, url: e.target.value})); setCreateErrors(prev => { const n = {...prev}; delete n.url; return n }) }}
-                    placeholder="http://partner.com/upload" className={createErrors.url ? 'border-red-300 focus:ring-red-500' : ''} />
-                  {createErrors.url && <p className="mt-1 text-xs text-[rgb(240,120,120)]">{createErrors.url}</p>}
-                </div>
-                <div><label>Remote Path</label><input value={form.remotePath} onChange={e => setForm(f => ({...f, remotePath: e.target.value}))} placeholder="/upload" /></div>
+                <FormField
+                  label="URL"
+                  required
+                  name="url"
+                  error={createErrors.url}
+                  valid={!createErrors.url && !!form.url}
+                  helper="Full URL we'll POST files to. Prefer HTTPS in production."
+                >
+                  <input
+                    value={form.url}
+                    onChange={e => { setForm(f => ({...f, url: e.target.value})); destValidation.clearFieldError('url') }}
+                    placeholder="http://partner.com/upload"
+                  />
+                </FormField>
+                <FormField label="Remote Path" name="remotePath" helper="Path appended after the URL">
+                  <input value={form.remotePath} onChange={e => setForm(f => ({...f, remotePath: e.target.value}))} placeholder="/upload" />
+                </FormField>
               </>
             )}
 
             {/* ── API-specific fields ── */}
             {form.type === 'API' && (
               <>
-                <div>
-                  <label>URL <span className="text-[rgb(240,120,120)]">*</span></label>
-                  <input value={form.url} onChange={e => { setForm(f => ({...f, url: e.target.value})); setCreateErrors(prev => { const n = {...prev}; delete n.url; return n }) }}
-                    placeholder="https://api.partner.com/v1/files" className={createErrors.url ? 'border-red-300 focus:ring-red-500' : ''} />
-                  {createErrors.url && <p className="mt-1 text-xs text-[rgb(240,120,120)]">{createErrors.url}</p>}
-                </div>
-                <div><label>Remote Path</label><input value={form.remotePath} onChange={e => setForm(f => ({...f, remotePath: e.target.value}))} placeholder="/v1/upload" /></div>
+                <FormField
+                  label="URL"
+                  required
+                  name="url"
+                  error={createErrors.url}
+                  valid={!createErrors.url && !!form.url}
+                  helper="REST endpoint for the partner API"
+                >
+                  <input
+                    value={form.url}
+                    onChange={e => { setForm(f => ({...f, url: e.target.value})); destValidation.clearFieldError('url') }}
+                    placeholder="https://api.partner.com/v1/files"
+                  />
+                </FormField>
+                <FormField label="Remote Path" name="remotePath" helper="Path appended after the URL">
+                  <input value={form.remotePath} onChange={e => setForm(f => ({...f, remotePath: e.target.value}))} placeholder="/v1/upload" />
+                </FormField>
               </>
             )}
 

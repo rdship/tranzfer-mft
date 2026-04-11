@@ -4,6 +4,9 @@ import { configApi, onboardingApi } from '../api/client'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
 import LoadingSpinner from '../components/LoadingSpinner'
+import FormField, { validators } from '../components/FormField'
+import useGentleValidation from '../hooks/useGentleValidation'
+import useEnterAdvances from '../hooks/useEnterAdvances'
 import toast from 'react-hot-toast'
 import {
   PlusIcon, BoltIcon, LinkIcon, TrashIcon, PencilSquareIcon,
@@ -178,6 +181,19 @@ export default function Connectors() {
       : toast.error(`Test failed: ${d.error}`),
     onError: err => toast.error(err.response?.data?.error || 'Test failed — check the URL'),
   })
+
+  // Gentle validation for partner webhook form
+  const webhookValidation = useGentleValidation({
+    rules: [
+      { field: 'partnerName', label: 'Partner name', required: true },
+      { field: 'url', label: 'Webhook URL', required: true, validate: validators.url },
+      { field: 'events', label: 'Trigger events', required: true, message: 'Pick at least one event to trigger this webhook' },
+    ],
+    onValid: (data) => saveWebhookMut.mutate(data),
+    recordKind: 'webhook',
+  })
+  const webhookErrors = webhookValidation.errors
+  const onWebhookKeyDown = useEnterAdvances({ onSubmit: () => webhookValidation.handleSubmit(webhookForm)(null) })
 
   // Reset type-specific fields when connector type changes
   const handleConnectorTypeChange = (newType) => {
@@ -497,61 +513,111 @@ export default function Connectors() {
         <Modal
           title={editingWebhook ? 'Edit Partner Webhook' : 'Add Partner Webhook'}
           size="lg"
-          onClose={() => { setShowWebhookModal(false); setEditingWebhook(null) }}
+          onClose={() => { setShowWebhookModal(false); setEditingWebhook(null); webhookValidation.clearAllErrors() }}
         >
-          <form onSubmit={e => { e.preventDefault(); saveWebhookMut.mutate(webhookForm) }} className="space-y-4">
+          <form
+            onSubmit={webhookValidation.handleSubmit(webhookForm)}
+            onKeyDown={onWebhookKeyDown}
+            className="space-y-4"
+          >
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label>Partner Name</label>
-                <select value={webhookForm.partnerName}
-                  onChange={e => setWebhookForm(f => ({...f, partnerName: e.target.value}))}
-                  required>
-                  <option value="">All Partners (global)</option>
+              <FormField
+                label="Partner"
+                required
+                name="partnerName"
+                error={webhookErrors.partnerName}
+                valid={!webhookErrors.partnerName && !!webhookForm.partnerName}
+                helper="Which partner this webhook belongs to"
+              >
+                <select
+                  value={webhookForm.partnerName}
+                  onChange={e => { setWebhookForm(f => ({...f, partnerName: e.target.value})); webhookValidation.clearFieldError('partnerName') }}
+                >
+                  <option value="">Select a partner…</option>
                   {partners.map(p => <option key={p.id} value={p.name}>{p.name}{p.industry ? ` (${p.industry})` : p.type ? ` (${p.type})` : ''}</option>)}
                 </select>
-              </div>
-              <div>
-                <label>Active</label>
-                <select value={webhookForm.active ? 'true' : 'false'}
-                  onChange={e => setWebhookForm(f => ({...f, active: e.target.value === 'true'}))}>
+              </FormField>
+              <FormField
+                label="Status"
+                name="active"
+                helper="Active webhooks fire on every matching event"
+              >
+                <select
+                  value={webhookForm.active ? 'true' : 'false'}
+                  onChange={e => setWebhookForm(f => ({...f, active: e.target.value === 'true'}))}
+                >
                   <option value="true">Active</option>
                   <option value="false">Inactive</option>
                 </select>
-              </div>
+              </FormField>
             </div>
-            <div>
-              <label>Webhook URL</label>
-              <input value={webhookForm.url}
-                onChange={e => setWebhookForm(f => ({...f, url: e.target.value}))}
-                required type="url" placeholder="https://partner.example.com/webhook/mft" />
-            </div>
-            <div>
-              <label>Signing Secret <span className="text-xs font-normal opacity-60">(optional — for HMAC-SHA256 verification)</span></label>
-              <input value={webhookForm.secret}
+            <FormField
+              label="Webhook URL"
+              required
+              name="url"
+              error={webhookErrors.url}
+              valid={!webhookErrors.url && !!webhookForm.url}
+              helper="Where we'll POST event payloads. Must be https:// in production."
+            >
+              <input
+                type="url"
+                value={webhookForm.url}
+                onChange={e => { setWebhookForm(f => ({...f, url: e.target.value})); webhookValidation.clearFieldError('url') }}
+                placeholder="https://partner.example.com/webhook/mft"
+              />
+            </FormField>
+            <FormField
+              label="Signing Secret"
+              name="secret"
+              tooltip="Optional HMAC secret. Add this and we'll sign every webhook with SHA-256 so your receiver can verify."
+              helper="Leave blank to send unsigned payloads — or paste a secret to enable HMAC-SHA256"
+            >
+              <input
+                type="password"
+                value={webhookForm.secret}
                 onChange={e => setWebhookForm(f => ({...f, secret: e.target.value}))}
-                type="password" placeholder="Leave blank to keep existing secret" autoComplete="off" />
-              <p className="text-xs mt-1 opacity-60">If set, adds <code>X-Webhook-Signature: sha256=&lt;hex&gt;</code> to each request.</p>
-            </div>
-            <div>
-              <label>Trigger Events</label>
-              <div className="mt-1 flex gap-4">
+                placeholder="Leave blank to keep existing secret"
+                autoComplete="off"
+              />
+            </FormField>
+            <FormField
+              label="Trigger Events"
+              required
+              name="events"
+              error={webhookErrors.events}
+              valid={!webhookErrors.events && webhookForm.events.length > 0}
+              helper="Which platform events trigger this webhook. Pick at least one."
+            >
+              <div className="mt-1 flex gap-4" data-field-name="events">
                 {WEBHOOK_EVENTS.map(ev => (
                   <label key={ev} className="flex items-center gap-2 cursor-pointer mb-0 text-sm">
-                    <input type="checkbox" className="w-auto" checked={webhookForm.events.includes(ev)}
-                      onChange={e => setWebhookForm(f => ({...f, events: e.target.checked ? [...f.events, ev] : f.events.filter(x => x !== ev)}))} />
+                    <input
+                      type="checkbox"
+                      className="w-auto"
+                      checked={webhookForm.events.includes(ev)}
+                      onChange={e => {
+                        setWebhookForm(f => ({...f, events: e.target.checked ? [...f.events, ev] : f.events.filter(x => x !== ev)}))
+                        webhookValidation.clearFieldError('events')
+                      }}
+                    />
                     <span className={`badge text-xs ${ev === 'FLOW_COMPLETED' ? 'badge-green' : 'badge-red'}`}>{ev}</span>
                   </label>
                 ))}
               </div>
-            </div>
-            <div>
-              <label>Description <span className="text-xs font-normal opacity-60">(optional)</span></label>
-              <input value={webhookForm.description}
+            </FormField>
+            <FormField
+              label="Description"
+              name="description"
+              helper="Optional note about where this webhook goes"
+            >
+              <input
+                value={webhookForm.description}
                 onChange={e => setWebhookForm(f => ({...f, description: e.target.value}))}
-                placeholder="Notifies Acme's ERP on file delivery" />
-            </div>
+                placeholder="Notifies Acme's ERP on file delivery"
+              />
+            </FormField>
             <div className="flex gap-3 justify-end">
-              <button type="button" className="btn-secondary" onClick={() => { setShowWebhookModal(false); setEditingWebhook(null) }}>Cancel</button>
+              <button type="button" className="btn-secondary" onClick={() => { setShowWebhookModal(false); setEditingWebhook(null); webhookValidation.clearAllErrors() }}>Cancel</button>
               <button type="submit" className="btn-primary" disabled={saveWebhookMut.isPending}>
                 {editingWebhook ? 'Save Changes' : 'Create Webhook'}
               </button>

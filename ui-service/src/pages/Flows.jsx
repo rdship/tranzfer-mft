@@ -5,6 +5,9 @@ import { configApi, onboardingApi, aiApi } from '../api/client'
 import { getPendingApprovals, approveStep, rejectStep } from '../api/approvals'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
+import FormField from '../components/FormField'
+import useGentleValidation from '../hooks/useGentleValidation'
+import useEnterAdvances from '../hooks/useEnterAdvances'
 import Skeleton, { useDelayedFlag } from '../components/Skeleton'
 import EmptyState from '../components/EmptyState'
 import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer'
@@ -887,6 +890,33 @@ export default function Flows() {
     }
   })
 
+  // ─── VIP form validation for the Create / Edit Flow modal ─────────────
+  // Rules intentionally kept to the fields that would have been caught by the
+  // old `!form.name || form.steps.length === 0` disable — plus a friendly
+  // steps-missing message so users aren't stuck staring at a greyed button.
+  const flowRules = useMemo(() => ([
+    { field: 'name', label: 'Flow name', required: true },
+    {
+      field: 'steps',
+      label: 'Processing pipeline',
+      required: true,
+      validate: (v) => (Array.isArray(v) && v.length === 0 ? 'Add at least one step so the flow has something to do' : null),
+    },
+  ]), [])
+  const {
+    errors: flowErrors,
+    handleSubmit: handleFlowSubmit,
+    clearFieldError: clearFlowError,
+    clearAllErrors: clearFlowErrors,
+  } = useGentleValidation({
+    rules: flowRules,
+    onValid: (f) => saveMut.mutate(f),
+    recordKind: 'flow',
+  })
+  const onFlowKeyDown = useEnterAdvances({
+    onSubmit: () => handleFlowSubmit(form)(null),
+  })
+
   const toggleMut = useMutation({
     mutationFn: (id) => configApi.patch(`/api/flows/${id}/toggle`).then(r => r.data),
     onSuccess: () => { qc.invalidateQueries(['flows']); toast.success('Flow toggled') }
@@ -966,7 +996,8 @@ export default function Flows() {
     setEditingId(null)
     setForm({ ...defaultForm })
     setShowAddStep(false)
-  }, [])
+    clearFlowErrors()
+  }, [clearFlowErrors])
 
   const toggleFlowSelect = (id, event) => {
     // Shift-click range select across currently filtered flow list (Flexibility).
@@ -1781,7 +1812,7 @@ export default function Flows() {
       {/* ═══ Flow Builder Modal ═══ */}
       {showEditor && (
         <Modal title={editingId ? 'Edit Processing Flow' : 'Create Processing Flow'} size="xl" onClose={closeEditor}>
-          <form onSubmit={e => { e.preventDefault(); saveMut.mutate(form) }} className="space-y-6">
+          <form onSubmit={handleFlowSubmit(form)} onKeyDown={onFlowKeyDown} className="space-y-6">
 
             {/* ─── Templates (create only) ─── */}
             {!editingId && (
@@ -1806,28 +1837,69 @@ export default function Flows() {
             <div>
               <label className="text-xs font-semibold text-secondary uppercase tracking-wider">Flow Details</label>
               <div className="mt-2 grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="flow-name">Flow Name</label>
-                  <input id="flow-name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                    required placeholder="e.g. partner-inbound-pgp" />
-                </div>
-                <div>
-                  <label htmlFor="flow-priority">Priority (lower = matched first)</label>
+                <FormField
+                  label="Flow name"
+                  required
+                  name="name"
+                  error={flowErrors.name}
+                  valid={!flowErrors.name && !!form.name}
+                  helper="What users will see in the flow list — make it descriptive"
+                >
+                  <input
+                    value={form.name}
+                    onChange={e => { setForm(f => ({ ...f, name: e.target.value })); clearFlowError('name') }}
+                    placeholder="e.g. partner-inbound-pgp"
+                  />
+                </FormField>
+                <FormField
+                  label="Priority"
+                  name="priority"
+                  helper="Lower numbers match first when multiple flows could handle the same file"
+                  tooltip="When a file arrives, the platform walks flows in priority order and runs the first one whose match criteria pass. Leave at 100 unless you're intentionally ordering overlapping flows."
+                >
                   <div className="flex items-center gap-3">
-                    <input id="flow-priority" type="range" min="1" max="1000" value={form.priority}
+                    <input
+                      type="range"
+                      min="1"
+                      max="1000"
+                      value={form.priority}
                       onChange={e => setForm(f => ({ ...f, priority: parseInt(e.target.value) }))}
-                      className="flex-1 h-2 bg-gray-200 rounded-lg appearance-auto cursor-pointer accent-blue-600" />
-                    <input type="number" min="1" max="1000" value={form.priority}
+                      className="flex-1 h-2 bg-gray-200 rounded-lg appearance-auto cursor-pointer accent-blue-600"
+                    />
+                    <input
+                      type="number"
+                      min="1"
+                      max="1000"
+                      value={form.priority}
                       onChange={e => setForm(f => ({ ...f, priority: parseInt(e.target.value) || 100 }))}
-                      className="w-20 text-center text-sm" />
+                      className="w-20 text-center text-sm"
+                    />
                   </div>
-                </div>
+                </FormField>
               </div>
               <div className="mt-3">
-                <label htmlFor="flow-description">Description</label>
-                <input id="flow-description" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                  placeholder="What this flow does..." />
+                <FormField
+                  label="Description"
+                  name="description"
+                  helper="One-sentence summary of what this flow does — used for grouping in the Flows page (encryption, EDI, delivery, etc.)"
+                >
+                  <input
+                    value={form.description}
+                    onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                    placeholder="What this flow does..."
+                  />
+                </FormField>
               </div>
+              {flowErrors.steps && (
+                <p className="mt-3 text-xs flex items-start gap-1.5" style={{ color: 'rgb(245, 158, 11)' }} role="alert">
+                  <span
+                    aria-hidden="true"
+                    className="inline-flex items-center justify-center w-3 h-3 rounded-full mt-0.5 flex-shrink-0"
+                    style={{ background: 'rgb(245, 158, 11)', color: '#1a1510', fontSize: '8px', fontWeight: 'bold' }}
+                  >!</span>
+                  <span>{flowErrors.steps}</span>
+                </p>
+              )}
             </div>
 
             {/* ─── Match Criteria (replaces Source Configuration) ─── */}
@@ -2089,8 +2161,7 @@ export default function Flows() {
               </div>
               <div className="flex gap-3">
                 <button type="button" className="btn-secondary" onClick={closeEditor}>Cancel</button>
-                <button type="submit" className="btn-primary"
-                  disabled={saveMut.isPending || !form.name || form.steps.length === 0}>
+                <button type="submit" className="btn-primary" disabled={saveMut.isPending}>
                   {saveMut.isPending
                     ? (editingId ? 'Updating...' : 'Creating...')
                     : (editingId ? 'Update Flow' : 'Create Flow')

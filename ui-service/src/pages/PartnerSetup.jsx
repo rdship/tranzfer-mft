@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
@@ -24,7 +24,8 @@ import {
 import { createPartner } from '../api/partners'
 import { createAccount } from '../api/accounts'
 import { onboardingApi, configApi } from '../api/client'
-import { friendlyError } from '../components/FormField'
+import FormField, { friendlyError, validators, validateForm } from '../components/FormField'
+import useEnterAdvances from '../hooks/useEnterAdvances'
 import LoadingSpinner from '../components/LoadingSpinner'
 
 const STEPS = [
@@ -174,38 +175,87 @@ export default function PartnerSetup() {
     onError: (err) => toast.error(friendlyError(err))
   })
 
-  // Validation per step — sets inline errors and returns boolean
+  // Scroll + focus helper for the first missing field in a given errors map.
+  // Mirrors useGentleValidation's behaviour without locking us into a single
+  // `rules` array (this wizard validates a different subset per step).
+  const focusFirstError = (errs) => {
+    const firstKey = Object.keys(errs)[0]
+    if (!firstKey) return
+    const wrapper = document.querySelector(`[data-field-wrapper="${firstKey}"]`)
+    if (wrapper) wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setTimeout(() => {
+      const input = document.querySelector(`[data-field-name="${firstKey}"]`)
+      if (input && typeof input.focus === 'function') input.focus({ preventScroll: true })
+    }, 320)
+  }
+
+  // Friendly amber toast — same palette as useGentleValidation
+  const gentleToast = (message) => toast(message, {
+    icon: '👋',
+    duration: 3500,
+    style: {
+      background: 'rgb(28, 22, 12)',
+      color: 'rgb(245, 158, 11)',
+      border: '1px solid rgba(245, 158, 11, 0.4)',
+    },
+  })
+
+  // Validation per step — uses shared validateForm() where possible, returns
+  // the errors map so the caller can both persist + surface it.
   const validateStep = (s) => {
-    const errs = {}
+    let errs = {}
     switch (s) {
       case 1:
-        if (!form.companyName.trim()) errs.companyName = 'Company name is required'
+        errs = validateForm(form, [
+          { field: 'companyName', label: 'Company name', required: true },
+        ])
         break
       case 2:
-        if (form.protocolsEnabled.length === 0) errs.protocols = 'Select at least one protocol'
+        if (form.protocolsEnabled.length === 0) {
+          errs.protocols = 'Pick at least one protocol so we know how this partner will connect'
+        }
         break
       case 3:
         if (form.contacts.length === 0) {
-          errs.contacts = 'At least one contact is required'
+          errs.contacts = 'Add at least one contact so we have someone to reach'
         } else {
-          for (let i = 0; i < form.contacts.length; i++) {
-            const c = form.contacts[i]
-            if (!c.name.trim()) errs[`contact_${i}_name`] = 'Name is required'
-            if (!c.email.trim()) errs[`contact_${i}_email`] = 'Email is required'
-            else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email)) errs[`contact_${i}_email`] = 'Enter a valid email address'
-          }
+          form.contacts.forEach((c, i) => {
+            if (!c.name.trim()) errs[`contact_${i}_name`] = 'Add a name to continue'
+            if (!c.email.trim()) errs[`contact_${i}_email`] = 'Add an email to continue'
+            else {
+              const emailErr = validators.email(c.email)
+              if (emailErr) errs[`contact_${i}_email`] = emailErr
+            }
+          })
         }
         break
       default:
         break
     }
     setStepErrors(errs)
-    if (Object.keys(errs).length > 0) {
-      toast.error('Please fix the highlighted fields before continuing')
+    const missing = Object.keys(errs).length
+    if (missing > 0) {
+      gentleToast(missing === 1 ? 'Just one more thing on this step' : `${missing} more details to continue`)
+      focusFirstError(errs)
       return false
     }
     return true
   }
+
+  const clearStepFieldError = (fieldName) => {
+    setStepErrors((prev) => {
+      if (!prev[fieldName]) return prev
+      const next = { ...prev }
+      delete next[fieldName]
+      return next
+    })
+  }
+
+  // Keyboard: Enter advances within the current step's form, last Enter
+  // triggers Next. Defined via a ref-box so the handler can reference
+  // handleNext (declared below) without a TDZ / ReferenceError.
+  const handleNextRef = useRef(() => {})
+  const onStepKeyDown = useEnterAdvances({ onSubmit: () => handleNextRef.current?.() })
 
   // Fetch servers filtered by selected protocols
   const fetchServers = useCallback(async () => {
@@ -243,6 +293,12 @@ export default function PartnerSetup() {
       setFlowsLoading(false)
     }
   }, [form.protocolsEnabled])
+
+  // Keep the Enter-advances handler pointing at the latest handleNext so
+  // closures captured by useEnterAdvances stay fresh on every render.
+  useEffect(() => {
+    handleNextRef.current = () => handleNext()
+  })
 
   // Auto-fetch when entering steps 6 or 7
   useEffect(() => {
@@ -484,32 +540,39 @@ export default function PartnerSetup() {
       <p className="text-xs text-muted mb-6">This information identifies the partner across the platform and appears in compliance reports.</p>
 
       <div className="grid grid-cols-2 gap-6">
-        <div>
-          <label className="block text-sm font-medium text-primary mb-1">
-            Company Name <span className="text-[rgb(240,120,120)]">*</span>
-          </label>
+        <FormField
+          label="Company name"
+          required
+          name="companyName"
+          error={stepErrors.companyName}
+          valid={!stepErrors.companyName && !!form.companyName}
+          helper="How you'll recognize this partner across reports and dashboards"
+          tooltip="The legal entity name. It becomes the default partner slug used in API paths and audit trails, so pick something stable."
+        >
           <input
             type="text"
             value={form.companyName}
-            onChange={(e) => updateForm({ companyName: e.target.value })}
+            onChange={(e) => { updateForm({ companyName: e.target.value }); clearStepFieldError('companyName') }}
             placeholder="Acme Corporation"
-            className={stepErrors.companyName ? 'border-red-300 focus:ring-red-500' : ''}
           />
-          {stepErrors.companyName && <p className="mt-1 text-xs text-[rgb(240,120,120)]">{stepErrors.companyName}</p>}
-          {!stepErrors.companyName && <p className="mt-1 text-xs text-muted">The legal entity name. Used to generate the partner slug for API references.</p>}
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-primary mb-1">Display Name</label>
+        </FormField>
+        <FormField
+          label="Display name"
+          name="displayName"
+          helper="Short name shown in dashboards — falls back to company name if you leave it empty"
+        >
           <input
             type="text"
             value={form.displayName}
             onChange={(e) => updateForm({ displayName: e.target.value })}
             placeholder="Acme (optional)"
           />
-          <p className="mt-1 text-xs text-muted">Short name shown in dashboards. Defaults to Company Name if empty.</p>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-primary mb-1">Industry</label>
+        </FormField>
+        <FormField
+          label="Industry"
+          name="industry"
+          helper="Tunes compliance rules and reporting categories for this partner"
+        >
           <select value={form.industry} onChange={(e) => updateForm({ industry: e.target.value })}>
             <option value="">Select industry...</option>
             {INDUSTRIES.map((ind) => (
@@ -518,18 +581,19 @@ export default function PartnerSetup() {
               </option>
             ))}
           </select>
-          <p className="mt-1 text-xs text-muted">Helps configure compliance rules and reporting categories.</p>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-primary mb-1">Website</label>
+        </FormField>
+        <FormField
+          label="Website"
+          name="website"
+          helper="The partner's corporate site — shown on the partner detail page for quick reference"
+        >
           <input
             type="url"
             value={form.website}
             onChange={(e) => updateForm({ website: e.target.value })}
             placeholder="https://www.example.com"
           />
-          <p className="mt-1 text-xs text-muted">Partner's corporate website for reference.</p>
-        </div>
+        </FormField>
       </div>
 
       <div className="mt-6">
@@ -561,25 +625,33 @@ export default function PartnerSetup() {
       </div>
 
       <div className="grid grid-cols-2 gap-6 mt-6">
-        <div>
-          <label className="block text-sm font-medium text-primary mb-1">Logo URL</label>
+        <FormField
+          label="Logo URL"
+          name="logoUrl"
+          helper="Optional — shown next to the partner name in dashboards and reports"
+        >
           <input
             type="url"
             value={form.logoUrl}
             onChange={(e) => updateForm({ logoUrl: e.target.value })}
-            placeholder="https://cdn.example.com/logo.png (optional)"
+            placeholder="https://cdn.example.com/logo.png"
           />
-        </div>
+        </FormField>
       </div>
 
       <div className="mt-6">
-        <label className="block text-sm font-medium text-primary mb-1">Notes</label>
-        <textarea
-          rows={3}
-          value={form.notes}
-          onChange={(e) => updateForm({ notes: e.target.value })}
-          placeholder="Any additional notes about this partner..."
-        />
+        <FormField
+          label="Notes"
+          name="notes"
+          helper="Anything the next person looking at this partner should know"
+        >
+          <textarea
+            rows={3}
+            value={form.notes}
+            onChange={(e) => updateForm({ notes: e.target.value })}
+            placeholder="Any additional notes about this partner..."
+          />
+        </FormField>
       </div>
     </div>
   )
@@ -587,12 +659,37 @@ export default function PartnerSetup() {
   // ---------- Step 2: Protocols ----------
   const renderStep2 = () => (
     <div className="card">
-      <h2 className="text-xl font-bold text-primary">Protocol Selection</h2>
+      <div className="flex items-center gap-2 mb-2">
+        <h2 className="text-xl font-bold text-primary">Protocol Selection</h2>
+        <span
+          className="text-[9px] uppercase tracking-wide font-bold px-1.5 py-0.5 rounded-full"
+          style={{ color: 'rgb(148, 163, 184)', background: 'rgb(30, 30, 36)', letterSpacing: '0.08em' }}
+        >
+          required
+        </span>
+      </div>
       <p className="text-sm text-secondary mb-2">
-        Choose which file transfer protocols this partner will use <span className="text-[rgb(240,120,120)]">*</span>
+        Choose which file transfer protocols this partner will use
       </p>
       <p className="text-xs text-muted mb-6">Each protocol creates a dedicated transfer account in the next step. You can add more later.</p>
-      {stepErrors.protocols && <p className="mb-4 text-sm text-[rgb(240,120,120)] bg-[rgb(60,20,20)] border border-[rgb(80,30,30)] rounded-lg px-3 py-2">{stepErrors.protocols}</p>}
+      {stepErrors.protocols && (
+        <div
+          className="mb-4 text-sm px-3 py-2 rounded-lg flex items-start gap-2"
+          style={{
+            color: 'rgb(245, 158, 11)',
+            background: 'rgba(245, 158, 11, 0.08)',
+            border: '1px solid rgba(245, 158, 11, 0.35)',
+          }}
+          role="alert"
+        >
+          <span
+            aria-hidden="true"
+            className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full mt-0.5 flex-shrink-0"
+            style={{ background: 'rgb(245, 158, 11)', color: '#1a1510', fontSize: '9px', fontWeight: 'bold' }}
+          >!</span>
+          <span>{stepErrors.protocols}</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4">
         {PROTOCOLS.map((proto) => {
@@ -649,7 +746,24 @@ export default function PartnerSetup() {
       <h2 className="text-xl font-bold text-primary">Contact Information</h2>
       <p className="text-sm text-secondary mb-2">Add contacts for this partner</p>
       <p className="text-xs text-muted mb-6">Contacts receive notifications about transfer events and are used for emergency escalation.</p>
-      {stepErrors.contacts && <p className="mb-4 text-sm text-[rgb(240,120,120)] bg-[rgb(60,20,20)] border border-[rgb(80,30,30)] rounded-lg px-3 py-2">{stepErrors.contacts}</p>}
+      {stepErrors.contacts && (
+        <div
+          className="mb-4 text-sm px-3 py-2 rounded-lg flex items-start gap-2"
+          style={{
+            color: 'rgb(245, 158, 11)',
+            background: 'rgba(245, 158, 11, 0.08)',
+            border: '1px solid rgba(245, 158, 11, 0.35)',
+          }}
+          role="alert"
+        >
+          <span
+            aria-hidden="true"
+            className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full mt-0.5 flex-shrink-0"
+            style={{ background: 'rgb(245, 158, 11)', color: '#1a1510', fontSize: '9px', fontWeight: 'bold' }}
+          >!</span>
+          <span>{stepErrors.contacts}</span>
+        </div>
+      )}
 
       <div className="space-y-4">
         {form.contacts.map((contact, idx) => (
@@ -683,44 +797,53 @@ export default function PartnerSetup() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Name <span className="text-[rgb(240,120,120)]">*</span>
-                </label>
+              <FormField
+                label="Name"
+                required
+                name={`contact_${idx}_name`}
+                error={stepErrors[`contact_${idx}_name`]}
+                valid={!stepErrors[`contact_${idx}_name`] && !!contact.name}
+                helper="Who we'll address onboarding emails and escalation calls to"
+              >
                 <input
                   type="text"
                   value={contact.name}
-                  onChange={(e) => { updateContact(idx, { name: e.target.value }); setStepErrors(prev => { const n = {...prev}; delete n[`contact_${idx}_name`]; return n }) }}
+                  onChange={(e) => { updateContact(idx, { name: e.target.value }); clearStepFieldError(`contact_${idx}_name`) }}
                   placeholder="John Doe"
-                  className={stepErrors[`contact_${idx}_name`] ? 'border-red-300 focus:ring-red-500' : ''}
                 />
-                {stepErrors[`contact_${idx}_name`] && <p className="mt-1 text-xs text-[rgb(240,120,120)]">{stepErrors[`contact_${idx}_name`]}</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Email <span className="text-[rgb(240,120,120)]">*</span>
-                </label>
+              </FormField>
+              <FormField
+                label="Email"
+                required
+                name={`contact_${idx}_email`}
+                error={stepErrors[`contact_${idx}_email`]}
+                valid={!stepErrors[`contact_${idx}_email`] && !!contact.email}
+                helper="Where we'll send onboarding updates and any critical alerts"
+              >
                 <input
                   type="email"
                   value={contact.email}
-                  onChange={(e) => { updateContact(idx, { email: e.target.value }); setStepErrors(prev => { const n = {...prev}; delete n[`contact_${idx}_email`]; return n }) }}
+                  onChange={(e) => { updateContact(idx, { email: e.target.value }); clearStepFieldError(`contact_${idx}_email`) }}
                   placeholder="john@example.com"
-                  className={stepErrors[`contact_${idx}_email`] ? 'border-red-300 focus:ring-red-500' : ''}
                 />
-                {stepErrors[`contact_${idx}_email`] && <p className="mt-1 text-xs text-[rgb(240,120,120)]">{stepErrors[`contact_${idx}_email`]}</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">Phone</label>
+              </FormField>
+              <FormField
+                label="Phone"
+                name={`contact_${idx}_phone`}
+                helper="Include the country code for international partners so on-call routing works"
+              >
                 <input
                   type="tel"
                   value={contact.phone}
                   onChange={(e) => updateContact(idx, { phone: e.target.value })}
                   placeholder="+1 (555) 123-4567"
                 />
-                <p className="mt-1 text-xs text-muted">Include country code for international partners.</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">Role</label>
+              </FormField>
+              <FormField
+                label="Role"
+                name={`contact_${idx}_role`}
+                helper="Drives notification preferences and escalation path"
+              >
                 <select
                   value={contact.role}
                   onChange={(e) => updateContact(idx, { role: e.target.value })}
@@ -731,8 +854,7 @@ export default function PartnerSetup() {
                     </option>
                   ))}
                 </select>
-                <p className="mt-1 text-xs text-muted">Determines notification preferences and escalation path.</p>
-              </div>
+              </FormField>
             </div>
           </div>
         ))}
@@ -1534,7 +1656,13 @@ export default function PartnerSetup() {
       </div>
 
       {renderStepIndicator()}
-      {renderCurrentStep()}
+      {/* Wrap step content in a <form> so useEnterAdvances can find a
+          common ancestor and walk tabbable inputs. The outer flow keeps
+          using explicit Back/Next buttons — we prevent default submit so
+          the buttons stay in control. */}
+      <form onKeyDown={onStepKeyDown} onSubmit={(e) => e.preventDefault()}>
+        {renderCurrentStep()}
+      </form>
 
       {/* Navigation Bar */}
       <div className="flex items-center justify-between pt-4 border-t">

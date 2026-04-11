@@ -6,6 +6,8 @@ import { onboardingApi } from '../api/client'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
 import FormField, { friendlyError } from '../components/FormField'
+import useGentleValidation from '../hooks/useGentleValidation'
+import useEnterAdvances from '../hooks/useEnterAdvances'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer'
@@ -91,13 +93,12 @@ export default function Accounts() {
 
   const { data: accounts = [], isLoading } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts })
   const { data: serverInstances = [] } = useQuery({ queryKey: ['server-instances-active'], queryFn: getServerInstancesActive })
-  const [createErrors, setCreateErrors] = useState({})
 
   // Column visibility preferences for the accounts table.
   const { isVisible, toggle: toggleColumn, resetToDefaults: resetColumns, visibleKeys: visibleColumnKeys } =
     useColumnPrefs('accounts-table', ACCOUNT_DEFAULT_VISIBLE, ACCOUNT_COLUMN_KEYS)
   const createMut = useMutation({ mutationFn: createAccount,
-    onSuccess: () => { qc.invalidateQueries(['accounts']); setShowCreate(false); setForm({ ...defaultForm }); setCreateErrors({}); toast.success('Account created') },
+    onSuccess: () => { qc.invalidateQueries(['accounts']); setShowCreate(false); setForm({ ...defaultForm }); clearAllErrors(); toast.success('Account created') },
     onError: err => toast.error(friendlyError(err)) })
   const updateMut = useMutation({ mutationFn: ({ id, data }) => updateAccount(id, data),
     onSuccess: () => { qc.invalidateQueries(['accounts']); setEditAccount(null); toast.success('Account updated') },
@@ -222,6 +223,50 @@ export default function Accounts() {
   }
 
   const filteredInstances = serverInstances.filter(s => s.protocol === form.protocol)
+
+  // VIP validation — required fields + gentle confirm-match rule for password.
+  // Server instance is only required when the current protocol has at least one
+  // active instance to pick from (preserves the existing "Any" behaviour when
+  // there's nothing to restrict to).
+  const createRules = useMemo(() => {
+    const rules = [
+      { field: 'username', label: 'Username', required: true },
+      {
+        field: 'password',
+        label: 'Password',
+        required: true,
+        validate: (v) => (v && v.length < 8 ? 'Make the password at least 8 characters so it holds up' : null),
+      },
+      {
+        field: 'confirmPassword',
+        label: 'Password confirmation',
+        required: true,
+        validate: (v, f) => (v !== f.password ? 'Retype the password so they match' : null),
+      },
+    ]
+    if (filteredInstances.length > 0) {
+      rules.push({ field: 'serverInstance', label: 'Server instance', required: true })
+    }
+    return rules
+  }, [filteredInstances.length])
+
+  const {
+    errors: createErrors,
+    handleSubmit: handleCreateSubmit,
+    clearFieldError,
+    clearAllErrors,
+  } = useGentleValidation({
+    rules: createRules,
+    onValid: (f) => {
+      const { confirmPassword, ...payload } = f
+      createMut.mutate(payload)
+    },
+    recordKind: 'account',
+  })
+
+  const onCreateKeyDown = useEnterAdvances({
+    onSubmit: () => handleCreateSubmit(form)(null),
+  })
 
   const applyPreset = (tier) => {
     setForm(f => ({ ...f, qos: { ...QOS_PRESETS[tier] } }))
@@ -446,50 +491,95 @@ export default function Accounts() {
 
       {/* Create Account Modal */}
       {showCreate && (
-        <Modal title="Create Transfer Account" onClose={() => { setShowCreate(false); setCreateErrors({}) }}>
-          <form onSubmit={e => {
-            e.preventDefault()
-            const errs = {}
-            if (!form.username.trim()) errs.username = 'Username is required'
-            if (!form.password) errs.password = 'Password is required'
-            else if (form.password.length < 8) errs.password = 'Password must be at least 8 characters'
-            if (form.password !== form.confirmPassword) errs.confirmPassword = 'Passwords do not match'
-            setCreateErrors(errs)
-            if (Object.keys(errs).length > 0) return
-            const { confirmPassword, ...payload } = form
-            createMut.mutate(payload)
-          }} className="space-y-4">
-            <FormField label="Protocol" helper="The file transfer protocol for this account.">
+        <Modal title="Create Transfer Account" onClose={() => { setShowCreate(false); clearAllErrors() }}>
+          <form
+            onSubmit={handleCreateSubmit(form)}
+            onKeyDown={onCreateKeyDown}
+            className="space-y-4"
+          >
+            <FormField
+              label="Protocol"
+              name="protocol"
+              helper="Which kind of connection this account accepts — pick the one the partner will use."
+              tooltip="SFTP for files over SSH, FTP for legacy TLS/cleartext transfers, FTP_WEB for browser-based uploads. Switching protocols resets the server instance selection."
+            >
               <select value={form.protocol} onChange={e => setForm(f => ({ ...f, protocol: e.target.value, serverInstance: '' }))}>
                 {PROTOCOLS.map(p => <option key={p}>{p}</option>)}
               </select>
             </FormField>
-            <FormField label="Username" required error={createErrors.username} helper="Unique login name for this transfer account.">
-              <input value={form.username} onChange={e => { setForm(f => ({ ...f, username: e.target.value })); setCreateErrors(prev => { const n = {...prev}; delete n.username; return n }) }} placeholder="e.g. partner_acme"
-                className={createErrors.username ? 'border-red-300 focus:ring-red-500' : ''} />
+            <FormField
+              label="Username"
+              required
+              name="username"
+              error={createErrors.username}
+              valid={!createErrors.username && !!form.username}
+              helper="The login name the partner will use to connect"
+            >
+              <input
+                value={form.username}
+                onChange={e => { setForm(f => ({ ...f, username: e.target.value })); clearFieldError('username') }}
+                placeholder="e.g. partner_acme"
+              />
             </FormField>
-            <FormField label="Password" required error={createErrors.password} helper="Minimum 8 characters. Used for protocol authentication.">
-              <input type="password" value={form.password} onChange={e => { setForm(f => ({ ...f, password: e.target.value })); setCreateErrors(prev => { const n = {...prev}; delete n.password; return n }) }}
-                className={createErrors.password ? 'border-red-300 focus:ring-red-500' : ''} />
+            <FormField
+              label="Password"
+              required
+              name="password"
+              error={createErrors.password}
+              valid={!createErrors.password && form.password.length >= 8}
+              helper="We'll never show this again — make it strong (min 8 chars)"
+            >
+              <input
+                type="password"
+                value={form.password}
+                onChange={e => { setForm(f => ({ ...f, password: e.target.value })); clearFieldError('password') }}
+              />
             </FormField>
-            <FormField label="Confirm Password" required error={createErrors.confirmPassword}>
-              <input type="password" value={form.confirmPassword} onChange={e => { setForm(f => ({ ...f, confirmPassword: e.target.value })); setCreateErrors(prev => { const n = {...prev}; delete n.confirmPassword; return n }) }}
-                className={createErrors.confirmPassword ? 'border-red-300 focus:ring-red-500' : ''} />
+            <FormField
+              label="Confirm password"
+              required
+              name="confirmPassword"
+              error={createErrors.confirmPassword}
+              valid={!createErrors.confirmPassword && !!form.confirmPassword && form.confirmPassword === form.password}
+              helper="Type it once more so we know it's right"
+            >
+              <input
+                type="password"
+                value={form.confirmPassword}
+                onChange={e => { setForm(f => ({ ...f, confirmPassword: e.target.value })); clearFieldError('confirmPassword') }}
+              />
             </FormField>
-            <FormField label="Home Directory" helper="Root directory for this account's files (e.g., /data/sftp/partner).">
-              <input value={form.homeDir} onChange={e => setForm(f => ({ ...f, homeDir: e.target.value }))} placeholder="/data/sftp/partner_acme" />
+            <FormField
+              label="Home directory"
+              name="homeDir"
+              helper="The root folder this account lands in after login. Leave blank to use the server default."
+            >
+              <input
+                value={form.homeDir}
+                onChange={e => setForm(f => ({ ...f, homeDir: e.target.value }))}
+                placeholder="/data/sftp/partner_acme"
+              />
             </FormField>
             {filteredInstances.length > 0 && (
-              <div>
-                <label htmlFor="acc-server-instance">Server Instance</label>
-                <select id="acc-server-instance" value={form.serverInstance} onChange={e => setForm(f => ({ ...f, serverInstance: e.target.value }))}>
-                  <option value="">Any (no restriction)</option>
+              <FormField
+                label="Server instance"
+                required
+                name="serverInstance"
+                error={createErrors.serverInstance}
+                valid={!createErrors.serverInstance && !!form.serverInstance}
+                helper="Which of the running SFTP/FTP servers this account lives on"
+                tooltip={`Each server instance has its own host, port, and TLS config. Restrict this account to one ${form.protocol} instance or leave empty to skip in "Any" mode (currently required because there are active instances to pick from).`}
+              >
+                <select
+                  value={form.serverInstance}
+                  onChange={e => { setForm(f => ({ ...f, serverInstance: e.target.value })); clearFieldError('serverInstance') }}
+                >
+                  <option value="">Pick a server instance…</option>
                   {filteredInstances.map(s => (
                     <option key={s.instanceId} value={s.instanceId}>{s.name} ({s.instanceId})</option>
                   ))}
                 </select>
-                <p className="text-xs text-muted mt-1">Restrict this account to a specific {form.protocol} server</p>
-              </div>
+              </FormField>
             )}
 
             {/* QoS Configuration */}
@@ -537,7 +627,7 @@ export default function Accounts() {
             </div>
 
             <div className="flex gap-3 justify-end pt-2">
-              <button type="button" className="btn-secondary" onClick={() => { setShowCreate(false); setCreateErrors({}) }}>Cancel</button>
+              <button type="button" className="btn-secondary" onClick={() => { setShowCreate(false); clearAllErrors() }}>Cancel</button>
               <button type="submit" className="btn-primary" disabled={createMut.isPending}>
                 {createMut.isPending ? 'Creating...' : 'Create Account'}
               </button>
