@@ -2,19 +2,25 @@
 # =============================================================================
 # TranzFer MFT — demo traffic / historical data seeder
 # =============================================================================
-# Populates the pages that demo-onboard.sh alone leaves empty:
-#   /fabric            — checkpoints, instances, stuck items, latency percentiles
-#   /activity-monitor  — historical flow executions
-#   /journey           — per-trackId timelines (via fabric checkpoints)
-#   /analytics         — transfer volume / success rate over time
-#   /sentinel          — findings across analyzers + a health score snapshot
+# Populates the pages that demo-onboard.sh alone leaves empty. This version
+# seeds **file_transfer_records** as the primary table — that is what
+# Activity Monitor, Journey, Analytics, and Dashboard all actually query.
+# Everything else (flow_executions, fabric_checkpoints, sentinel_findings)
+# is linked to it by trackId.
 #
-# Everything is written directly to Postgres via `docker compose exec postgres psql`
-# so this works without needing a host psql client. All rows are synthetic but
-# well-formed — the UI can't tell them apart from real data.
+# What gets populated:
+#   /activity-monitor  — 150 historical records via file_transfer_records
+#   /journey           — per-trackId timelines
+#   /fabric            — checkpoints, instances, stuck items, latency
+#   /sentinel          — 12 findings across analyzers + health score series
+#   /analytics         — populates on first metric-aggregation run (~5 min)
+#
+# All rows are synthetic but well-formed — the UI can't tell them apart
+# from real data.
 #
 # Safe to re-run: each section DELETEs prior demo rows (tagged with
-# processing_instance LIKE 'demo-%' or rule_name LIKE 'demo_%') before inserting.
+# track_id LIKE 'TRZDEMO%' / 'TRZSTK%' or rule_name LIKE 'demo_%') before
+# inserting. Delete order respects FK constraints.
 #
 # Usage:  ./scripts/demo-traffic.sh
 # =============================================================================
@@ -33,72 +39,90 @@ docker compose ps postgres 2>/dev/null | grep -q 'Up\|running' \
 
 "${PSQL[@]}" -c "SELECT 1" >/dev/null || die "Cannot connect to postgres"
 
-# Sanity: onboarding script must have run — we need file_flows to reference
+# Sanity: onboarding script must have run
 FLOW_COUNT=$("${PSQL[@]}" -tAc "SELECT count(*) FROM file_flows" 2>/dev/null || echo 0)
+MAP_COUNT=$("${PSQL[@]}"  -tAc "SELECT count(*) FROM folder_mappings WHERE source_account_id IS NOT NULL" 2>/dev/null || echo 0)
 if [[ "${FLOW_COUNT}" -lt 1 ]]; then
   die "No rows in file_flows. Run ./scripts/demo-onboard.sh first."
 fi
-log "Found ${FLOW_COUNT} file_flows to reference."
+if [[ "${MAP_COUNT}" -lt 1 ]]; then
+  die "No folder_mappings with source_account_id. Run ./scripts/demo-onboard.sh first."
+fi
+log "Found ${FLOW_COUNT} file_flows and ${MAP_COUNT} usable folder_mappings."
 
 # =============================================================================
-# 1. Clean any prior demo-traffic rows (idempotent)
+# 1. Clean any prior demo rows (idempotent; respect FK order)
+# =============================================================================
+# flow_executions.transfer_record_id → file_transfer_records(id), so delete
+# flow_executions first. fabric_checkpoints has no FK but we tag by track_id.
 # =============================================================================
 log "Cleaning previous demo-traffic data..."
 "${PSQL[@]}" <<'SQL'
-DELETE FROM fabric_checkpoints  WHERE processing_instance LIKE 'demo-%';
-DELETE FROM fabric_instances    WHERE instance_id         LIKE 'demo-%';
-DELETE FROM sentinel_findings   WHERE rule_name           LIKE 'demo_%';
-DELETE FROM sentinel_health_scores WHERE details          LIKE '%"demo":true%';
-DELETE FROM flow_executions     WHERE track_id            LIKE 'TRZDEMO%';
+DELETE FROM fabric_checkpoints    WHERE track_id   LIKE 'TRZDEMO%' OR track_id LIKE 'TRZSTK%';
+DELETE FROM fabric_instances      WHERE instance_id LIKE 'demo-%';
+DELETE FROM sentinel_findings     WHERE rule_name  LIKE 'demo_%';
+DELETE FROM sentinel_health_scores WHERE details   LIKE '%"demo":true%';
+DELETE FROM flow_executions       WHERE track_id   LIKE 'TRZDEMO%' OR track_id LIKE 'TRZSTK%';
+DELETE FROM file_transfer_records WHERE track_id   LIKE 'TRZDEMO%' OR track_id LIKE 'TRZSTK%';
 SQL
 
 # =============================================================================
-# 2. Flow executions (historical — drives Activity Monitor + Analytics)
+# 2. file_transfer_records — THE primary table for Activity Monitor + Journey
 # =============================================================================
-# 150 executions spread over the last 7 days.
-# Distribution: 72% COMPLETED, 18% FAILED, 8% PROCESSING, 2% CANCELLED
+# 150 records spread over the last 7 days.
+# Distribution:
+#   115 MOVED_TO_SENT (flow COMPLETED)
+#    24 FAILED         (flow FAILED)
+#    11 DOWNLOADED    (flow PROCESSING; 3 of these are "stuck")
 #
-# Note: flow_executions.track_id has a UNIQUE constraint — we use a deterministic
-# 'TRZDEMO' prefix so demo rows are cleanly removable.
+# Track IDs use the 12-char pattern the app uses (VARCHAR(64) column but
+# the entity enforces @Size(max=12)):
+#   TRZDEMO00001 .. TRZDEMO00150
 # =============================================================================
-log "Seeding 150 historical flow_executions over the last 7 days..."
+log "Seeding 150 file_transfer_records over the last 7 days..."
 "${PSQL[@]}" <<'SQL'
-WITH flows AS (
-  SELECT id FROM file_flows ORDER BY random() LIMIT 30
+WITH picked_maps AS (
+  SELECT id FROM folder_mappings
+  WHERE source_account_id IS NOT NULL
+  ORDER BY random()
+  LIMIT 30
 ),
 rows AS (
   SELECT
     gs AS n,
-    'TRZDEMO' || lpad(gs::text, 6, '0') AS track_id,
-    (SELECT id FROM flows ORDER BY random() LIMIT 1) AS flow_id,
+    'TRZDEMO' || lpad(gs::text, 5, '0') AS track_id,
+    (SELECT id FROM picked_maps ORDER BY random() LIMIT 1) AS folder_mapping_id,
     (ARRAY[
        'daily-batch.csv','invoice_20250401.edi','payroll.xml','orders-batch.zip',
        'hl7_adt_feed.hl7','acct_reconcile.txt','trade-settle.xml','pci-report.csv.pgp',
        'claims-837.edi','eft-remit.txt','partner-ack.mdn','daily.log.gz'
      ])[1 + (gs % 12)] AS original_filename,
+    -- 115 MOVED_TO_SENT, 24 FAILED, 11 DOWNLOADED (last 11 include the 3 stuck)
     (CASE
-       WHEN gs % 50 = 0 THEN 'CANCELLED'
-       WHEN gs % 25 < 2 THEN 'PROCESSING'
-       WHEN gs % 25 < 6 THEN 'FAILED'
-       ELSE 'COMPLETED'
+       WHEN gs <= 115 THEN 'MOVED_TO_SENT'
+       WHEN gs <= 139 THEN 'FAILED'
+       ELSE                'DOWNLOADED'
      END) AS status,
-    (NOW() - (random() * interval '7 days')) AS started_at
+    (NOW() - (random() * interval '7 days')) AS uploaded_at,
+    (50000 + (random() * 50000000)::bigint) AS file_size_bytes
   FROM generate_series(1, 150) gs
 )
-INSERT INTO flow_executions (
-  id, flow_id, track_id, original_filename, current_file_path,
-  status, current_step, error_message, started_at, completed_at
+INSERT INTO file_transfer_records (
+  id, folder_mapping_id, track_id, original_filename,
+  source_file_path, destination_file_path, archive_file_path,
+  status, error_message, file_size_bytes,
+  source_checksum, destination_checksum, retry_count,
+  uploaded_at, routed_at, downloaded_at, completed_at, updated_at
 )
 SELECT
   gen_random_uuid(),
-  flow_id,
+  folder_mapping_id,
   track_id,
   original_filename,
-  '/inbox/' || original_filename,
+  '/inbox/'   || original_filename,
+  '/outbox/'  || original_filename,
+  CASE WHEN status = 'MOVED_TO_SENT' THEN '/archive/' || original_filename END,
   status,
-  CASE WHEN status = 'PROCESSING' THEN (random()*4)::int + 1
-       WHEN status = 'FAILED'     THEN (random()*3)::int + 1
-       ELSE 5 END,
   CASE WHEN status = 'FAILED' THEN
        (ARRAY[
          'Connection timeout to downstream partner SFTP',
@@ -108,23 +132,71 @@ SELECT
          'Screening quarantined PCI content'
        ])[(random()*5)::int + 1]
   END,
-  started_at,
-  CASE WHEN status IN ('COMPLETED','FAILED','CANCELLED')
-       THEN started_at + (random() * interval '90 seconds' + interval '5 seconds')
-  END
+  file_size_bytes,
+  md5(track_id || 'src') || md5(track_id || 'src_'),
+  CASE WHEN status = 'MOVED_TO_SENT'
+       THEN md5(track_id || 'dst') || md5(track_id || 'dst_')
+  END,
+  CASE WHEN status = 'FAILED' THEN (random()*3)::int + 1 ELSE 0 END,
+  uploaded_at,
+  CASE WHEN status IN ('MOVED_TO_SENT','DOWNLOADED','FAILED')
+       THEN uploaded_at + (random() * interval '5 seconds' + interval '500 ms') END,
+  CASE WHEN status IN ('MOVED_TO_SENT','DOWNLOADED')
+       THEN uploaded_at + (random() * interval '30 seconds' + interval '2 seconds') END,
+  CASE WHEN status = 'MOVED_TO_SENT'
+       THEN uploaded_at + (random() * interval '90 seconds' + interval '5 seconds') END,
+  uploaded_at + interval '1 minute'
 FROM rows;
 SQL
 
 # =============================================================================
-# 3. Fabric checkpoints (historical — drives Fabric latency + Journey timelines)
+# 3. flow_executions — linked to file_transfer_records via transfer_record_id
 # =============================================================================
-# 5 steps per demo execution (SOURCE → SCREEN → ENCRYPT → COMPRESS → DELIVERY).
-# duration_ms uses a plausible distribution so p50/p95/p99 are non-trivial.
-# A handful of ABANDONED + IN_PROGRESS rows drive the /fabric/stuck page.
-# =============================================================================
-log "Seeding fabric_checkpoints (5 per execution + stuck items)..."
+log "Seeding 150 flow_executions linked to the transfer records..."
 "${PSQL[@]}" <<'SQL'
--- COMPLETED executions: 5 normal steps
+WITH flows AS (SELECT id FROM file_flows ORDER BY random() LIMIT 30)
+INSERT INTO flow_executions (
+  id, flow_id, transfer_record_id, track_id, original_filename, current_file_path,
+  status, current_step, error_message, started_at, completed_at
+)
+SELECT
+  gen_random_uuid(),
+  (SELECT id FROM flows ORDER BY random() LIMIT 1),
+  ftr.id,
+  ftr.track_id,
+  ftr.original_filename,
+  ftr.source_file_path,
+  CASE ftr.status
+    WHEN 'MOVED_TO_SENT' THEN 'COMPLETED'
+    WHEN 'FAILED'        THEN 'FAILED'
+    WHEN 'DOWNLOADED'    THEN 'PROCESSING'
+  END,
+  CASE ftr.status
+    WHEN 'MOVED_TO_SENT' THEN 5
+    WHEN 'FAILED'        THEN (random()*3)::int + 1
+    WHEN 'DOWNLOADED'    THEN (random()*4)::int + 1
+  END,
+  ftr.error_message,
+  ftr.uploaded_at,
+  ftr.completed_at
+FROM file_transfer_records ftr
+WHERE ftr.track_id LIKE 'TRZDEMO%';
+SQL
+
+# =============================================================================
+# 4. fabric_checkpoints — linked by track_id
+# =============================================================================
+# 5 step types (SOURCE → SCREEN → ENCRYPT → COMPRESS → DELIVERY) with
+# skewed duration_ms so p50/p95/p99 on /fabric look realistic.
+#
+# COMPLETED flows  → 5 COMPLETED checkpoints each
+# FAILED flows     → 1 FAILED checkpoint at the failing step
+# PROCESSING flows → 1 IN_PROGRESS checkpoint with live lease (or expired
+#                    for the last 3, making them "stuck")
+# =============================================================================
+log "Seeding fabric_checkpoints (5 per completed execution + in-progress + stuck)..."
+"${PSQL[@]}" <<'SQL'
+-- COMPLETED executions: 5 steps each, all COMPLETED
 INSERT INTO fabric_checkpoints (
   id, track_id, step_index, step_type, status,
   input_storage_key, output_storage_key, input_size_bytes, output_size_bytes,
@@ -146,7 +218,6 @@ SELECT
   fe.started_at + (s.step_idx * interval '2 seconds') + interval '5 minutes',
   fe.started_at + (s.step_idx * interval '2 seconds'),
   fe.started_at + (s.step_idx * interval '2 seconds') + (random() * interval '8 seconds' + interval '200 ms'),
-  -- Realistic skewed latency: most fast, long tail
   CASE s.step_type
     WHEN 'ENCRYPT'  THEN (200 + (random() * 600)::int   + (CASE WHEN random() < 0.05 THEN 4000 ELSE 0 END))
     WHEN 'SCREEN'   THEN (300 + (random() * 1500)::int  + (CASE WHEN random() < 0.05 THEN 8000 ELSE 0 END))
@@ -167,7 +238,7 @@ CROSS JOIN (VALUES
 WHERE fe.track_id LIKE 'TRZDEMO%'
   AND fe.status = 'COMPLETED';
 
--- FAILED executions: steps up to fail-step are COMPLETED, fail-step is FAILED
+-- FAILED executions: 1 FAILED checkpoint at the failing step
 INSERT INTO fabric_checkpoints (
   id, track_id, step_index, step_type, status,
   input_storage_key, processing_instance,
@@ -195,7 +266,7 @@ FROM flow_executions fe
 WHERE fe.track_id LIKE 'TRZDEMO%'
   AND fe.status = 'FAILED';
 
--- PROCESSING executions: current step is IN_PROGRESS with active lease
+-- PROCESSING executions 1..8: IN_PROGRESS with ACTIVE lease (live in-flight)
 INSERT INTO fabric_checkpoints (
   id, track_id, step_index, step_type, status,
   input_storage_key, processing_instance,
@@ -216,31 +287,34 @@ SELECT
   NOW() - interval '1 minute'
 FROM flow_executions fe
 WHERE fe.track_id LIKE 'TRZDEMO%'
-  AND fe.status = 'PROCESSING';
+  AND fe.status = 'PROCESSING'
+  AND fe.track_id NOT IN ('TRZDEMO00148','TRZDEMO00149','TRZDEMO00150');
 
--- A few STUCK items (expired lease, still IN_PROGRESS) for /fabric/stuck endpoint
+-- PROCESSING executions 148/149/150: IN_PROGRESS with EXPIRED lease (stuck)
 INSERT INTO fabric_checkpoints (
   id, track_id, step_index, step_type, status,
   input_storage_key, processing_instance,
   claimed_at, lease_expires_at, started_at, attempt_number, created_at
 )
-VALUES
-  (gen_random_uuid(), 'TRZDEMOSTUCK01', 2, 'ENCRYPT', 'IN_PROGRESS', repeat('a',64),
-   'demo-encryption-service-pod-dead-1',
-   NOW() - interval '12 minutes', NOW() - interval '7 minutes',
-   NOW() - interval '12 minutes', 1, NOW() - interval '12 minutes'),
-  (gen_random_uuid(), 'TRZDEMOSTUCK02', 4, 'DELIVERY', 'IN_PROGRESS', repeat('b',64),
-   'demo-ftp-service-pod-dead-1',
-   NOW() - interval '22 minutes', NOW() - interval '17 minutes',
-   NOW() - interval '22 minutes', 1, NOW() - interval '22 minutes'),
-  (gen_random_uuid(), 'TRZDEMOSTUCK03', 1, 'SCREEN', 'IN_PROGRESS', repeat('c',64),
-   'demo-onboarding-api-pod-dead-1',
-   NOW() - interval '45 minutes', NOW() - interval '40 minutes',
-   NOW() - interval '45 minutes', 1, NOW() - interval '45 minutes');
+SELECT
+  gen_random_uuid(),
+  fe.track_id,
+  fe.current_step,
+  (ARRAY['SOURCE','SCREEN','ENCRYPT','COMPRESS','DELIVERY'])[fe.current_step + 1],
+  'IN_PROGRESS',
+  md5(fe.track_id || 'stuck_in') || md5(fe.track_id || 'stuck_in_'),
+  'demo-encryption-service-pod-dead-1',
+  NOW() - interval '15 minutes',
+  NOW() - interval '10 minutes',   -- lease expired 10 min ago
+  NOW() - interval '15 minutes',
+  1,
+  NOW() - interval '15 minutes'
+FROM flow_executions fe
+WHERE fe.track_id IN ('TRZDEMO00148','TRZDEMO00149','TRZDEMO00150');
 SQL
 
 # =============================================================================
-# 4. Fabric instance heartbeats
+# 5. Fabric instance heartbeats (4 healthy + 2 dead)
 # =============================================================================
 log "Seeding fabric_instances (4 healthy + 2 dead)..."
 "${PSQL[@]}" <<'SQL'
@@ -260,22 +334,18 @@ INSERT INTO fabric_instances (
   ('demo-encryption-service-pod-1','encryption-service','mft-encryption-service',
    NOW() - interval '2 hours',  NOW() - interval '20 seconds', 'HEALTHY',
    '[]',                               '[]',                  2),
-  -- Dead instance: last heartbeat > 2 min ago → shows on /fabric Instances tab as dead
   ('demo-encryption-service-pod-dead-1','encryption-service','mft-encryption-service-crashed',
    NOW() - interval '3 hours',  NOW() - interval '15 minutes', 'DEGRADED',
-   '[]',                               '[]',                  1),
+   '[]',                               '[]',                  3),
   ('demo-ftp-service-pod-dead-1','ftp-service','mft-ftp-service-crashed',
    NOW() - interval '3 hours',  NOW() - interval '25 minutes', 'DEGRADED',
    '["events.account"]',               '[0]',                 1);
 SQL
 
 # =============================================================================
-# 5. Sentinel findings + health score
+# 6. Sentinel findings + health score time series
 # =============================================================================
-# Two analyzers (SECURITY, PERFORMANCE), multiple severities, varied statuses.
-# All rule_names prefixed 'demo_' so we can find and clean them later.
-# =============================================================================
-log "Seeding sentinel findings + health score..."
+log "Seeding sentinel findings + health score snapshots..."
 "${PSQL[@]}" <<'SQL'
 INSERT INTO sentinel_findings (
   id, analyzer, rule_name, severity, title, description, evidence,
@@ -291,13 +361,13 @@ INSERT INTO sentinel_findings (
    'OFAC sanctions hit on incoming file',
    'Screening service matched file invoice_20250401.edi against OFAC SDN list entry (partner: ACME-TRADING). File quarantined, partner notified, PCI audit log signed.',
    '{"ofac_entry":"SDN#12345","score":0.97,"action":"QUARANTINE"}',
-   'screening-service','acme-trading','TRZDEMO000007','OPEN', NOW() - interval '42 minutes'),
+   'screening-service','acme-trading','TRZDEMO00007','OPEN', NOW() - interval '42 minutes'),
 
   (gen_random_uuid(),'SECURITY','demo_integrity_mismatch','CRITICAL',
    'Source/destination checksum mismatch on delivery',
    'Delivery to partner FirstFed (SFTP) completed with SHA-256 mismatch. Source key: ab12..., delivered key: cd34.... Rollback triggered.',
    '{"source_sha256":"ab12","delivery_sha256":"cd34","partner":"FirstFed"}',
-   'gateway-service','firstfed-prod','TRZDEMO000011','ACKNOWLEDGED', NOW() - interval '3 hours'),
+   'gateway-service','firstfed-prod','TRZDEMO00011','ACKNOWLEDGED', NOW() - interval '3 hours'),
 
   (gen_random_uuid(),'SECURITY','demo_config_change_burst','MEDIUM',
    '7 flow-rule updates in the last 15 minutes',
@@ -353,53 +423,59 @@ INSERT INTO sentinel_findings (
    '{"dlq_topic":"events.account.dlq","depth":14,"source_service":"sftp-service"}',
    'sftp-service',NULL,NULL,'OPEN', NOW() - interval '5 minutes');
 
--- Current health score (drives /sentinel Overview tab)
 INSERT INTO sentinel_health_scores (
   id, overall_score, infrastructure_score, data_score, security_score, details, recorded_at
 ) VALUES
   (gen_random_uuid(), 78, 92, 74, 70,
    '{"demo":true,"notes":"Degraded by 2 critical security findings and elevated failure rate; infra stable"}',
    NOW()),
-  (gen_random_uuid(), 85, 94, 82, 79,
-   '{"demo":true}', NOW() - interval '1 hour'),
-  (gen_random_uuid(), 88, 94, 86, 84,
-   '{"demo":true}', NOW() - interval '3 hours'),
-  (gen_random_uuid(), 91, 95, 90, 88,
-   '{"demo":true}', NOW() - interval '6 hours'),
-  (gen_random_uuid(), 93, 96, 93, 90,
-   '{"demo":true}', NOW() - interval '12 hours'),
-  (gen_random_uuid(), 89, 95, 88, 84,
-   '{"demo":true}', NOW() - interval '18 hours'),
-  (gen_random_uuid(), 87, 94, 86, 81,
-   '{"demo":true}', NOW() - interval '24 hours');
+  (gen_random_uuid(), 85, 94, 82, 79, '{"demo":true}', NOW() - interval '1 hour'),
+  (gen_random_uuid(), 88, 94, 86, 84, '{"demo":true}', NOW() - interval '3 hours'),
+  (gen_random_uuid(), 91, 95, 90, 88, '{"demo":true}', NOW() - interval '6 hours'),
+  (gen_random_uuid(), 93, 96, 93, 90, '{"demo":true}', NOW() - interval '12 hours'),
+  (gen_random_uuid(), 89, 95, 88, 84, '{"demo":true}', NOW() - interval '18 hours'),
+  (gen_random_uuid(), 87, 94, 86, 81, '{"demo":true}', NOW() - interval '24 hours');
 SQL
 
 # =============================================================================
-# 6. Summary
+# 7. Summary
 # =============================================================================
 log "Summary of seeded rows:"
 "${PSQL[@]}" -c "
-SELECT 'flow_executions (demo)'   AS entity, count(*) FROM flow_executions    WHERE track_id LIKE 'TRZDEMO%'
+SELECT 'file_transfer_records (demo)' AS entity, count(*) FROM file_transfer_records WHERE track_id LIKE 'TRZDEMO%'
 UNION ALL
-SELECT 'fabric_checkpoints (demo)',         count(*) FROM fabric_checkpoints  WHERE processing_instance LIKE 'demo-%'
+SELECT 'file_transfer_records by status: MOVED_TO_SENT',
+       count(*) FROM file_transfer_records WHERE track_id LIKE 'TRZDEMO%' AND status='MOVED_TO_SENT'
 UNION ALL
-SELECT 'fabric_instances (demo)',           count(*) FROM fabric_instances    WHERE instance_id LIKE 'demo-%'
+SELECT 'file_transfer_records by status: FAILED',
+       count(*) FROM file_transfer_records WHERE track_id LIKE 'TRZDEMO%' AND status='FAILED'
 UNION ALL
-SELECT 'sentinel_findings (demo)',          count(*) FROM sentinel_findings   WHERE rule_name LIKE 'demo_%'
+SELECT 'file_transfer_records by status: DOWNLOADED (in-flight incl stuck)',
+       count(*) FROM file_transfer_records WHERE track_id LIKE 'TRZDEMO%' AND status='DOWNLOADED'
 UNION ALL
-SELECT 'sentinel_health_scores (demo)',     count(*) FROM sentinel_health_scores WHERE details LIKE '%\"demo\":true%';
+SELECT 'flow_executions (demo)',      count(*) FROM flow_executions    WHERE track_id LIKE 'TRZDEMO%'
+UNION ALL
+SELECT 'fabric_checkpoints (demo)',   count(*) FROM fabric_checkpoints WHERE track_id LIKE 'TRZDEMO%'
+UNION ALL
+SELECT 'stuck fabric_checkpoints',    count(*) FROM fabric_checkpoints WHERE track_id LIKE 'TRZDEMO%' AND status='IN_PROGRESS' AND lease_expires_at < NOW()
+UNION ALL
+SELECT 'fabric_instances (demo)',     count(*) FROM fabric_instances   WHERE instance_id LIKE 'demo-%'
+UNION ALL
+SELECT 'sentinel_findings (demo)',    count(*) FROM sentinel_findings  WHERE rule_name LIKE 'demo_%'
+UNION ALL
+SELECT 'sentinel_health_scores (demo)', count(*) FROM sentinel_health_scores WHERE details LIKE '%\"demo\":true%';
 "
 
 cat <<'EOF'
 
 Demo traffic seeded. Pages that are now populated:
 
-  /dashboard          — aggregates now include transfer counts/rates
-  /activity-monitor   — 150 historical executions across 7 days
-  /journey            — search for TRZDEMO000001..TRZDEMO000150
-  /analytics          — transfer history for charts
-  /fabric             — queues, latency p50/p95/p99, instances, stuck items
+  /dashboard          — aggregate numbers from file_transfer_records
+  /activity-monitor   — 150 historical records across 7 days
+  /journey            — search for TRZDEMO00001..TRZDEMO00150
+  /fabric             — queues, latency p50/p95/p99, instances, 3 stuck items
   /sentinel           — 12 findings + 7 health-score snapshots
+  /analytics          — populates on the first metric aggregation run (~5 min)
 
 To generate a LIVE Fabric checkpoint (watch the Gantt tick in real time):
   1. Log in at http://localhost:3000
