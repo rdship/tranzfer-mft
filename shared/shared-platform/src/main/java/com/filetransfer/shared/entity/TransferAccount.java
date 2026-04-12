@@ -1,5 +1,7 @@
 package com.filetransfer.shared.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.filetransfer.shared.enums.Protocol;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
@@ -26,6 +28,7 @@ public class TransferAccount extends Auditable {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private User user;
 
     @NotNull
@@ -105,5 +108,6 @@ public class TransferAccount extends Auditable {
     private Integer qosBurstAllowancePercent;
 
     @OneToMany(mappedBy = "account", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<AuditLog> auditLogs;
 }

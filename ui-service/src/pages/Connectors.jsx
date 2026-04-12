@@ -111,6 +111,8 @@ export default function Connectors() {
     channel: '', apiKey: '', region: 'us', priority: 'P3', headers: '', authType: 'NONE', bearerToken: '', basicUser: '', basicPass: '',
   })
 
+  const [editingConn, setEditingConn] = useState(null)
+  const [confirmDeleteConn, setConfirmDeleteConn] = useState(null)
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('name')
   const [sortDir, setSortDir] = useState('asc')
@@ -147,6 +149,16 @@ export default function Connectors() {
   const createMut = useMutation({
     mutationFn: (d) => configApi.post('/api/connectors', d),
     onSuccess: () => { qc.invalidateQueries(['connectors']); setShowCreate(false); toast.success('Connector created') }
+  })
+  const updateConnMut = useMutation({
+    mutationFn: ({ id, data }) => configApi.put(`/api/connectors/${id}`, data),
+    onSuccess: () => { qc.invalidateQueries(['connectors']); setEditingConn(null); toast.success('Connector updated') },
+    onError: err => toast.error(err.response?.data?.message || 'Update failed'),
+  })
+  const deleteConnMut = useMutation({
+    mutationFn: (id) => configApi.delete(`/api/connectors/${id}`),
+    onSuccess: () => { qc.invalidateQueries(['connectors']); toast.success('Connector deleted') },
+    onError: err => toast.error(err.response?.data?.message || 'Delete failed'),
   })
   const testMut = useMutation({
     mutationFn: (id) => configApi.post(`/api/connectors/${id}/test`).then(r => r.data),
@@ -357,7 +369,11 @@ export default function Connectors() {
                 <p>{c.totalNotifications || 0} sent</p>
                 {c.lastTriggered && <p>Last: {new Date(c.lastTriggered).toLocaleString()}</p>}
               </div>
-              <button onClick={() => testMut.mutate(c.id)} className="btn-secondary text-xs flex-shrink-0">Test</button>
+              <div className="flex gap-1.5 flex-shrink-0">
+                <button onClick={() => testMut.mutate(c.id)} className="btn-secondary text-xs">Test</button>
+                <button onClick={() => { setEditingConn(c); setForm({ name: c.name || '', type: c.type || 'SLACK', url: c.url || '', authToken: c.authToken || '', triggerEvents: c.triggerEvents || ['TRANSFER_FAILED'], minSeverity: c.minSeverity || 'HIGH', channel: c.channel || '', apiKey: c.apiKey || '', region: c.region || 'us', priority: c.priority || 'P3', headers: c.headers || '', authType: c.authType || 'NONE', bearerToken: c.bearerToken || '', basicUser: c.basicUser || '', basicPass: c.basicPass || '' }) }} className="btn-secondary text-xs"><PencilSquareIcon className="w-3.5 h-3.5" /></button>
+                <button onClick={() => setConfirmDeleteConn(c)} className="btn-secondary text-xs text-red-500 hover:text-red-700"><TrashIcon className="w-3.5 h-3.5" /></button>
+              </div>
             </div>
           ))}
         </div>
@@ -506,6 +522,54 @@ export default function Connectors() {
             </div>
           </form>
         </Modal>
+      )}
+
+      {/* ── Edit Admin Connector Modal ── */}
+      {editingConn && (
+        <Modal title="Edit Connector" size="lg" onClose={() => setEditingConn(null)}>
+          <form onSubmit={e => { e.preventDefault(); updateConnMut.mutate({ id: editingConn.id, data: form }) }} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div><label>Name</label><input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} required /></div>
+              <div><label>Type</label><select value={form.type} disabled><option>{form.type}</option></select></div>
+              <div className="col-span-2"><label>URL</label><input value={form.url} onChange={e => setForm(f => ({...f, url: e.target.value}))} required /></div>
+              {form.type === 'SLACK' && <div className="col-span-2"><label>Channel</label><input value={form.channel} onChange={e => setForm(f => ({...f, channel: e.target.value}))} placeholder="#alerts" /></div>}
+              {form.type === 'PAGERDUTY' && <div><label>API Key</label><input value={form.apiKey} onChange={e => setForm(f => ({...f, apiKey: e.target.value}))} /></div>}
+            </div>
+            <div><label>Events</label>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {EVENTS.map(ev => (
+                  <label key={ev} className="flex items-center gap-1 text-xs cursor-pointer">
+                    <input type="checkbox" checked={form.triggerEvents.includes(ev)}
+                      onChange={e => setForm(f => ({...f, triggerEvents: e.target.checked ? [...f.triggerEvents, ev] : f.triggerEvents.filter(x => x !== ev)}))} />
+                    {ev}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div><label>Min Severity</label>
+              <select value={form.minSeverity} onChange={e => setForm(f => ({...f, minSeverity: e.target.value}))}>
+                {['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button type="button" className="btn-secondary" onClick={() => setEditingConn(null)}>Cancel</button>
+              <button type="submit" className="btn-primary" disabled={updateConnMut.isPending}>{updateConnMut.isPending ? 'Saving...' : 'Save'}</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* ── Delete Admin Connector Confirm ── */}
+      {confirmDeleteConn && (
+        <ConfirmDialog
+          title="Delete Connector"
+          message={`Permanently delete connector "${confirmDeleteConn.name}"?`}
+          confirmLabel="Delete"
+          variant="danger"
+          loading={deleteConnMut.isPending}
+          onConfirm={() => { deleteConnMut.mutate(confirmDeleteConn.id); setConfirmDeleteConn(null) }}
+          onCancel={() => setConfirmDeleteConn(null)}
+        />
       )}
 
       {/* ── Create / Edit Partner Webhook Modal ── */}

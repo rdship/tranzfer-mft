@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getExternalDestinations, createExternalDestination, deleteExternalDestination } from '../api/config'
+import { getExternalDestinations, createExternalDestination, updateExternalDestination, deleteExternalDestination } from '../api/config'
 import { testEndpointConnection } from '../api/forwarder'
 import { keystoreApi } from '../api/client'
 import { useServices } from '../context/ServiceContext'
@@ -13,12 +13,13 @@ import FormField, { friendlyError, validators } from '../components/FormField'
 import useGentleValidation from '../hooks/useGentleValidation'
 import useEnterAdvances from '../hooks/useEnterAdvances'
 import toast from 'react-hot-toast'
-import { PlusIcon, TrashIcon, SignalIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, TrashIcon, SignalIcon, MagnifyingGlassIcon, PencilSquareIcon } from '@heroicons/react/24/outline'
 import { useMemo, useState } from 'react'
 
 export default function ExternalDestinations() {
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
+  const [editingDest, setEditingDest] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [form, setForm] = useState({
     name: '', type: 'SFTP', host: '', port: 22, username: '', encryptedPassword: '', remotePath: '/incoming',
@@ -86,6 +87,11 @@ export default function ExternalDestinations() {
   const createMut = useMutation({ mutationFn: createExternalDestination,
     onSuccess: () => { qc.invalidateQueries(['ext-dests']); setShowCreate(false); destValidation.clearAllErrors(); toast.success('Destination created') },
     onError: err => toast.error(friendlyError(err)) })
+  const updateMut = useMutation({
+    mutationFn: (data) => updateExternalDestination(editingDest.id, data),
+    onSuccess: () => { qc.invalidateQueries(['ext-dests']); setEditingDest(null); toast.success('Destination updated') },
+    onError: err => toast.error(friendlyError(err))
+  })
   const deleteMut = useMutation({ mutationFn: deleteExternalDestination,
     onSuccess: () => { qc.invalidateQueries(['ext-dests']); toast.success('Deleted') } })
 
@@ -152,6 +158,7 @@ export default function ExternalDestinations() {
               {['FTP', 'HTTP'].includes(d.type) && (
                 <span className="badge badge-red">No TLS</span>
               )}
+              <button onClick={() => { setEditingDest(d); setForm({ name: d.name || '', type: d.type || 'SFTP', host: d.host || '', port: d.port || 22, username: d.username || '', encryptedPassword: d.encryptedPassword || '', remotePath: d.remotePath || '/incoming', url: d.url || '', authType: d.authType || 'NONE', sshKeyAlias: d.sshKeyAlias || '', certAlias: d.certAlias || '', passiveMode: d.passiveMode || false, bearerToken: d.bearerToken || '', proxyEnabled: d.proxyEnabled || false, proxyType: d.proxyType || 'DMZ', proxyHost: d.proxyHost || 'dmz-proxy', proxyPort: d.proxyPort || 8088, securityTier: d.securityTier || 'RULES', securityPolicy: d.securityPolicy || {}, protocolCredentials: d.protocolCredentials || {} }) }} title="Edit destination" className="p-1.5 rounded hover:bg-blue-900/30 text-blue-400"><PencilSquareIcon className="w-4 h-4" /></button>
               <button onClick={() => setConfirmDelete(d)} title="Delete destination" aria-label="Delete destination" className="p-1.5 rounded hover:bg-[rgb(60,20,20)] text-[rgb(240,120,120)]"><TrashIcon className="w-4 h-4" /></button>
             </div>
           ))}
@@ -597,6 +604,32 @@ export default function ExternalDestinations() {
             <div className="flex gap-3 justify-end pt-2">
               <button type="button" className="btn-secondary" onClick={() => setShowCreate(false)}>Cancel</button>
               <button type="submit" className="btn-primary" disabled={createMut.isPending}>Create</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* ── Edit Destination Modal ── */}
+      {editingDest && (
+        <Modal title={`Edit ${editingDest.name}`} size="lg" onClose={() => setEditingDest(null)}>
+          <form onSubmit={e => { e.preventDefault(); updateMut.mutate(form) }} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Name"><input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} required /></FormField>
+              <FormField label="Type"><select value={form.type} disabled><option>{form.type}</option></select></FormField>
+              {(form.type === 'SFTP' || form.type === 'FTP' || form.type === 'FTPS') && (<>
+                <FormField label="Host"><input value={form.host} onChange={e => setForm(f => ({...f, host: e.target.value}))} required /></FormField>
+                <FormField label="Port"><input type="number" value={form.port} onChange={e => setForm(f => ({...f, port: +e.target.value}))} /></FormField>
+                <FormField label="Username"><input value={form.username} onChange={e => setForm(f => ({...f, username: e.target.value}))} /></FormField>
+                <FormField label="Password"><input type="password" value={form.encryptedPassword} onChange={e => setForm(f => ({...f, encryptedPassword: e.target.value}))} placeholder="(unchanged)" /></FormField>
+                <FormField label="Remote Path" className="col-span-2"><input value={form.remotePath} onChange={e => setForm(f => ({...f, remotePath: e.target.value}))} /></FormField>
+              </>)}
+              {(form.type === 'HTTP' || form.type === 'HTTPS' || form.type === 'API' || form.type === 'KAFKA') && (<>
+                <FormField label="URL" className="col-span-2"><input value={form.url} onChange={e => setForm(f => ({...f, url: e.target.value}))} required /></FormField>
+              </>)}
+            </div>
+            <div className="flex gap-3 justify-end pt-2">
+              <button type="button" className="btn-secondary" onClick={() => setEditingDest(null)}>Cancel</button>
+              <button type="submit" className="btn-primary" disabled={updateMut.isPending}>{updateMut.isPending ? 'Saving...' : 'Save'}</button>
             </div>
           </form>
         </Modal>

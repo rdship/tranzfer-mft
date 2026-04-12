@@ -1,5 +1,6 @@
 package com.filetransfer.shared.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.filetransfer.shared.enums.UserRole;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
@@ -37,5 +38,6 @@ public class User extends Auditable {
     private UserRole role = UserRole.USER;
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<TransferAccount> accounts;
 }

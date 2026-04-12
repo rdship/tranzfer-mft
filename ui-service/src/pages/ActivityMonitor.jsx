@@ -21,6 +21,7 @@ import {
   FunnelIcon, TableCellsIcon, CheckCircleIcon, XCircleIcon, ClockIcon,
   DocumentTextIcon, ShieldCheckIcon, TruckIcon, ArrowRightIcon,
   BookmarkIcon, TrashIcon, LightBulbIcon, PlusIcon, CheckIcon,
+  StopIcon, PlayIcon,
 } from '@heroicons/react/24/outline'
 
 // ── Saved Views (localStorage) ─────────────────────────────────────────
@@ -730,6 +731,26 @@ export default function ActivityMonitor() {
       toast.success(`Retry scheduled for ${new Date(data.scheduledAt).toLocaleString()}`)
     },
     onError: err => toast.error(err.response?.data?.message || 'Failed to schedule retry')
+  })
+
+  const restartOneMut = useMutation({
+    mutationFn: (trackId) =>
+      onboardingApi.post(`/api/flow-executions/${trackId}/restart`).then(r => r.data),
+    onSuccess: () => {
+      toast.success('Transfer restart initiated')
+      qc.invalidateQueries(['activity-monitor'])
+    },
+    onError: err => toast.error(err.response?.data?.message || 'Restart failed')
+  })
+
+  const terminateOneMut = useMutation({
+    mutationFn: (trackId) =>
+      onboardingApi.post(`/api/flow-executions/${trackId}/terminate`).then(r => r.data),
+    onSuccess: () => {
+      toast.success('Transfer terminated')
+      qc.invalidateQueries(['activity-monitor'])
+    },
+    onError: err => toast.error(err.response?.data?.message || 'Terminate failed')
   })
 
   const cancelScheduleMut = useMutation({
@@ -1546,6 +1567,28 @@ export default function ActivityMonitor() {
                                 trackId={row.trackId}
                                 filename={row.filename}
                               />
+                              {(row.status === 'FAILED' || row.status === 'CANCELLED') && (
+                                <button
+                                  onClick={() => { if (window.confirm(`Restart transfer ${row.trackId}?`)) restartOneMut.mutate(row.trackId) }}
+                                  disabled={restartOneMut.isPending}
+                                  className="text-[10px] text-muted hover:text-green-600 px-1.5 py-0.5 rounded hover:bg-green-50 transition-colors whitespace-nowrap"
+                                  title="Restart this transfer"
+                                >
+                                  <PlayIcon className="w-3.5 h-3.5 inline mr-0.5" />
+                                  Restart
+                                </button>
+                              )}
+                              {(row.status === 'PROCESSING' || row.status === 'IN_PROGRESS' || row.status === 'DOWNLOADED') && (
+                                <button
+                                  onClick={() => { if (window.confirm(`Terminate transfer ${row.trackId}?`)) terminateOneMut.mutate(row.trackId) }}
+                                  disabled={terminateOneMut.isPending}
+                                  className="text-[10px] text-muted hover:text-red-600 px-1.5 py-0.5 rounded hover:bg-red-50 transition-colors whitespace-nowrap"
+                                  title="Terminate this transfer"
+                                >
+                                  <StopIcon className="w-3.5 h-3.5 inline mr-0.5" />
+                                  Stop
+                                </button>
+                              )}
                               {row.status === 'FAILED' && (
                                 <button
                                   onClick={() => { setScheduleModal({ trackId: row.trackId, filename: row.filename }); setScheduleInput('') }}

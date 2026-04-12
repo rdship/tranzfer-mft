@@ -1,6 +1,7 @@
 import { configApi } from './client'
 export const getExternalDestinations = () => configApi.get('/api/external-destinations').then(r => r.data)
 export const createExternalDestination = (data) => configApi.post('/api/external-destinations', data).then(r => r.data)
+export const updateExternalDestination = (id, data) => configApi.put(`/api/external-destinations/${id}`, data).then(r => r.data)
 export const deleteExternalDestination = (id) => configApi.delete(`/api/external-destinations/${id}`)
 export const getPartnerships = () => configApi.get('/api/as2-partnerships').then(r => r.data)
 export const createPartnership = (data) => configApi.post('/api/as2-partnerships', data).then(r => r.data)
