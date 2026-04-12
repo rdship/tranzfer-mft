@@ -240,6 +240,26 @@ public class FlowProcessingEngine {
         String currentFile = inputPath;
         List<FlowExecution.StepResult> results = new ArrayList<>();
 
+        // ── Checkpoint initial input to storage-manager for restart-from-beginning ──
+        if (storageClient != null && inputPath != null) {
+            try {
+                java.nio.file.Path inPath = java.nio.file.Paths.get(inputPath);
+                if (java.nio.file.Files.exists(inPath)) {
+                    long inSize = java.nio.file.Files.size(inPath);
+                    java.util.Map<String, Object> stored = storageClient.storeStream(
+                            java.nio.file.Files.newInputStream(inPath), inSize,
+                            inPath.getFileName().toString(),
+                            exec.getTrackId(), trackId);
+                    String initialKey = (String) stored.get("sha256");
+                    exec.setInitialStorageKey(initialKey);
+                    exec.setCurrentStorageKey(initialKey);
+                    log.debug("[{}] Initial input checkpointed to storage: {}", trackId, initialKey);
+                }
+            } catch (Exception e) {
+                log.debug("[{}] Initial checkpoint to storage failed (non-fatal): {}", trackId, e.getMessage());
+            }
+        }
+
         for (int i = 0; i < flow.getSteps().size(); i++) {
             FileFlow.FlowStep step = flow.getSteps().get(i);
             Map<String, String> stepCfg = step.getConfig() != null ? step.getConfig() : Map.of();
@@ -333,12 +353,35 @@ public class FlowProcessingEngine {
                     if (flowEventJournal != null) {
                         flowEventJournal.recordStepCompleted(trackId, exec.getId(), i, step.getType(), null, 0, duration);
                     }
-                    // ── FlowStepEvent snapshot (PHYSICAL mode) ──
+                    // ── Durable checkpoint: store intermediate result in storage-manager ──
+                    // Keeps output in virtual storage (SHA-256 key) so restart-from-step
+                    // works even after reboot. Physical temp files are ephemeral.
+                    String checkpointKey = null;
+                    long checkpointSize = 0L;
+                    if (storageClient != null && outputFile != null) {
+                        try {
+                            java.nio.file.Path outPath = java.nio.file.Paths.get(outputFile);
+                            if (java.nio.file.Files.exists(outPath)) {
+                                checkpointSize = java.nio.file.Files.size(outPath);
+                                java.util.Map<String, Object> stored = storageClient.storeStream(
+                                        java.nio.file.Files.newInputStream(outPath), checkpointSize,
+                                        outPath.getFileName().toString(),
+                                        exec.getTrackId(), trackId);
+                                checkpointKey = (String) stored.get("sha256");
+                            }
+                        } catch (Exception cpEx) {
+                            log.debug("[{}] Step {} checkpoint to storage failed (non-fatal): {}",
+                                    trackId, i, cpEx.getMessage());
+                        }
+                    }
+
+                    // ── FlowStepEvent snapshot with durable storage key ──
+                    String snapInKey = exec.getCurrentStorageKey();
                     eventPublisher.publishEvent(new FlowStepEvent(
                             trackId, exec.getId(), i, step.getType(), stepStatus,
+                            snapInKey, checkpointKey,
                             currentFile, outputFile,
-                            currentFile, outputFile,
-                            0L, 0L,
+                            0L, checkpointSize,
                             duration, null));
                     // ── Audit log for step completion ──
                     if (auditService != null) {
@@ -347,6 +390,9 @@ public class FlowProcessingEngine {
                     currentFile = outputFile;
                     exec.setCurrentStep(i + 1);
                     exec.setCurrentFilePath(currentFile);
+                    if (checkpointKey != null) {
+                        exec.setCurrentStorageKey(checkpointKey);
+                    }
                     log.info("[{}] Step {}/{} ({}) completed in {}ms{}",
                             trackId, i + 1, flow.getSteps().size(), step.getType(), duration,
                             attempt > 0 ? " (after " + attempt + " retries)" : "");
