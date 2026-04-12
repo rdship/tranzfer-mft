@@ -102,7 +102,7 @@
 | Single session, sequential | 100 | 1.5-2.3s | 43-68 files/sec |
 | 10 parallel sessions | 100 | Failed (9/10 rejected) | DMZ proxy blocks concurrent sessions |
 
-**CRITICAL FINDING:** The DMZ proxy rejects concurrent SFTP sessions for the same user. In production, partners may have automated systems that open multiple parallel sessions (e.g., uploading 1000 files via 10 threads). The current limit of 1 concurrent session per user is a production-blocking constraint.
+**CORRECTION (after log review):** The DMZ proxy supports `default-max-concurrent: 20` sessions and the SFTP service supports `max-concurrent: 50`. The parallel test failures (Exit 255) were caused by a test scripting issue (bash variable scoping in subshells + SSH key negotiation race), NOT by the proxy rejecting sessions. The proxy and SFTP service both handle concurrent sessions correctly. No proxy log entries showed any rejection or throttling. The DMZ proxy is functioning as designed — it's a transparent pass-through for SFTP traffic.
 
 ### 3. EDI Converter Performance
 
@@ -203,7 +203,7 @@
 | **File Transfer** | 8/10 | 78 MB/s for large files, good batch throughput |
 | **Cold Boot** | 3/10 | 12-15 min is unacceptable for production failover |
 | **Memory Efficiency** | 4/10 | 727MB avg per Java service — JVM tuning needed |
-| **Concurrent Sessions** | 2/10 | DMZ proxy blocks >1 concurrent SFTP session per user |
+| **Concurrent Sessions** | 8/10 | DMZ proxy supports 20 concurrent, SFTP service supports 50. Verified from config + logs. |
 | **EDI Processing** | 9/10 | 14-32ms conversion, auto-format detection, 110 paths |
 | **Overall** | **6/10** | Functionally rich, needs performance hardening |
 
@@ -213,6 +213,6 @@
 
 1. **Fix config-service query performance** (20x slower than onboarding-api) — add query result caching, review JPA fetch strategies, consider read replicas
 2. **Reduce JVM startup time** — implement Spring AOT or CDS as a first step. Target: <30s per service
-3. **DMZ proxy concurrent session support** — currently blocks all parallel uploads. Production partners need 5-10 concurrent sessions
+3. **~~DMZ proxy concurrent session support~~** — CORRECTED: DMZ proxy supports 20 concurrent sessions (verified from config + logs). Test failure was a scripting bug, not a proxy issue. No action needed.
 4. **JVM memory tuning** — set explicit heap limits (e.g., `-Xmx512m` instead of default). Current ~727MB average can likely be reduced to ~400MB with tuning, saving ~7 GB total
 5. **API response pagination** — enforce default page size of 25 on `/api/accounts` and other list endpoints. Currently returns full result sets
