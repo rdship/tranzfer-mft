@@ -71,7 +71,9 @@ public class AccountService {
                 .orElseThrow(() -> new NoSuchElementException("User not found: " + ownerEmail));
 
         String homeDir = resolveHomeDir(request.getProtocol(), request.getUsername());
-        provisionHomeDir(homeDir);
+        // Home dir creation is handled by the SFTP/FTP service via AccountCreatedEvent
+        // (see AccountEventConsumer). Do NOT create dirs locally — onboarding-api
+        // doesn't have /data/sftp mounted and the mkdir throws AccessDeniedException.
 
         Map<String, Boolean> permissions = request.getPermissions() != null
                 ? request.getPermissions()

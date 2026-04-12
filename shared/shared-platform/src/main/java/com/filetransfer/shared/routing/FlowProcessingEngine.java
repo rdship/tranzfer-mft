@@ -236,6 +236,7 @@ public class FlowProcessingEngine {
      */
     private void executeFlowSteps(FlowExecution exec, FileFlow flow, String trackId,
                                    String filename, String inputPath) {
+      try {
         String currentFile = inputPath;
         List<FlowExecution.StepResult> results = new ArrayList<>();
 
@@ -440,6 +441,19 @@ public class FlowProcessingEngine {
         }
         dispatchFlowEvent("FLOW_COMPLETED", exec, flow);
         log.info("[{}] Flow '{}' completed successfully for '{}'", trackId, flow.getName(), filename);
+      } catch (Exception e) {
+        // Outer safety net: persist FAILED status so executions never get stuck in PROCESSING
+        log.error("[{}] Unhandled exception in flow '{}': {}", trackId, flow.getName(), e.getMessage(), e);
+        try {
+            exec.setStatus(FlowExecution.FlowStatus.FAILED);
+            exec.setErrorMessage("Unhandled error: " + e.getMessage());
+            exec.setCompletedAt(Instant.now());
+            executionRepository.save(exec);
+            dispatchFlowEvent("FLOW_FAILED", exec, flow);
+        } catch (Exception inner) {
+            log.error("[{}] Failed to persist FAILED status: {}", trackId, inner.getMessage());
+        }
+      }
     }
 
     /**
@@ -1165,6 +1179,7 @@ public class FlowProcessingEngine {
      */
     private void executeFlowRefSteps(FlowExecution exec, FileFlow flow, String trackId,
                                       String filename, FileRef ref, int startFromStep) {
+      try {
         String currentKey  = ref.storageKey();
         String currentPath = ref.virtualPath();
         long   currentSize = ref.sizeBytes();
@@ -1373,6 +1388,18 @@ public class FlowProcessingEngine {
         dispatchFlowEvent("FLOW_COMPLETED", exec, flow);
         log.info("[{}] Flow '{}' completed (VIRTUAL) for '{}' — final key={}",
                 trackId, flow.getName(), filename, abbrev(currentKey));
+      } catch (Exception e) {
+        log.error("[{}] Unhandled exception in flow '{}' (VIRTUAL): {}", trackId, flow.getName(), e.getMessage(), e);
+        try {
+            exec.setStatus(FlowExecution.FlowStatus.FAILED);
+            exec.setErrorMessage("Unhandled error: " + e.getMessage());
+            exec.setCompletedAt(Instant.now());
+            executionRepository.save(exec);
+            dispatchFlowEvent("FLOW_FAILED", exec, flow);
+        } catch (Exception inner) {
+            log.error("[{}] Failed to persist FAILED status: {}", trackId, inner.getMessage());
+        }
+      }
     }
 
     /** Carries the new storage key + virtual path after a VIRTUAL-mode step completes. */

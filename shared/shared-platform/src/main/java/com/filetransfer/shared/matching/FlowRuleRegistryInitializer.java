@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
@@ -45,6 +46,33 @@ public class FlowRuleRegistryInitializer {
             log.info("Flow rule registry initialized with {} active flows", registry.size());
         } catch (Exception e) {
             log.warn("Flow rule registry initialization skipped: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Periodic refresh — reloads all active flows from DB every 30s.
+     * Catches stale cache when RabbitMQ events are missed or when flows
+     * are modified directly in the DB.
+     */
+    @Scheduled(fixedDelay = 30_000, initialDelay = 60_000)
+    public void refresh() {
+        try {
+            List<FileFlow> activeFlows = flowRepository.findByActiveTrueOrderByPriorityAsc();
+            Map<UUID, CompiledFlowRule> compiled = new LinkedHashMap<>();
+            for (FileFlow flow : activeFlows) {
+                try {
+                    compiled.put(flow.getId(), compiler.compile(flow));
+                } catch (Exception e) {
+                    log.debug("Skipping flow {} during refresh: {}", flow.getName(), e.getMessage());
+                }
+            }
+            int before = registry.size();
+            registry.loadAll(compiled);
+            if (compiled.size() != before) {
+                log.info("Flow rule registry refreshed: {} → {} active flows", before, compiled.size());
+            }
+        } catch (Exception e) {
+            log.debug("Flow rule registry refresh failed: {}", e.getMessage());
         }
     }
 }

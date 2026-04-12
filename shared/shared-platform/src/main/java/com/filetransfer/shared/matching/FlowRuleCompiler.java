@@ -20,15 +20,41 @@ import java.util.regex.Pattern;
 public class FlowRuleCompiler {
 
     public CompiledFlowRule compile(FileFlow flow) {
-        Predicate<MatchContext> matcher = flow.getMatchCriteria() != null
+        Predicate<MatchContext> criteriaMatcher = flow.getMatchCriteria() != null
                 ? compileCriteria(flow.getMatchCriteria())
-                : ctx -> true; // null criteria = matches everything (backward compat)
+                : ctx -> true;
+
+        // Always include filenamePattern if present — even when matchCriteria exists
+        // (filenamePattern is the legacy field but remains the primary UI field for many flows)
+        Predicate<MatchContext> filenameMatcher = compileFilenamePattern(flow.getFilenamePattern());
+
+        Predicate<MatchContext> matcher = ctx -> criteriaMatcher.test(ctx) && filenameMatcher.test(ctx);
 
         Set<String> protocols = extractProtocols(flow.getMatchCriteria());
 
         return new CompiledFlowRule(
                 flow.getId(), flow.getName(), flow.getPriority(),
                 flow.getDirection(), protocols, matcher);
+    }
+
+    /**
+     * Compiles the legacy filenamePattern regex into a predicate.
+     * Returns a match-all predicate if the pattern is null/blank.
+     */
+    private Predicate<MatchContext> compileFilenamePattern(String filenamePattern) {
+        if (filenamePattern == null || filenamePattern.isBlank()) {
+            return ctx -> true;
+        }
+        try {
+            Pattern compiled = Pattern.compile(filenamePattern, Pattern.CASE_INSENSITIVE);
+            return ctx -> {
+                String fname = ctx.filename();
+                return fname != null && compiled.matcher(fname).matches();
+            };
+        } catch (Exception e) {
+            log.warn("Invalid filenamePattern '{}' — treating as match-none", filenamePattern);
+            return ctx -> false;
+        }
     }
 
     // ── Criteria tree compilation ──────────────────────────────────────
