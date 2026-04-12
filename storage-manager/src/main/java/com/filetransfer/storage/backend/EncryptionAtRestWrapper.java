@@ -1,14 +1,16 @@
 package com.filetransfer.storage.backend;
 
+import com.filetransfer.shared.kms.VaultKmsClient;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
-import javax.crypto.CipherOutputStream;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -41,23 +43,53 @@ public class EncryptionAtRestWrapper implements StorageBackend {
     private static final int TAG_LENGTH = 128; // bits
 
     private final StorageBackend delegate;
-    private final SecretKey encryptionKey;
+    private SecretKey encryptionKey;
+
+    @Autowired(required = false)
+    @Nullable
+    private VaultKmsClient vaultKms;
 
     public EncryptionAtRestWrapper(
             StorageBackend delegate,
             @Value("${storage.encryption.key:}") String keyBase64) {
         this.delegate = delegate;
-        if (keyBase64 == null || keyBase64.isBlank()) {
-            // Generate ephemeral key for dev — log warning
+        // Key resolution happens in init() after autowiring completes
+        // Temporary placeholder — overwritten by init()
+        this.encryptionKey = new SecretKeySpec(new byte[32], "AES");
+    }
+
+    @jakarta.annotation.PostConstruct
+    void init() {
+        SecretKey resolved = null;
+
+        // Priority 1: Vault KMS
+        if (vaultKms != null) {
+            String vaultKey = vaultKms.getStorageEncryptionKey();
+            if (vaultKey != null && !vaultKey.isBlank()) {
+                resolved = new SecretKeySpec(Base64.getDecoder().decode(vaultKey), "AES");
+                log.info("Storage encryption-at-rest key loaded from Vault KMS (AES-256-GCM)");
+            }
+        }
+
+        // Priority 2: Environment variable
+        if (resolved == null) {
+            String envKey = System.getenv("STORAGE_ENCRYPTION_KEY");
+            if (envKey != null && !envKey.isBlank()) {
+                resolved = new SecretKeySpec(Base64.getDecoder().decode(envKey), "AES");
+                log.info("Storage encryption-at-rest key loaded from env var — consider migrating to Vault KMS");
+            }
+        }
+
+        // Priority 3: Ephemeral key (dev only)
+        if (resolved == null) {
             byte[] devKey = new byte[32];
             new SecureRandom().nextBytes(devKey);
-            this.encryptionKey = new SecretKeySpec(devKey, "AES");
-            log.warn("SECURITY: storage.encryption.key not set — using ephemeral key. "
-                    + "Data will be unreadable after restart! Set STORAGE_ENCRYPTION_KEY env var.");
-        } else {
-            this.encryptionKey = new SecretKeySpec(Base64.getDecoder().decode(keyBase64), "AES");
-            log.info("Storage encryption-at-rest enabled (AES-256-GCM)");
+            resolved = new SecretKeySpec(devKey, "AES");
+            log.warn("SECURITY: No storage encryption key configured — using ephemeral key. "
+                    + "Data will be unreadable after restart! Configure Vault KMS or STORAGE_ENCRYPTION_KEY.");
         }
+
+        this.encryptionKey = resolved;
     }
 
     @Override

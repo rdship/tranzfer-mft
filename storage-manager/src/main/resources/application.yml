@@ -71,7 +71,14 @@ spring:
     locations: classpath:db/migration
     validate-on-migrate: false
 
+vault:
+  enabled: ${VAULT_ENABLED:true}
+  addr: ${VAULT_ADDR:http://vault:8200}
+  token: ${VAULT_TOKEN:mft-dev-token}
+
 storage:
+  encryption:
+    enabled: ${STORAGE_ENCRYPTION_ENABLED:false}
   # ── Backend selector ────────────────────────────────────────────────────────
   # local (default) — local/NFS filesystem, single-instance or NFS-mounted
   # s3              — S3-compatible object store (MinIO internal or AWS S3 external)

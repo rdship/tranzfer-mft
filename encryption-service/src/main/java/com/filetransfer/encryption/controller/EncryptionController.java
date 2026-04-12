@@ -4,6 +4,7 @@ import com.filetransfer.encryption.service.AesService;
 import com.filetransfer.encryption.service.PgpService;
 import com.filetransfer.shared.audit.AuditService;
 import com.filetransfer.shared.client.KeystoreServiceClient;
+import com.filetransfer.shared.kms.VaultKmsClient;
 import com.filetransfer.shared.entity.EncryptionKey;
 import com.filetransfer.shared.enums.EncryptionAlgorithm;
 import com.filetransfer.shared.repository.EncryptionKeyRepository;
@@ -51,6 +52,11 @@ public class EncryptionController {
     @Nullable
     private AuditService auditService;
 
+    /** Vault KMS — centralized secret management. Falls back to env var if unavailable. */
+    @Autowired(required = false)
+    @Nullable
+    private VaultKmsClient vaultKms;
+
     @Value("${encryption.master-key}")
     private String masterKeyHex;
 
@@ -63,9 +69,20 @@ public class EncryptionController {
 
     @PostConstruct
     void initMasterKey() {
-        // Fail-fast: refuse to start with default master key in production
+        // Priority 1: Vault KMS (centralized, auditable, rotatable)
+        if (vaultKms != null) {
+            String vaultKey = vaultKms.getMasterEncryptionKey();
+            if (vaultKey != null && !vaultKey.isBlank()) {
+                masterKeyBase64 = vaultKey;
+                log.info("Master key loaded from Vault KMS (AES-256-GCM)");
+                return;
+            }
+            log.warn("Vault KMS available but master key not found — falling back to env var");
+        }
+
+        // Priority 2: Environment variable (legacy / on-premise)
         if (INSECURE_MASTER_KEY.equals(masterKeyHex)) {
-            String msg = "Encryption master key is using the default insecure value! Set ENCRYPTION_MASTER_KEY environment variable.";
+            String msg = "Encryption master key is using the default insecure value! Set ENCRYPTION_MASTER_KEY or configure Vault KMS.";
             if (activeProfile.contains("prod")) {
                 throw new IllegalStateException(msg);
             }
@@ -77,7 +94,7 @@ public class EncryptionController {
             keyBytes[i] = (byte) Integer.parseInt(masterKeyHex.substring(i * 2, i * 2 + 2), 16);
         }
         masterKeyBase64 = Base64.getEncoder().encodeToString(keyBytes);
-        log.info("Master key initialized for credential encryption (AES-256-GCM)");
+        log.info("Master key initialized from env var (AES-256-GCM) — consider migrating to Vault KMS");
     }
 
     @PostMapping(value = "/encrypt", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

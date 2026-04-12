@@ -33,6 +33,8 @@ x-common-env: &common-env
   REDIS_HOST: redis
   REDIS_PORT: 6379
   PLATFORM_DEFAULT_STORAGE_MODE: ${PLATFORM_DEFAULT_STORAGE_MODE:-VIRTUAL}
+  VAULT_ADDR: ${VAULT_ADDR:-http://vault:8200}
+  VAULT_TOKEN: ${VAULT_TOKEN:-mft-dev-token}
   SPRING_FLYWAY_LOCK_RETRY_COUNT: 200
   JWT_SECRET: ${JWT_SECRET:-change_me_in_production_256bit_secret_key!!}
   CONTROL_API_KEY: ${CONTROL_API_KEY:-internal_control_secret}  # HMAC secret for PCI audit log signing — NOT inter-service auth
@@ -218,6 +220,71 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  vault:
+    image: hashicorp/vault:1.15
+    container_name: mft-vault
+    ports:
+      - "127.0.0.1:8200:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: mft-dev-token
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - mft-network
+
+  vault-init:
+    image: hashicorp/vault:1.15
+    container_name: mft-vault-init
+    depends_on:
+      vault:
+        condition: service_healthy
+    environment:
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: mft-dev-token
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo "Seeding Vault KMS secrets..."
+        # Master encryption key (AES-256, 32 bytes, Base64)
+        MASTER_KEY=$$(vault kv get -field=key secret/mft/encryption-master 2>/dev/null || true)
+        if [ -z "$$MASTER_KEY" ]; then
+          MASTER_KEY=$$(head -c 32 /dev/urandom | base64)
+          vault kv put secret/mft/encryption-master key="$$MASTER_KEY" algorithm=AES-256
+          echo "Generated and stored master encryption key"
+        else
+          echo "Master encryption key already exists"
+        fi
+        # Storage encryption-at-rest key
+        STORAGE_KEY=$$(vault kv get -field=key secret/mft/storage-encryption 2>/dev/null || true)
+        if [ -z "$$STORAGE_KEY" ]; then
+          STORAGE_KEY=$$(head -c 32 /dev/urandom | base64)
+          vault kv put secret/mft/storage-encryption key="$$STORAGE_KEY" algorithm=AES-256-GCM
+          echo "Generated and stored storage encryption key"
+        else
+          echo "Storage encryption key already exists"
+        fi
+        # HMAC signing key for audit logs
+        HMAC_KEY=$$(vault kv get -field=key secret/mft/audit-hmac 2>/dev/null || true)
+        if [ -z "$$HMAC_KEY" ]; then
+          HMAC_KEY=$$(head -c 64 /dev/urandom | base64)
+          vault kv put secret/mft/audit-hmac key="$$HMAC_KEY" algorithm=HmacSHA512
+          echo "Generated and stored HMAC signing key"
+        else
+          echo "HMAC key already exists"
+        fi
+        echo "Vault KMS initialization complete"
+    restart: "no"
+    networks:
+      - mft-network
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine

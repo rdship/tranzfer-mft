@@ -77,6 +77,11 @@ cluster:
 encryption:
   master-key: ${ENCRYPTION_MASTER_KEY:0000000000000000000000000000000000000000000000000000000000000000}
 
+vault:
+  enabled: ${VAULT_ENABLED:true}
+  addr: ${VAULT_ADDR:http://vault:8200}
+  token: ${VAULT_TOKEN:mft-dev-token}
+
 platform:
   services:
     onboarding-api:
