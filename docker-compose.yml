@@ -36,6 +36,7 @@ x-common-env: &common-env
   REDIS_HOST: redis
   REDIS_PORT: 6379
   PLATFORM_DEFAULT_STORAGE_MODE: ${PLATFORM_DEFAULT_STORAGE_MODE:-VIRTUAL}
+  PLATFORM_TLS_ENABLED: ${PLATFORM_TLS_ENABLED:-false}
   VAULT_ADDR: ${VAULT_ADDR:-http://vault:8200}
   VAULT_TOKEN: ${VAULT_TOKEN:-mft-dev-token}
   SPRING_FLYWAY_LOCK_RETRY_COUNT: 200
@@ -1264,6 +1265,7 @@ services:
     container_name: mft-api-gateway
     ports:
       - "127.0.0.1:80:8080"
+      - "127.0.0.1:443:8443"
     depends_on:
       - onboarding-api
       - config-service
