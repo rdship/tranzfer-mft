@@ -39,6 +39,10 @@ public class NlpService {
     @org.springframework.lang.Nullable
     private SystemStateService systemStateService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.lang.Nullable
+    private com.filetransfer.ai.config.LlmDataSharingConfig dataSharingConfig;
+
     /**
      * Translate natural language to a CLI command.
      * Returns the structured command string.
@@ -48,20 +52,33 @@ public class NlpService {
             return fallbackTranslate(naturalLanguage);
         }
 
-        // Build platform context — ONLY aggregated metrics, NEVER customer data/PII/secrets
-        // What goes to LLM: counts (totalTransfers=150, failedLast24h=3)
-        // What NEVER goes: file contents, keys, passwords, partner names, audit entries
-        String platformState = "";
+        // Build platform context — ONLY categories the admin has opted into.
+        // Each category is independently toggled. Admin sees risk + value before enabling.
+        StringBuilder contextBuilder = new StringBuilder();
         try {
-            if (systemStateService != null) {
-                var health = systemStateService.getHealthSummary();
-                // Whitelist only safe numeric metrics
-                platformState = health.entrySet().stream()
-                        .filter(e -> e.getValue() instanceof Number)
-                        .map(e -> e.getKey() + "=" + e.getValue())
-                        .collect(java.util.stream.Collectors.joining(", "));
+            if (systemStateService != null && dataSharingConfig != null) {
+                // Platform metrics (default ON)
+                if (dataSharingConfig.getPlatformMetrics().isEnabled()) {
+                    var health = systemStateService.getHealthSummary();
+                    health.entrySet().stream()
+                            .filter(e -> e.getValue() instanceof Number)
+                            .forEach(e -> contextBuilder.append(e.getKey()).append("=").append(e.getValue()).append(", "));
+                }
+                // Transfer records (admin opted in)
+                if (dataSharingConfig.getTransferRecords().isEnabled()) {
+                    contextBuilder.append("\nRecentFailures: ").append(systemStateService.getRecentFailures().lines().limit(10).collect(java.util.stream.Collectors.joining("; ")));
+                }
+                // Step snapshots (admin opted in) — only summary, not full snapshots
+                if (dataSharingConfig.getStepSnapshots().isEnabled()) {
+                    contextBuilder.append("\nStepDataAvailable: true (admin authorized per-step diagnosis)");
+                }
+                // DLQ details (admin opted in)
+                if (dataSharingConfig.getDlqDetails().isEnabled()) {
+                    contextBuilder.append("\nDlqPending: ").append(systemStateService.getStat("dlqPending"));
+                }
             }
         } catch (Exception ignore) {}
+        String platformState = contextBuilder.toString();
 
         // Sanitize user input — strip potential secrets/keys from the query
         String sanitizedInput = naturalLanguage
