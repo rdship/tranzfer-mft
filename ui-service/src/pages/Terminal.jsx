@@ -12,6 +12,7 @@ export default function Terminal() {
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [pendingConfirm, setPendingConfirm] = useState(null) // command waiting for yes/no
   const [history, setHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]') } catch { return [] }
   })
@@ -31,6 +32,24 @@ export default function Terminal() {
     setHistoryIdx(-1)
 
     setLines(prev => [...prev, { type: 'input', text: cmd }])
+
+    // Handle pending confirmation (yes/no for destructive operations)
+    if (pendingConfirm) {
+      const answer = cmd.trim().toLowerCase()
+      if (answer === 'yes' || answer === 'y') {
+        setLines(prev => [...prev, { type: 'system', text: '→ ' + pendingConfirm }])
+        try {
+          const res = await onboardingApi.post('/api/cli/execute', { command: pendingConfirm })
+          setLines(prev => [...prev, { type: 'output', text: res.data.output }])
+        } catch (err) {
+          setLines(prev => [...prev, { type: 'error', text: err.response?.data?.error || 'Failed' }])
+        }
+      } else {
+        setLines(prev => [...prev, { type: 'system', text: 'Cancelled.' }])
+      }
+      setPendingConfirm(null)
+      return
+    }
 
     if (cmd.trim() === 'clear') {
       setLines([{ type: 'system', text: 'Terminal cleared.\n' }])
@@ -57,14 +76,29 @@ export default function Terminal() {
         } catch { /* fall through */ }
       }
 
-      // Try NLP translation (English → CLI command)
+      // Try NLP translation (English → CLI commands, may be compound with &&)
       if (!handled) {
         try {
           const nlp = await nlpCommand(cmd)
           if (nlp.understood && nlp.command) {
-            setLines(prev => [...prev, { type: 'system', text: '→ ' + nlp.command }])
-            const res = await onboardingApi.post('/api/cli/execute', { command: nlp.command })
-            setLines(prev => [...prev, { type: 'output', text: res.data.output }])
+            // Compound commands: "create account && create flow" → execute sequentially
+            const commands = nlp.command.split('&&').map(c => c.trim()).filter(Boolean)
+            for (const singleCmd of commands) {
+              setLines(prev => [...prev, { type: 'system', text: '→ ' + singleCmd }])
+              try {
+                const res = await onboardingApi.post('/api/cli/execute', { command: singleCmd })
+                setLines(prev => [...prev, { type: 'output', text: res.data.output }])
+              } catch (cmdErr) {
+                setLines(prev => [...prev, { type: 'error', text: cmdErr.response?.data?.error || cmdErr.response?.data?.output || 'Failed: ' + singleCmd }])
+                // Stop on first failure in compound chain
+                break
+              }
+            }
+            handled = true
+          } else if (nlp.requiresConfirmation) {
+            // Destructive operation — show warning, wait for yes/no
+            setLines(prev => [...prev, { type: 'system', text: nlp.response }])
+            setPendingConfirm(nlp.command)
             handled = true
           } else if (nlp.response) {
             setLines(prev => [...prev, { type: 'output', text: nlp.response }])
