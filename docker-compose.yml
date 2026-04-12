@@ -370,6 +370,7 @@ services:
     <<: *healthcheck
     ports:
       - "127.0.0.1:8080:8080"
+      - "127.0.0.1:9080:9080"
     environment:
       <<: *common-env
       CLUSTER_HOST: onboarding-api
@@ -584,6 +585,7 @@ services:
     <<: *healthcheck
     ports:
       - "127.0.0.1:8084:8084"
+      - "127.0.0.1:9084:9084"
     environment:
       <<: *common-env
       CLUSTER_HOST: config-service
@@ -606,6 +608,7 @@ services:
       - "127.0.0.1:2220:2220"
       - "127.0.0.1:2122:2122"
       - "127.0.0.1:8085:8085"
+      - "127.0.0.1:9085:9085"
     environment:
       <<: *common-env
       CLUSTER_HOST: gateway-service
@@ -635,6 +638,7 @@ services:
     <<: *healthcheck
     ports:
       - "127.0.0.1:8086:8086"
+      - "127.0.0.1:9086:9086"
     environment:
       <<: *common-env
       CLUSTER_HOST: encryption-service
@@ -652,6 +656,7 @@ services:
     <<: *healthcheck
     ports:
       - "127.0.0.1:8087:8087"
+      - "127.0.0.1:9087:9087"
     environment:
       <<: *common-env
       CLUSTER_HOST: forwarder-service
@@ -769,6 +774,7 @@ services:
       start_period: 30s
     ports:
       - "127.0.0.1:8094:8094"
+      - "127.0.0.1:9094:9094"
     environment:
       <<: *common-env
       CLUSTER_HOST: as2-service
@@ -792,6 +798,7 @@ services:
     <<: *healthcheck
     ports:
       - "127.0.0.1:8089:8089"
+      - "127.0.0.1:9089:9089"
     environment:
       <<: *common-env
       CLUSTER_HOST: license-service
@@ -829,6 +836,7 @@ services:
     <<: *healthcheck
     ports:
       - "127.0.0.1:8091:8091"
+      - "127.0.0.1:9091:9091"
     environment:
       <<: *common-env
       CLUSTER_HOST: ai-engine
@@ -901,6 +909,7 @@ services:
     <<: *healthcheck
     ports:
       - "127.0.0.1:8096:8096"
+      - "127.0.0.1:9096:9096"
     environment:
       <<: *common-env
       CLUSTER_HOST: storage-manager
@@ -988,6 +997,7 @@ services:
     <<: *healthcheck
     ports:
       - "127.0.0.1:8095:8095"
+      - "127.0.0.1:9095:9095"
     environment:
       JAVA_TOOL_OPTIONS: >-
         -Xmx384m -Xms192m
@@ -1035,6 +1045,7 @@ services:
     <<: *healthcheck
     ports:
       - "127.0.0.1:8097:8097"
+      - "127.0.0.1:9097:9097"
     environment:
       <<: *common-env
       CLUSTER_HOST: notification-service
@@ -1058,6 +1069,7 @@ services:
     <<: *healthcheck
     ports:
       - "127.0.0.1:8098:8098"
+      - "127.0.0.1:9098:9098"
     environment:
       <<: *common-env
       CLUSTER_HOST: platform-sentinel

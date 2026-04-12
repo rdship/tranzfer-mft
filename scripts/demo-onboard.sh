@@ -26,8 +26,8 @@ STR="${BASE}:9094"     # storage-manager/as2
 export CURL_OPTS="-k"
 PLATFORM_JWT_SECRET="${PLATFORM_JWT_SECRET:-changeme_32char_secret_here_!!!!}"  # for DMZ management API calls
 
-ADMIN_EMAIL="admin@filetransfer.local"
-ADMIN_PASS="Tr@nzFer2026!"
+ADMIN_EMAIL="${MFT_ADMIN_EMAIL:-superadmin@tranzfer.io}"
+ADMIN_PASS="${MFT_ADMIN_PASS:-superadmin}"
 TOKEN=""
 SKIP_DOCKER=false
 
