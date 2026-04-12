@@ -27,7 +27,7 @@ import {
   ShieldCheckIcon,
   KeyIcon,
   BoltIcon,
-  ClockIcon,
+  ClockIcon, QueueListIcon,
   DocumentTextIcon,
   FingerPrintIcon,
   DocumentCheckIcon,
@@ -117,6 +117,7 @@ const navGroups = [
       { to: '/connectors',        icon: BoltIcon,          label: 'Connectors',        role: 'ADMIN' },
       { to: '/sla',               icon: DocumentCheckIcon, label: 'SLA Agreements' },
       { to: '/scheduler',         icon: ClockIcon,         label: 'Scheduler',         role: 'ADMIN' },
+      { to: '/function-queues',   icon: QueueListIcon,     label: 'Function Queues',   role: 'ADMIN' },
     ],
   },
   {

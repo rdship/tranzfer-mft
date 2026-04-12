@@ -55,6 +55,7 @@ const DmzProxy           = lazy(() => import('./pages/DmzProxy'))
 const ProxyGroups        = lazy(() => import('./pages/ProxyGroups'))
 const Keystore           = lazy(() => import('./pages/Keystore'))
 const Scheduler          = lazy(() => import('./pages/Scheduler'))
+const FunctionQueues     = lazy(() => import('./pages/FunctionQueues'))
 const Sla                = lazy(() => import('./pages/Sla'))
 const Screening          = lazy(() => import('./pages/Screening'))
 const Recommendations    = lazy(() => import('./pages/Recommendations'))
@@ -242,6 +243,7 @@ export default function App() {
             <Route path="proxy-groups"          element={<LazyRoute><ProxyGroups /></LazyRoute>} />
             <Route path="keystore"              element={<LazyRoute><Keystore /></LazyRoute>} />
             <Route path="scheduler"             element={<LazyRoute><Scheduler /></LazyRoute>} />
+            <Route path="function-queues"       element={<LazyRoute><FunctionQueues /></LazyRoute>} />
             <Route path="sla"                   element={<LazyRoute><Sla /></LazyRoute>} />
             <Route path="screening"             element={<LazyRoute><Screening /></LazyRoute>} />
             <Route path="recommendations"       element={<LazyRoute><Recommendations /></LazyRoute>} />

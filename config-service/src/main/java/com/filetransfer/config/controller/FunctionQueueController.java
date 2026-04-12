@@ -61,26 +61,42 @@ public class FunctionQueueController {
         return q;
     }
 
-    /** Get queue config by function type (used by pipeline workers) */
+    /** Get default queue for a function type (used by pipeline workers) */
     @GetMapping("/by-type/{functionType}")
     public FunctionQueue getByType(@PathVariable String functionType) {
-        return queueRepo.findByFunctionType(functionType.toUpperCase())
-                .orElseThrow(() -> new EntityNotFoundException("Queue not found for type: " + functionType));
+        return queueRepo.findByFunctionTypeAndDefaultQueueTrue(functionType.toUpperCase())
+                .orElseThrow(() -> new EntityNotFoundException("No default queue for type: " + functionType));
     }
 
-    /** Create a custom function queue */
+    /** Get all queues for a specific function type (multiple profiles) */
+    @GetMapping("/for-type/{functionType}")
+    public List<FunctionQueue> listByType(@PathVariable String functionType) {
+        return queueRepo.findByFunctionType(functionType.toUpperCase());
+    }
+
+    /** Create a queue profile — can be a new function type or an additional profile for an existing type */
     @PostMapping
     public ResponseEntity<FunctionQueue> create(@Valid @RequestBody FunctionQueue queue) {
-        if (queueRepo.existsByFunctionType(queue.getFunctionType().toUpperCase())) {
-            throw new IllegalArgumentException("Queue already exists for type: " + queue.getFunctionType());
+        if (queueRepo.existsByDisplayName(queue.getDisplayName())) {
+            throw new IllegalArgumentException("Queue name already exists: " + queue.getDisplayName());
         }
         queue.setId(null);
         queue.setFunctionType(queue.getFunctionType().toUpperCase());
-        queue.setTopicName("flow.step." + queue.getFunctionType());
+        // Custom topic name: flow.step.{TYPE}.{sanitized-name} for non-default profiles
+        String baseTopic = "flow.step." + queue.getFunctionType();
+        if (queueRepo.existsByFunctionType(queue.getFunctionType().toUpperCase())) {
+            // Additional profile — give it a unique topic
+            String suffix = queue.getDisplayName().replaceAll("[^a-zA-Z0-9]", "-").toLowerCase();
+            queue.setTopicName(baseTopic + "." + suffix);
+            queue.setDefaultQueue(false); // existing type already has a default
+        } else {
+            queue.setTopicName(baseTopic);
+            queue.setDefaultQueue(true); // first queue for this type = default
+        }
         queue.setBuiltIn(false);
-        queue.setCategory("CUSTOM");
         FunctionQueue saved = queueRepo.save(queue);
-        log.info("Custom function queue created: {} (topic={})", saved.getFunctionType(), saved.getTopicName());
+        log.info("Function queue created: '{}' (type={}, topic={}, default={})",
+                saved.getDisplayName(), saved.getFunctionType(), saved.getTopicName(), saved.isDefaultQueue());
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 

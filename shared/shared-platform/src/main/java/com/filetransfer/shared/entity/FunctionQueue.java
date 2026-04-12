@@ -35,10 +35,16 @@ public class FunctionQueue {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    /** Step type this queue handles — e.g., SCREEN, ENCRYPT_PGP, CONVERT_EDI */
+    /** Step type this queue handles — e.g., SCREEN, ENCRYPT_PGP, CONVERT_EDI.
+     *  Multiple queues can share the same function type (different profiles). */
     @NotBlank
-    @Column(unique = true, nullable = false, length = 50)
+    @Column(nullable = false, length = 50)
     private String functionType;
+
+    /** Whether this is the default queue for this function type.
+     *  Flows that don't specify a queueId use the default. */
+    @Builder.Default
+    private boolean defaultQueue = true;
 
     /** Human-readable name */
     @NotBlank
