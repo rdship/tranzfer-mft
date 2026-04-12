@@ -112,19 +112,26 @@ curl -X POST http://localhost:8080/api/auth/login \
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/flows` | List all file flows |
-| POST | `/api/v1/flows` | Create file flow |
-| GET | `/api/v1/flows/{id}` | Get flow details |
-| PUT | `/api/v1/flows/{id}` | Update flow |
-| DELETE | `/api/v1/flows/{id}` | Delete flow |
+| GET | `/api/flows` | List all active file flows |
+| POST | `/api/flows` | Create file flow |
+| GET | `/api/flows/{id}` | Get flow details |
+| PUT | `/api/flows/{id}` | Update flow (requires full object) |
+| DELETE | `/api/flows/{id}` | Deactivate flow (soft-delete) |
+| PATCH | `/api/flows/{id}/toggle` | Enable/disable flow (no body needed) |
+| GET | `/api/flows/step-types` | List available step types |
+| GET | `/api/flows/functions/catalog` | Function catalog with IO modes |
+| GET | `/api/flows/match-fields` | Available match criteria fields |
+| POST | `/api/flows/test-match` | Test match criteria against file context |
+| GET | `/api/flows/executions` | Search executions (filter by trackId, status, filename) |
 
 **Example — Create a flow:**
 ```bash
-curl -X POST http://localhost:8084/api/v1/flows \
+curl -X POST http://localhost:8084/api/flows \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Compress and Screen",
-    "triggerPattern": "*.csv",
+    "filenamePattern": ".*\\.csv",
+    "direction": "INBOUND",
     "steps": [
       {"type": "COMPRESS_GZIP", "order": 1},
       {"type": "SCREEN", "order": 2}
@@ -132,71 +139,78 @@ curl -X POST http://localhost:8084/api/v1/flows \
   }'
 ```
 
+**Example — Toggle flow on/off:**
+```bash
+curl -X PATCH http://localhost:8084/api/flows/{id}/toggle
+```
+
 ### Connectors
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/connectors` | List connectors (Slack, PagerDuty, etc.) |
-| POST | `/api/v1/connectors` | Create connector |
-| PUT | `/api/v1/connectors/{id}` | Update connector |
-| DELETE | `/api/v1/connectors/{id}` | Delete connector |
+| GET | `/api/connectors` | List connectors (Slack, PagerDuty, etc.) |
+| POST | `/api/connectors` | Create connector |
+| PUT | `/api/connectors/{id}` | Update connector |
+| DELETE | `/api/connectors/{id}` | Delete connector (soft-delete) |
+| POST | `/api/connectors/{id}/test` | Test connector webhook |
+| GET | `/api/connectors/types` | List connector types (SLACK, PAGERDUTY, TEAMS, etc.) |
 
 ### Security Profiles
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/security-profiles` | List security profiles |
-| POST | `/api/v1/security-profiles` | Create profile |
-| PUT | `/api/v1/security-profiles/{id}` | Update profile |
-| DELETE | `/api/v1/security-profiles/{id}` | Delete profile |
+| GET | `/api/security-profiles` | List security profiles |
+| POST | `/api/security-profiles` | Create profile |
+| PUT | `/api/security-profiles/{id}` | Update profile |
+| DELETE | `/api/security-profiles/{id}` | Delete profile |
 
 ### Scheduler
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/scheduler/jobs` | List scheduled jobs |
-| POST | `/api/v1/scheduler/jobs` | Create scheduled job |
-| PUT | `/api/v1/scheduler/jobs/{id}` | Update job |
-| DELETE | `/api/v1/scheduler/jobs/{id}` | Delete job |
+| GET | `/api/scheduler` | List scheduled jobs |
+| POST | `/api/scheduler` | Create scheduled job |
+| PUT | `/api/scheduler/{id}` | Update job |
+| DELETE | `/api/scheduler/{id}` | Delete job |
 
 ### SLA Agreements
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/sla` | List SLA agreements |
-| POST | `/api/v1/sla` | Create SLA |
-| PUT | `/api/v1/sla/{id}` | Update SLA |
-| DELETE | `/api/v1/sla/{id}` | Delete SLA |
+| GET | `/api/sla` | List SLA agreements |
+| POST | `/api/sla` | Create SLA |
+| PUT | `/api/sla/{id}` | Update SLA |
+| DELETE | `/api/sla/{id}` | Delete SLA |
 
 ### External Destinations
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/external-destinations` | List external destinations |
-| POST | `/api/v1/external-destinations` | Create destination |
-| PUT | `/api/v1/external-destinations/{id}` | Update destination |
-| DELETE | `/api/v1/external-destinations/{id}` | Delete destination |
+| GET | `/api/external-destinations` | List external destinations |
+| POST | `/api/external-destinations` | Create destination |
+| PUT | `/api/external-destinations/{id}` | Update destination |
+| DELETE | `/api/external-destinations/{id}` | Delete destination |
 
 ### Legacy Servers
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/legacy-servers` | List legacy servers |
-| POST | `/api/v1/legacy-servers` | Add legacy server |
+| GET | `/api/legacy-servers` | List legacy servers |
+| POST | `/api/legacy-servers` | Add legacy server |
 
 ### Server Configuration
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/server-config` | Get server configuration |
-| PUT | `/api/v1/server-config` | Update server configuration |
+| GET | `/api/server-config` | Get server configuration |
+| PUT | `/api/server-config` | Update server configuration |
 
 ### Platform Settings
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/platform-settings` | Get platform settings |
-| PUT | `/api/v1/platform-settings` | Update platform settings |
+| GET | `/api/platform-settings` | Get platform settings |
+| PUT | `/api/platform-settings` | Update platform settings |
 
 ---
 

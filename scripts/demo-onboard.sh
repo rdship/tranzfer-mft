@@ -434,7 +434,7 @@ create_accounts() {
   log "=== STEP 6a: SFTP Accounts (100) ==="
   for i in $(seq 1 100); do
     local user="sftp_user_$(printf '%03d' $i)"
-    local server="sftp-server-$((((i-1) % 2) + 1))"
+    local server="sftp-$((((i-1) % 2) + 1))"
     post "$API/api/accounts" \
       "{\"protocol\":\"SFTP\",\"username\":\"$user\",\"password\":\"SftpPass@${i}!\",\"serverInstance\":\"$server\",\"permissions\":{\"read\":true,\"write\":true,\"delete\":$([ $((i%5)) -eq 0 ] && echo true || echo false)}}" \
       "SFTP Account: $user" > /dev/null
@@ -443,7 +443,7 @@ create_accounts() {
   log "=== STEP 6b: FTP Accounts (100) ==="
   for i in $(seq 1 100); do
     local user="ftp_user_$(printf '%03d' $i)"
-    local server="ftps-server-$((((i-1) % 2) + 1))"
+    local server="ftp-$((((i-1) % 2) + 1))"
     post "$API/api/accounts" \
       "{\"protocol\":\"FTP\",\"username\":\"$user\",\"password\":\"FtpPass@${i}!\",\"serverInstance\":\"$server\",\"permissions\":{\"read\":true,\"write\":true,\"delete\":false}}" \
       "FTP Account: $user" > /dev/null
@@ -453,7 +453,7 @@ create_accounts() {
   for i in $(seq 1 25); do
     local user="web_user_$(printf '%03d' $i)"
     post "$API/api/accounts" \
-      "{\"protocol\":\"FTP_WEB\",\"username\":\"$user\",\"password\":\"WebPass@${i}!\",\"serverInstance\":\"ftp-web-server-$((((i-1) % 2) + 1))\",\"permissions\":{\"read\":true,\"write\":true,\"delete\":false}}" \
+      "{\"protocol\":\"FTP_WEB\",\"username\":\"$user\",\"password\":\"WebPass@${i}!\",\"serverInstance\":\"ftpweb-$((((i-1) % 2) + 1))\",\"permissions\":{\"read\":true,\"write\":true,\"delete\":false}}" \
       "FTP_WEB Account: $user" > /dev/null
   done
 }
