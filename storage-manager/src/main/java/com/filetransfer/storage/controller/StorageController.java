@@ -1,5 +1,6 @@
 package com.filetransfer.storage.controller;
 
+import com.filetransfer.shared.audit.AuditService;
 import com.filetransfer.shared.security.Roles;
 import com.filetransfer.storage.backend.StorageBackend;
 import com.filetransfer.storage.entity.StorageObject;
@@ -48,6 +49,11 @@ public class StorageController {
     @Autowired(required = false)
     @Nullable
     private StorageLocationRegistry locationRegistry;
+
+    /** Audit trail for all storage operations (PCI-DSS 10.x compliance). */
+    @Autowired(required = false)
+    @Nullable
+    private AuditService auditService;
 
     /**
      * Store a file via the configured {@link StorageBackend}.
@@ -99,6 +105,13 @@ public class StorageController {
         log.info("[Store] {} bytes → backend={} sha256={} track={} dedup={}",
                 result.sizeBytes(), storageBackend.type(), result.sha256().substring(0, 12),
                 trackId, result.deduplicated());
+
+        // Audit trail: storage write operation
+        if (auditService != null && trackId != null) {
+            auditService.logAction("storage-manager", "STORAGE_WRITE", true, trackId,
+                    Map.of("sha256", result.sha256(), "sizeBytes", result.sizeBytes(),
+                            "backend", storageBackend.type(), "deduplicated", result.deduplicated()));
+        }
 
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "status", "STORED",

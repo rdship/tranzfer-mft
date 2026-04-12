@@ -867,25 +867,24 @@ public class FlowProcessingEngine {
                 }
             }
         } else {
-            // Remote delivery — POST to the destination service
+            // Remote delivery — multipart POST to the destination service (streaming, no heap copy)
             ServiceRegistration svc = destService.get();
-            byte[] fileBytes = Files.readAllBytes(input);
-            String encoded = Base64.getEncoder().encodeToString(fileBytes);
+            org.springframework.core.io.FileSystemResource fileResource =
+                    new org.springframework.core.io.FileSystemResource(input.toFile());
 
             String url = "http://" + svc.getHost() + ":" + svc.getControlPort()
                     + "/internal/files/receive";
 
-            Map<String, Object> payload = Map.of(
-                    "destinationUsername", destUsername,
-                    "destinationAbsolutePath", outboxPath.toString(),
-                    "originalFilename", filename,
-                    "fileContentBase64", encoded
-            );
+            org.springframework.util.LinkedMultiValueMap<String, Object> body = new org.springframework.util.LinkedMultiValueMap<>();
+            body.add("file", fileResource);
+            body.add("destinationUsername", destUsername);
+            body.add("destinationAbsolutePath", outboxPath.toString());
+            body.add("originalFilename", filename);
 
             HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
             addInternalAuth(headers, svc.getHost());
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
+            HttpEntity<org.springframework.util.MultiValueMap<String, Object>> entity = new HttpEntity<>(body, headers);
 
             restTemplate.postForEntity(url, entity, Void.class);
             log.info("[{}] MAILBOX: forwarded to {}:{} for user {}", trackId,
@@ -927,24 +926,27 @@ public class FlowProcessingEngine {
         }
 
         String forwarderUrl = serviceProps.getForwarderService().getUrl();
-
-        byte[] fileBytes = Files.readAllBytes(input);
-        String base64Content = Base64.getEncoder().encodeToString(fileBytes);
         String filename = input.getFileName().toString();
+
+        // Stream file as multipart instead of Base64 in heap — prevents OOM on large files
+        org.springframework.core.io.FileSystemResource fileResource =
+                new org.springframework.core.io.FileSystemResource(input.toFile());
 
         int successCount = 0;
         List<String> failures = new ArrayList<>();
 
         for (DeliveryEndpoint ep : endpoints) {
             try {
-                String url = forwarderUrl + "/api/forward/deliver/" + ep.getId() + "/base64"
+                String url = forwarderUrl + "/api/forward/deliver/" + ep.getId() + "/file"
                         + "?filename=" + java.net.URLEncoder.encode(filename, "UTF-8")
                         + "&trackId=" + java.net.URLEncoder.encode(trackId != null ? trackId : "", "UTF-8");
 
                 HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.TEXT_PLAIN);
+                headers.setContentType(MediaType.MULTIPART_FORM_DATA);
                 addInternalAuth(headers, "external-forwarder-service");
-                HttpEntity<String> entity = new HttpEntity<>(base64Content, headers);
+                org.springframework.util.LinkedMultiValueMap<String, Object> body = new org.springframework.util.LinkedMultiValueMap<>();
+                body.add("file", fileResource);
+                HttpEntity<org.springframework.util.MultiValueMap<String, Object>> entity = new HttpEntity<>(body, headers);
 
                 restTemplate.postForEntity(url, entity, Map.class);
                 successCount++;
