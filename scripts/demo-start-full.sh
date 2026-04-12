@@ -61,7 +61,7 @@ wait_http() {
   local url="$1" max_secs="${2:-300}" waited=0
   log "Polling ${url} (up to ${max_secs}s)..."
   while (( waited < max_secs )); do
-    if curl -sf "$url" >/dev/null 2>&1; then
+    if curl -skf "$url" >/dev/null 2>&1; then
       log "${url} ready after ${waited}s"
       return 0
     fi
@@ -119,11 +119,11 @@ docker exec -i mft-postgres psql -U postgres -d filetransfer \
 
 # --- Phase 3: wait for onboarding-api + best-effort key services -------------
 log "Phase 3/3 — Waiting for onboarding-api (up to 10 min)..."
-wait_http http://localhost:8080/actuator/health/readiness 600
+wait_http https://localhost:44380/actuator/health/readiness 600
 
 log "Best-effort readiness poll on remaining services..."
 for port in 8084 8085 8086 8087 8088 8089 8090 8091 8092 8093 8094 8095 8096 8097 8098; do
-  wait_http "http://localhost:${port}/actuator/health/readiness" 180 || true
+  wait_http "https://localhost:${port}/actuator/health/readiness" 180 || true
 done
 
 # --- Summary -----------------------------------------------------------------
@@ -133,10 +133,10 @@ cat <<EOF
 ${G}================================================================${R}
  FULL STACK is up.
 
- ${B}Admin UI${R}         http://localhost:3000
- ${B}Partner Portal${R}   http://localhost:3002
- ${B}FTP Web UI${R}       http://localhost:3001
- ${B}API Gateway${R}      http://localhost:80
+ ${B}Admin UI${R}         https://localhost
+ ${B}Partner Portal${R}   https://localhost/partner
+ ${B}FTP Web UI${R}       https://localhost/portal
+ ${B}API Gateway${R}      https://localhost:443
  ${B}Grafana${R}          http://localhost:3030   (admin / admin)
  ${B}Prometheus${R}       http://localhost:9090
  ${B}Alertmanager${R}     http://localhost:9093

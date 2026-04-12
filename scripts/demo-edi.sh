@@ -21,7 +21,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-EDI_URL="${EDI_URL:-http://localhost:8095}"
+EDI_URL="${EDI_URL:-https://localhost:9095}"
 SAMPLES_DIR="scripts/demo-edi-samples"
 QUIET=false
 
@@ -51,8 +51,8 @@ if ! command -v jq >/dev/null; then
   die "jq is required for response assertions. Install with: brew install jq"
 fi
 
-if ! curl -sf "${EDI_URL}/actuator/health/liveness" >/dev/null 2>&1 && \
-   ! curl -sf "${EDI_URL}/actuator/health" >/dev/null 2>&1; then
+if ! curl -skf "${EDI_URL}/actuator/health/liveness" >/dev/null 2>&1 && \
+   ! curl -skf "${EDI_URL}/actuator/health" >/dev/null 2>&1; then
   die "edi-converter not reachable at ${EDI_URL}. Boot the full stack first: ./scripts/demo-all.sh --full"
 fi
 
@@ -63,7 +63,7 @@ detect_format() {
   local content="$1"
   local payload
   payload=$(jq -n --arg c "$content" '{content:$c}')
-  curl -sf -X POST "${EDI_URL}/api/v1/convert/detect" \
+  curl -skf -X POST "${EDI_URL}/api/v1/convert/detect" \
     -H 'Content-Type: application/json' \
     --data-raw "$payload" 2>/dev/null
 }
@@ -73,7 +73,7 @@ convert_format() {
   local content="$1" target="$2"
   local payload
   payload=$(jq -n --arg c "$content" --arg t "$target" '{content:$c, target:$t}')
-  curl -sf -X POST "${EDI_URL}/api/v1/convert/convert" \
+  curl -skf -X POST "${EDI_URL}/api/v1/convert/convert" \
     -H 'Content-Type: application/json' \
     --data-raw "$payload" 2>/dev/null
 }

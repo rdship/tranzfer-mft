@@ -80,7 +80,7 @@ wait_http() {
   local url="$1" max_secs="${2:-300}" waited=0
   log "Polling ${url} (up to ${max_secs}s)..."
   while (( waited < max_secs )); do
-    if curl -sf "$url" >/dev/null 2>&1; then
+    if curl -skf "$url" >/dev/null 2>&1; then
       log "${url} ready after ${waited}s"
       return 0
     fi
@@ -110,11 +110,11 @@ log "Phase 2/3 — Starting ${#CORE[@]} core services (this takes 2-5 min the fi
 docker compose up -d "${CORE[@]}"
 
 # onboarding-api is the gate — the demo data script talks to it.
-wait_http http://localhost:8080/actuator/health/readiness 480
+wait_http https://localhost:9080/actuator/health/readiness 480
 
 # Best-effort health checks on the rest (don't block boot on these)
-for port in 8084 8085 8086 8089 8090 8091 8093 8096 8097 8098; do
-  wait_http "http://localhost:${port}/actuator/health/readiness" 120 || true
+for port in 9084 9085 9086 9089 9090 9091 9093 9096 9097 9098; do
+  wait_http "https://localhost:${port}/actuator/health/readiness" 120 || true
 done
 
 # --- Phase 3: UIs ------------------------------------------------------------
@@ -132,9 +132,9 @@ cat <<EOF
 ${GREEN}========================================================${RESET}
  Demo tier-2 stack is up.
 
- Admin UI   : http://localhost:3000
- Partner    : http://localhost:3002
- Onboarding : http://localhost:8080/actuator/health
+ Admin UI   : https://localhost
+ Partner    : https://localhost/partner
+ Onboarding : https://localhost:9080/actuator/health
  Redpanda   : http://localhost:9644/v1/status/ready
  RabbitMQ   : http://localhost:15672    (guest / guest)
  Postgres   : localhost:5432            (postgres / postgres)

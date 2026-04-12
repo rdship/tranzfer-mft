@@ -230,6 +230,6 @@ echo ""
 docker compose ps --format "table {{.Name}}\t{{.Status}}" 2>/dev/null | head -30
 echo ""
 echo -e "  ${GREEN}Admin UI:${RESET}  http://localhost:3000"
-echo -e "  ${GREEN}API:${RESET}       http://localhost:8080"
+echo -e "  ${GREEN}API:${RESET}       https://localhost:9080"
 echo -e "  ${GREEN}SFTP:${RESET}      localhost:2222"
 echo ""

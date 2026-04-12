@@ -478,7 +478,7 @@ Demo traffic seeded. Pages that are now populated:
   /analytics          — populates on the first metric aggregation run (~5 min)
 
 To generate a LIVE Fabric checkpoint (watch the Gantt tick in real time):
-  1. Log in at http://localhost:3000
+  1. Log in at https://localhost
   2. Go to File Manager (/file-manager) and upload any small file
   3. Open /fabric and watch the new checkpoint appear
 

@@ -15,7 +15,7 @@
 #   * Flyway migrations succeed (V42 CONCURRENTLY indexes finish)
 #   * Every Java Spring service reaches /actuator/health/liveness
 #   * The 4 frontend nginx containers actually bind their port and serve
-#   * UI at http://localhost:3000 returns 200 with HTML
+#   * UI at https://localhost returns 200 with HTML
 #   * UI nginx proxies (api-onboarding, api-config, etc) reach upstreams
 #   * onboarding-api login endpoint accepts admin credentials and returns
 #     a JWT
@@ -150,29 +150,29 @@ fi  # end NO_WAIT branch
 # ── Probe each service's HTTP endpoint ──────────────────────────────────
 section "HTTP probes — service health endpoints"
 declare -A HEALTH_URLS=(
-  [onboarding-api]="http://localhost:8080/actuator/health"
-  [config-service]="http://localhost:8084/actuator/health"
-  [gateway-service]="http://localhost:8085/actuator/health"
-  [encryption-service]="http://localhost:8086/actuator/health"
-  [forwarder-service]="http://localhost:8087/actuator/health"
-  [license-service]="http://localhost:8089/actuator/health"
-  [analytics-service]="http://localhost:8090/actuator/health"
-  [ai-engine]="http://localhost:8091/actuator/health"
-  [screening-service]="http://localhost:8092/actuator/health"
-  [keystore-manager]="http://localhost:8093/actuator/health"
-  [as2-service]="http://localhost:8094/actuator/health"
-  [edi-converter]="http://localhost:8095/actuator/health/readiness"
-  [storage-manager]="http://localhost:8096/actuator/health"
-  [notification-service]="http://localhost:8097/actuator/health"
-  [platform-sentinel]="http://localhost:8098/actuator/health"
-  [sftp-service]="http://localhost:8081/health"
-  [ftp-service]="http://localhost:8082/health"
-  [ftp-web-service]="http://localhost:8083/actuator/health"
-  [dmz-proxy]="http://localhost:8088/api/proxy/health"
+  [onboarding-api]="https://localhost:9080/actuator/health"
+  [config-service]="https://localhost:9084/actuator/health"
+  [gateway-service]="https://localhost:9085/actuator/health"
+  [encryption-service]="https://localhost:9086/actuator/health"
+  [forwarder-service]="https://localhost:9087/actuator/health"
+  [license-service]="https://localhost:9089/actuator/health"
+  [analytics-service]="https://localhost:9090/actuator/health"
+  [ai-engine]="https://localhost:9091/actuator/health"
+  [screening-service]="https://localhost:9092/actuator/health"
+  [keystore-manager]="https://localhost:9093/actuator/health"
+  [as2-service]="https://localhost:9094/actuator/health"
+  [edi-converter]="https://localhost:9095/actuator/health/readiness"
+  [storage-manager]="https://localhost:9096/actuator/health"
+  [notification-service]="https://localhost:9097/actuator/health"
+  [platform-sentinel]="https://localhost:9098/actuator/health"
+  [sftp-service]="https://localhost:9081/health"
+  [ftp-service]="https://localhost:9082/health"
+  [ftp-web-service]="https://localhost:9083/actuator/health"
+  [dmz-proxy]="https://localhost:9088/api/proxy/health"
 )
 for svc in "${!HEALTH_URLS[@]}"; do
   url="${HEALTH_URLS[$svc]}"
-  code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$url" 2>/dev/null || echo "000")
+  code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 5 "$url" 2>/dev/null || echo "000")
   if [[ "$code" == "200" ]]; then
     pass "$svc → 200"
   else
@@ -183,14 +183,14 @@ done
 # ── Frontend containers ─────────────────────────────────────────────────
 section "Frontend container HTTP checks"
 for entry in \
-  "ui-service        http://localhost:3000/" \
-  "partner-portal    http://localhost:3002/" \
-  "ftp-web-ui        http://localhost:3001/" \
+  "ui-service        https://localhost/" \
+  "partner-portal    https://localhost/partner/" \
+  "ftp-web-ui        https://localhost/portal/" \
   "api-gateway       http://localhost/" ; do
   set -- $entry
   name=$1
   url=$2
-  code=$(curl -s -o /tmp/boot-smoke-body -w "%{http_code}" --max-time 5 "$url" 2>/dev/null || echo "000")
+  code=$(curl -sk -o /tmp/boot-smoke-body -w "%{http_code}" --max-time 5 "$url" 2>/dev/null || echo "000")
   if [[ "$code" == "200" ]] && grep -q "<!doctype\|<html" /tmp/boot-smoke-body 2>/dev/null; then
     pass "$name → 200 + HTML"
   elif [[ "$code" == "200" ]]; then
@@ -211,7 +211,7 @@ for entry in \
   set -- $entry
   label=$1
   path=$2
-  code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "http://localhost:3000$path" 2>/dev/null || echo "000")
+  code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 5 "https://localhost$path" 2>/dev/null || echo "000")
   if [[ "$code" == "200" ]]; then
     pass "ui-service$path → 200"
   else
@@ -222,7 +222,7 @@ done
 # ── Auth → JWT round trip ───────────────────────────────────────────────
 section "Auth round-trip"
 LOGIN_BODY='{"email":"admin@filetransfer.local","password":"Tr@nzFer2026!"}'
-TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
+TOKEN=$(curl -sk -X POST https://localhost:9080/api/auth/login \
   -H 'Content-Type: application/json' \
   -d "$LOGIN_BODY" 2>/dev/null \
   | jq -r '.accessToken // .token // empty')
@@ -236,10 +236,10 @@ fi
 # ── BUG-1 verification: Activity Monitor unfiltered query ───────────────
 if [[ -n "$TOKEN" ]]; then
   section "BUG-1 Activity Monitor unfiltered query"
-  am_code=$(curl -s -o /tmp/boot-smoke-am.json -w "%{http_code}" \
+  am_code=$(curl -sk -o /tmp/boot-smoke-am.json -w "%{http_code}" \
     --max-time 10 \
     -H "Authorization: Bearer $TOKEN" \
-    http://localhost:8080/api/activity-monitor 2>/dev/null || echo "000")
+    https://localhost:9080/api/activity-monitor 2>/dev/null || echo "000")
   if [[ "$am_code" == "200" ]]; then
     rows=$(jq -r '.totalElements // .content | (if type=="array" then length else . end) // 0' /tmp/boot-smoke-am.json 2>/dev/null || echo "?")
     pass "GET /api/activity-monitor → 200 (totalElements=$rows)"
@@ -251,9 +251,9 @@ fi
 # ── Database Advisory: status compliance ────────────────────────────────
 if [[ -n "$TOKEN" ]]; then
   section "Database Advisory compliance"
-  curl -s -o /tmp/boot-smoke-status.json \
+  curl -sk -o /tmp/boot-smoke-status.json \
     -H "Authorization: Bearer $TOKEN" \
-    http://localhost:8080/api/v1/db-advisory/status 2>/dev/null
+    https://localhost:9080/api/v1/db-advisory/status 2>/dev/null
   pct=$(jq -r '.compliancePct // 0' /tmp/boot-smoke-status.json 2>/dev/null || echo "0")
   if [[ "$pct" -ge 90 ]]; then
     pass "DB advisory compliance ${pct}%"
@@ -265,19 +265,19 @@ fi
 # ── Connector services ──────────────────────────────────────────────────
 section "Connector reachability"
 declare -A CONNECTORS=(
-  [edi-converter-maps]="http://localhost:8095/api/v1/convert/maps"
-  [screening-stats]="http://localhost:8092/api/v1/quarantine/stats"
-  [keystore-list]="http://localhost:8093/api/v1/keys"
-  [ai-classify]="http://localhost:8091/api/v1/ai/health"
-  [sentinel-dashboard]="http://localhost:8098/api/v1/sentinel/dashboard"
+  [edi-converter-maps]="https://localhost:9095/api/v1/convert/maps"
+  [screening-stats]="https://localhost:9092/api/v1/quarantine/stats"
+  [keystore-list]="https://localhost:9093/api/v1/keys"
+  [ai-classify]="https://localhost:9091/api/v1/ai/health"
+  [sentinel-dashboard]="https://localhost:9098/api/v1/sentinel/dashboard"
 )
 for name in "${!CONNECTORS[@]}"; do
   url="${CONNECTORS[$name]}"
   if [[ -n "$TOKEN" ]]; then
-    code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 \
+    code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 5 \
       -H "Authorization: Bearer $TOKEN" "$url" 2>/dev/null || echo "000")
   else
-    code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$url" 2>/dev/null || echo "000")
+    code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 5 "$url" 2>/dev/null || echo "000")
   fi
   if [[ "$code" =~ ^(200|201|401|403)$ ]]; then
     pass "$name → $code (reachable)"
@@ -291,7 +291,7 @@ section "EDI converter round-trip"
 if [[ -f scripts/demo-edi-samples/x12-850-purchase-order.edi ]]; then
   content=$(cat scripts/demo-edi-samples/x12-850-purchase-order.edi)
   payload=$(jq -n --arg c "$content" '{content:$c}')
-  detected=$(curl -s -X POST http://localhost:8095/api/v1/convert/detect \
+  detected=$(curl -sk -X POST https://localhost:9095/api/v1/convert/detect \
     -H 'Content-Type: application/json' \
     --data-raw "$payload" 2>/dev/null | jq -r '.documentType // .type // .format // empty')
   if [[ "$detected" == *X12* ]]; then

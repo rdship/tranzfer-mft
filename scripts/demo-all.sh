@@ -65,13 +65,13 @@ cat <<EOF
 ${G}================================================================${R}
   ${B}$(echo "$MODE" | tr '[:lower:]' '[:upper:]') mode ready${R} (took ${MIN}m ${SEC}s)
 
-  ${B}Admin UI${R}        http://localhost:3000
-  ${B}Partner Portal${R}  http://localhost:3002
+  ${B}Admin UI${R}        https://localhost
+  ${B}Partner Portal${R}  https://localhost/partner
 EOF
 
 if [[ "$MODE" == full ]]; then
   cat <<EOF
-  ${B}FTP Web UI${R}      http://localhost:3001
+  ${B}FTP Web UI${R}      https://localhost/portal
   ${B}Grafana${R}         http://localhost:3030  (admin / admin)
   ${B}Prometheus${R}      http://localhost:9090
   ${B}MinIO Console${R}   http://localhost:9001  (minioadmin / minioadmin)

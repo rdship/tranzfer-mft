@@ -10,18 +10,20 @@
 set -euo pipefail
 
 # --- Configuration ---
-BASE=${MFT_BASE_URL:-http://localhost}
-API="${BASE}:8080"     # onboarding-api
-CFG="${BASE}:8084"     # config-service
-KEY="${BASE}:8093"     # keystore-manager
-ANA="${BASE}:8090"     # analytics-service
-SCR="${BASE}:8092"     # screening-service
-LIC="${BASE}:8089"     # license-service
-NOT="${BASE}:8097"     # notification-service
-EDI="${BASE}:8095"     # edi-converter
-FWD="${BASE}:8087"     # external-forwarder
-DMZ="${BASE}:8088"     # dmz-proxy
-STR="${BASE}:8094"     # storage-manager/as2
+BASE=${MFT_BASE_URL:-https://localhost}
+API="${BASE}:9080"     # onboarding-api (HTTPS)
+CFG="${BASE}:9084"     # config-service
+KEY="${BASE}:9093"     # keystore-manager
+ANA="${BASE}:9090"     # analytics-service
+SCR="${BASE}:9092"     # screening-service
+LIC="${BASE}:9089"     # license-service
+NOT="${BASE}:9097"     # notification-service
+EDI="${BASE}:9095"     # edi-converter
+FWD="${BASE}:9087"     # external-forwarder
+DMZ="${BASE}:9088"     # dmz-proxy
+STR="${BASE}:9094"     # storage-manager/as2
+# Accept self-signed certs in all curl calls
+export CURL_OPTS="-k"
 PLATFORM_JWT_SECRET="${PLATFORM_JWT_SECRET:-changeme_32char_secret_here_!!!!}"  # for DMZ management API calls
 
 ADMIN_EMAIL="admin@filetransfer.local"
@@ -52,7 +54,7 @@ post() {
   local url="$1" data="$2" label="${3:-}"
   local resp code body attempt
   for attempt in 1 2; do
-    resp=$(curl -s -w "\n%{http_code}" -X POST "$url" \
+    resp=$(curl -sk -w "\n%{http_code}" -X POST "$url" \
       -H "Authorization: Bearer $TOKEN" \
       -H "Content-Type: application/json" \
       -d "$data" 2>/dev/null)
@@ -77,7 +79,7 @@ post() {
 post_noauth() {
   local url="$1" data="$2" label="${3:-}"
   local resp code
-  resp=$(curl -s -w "\n%{http_code}" -X POST "$url" \
+  resp=$(curl -sk -w "\n%{http_code}" -X POST "$url" \
     -H "Content-Type: application/json" \
     -d "$data" 2>/dev/null)
   code=$(echo "$resp" | tail -1)
@@ -94,7 +96,7 @@ post_noauth() {
 post_admin_key() {
   local url="$1" data="$2" label="${3:-}"
   local resp code
-  resp=$(curl -s -w "\n%{http_code}" -X POST "$url" \
+  resp=$(curl -sk -w "\n%{http_code}" -X POST "$url" \
     -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" \
     -d "$data" 2>/dev/null)
@@ -111,7 +113,7 @@ post_admin_key() {
 
 get() {
   local url="$1"
-  curl -s -X GET "$url" \
+  curl -sk -X GET "$url" \
     -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" 2>/dev/null
 }
@@ -131,7 +133,7 @@ platform_jwt() {
 dmz_post() {
   local url="$1" data="$2" label="${3:-}"
   local resp code
-  resp=$(curl -s -w "\n%{http_code}" -X POST "$url" \
+  resp=$(curl -sk -w "\n%{http_code}" -X POST "$url" \
     -H "Authorization: Bearer $(platform_jwt)" \
     -H "Content-Type: application/json" \
     -d "$data" 2>/dev/null)
@@ -197,7 +199,7 @@ wait_for_service() {
   local url="$1" name="$2" max="${3:-60}"
   log "Waiting for $name ($url)..."
   for i in $(seq 1 $max); do
-    if curl -sf "${url}/readiness" > /dev/null 2>&1 || curl -sf "$url" > /dev/null 2>&1; then
+    if curl -skf "${url}/readiness" > /dev/null 2>&1 || curl -skf "$url" > /dev/null 2>&1; then
       ok "$name is ready"
       return 0
     fi
@@ -220,7 +222,7 @@ authenticate() {
 
   # Login
   local resp
-  resp=$(curl -s -X POST "$API/api/auth/login" \
+  resp=$(curl -sk -X POST "$API/api/auth/login" \
     -H "Content-Type: application/json" \
     -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASS\"}")
   TOKEN=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('accessToken',''))" 2>/dev/null || true)
@@ -237,7 +239,7 @@ authenticate() {
   docker exec mft-postgres psql -U postgres -d filetransfer -c \
     "UPDATE users SET role = 'ADMIN' WHERE email = '$ADMIN_EMAIL' AND role != 'ADMIN';" > /dev/null 2>&1
   # Re-login to get ADMIN token
-  resp=$(curl -s -X POST "$API/api/auth/login" \
+  resp=$(curl -sk -X POST "$API/api/auth/login" \
     -H "Content-Type: application/json" \
     -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASS\"}")
   TOKEN=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('accessToken',''))" 2>/dev/null || true)
@@ -1242,7 +1244,7 @@ main() {
   echo "║  Total:    $((CREATED + SKIPPED + FAILED))               "
   echo "╚═══════════════════════════════════════════════════════════╝"
   echo ""
-  echo "Admin UI: http://localhost:3000"
+  echo "Admin UI: https://localhost"
   echo "Login:    $ADMIN_EMAIL / $ADMIN_PASS"
   echo ""
 }

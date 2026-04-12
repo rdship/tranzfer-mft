@@ -15,7 +15,7 @@
 #
 #   2. Runs DETERMINISTIC checks on the always-validate set:
 #       * every UI route in the sidebar must respond 200 from
-#         http://localhost:3000{route} (covers SPA fallback for unknown
+#         https://localhost{route} (covers SPA fallback for unknown
 #         routes — every route returns the SPA shell)
 #       * every service /actuator/health endpoint must respond 200
 #       * every DB entity must have a corresponding table in pg_settings'
@@ -87,7 +87,7 @@ fi
 
 # ── Auth: get a JWT once ─────────────────────────────────────────────────
 section "Auth"
-TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
+TOKEN=$(curl -sk -X POST https://localhost:9080/api/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"email":"admin@filetransfer.local","password":"Tr@nzFer2026!"}' 2>/dev/null \
   | jq -r '.accessToken // .token // empty')
@@ -103,7 +103,7 @@ AUTH_HEADER="Authorization: Bearer $TOKEN"
 if [[ "$SKIP_DETERMINISTIC" == false ]]; then
   section "Always-validate: every sidebar route loads"
   while IFS= read -r route; do
-    code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "http://localhost:3000$route" 2>/dev/null || echo "000")
+    code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 5 "https://localhost$route" 2>/dev/null || echo "000")
     if [[ "$code" == "200" ]]; then
       pass "ui $route → 200"
     else
@@ -115,7 +115,7 @@ if [[ "$SKIP_DETERMINISTIC" == false ]]; then
   section "Always-validate: every service /actuator/health"
   jq -r '.service_ports | to_entries[] | "\(.value.port) \(.key) \(.value.health_path)"' "$INV_JSON" | while read -r port name path; do
     url="http://localhost:${port}${path}"
-    code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$url" 2>/dev/null || echo "000")
+    code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 5 "$url" 2>/dev/null || echo "000")
     if [[ "$code" =~ ^(200|201)$ ]]; then
       printf '  %s✓%s service %s → %s\n' "$GREEN" "$RST" "$name" "$code"
     else
@@ -179,7 +179,7 @@ if [[ "$SKIP_RANDOM" == false && -n "$TOKEN" ]]; then
       continue
     fi
     url="http://localhost:${port}${path}"
-    code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 -H "$AUTH_HEADER" "$url" 2>/dev/null || echo "000")
+    code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 5 -H "$AUTH_HEADER" "$url" 2>/dev/null || echo "000")
     # Acceptable codes: 200 (ok), 401/403 (auth-protected, still reachable),
     # 404 (resource not seeded), 405 (method mismatch is acceptable for POST-only paths)
     if [[ "$code" =~ ^(200|201|204|400|401|403|404|405)$ ]]; then
@@ -206,9 +206,9 @@ if [[ "$SKIP_RANDOM" == false && -n "$TOKEN" ]]; then
     eval "set -- $entry"
     label=$1; ui_route=$2; api_path=$3; db_table=$4
     # 1. UI loads
-    ui_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "http://localhost:3000$ui_route")
+    ui_code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 5 "https://localhost$ui_route")
     # 2. API responds
-    api_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 -H "$AUTH_HEADER" "http://localhost:8080$api_path")
+    api_code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 5 -H "$AUTH_HEADER" "https://localhost:9080$api_path")
     # 3. DB table exists
     if docker exec mft-postgres psql -U postgres -d filetransfer -t -c "SELECT 1 FROM information_schema.tables WHERE table_name='$db_table'" 2>/dev/null | grep -q 1; then
       db_state="exists"

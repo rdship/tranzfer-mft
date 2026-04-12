@@ -35,7 +35,7 @@ Run all four samples through the live edi-converter in one shot:
 ./scripts/demo-edi.sh
 ```
 
-That script hits `http://localhost:8095/api/v1/convert/detect` and `/convert/convert` for each sample, prints the detected format + the JSON output, and is purely read-only.
+That script hits `https://localhost:9095/api/v1/convert/detect` and `/convert/convert` for each sample, prints the detected format + the JSON output, and is purely read-only.
 
 ## Other tabs worth a click on `/edi`
 
