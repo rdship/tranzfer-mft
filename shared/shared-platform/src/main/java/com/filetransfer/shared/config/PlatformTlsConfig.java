@@ -2,9 +2,6 @@ package com.filetransfer.shared.config;
 
 import com.filetransfer.shared.kms.VaultKmsClient;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.catalina.connector.Connector;
-import org.apache.tomcat.util.net.SSLHostConfig;
-import org.apache.tomcat.util.net.SSLHostConfigCertificate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -67,44 +64,36 @@ public class PlatformTlsConfig {
      * HTTPS on server.port + 1000 (application traffic, external).
      * Example: HTTP :8080 + HTTPS :9080
      */
+    /**
+     * Makes HTTPS the primary (and only) listener on server.port.
+     * No separate HTTP port. No port+1000. Just HTTPS on the configured port.
+     */
     @Bean
     public WebServerFactoryCustomizer<TomcatServletWebServerFactory> tlsCustomizer() {
         return factory -> {
             String ksPath = resolveKeystore();
             if (ksPath == null) {
-                log.warn("TLS enabled but no keystore available — HTTPS not activated");
+                log.error("TLS enabled but no keystore — service will fail to serve HTTPS. Fix keystore config.");
                 return;
             }
 
-            int httpsPort = httpPort + 1000;
+            Ssl ssl = new Ssl();
+            ssl.setEnabled(true);
+            ssl.setKeyStore("file:" + ksPath);
+            ssl.setKeyStorePassword(keystorePassword);
+            ssl.setKeyAlias(keyAlias);
+            ssl.setKeyStoreType("PKCS12");
+            ssl.setProtocol("TLS");
+            ssl.setEnabledProtocols(new String[]{"TLSv1.3", "TLSv1.2"});
+            ssl.setCiphers(new String[]{
+                    "TLS_AES_256_GCM_SHA384", "TLS_AES_128_GCM_SHA256",
+                    "TLS_CHACHA20_POLY1305_SHA256",
+                    "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+                    "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+            });
 
-            // Add HTTPS connector as additional connector (HTTP remains primary)
-            Connector httpsConnector = new Connector("org.apache.coyote.http11.Http11NioProtocol");
-            httpsConnector.setScheme("https");
-            httpsConnector.setSecure(true);
-            httpsConnector.setPort(httpsPort);
-            httpsConnector.setProperty("SSLEnabled", "true");
-
-            SSLHostConfig sslConfig = new SSLHostConfig();
-            sslConfig.setProtocols("TLSv1.2+TLSv1.3");
-            sslConfig.setCiphers("TLS_AES_256_GCM_SHA384,TLS_AES_128_GCM_SHA256,"
-                    + "TLS_CHACHA20_POLY1305_SHA256,"
-                    + "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,"
-                    + "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384");
-
-            SSLHostConfigCertificate cert = new SSLHostConfigCertificate(sslConfig,
-                    SSLHostConfigCertificate.Type.UNDEFINED);
-            cert.setCertificateKeystoreFile(ksPath);
-            cert.setCertificateKeystorePassword(keystorePassword);
-            cert.setCertificateKeyAlias(keyAlias);
-            cert.setCertificateKeystoreType("PKCS12");
-            sslConfig.addCertificate(cert);
-
-            httpsConnector.addSslHostConfig(sslConfig);
-            factory.addAdditionalTomcatConnectors(httpsConnector);
-
-            log.info("HTTPS enabled on {} — HTTP:{} + HTTPS:{} (keystore={}, TLSv1.2+1.3)",
-                    serviceType, httpPort, httpsPort, ksPath);
+            factory.setSsl(ssl);
+            log.info("HTTPS on {} port {} (keystore={}, TLSv1.2+1.3)", serviceType, httpPort, ksPath);
         };
     }
 

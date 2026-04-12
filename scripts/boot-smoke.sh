@@ -150,8 +150,8 @@ fi  # end NO_WAIT branch
 # ── Probe each service's HTTP endpoint ──────────────────────────────────
 section "HTTP probes — service health endpoints"
 declare -A HEALTH_URLS=(
-  [onboarding-api]="https://localhost:9080/actuator/health"
-  [config-service]="https://localhost:9084/actuator/health"
+  [onboarding-api]="http://localhost:8080/actuator/health"
+  [config-service]="http://localhost:8084/actuator/health"
   [gateway-service]="https://localhost:9085/actuator/health"
   [encryption-service]="https://localhost:9086/actuator/health"
   [forwarder-service]="https://localhost:9087/actuator/health"
@@ -222,7 +222,7 @@ done
 # ── Auth → JWT round trip ───────────────────────────────────────────────
 section "Auth round-trip"
 LOGIN_BODY='{"email":"admin@filetransfer.local","password":"Tr@nzFer2026!"}'
-TOKEN=$(curl -sk -X POST https://localhost:9080/api/auth/login \
+TOKEN=$(curl -sk -X POST http://localhost:8080/api/auth/login \
   -H 'Content-Type: application/json' \
   -d "$LOGIN_BODY" 2>/dev/null \
   | jq -r '.accessToken // .token // empty')
@@ -239,7 +239,7 @@ if [[ -n "$TOKEN" ]]; then
   am_code=$(curl -sk -o /tmp/boot-smoke-am.json -w "%{http_code}" \
     --max-time 10 \
     -H "Authorization: Bearer $TOKEN" \
-    https://localhost:9080/api/activity-monitor 2>/dev/null || echo "000")
+    http://localhost:8080/api/activity-monitor 2>/dev/null || echo "000")
   if [[ "$am_code" == "200" ]]; then
     rows=$(jq -r '.totalElements // .content | (if type=="array" then length else . end) // 0' /tmp/boot-smoke-am.json 2>/dev/null || echo "?")
     pass "GET /api/activity-monitor → 200 (totalElements=$rows)"
@@ -253,7 +253,7 @@ if [[ -n "$TOKEN" ]]; then
   section "Database Advisory compliance"
   curl -sk -o /tmp/boot-smoke-status.json \
     -H "Authorization: Bearer $TOKEN" \
-    https://localhost:9080/api/v1/db-advisory/status 2>/dev/null
+    http://localhost:8080/api/v1/db-advisory/status 2>/dev/null
   pct=$(jq -r '.compliancePct // 0' /tmp/boot-smoke-status.json 2>/dev/null || echo "0")
   if [[ "$pct" -ge 90 ]]; then
     pass "DB advisory compliance ${pct}%"

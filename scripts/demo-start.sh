@@ -110,10 +110,10 @@ log "Phase 2/3 — Starting ${#CORE[@]} core services (this takes 2-5 min the fi
 docker compose up -d "${CORE[@]}"
 
 # onboarding-api is the gate — the demo data script talks to it.
-wait_http https://localhost:9080/actuator/health/readiness 480
+wait_http http://localhost:8080/actuator/health/readiness 480
 
 # Best-effort health checks on the rest (don't block boot on these)
-for port in 9084 9085 9086 9089 9090 9091 9093 9096 9097 9098; do
+for port in 8084 8085 9086 9089 9090 9091 9093 9096 9097 9098; do
   wait_http "https://localhost:${port}/actuator/health/readiness" 120 || true
 done
 
@@ -134,7 +134,7 @@ ${GREEN}========================================================${RESET}
 
  Admin UI   : https://localhost
  Partner    : https://localhost/partner
- Onboarding : https://localhost:9080/actuator/health
+ Onboarding : http://localhost:8080/actuator/health
  Redpanda   : http://localhost:9644/v1/status/ready
  RabbitMQ   : http://localhost:15672    (guest / guest)
  Postgres   : localhost:5432            (postgres / postgres)
