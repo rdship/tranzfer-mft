@@ -173,3 +173,53 @@ Based on stress test results, assuming 3 replicas per service and p99 latency ta
 - **Problem:** Every request to /api/flows, /api/servers, /api/security-profiles hits the database. Config data changes infrequently (minutes/hours) but is read constantly (milliseconds).
 - **Fix:** Add Spring `@Cacheable` annotations on config-service's service layer. Cache TTL of 30 seconds for flows/profiles/settings. Use Redis as the cache store (already deployed).
 - **Expected impact:** Config-service throughput increases 10-50x for cached endpoints, latency drops to <5ms for cache hits.
+
+---
+
+## CORRECTION: Gradual Ramp Test (finer granularity)
+
+The initial test jumped 100→200, missing the actual breaking point. Re-tested with gradual increments: 10→20→40→60→80→100→120→140→160→180→200→250→300.
+
+### Corrected Breaking Points
+
+| Service | Endpoint | Last OK Level | Breaking Point | Error Rate at Break | p95 at Break |
+|---|---|---|:---:|:---:|---:|
+| **onboarding-api** | /api/activity-monitor | **300** | **>300** | 0% | 509ms |
+| **edi-converter** | /api/v1/convert/maps | **300** | **>300** | 0% | 22ms |
+| **config-service** | /api/flows | 60 | **80** | 12% | 1094ms |
+| **platform-sentinel** | /api/v1/sentinel/findings | 60 | **80** | 12% | 190ms |
+| **ai-engine** | /api/v1/ai/anomalies | 60 | **80** | 12% | 30ms |
+| **screening-service** | /api/v1/quarantine | 60 | **80** | 12% | 63ms |
+| **keystore-manager** | /api/v1/keys | 60 | **80** | 12% | 149ms |
+| **notification-service** | /api/notifications/templates | 60 | **80** | 12% | 58ms |
+| **storage-manager** | /api/v1/storage/objects | 60 | **80** | 12% | 48ms |
+| **sftp-service** | /actuator/health | 60 | **80** | 12% | 90ms |
+
+### Key Insight: Sharp Cliff at 80, Not 200
+
+8 of 10 services break at EXACTLY 80 concurrent (not 200 as initially reported). The pattern is identical across all 8: 60 concurrent = 100% success, 80 concurrent = exactly 10 failures (12.5% error rate).
+
+This is NOT the Tomcat thread pool (default 200). Something else limits at ~70-75 effective concurrent requests. Possible causes:
+
+1. **Hikari connection pool + queue timeout**: Default pool=10, queue timeout=30s. At 80 concurrent requests each needing a DB connection, 70 queue behind the 10 active. If the queries take >400ms average, the queue backs up and some requests time out or get rejected.
+
+2. **OS-level file descriptor limit**: Docker container default ulimit for open files might be 64-128 on some configurations. Each request = 1 socket + 1 DB connection = 2 file descriptors. At 80 concurrent: 160 FDs needed.
+
+3. **Docker networking limit**: Docker's userspace proxy has a connection limit. Multiple services all breaking at exactly 80 suggests a shared infrastructure constraint.
+
+### Why onboarding-api and edi-converter Survive
+
+- **onboarding-api** uses `@Transactional(readOnly = true)` on its hot path (Activity Monitor). Read-only transactions use a simpler JDBC path and release connections faster. The Hikari pool handles 300 concurrent because each connection is held for <5ms.
+
+- **edi-converter** has NO database dependency. It's pure computation — no connection pool, no transaction, no Hibernate. This is why it handles 300 concurrent at 10ms average. Every other service goes through Postgres.
+
+### Updated Production Capacity Estimates
+
+| Service | Max safe concurrent (at <500ms p99) | With 3 replicas |
+|---|:---:|:---:|
+| onboarding-api | **250** | **750** |
+| edi-converter | **300+** | **900+** |
+| config-service | **40** | **120** |
+| All others | **60** | **180** |
+
+**config-service is 6x weaker than onboarding-api.** With 3 replicas, it caps the platform at ~120 concurrent config operations before SLA breach. This is the #1 scaling bottleneck.
