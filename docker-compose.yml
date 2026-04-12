@@ -15,10 +15,13 @@ x-spiffe-volume: &spiffe-volume
 x-common-env: &common-env
   JAVA_TOOL_OPTIONS: >-
     -Xmx384m -Xms192m
-    -XX:+UseG1GC -XX:MaxGCPauseMillis=100
+    -XX:+UseG1GC -XX:MaxGCPauseMillis=50
     -XX:+UseStringDeduplication
     -Dspring.jmx.enabled=false
     -Dspring.main.lazy-initialization=true
+    -Dserver.tomcat.accept-count=200
+    -Dserver.tomcat.threads.max=300
+    -Dspring.jpa.properties.hibernate.default_batch_fetch_size=20
   PLATFORM_RATE_LIMIT_DEFAULT_LIMIT: 10000
   DATABASE_URL: jdbc:postgresql://postgres:5432/filetransfer?stringtype=unspecified
   DB_USERNAME: postgres

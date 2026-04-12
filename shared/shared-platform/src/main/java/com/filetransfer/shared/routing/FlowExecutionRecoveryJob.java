@@ -28,7 +28,7 @@ public class FlowExecutionRecoveryJob {
     @SchedulerLock(name = "flow-execution-recovery", lockAtMostFor = "PT4M")
     @Transactional
     public void recoverStuckExecutions() {
-        Instant threshold = Instant.now().minus(Duration.ofMinutes(30));
+        Instant threshold = Instant.now().minus(Duration.ofMinutes(5));
         List<FlowExecution> stuck = executionRepository
                 .findByStatusAndStartedAtBefore(FlowExecution.FlowStatus.PROCESSING, threshold);
 
@@ -38,7 +38,7 @@ public class FlowExecutionRecoveryJob {
                     exec.getFlow() != null ? exec.getFlow().getName() : "N/A",
                     exec.getStartedAt());
             exec.setStatus(FlowExecution.FlowStatus.FAILED);
-            exec.setErrorMessage("Recovered: stuck in PROCESSING for > 30 minutes");
+            exec.setErrorMessage("Recovered: stuck in PROCESSING for > 5 minutes (likely NPE or unhandled error)");
             exec.setCompletedAt(Instant.now());
             executionRepository.save(exec);
         }
