@@ -261,3 +261,71 @@ Once Issues 1-6 are resolved:
 4. Set up 3rd-party SFTP server for outbound delivery testing
 5. Test EDI conversion quality (X12 850 → JSON)
 6. Scale to 1000 files and measure throughput under load
+
+---
+
+## Performance Test Results — 2026-04-12
+
+### SFTP Upload Throughput (via DMZ Proxy, port 32222)
+
+| File Size | Latency | Throughput |
+|---|---|---|
+| 1 KB | 432ms | 2 KB/s |
+| 10 KB | 231ms | 43 KB/s |
+| 100 KB | 337ms | 295 KB/s |
+| 1 MB | 789ms | 1,296 KB/s |
+
+**Observation:** Latency is dominated by SFTP session setup (~200ms overhead). For small files, the per-file overhead is the bottleneck. For larger files, actual transfer throughput improves linearly.
+
+**Sequential batch (100 files, 1 session):** 1.5-2.3 seconds (43-68 files/sec)
+
+**Concurrent sessions:** DMZ proxy rejects >1 simultaneous SFTP session for the same user. 9 of 10 parallel sessions got Exit 255. This is a critical finding: the DMZ proxy needs connection pooling or per-user concurrency limits that are configurable (currently hardcoded to 1?).
+
+### API Endpoint Latency (10 requests each, averaged)
+
+| Endpoint | Avg | Min | Max | Notes |
+|---|---|---|---|---|
+| /api/activity-monitor | 23ms | 9ms | 108ms | First request cold-cache spike |
+| /api/partners | 8ms | 3ms | 49ms | Fast — small result set |
+| /api/accounts | 86ms | 47ms | 147ms | Slow — 231 accounts, no pagination? |
+| /api/flows | 62ms | 32ms | 186ms | Moderate — 202 flows |
+| /api/audit-logs | 15ms | 6ms | 35ms | Fast |
+| /api/v1/sentinel/findings | 39ms | 5ms | 337ms | High variance — cold-cache issue |
+| /api/servers | 10ms | 3ms | 43ms | Fast |
+
+**Observation:** Most APIs respond in <30ms after warm-up. The `/api/accounts` endpoint (86ms avg) is the slowest — likely due to the large result set (231 accounts). Consider enforcing pagination and limiting default page size.
+
+### Database Performance
+
+| Query | Planning | Execution | Notes |
+|---|---|---|---|
+| `SELECT * FROM file_transfer_records ORDER BY routed_at DESC LIMIT 25` | 3.7ms | 0.3ms | Sequential scan on 150 rows — fine at this scale, needs index at 10K+ |
+| `SELECT * FROM flow_executions ORDER BY started_at DESC LIMIT 25` | 1.6ms | 1.0ms | Sequential scan on 264 rows — same |
+
+**Connection pool:** 51 idle connections + 1 active. 51 idle connections across 17 services (~3 per service) is typical for Hikari default pool size of 10 with most connections returned.
+
+### Memory Profile (all containers, idle after test)
+
+| Tier | Services | Avg Memory | Total |
+|---|---|---|---|
+| Heavy (>750MB) | onboarding-api, gateway-service, ai-engine, config-service, ftp-web-service, encryption-service, as2-service, notification-service | ~775 MB | ~6.2 GB |
+| Medium (650-750MB) | sftp-service(x3), ftp-service(x3), ftp-web-service-2, screening-service, keystore-manager, analytics-service, license-service, storage-manager, forwarder-service, platform-sentinel | ~710 MB | ~9.9 GB |
+| Light (<350MB) | dmz-proxy, edi-converter, redpanda, loki, postgres, rabbitmq, redis, prometheus, grafana, minio, spire-*, promtail, ui-service, ftp-web-ui, api-gateway, partner-portal, alertmanager | ~90 MB avg | ~1.5 GB |
+| **Total** | **41 containers** | | **~17.6 GB** |
+
+**Observation:** 22 Java services consume ~16 GB total (avg ~727 MB each). The JVM default heap is likely 256-512MB with metaspace/thread stacks adding overhead. For a 23 GB host, this leaves ~6 GB for OS and Docker overhead — tight but workable.
+
+**Optimization opportunity:** Services like sftp-service-2, sftp-service-3, ftp-service-2, ftp-service-3 are replicas. If not needed for HA testing, running with fewer replicas saves ~2.8 GB.
+
+### CPU Hotspots (idle/warm state)
+
+| Service | CPU | Likely cause |
+|---|---|---|
+| dmz-proxy-internal | 10.08% | Continuous health checks + scanner traffic handling |
+| forwarder-service | 9.08% | Polling for pending forwards? |
+| notification-service | 7.04% | Redis health check retry loop (localhost:6379 issue) |
+| sftp-service | 6.58% | File watcher / event processing from 100+ uploaded files |
+| keystore-manager | 5.76% | Certificate expiry check polling? |
+| analytics-service | 5.82% | Metric aggregation job running |
+
+**Observation:** Total idle CPU across all services is ~100% of one core. The dmz-proxy-internal at 10% is the highest — likely from the constant external scanner traffic hitting it every 14 seconds plus its own health checks. With the Redis fix (C6 in bug audit), notification-service's CPU should drop.
