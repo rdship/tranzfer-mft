@@ -290,26 +290,197 @@ public class NlpService {
 
     // --- Fallback (when no API key configured) ---
 
+    /**
+     * Pattern-based command translator — works WITHOUT any LLM.
+     * Handles all standard admin operations natively using regex + our own API JSON formats.
+     * Supports quantity operations, compound plans, and diagnostics.
+     */
     private NlpResult fallbackTranslate(String input) {
-        String lower = input.toLowerCase();
+        String lower = input.toLowerCase().trim();
+        String original = input.trim();
+
+        // ── Track ID operations ──
+        java.util.regex.Matcher trackM = java.util.regex.Pattern.compile(
+                "\\b(TRZ[A-Z0-9]{6,10})\\b", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(original);
+        if (trackM.find()) {
+            String tid = trackM.group(1).toUpperCase();
+            if (lower.contains("diagnose") || lower.contains("why") || lower.contains("fail")) return cmd("diagnose " + tid);
+            if (lower.contains("restart")) return cmd("restart " + tid);
+            if (lower.contains("skip")) return cmd("skip " + tid + " --step 0");
+            if (lower.contains("terminate") || lower.contains("stop")) return confirm("terminate " + tid, "Terminate transfer " + tid);
+            return cmd("track " + tid);
+        }
+
+        // ── Quantity: "create N accounts/flows/keys" → orchestration plan ──
+        java.util.regex.Matcher qtyM = java.util.regex.Pattern.compile(
+                "(\\d+)\\s+(?:sftp|ftp|test)?\\s*(account|flow|key)", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(lower);
+        if (qtyM.find() && lower.contains("create")) {
+            int count = Math.min(Integer.parseInt(qtyM.group(1)), 50);
+            String type = qtyM.group(2).toLowerCase();
+            String protocol = lower.contains("ftp") && !lower.contains("sftp") ? "FTP" : "SFTP";
+            try {
+                return plan(buildBulkPlan(type, protocol, count, lower));
+            } catch (Exception e) { /* fall through */ }
+        }
+
+        // ── Create single account ──
+        if (lower.contains("create") && lower.contains("account")) {
+            String protocol = lower.contains("ftp") && !lower.contains("sftp") ? "FTP" : "SFTP";
+            String username = extractWord(original, "(?:named?|user(?:name)?|called)\\s+(\\S+)");
+            if (username == null) username = "test-" + System.currentTimeMillis() % 10000;
+            try {
+                return plan(List.of(Map.of(
+                        "method", "POST", "path", "/api/accounts",
+                        "body", mapper.writeValueAsString(Map.of("protocol", protocol, "username", username, "password", "AutoPass@1!")),
+                        "description", "Create " + protocol + " account: " + username)));
+            } catch (Exception e) { /* fall through */ }
+        }
+
+        // ── Create flow ──
+        if (lower.contains("create") && lower.contains("flow")) {
+            String source = extractWord(original, "(?:for|source|from)\\s+(\\S+)");
+            String pattern = extractWord(original, "(?:pattern|criteria|matching)\\s+(\\S+)");
+            String deliver = extractWord(original, "(?:deliver|to|destination)\\s+(\\S+)");
+            List<String> actions = new java.util.ArrayList<>();
+            if (lower.contains("screen")) actions.add("SCREEN");
+            if (lower.contains("encrypt")) actions.add("ENCRYPT_PGP");
+            if (lower.contains("compress")) actions.add("COMPRESS_GZIP");
+            if (lower.contains("convert") || lower.contains("edi")) actions.add("CONVERT_EDI");
+            if (lower.contains("checksum")) actions.add("CHECKSUM_VERIFY");
+            if (actions.isEmpty()) actions.add("SCREEN");
+            String name = (source != null ? source : "auto") + "-flow-" + System.currentTimeMillis() % 10000;
+            try {
+                var body = new java.util.LinkedHashMap<String, Object>();
+                body.put("name", name);
+                if (source != null) body.put("source", source);
+                if (pattern != null) body.put("filenamePattern", pattern);
+                body.put("actions", actions);
+                if (deliver != null) body.put("deliverTo", deliver);
+                return plan(List.of(Map.of(
+                        "method", "POST", "path", "/api/flows/quick",
+                        "body", mapper.writeValueAsString(body),
+                        "description", "Create flow: " + name)));
+            } catch (Exception e) { /* fall through */ }
+        }
+
+        // ── Create + flow compound: "create account X and a flow for it" ──
+        if (lower.contains("create") && lower.contains("account") && lower.contains("flow")) {
+            String username = extractWord(original, "(?:named?|called|user)\\s+(\\S+)");
+            if (username == null) username = "test-" + System.currentTimeMillis() % 10000;
+            String protocol = lower.contains("ftp") && !lower.contains("sftp") ? "FTP" : "SFTP";
+            String pattern = extractWord(original, "(?:pattern|criteria)\\s+(\\S+)");
+            if (pattern == null) pattern = ".*";
+            try {
+                String finalUser = username;
+                String finalPattern = pattern;
+                return plan(List.of(
+                        Map.of("method", "POST", "path", "/api/accounts",
+                                "body", mapper.writeValueAsString(Map.of("protocol", protocol, "username", finalUser, "password", "AutoPass@1!")),
+                                "description", "Create " + protocol + " account: " + finalUser),
+                        Map.of("method", "POST", "path", "/api/flows/quick",
+                                "body", mapper.writeValueAsString(Map.of("name", finalUser + "-flow", "source", finalUser, "filenamePattern", finalPattern, "actions", List.of("SCREEN", "MAILBOX"))),
+                                "description", "Create flow for " + finalUser)));
+            } catch (Exception e) { /* fall through */ }
+        }
+
+        // ── Queue operations ──
+        if (lower.contains("queue")) {
+            if (lower.contains("list")) return cmd("queues list");
+            if (lower.contains("create")) {
+                String queueType = extractWord(original, "(?:type|named?)\\s+(\\S+)");
+                if (queueType != null) {
+                    try {
+                        return plan(List.of(Map.of("method", "POST", "path", "/api/function-queues",
+                                "body", mapper.writeValueAsString(Map.of("functionType", queueType.toUpperCase(), "displayName", queueType, "category", "CUSTOM", "retryCount", 1, "timeoutSeconds", 60)),
+                                "description", "Create queue: " + queueType)));
+                    } catch (Exception e) { /* fall through */ }
+                }
+            }
+        }
+
+        // ── Key operations ──
+        if (lower.contains("key") || lower.contains("certificate")) {
+            if (lower.contains("list")) return cmd("keys list");
+            if (lower.contains("generate") || lower.contains("create")) {
+                String keyType = lower.contains("pgp") ? "pgp" : lower.contains("aes") ? "aes" :
+                        lower.contains("ssh") ? "ssh-host" : lower.contains("tls") ? "tls" : "aes";
+                String alias = extractWord(original, "(?:alias|named?|called)\\s+(\\S+)");
+                if (alias == null) alias = keyType + "-" + System.currentTimeMillis() % 10000;
+                try {
+                    return plan(List.of(Map.of("method", "POST", "path", "/api/v1/keys/generate/" + keyType,
+                            "body", mapper.writeValueAsString(Map.of("alias", alias, "ownerService", "platform")),
+                            "description", "Generate " + keyType + " key: " + alias)));
+                } catch (Exception e) { /* fall through */ }
+            }
+        }
+
+        // ── Listener operations ──
+        if (lower.contains("listener")) return cmd("listeners list");
+
+        // ── Simple lookups ──
         if (lower.contains("status") || lower.contains("overview")) return cmd("status");
         if (lower.contains("account") && lower.contains("list")) return cmd("accounts list");
         if (lower.contains("user") && lower.contains("list")) return cmd("users list");
         if (lower.contains("flow") && lower.contains("list")) return cmd("flows list");
+        if (lower.contains("sentinel") || lower.contains("finding")) return cmd("sentinel findings");
+        if (lower.contains("fail")) return cmd("search failed");
         if (lower.contains("recent") || lower.contains("latest")) return cmd("search recent 10");
         if (lower.contains("service") || lower.contains("health")) return cmd("services");
         if (lower.contains("log")) return cmd("logs recent 20");
-        if (lower.matches(".*track.*[A-Z0-9]{12}.*")) {
-            String id = input.replaceAll(".*?([A-Z0-9]{12}).*", "$1");
-            return cmd("track " + id);
-        }
+        if (lower.contains("help")) return cmd("help");
+
         return NlpResult.builder().understood(false)
-                .response("I couldn't understand that. Set CLAUDE_API_KEY for full NLP support, or use 'help' for available commands.")
+                .response("Try: 'create 5 sftp accounts', 'list flows', 'diagnose TRZ-X7K9M2', 'create a flow for acme with screen and mailbox'")
                 .build();
     }
 
     private NlpResult cmd(String command) {
         return NlpResult.builder().understood(true).command(command).response("→ " + command).build();
+    }
+
+    private NlpResult confirm(String command, String warning) {
+        return NlpResult.builder().understood(true).command(command).requiresConfirmation(true)
+                .response("⚠ " + warning + "\nType 'yes' to confirm.").build();
+    }
+
+    private NlpResult plan(List<Map<String, String>> steps) {
+        try {
+            return NlpResult.builder().understood(true)
+                    .command(mapper.writeValueAsString(steps))
+                    .response("Executing " + steps.size() + " step(s)").build();
+        } catch (Exception e) {
+            return NlpResult.builder().understood(false).response("Failed to build plan").build();
+        }
+    }
+
+    /** Extract a word from input using regex group 1 */
+    private String extractWord(String input, String regex) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile(regex, java.util.regex.Pattern.CASE_INSENSITIVE).matcher(input);
+        return m.find() ? m.group(1) : null;
+    }
+
+    /** Build bulk creation plan — N accounts or flows */
+    private List<Map<String, String>> buildBulkPlan(String type, String protocol, int count, String context) throws Exception {
+        var plan = new java.util.ArrayList<Map<String, String>>();
+        for (int i = 1; i <= count; i++) {
+            if ("account".equals(type)) {
+                String user = "test-" + String.format("%03d", i);
+                plan.add(Map.of("method", "POST", "path", "/api/accounts",
+                        "body", mapper.writeValueAsString(Map.of("protocol", protocol, "username", user, "password", "TestPass@" + i + "!")),
+                        "description", "Create " + protocol + " account: " + user));
+            } else if ("flow".equals(type)) {
+                String name = "test-flow-" + String.format("%03d", i);
+                plan.add(Map.of("method", "POST", "path", "/api/flows/quick",
+                        "body", mapper.writeValueAsString(Map.of("name", name, "filenamePattern", ".*", "actions", List.of("SCREEN"), "priority", 50 + i)),
+                        "description", "Create flow: " + name));
+            } else if ("key".equals(type)) {
+                String alias = "test-key-" + String.format("%03d", i);
+                plan.add(Map.of("method", "POST", "path", "/api/v1/keys/generate/aes",
+                        "body", mapper.writeValueAsString(Map.of("alias", alias, "ownerService", "platform")),
+                        "description", "Generate AES key: " + alias));
+            }
+        }
+        return plan;
     }
 
     private FlowSuggestion fallbackFlowSuggestion(String description) {
