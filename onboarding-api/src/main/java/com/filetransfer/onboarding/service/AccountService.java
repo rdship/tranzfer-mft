@@ -133,6 +133,10 @@ public class AccountService {
         return accountRepository.findAll().stream().map(this::toResponse).toList();
     }
 
+    public List<AccountResponse> listAccounts(org.springframework.data.domain.Pageable pageable) {
+        return accountRepository.findAll(pageable).stream().map(this::toResponse).toList();
+    }
+
     public AccountResponse getAccount(UUID accountId) {
         return toResponse(findById(accountId));
     }

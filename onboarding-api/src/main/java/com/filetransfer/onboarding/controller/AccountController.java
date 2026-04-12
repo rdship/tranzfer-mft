@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -27,9 +28,11 @@ public class AccountController {
     private final AccountService accountService;
 
     @GetMapping
-    @Operation(summary = "List all transfer accounts")
-    public List<AccountResponse> list() {
-        return accountService.listAccounts();
+    @Operation(summary = "List transfer accounts (paginated: ?page=0&size=50)")
+    public List<AccountResponse> list(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "500") int size) {
+        return accountService.listAccounts(PageRequest.of(page, Math.min(size, 1000)));
     }
 
     @PostMapping
