@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.*;
 import java.time.temporal.ChronoUnit;
@@ -40,6 +41,7 @@ public class PartnerProfileService {
 
     @Scheduled(fixedDelay = 600000) // every 10 min
     @SchedulerLock(name = "ai_partnerProfile_rebuildProfiles", lockAtLeastFor = "PT9M", lockAtMostFor = "PT20M")
+    @Transactional(readOnly = true)
     public void rebuildProfiles() {
         List<FileTransferRecord> allRecords = recordRepository.findAll();
         Instant cutoff = Instant.now().minus(30, ChronoUnit.DAYS);

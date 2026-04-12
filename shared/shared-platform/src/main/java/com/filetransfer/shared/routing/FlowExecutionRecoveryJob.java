@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -25,6 +26,7 @@ public class FlowExecutionRecoveryJob {
 
     @Scheduled(fixedDelay = 300_000) // every 5 minutes
     @SchedulerLock(name = "flow-execution-recovery", lockAtMostFor = "PT4M")
+    @Transactional
     public void recoverStuckExecutions() {
         Instant threshold = Instant.now().minus(Duration.ofMinutes(30));
         List<FlowExecution> stuck = executionRepository

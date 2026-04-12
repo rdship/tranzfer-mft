@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -35,6 +36,7 @@ public class AnomalyDetectionService {
 
     @Scheduled(fixedDelay = 300000) // every 5 min
     @SchedulerLock(name = "ai_anomalyDetection_detectAnomalies", lockAtLeastFor = "PT4M", lockAtMostFor = "PT14M")
+    @Transactional(readOnly = true)
     public void detectAnomalies() {
         Instant cutoff = Instant.now().minus(lookbackDays, ChronoUnit.DAYS);
         Instant recentCutoff = Instant.now().minus(1, ChronoUnit.HOURS);

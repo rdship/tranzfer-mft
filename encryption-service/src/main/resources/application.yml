@@ -6,6 +6,10 @@ management:
   health:
     probes:
       enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus,info,circuit-breakers
 
 spring:
   lifecycle:

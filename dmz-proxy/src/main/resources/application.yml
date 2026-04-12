@@ -1,6 +1,15 @@
 server:
   port: 8088  # Management / REST API
 
+management:
+  health:
+    probes:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus,info,circuit-breakers
+
 control-api:
   key: ${CONTROL_API_KEY:internal_control_secret}
 
@@ -22,7 +31,7 @@ proxy:
 spring:
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
+      host: ${REDIS_HOST:redis}
       port: ${REDIS_PORT:6379}
       timeout: 2000ms
       lettuce:

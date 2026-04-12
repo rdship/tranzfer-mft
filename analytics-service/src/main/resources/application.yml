@@ -41,7 +41,7 @@ spring:
     requested-heartbeat: 60
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
+      host: ${REDIS_HOST:redis}
       port: ${REDIS_PORT:6379}
       timeout: 2000ms
       lettuce:
