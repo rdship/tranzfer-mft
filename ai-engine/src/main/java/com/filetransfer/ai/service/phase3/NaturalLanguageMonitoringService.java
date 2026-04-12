@@ -37,6 +37,7 @@ public class NaturalLanguageMonitoringService {
     private final PartnerProfileService profileService;
     private final PredictiveSlaService slaService;
     private final AutoRemediationService remediationService;
+    private final com.filetransfer.ai.service.SystemStateService systemState;
 
     /**
      * Answer a natural language question about the platform.
@@ -44,6 +45,27 @@ public class NaturalLanguageMonitoringService {
      */
     public String answer(String question) {
         String q = question.toLowerCase().trim();
+
+        // Specific transfer diagnosis — "why did TRZ-X7K9M2 fail?" or "diagnose TRZ123"
+        java.util.regex.Matcher trackMatcher = java.util.regex.Pattern.compile(
+                "\\b(TRZ[A-Z0-9]{6,10})\\b", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(question);
+        if (trackMatcher.find()) {
+            return systemState.diagnoseTransfer(trackMatcher.group(1).toUpperCase());
+        }
+
+        // "what's failing?" / "show me recent failures"
+        if ((q.contains("what") && q.contains("fail")) || q.contains("recent failure") || q.contains("what broke")) {
+            return systemState.getRecentFailures();
+        }
+
+        // "system health" / "how's the platform" / "status"
+        if (q.contains("health") || q.contains("status") || q.contains("how") && q.contains("platform")) {
+            var health = systemState.getHealthSummary();
+            StringBuilder sb = new StringBuilder("Platform Health:\n");
+            health.forEach((k, v) -> sb.append("  ").append(k).append(": ").append(v).append("\n"));
+            return sb.toString();
+        }
+
         List<FileTransferRecord> allRecords = recordRepository.findAll();
 
         // Transfer count questions
