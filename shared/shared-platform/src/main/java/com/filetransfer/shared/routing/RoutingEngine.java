@@ -182,8 +182,9 @@ public class RoutingEngine {
             }
         }
 
-        // ── VIRTUAL-mode accounts: FileRef-based streaming pipeline ──────────────
-        if ("VIRTUAL".equals(sourceAccount.getStorageMode()) && vfsBridge != null) {
+        // ── VIRTUAL-mode accounts (default): FileRef-based streaming pipeline ──────────
+        boolean isVirtual = !"PHYSICAL".equalsIgnoreCase(sourceAccount.getStorageMode());
+        if (isVirtual && vfsBridge != null) {
             Optional<com.filetransfer.shared.entity.VirtualEntry> entryOpt =
                     vfsBridge.getVfs().stat(sourceAccount.getId(), relativeFilePath);
             if (entryOpt.isPresent()) {

@@ -184,7 +184,7 @@ public class PlatformBootstrapService {
                 .active(true)
                 .maxConnections(500)
                 .securityTier("RULES")
-                .defaultStorageMode("PHYSICAL")
+                .defaultStorageMode("VIRTUAL")
                 .build();
     }
 

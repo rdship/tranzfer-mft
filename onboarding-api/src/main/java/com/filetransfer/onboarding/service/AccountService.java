@@ -87,7 +87,7 @@ public class AccountService {
                             "Server instance not found: " + request.getServerInstance()));
         }
 
-        String storageMode = resolvedServer != null ? resolvedServer.getDefaultStorageMode() : "PHYSICAL";
+        String storageMode = resolvedServer != null ? resolvedServer.getDefaultStorageMode() : "VIRTUAL";
 
         TransferAccount account = TransferAccount.builder()
                 .user(owner)

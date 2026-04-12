@@ -67,11 +67,11 @@ public class TransferAccount extends Auditable {
     @Column(name = "partner_id")
     private UUID partnerId;
 
-    /** PHYSICAL = legacy filesystem, VIRTUAL = phantom folder VFS. */
+    /** VIRTUAL = content-addressed VFS (default, distributed-safe), PHYSICAL = legacy local filesystem. */
     @Size(max = 10)
     @Column(name = "storage_mode", length = 10)
     @Builder.Default
-    private String storageMode = "PHYSICAL";
+    private String storageMode = "VIRTUAL";
 
     /** Per-account inline threshold override (null = use system default vfs.inline-max-bytes). */
     @Column(name = "inline_max_bytes")

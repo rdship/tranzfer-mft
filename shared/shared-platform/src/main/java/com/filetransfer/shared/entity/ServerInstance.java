@@ -75,10 +75,10 @@ public class ServerInstance {
     @JoinColumn(name = "folder_template_id")
     private FolderTemplate folderTemplate;
 
-    /** PHYSICAL = legacy filesystem, VIRTUAL = phantom folder VFS. */
+    /** VIRTUAL = content-addressed VFS (default), PHYSICAL = legacy local filesystem. */
     @Column(name = "default_storage_mode", length = 10)
     @Builder.Default
-    private String defaultStorageMode = "PHYSICAL";
+    private String defaultStorageMode = "VIRTUAL";
 
     // Proxy QoS policy (persisted so proxy mappings can be recreated on restart)
     @Column(name = "proxy_qos_enabled")
