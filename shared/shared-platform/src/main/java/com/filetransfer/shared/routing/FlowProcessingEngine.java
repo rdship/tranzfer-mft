@@ -159,15 +159,26 @@ public class FlowProcessingEngine {
             flowEventJournal.recordExecutionStarted(trackId, exec.getId(), null, flow.getSteps().size());
         }
 
-        // ── Dynamic Flow Fabric: publish to flow.intake, let consumer pick it up ──
-        if (fabricBridge != null && fabricBridge.isFabricActive()) {
+        // ── Per-function step pipeline: publish STEP 0 to its function topic ──
+        // No for loop. The queue drives the iteration.
+        // Step 0 executes → publishes step 1 → step 1 executes → publishes step 2 → ...
+        // Only metadata in the queue (~200 bytes). File stays in storage-manager.
+        if (fabricBridge != null && fabricBridge.isFabricActive() && !flow.getSteps().isEmpty()) {
             try {
-                fabricBridge.publishIntake(exec, flow);
-                log.info("[{}] Published flow '{}' to fabric flow.intake (fabric mode)", trackId, flow.getName());
-                return exec;
+                FileFlow.FlowStep firstStep = flow.getSteps().get(0);
+                String initialKey = exec.getCurrentStorageKey() != null
+                        ? exec.getCurrentStorageKey()
+                        : exec.getInitialStorageKey();
+                if (initialKey != null) {
+                    fabricBridge.publishStep(trackId, 0, firstStep.getType(), initialKey);
+                    log.info("[{}] Flow '{}' → published step 0 ({}) to per-function pipeline",
+                            trackId, flow.getName(), firstStep.getType());
+                    return exec;
+                }
+                // No storage key yet (PHYSICAL mode without checkpoint) — fall through to SEDA
+                log.debug("[{}] No storage key for pipeline — falling back to SEDA/sync", trackId);
             } catch (Exception e) {
-                log.warn("[{}] Fabric publish failed, falling back to SEDA: {}", trackId, e.getMessage());
-                // Fall through to existing SEDA path
+                log.warn("[{}] Pipeline publish failed, falling back to SEDA: {}", trackId, e.getMessage());
             }
         }
 
@@ -228,6 +239,81 @@ public class FlowProcessingEngine {
         // PHYSICAL mode: execution carries a local file path
         String inputPath = exec.getCurrentFilePath();
         executeFlowSteps(exec, flow, trackId, filename, inputPath);
+    }
+
+    /**
+     * Execute a SINGLE step via the Kafka pipeline (saga pattern).
+     * No for loop — the queue is the iterator. Each step is one message.
+     * After this step completes, publishes the NEXT step message to flow.pipeline.
+     * On last step, marks the flow COMPLETED.
+     *
+     * <p>Kafka partitions by trackId — each transfer's steps are ordered within
+     * their partition, but different transfers execute in parallel. One partner
+     * can't block another.
+     */
+    public void executeSingleStep(FlowExecution exec, FileFlow flow, int stepIndex,
+                                   String inputStorageKey, String trackId) {
+        String filename = exec.getOriginalFilename();
+        FileFlow.FlowStep step = flow.getSteps().get(stepIndex);
+        Map<String, String> stepCfg = step.getConfig() != null ? step.getConfig() : Map.of();
+
+        log.info("[{}] Step {}/{} ({}) — executing via pipeline", trackId, stepIndex + 1,
+                flow.getSteps().size(), step.getType());
+
+        try {
+            // Build FileRef from storage key
+            UUID accountId = null;
+            try { if (flow.getSourceAccount() != null) accountId = flow.getSourceAccount().getId(); } catch (Exception ignore) {}
+            FileRef ref = new FileRef(inputStorageKey, "/" + (filename != null ? filename : "unknown"),
+                    accountId, -1L, trackId, null, "STANDARD");
+
+            // Execute this one step — only metadata in the queue, file streamed on consumption
+            long start = System.currentTimeMillis();
+            StepOutcome outcome = processStepRef(step, inputStorageKey,
+                    "/" + (filename != null ? filename : "unknown"), -1L, ref, trackId, stepIndex);
+            long duration = System.currentTimeMillis() - start;
+
+            String outputKey = outcome.storageKey();
+
+            // Checkpoint
+            exec.setCurrentStep(stepIndex + 1);
+            exec.setCurrentStorageKey(outputKey);
+            executionRepository.save(exec);
+
+            // FlowStepEvent for audit snapshot
+            eventPublisher.publishEvent(new com.filetransfer.shared.event.FlowStepEvent(
+                    trackId, exec.getId(), stepIndex, step.getType(), "OK",
+                    inputStorageKey, outputKey, null, outcome.virtualPath(),
+                    0L, outcome.sizeBytes(), duration, null));
+
+            log.info("[{}] Step {}/{} ({}) completed in {}ms — output={}",
+                    trackId, stepIndex + 1, flow.getSteps().size(), step.getType(),
+                    duration, outputKey.substring(0, Math.min(12, outputKey.length())));
+
+            // Publish NEXT step or mark COMPLETED
+            if (stepIndex + 1 < flow.getSteps().size()) {
+                FileFlow.FlowStep nextStep = flow.getSteps().get(stepIndex + 1);
+                if (fabricBridge != null) {
+                    fabricBridge.publishStep(trackId, stepIndex + 1, nextStep.getType(), outputKey);
+                }
+            } else {
+                // Last step — flow completed
+                exec.setStatus(FlowExecution.FlowStatus.COMPLETED);
+                exec.setCompletedAt(Instant.now());
+                executionRepository.save(exec);
+                dispatchFlowEvent("FLOW_COMPLETED", exec, flow);
+                log.info("[{}] Flow '{}' COMPLETED via pipeline ({} steps)", trackId, flow.getName(), flow.getSteps().size());
+            }
+
+        } catch (Exception e) {
+            log.error("[{}] Step {}/{} ({}) FAILED: {}", trackId, stepIndex + 1,
+                    flow.getSteps().size(), step.getType(), e.getMessage());
+            exec.setStatus(FlowExecution.FlowStatus.FAILED);
+            exec.setErrorMessage("Step " + stepIndex + " (" + step.getType() + "): " + e.getMessage());
+            exec.setCompletedAt(Instant.now());
+            executionRepository.save(exec);
+            dispatchFlowEvent("FLOW_FAILED", exec, flow);
+        }
     }
 
     /**
@@ -1233,15 +1319,16 @@ public class FlowProcessingEngine {
         }
         exec = executionRepository.save(exec);
 
-        // ── Dynamic Flow Fabric: publish to flow.intake, consumer executes via executeFlowRefViaFabric ──
-        if (fabricBridge != null && fabricBridge.isFabricActive() && startFromStep == 0) {
+        // ── Per-function step pipeline (VIRTUAL mode) ──
+        if (fabricBridge != null && fabricBridge.isFabricActive() && !flow.getSteps().isEmpty()) {
             try {
-                fabricBridge.publishIntake(exec, flow);
-                log.info("[{}] Published flow '{}' to fabric flow.intake (VIRTUAL, fabric mode)", trackId, flow.getName());
+                FileFlow.FlowStep firstStep = flow.getSteps().get(startFromStep);
+                fabricBridge.publishStep(trackId, startFromStep, firstStep.getType(), ref.storageKey());
+                log.info("[{}] Flow '{}' (VIRTUAL) → step {} ({}) published to per-function pipeline",
+                        trackId, flow.getName(), startFromStep, firstStep.getType());
                 return exec;
             } catch (Exception e) {
-                log.warn("[{}] Fabric publish failed (VIRTUAL), falling back to SEDA: {}", trackId, e.getMessage());
-                // Fall through to existing SEDA path
+                log.warn("[{}] Pipeline publish failed (VIRTUAL), falling back to SEDA: {}", trackId, e.getMessage());
             }
         }
 

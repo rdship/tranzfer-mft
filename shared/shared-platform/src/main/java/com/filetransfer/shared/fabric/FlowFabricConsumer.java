@@ -63,6 +63,63 @@ public class FlowFabricConsumer {
             log.warn("[FlowFabricConsumer] Failed to subscribe to flow.intake — fabric disabled at runtime: {}",
                 e.getMessage());
         }
+
+        // Per-function step topics — each step type gets its own consumer group
+        // This enables independent scaling: SCREEN workers scale separately from ENCRYPT workers
+        String[] stepTypes = {"SCREEN", "CHECKSUM_VERIFY", "ENCRYPT_PGP", "DECRYPT_PGP",
+                "ENCRYPT_AES", "DECRYPT_AES", "COMPRESS_GZIP", "DECOMPRESS_GZIP",
+                "COMPRESS_ZIP", "DECOMPRESS_ZIP", "CONVERT_EDI", "RENAME",
+                "MAILBOX", "FILE_DELIVERY", "EXECUTE_SCRIPT"};
+        for (String stepType : stepTypes) {
+            try {
+                String topic = "flow.step." + stepType;
+                String group = FabricGroupIds.shared(serviceName, topic);
+                fabricBridge.getClient().subscribe(topic, group, this::onPipelineMessage);
+                log.debug("[FlowFabricConsumer] Subscribed to {} (group={})", topic, group);
+            } catch (Exception e) {
+                log.debug("[FlowFabricConsumer] Topic flow.step.{} not available: {}", stepType, e.getMessage());
+            }
+        }
+        log.info("[FlowFabricConsumer] Per-function step pipeline active — {} step types subscribed", stepTypes.length);
+    }
+
+    /**
+     * Per-step pipeline handler. Each message = one step to execute.
+     * After execution, publishes the next step (or marks COMPLETED).
+     * If this worker crashes, Kafka redelivers to another worker.
+     */
+    private void onPipelineMessage(FabricEvent event) {
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> payload = event.payload(Map.class, objectMapper);
+            String trackId = (String) payload.get("trackId");
+            int stepIndex = payload.get("stepIndex") instanceof Number n ? n.intValue() : 0;
+            String stepType = (String) payload.get("stepType");
+            String inputKey = (String) payload.get("inputStorageKey");
+
+            log.info("[{}] Pipeline step {}: {} (input={})", trackId, stepIndex, stepType,
+                    inputKey != null ? inputKey.substring(0, Math.min(12, inputKey.length())) : "null");
+
+            Optional<FlowExecution> execOpt = executionRepo.findByTrackId(trackId);
+            if (execOpt.isEmpty()) { log.warn("[{}] Execution not found", trackId); return; }
+
+            FlowExecution exec = execOpt.get();
+            FileFlow flow = exec.getFlow();
+            if (flow == null && exec.getFlow() == null) {
+                // Flow may not be eagerly loaded — fetch it
+                String flowIdStr = (String) payload.get("flowId");
+                if (flowIdStr != null) flow = flowRepo.findById(UUID.fromString(flowIdStr)).orElse(null);
+            }
+            if (flow == null) { log.error("[{}] Flow definition not found", trackId); return; }
+            if (stepIndex >= flow.getSteps().size()) { log.warn("[{}] Step {} out of range", trackId, stepIndex); return; }
+
+            // Execute this single step
+            flowProcessingEngine.executeSingleStep(exec, flow, stepIndex, inputKey, trackId);
+
+        } catch (Exception e) {
+            log.error("Failed to process flow.pipeline message at offset {}: {}", event.getOffset(), e.getMessage(), e);
+            throw new RuntimeException(e); // Trigger redelivery
+        }
     }
 
     private void onIntakeMessage(FabricEvent event) {

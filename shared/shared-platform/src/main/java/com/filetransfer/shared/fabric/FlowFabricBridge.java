@@ -75,8 +75,23 @@ public class FlowFabricBridge {
         log.debug("[FabricBridge] Published intake for {}", execution.getTrackId());
     }
 
-    /** Publish a per-step work item to the PIPELINE topic. */
-    public void publishStep(String trackId, int stepIndex, String stepType, String inputStorageKey) {
+    /**
+     * Publish a step work item to a per-function topic.
+     *
+     * <p>Each step type gets its own Kafka topic: {@code flow.step.SCREEN},
+     * {@code flow.step.ENCRYPT_PGP}, {@code flow.step.COMPRESS_GZIP}, etc.
+     * This makes each function independently scalable — add SCREEN workers
+     * without affecting ENCRYPT throughput. One slow function can't block another.
+     *
+     * <p>Messages are keyed by trackId — Kafka guarantees ordering per key
+     * within a partition. Different transfers (different trackIds) process
+     * in parallel across partitions. One partner's bulk upload can't starve another.
+     *
+     * <p>Also publishes to the generic {@code flow.pipeline} topic for
+     * cross-cutting consumers (monitoring, audit, observability dashboards).
+     */
+    public void publishStep(String trackId, int stepIndex, String stepType,
+                             String inputStorageKey) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("trackId", trackId);
         payload.put("stepIndex", stepIndex);
@@ -85,8 +100,14 @@ public class FlowFabricBridge {
         payload.put("publishedAt", Instant.now().toString());
         payload.put("instance", instanceId);
 
+        // Per-function topic — enables independent scaling per step type
+        String functionTopic = "flow.step." + stepType;
+        fabricClient.publish(functionTopic, trackId, payload);
+
+        // Generic pipeline topic — monitoring + observability
         fabricClient.publish(TOPIC_FLOW_PIPELINE, trackId, payload);
-        log.debug("[FabricBridge] Published step {} for {}", stepIndex, trackId);
+
+        log.debug("[FabricBridge] Step {}/{} for {} → {}", stepIndex, stepType, trackId, functionTopic);
     }
 
     // ============ CHECKPOINT MANAGEMENT ============
@@ -163,4 +184,7 @@ public class FlowFabricBridge {
     }
 
     public String getInstanceId() { return instanceId; }
+
+    /** Expose the underlying FabricClient for per-function topic subscriptions. */
+    public FabricClient getClient() { return fabricClient; }
 }
