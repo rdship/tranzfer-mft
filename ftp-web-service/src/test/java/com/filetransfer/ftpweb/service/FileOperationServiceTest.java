@@ -63,6 +63,7 @@ class FileOperationServiceTest {
                 .username("testuser")
                 .protocol(Protocol.FTP_WEB)
                 .homeDir(tempDir.toString())
+                .storageMode("PHYSICAL")
                 .active(true)
                 .build();
 
