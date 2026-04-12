@@ -1,5 +1,6 @@
 package com.filetransfer.config.controller;
 
+import com.filetransfer.config.dto.QuickFlowRequest;
 import com.filetransfer.config.messaging.FlowRuleEventPublisher;
 import com.filetransfer.config.service.MatchCriteriaService;
 import com.filetransfer.shared.entity.FileFlow;
@@ -15,6 +16,7 @@ import com.filetransfer.shared.security.Roles;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -30,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/flows")
 @RequiredArgsConstructor
@@ -102,6 +105,87 @@ public class FileFlowController {
         flowRepository.save(flow);
         flowRuleEventPublisher.publishDeleted(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // --- Quick Flow (simplified creation — 30 seconds, not 30 minutes) ---
+
+    /**
+     * Creates a complete flow from a simplified 4-section request (When/Do/Deliver/Error).
+     * Auto-generates flow name, steps with sensible defaults, and delivery config.
+     * The admin fills in source + pattern + actions + destination. That's it.
+     */
+    @PostMapping("/quick")
+    @CacheEvict(value = "flows", allEntries = true)
+    public ResponseEntity<FileFlow> createQuickFlow(@RequestBody QuickFlowRequest req) {
+        // Auto-generate name if not provided
+        String name = req.getName();
+        if (name == null || name.isBlank()) {
+            String src = req.getSource() != null ? req.getSource() : "any";
+            String pat = req.getFilenamePattern() != null ? req.getFilenamePattern().replaceAll("[^a-zA-Z0-9]", "") : "all";
+            name = src + "-" + pat + "-flow";
+        }
+        name = sanitizeName(name);
+        if (flowRepository.existsByName(name)) {
+            throw new IllegalArgumentException("Flow name already exists: " + name);
+        }
+
+        // Build steps from action list
+        List<FileFlow.FlowStep> steps = new java.util.ArrayList<>();
+        int order = 0;
+        if (req.getActions() != null) {
+            for (String action : req.getActions()) {
+                java.util.Map<String, String> config = new java.util.LinkedHashMap<>();
+
+                // Auto-fill step config based on type
+                switch (action.toUpperCase()) {
+                    case "SCREEN" -> config.put("onFailure", "PASS"); // graceful default
+                    case "ENCRYPT_PGP", "ENCRYPT_AES" -> {
+                        if (req.getEncryptionKeyAlias() != null) config.put("keyAlias", req.getEncryptionKeyAlias());
+                    }
+                    case "CONVERT_EDI" -> config.put("targetFormat", req.getEdiTargetFormat());
+                    case "CHECKSUM_VERIFY" -> config.put("algorithm", "SHA-256");
+                    case "MAILBOX" -> {
+                        if (req.getDeliverTo() != null) config.put("destinationUsername", req.getDeliverTo());
+                        if (req.getDeliveryPath() != null) config.put("destinationPath", req.getDeliveryPath());
+                    }
+                }
+                steps.add(FileFlow.FlowStep.builder().type(action.toUpperCase()).config(config).order(order++).build());
+            }
+        }
+
+        // If deliverTo is set and no MAILBOX/FILE_DELIVERY step exists, auto-add MAILBOX
+        boolean hasDelivery = steps.stream().anyMatch(s ->
+                "MAILBOX".equals(s.getType()) || "FILE_DELIVERY".equals(s.getType()));
+        if (!hasDelivery && req.getDeliverTo() != null) {
+            java.util.Map<String, String> mailboxConfig = new java.util.LinkedHashMap<>();
+            mailboxConfig.put("destinationUsername", req.getDeliverTo());
+            mailboxConfig.put("destinationPath", req.getDeliveryPath());
+            steps.add(FileFlow.FlowStep.builder().type("MAILBOX").config(mailboxConfig).order(order).build());
+        }
+
+        // Ensure at least one step
+        if (steps.isEmpty()) {
+            steps.add(FileFlow.FlowStep.builder().type("ROUTE").config(java.util.Map.of()).order(0).build());
+        }
+
+        FileFlow flow = FileFlow.builder()
+                .name(name)
+                .description("Quick flow: " + (req.getSource() != null ? req.getSource() : "any source")
+                        + " → " + (req.getDeliverTo() != null ? req.getDeliverTo() : "default"))
+                .filenamePattern(req.getFilenamePattern())
+                .direction(req.getDirection())
+                .priority(req.getPriority())
+                .steps(steps)
+                .active(true)
+                .build();
+
+        FileFlow saved = flowRepository.save(flow);
+        flowRuleEventPublisher.publishCreated(saved.getId());
+
+        log.info("Quick flow created: '{}' (id={}, {} steps, priority={})",
+                saved.getName(), saved.getId(), saved.getSteps().size(), saved.getPriority());
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
     // --- Flow Executions / Tracking ---

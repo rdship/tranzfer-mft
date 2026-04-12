@@ -13,12 +13,13 @@ import EmptyState from '../components/EmptyState'
 import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer'
 import FileDownloadButton from '../components/FileDownloadButton'
 import ConfigLink from '../components/ConfigLink'
+import QuickFlowWizard from '../components/QuickFlowWizard'
 import MatchCriteriaBuilder, { MatchSummaryBadges, buildCriteriaFromLegacy } from '../components/MatchCriteriaBuilder'
 import toast from 'react-hot-toast'
 import {
   PlusIcon, TrashIcon, PencilSquareIcon, ChevronUpIcon, ChevronDownIcon,
   FunnelIcon, ArrowPathIcon, ClockIcon, CheckCircleIcon, XCircleIcon,
-  ArrowsUpDownIcon, SparklesIcon, StopIcon,
+  ArrowsUpDownIcon, SparklesIcon, StopIcon, BoltIcon,
   ChevronRightIcon, InboxIcon, PaperAirplaneIcon, HandRaisedIcon,
   BeakerIcon, ExclamationTriangleIcon, QuestionMarkCircleIcon, MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline'
@@ -620,6 +621,7 @@ export default function Flows() {
   const [aiAvailable, setAiAvailable] = useState(true)
   const [drawerTrackId, setDrawerTrackId] = useState(null)     // execution detail drawer
   const [confirmDeleteFlow, setConfirmDeleteFlow] = useState(null)
+  const [showQuickFlow, setShowQuickFlow] = useState(false)
   const [selectedFlows, setSelectedFlows] = useState(new Set())
   const [showBulkFlowConfirm, setShowBulkFlowConfirm] = useState(null) // 'enable' | 'disable' | 'delete'
   const [bulkFlowLoading, setBulkFlowLoading] = useState(false)
@@ -1217,6 +1219,9 @@ export default function Flows() {
             <input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Search flows..." className="pl-9 w-64" />
           </div>
+          <button className="btn-secondary flex items-center gap-1.5" onClick={() => setShowQuickFlow(true)}>
+            <BoltIcon className="w-4 h-4" /> Quick Flow
+          </button>
           <button className="btn-primary" onClick={openCreate}>
             <PlusIcon className="w-4 h-4" /> New Flow
           </button>
@@ -1814,6 +1819,9 @@ export default function Flows() {
         onClose={() => setDrawerTrackId(null)}
         showActions
       />
+
+      {/* ═══ Quick Flow Wizard ═══ */}
+      <QuickFlowWizard open={showQuickFlow} onClose={() => setShowQuickFlow(false)} />
 
       {/* ═══ Flow Builder Modal ═══ */}
       {showEditor && (

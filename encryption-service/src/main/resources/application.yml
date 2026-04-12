@@ -36,6 +36,10 @@ spring:
     open-in-view: true  # OSIV: controllers return raw JPA entities
     hibernate:
       ddl-auto: none
+platform:
+  entity-scan:
+    mode: selective
+    packages: com.filetransfer.shared.entity
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
