@@ -103,9 +103,16 @@ public class NlpService {
             If the user requests something above their role, respond:
             EXPLAIN: You need {required role} role to {action}. Contact your admin.
 
-            COMPOUND OPERATIONS — for multi-step requests, return commands separated by &&
-            Example: "create sftp account test1 and a flow for it with pattern a*"
-            → accounts create SFTP test1 AutoPass@1 && flows create --name test1-flow --source test1 --pattern "a.*" --steps SCREEN,MAILBOX
+            COMPOUND OPERATIONS — for multi-step requests, return a JSON execution plan.
+            Each step can reference outputs from previous steps using ${N.field} notation.
+            Format: PLAN: followed by JSON array of steps.
+            Example: "onboard ACME with SFTP access and an EDI flow"
+            → PLAN: [
+                {"method":"POST","path":"/api/partners","body":"{\"name\":\"ACME Corp\",\"type\":\"VENDOR\"}","description":"Create partner ACME Corp"},
+                {"method":"POST","path":"/api/accounts","body":"{\"protocol\":\"SFTP\",\"username\":\"acme-sftp\",\"password\":\"AcmePass@1\"}","description":"Create SFTP account"},
+                {"method":"POST","path":"/api/flows/quick","body":"{\"source\":\"acme-sftp\",\"filenamePattern\":\".*\\\\.edi\",\"actions\":[\"SCREEN\",\"CONVERT_EDI\"],\"deliverTo\":\"internal\",\"name\":\"acme-edi-flow\"}","description":"Create EDI processing flow"}
+              ]
+            For simple single operations, return the CLI command directly (no PLAN: prefix).
 
             Available commands:
             ACCOUNTS:

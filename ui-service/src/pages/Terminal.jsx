@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { onboardingApi } from '../api/client'
+import { onboardingApi, aiApi } from '../api/client'
 import { nlpCommand, suggestFlow } from '../api/ai'
 import { CommandLineIcon, SparklesIcon } from '@heroicons/react/24/outline'
 
@@ -76,25 +76,40 @@ export default function Terminal() {
         } catch { /* fall through */ }
       }
 
-      // Try NLP translation (English → CLI commands, may be compound with &&)
+      // Try NLP translation — may return single command OR execution plan
       if (!handled) {
         try {
           const nlp = await nlpCommand(cmd)
           if (nlp.understood && nlp.command) {
-            // Compound commands: "create account && create flow" → execute sequentially
-            const commands = nlp.command.split('&&').map(c => c.trim()).filter(Boolean)
-            for (const singleCmd of commands) {
-              setLines(prev => [...prev, { type: 'system', text: '→ ' + singleCmd }])
+            // Execution plan (multi-step orchestration with dependency resolution)
+            if (nlp.command.trimStart().startsWith('[')) {
               try {
-                const res = await onboardingApi.post('/api/cli/execute', { command: singleCmd })
+                const plan = JSON.parse(nlp.command)
+                setLines(prev => [...prev, { type: 'system', text: `Executing ${plan.length}-step plan:` }])
+                plan.forEach((s, i) => setLines(prev => [...prev, { type: 'system', text: `  ${i+1}. ${s.description}` }]))
+                const { data: result } = await aiApi.post('/api/v1/ai/orchestrate', { plan })
+                for (const step of result.steps) {
+                  setLines(prev => [...prev, {
+                    type: step.success ? 'output' : 'error',
+                    text: `  ${step.success ? '✓' : '✗'} Step ${step.step}: ${step.description} — ${step.output}`
+                  }])
+                }
+                setLines(prev => [...prev, { type: result.success ? 'system' : 'error', text: result.summary }])
+              } catch (pe) {
+                setLines(prev => [...prev, { type: 'error', text: 'Orchestration failed: ' + (pe.response?.data?.summary || pe.message) }])
+              }
+              handled = true
+            } else {
+              // Single command
+              setLines(prev => [...prev, { type: 'system', text: '→ ' + nlp.command }])
+              try {
+                const res = await onboardingApi.post('/api/cli/execute', { command: nlp.command })
                 setLines(prev => [...prev, { type: 'output', text: res.data.output }])
               } catch (cmdErr) {
-                setLines(prev => [...prev, { type: 'error', text: cmdErr.response?.data?.error || cmdErr.response?.data?.output || 'Failed: ' + singleCmd }])
-                // Stop on first failure in compound chain
-                break
+                setLines(prev => [...prev, { type: 'error', text: cmdErr.response?.data?.error || cmdErr.response?.data?.output || 'Failed: ' + nlp.command }])
               }
+              handled = true
             }
-            handled = true
           } else if (nlp.requiresConfirmation) {
             // Destructive operation — show warning, wait for yes/no
             setLines(prev => [...prev, { type: 'system', text: nlp.response }])

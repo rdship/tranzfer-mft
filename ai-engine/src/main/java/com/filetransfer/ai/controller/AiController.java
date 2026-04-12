@@ -31,6 +31,7 @@ public class AiController {
     private final SelfDrivingInfraService selfDrivingService;
     private final IntelligenceNetworkService intelligenceService;
     private final NlpService nlpService;
+    private final CommandOrchestrator commandOrchestrator;
 
     // === Data Classification ===
 
@@ -89,6 +90,27 @@ public class AiController {
         String event = (String) body.get("event");
         return ResponseEntity.ok(Map.of("explanation",
                 nlpService.explainEvent(event, body)));
+    }
+
+    // === Command Orchestration (one sentence → multiple API calls) ===
+
+    @PostMapping("/orchestrate")
+    public ResponseEntity<CommandOrchestrator.ExecutionResult> orchestrate(
+            @RequestBody Map<String, Object> body,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        @SuppressWarnings("unchecked")
+        List<Map<String, String>> planMaps = (List<Map<String, String>>) body.get("plan");
+        String baseUrl = (String) body.getOrDefault("baseUrl", "https://onboarding-api:9080");
+
+        List<CommandOrchestrator.PlanStep> plan = planMaps.stream()
+                .map(m -> new CommandOrchestrator.PlanStep(
+                        m.getOrDefault("method", "POST"),
+                        m.get("path"),
+                        m.get("body"),
+                        m.getOrDefault("description", "Step")))
+                .toList();
+
+        return ResponseEntity.ok(commandOrchestrator.execute(plan, baseUrl, authHeader));
     }
 
     // === Risk Score ===
