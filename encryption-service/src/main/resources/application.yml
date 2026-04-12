@@ -12,6 +12,8 @@ management:
         include: health,metrics,prometheus,info,circuit-breakers
 
 spring:
+  main:
+    allow-bean-definition-overriding: true
   lifecycle:
     timeout-per-shutdown-phase: 30s
   rabbitmq:
@@ -82,7 +84,6 @@ vault:
   addr: ${VAULT_ADDR:http://vault:8200}
   token: ${VAULT_TOKEN:mft-dev-token}
 
-platform:
   services:
     onboarding-api:
       url: ${ONBOARDING_API_URL:http://onboarding-api:8080}

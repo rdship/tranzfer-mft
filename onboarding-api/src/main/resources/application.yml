@@ -24,6 +24,8 @@ management:
         include: health,metrics,prometheus,info,circuit-breakers
 
 spring:
+  main:
+    allow-bean-definition-overriding: true  # RestTemplateConfig (TLS) overrides SharedConfig restTemplate — needed for AOT
   lifecycle:
     timeout-per-shutdown-phase: 30s
   data:

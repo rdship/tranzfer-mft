@@ -23,6 +23,8 @@ management:
       enabled: false
 
 spring:
+  main:
+    allow-bean-definition-overriding: true
   lifecycle:
     timeout-per-shutdown-phase: 30s
   rabbitmq:

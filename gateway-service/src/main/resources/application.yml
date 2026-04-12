@@ -12,6 +12,8 @@ management:
         include: health,metrics,prometheus,info,circuit-breakers
 
 spring:
+  main:
+    allow-bean-definition-overriding: true
   data:
     redis:
       host: ${REDIS_HOST:redis}

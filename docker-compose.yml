@@ -236,13 +236,14 @@ services:
     cap_add:
       - IPC_LOCK
     healthcheck:
-      test: ["CMD", "vault", "status"]
+      test: ["CMD-SHELL", "VAULT_ADDR=http://127.0.0.1:8200 vault status"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 5s
     networks:
       - mft-network
+      - default  # needed for db-migrate to reach postgres on default network
 
   vault-init:
     image: hashicorp/vault:1.15
@@ -1223,7 +1224,7 @@ services:
       - analytics-service
       - license-service
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/nginx-health > /dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/ > /dev/null || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -1237,7 +1238,7 @@ services:
     depends_on:
       - onboarding-api
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/nginx-health > /dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/ > /dev/null || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -1251,7 +1252,7 @@ services:
     depends_on:
       - ftp-web-service
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/nginx-health > /dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/ > /dev/null || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -1271,7 +1272,7 @@ services:
       - config-service
       - ui-service
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/nginx-health > /dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "curl -skf https://localhost:8443/nginx-health > /dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 3

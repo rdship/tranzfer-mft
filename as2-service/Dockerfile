@@ -1,7 +1,8 @@
 FROM eclipse-temurin:25-jre
 WORKDIR /app
 
-RUN groupadd -r appgroup && useradd -r -g appgroup -d /app appuser && \
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* && \
+    groupadd -r appgroup && useradd -r -g appgroup -d /app appuser && \
     mkdir -p /data/as2 && \
     chown -R appuser:appgroup /app /data/as2 && \
     mkdir -p /tmp && chmod 1777 /tmp
