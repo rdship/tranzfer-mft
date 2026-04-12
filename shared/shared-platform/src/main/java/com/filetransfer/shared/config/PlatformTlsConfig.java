@@ -124,8 +124,10 @@ public class PlatformTlsConfig {
             return keystorePath;
         }
 
-        // Shared path — same cert for all services on this host
-        Path sharedKeystore = Path.of(System.getProperty("java.io.tmpdir"), "platform-tls.p12");
+        // Shared path — /tls volume mounted from Docker, persists across restarts
+        // Falls back to /tmp if volume not mounted (dev mode)
+        Path tlsDir = Files.isDirectory(Path.of("/tls")) ? Path.of("/tls") : Path.of(System.getProperty("java.io.tmpdir"));
+        Path sharedKeystore = tlsDir.resolve("platform-tls.p12");
 
         // Priority 2: Already generated (cached across service restarts)
         if (Files.exists(sharedKeystore)) {

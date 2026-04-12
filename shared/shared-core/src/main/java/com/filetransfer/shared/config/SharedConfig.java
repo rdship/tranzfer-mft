@@ -75,7 +75,24 @@ public class SharedConfig {
                     proxyConfig.getPort(), proxyConfig.getNoProxyHosts());
             return new RestTemplate(factory);
         }
-        return new RestTemplate();
+        // Trust self-signed certs for inter-service HTTPS (platform TLS uses shared self-signed cert)
+        try {
+            javax.net.ssl.SSLContext sslCtx = org.apache.hc.core5.ssl.SSLContextBuilder.create()
+                    .loadTrustMaterial(org.apache.hc.client5.http.ssl.TrustAllStrategy.INSTANCE).build();
+            var cm = PoolingHttpClientConnectionManagerBuilder.create()
+                    .setSSLSocketFactory(SSLConnectionSocketFactoryBuilder.create()
+                            .setSslContext(sslCtx)
+                            .setHostnameVerifier(org.apache.hc.client5.http.ssl.NoopHostnameVerifier.INSTANCE)
+                            .build())
+                    .setMaxConnTotal(200).setMaxConnPerRoute(20).build();
+            CloseableHttpClient httpClient = HttpClients.custom().setConnectionManager(cm).build();
+            var factory = new org.springframework.http.client.HttpComponentsClientHttpRequestFactory(httpClient);
+            factory.setConnectTimeout(5000);
+            return new RestTemplate(factory);
+        } catch (Exception e) {
+            log.warn("Failed to create trust-all RestTemplate, falling back to default: {}", e.getMessage());
+            return new RestTemplate();
+        }
     }
 
     /**
