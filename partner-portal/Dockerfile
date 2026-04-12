@@ -6,6 +6,7 @@ COPY . .
 RUN npm run build
 
 FROM nginx:alpine
+RUN apk add --no-cache openssl && mkdir -p /etc/nginx/ssl
 
 # Non-root nginx must listen on an unprivileged port (>=1024). Host port
 # 3002 -> container port 8080 is wired in docker-compose.yml.
@@ -19,3 +20,5 @@ RUN echo 'server { listen 8080; root /usr/share/nginx/html; index index.html; lo
 
 USER appuser
 EXPOSE 8080
+COPY entrypoint.sh /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]

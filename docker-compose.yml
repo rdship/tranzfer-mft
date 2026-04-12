@@ -1236,7 +1236,7 @@ services:
       - analytics-service
       - license-service
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/ > /dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -skf https://localhost:8443/ > /dev/null || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -1250,7 +1250,7 @@ services:
     depends_on:
       - onboarding-api
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/ > /dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -skf https://localhost:8443/ > /dev/null || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -1264,7 +1264,7 @@ services:
     depends_on:
       - ftp-web-service
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/ > /dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -skf https://localhost:8443/ > /dev/null || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 3
