@@ -8,6 +8,14 @@ export const createPartnership = (data) => configApi.post('/api/as2-partnerships
 export const togglePartnership = (id) => configApi.patch(`/api/as2-partnerships/${id}/toggle`).then(r => r.data)
 export const deletePartnership = (id) => configApi.delete(`/api/as2-partnerships/${id}`)
 
+// Function Queues (per-step pipeline configuration)
+export const getFunctionQueues = () => configApi.get('/api/function-queues').then(r => r.data)
+export const getFunctionQueue = (id) => configApi.get(`/api/function-queues/${id}`).then(r => r.data)
+export const createFunctionQueue = (data) => configApi.post('/api/function-queues', data).then(r => r.data)
+export const updateFunctionQueue = (id, data) => configApi.put(`/api/function-queues/${id}`, data).then(r => r.data)
+export const toggleFunctionQueue = (id) => configApi.patch(`/api/function-queues/${id}/toggle`).then(r => r.data)
+export const deleteFunctionQueue = (id) => configApi.delete(`/api/function-queues/${id}`)
+
 // Folder Templates
 export const getFolderTemplates = () => configApi.get('/api/folder-templates').then(r => r.data)
 export const createFolderTemplate = (data) => configApi.post('/api/folder-templates', data).then(r => r.data)
