@@ -39,7 +39,12 @@ VALUES
   ('CONVERT_EDI',      'EDI Conversion',           'Convert EDI documents (X12/EDIFACT/HL7) to JSON/XML/CSV', 'TRANSFORM', 'flow.step.CONVERT_EDI', 3, 5000, 60, 2, 8),
   ('RENAME',           'File Rename',              'Rename file by pattern (${partner}_${date}_${filename})', 'TRANSFORM', 'flow.step.RENAME', 0, 5000, 5, 2, 4),
   ('MAILBOX',          'Internal Delivery',        'Deliver file to another accounts outbox within platform', 'DELIVERY', 'flow.step.MAILBOX', 2, 5000, 30, 2, 8),
-  ('FILE_DELIVERY',    'External Delivery',        'Deliver file to external destination via SFTP/FTP/HTTP',  'DELIVERY', 'flow.step.FILE_DELIVERY', 3, 10000, 120, 2, 8),
+  ('FILE_DELIVERY',    'External Delivery (Generic)', 'Deliver file to external destination — routes to protocol-specific queue', 'DELIVERY', 'flow.step.FILE_DELIVERY', 3, 10000, 120, 2, 8),
+  ('DELIVER_SFTP',     'SFTP Delivery',            'Deliver file to external SFTP server',               'DELIVERY', 'flow.step.DELIVER_SFTP', 3, 10000, 120, 2, 8),
+  ('DELIVER_FTP',      'FTP/FTPS Delivery',        'Deliver file to external FTP/FTPS server',           'DELIVERY', 'flow.step.DELIVER_FTP', 3, 10000, 120, 2, 8),
+  ('DELIVER_HTTP',     'HTTP/API Delivery',         'Deliver file to HTTP/REST endpoint or webhook',      'DELIVERY', 'flow.step.DELIVER_HTTP', 2, 3000, 30, 2, 16),
+  ('DELIVER_AS2',      'AS2 Delivery',              'Deliver file via AS2 protocol with MDN receipt',     'DELIVERY', 'flow.step.DELIVER_AS2', 3, 10000, 180, 1, 4),
+  ('DELIVER_KAFKA',    'Kafka/Event Delivery',      'Publish file content or reference to Kafka topic',   'DELIVERY', 'flow.step.DELIVER_KAFKA', 1, 2000, 15, 2, 16),
   ('EXECUTE_SCRIPT',   'Script Execution',         'Run custom processing script',                       'CUSTOM', 'flow.step.EXECUTE_SCRIPT', 1, 5000, 300, 1, 4)
 ON CONFLICT (function_type) DO NOTHING;
 

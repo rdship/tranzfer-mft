@@ -66,10 +66,21 @@ public class FlowFabricConsumer {
 
         // Per-function step topics — each step type gets its own consumer group
         // This enables independent scaling: SCREEN workers scale separately from ENCRYPT workers
-        String[] stepTypes = {"SCREEN", "CHECKSUM_VERIFY", "ENCRYPT_PGP", "DECRYPT_PGP",
-                "ENCRYPT_AES", "DECRYPT_AES", "COMPRESS_GZIP", "DECOMPRESS_GZIP",
-                "COMPRESS_ZIP", "DECOMPRESS_ZIP", "CONVERT_EDI", "RENAME",
-                "MAILBOX", "FILE_DELIVERY", "EXECUTE_SCRIPT"};
+        // Processing + delivery queues — delivery split by protocol so one slow
+        // SFTP partner can't block HTTP deliveries or Kafka event publishing
+        String[] stepTypes = {
+                // Security
+                "SCREEN", "CHECKSUM_VERIFY",
+                "ENCRYPT_PGP", "DECRYPT_PGP", "ENCRYPT_AES", "DECRYPT_AES",
+                // Transform
+                "COMPRESS_GZIP", "DECOMPRESS_GZIP", "COMPRESS_ZIP", "DECOMPRESS_ZIP",
+                "CONVERT_EDI", "RENAME",
+                // Delivery — per protocol (independent scaling + isolation)
+                "MAILBOX", "FILE_DELIVERY",
+                "DELIVER_SFTP", "DELIVER_FTP", "DELIVER_HTTP", "DELIVER_AS2", "DELIVER_KAFKA",
+                // Custom
+                "EXECUTE_SCRIPT"
+        };
         for (String stepType : stepTypes) {
             try {
                 String topic = "flow.step." + stepType;

@@ -293,8 +293,9 @@ public class FlowProcessingEngine {
             // Publish NEXT step or mark COMPLETED
             if (stepIndex + 1 < flow.getSteps().size()) {
                 FileFlow.FlowStep nextStep = flow.getSteps().get(stepIndex + 1);
+                String nextStepType = resolveStepTopic(nextStep);
                 if (fabricBridge != null) {
-                    fabricBridge.publishStep(trackId, stepIndex + 1, nextStep.getType(), outputKey);
+                    fabricBridge.publishStep(trackId, stepIndex + 1, nextStepType, outputKey);
                 }
             } else {
                 // Last step — flow completed
@@ -1576,6 +1577,40 @@ public class FlowProcessingEngine {
             log.error("[{}] Failed to persist FAILED status: {}", trackId, inner.getMessage());
         }
       }
+    }
+
+    /**
+     * Resolves the actual queue topic for a step. For FILE_DELIVERY, routes to
+     * protocol-specific queue based on the endpoint config. One slow SFTP partner
+     * can't block HTTP or Kafka deliveries — they're separate queues.
+     */
+    private String resolveStepTopic(FileFlow.FlowStep step) {
+        String type = step.getType().toUpperCase();
+        if (!"FILE_DELIVERY".equals(type)) return type;
+
+        // Route to protocol-specific delivery queue
+        Map<String, String> cfg = step.getConfig();
+        if (cfg == null) return type;
+
+        String endpointIds = cfg.get("deliveryEndpointIds");
+        if (endpointIds == null || endpointIds.isBlank()) return type;
+
+        // Resolve first endpoint's protocol
+        try {
+            UUID firstId = UUID.fromString(endpointIds.split(",")[0].trim());
+            return deliveryEndpointRepository.findById(firstId)
+                    .map(ep -> switch (ep.getProtocol().name().toUpperCase()) {
+                        case "SFTP" -> "DELIVER_SFTP";
+                        case "FTP", "FTPS" -> "DELIVER_FTP";
+                        case "HTTP", "HTTPS", "API" -> "DELIVER_HTTP";
+                        case "AS2" -> "DELIVER_AS2";
+                        case "KAFKA" -> "DELIVER_KAFKA";
+                        default -> "FILE_DELIVERY";
+                    })
+                    .orElse("FILE_DELIVERY");
+        } catch (Exception e) {
+            return "FILE_DELIVERY"; // fallback to generic
+        }
     }
 
     /** Carries the new storage key + virtual path after a VIRTUAL-mode step completes. */
