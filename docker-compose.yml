@@ -180,7 +180,7 @@ services:
       postgres
       -c config_file=/etc/postgresql/postgresql.tuned.conf
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # Mount the tuned config read-only — single source of truth.
@@ -221,8 +221,8 @@ services:
       RABBITMQ_DEFAULT_PASS: guest
       RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: -rabbit vm_memory_high_watermark 0.8
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -248,8 +248,8 @@ services:
       - --rpc-addr=0.0.0.0:33145
       - --advertise-rpc-addr=redpanda:33145
     ports:
-      - "9092:9092"
-      - "9644:9644"
+      - "127.0.0.1:9092:9092"
+      - "127.0.0.1:9644:9644"
     volumes:
       - redpanda_data:/var/lib/redpanda/data
     healthcheck:
@@ -268,7 +268,7 @@ services:
     container_name: mft-onboarding-api
     <<: *healthcheck
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       <<: *common-env
       CLUSTER_HOST: onboarding-api
@@ -314,8 +314,8 @@ services:
     container_name: mft-sftp-service-2
     <<: *healthcheck
     ports:
-      - "2223:2222"
-      - "8181:8081"
+      - "127.0.0.1:2223:2222"
+      - "127.0.0.1:8181:8081"
     environment:
       <<: *common-env
       CLUSTER_HOST: sftp-service-2
@@ -364,9 +364,9 @@ services:
     container_name: mft-ftp-service-2
     <<: *healthcheck
     ports:
-      - "1020:21"
-      - "21011-21019:21000-21008"
-      - "8182:8082"
+      - "127.0.0.1:1020:21"
+      - "127.0.0.1:21011-21019:21000-21008"
+      - "127.0.0.1:8182:8082"
     environment:
       <<: *common-env
       CLUSTER_HOST: ftp-service-2
@@ -390,8 +390,8 @@ services:
     container_name: mft-sftp-service-3
     <<: *healthcheck
     ports:
-      - "12222:2222"
-      - "18081:8081"
+      - "127.0.0.1:12222:2222"
+      - "127.0.0.1:18081:8081"
     environment:
       <<: *common-env
       CLUSTER_HOST: sftp-service-3
@@ -414,9 +414,9 @@ services:
     container_name: mft-ftp-service-3
     <<: *healthcheck
     ports:
-      - "1021:21"
-      - "21020-21030:21000-21010"
-      - "18082:8082"
+      - "127.0.0.1:1021:21"
+      - "127.0.0.1:21020-21030:21000-21010"
+      - "127.0.0.1:18082:8082"
     environment:
       <<: *common-env
       CLUSTER_HOST: ftp-service-3
@@ -462,7 +462,7 @@ services:
     container_name: mft-ftp-web-service-2
     <<: *healthcheck
     ports:
-      - "8183:8083"
+      - "127.0.0.1:8183:8083"
     environment:
       <<: *common-env
       CLUSTER_HOST: ftp-web-service-2
@@ -482,7 +482,7 @@ services:
     container_name: mft-config-service
     <<: *healthcheck
     ports:
-      - "8084:8084"
+      - "127.0.0.1:8084:8084"
     environment:
       <<: *common-env
       CLUSTER_HOST: config-service
@@ -502,9 +502,9 @@ services:
     container_name: mft-gateway-service
     <<: *healthcheck
     ports:
-      - "2220:2220"
-      - "2122:2122"
-      - "8085:8085"
+      - "127.0.0.1:2220:2220"
+      - "127.0.0.1:2122:2122"
+      - "127.0.0.1:8085:8085"
     environment:
       <<: *common-env
       CLUSTER_HOST: gateway-service
@@ -533,7 +533,7 @@ services:
     container_name: mft-encryption-service
     <<: *healthcheck
     ports:
-      - "8086:8086"
+      - "127.0.0.1:8086:8086"
     environment:
       <<: *common-env
       CLUSTER_HOST: encryption-service
@@ -550,7 +550,7 @@ services:
     container_name: mft-forwarder-service
     <<: *healthcheck
     ports:
-      - "8087:8087"
+      - "127.0.0.1:8087:8087"
     environment:
       <<: *common-env
       CLUSTER_HOST: forwarder-service
@@ -569,11 +569,11 @@ services:
     build: ./dmz-proxy
     container_name: mft-dmz-proxy-internal
     ports:
-      - "8088:8088"       # Management REST API
-      - "32222:2222"      # SFTP (internal network clients)
-      - "32121:21"        # FTP  (internal network clients)
-      - "4443:443"        # FTP-Web (internal HTTPS)
-      - "9443:9443"       # Tunnel port (gateway-service connects inbound)
+      - "127.0.0.1:8088:8088"       # Management REST API
+      - "127.0.0.1:32222:2222"      # SFTP (internal network clients)
+      - "127.0.0.1:32121:21"        # FTP  (internal network clients)
+      - "127.0.0.1:4443:443"        # FTP-Web (internal HTTPS)
+      - "127.0.0.1:9443:9443"       # Tunnel port (gateway-service connects inbound)
     environment:
       PLATFORM_SECURITY_JWT_SECRET: ${PLATFORM_JWT_SECRET:-changeme_32char_secret_here_!!!!}
       SERVER_PORT: 8088
@@ -617,11 +617,11 @@ services:
     profiles:
       - external-proxy     # start with: docker compose --profile external-proxy up
     ports:
-      - "8089:8088"        # Management REST API (different host port)
-      - "42222:2222"       # SFTP (external/internet clients)
-      - "42121:21"         # FTP  (external/internet clients)
-      - "8443:443"         # FTP-Web HTTPS (external)
-      - "9444:9443"        # Tunnel port (separate tunnel for external proxy)
+      - "127.0.0.1:8089:8088"        # Management REST API (different host port)
+      - "127.0.0.1:42222:2222"       # SFTP (external/internet clients)
+      - "127.0.0.1:42121:21"         # FTP  (external/internet clients)
+      - "127.0.0.1:8443:443"         # FTP-Web HTTPS (external)
+      - "127.0.0.1:9444:9443"        # Tunnel port (separate tunnel for external proxy)
     environment:
       PLATFORM_SECURITY_JWT_SECRET: ${PLATFORM_JWT_SECRET:-changeme_32char_secret_here_!!!!}
       SERVER_PORT: 8088
@@ -667,7 +667,7 @@ services:
       retries: 5
       start_period: 30s
     ports:
-      - "8094:8094"
+      - "127.0.0.1:8094:8094"
     environment:
       <<: *common-env
       CLUSTER_HOST: as2-service
@@ -690,7 +690,7 @@ services:
     container_name: mft-license-service
     <<: *healthcheck
     ports:
-      - "8089:8089"
+      - "127.0.0.1:8089:8089"
     environment:
       <<: *common-env
       CLUSTER_HOST: license-service
@@ -707,7 +707,7 @@ services:
     container_name: mft-analytics-service
     <<: *healthcheck
     ports:
-      - "8090:8090"
+      - "127.0.0.1:8090:8090"
     environment:
       <<: *common-env
       CLUSTER_HOST: analytics-service
@@ -727,7 +727,7 @@ services:
     container_name: mft-ai-engine
     <<: *healthcheck
     ports:
-      - "8091:8091"
+      - "127.0.0.1:8091:8091"
     environment:
       <<: *common-env
       CLUSTER_HOST: ai-engine
@@ -745,7 +745,7 @@ services:
     container_name: mft-ai-engine-2
     <<: *healthcheck
     ports:
-      - "18091:8091"
+      - "127.0.0.1:18091:8091"
     environment:
       <<: *common-env
       CLUSTER_HOST: ai-engine-2
@@ -764,7 +764,7 @@ services:
     container_name: mft-keystore-manager
     <<: *healthcheck
     ports:
-      - "8093:8093"
+      - "127.0.0.1:8093:8093"
     environment:
       <<: *common-env
       CLUSTER_HOST: keystore-manager
@@ -799,7 +799,7 @@ services:
     container_name: mft-storage-manager
     <<: *healthcheck
     ports:
-      - "8096:8096"
+      - "127.0.0.1:8096:8096"
     environment:
       <<: *common-env
       CLUSTER_HOST: storage-manager
@@ -841,8 +841,8 @@ services:
       MINIO_ROOT_USER:     ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     ports:
-      - "9000:9000"   # S3 API (internal to platform only — not exposed to internet)
-      - "9001:9001"   # Web console
+      - "127.0.0.1:9000:9000"   # S3 API (internal to platform only — not exposed to internet)
+      - "127.0.0.1:9001:9001"   # Web console
     volumes:
       - minio_data:/data
     healthcheck:
@@ -886,7 +886,7 @@ services:
     container_name: mft-edi-converter
     <<: *healthcheck
     ports:
-      - "8095:8095"
+      - "127.0.0.1:8095:8095"
     environment:
       JAVA_TOOL_OPTIONS: >-
         -Xmx384m -Xms192m
@@ -910,7 +910,7 @@ services:
     container_name: mft-screening-service
     <<: *healthcheck
     ports:
-      - "8092:8092"
+      - "127.0.0.1:8092:8092"
     environment:
       <<: *common-env
       CLUSTER_HOST: screening-service
@@ -933,7 +933,7 @@ services:
     container_name: mft-notification-service
     <<: *healthcheck
     ports:
-      - "8097:8097"
+      - "127.0.0.1:8097:8097"
     environment:
       <<: *common-env
       CLUSTER_HOST: notification-service
@@ -956,7 +956,7 @@ services:
     container_name: mft-platform-sentinel
     <<: *healthcheck
     ports:
-      - "8098:8098"
+      - "127.0.0.1:8098:8098"
     environment:
       <<: *common-env
       CLUSTER_HOST: platform-sentinel
@@ -998,7 +998,7 @@ services:
     image: prom/prometheus:v2.51.0
     container_name: mft-prometheus
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./config/prometheus/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
@@ -1024,7 +1024,7 @@ services:
     image: prom/alertmanager:v0.27.0
     container_name: mft-alertmanager
     ports:
-      - "9093:9093"
+      - "127.0.0.1:9093:9093"
     volumes:
       - ./config/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - alertmanager_data:/alertmanager
@@ -1041,7 +1041,7 @@ services:
     image: grafana/loki:2.9.0
     container_name: mft-loki
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
     volumes:
       - ./config/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
       - loki_data:/loki
@@ -1069,7 +1069,7 @@ services:
     image: grafana/grafana:10.4.0
     container_name: mft-grafana
     ports:
-      - "3030:3000"
+      - "127.0.0.1:3030:3000"
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
@@ -1112,7 +1112,7 @@ services:
     container_name: mft-ui-service
     # Container port is 8080 (non-root nginx) — host URL stays http://localhost:3000
     ports:
-      - "3000:8080"
+      - "127.0.0.1:3000:8080"
     # UI is a static nginx — depend only on `service_started` not
     # `service_healthy` so the SPA can load even if backends are still
     # warming up (R13's global QueryCache handler renders a friendly
@@ -1133,7 +1133,7 @@ services:
     build: ./partner-portal
     container_name: mft-partner-portal
     ports:
-      - "3002:8080"
+      - "127.0.0.1:3002:8080"
     depends_on:
       - onboarding-api
     healthcheck:
@@ -1147,7 +1147,7 @@ services:
     build: ./ftp-web-ui
     container_name: mft-ftp-web-ui
     ports:
-      - "3001:8080"
+      - "127.0.0.1:3001:8080"
     depends_on:
       - ftp-web-service
     healthcheck:
@@ -1164,7 +1164,7 @@ services:
     build: ./api-gateway
     container_name: mft-api-gateway
     ports:
-      - "80:8080"
+      - "127.0.0.1:80:8080"
     depends_on:
       - onboarding-api
       - config-service
