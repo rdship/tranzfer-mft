@@ -938,3 +938,51 @@ spring.data.redis.host: ${REDIS_HOST:redis}  # was: localhost
 7. **[P2]** Flow routing engine — filename pattern matching not in compiled predicate
 8. **[P2]** SFTP account creation — home dir created on wrong filesystem
 9. **[P2]** Keystore-manager cert download — returns wrong PEM format
+
+---
+
+## Observation: SelectiveEntityScan Misconfigured — Boot Still 325-340s (2026-04-12 evening)
+
+**Error logs:** `docs/run-reports/mft-error-logs-r2-20260412.zip`
+
+### What Happened
+
+CTO applied `SelectiveEntityScan` to all services (commit dd5f7ad). But most services still boot in 325-340s instead of the expected 9-11s.
+
+**Root cause:** Most services set `packages: com.filetransfer.shared.entity` — this is the ENTIRE entity package (100+ entities). The scanner loads ALL of them, same as before.
+
+**What works (from earlier testing):**
+- `storage-manager`: `packages: com.filetransfer.shared.entity.StorageObject` → **9s boot**
+- `encryption-service`: `packages: com.filetransfer.shared.entity.EncryptionKey` → **fast boot**
+
+**What doesn't work (this run):**
+- `onboarding-api`: `packages: com.filetransfer.shared.entity` → **340s boot** (loads ALL entities)
+- `config-service`: same → **325s boot**
+
+### The Fix
+
+Each service must list its SPECIFIC entity classes, not the package:
+
+```yaml
+# ❌ WRONG — loads all 100+ entities
+platform:
+  entity-scan:
+    packages: com.filetransfer.shared.entity
+
+# ✅ CORRECT — loads only what this service uses
+platform:
+  entity-scan:
+    packages:
+      - com.filetransfer.shared.entity.FileTransferRecord
+      - com.filetransfer.shared.entity.FlowExecution
+      - com.filetransfer.shared.entity.TransferAccount
+      - com.filetransfer.shared.entity.AuditLog
+```
+
+### Other Issues in This Run
+
+- **as2-service**: Exited(1) — crashed during boot
+- **17/40 healthy after 7+ minutes** — most Java services still booting
+- **db-migrate**: Still needs manual network fix (`docker network connect`)
+- **partner-portal + dmz-proxy**: Unhealthy (healthcheck issues persist)
+- **config-service**: 325s with selective scan ON but with full package = no improvement
