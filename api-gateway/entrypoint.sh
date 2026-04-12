@@ -1,9 +1,16 @@
 #!/bin/sh
-# Auto-generate self-signed TLS cert if none is mounted.
-# Production: mount real certs at /etc/nginx/ssl/server.crt and server.key
-# Dev/test: auto-generated, valid 365 days
+# TLS cert for the API gateway HTTPS listener.
+# Priority: 1) Operator-mounted  2) Shared platform cert from Vault  3) Self-generated
 
-if [ ! -f /etc/nginx/ssl/server.crt ]; then
+mkdir -p /etc/nginx/ssl
+
+if [ -f /etc/nginx/ssl/server.crt ]; then
+    echo "Using operator-mounted TLS certificate"
+elif [ -f /tls/platform-tls.crt ] && [ -f /tls/platform-tls.key ]; then
+    echo "Using shared platform TLS certificate from Vault"
+    cp /tls/platform-tls.crt /etc/nginx/ssl/server.crt
+    cp /tls/platform-tls.key /etc/nginx/ssl/server.key
+else
     echo "Generating self-signed TLS certificate for API gateway..."
     openssl req -x509 -nodes -days 365 \
         -newkey rsa:2048 \

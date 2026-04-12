@@ -286,8 +286,43 @@ services:
         else
           echo "HMAC key already exists"
         fi
+        # Platform TLS certificate — one cert for all services
+        if [ ! -f /tls/platform-tls.p12 ]; then
+          echo "Generating platform TLS certificate..."
+          apk add --no-cache openssl > /dev/null 2>&1 || true
+          # Generate RSA key + self-signed cert (PEM)
+          openssl req -x509 -nodes -days 365 \
+            -newkey rsa:2048 \
+            -keyout /tls/platform-tls.key \
+            -out /tls/platform-tls.crt \
+            -subj "/CN=*.filetransfer.local/O=TranzFer MFT/C=US" \
+            -addext "subjectAltName=DNS:*.filetransfer.local,DNS:localhost,DNS:onboarding-api,DNS:config-service,DNS:sftp-service,DNS:ftp-service,DNS:gateway-service,DNS:encryption-service,DNS:screening-service,DNS:ai-engine,DNS:keystore-manager,DNS:storage-manager,DNS:platform-sentinel,DNS:edi-converter,DNS:license-service,DNS:analytics-service,DNS:notification-service,DNS:as2-service,DNS:dmz-proxy,DNS:external-forwarder-service,DNS:ftp-web-service,DNS:api-gateway,IP:127.0.0.1" \
+            2>/dev/null
+          # Convert to PKCS12 keystore (Java services use this)
+          openssl pkcs12 -export \
+            -in /tls/platform-tls.crt \
+            -inkey /tls/platform-tls.key \
+            -out /tls/platform-tls.p12 \
+            -name platform-tls \
+            -password pass:changeit \
+            2>/dev/null
+          chmod 644 /tls/platform-tls.*
+          # Store cert in Vault KV for auditability
+          CERT_B64=$$(base64 /tls/platform-tls.p12 | tr -d '\n')
+          vault kv put secret/mft/platform-tls \
+            keystore="$$CERT_B64" \
+            password=changeit \
+            alias=platform-tls \
+            cn="*.filetransfer.local" \
+            generated="$$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "Platform TLS certificate generated and stored in Vault"
+        else
+          echo "Platform TLS certificate already exists (cached)"
+        fi
         echo "Vault KMS initialization complete"
     restart: "no"
+    volumes:
+      - platform_tls:/tls
     networks:
       - mft-network
 
@@ -387,6 +422,8 @@ services:
         condition: service_healthy
       redpanda:
         condition: service_healthy
+    volumes:
+      - platform_tls:/tls:ro
 
   sftp-service:
     build: ./sftp-service
@@ -404,6 +441,7 @@ services:
       SFTP_INSTANCE_ID: sftp-1
     volumes:
       - sftp_data:/data/sftp
+      - platform_tls:/tls:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -428,6 +466,7 @@ services:
       SFTP_INSTANCE_ID: sftp-2
     volumes:
       - sftp_data:/data/sftp
+      - platform_tls:/tls:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -454,6 +493,7 @@ services:
       PLATFORM_REPLICA_COUNT: 2
     volumes:
       - ftp_data:/data/ftp
+      - platform_tls:/tls:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -482,6 +522,7 @@ services:
       PLATFORM_REPLICA_COUNT: 2
     volumes:
       - ftp_data:/data/ftp
+      - platform_tls:/tls:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -506,6 +547,7 @@ services:
       SFTP_KEYSTORE_MANAGER_URL: http://keystore-manager:8093
     volumes:
       - sftp_data:/data/sftp
+      - platform_tls:/tls:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -532,6 +574,7 @@ services:
       PLATFORM_REPLICA_COUNT: 3
     volumes:
       - ftp_data:/data/ftp
+      - platform_tls:/tls:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -552,6 +595,7 @@ services:
       FTPWEB_INSTANCE_ID: ftpweb-1
     volumes:
       - ftpweb_data:/data/ftpweb
+      - platform_tls:/tls:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -574,6 +618,7 @@ services:
       FTPWEB_INSTANCE_ID: ftpweb-2
     volumes:
       - ftpweb_data:/data/ftpweb
+      - platform_tls:/tls:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -600,6 +645,8 @@ services:
         condition: service_healthy
       redpanda:
         condition: service_healthy
+    volumes:
+      - platform_tls:/tls:ro
 
   gateway-service:
     build: ./gateway-service
@@ -632,6 +679,8 @@ services:
         condition: service_healthy
       redpanda:
         condition: service_healthy
+    volumes:
+      - platform_tls:/tls:ro
 
   encryption-service:
     build: ./encryption-service
@@ -650,6 +699,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    volumes:
+      - platform_tls:/tls:ro
 
   external-forwarder-service:
     build: ./external-forwarder-service
@@ -668,6 +719,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    volumes:
+      - platform_tls:/tls:ro
 
   # ── DMZ Proxy — INTERNAL group ────────────────────────────────────────────
   # Handles corporate/private network traffic (SFTP, FTP, AS2, HTTPS from LAN/VPN).
@@ -713,6 +766,8 @@ services:
         condition: service_started
       gateway-service:
         condition: service_started
+    volumes:
+      - platform_tls:/tls:ro
 
   # ── DMZ Proxy — EXTERNAL group ────────────────────────────────────────────
   # Handles internet-facing traffic (public partner integrations, AS2, cloud).
@@ -763,6 +818,8 @@ services:
         condition: service_started
       gateway-service:
         condition: service_started
+    volumes:
+      - platform_tls:/tls:ro
 
   as2-service:
     build: ./as2-service
@@ -784,6 +841,7 @@ services:
       AS2_INSTANCE_ID: as2-1
     volumes:
       - sftp_data:/data/as2    # reuse sftp_data volume for AS2 inbox/outbox
+      - platform_tls:/tls:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -810,6 +868,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    volumes:
+      - platform_tls:/tls:ro
 
   analytics-service:
     build: ./analytics-service
@@ -830,6 +890,8 @@ services:
         condition: service_healthy
       redpanda:
         condition: service_healthy
+    volumes:
+      - platform_tls:/tls:ro
 
   ai-engine:
     build: ./ai-engine
@@ -849,6 +911,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    volumes:
+      - platform_tls:/tls:ro
 
   ai-engine-2:
     build: ./ai-engine
@@ -868,6 +932,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    volumes:
+      - platform_tls:/tls:ro
 
   keystore-manager:
     build: ./keystore-manager
@@ -886,6 +952,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    volumes:
+      - platform_tls:/tls:ro
 
   # ─────────────────────────────────────────────────────────────────────────────
   # IMPORTANT — Multi-replica storage warning:
@@ -924,6 +992,7 @@ services:
       STORAGE_INSTANCE_URL: http://storage-manager:8096
     volumes:
       - storage_data:/data/storage
+      - platform_tls:/tls:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -1013,6 +1082,7 @@ services:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
     volumes:
       - spire-socket:/run/spire/sockets:ro
+      - platform_tls:/tls:ro
     depends_on:
       spire-agent:
         condition: service_healthy
@@ -1034,6 +1104,7 @@ services:
       CLAMAV_ENABLED: ${CLAMAV_ENABLED:-false}
     volumes:
       - quarantine_data:/data/quarantine
+      - platform_tls:/tls:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -1063,6 +1134,8 @@ services:
         condition: service_healthy
       redpanda:
         condition: service_healthy
+    volumes:
+      - platform_tls:/tls:ro
 
   platform-sentinel:
     build: ./platform-sentinel
@@ -1086,6 +1159,8 @@ services:
         condition: service_healthy
       redpanda:
         condition: service_healthy
+    volumes:
+      - platform_tls:/tls:ro
 
   # ---------------------------------------------------------------------------
   # Security Services
@@ -1290,6 +1365,8 @@ services:
       timeout: 3s
       retries: 3
       start_period: 15s
+    volumes:
+      - platform_tls:/tls:ro
 
 networks:
   mft-network:
