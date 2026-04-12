@@ -54,10 +54,12 @@ public class ConnectionTracker {
      * @param ip       the client IP address
      * @return {@code true} if the connection is accepted, {@code false} if a limit would be exceeded
      */
-    public boolean tryAcquire(String username, String ip) {
-        int total = totalConnections.get();
-        if (total >= maxTotal) {
-            log.warn("Global connection limit reached: {}/{}", total, maxTotal);
+    public synchronized boolean tryAcquire(String username, String ip) {
+        // Synchronized to eliminate TOCTOU race between check and increment.
+        // Under high concurrency, two threads could both pass get() < max
+        // and both increment, over-admitting past the limit.
+        if (totalConnections.get() >= maxTotal) {
+            log.warn("Global connection limit reached: {}/{}", totalConnections.get(), maxTotal);
             return false;
         }
 
@@ -77,14 +79,10 @@ public class ConnectionTracker {
             }
         }
 
-        // Commit the acquisition
+        // Commit — all checks passed atomically
         totalConnections.incrementAndGet();
-        if (ip != null) {
-            perIp.computeIfAbsent(ip, k -> new AtomicInteger(0)).incrementAndGet();
-        }
-        if (username != null) {
-            perUser.computeIfAbsent(username, k -> new AtomicInteger(0)).incrementAndGet();
-        }
+        if (ip != null) perIp.computeIfAbsent(ip, k -> new AtomicInteger(0)).incrementAndGet();
+        if (username != null) perUser.computeIfAbsent(username, k -> new AtomicInteger(0)).incrementAndGet();
         return true;
     }
 
@@ -94,7 +92,7 @@ public class ConnectionTracker {
      * @param username the authenticated username (may be null)
      * @param ip       the client IP address
      */
-    public void release(String username, String ip) {
+    public synchronized void release(String username, String ip) {
         totalConnections.updateAndGet(v -> Math.max(0, v - 1));
         if (ip != null) {
             AtomicInteger ipCount = perIp.get(ip);
