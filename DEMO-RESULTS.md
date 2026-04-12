@@ -786,3 +786,155 @@ Then configure `SelectiveEntityScanConfig` to filter entities per service based 
 - **Target with SelectiveEntityScan on all:** ~2 minutes (all services at 9-37s)
 - **Developer inner loop:** 4+ min restart → 30 second restart
 - **Production auto-scaling:** 7+ min new pod → 30 second new pod
+
+---
+
+## Tester Report — Full Error Capture & Dev Team Action Items (2026-04-12)
+
+**Error logs package:** `docs/run-reports/mft-error-logs-20260412.zip` (480KB, 85 files)
+
+### How to Read the Error Logs
+
+```
+docs/run-reports/mft-error-logs-20260412.zip
+├── mft-{service}-full.log         ← Complete service log (last 10 min)
+├── mft-{service}-errors.log       ← Only ERROR/EXCEPTION/FAIL lines
+├── api-errors.txt                 ← Every API endpoint tested with HTTP codes
+└── unhealthy-services.txt         ← Services that never went healthy
+```
+
+**Start here:** Open `api-errors.txt` — it shows every endpoint the UI calls and whether it returned 200 or an error. For each ❌, find the corresponding `{service}-errors.log` to see the stack trace.
+
+---
+
+### All Issues Found During Testing (Prioritized)
+
+#### P0 — Missing Database Tables (crashes 2 services, ~760 errors/10min)
+
+| Table | Service | Error Count | Log File |
+|---|---|---|---|
+| `sentinel_rules` | mft-platform-sentinel | 328 | `mft-platform-sentinel-errors.log` |
+| `sentinel_findings` | mft-platform-sentinel | (included above) | same |
+| `write_intents` | mft-storage-manager | 434 | `mft-storage-manager-errors.log` |
+
+**Symptom:** Services crash on startup with `ERROR: relation "sentinel_rules" does not exist` and `ERROR: relation "write_intents" does not exist`. These services restart repeatedly, causing 502 errors on every UI page that calls them (Sentinel, Security, Storage, File Manager).
+
+**Root cause:** Flyway migration V999 (`write_intents`) was a sentinel migration with version number above the latest real migration (V55). Flyway skips it because schema is already at V55. The `sentinel_rules` table is expected by sentinel but no migration creates it.
+
+**Fix:** Add proper Flyway migrations:
+```sql
+-- V56__sentinel_rules.sql
+CREATE TABLE IF NOT EXISTS sentinel_rules (...);
+CREATE TABLE IF NOT EXISTS sentinel_findings (...);  -- if not already in V54
+
+-- V57__write_intents.sql  (move from V999)
+CREATE TABLE IF NOT EXISTS write_intents (...);
+```
+
+**Where to look:** `mft-postgres-errors.log` lines 1-50, `mft-platform-sentinel-errors.log` lines 1-10, `mft-storage-manager-errors.log` lines 1-10.
+
+---
+
+#### P0 — Redis localhost:6379 (4 services, ~444 errors/10min)
+
+| Service | Error Count | Log File |
+|---|---|---|
+| mft-as2-service | 111 | `mft-as2-service-errors.log` |
+| mft-encryption-service | 111 | `mft-encryption-service-errors.log` |
+| mft-ftp-web-service | 111 | `mft-ftp-web-service-errors.log` |
+| mft-notification-service | 111 | `mft-notification-service-errors.log` |
+
+**Symptom:** `RedisConnectionFailureException: Unable to connect to localhost/127.0.0.1:6379` every 10 seconds from each service.
+
+**Root cause:** CTO's latest release reset Redis host from `redis` (Docker service name) back to `localhost`. Inside Docker containers, `localhost` is the container itself, not the Redis container.
+
+**Fix:** In each service's `application.yml`, change:
+```yaml
+spring.data.redis.host: ${REDIS_HOST:redis}  # was: localhost
+```
+
+**Where to look:** Any of the 4 error log files — the stack trace is identical in all.
+
+---
+
+#### P1 — Alertmanager SMTP Placeholder (45 errors/10min)
+
+**Log file:** `mft-alertmanager-errors.log`
+
+**Symptom:** `lookup smtp.example.com: no such host` + `dial tcp [::1]:9095: connection refused` on every alert fire.
+
+**Impact:** ALL platform alerts (PlatformMajorOutage, HighErrorRate, UnauthorizedAccess) are silently dropped. The platform is flying blind — no one gets notified of failures.
+
+**Fix:** Configure real SMTP or webhook in `config/alertmanager/alertmanager.yml`.
+
+---
+
+#### P1 — AI Engine Access Denied (85 errors/10min)
+
+**Log file:** `mft-ai-engine-errors.log`
+
+**Symptom:** `Access denied: Access Denied` on repeated requests.
+
+**Root cause:** Prometheus scrapes `/actuator/prometheus` without a JWT token. The security filter blocks it. Other services have the endpoint exposed without auth, but ai-engine's security config is stricter.
+
+**Fix:** Whitelist `/actuator/**` in ai-engine's security filter configuration, or configure Prometheus to send an auth header.
+
+---
+
+#### P2 — API Gateway Upstream Refused (6 errors)
+
+**Log file:** `mft-api-gateway-errors.log`
+
+**Symptom:** `connect() failed (111: Connection refused) while connecting to upstream` for sentinel requests.
+
+**Root cause:** Cascading from P0 — platform-sentinel crashes due to missing tables, gateway can't proxy to it.
+
+**Fix:** Fix P0 (missing tables) and this resolves automatically.
+
+---
+
+### UI Pages Affected
+
+| Page | Status | Cause |
+|---|---|---|
+| Dashboard | ⚠ Partial — sentinel widget errors | P0: sentinel_rules missing |
+| Activity Monitor | ✅ Works | — |
+| Transfer Journey | ✅ Works | — |
+| Flows | ✅ Works | Fixed: JsonIgnore on TransferAccount.user |
+| Partners | ✅ Works | — |
+| Accounts | ✅ Works | — |
+| Servers | ✅ Works | — |
+| Security/Sentinel | ❌ "Could not load data" | P0: sentinel_rules missing |
+| Storage/Files | ❌ "Could not load data" | P0: write_intents missing |
+| Analytics | ✅ Works | Fixed: p95_latency_ms column mapping |
+| Notifications | ⚠ Degraded | P0: Redis localhost |
+| Screening | ⚠ Degraded | P0: Redis localhost |
+| EDI Converter | ✅ Works | — |
+| Keys/Certificates | ✅ Works | — |
+| Audit Logs | ✅ Works | — |
+| Quick Flow Wizard | ✅ New feature! | — |
+| Function Queues | ✅ New feature! | — |
+| Listeners | ✅ New feature! | — |
+
+### Summary for Dev Team
+
+**What testers fixed in this release (committed to git):**
+- TransferAccount.user `@JsonIgnore` — stopped LazyInit on /api/flows
+- MetricSnapshot `@Column(name="p95_latency_ms")` — fixed analytics column mismatch
+- Vault healthcheck `VAULT_ADDR` — unblocked all service startup
+- curl in 19 Dockerfiles — Docker healthchecks now work
+- Nginx frontend healthchecks (curl instead of wget, correct ports)
+- Gateway 308→removed redirect (TLS passthrough issue on Docker Desktop)
+- `allow-bean-definition-overriding` for RestTemplate conflict
+- encryption-service YAML duplicate key merge
+
+**What dev team must fix (not fixable by testers):**
+1. **[P0]** Missing `sentinel_rules` + `write_intents` DB tables — add Flyway migrations
+2. **[P0]** Redis host `localhost` → `redis` in 4 service YAMLs (CTO's push reverted our fix)
+3. **[P1]** Alertmanager SMTP — configure real delivery
+4. **[P1]** AI engine security filter — whitelist actuator endpoints
+5. **[P1]** `SelectiveEntityScan` for all 20 remaining services (9s vs 454s boot — 50x difference)
+6. **[P1]** db-migrate Docker network — needs `default` network in docker-compose.yml
+7. **[P2]** Flow routing engine — filename pattern matching not in compiled predicate
+8. **[P2]** SFTP account creation — home dir created on wrong filesystem
+9. **[P2]** Keystore-manager cert download — returns wrong PEM format
