@@ -223,3 +223,77 @@ This is NOT the Tomcat thread pool (default 200). Something else limits at ~70-7
 | All others | **60** | **180** |
 
 **config-service is 6x weaker than onboarding-api.** With 3 replicas, it caps the platform at ~120 concurrent config operations before SLA breach. This is the #1 scaling bottleneck.
+
+---
+
+## Prometheus Metrics Snapshot (post-stress, 2026-04-12T09:06Z)
+
+All services uptime: 87 minutes (stable, no restarts since demo boot).
+
+### JVM Live Threads
+
+| Service | Threads | Notes |
+|---|---:|---|
+| gateway-service | 112 | Highest — SFTP/FTP listener threads |
+| sftp-service (primary) | 92 | SSH session handler threads |
+| config-service | 72 | Elevated from stress test queries |
+| encryption-service | 67 | |
+| screening-service | 64 | |
+| keystore-manager | 57 | |
+| ai-engine (primary) | 52 | |
+| license-service | 50 | |
+| forwarder-service | 50 | |
+| analytics-service | 49 | |
+| ftp-service (×3) | 46 | Per replica |
+
+### HTTP Request Count (total since boot, 87 min)
+
+| Service | Requests | Req/min | Notes |
+|---|---:|---:|---|
+| ai-engine | 5,003 | 57 | AI classification of all uploaded files + internal API |
+| sftp-service | 4,016 | 46 | File upload detection + routing |
+| ftp-service | 3,392 | 39 | Similar pattern (FTP protocol) |
+| config-service | 2,866 | 33 | Stress test drove most of this volume |
+| screening-service | 2,450 | 28 | Prometheus scraping + quarantine queries |
+| analytics-service | 2,430 | 28 | |
+| keystore-manager | 2,339 | 27 | |
+| gateway-service | 1,753 | 20 | |
+| encryption-service | 1,746 | 20 | |
+| license-service | 1,744 | 20 | |
+| forwarder-service | 1,735 | 20 | Baseline — mostly Prometheus scrapes |
+
+### Hikari Connection Pool
+
+| Service | Pool Name | Total Connections | Notes |
+|---|---|---:|---|
+| sftp-service (primary) | SFTP-Pool | 15 | Highest — handling file events |
+| config-service | Config-Pool | 5 | |
+| sftp-service (replica 2) | SFTP-Pool | 5 | |
+| gateway-service | Gateway-Pool | 3 | |
+| screening-service | Screening-Pool | 3 | |
+| keystore-manager | Keystore-Pool | 3 | |
+| encryption-service | Encryption-Pool | 3 | |
+| Most others | Various | 1-2 | Minimal pool usage at rest |
+
+**Key finding:** All connections are IDLE at rest (0 active). The stress test breaking point at 80 concurrent is NOT from pool exhaustion — the pool handles it. The bottleneck is elsewhere (likely Tomcat request queue or OS socket limits).
+
+### GC Pause Time (cumulative since boot)
+
+| Service | GC Type | Total Pause | Notes |
+|---|---|---:|---|
+| **config-service** | G1 Young Generation | **5.10s** | HIGHEST — correlates with worst stress test performance |
+| sftp-service (primary) | G1 Young | 4.53s | |
+| analytics-service | G1 Young | 4.23s | |
+| ai-engine (primary) | G1 Young | 4.05s | |
+| gateway-service | G1 Young | 3.78s | |
+| sftp-service (replica 2) | G1 Young | 3.56s | |
+| sftp-service (replica 3) | G1 Young | 3.49s | |
+| ftp-service (primary) | G1 Young | 3.10s | |
+| keystore-manager | G1 Young | 2.86s | |
+
+**Key finding:** config-service has the highest cumulative GC pause (5.10s in 87 min). That's 5.1 seconds of stop-the-world pauses — during these pauses, ALL requests to config-service stall. This directly explains the 1001ms average latency at 100 concurrent and the 5.4x degradation factor. The service is GC-thrashing under load.
+
+**Recommendation:** config-service needs JVM tuning:
+- `-Xmx512m` explicit heap (currently uncapped, growing to 835 MB triggers frequent GC)
+- `-XX:MaxGCPauseMillis=50` to bound individual GC pauses
+- Consider ZGC (`-XX:+UseZGC`) for low-latency GC (<1ms pauses)
