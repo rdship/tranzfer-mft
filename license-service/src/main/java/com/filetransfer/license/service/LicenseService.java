@@ -206,10 +206,12 @@ public class LicenseService {
         log.warn("Revoked license {}", licenseId);
     }
 
+    @Transactional(readOnly = true)
     public List<LicenseRecord> getAllLicenses() {
         return licenseRecordRepository.findAll();
     }
 
+    @Transactional(readOnly = true)
     public List<LicenseActivation> getActivations(String licenseId) {
         LicenseRecord record = licenseRecordRepository.findByLicenseIdAndActiveTrue(licenseId)
                 .orElseThrow(() -> new EntityNotFoundException("License not found: " + licenseId));

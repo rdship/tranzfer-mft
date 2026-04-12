@@ -13,6 +13,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -112,6 +113,17 @@ public class PlatformExceptionHandler {
         String msg = String.format("Invalid value '%s' for parameter '%s'",
                 ex.getValue(), ex.getName());
         log.warn("Type mismatch at {}: {}", request.getRequestURI(), msg);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                ApiError.of(400, "Bad Request", ErrorCode.VALIDATION_FAILED.getCode(),
+                        msg, request.getRequestURI()));
+    }
+
+    /** A required request header wasn't sent (e.g. X-Admin-Key). Return 400, not 500. */
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ApiError> handleMissingHeader(
+            MissingRequestHeaderException ex, HttpServletRequest request) {
+        String msg = String.format("Required header '%s' is missing", ex.getHeaderName());
+        log.warn("Missing header at {}: {}", request.getRequestURI(), msg);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
                 ApiError.of(400, "Bad Request", ErrorCode.VALIDATION_FAILED.getCode(),
                         msg, request.getRequestURI()));
