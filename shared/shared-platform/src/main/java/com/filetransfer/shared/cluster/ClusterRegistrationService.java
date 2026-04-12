@@ -52,9 +52,9 @@ public class ClusterRegistrationService {
     private String serviceInstanceId;
 
     @PostConstruct
-    public void register() {
+    public void init() {
+        // Set context immediately (non-blocking), defer DB registration to background
         serviceInstanceId = UUID.randomUUID().toString();
-
         clusterContext.setServiceInstanceId(serviceInstanceId);
         clusterContext.setClusterId(clusterId);
 
@@ -67,8 +67,9 @@ public class ClusterRegistrationService {
         }
         clusterContext.setCommunicationMode(mode);
 
-        // Register with retry — DB may still be accepting connections during cold start
-        registerWithRetry(mode);
+        // Register in background — don't block boot for DB writes
+        final ClusterCommunicationMode finalMode = mode;
+        Thread.ofVirtual().name("cluster-register").start(() -> registerWithRetry(finalMode));
     }
 
     private void registerWithRetry(ClusterCommunicationMode mode) {

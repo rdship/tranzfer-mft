@@ -92,7 +92,8 @@ public class ThreatIntelligenceStore {
      * Loads recent indicators from the database into the in-memory cache on startup.
      * Only indicators seen within the configured stale-days window are loaded.
      */
-    @PostConstruct
+    @org.springframework.scheduling.annotation.Async
+    @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
     public void loadFromDatabase() {
         try {
             Instant cutoff = Instant.now().minus(Duration.ofDays(staleDays));

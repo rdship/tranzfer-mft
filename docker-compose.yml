@@ -22,6 +22,9 @@ x-common-env: &common-env
     -Dserver.tomcat.accept-count=200
     -Dserver.tomcat.threads.max=300
     -Dspring.jpa.properties.hibernate.default_batch_fetch_size=20
+    -Dspring.jpa.open-in-view=false
+    -Dspring.flyway.enabled=false
+    -Dspring.rabbitmq.connection-timeout=3000
     -Dspring.kafka.admin.properties.request.timeout.ms=15000
     -Dspring.kafka.properties.reconnect.backoff.max.ms=5000
   PLATFORM_RATE_LIMIT_DEFAULT_LIMIT: 10000
@@ -282,6 +285,29 @@ services:
           echo "HMAC key already exists"
         fi
         echo "Vault KMS initialization complete"
+    restart: "no"
+    networks:
+      - mft-network
+
+  # ── Database Migration Init (runs ALL Flyway migrations once, before services boot) ──
+  # Services have spring.flyway.enabled=false — this container handles it centrally.
+  # Eliminates 40-60s per service (20 services × 50 migrations each = 1000 redundant scans).
+  db-migrate:
+    build: ./onboarding-api
+    container_name: mft-db-migrate
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/filetransfer?stringtype=unspecified
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      SPRING_FLYWAY_ENABLED: "true"
+      SPRING_MAIN_WEB_APPLICATION_TYPE: none
+    command: ["java", "-Dspring.main.web-application-type=none", "-Dspring.flyway.enabled=true",
+              "-Dspring.jpa.hibernate.ddl-auto=none", "-Dspring.main.lazy-initialization=true",
+              "-Dspring.rabbitmq.host=localhost", "-Dserver.port=0",
+              "-jar", "app.jar", "--spring.flyway.enabled=true"]
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: "no"
     networks:
       - mft-network
