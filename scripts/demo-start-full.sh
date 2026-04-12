@@ -119,11 +119,11 @@ docker exec -i mft-postgres psql -U postgres -d filetransfer \
 
 # --- Phase 3: wait for onboarding-api + best-effort key services -------------
 log "Phase 3/3 — Waiting for onboarding-api (up to 10 min)..."
-wait_http https://localhost:44380/actuator/health/readiness 600
+wait_http http://localhost:8080/actuator/health/readiness 600
 
 log "Best-effort readiness poll on remaining services..."
 for port in 8084 8085 8086 8087 8088 8089 8090 8091 8092 8093 8094 8095 8096 8097 8098; do
-  wait_http "https://localhost:${port}/actuator/health/readiness" 180 || true
+  wait_http "http://localhost:${port}/actuator/health/readiness" 180 || true
 done
 
 # --- Summary -----------------------------------------------------------------

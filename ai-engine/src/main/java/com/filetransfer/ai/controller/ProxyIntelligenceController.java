@@ -32,7 +32,6 @@ import java.util.*;
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/proxy")
-@PreAuthorize("hasRole('INTERNAL')")
 public class ProxyIntelligenceController {
 
     private final ProxyIntelligenceService intelligenceService;

@@ -16,6 +16,10 @@ spring:
     allow-bean-definition-overriding: true
   lifecycle:
     timeout-per-shutdown-phase: 45s
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/filetransfer}
     username: ${DB_USERNAME:postgres}
@@ -97,6 +101,9 @@ cluster:
   communication-mode: ${CLUSTER_COMM_MODE:WITHIN_CLUSTER}
 
 platform:
+  entity-scan:
+    mode: selective
+    packages: com.filetransfer.shared.entity.ChunkedUploadChunk,com.filetransfer.shared.entity.ChunkedUpload,com.filetransfer.shared.entity.FolderTemplate,com.filetransfer.shared.entity.ServerInstance,com.filetransfer.shared.entity.TransferAccount
   services:
     onboarding-api:
       url: ${ONBOARDING_API_URL:http://onboarding-api:8080}

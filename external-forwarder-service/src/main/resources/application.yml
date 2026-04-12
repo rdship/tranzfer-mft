@@ -21,6 +21,10 @@ spring:
     port: ${RABBITMQ_PORT:5672}
     connection-timeout: 30000
     requested-heartbeat: 60
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/filetransfer}
     username: ${DB_USERNAME:postgres}
@@ -91,6 +95,9 @@ cluster:
   communication-mode: ${CLUSTER_COMM_MODE:WITHIN_CLUSTER}
 
 platform:
+  entity-scan:
+    mode: selective
+    packages: com.filetransfer.shared.entity.DeliveryEndpoint,com.filetransfer.shared.entity.ExternalDestination
   services:
     onboarding-api:
       url: ${ONBOARDING_API_URL:http://onboarding-api:8080}

@@ -32,6 +32,10 @@ spring:
     port: ${RABBITMQ_PORT:5672}
     connection-timeout: 30000
     requested-heartbeat: 60
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/filetransfer}
     username: ${DB_USERNAME:postgres}
@@ -197,6 +201,9 @@ ai:
     max-execution-history: ${AI_MAX_EXEC_HISTORY:500}
 
 platform:
+  entity-scan:
+    mode: selective
+    packages: com.filetransfer.shared.entity.AuditLog,com.filetransfer.shared.entity.DeadLetterMessage,com.filetransfer.shared.entity.FileFlow,com.filetransfer.shared.entity.FileTransferRecord,com.filetransfer.shared.entity.FlowExecution,com.filetransfer.shared.entity.FlowStepSnapshot,com.filetransfer.shared.entity.ServiceRegistration,com.filetransfer.shared.entity.TransferAccount,com.filetransfer.ai.entity
   services:
     onboarding-api:
       url: ${ONBOARDING_API_URL:http://onboarding-api:8080}

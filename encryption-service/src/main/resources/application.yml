@@ -21,6 +21,10 @@ spring:
     port: ${RABBITMQ_PORT:5672}
     connection-timeout: 30000
     requested-heartbeat: 60
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/filetransfer}
     username: ${DB_USERNAME:postgres}
@@ -41,7 +45,7 @@ spring:
 platform:
   entity-scan:
     mode: selective
-    packages: com.filetransfer.shared.entity
+    packages: com.filetransfer.shared.entity.EncryptionKey
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
