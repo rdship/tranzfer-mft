@@ -529,6 +529,7 @@ public class FlowProcessingEngine {
             case "DECRYPT_AES" -> callEncryptionService(input, workDir, "aes", "decrypt", cfg);
             case "RENAME" -> renameFile(input, workDir, cfg, trackId);
             case "SCREEN" -> callScreeningService(input, trackId, cfg);
+            case "CHECKSUM_VERIFY" -> verifyChecksum(input, cfg, trackId);
             case "EXECUTE_SCRIPT" -> executeScript(input, workDir, cfg, trackId);
             case "MAILBOX" -> executeMailbox(input, cfg, trackId);
             case "FILE_DELIVERY" -> executeFileDelivery(input, cfg, trackId);
@@ -632,7 +633,9 @@ public class FlowProcessingEngine {
                                           Map<String, String> cfg) throws Exception {
         String encryptionUrl = serviceProps.getEncryptionService().getUrl();
 
+        // Support both keyId (UUID) and keyAlias (human-readable string from keystore-manager)
         String keyId = cfg.get("keyId");
+        String keyAlias = cfg.get("keyAlias");
         String name = input.getFileName().toString();
         if (operation.equals("decrypt") && name.endsWith(".enc")) {
             name = name.substring(0, name.length() - 4);
@@ -641,9 +644,9 @@ public class FlowProcessingEngine {
         }
         Path output = workDir.resolve(name);
 
-        if (keyId == null || keyId.isBlank()) {
+        if ((keyId == null || keyId.isBlank()) && (keyAlias == null || keyAlias.isBlank())) {
             // No key configured — pass through (allows flows without encryption keys)
-            log.warn("No keyId configured for {} step — passing through unchanged", operation);
+            log.warn("No keyId/keyAlias configured for {} step — passing through unchanged", operation);
             Files.copy(input, output, StandardCopyOption.REPLACE_EXISTING);
             return output.toString();
         }
@@ -816,6 +819,44 @@ public class FlowProcessingEngine {
         }
 
         return input.toString(); // File passes through unchanged
+    }
+
+    /**
+     * CHECKSUM_VERIFY step — computes SHA-256 of the file and compares against an expected value.
+     * If expectedChecksum is in config, fails on mismatch. Otherwise just logs the checksum.
+     * Config: {"algorithm": "SHA-256"} or {"expectedChecksum": "abc123..."}
+     */
+    private String verifyChecksum(Path input, Map<String, String> cfg, String trackId) throws Exception {
+        String algorithm = cfg.getOrDefault("algorithm", "SHA-256");
+        java.security.MessageDigest digest = java.security.MessageDigest.getInstance(algorithm);
+
+        try (var is = Files.newInputStream(input)) {
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = is.read(buf)) != -1) digest.update(buf, 0, n);
+        }
+
+        String checksum = java.util.HexFormat.of().formatHex(digest.digest());
+        log.info("[{}] CHECKSUM_VERIFY: {} = {}", trackId, algorithm, checksum);
+
+        String expected = cfg.get("expectedChecksum");
+        if (expected != null && !expected.isBlank()) {
+            if (!expected.equalsIgnoreCase(checksum)) {
+                throw new SecurityException(String.format(
+                        "CHECKSUM MISMATCH: expected %s but computed %s (algorithm=%s)",
+                        expected, checksum, algorithm));
+            }
+            log.info("[{}] CHECKSUM_VERIFY: match confirmed", trackId);
+        }
+
+        // Log to audit trail
+        if (auditService != null) {
+            auditService.logAction("flow-engine", "CHECKSUM_VERIFY", true, trackId,
+                    Map.of("algorithm", algorithm, "checksum", checksum,
+                            "verified", expected != null && !expected.isBlank()));
+        }
+
+        return input.toString();
     }
 
     /**

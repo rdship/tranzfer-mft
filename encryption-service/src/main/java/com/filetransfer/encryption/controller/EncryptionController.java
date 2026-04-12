@@ -2,14 +2,17 @@ package com.filetransfer.encryption.controller;
 
 import com.filetransfer.encryption.service.AesService;
 import com.filetransfer.encryption.service.PgpService;
+import com.filetransfer.shared.client.KeystoreServiceClient;
 import com.filetransfer.shared.entity.EncryptionKey;
 import com.filetransfer.shared.enums.EncryptionAlgorithm;
 import com.filetransfer.shared.repository.EncryptionKeyRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.lang.Nullable;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.http.ResponseEntity;
@@ -36,6 +39,11 @@ public class EncryptionController {
     private final PgpService pgpService;
     private final AesService aesService;
     private final EncryptionKeyRepository keyRepository;
+
+    /** Keystore-manager client — single source of truth for keys in distributed deployments. */
+    @Autowired(required = false)
+    @Nullable
+    private KeystoreServiceClient keystoreClient;
 
     @Value("${encryption.master-key}")
     private String masterKeyHex;
@@ -182,7 +190,65 @@ public class EncryptionController {
     }
 
     private EncryptionKey findKey(UUID keyId) {
-        return keyRepository.findByIdAndActiveTrue(keyId)
-                .orElseThrow(() -> new IllegalArgumentException("Encryption key not found or inactive: " + keyId));
+        // Primary: local encryption_keys table
+        var localKey = keyRepository.findByIdAndActiveTrue(keyId);
+        if (localKey.isPresent()) return localKey.get();
+
+        // Fallback: query keystore-manager by alias (UUID string as alias)
+        if (keystoreClient != null) {
+            try {
+                Map<String, Object> managed = keystoreClient.getKey(keyId.toString());
+                if (managed != null) {
+                    log.info("Key {} resolved from keystore-manager (alias={})", keyId, managed.get("alias"));
+                    return buildKeyFromKeystore(managed);
+                }
+            } catch (Exception e) {
+                log.debug("Keystore-manager lookup failed for {}: {}", keyId, e.getMessage());
+            }
+        }
+
+        throw new IllegalArgumentException("Encryption key not found or inactive: " + keyId);
+    }
+
+    /**
+     * Resolve key by alias (string). Allows flows to reference keys by human-readable name
+     * instead of UUID — e.g., config: {"keyAlias": "partner-acme-pgp"}.
+     */
+    EncryptionKey findKeyByAlias(String alias) {
+        if (keystoreClient != null) {
+            try {
+                Map<String, Object> managed = keystoreClient.getKey(alias);
+                if (managed != null) {
+                    return buildKeyFromKeystore(managed);
+                }
+            } catch (Exception e) {
+                log.debug("Keystore-manager alias lookup failed for '{}': {}", alias, e.getMessage());
+            }
+        }
+        throw new IllegalArgumentException("Key not found by alias: " + alias);
+    }
+
+    /**
+     * Bridge: convert a keystore-manager ManagedKey response into an EncryptionKey
+     * so the existing encrypt/decrypt logic works unchanged.
+     */
+    private EncryptionKey buildKeyFromKeystore(Map<String, Object> managed) {
+        String keyType = (String) managed.getOrDefault("keyType", "");
+        String keyMaterial = (String) managed.get("keyMaterial");
+        String publicKeyMaterial = (String) managed.get("publicKeyMaterial");
+
+        EncryptionKey key = new EncryptionKey();
+        key.setKeyName((String) managed.getOrDefault("alias", "keystore-managed"));
+        key.setActive(true);
+
+        if (keyType.contains("PGP")) {
+            key.setAlgorithm(EncryptionAlgorithm.PGP);
+            key.setPublicKey(publicKeyMaterial != null ? publicKeyMaterial : keyMaterial);
+            key.setEncryptedPrivateKey(keyMaterial); // PGP private key (ASCII-armored)
+        } else {
+            key.setAlgorithm(EncryptionAlgorithm.AES_256_GCM);
+            key.setEncryptedSymmetricKey(keyMaterial); // Raw Base64 key (unwrap will fallback)
+        }
+        return key;
     }
 }
