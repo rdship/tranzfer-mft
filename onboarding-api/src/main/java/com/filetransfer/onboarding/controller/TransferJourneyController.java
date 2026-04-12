@@ -9,6 +9,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -42,6 +43,7 @@ public class TransferJourneyController {
     /**
      * Get complete journey for a single transfer by trackId.
      */
+    @Transactional(readOnly = true)
     @GetMapping("/{trackId}")
     public ResponseEntity<TransferJourney> getJourney(@PathVariable String trackId) {
         // Find transfer record

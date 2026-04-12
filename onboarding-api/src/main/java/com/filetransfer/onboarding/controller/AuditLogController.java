@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -23,6 +24,7 @@ public class AuditLogController {
 
     private final AuditLogRepository auditLogRepository;
 
+    @Transactional(readOnly = true)
     @GetMapping
     @Operation(summary = "List recent audit logs with optional search/filter")
     public List<Map<String, Object>> list(

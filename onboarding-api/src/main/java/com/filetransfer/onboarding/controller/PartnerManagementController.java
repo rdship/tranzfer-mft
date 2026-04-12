@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -45,6 +46,7 @@ public class PartnerManagementController {
     }
 
     @GetMapping("/{id}")
+    @Transactional(readOnly = true)
     public PartnerDetailResponse get(@PathVariable UUID id) {
         return partnerService.getPartner(id);
     }

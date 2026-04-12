@@ -15,6 +15,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
@@ -54,6 +55,7 @@ public class ServerAccountAssignmentController {
     // Assignments by server
     // ════════════════════════════════════════════════════════════════════════════
 
+    @Transactional(readOnly = true)
     @GetMapping("/api/servers/{serverId}/accounts")
     @PreAuthorize(Roles.OPERATOR)
     public ResponseEntity<List<Map<String, Object>>> listAccountsOnServer(
@@ -182,6 +184,7 @@ public class ServerAccountAssignmentController {
     // Assignments by account
     // ════════════════════════════════════════════════════════════════════════════
 
+    @Transactional(readOnly = true)
     @GetMapping("/api/accounts/{accountId}/servers")
     @PreAuthorize(Roles.VIEWER)
     public ResponseEntity<List<Map<String, Object>>> listServersForAccount(

@@ -18,6 +18,7 @@ import java.time.Instant;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -51,6 +52,7 @@ public class ActivityMonitorController {
     private FabricCheckpointRepository fabricCheckpointRepo;
 
     @GetMapping
+    @Transactional(readOnly = true)
     @Operation(summary = "Search and list file transfers with optional filters")
     public Page<ActivityMonitorEntry> search(
             @RequestParam(required = false) String trackId,

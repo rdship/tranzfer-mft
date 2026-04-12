@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -131,6 +132,7 @@ public class PeerTransferController {
         ));
     }
 
+    @Transactional
     @PostMapping("/tickets/{ticketId}/validate")
     public ResponseEntity<Map<String, Object>> validateTicket(
             @PathVariable String ticketId,
@@ -168,6 +170,7 @@ public class PeerTransferController {
         ));
     }
 
+    @Transactional
     @PostMapping("/tickets/{ticketId}/complete")
     public ResponseEntity<Map<String, String>> completeTicket(
             @PathVariable String ticketId,
@@ -205,6 +208,7 @@ public class PeerTransferController {
         return ResponseEntity.ok(Map.of("status", ticket.getStatus().name(), "trackId", ticket.getTrackId()));
     }
 
+    @Transactional(readOnly = true)
     @GetMapping("/tickets")
     public List<TransferTicket> getTickets(
             @RequestParam(required = false) String username) {

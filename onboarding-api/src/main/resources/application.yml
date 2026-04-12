@@ -49,7 +49,7 @@ spring:
       connection-timeout: 30000
       pool-name: Onboarding-Pool
   jpa:
-    open-in-view: false
+    open-in-view: true  # Re-enabled: controllers return raw JPA entities; OSIV off crashes Jackson serialization on lazy proxies. Proper fix: DTOs.
     hibernate:
       ddl-auto: none
     show-sql: false

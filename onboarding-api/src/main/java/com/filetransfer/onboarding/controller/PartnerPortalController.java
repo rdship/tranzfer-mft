@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -152,6 +153,7 @@ public class PartnerPortalController {
 
     // === Track — single transfer journey (partner can only see their own) ===
 
+    @Transactional(readOnly = true)
     @GetMapping("/track/{trackId}")
     public ResponseEntity<?> track(@PathVariable String trackId) {
         String username = getAuthenticatedPartner();
@@ -210,6 +212,7 @@ public class PartnerPortalController {
 
     // === Delivery Receipt — downloadable proof of delivery ===
 
+    @Transactional(readOnly = true)
     @GetMapping("/receipt/{trackId}")
     public ResponseEntity<Map<String, Object>> receipt(@PathVariable String trackId) {
         String username = getAuthenticatedPartner();

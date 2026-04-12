@@ -16,7 +16,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import org.hibernate.Hibernate;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -54,11 +56,14 @@ public class FlowExecutionController {
 
     @GetMapping("/{trackId}")
     @PreAuthorize(Roles.VIEWER)
+    @Transactional(readOnly = true)
     public ResponseEntity<FlowExecution> get(@PathVariable String trackId) {
-        return executionRepo.findByTrackId(trackId)
-                .map(ResponseEntity::ok)
+        FlowExecution exec = executionRepo.findByTrackId(trackId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "No execution for trackId=" + trackId));
+        Hibernate.initialize(exec.getFlow());
+        Hibernate.initialize(exec.getTransferRecord());
+        return ResponseEntity.ok(exec);
     }
 
     /** Full event journal for a track ID — time-travel debugging. */
@@ -429,6 +434,7 @@ public class FlowExecutionController {
     /**
      * List all executions with a pending scheduled retry, sorted by scheduled time ascending.
      */
+    @Transactional(readOnly = true)
     @GetMapping("/scheduled-retries")
     @PreAuthorize(Roles.VIEWER)
     public ResponseEntity<List<Map<String, Object>>> getScheduledRetries() {

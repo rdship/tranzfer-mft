@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -85,6 +86,7 @@ public class TransferApiV2Controller {
     }
 
     /** Poll transfer status */
+    @Transactional(readOnly = true)
     @GetMapping("/{trackId}")
     public ResponseEntity<Map<String, Object>> status(@PathVariable String trackId) {
         FileTransferRecord record = recordRepo.findByTrackId(trackId).orElse(null);

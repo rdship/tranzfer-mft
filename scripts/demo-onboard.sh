@@ -50,23 +50,28 @@ skip() { echo -e "\033[1;33m  ⊘\033[0m $*"; SKIPPED=$((SKIPPED+1)); }
 
 post() {
   local url="$1" data="$2" label="${3:-}"
-  local resp code
-  resp=$(curl -s -w "\n%{http_code}" -X POST "$url" \
-    -H "Authorization: Bearer $TOKEN" \
-    -H "Content-Type: application/json" \
-    -d "$data" 2>/dev/null)
-  code=$(echo "$resp" | tail -1)
-  local body=$(echo "$resp" | sed '$d')
-  if [[ "$code" =~ ^2[0-9][0-9]$ ]]; then
-    ok "$label (HTTP $code)"
-    echo "$body"
-  elif [[ "$code" == "409" ]] || echo "$body" | grep -qi "already exists\|duplicate\|unique"; then
-    skip "$label (already exists)"
-    echo "$body"
-  else
-    fail "$label (HTTP $code): $(echo "$body" | head -c 120)"
-    echo ""
-  fi
+  local resp code body attempt
+  for attempt in 1 2; do
+    resp=$(curl -s -w "\n%{http_code}" -X POST "$url" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d "$data" 2>/dev/null)
+    code=$(echo "$resp" | tail -1)
+    body=$(echo "$resp" | sed '$d')
+    if [[ "$code" =~ ^2[0-9][0-9]$ ]]; then
+      ok "$label"
+      echo "$body"
+      return
+    elif [[ "$code" == "409" ]] || echo "$body" | grep -qi "already exists\|duplicate\|unique"; then
+      skip "$label (already exists)"
+      echo "$body"
+      return
+    fi
+    # Retry once after 1s for transient cold-boot failures (connection refused, 500, etc.)
+    [[ $attempt -eq 1 ]] && sleep 1
+  done
+  fail "$label (HTTP $code): $(echo "$body" | head -c 120)"
+  echo ""
 }
 
 post_noauth() {
@@ -268,29 +273,33 @@ create_server_instances() {
   # SFTP instances
   for i in $(seq 1 8); do
     post "$API/api/servers" \
-      "{\"instanceId\":\"sftp-$i\",\"protocol\":\"SFTP\",\"name\":\"SFTP Server $i\",\"internalHost\":\"sftp-service\",\"internalPort\":$((2222+i-1)),\"externalHost\":\"sftp$i.tranzfer.io\",\"externalPort\":22,\"maxConnections\":500,\"active\":true}" \
+      "{\"instanceId\":\"sftp-$i\",\"protocol\":\"SFTP\",\"name\":\"SFTP Server $i\",\"internalHost\":\"sftp-service\",\"internalPort\":$((2222+i-1)),\"externalHost\":\"sftp$i.tranzfer.io\",\"externalPort\":22,\"maxConnections\":500}" \
       "ServerInstance: sftp-$i" > /dev/null
+    sleep 0.05
   done
 
   # FTP instances
   for i in $(seq 1 8); do
     post "$API/api/servers" \
-      "{\"instanceId\":\"ftp-$i\",\"protocol\":\"FTP\",\"name\":\"FTP Server $i\",\"internalHost\":\"ftp-service\",\"internalPort\":$((21+i-1)),\"externalHost\":\"ftp$i.tranzfer.io\",\"externalPort\":21,\"maxConnections\":500,\"active\":true}" \
+      "{\"instanceId\":\"ftp-$i\",\"protocol\":\"FTP\",\"name\":\"FTP Server $i\",\"internalHost\":\"ftp-service\",\"internalPort\":$((21+i-1)),\"externalHost\":\"ftp$i.tranzfer.io\",\"externalPort\":21,\"maxConnections\":500}" \
       "ServerInstance: ftp-$i" > /dev/null
+    sleep 0.05
   done
 
   # FTP_WEB instances
   for i in $(seq 1 6); do
     post "$API/api/servers" \
-      "{\"instanceId\":\"ftpweb-$i\",\"protocol\":\"FTP_WEB\",\"name\":\"FTP Web Portal $i\",\"internalHost\":\"ftp-web-service\",\"internalPort\":8083,\"externalHost\":\"web$i.tranzfer.io\",\"externalPort\":443,\"maxConnections\":200,\"active\":true}" \
+      "{\"instanceId\":\"ftpweb-$i\",\"protocol\":\"FTP_WEB\",\"name\":\"FTP Web Portal $i\",\"internalHost\":\"ftp-web-service\",\"internalPort\":8083,\"externalHost\":\"web$i.tranzfer.io\",\"externalPort\":443,\"maxConnections\":200}" \
       "ServerInstance: ftpweb-$i" > /dev/null
+    sleep 0.05
   done
 
   # HTTPS instances
   for i in $(seq 1 6); do
     post "$API/api/servers" \
-      "{\"instanceId\":\"https-$i\",\"protocol\":\"HTTPS\",\"name\":\"HTTPS API Server $i\",\"internalHost\":\"gateway-service\",\"internalPort\":8085,\"externalHost\":\"api$i.tranzfer.io\",\"externalPort\":443,\"maxConnections\":1000,\"active\":true}" \
+      "{\"instanceId\":\"https-$i\",\"protocol\":\"HTTPS\",\"name\":\"HTTPS API Server $i\",\"internalHost\":\"gateway-service\",\"internalPort\":8085,\"externalHost\":\"api$i.tranzfer.io\",\"externalPort\":443,\"maxConnections\":1000}" \
       "ServerInstance: https-$i" > /dev/null
+    sleep 0.05
   done
 }
 
@@ -413,7 +422,7 @@ create_partners() {
     local contact_first=$(echo "$name" | awk '{print $1}')
     local contact_domain=$(echo "$slug" | head -c 20)
     post "$API/api/partners" \
-      "{\"companyName\":\"$name\",\"slug\":\"$slug\",\"partnerType\":\"$type\",\"status\":\"$status\",\"onboardingPhase\":\"$phase\",\"protocolsEnabled\":$protocols,\"slaTier\":\"$tier\",\"industry\":\"$(echo $slug | cut -d- -f1)\",\"maxFileSizeBytes\":$((512*1024*1024)),\"maxTransfersPerDay\":$((1000 + i*100)),\"retentionDays\":$((30 + i*3)),\"contacts\":[{\"name\":\"${contact_first} Admin\",\"email\":\"admin@${contact_domain}.com\",\"phone\":\"+1-555-$(printf '%04d' $i)\",\"role\":\"IT Manager\",\"isPrimary\":true},{\"name\":\"${contact_first} Support\",\"email\":\"support@${contact_domain}.com\",\"role\":\"Technical Support\",\"isPrimary\":false}]}" \
+      "{\"companyName\":\"$name\",\"displayName\":\"$name\",\"partnerType\":\"$type\",\"protocolsEnabled\":$protocols,\"slaTier\":\"$tier\",\"industry\":\"$(echo $slug | cut -d- -f1)\",\"maxFileSizeBytes\":$((512*1024*1024)),\"maxTransfersPerDay\":$((1000 + i*100)),\"retentionDays\":$((30 + i*3)),\"contacts\":[{\"name\":\"${contact_first} Admin\",\"email\":\"admin@${contact_domain}.com\",\"phone\":\"+1-555-$(printf '%04d' $i)\",\"role\":\"IT Manager\",\"primary\":true},{\"name\":\"${contact_first} Support\",\"email\":\"support@${contact_domain}.com\",\"role\":\"Technical Support\",\"primary\":false}]}" \
       "Partner: $name" > /dev/null
   done
 }
@@ -603,6 +612,9 @@ create_file_flows() {
   log "=== STEP 12: File Flows (200) ==="
 
   local flow_num=0
+  # Throttle: config-service's connection pool gets exhausted by 200 rapid POSTs.
+  # 50ms delay prevents piling up connections while adding only ~10s total.
+  local FLOW_DELAY=0.05
 
   # --- Encrypt & Deliver via SFTP (40 flows) ---
   for i in $(seq 1 40); do
@@ -611,6 +623,7 @@ create_file_flows() {
     post "$CFG/api/flows" \
       "{\"name\":\"$name\",\"filenamePattern\":\".*\\\\.csv$\",\"direction\":\"OUTBOUND\",\"priority\":$((100+i)),\"active\":true,\"steps\":[{\"type\":\"ENCRYPT_PGP\",\"config\":{\"keyAlias\":\"pgp-partner-$((i%4+1))\"},\"order\":1},{\"type\":\"FILE_DELIVERY\",\"config\":{\"protocol\":\"SFTP\",\"destination\":\"partner$((i%12+1)).example.com\"},\"order\":2}]}" \
       "Flow: $name" > /dev/null
+    sleep $FLOW_DELAY
   done
 
   # --- Decrypt & Archive (30 flows) ---
@@ -620,6 +633,7 @@ create_file_flows() {
     post "$CFG/api/flows" \
       "{\"name\":\"$name\",\"filenamePattern\":\".*\\\\.pgp$\",\"direction\":\"INBOUND\",\"priority\":$((200+i)),\"active\":true,\"steps\":[{\"type\":\"DECRYPT_PGP\",\"config\":{\"keyAlias\":\"pgp-partner-$((i%4+1))\"},\"order\":1},{\"type\":\"MAILBOX\",\"config\":{\"folder\":\"/archive\"},\"order\":2}]}" \
       "Flow: $name" > /dev/null
+    sleep $FLOW_DELAY
   done
 
   # --- AES Encrypt & FTP Deliver (25 flows) ---
@@ -629,6 +643,7 @@ create_file_flows() {
     post "$CFG/api/flows" \
       "{\"name\":\"$name\",\"filenamePattern\":\".*\\\\.dat$\",\"direction\":\"OUTBOUND\",\"priority\":$((300+i)),\"active\":true,\"steps\":[{\"type\":\"ENCRYPT_AES\",\"config\":{\"keyAlias\":\"aes-key-$((i%4+1))\"},\"order\":1},{\"type\":\"FILE_DELIVERY\",\"config\":{\"protocol\":\"FTP\",\"destination\":\"vendor$((i%12+1)).example.com\"},\"order\":2}]}" \
       "Flow: $name" > /dev/null
+    sleep $FLOW_DELAY
   done
 
   # --- Compress & Screen & Deliver (25 flows) ---
@@ -638,6 +653,7 @@ create_file_flows() {
     post "$CFG/api/flows" \
       "{\"name\":\"$name\",\"filenamePattern\":\".*\\\\.(xml|json)$\",\"direction\":\"OUTBOUND\",\"priority\":$((400+i)),\"active\":true,\"steps\":[{\"type\":\"COMPRESS_GZIP\",\"config\":{},\"order\":1},{\"type\":\"SCREEN\",\"config\":{\"policyId\":\"dlp-$((i%5+1))\"},\"order\":2},{\"type\":\"FILE_DELIVERY\",\"config\":{\"protocol\":\"SFTP\"},\"order\":3}]}" \
       "Flow: $name" > /dev/null
+    sleep $FLOW_DELAY
   done
 
   # --- EDI Convert & Route (20 flows) ---
@@ -648,6 +664,7 @@ create_file_flows() {
     post "$CFG/api/flows" \
       "{\"name\":\"$name\",\"filenamePattern\":\".*\\\\.edi$\",\"direction\":\"INBOUND\",\"priority\":$((500+i)),\"active\":true,\"steps\":[{\"type\":\"ROUTE\",\"config\":{\"format\":\"${formats[$((i%5))]}\"},\"order\":1},{\"type\":\"MAILBOX\",\"config\":{\"folder\":\"/processed\"},\"order\":2}]}" \
       "Flow: $name" > /dev/null
+    sleep $FLOW_DELAY
   done
 
   # --- Decompress & Decrypt & Rename (20 flows) ---
@@ -657,6 +674,7 @@ create_file_flows() {
     post "$CFG/api/flows" \
       "{\"name\":\"$name\",\"filenamePattern\":\".*\\\\.gz\\\\.pgp$\",\"direction\":\"INBOUND\",\"priority\":$((600+i)),\"active\":true,\"steps\":[{\"type\":\"DECRYPT_PGP\",\"config\":{},\"order\":1},{\"type\":\"DECOMPRESS_GZIP\",\"config\":{},\"order\":2},{\"type\":\"RENAME\",\"config\":{\"pattern\":\"\${filename}_processed_\${timestamp}\"},\"order\":3}]}" \
       "Flow: $name" > /dev/null
+    sleep $FLOW_DELAY
   done
 
   # --- Script Execute & Deliver (20 flows) ---
@@ -666,6 +684,7 @@ create_file_flows() {
     post "$CFG/api/flows" \
       "{\"name\":\"$name\",\"filenamePattern\":\".*\\\\.txt$\",\"direction\":\"OUTBOUND\",\"priority\":$((700+i)),\"active\":true,\"steps\":[{\"type\":\"EXECUTE_SCRIPT\",\"config\":{\"script\":\"/opt/scripts/transform.sh\"},\"order\":1},{\"type\":\"FILE_DELIVERY\",\"config\":{\"protocol\":\"HTTPS\"},\"order\":2}]}" \
       "Flow: $name" > /dev/null
+    sleep $FLOW_DELAY
   done
 
   # --- ZIP Compress & AS2 Deliver (20 flows) ---
@@ -675,6 +694,7 @@ create_file_flows() {
     post "$CFG/api/flows" \
       "{\"name\":\"$name\",\"filenamePattern\":\".*\\\\.xml$\",\"direction\":\"OUTBOUND\",\"priority\":$((800+i)),\"active\":true,\"steps\":[{\"type\":\"COMPRESS_ZIP\",\"config\":{},\"order\":1},{\"type\":\"FILE_DELIVERY\",\"config\":{\"protocol\":\"AS2\",\"partnershipId\":\"AS2-PARTNER-$(printf '%03d' $((i%28+1)))\"},\"order\":2}]}" \
       "Flow: $name" > /dev/null
+    sleep $FLOW_DELAY
   done
 
   # BUG-D fix (R28): query the DB for the real count instead of trusting

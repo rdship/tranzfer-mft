@@ -85,6 +85,7 @@ public class PartnerService {
         return partner;
     }
 
+    @Transactional(readOnly = true)
     public PartnerDetailResponse getPartner(UUID id) {
         Partner partner = findById(id);
         List<PartnerContact> contacts = contactRepository.findByPartnerId(id);

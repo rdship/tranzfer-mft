@@ -16,6 +16,8 @@ import com.filetransfer.sentinel.repository.SentinelRuleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -66,8 +68,13 @@ public class SentinelController {
             @RequestParam(required = false) String service,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(findingRepository.search(status, severity, analyzer, service,
-                PageRequest.of(page, Math.min(size, 100))));
+        Specification<SentinelFinding> spec = Specification.where(null);
+        if (status != null) spec = spec.and((r, q, cb) -> cb.equal(r.get("status"), status));
+        if (severity != null) spec = spec.and((r, q, cb) -> cb.equal(r.get("severity"), severity));
+        if (analyzer != null) spec = spec.and((r, q, cb) -> cb.equal(r.get("analyzer"), analyzer));
+        if (service != null) spec = spec.and((r, q, cb) -> cb.equal(r.get("affectedService"), service));
+        PageRequest pageRequest = PageRequest.of(page, Math.min(size, 100), Sort.by(Sort.Direction.DESC, "createdAt"));
+        return ResponseEntity.ok(findingRepository.findAll(spec, pageRequest));
     }
 
     @GetMapping("/findings/{id}")

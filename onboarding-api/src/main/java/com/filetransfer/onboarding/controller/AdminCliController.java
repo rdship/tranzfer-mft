@@ -13,6 +13,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -46,6 +47,7 @@ public class AdminCliController {
     private static final int MAX_COMMAND_LENGTH = 500;
     private static final int MAX_SEARCH_RESULTS = 100;
 
+    @Transactional
     @PostMapping("/execute")
     public ResponseEntity<Map<String, Object>> execute(@RequestBody Map<String, String> body) {
         String input = body.getOrDefault("command", "").trim();

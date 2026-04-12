@@ -29,7 +29,7 @@ spring:
       connection-timeout: 30000
       pool-name: Keystore-Pool
   jpa:
-    open-in-view: false
+    open-in-view: true  # OSIV: controllers return raw JPA entities
     hibernate:
       ddl-auto: none
     properties:
