@@ -508,6 +508,16 @@ export default function Accounts() {
               </select>
             </FormField>
             <FormField
+              label="Storage Mode"
+              name="storageMode"
+              helper="VIRTUAL (default): files stored in content-addressed storage, accessible from any service. PHYSICAL: legacy local filesystem."
+            >
+              <select value={form.storageMode || 'VIRTUAL'} onChange={e => setForm(f => ({ ...f, storageMode: e.target.value }))}>
+                <option value="VIRTUAL">Virtual (VFS — distributed, recommended)</option>
+                <option value="PHYSICAL">Physical (local filesystem — legacy)</option>
+              </select>
+            </FormField>
+            <FormField
               label="Username"
               required
               name="username"

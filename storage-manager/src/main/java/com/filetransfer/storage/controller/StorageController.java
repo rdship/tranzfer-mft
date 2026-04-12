@@ -374,6 +374,17 @@ public class StorageController {
                 "durationMs", result.durationMs()));
     }
 
+    /** Encryption-at-rest status — visible from admin UI */
+    @GetMapping("/encryption-status")
+    public Map<String, Object> encryptionStatus() {
+        boolean encrypted = storageBackend.type().contains("encrypted");
+        return Map.of(
+                "encryptionAtRest", encrypted,
+                "backend", storageBackend.type(),
+                "algorithm", encrypted ? "AES-256-GCM" : "NONE",
+                "keySource", encrypted ? "Vault KMS / env var" : "N/A");
+    }
+
     @GetMapping("/health")
     public Map<String, Object> health() {
         Map<String, Object> h = new LinkedHashMap<>(lifecycle.getStorageMetrics());
