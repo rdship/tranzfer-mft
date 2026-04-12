@@ -5,6 +5,7 @@ import com.filetransfer.shared.cluster.ClusterService;
 import com.filetransfer.shared.config.PlatformConfig;
 import com.filetransfer.shared.connector.ConnectorDispatcher;
 import com.filetransfer.shared.dto.FileForwardRequest;
+import com.filetransfer.shared.dto.FileUploadedEvent;
 import com.filetransfer.shared.entity.*;
 import com.filetransfer.shared.enums.FileTransferStatus;
 import com.filetransfer.shared.matching.CompiledFlowRule;
@@ -76,6 +77,14 @@ public class RoutingEngine {
     @Nullable
     private FlowEventJournal flowEventJournal;
 
+    /** RabbitMQ publisher for file upload events (backpressure). Optional — falls back to synchronous. */
+    @Autowired(required = false)
+    @Nullable
+    private org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate;
+
+    @org.springframework.beans.factory.annotation.Value("${rabbitmq.exchange:file-transfer.events}")
+    private String exchange;
+
     /**
      * Called by each service when a file upload completes.
      * 1. Assigns a Track ID
@@ -96,7 +105,31 @@ public class RoutingEngine {
                 relativeFilePath.substring(relativeFilePath.lastIndexOf('/') + 1) : relativeFilePath;
         String trackId = trackIdGenerator.generate();
 
-        // ── Set MDC for async thread correlation ──
+        // ── Publish file upload event to RabbitMQ for backpressure-controlled processing ──
+        if (rabbitTemplate != null) {
+            try {
+                long fileSizeBytes = -1;
+                try { fileSizeBytes = java.nio.file.Files.size(java.nio.file.Paths.get(absoluteSourcePath)); } catch (Exception ignored) {}
+                FileUploadedEvent event = FileUploadedEvent.builder()
+                        .trackId(trackId)
+                        .accountId(sourceAccount.getId())
+                        .username(sourceAccount.getUsername())
+                        .protocol(sourceAccount.getProtocol())
+                        .relativeFilePath(relativeFilePath)
+                        .absoluteSourcePath(absoluteSourcePath)
+                        .sourceIp(sourceIp)
+                        .filename(filename)
+                        .fileSizeBytes(fileSizeBytes)
+                        .build();
+                rabbitTemplate.convertAndSend(exchange, "file.uploaded", event);
+                log.info("[{}] FileUploadedEvent published to RabbitMQ (backpressure queue)", trackId);
+                return; // Consumer will handle processing
+            } catch (Exception e) {
+                log.warn("[{}] RabbitMQ publish failed — falling back to synchronous: {}", trackId, e.getMessage());
+            }
+        }
+
+        // ── Fallback: synchronous processing (when RabbitMQ unavailable) ──
         MDC.put("trackId", trackId);
         try {
         onFileUploadedInternal(sourceAccount, relativeFilePath, absoluteSourcePath, sourceIp, filename, trackId);
@@ -105,8 +138,8 @@ public class RoutingEngine {
         }
     }
 
-    /** Internal implementation extracted to allow MDC wrapping in the @Async caller. */
-    private void onFileUploadedInternal(TransferAccount sourceAccount, String relativeFilePath,
+    /** Internal implementation — called by @Async fallback or by FileUploadEventConsumer. */
+    void onFileUploadedInternal(TransferAccount sourceAccount, String relativeFilePath,
                                          String absoluteSourcePath, String sourceIp,
                                          String filename, String trackId) {
         log.info("[{}] File received: account={} file={}", trackId, sourceAccount.getUsername(), filename);

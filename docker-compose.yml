@@ -15,7 +15,7 @@ x-spiffe-volume: &spiffe-volume
 x-common-env: &common-env
   JAVA_TOOL_OPTIONS: >-
     -Xmx384m -Xms192m
-    -XX:+UseG1GC -XX:MaxGCPauseMillis=50
+    -XX:+UseZGC -XX:+ZGenerational
     -XX:+UseStringDeduplication
     -Dspring.jmx.enabled=false
     -Dspring.main.lazy-initialization=true
@@ -893,7 +893,7 @@ services:
     environment:
       JAVA_TOOL_OPTIONS: >-
         -Xmx384m -Xms192m
-        -XX:+UseG1GC -XX:MaxGCPauseMillis=100
+        -XX:+UseZGC -XX:+ZGenerational
         -XX:+UseStringDeduplication
         -Dspring.jmx.enabled=false
         -Dspring.main.lazy-initialization=true
