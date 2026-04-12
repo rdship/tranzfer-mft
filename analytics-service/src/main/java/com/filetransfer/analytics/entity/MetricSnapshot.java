@@ -27,7 +27,9 @@ public class MetricSnapshot {
     @Builder.Default private Long failedTransfers = 0L;
     @Builder.Default private Long totalBytesTransferred = 0L;
     @Builder.Default private Double avgLatencyMs = 0.0;
+    @jakarta.persistence.Column(name = "p95_latency_ms")
     @Builder.Default private Double p95LatencyMs = 0.0;
+    @jakarta.persistence.Column(name = "p99_latency_ms")
     @Builder.Default private Double p99LatencyMs = 0.0;
     @Builder.Default private Integer activeSessions = 0;
 
