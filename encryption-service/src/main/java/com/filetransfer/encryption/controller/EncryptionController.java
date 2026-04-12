@@ -2,6 +2,7 @@ package com.filetransfer.encryption.controller;
 
 import com.filetransfer.encryption.service.AesService;
 import com.filetransfer.encryption.service.PgpService;
+import com.filetransfer.shared.audit.AuditService;
 import com.filetransfer.shared.client.KeystoreServiceClient;
 import com.filetransfer.shared.entity.EncryptionKey;
 import com.filetransfer.shared.enums.EncryptionAlgorithm;
@@ -44,6 +45,11 @@ public class EncryptionController {
     @Autowired(required = false)
     @Nullable
     private KeystoreServiceClient keystoreClient;
+
+    /** Audit trail for all encryption operations (PCI-DSS 10.x, key usage tracking). */
+    @Autowired(required = false)
+    @Nullable
+    private AuditService auditService;
 
     @Value("${encryption.master-key}")
     private String masterKeyHex;
@@ -141,17 +147,26 @@ public class EncryptionController {
     }
 
     private byte[] performEncrypt(byte[] data, EncryptionKey key) throws Exception {
+        byte[] result;
         if (key.getAlgorithm() == EncryptionAlgorithm.PGP) {
             if (key.getPublicKey() == null) throw new IllegalArgumentException("No public key for PGP encryption");
-            return pgpService.encrypt(data, key.getPublicKey());
+            result = pgpService.encrypt(data, key.getPublicKey());
         } else {
             if (key.getEncryptedSymmetricKey() == null) throw new IllegalArgumentException("No symmetric key for AES encryption");
             String unwrappedKey = unwrapSymmetricKey(key.getEncryptedSymmetricKey());
-            return aesService.encrypt(data, unwrappedKey);
+            result = aesService.encrypt(data, unwrappedKey);
         }
+        if (auditService != null) {
+            auditService.logAction("encryption-service", "ENCRYPT", true, null,
+                    java.util.Map.of("keyName", key.getKeyName() != null ? key.getKeyName() : "unknown",
+                            "algorithm", key.getAlgorithm().name(),
+                            "inputSize", data.length, "outputSize", result.length));
+        }
+        return result;
     }
 
     private byte[] performDecrypt(byte[] data, EncryptionKey key, String passphrase) throws Exception {
+        byte[] result;
         if (key.getAlgorithm() == EncryptionAlgorithm.PGP) {
             if (key.getEncryptedPrivateKey() == null) throw new IllegalArgumentException("No private key for PGP decryption");
             char[] pass;
@@ -161,12 +176,19 @@ public class EncryptionController {
                 log.warn("PGP decrypt for key '{}': no passphrase provided, using empty passphrase", key.getKeyName());
                 pass = new char[0];
             }
-            return pgpService.decrypt(data, key.getEncryptedPrivateKey(), pass);
+            result = pgpService.decrypt(data, key.getEncryptedPrivateKey(), pass);
         } else {
             if (key.getEncryptedSymmetricKey() == null) throw new IllegalArgumentException("No symmetric key for AES decryption");
             String unwrappedKey = unwrapSymmetricKey(key.getEncryptedSymmetricKey());
-            return aesService.decrypt(data, unwrappedKey);
+            result = aesService.decrypt(data, unwrappedKey);
         }
+        if (auditService != null) {
+            auditService.logAction("encryption-service", "DECRYPT", true, null,
+                    java.util.Map.of("keyName", key.getKeyName() != null ? key.getKeyName() : "unknown",
+                            "algorithm", key.getAlgorithm().name(),
+                            "inputSize", data.length, "outputSize", result.length));
+        }
+        return result;
     }
 
     /**
