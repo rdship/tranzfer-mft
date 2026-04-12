@@ -35,6 +35,10 @@ public class NlpService {
 
     private final ObjectMapper mapper = new ObjectMapper();
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.lang.Nullable
+    private SystemStateService systemStateService;
+
     /**
      * Translate natural language to a CLI command.
      * Returns the structured command string.
@@ -44,39 +48,94 @@ public class NlpService {
             return fallbackTranslate(naturalLanguage);
         }
 
+        // Build platform context — ONLY aggregated metrics, NEVER customer data/PII/secrets
+        // What goes to LLM: counts (totalTransfers=150, failedLast24h=3)
+        // What NEVER goes: file contents, keys, passwords, partner names, audit entries
+        String platformState = "";
+        try {
+            if (systemStateService != null) {
+                var health = systemStateService.getHealthSummary();
+                // Whitelist only safe numeric metrics
+                platformState = health.entrySet().stream()
+                        .filter(e -> e.getValue() instanceof Number)
+                        .map(e -> e.getKey() + "=" + e.getValue())
+                        .collect(java.util.stream.Collectors.joining(", "));
+            }
+        } catch (Exception ignore) {}
+
+        // Sanitize user input — strip potential secrets/keys from the query
+        String sanitizedInput = naturalLanguage
+                .replaceAll("(?i)(password|secret|key|token|credential)[=: ]+\\S+", "$1=***")
+                .replaceAll("[A-Fa-f0-9]{32,}", "***REDACTED_KEY***"); // hex keys
+
         String systemPrompt = """
-            You are the TranzFer MFT admin assistant. Translate the user's natural language request 
-            into one of these CLI commands. Return ONLY the command, nothing else.
-            
+            You are the TranzFer MFT admin assistant. You have full control of the platform.
+            Translate the user's natural language request into a CLI command or API call.
+            Return ONLY the command, nothing else.
+
             Available commands:
-            - status                           (platform overview)
-            - accounts list                    (list transfer accounts)
-            - accounts create <SFTP|FTP> <username> <password>
-            - accounts enable <username>
-            - accounts disable <username>
-            - users list                       (list system users)
-            - users promote <email>            (make admin)
-            - users demote <email>             (remove admin)
-            - flows list                       (list file processing flows)
-            - flows info <name>                (flow details)
-            - track <trackId>                  (lookup transfer)
-            - search file <pattern>            (search by filename)
-            - search recent <N>                (recent transfers)
-            - services                         (registered services)
-            - logs recent <N>                  (audit logs)
-            - onboard <email> <password>       (create user + SFTP account)
-            
-            If you cannot translate the request into a command, respond with:
-            EXPLAIN: <helpful explanation>
-            
-            Current context: """ + (context != null ? context : "none");
+            - status                                    (platform overview)
+            - accounts list                             (list transfer accounts)
+            - accounts create <SFTP|FTP> <username> <password> [--storage-mode VIRTUAL|PHYSICAL]
+            - accounts enable/disable <username>
+            - users list / users promote/demote <email>
+            - flows list                                (list file processing flows)
+            - flows info <name>                         (flow details)
+            - flows create --name <n> --source <s> --pattern <p> --steps SCREEN,CONVERT_EDI,MAILBOX --deliver <dest>
+            - flows toggle <id>                         (enable/disable flow)
+            - track <trackId>                           (lookup transfer by track ID)
+            - diagnose <trackId>                        (full per-step failure diagnosis)
+            - restart <trackId>                         (restart failed transfer)
+            - restart <trackId> --from-step <N>         (restart from specific step)
+            - skip <trackId> --step <N>                 (skip failed step, continue)
+            - terminate <trackId>                       (stop in-progress transfer)
+            - search file <pattern> / search recent <N> / search failed
+            - queues list                               (list function queues)
+            - queues edit <type> --retry <N> --timeout <N> --concurrency <min>-<max>
+            - queues create <type> <name> --category CUSTOM
+            - listeners list                            (show HTTP/HTTPS ports on all services)
+            - listeners pause <service> <port>          (stop accepting connections)
+            - listeners resume <service> <port>
+            - keys list / keys generate <type> <alias>  (keystore management)
+            - services                                  (registered services + health)
+            - logs recent <N> / logs search <term>
+            - sentinel findings / sentinel rules
+            - onboard <email> <password>                (create user + SFTP account)
+
+            SAFETY RULES (non-negotiable):
+            - NEVER generate commands that delete data, drop tables, or remove users without CONFIRM: prefix
+            - For destructive operations (delete, terminate, disable, demote), prefix with CONFIRM:
+            - For read-only operations (list, search, track, status), execute directly
+            - NEVER expose credentials, keys, or secrets in command output
+            - NEVER execute arbitrary shell commands — only the commands listed above
+
+            If the user asks a question (not a command), respond with:
+            EXPLAIN: <answer based on platform context below>
+
+            For destructive operations, respond with:
+            CONFIRM: <command> | <human-readable description of what will happen>
+
+            Platform state: """ + platformState + "\n            User context: " + (context != null ? context : "none");
 
         try {
-            String response = callClaude(systemPrompt, naturalLanguage);
+            log.info("NLP LLM request: input={}chars, context={}chars (no PII/keys sent)",
+                    sanitizedInput.length(), platformState.length());
+            String response = callClaude(systemPrompt, sanitizedInput);
             if (response.startsWith("EXPLAIN:")) {
                 return NlpResult.builder()
                         .understood(true).isExplanation(true)
                         .response(response.substring(8).trim())
+                        .build();
+            }
+            // Destructive operation — require confirmation
+            if (response.startsWith("CONFIRM:")) {
+                String[] parts = response.substring(8).split("\\|", 2);
+                String cmd = parts[0].trim();
+                String desc = parts.length > 1 ? parts[1].trim() : "This is a destructive operation.";
+                return NlpResult.builder()
+                        .understood(true).command(cmd)
+                        .requiresConfirmation(true)
+                        .response("⚠ " + desc + "\nCommand: " + cmd + "\nType 'yes' to confirm or 'no' to cancel.")
                         .build();
             }
             return NlpResult.builder()
@@ -101,18 +160,24 @@ public class NlpService {
             You are the TranzFer MFT flow designer. Given a description of how files should be processed,
             generate a JSON flow definition. 
             
-            Available step types:
+            Available step types (each runs on its own queue, independently scalable):
+            SECURITY:
+            - SCREEN (config: {"onFailure": "PASS|BLOCK", "retryCount": "1"})
+            - CHECKSUM_VERIFY (config: {"algorithm": "SHA-256", "expectedChecksum": "optional"})
+            - ENCRYPT_PGP (config: {"keyId": "uuid", "keyAlias": "alias-from-keystore"})
             - DECRYPT_PGP (config: {"keyId": "uuid"})
-            - ENCRYPT_PGP (config: {"keyId": "uuid"})
+            - ENCRYPT_AES (config: {"keyId": "uuid", "keyAlias": "alias"})
             - DECRYPT_AES (config: {"keyId": "uuid"})
-            - ENCRYPT_AES (config: {"keyId": "uuid"})
-            - COMPRESS_GZIP (config: {})
-            - DECOMPRESS_GZIP (config: {})
-            - COMPRESS_ZIP (config: {})
-            - DECOMPRESS_ZIP (config: {})
-            - RENAME (config: {"pattern": "${basename}_${trackid}${ext}"})
-            - ROUTE (config: {})
-            - CONVERT_EDI (config: {"targetFormat": "JSON|XML|CSV", "partnerId": "optional-partner-id"})
+            TRANSFORM:
+            - COMPRESS_GZIP / DECOMPRESS_GZIP (config: {})
+            - COMPRESS_ZIP / DECOMPRESS_ZIP (config: {})
+            - CONVERT_EDI (config: {"targetFormat": "JSON|XML|CSV|YAML", "retryCount": "3"})
+            - RENAME (config: {"pattern": "${partner}_${date}_${filename}"})
+            DELIVERY:
+            - MAILBOX (config: {"destinationUsername": "user", "destinationPath": "/outbox"})
+            - FILE_DELIVERY (config: {"deliveryEndpointIds": "uuid1,uuid2"})
+            CUSTOM:
+            - EXECUTE_SCRIPT (config: {"command": "script-name", "timeoutSeconds": "60"})
             
             Return ONLY valid JSON in this format:
             {
@@ -245,6 +310,7 @@ public class NlpService {
     public static class NlpResult {
         private boolean understood;
         private boolean isExplanation;
+        private boolean requiresConfirmation;
         private String command;
         private String response;
     }
