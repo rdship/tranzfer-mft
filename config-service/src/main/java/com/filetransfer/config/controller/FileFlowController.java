@@ -15,6 +15,8 @@ import com.filetransfer.shared.security.Roles;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -44,6 +46,7 @@ public class FileFlowController {
     // --- Flow CRUD ---
 
     @GetMapping
+    @Cacheable(value = "flows", unless = "#result.isEmpty()")
     public List<FileFlow> getAllFlows() {
         return flowRepository.findByActiveTrueOrderByPriorityAsc();
     }
@@ -55,6 +58,7 @@ public class FileFlowController {
     }
 
     @PostMapping
+    @CacheEvict(value = "flows", allEntries = true)
     public ResponseEntity<FileFlow> createFlow(@Valid @RequestBody FileFlow flow) {
         flow.setName(sanitizeName(flow.getName()));
         if (flowRepository.existsByName(flow.getName())) {
@@ -67,6 +71,7 @@ public class FileFlowController {
     }
 
     @PutMapping("/{id}")
+    @CacheEvict(value = "flows", allEntries = true)
     public FileFlow updateFlow(@PathVariable UUID id, @Valid @RequestBody FileFlow flow) {
         if (!flowRepository.existsById(id))
             throw new EntityNotFoundException("Flow not found: " + id);
@@ -78,6 +83,7 @@ public class FileFlowController {
     }
 
     @PatchMapping("/{id}/toggle")
+    @CacheEvict(value = "flows", allEntries = true)
     public FileFlow toggleFlow(@PathVariable UUID id) {
         FileFlow flow = flowRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Flow not found: " + id));
@@ -88,6 +94,7 @@ public class FileFlowController {
     }
 
     @DeleteMapping("/{id}")
+    @CacheEvict(value = "flows", allEntries = true)
     public ResponseEntity<Void> deleteFlow(@PathVariable UUID id) {
         FileFlow flow = flowRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Flow not found: " + id));

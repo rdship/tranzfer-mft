@@ -37,7 +37,7 @@ spring:
     driver-class-name: org.postgresql.Driver
     hikari:
       auto-commit: false
-      maximum-pool-size: 3
+      maximum-pool-size: 10
       minimum-idle: 1
       idle-timeout: 300000
       max-lifetime: 1200000

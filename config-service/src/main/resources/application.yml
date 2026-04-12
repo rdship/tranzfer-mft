@@ -21,8 +21,8 @@ spring:
     driver-class-name: org.postgresql.Driver
     hikari:
       auto-commit: false
-      maximum-pool-size: 10
-      minimum-idle: 3
+      maximum-pool-size: 15
+      minimum-idle: 5
       idle-timeout: 300000
       max-lifetime: 1200000
       connection-timeout: 30000
@@ -43,6 +43,11 @@ spring:
           provider_disables_autocommit: true
         temp:
           use_jdbc_metadata_defaults: false
+  cache:
+    type: caffeine
+    caffeine:
+      spec: maximumSize=500,expireAfterWrite=30s
+    cache-names: flows,security-profiles,connectors
   flyway:
     enabled: true
     baseline-on-migrate: true
