@@ -1,4 +1,4 @@
-version: '3.9'
+# version: removed (obsolete since Docker Compose V2 — BUG-H)
 
 # =============================================================================
 # TranzFer MFT Platform — Docker Compose (Development)
@@ -51,7 +51,15 @@ x-service-healthcheck: &healthcheck
   # upper bound). Before R26 this was 30s, which meant on cold boot the
   # container was marked unhealthy for a moment and dependent services
   # with `condition: service_healthy` could never start. 90s gives
-  # V42's 8 CREATE INDEX CONCURRENTLY calls room to finish.
+  # V42 index builds room to finish.
+  #
+  # R28 (BUG-B): `restart: unless-stopped` so a transient Flyway or
+  # startup failure retries instead of cascading death to 22 services.
+  # This is the single most impactful change for cold-boot resilience:
+  # instead of one Flyway hiccup = entire stack dead, the failed service
+  # restarts 2-3 times and usually succeeds on the second attempt (after
+  # the Flyway advisory lock is released by the first run's exit).
+  restart: unless-stopped
   healthcheck:
     test: ["CMD-SHELL", "curl -sf http://localhost:$${SERVER_PORT:-8080}/actuator/health/liveness || curl -sf http://localhost:$${SERVER_PORT:-8080}/actuator/health || exit 1"]
     interval: 10s
@@ -1115,7 +1123,7 @@ services:
       - analytics-service
       - license-service
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ > /dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/nginx-health > /dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -1129,7 +1137,7 @@ services:
     depends_on:
       - onboarding-api
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ > /dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/nginx-health > /dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -1143,7 +1151,7 @@ services:
     depends_on:
       - ftp-web-service
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ > /dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/nginx-health > /dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -1162,7 +1170,7 @@ services:
       - config-service
       - ui-service
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ > /dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/nginx-health > /dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 3

@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
- * Polls the /actuator/circuit-breakers endpoint on every platform service
+ * Polls the /actuator/circuitbreakers endpoint on every platform service
  * and maintains a live snapshot of Resilience4j circuit breaker states.
  *
  * <p>Runs every 30 seconds (faster than 5-min analyzer cycle — this is live monitoring data).
@@ -39,7 +39,7 @@ public class CircuitBreakerCollector {
             try {
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> cbs = restTemplate.getForObject(
-                        baseUrl + "/actuator/circuit-breakers", List.class);
+                        baseUrl + "/actuator/circuitbreakers", List.class);
                 serviceCircuitBreakers.put(serviceName, cbs != null ? cbs : List.of());
             } catch (Exception e) {
                 log.debug("CircuitBreakerCollector: {} unavailable — {}", serviceName, e.getMessage());

@@ -22,7 +22,7 @@ import java.util.Map;
  * Returns an empty list for services that have no ResilientServiceClient beans.
  */
 @Component
-@Endpoint(id = "circuit-breakers")
+@Endpoint(id = "circuitbreakers")
 public class CircuitBreakerActuatorEndpoint {
 
     private final List<ResilientServiceClient> clients;

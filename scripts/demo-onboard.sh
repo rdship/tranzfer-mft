@@ -170,12 +170,20 @@ for a in accounts:
 fetch_server_ids() {
   log "Fetching server instance IDs for cross-references..."
   local resp
-  resp=$(get "$API/api/servers")
+  # BUG-C fix (R28): add size=1000 so we don't silently get only page 0.
+  # The default page size varies per endpoint (12-20) and previously cut
+  # us off at 12 server IDs even when 28 were created, which cascaded
+  # failures to every downstream step that cross-references a server.
+  resp=$(get "$API/api/servers?size=1000")
   SERVER_IDS=($(echo "$resp" | python3 -c "
 import sys,json
-servers = json.load(sys.stdin)
+data = json.load(sys.stdin)
+# Handle both raw list and Spring Page wrapper
+servers = data if isinstance(data, list) else data.get('content', data.get('servers', []))
 for s in servers:
-    print(s['id'])
+    sid = s.get('id', '')
+    if sid:
+        print(sid)
 " 2>/dev/null || true))
   ok "Fetched ${#SERVER_IDS[@]} server IDs"
 }
@@ -669,7 +677,11 @@ create_file_flows() {
       "Flow: $name" > /dev/null
   done
 
-  log "  Total flows created: $flow_num"
+  # BUG-D fix (R28): query the DB for the real count instead of trusting
+  # the loop counter, which counts iterations not successes.
+  local real_count
+  real_count=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c "SELECT COUNT(*) FROM file_flows" 2>/dev/null | tr -d ' ' || echo "?")
+  log "  Total flows attempted: $flow_num, actual in DB: $real_count"
 }
 
 # =============================================================================

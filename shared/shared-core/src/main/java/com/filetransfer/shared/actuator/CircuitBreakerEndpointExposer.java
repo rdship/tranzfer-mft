@@ -10,12 +10,12 @@ import org.springframework.core.env.MapPropertySource;
 import java.util.Map;
 
 /**
- * EnvironmentPostProcessor that ensures the {@code circuit-breakers} actuator endpoint
+ * EnvironmentPostProcessor that ensures the {@code circuitbreakers} actuator endpoint
  * is included in the management exposure list for all platform services.
  *
  * <p>Added at the lowest property source priority — overridden by any service-specific
  * {@code application.yml} that explicitly sets {@code management.endpoints.web.exposure.include}.
- * Services with an explicit include list must manually add {@code circuit-breakers}.
+ * Services with an explicit include list must manually add {@code circuitbreakers}.
  *
  * <p>Registered via {@code META-INF/spring.factories}.
  */
@@ -29,7 +29,7 @@ public class CircuitBreakerEndpointExposer implements EnvironmentPostProcessor {
         if (!env.containsProperty(EXPOSURE_PROPERTY)) {
             env.getPropertySources().addLast(
                     new MapPropertySource("cb-endpoint-defaults", Map.of(
-                            EXPOSURE_PROPERTY, "health,info,circuit-breakers,liveness,readiness"
+                            EXPOSURE_PROPERTY, "health,info,circuitbreakers,liveness,readiness"
                     ))
             );
         }
