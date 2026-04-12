@@ -45,31 +45,60 @@ public class EdiConverterController {
     // ===================================================================
 
     @PostMapping("/detect")
-    public Map<String, String> detect(@RequestBody Map<String, String> body) {
-        return Map.of("format", detector.detect(body.get("content")));
+    public ResponseEntity<?> detect(@RequestBody Map<String, String> body) {
+        String content = body.get("content");
+        if (content == null || content.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "content is required", "format", "UNKNOWN"));
+        }
+        FormatDetector.DetectionResult result = detector.detectWithConfidence(content);
+        if ("UNKNOWN".equals(result.format())) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Unrecognized EDI format",
+                    "format", result.format(),
+                    "confidence", result.confidence(),
+                    "reason", result.reason()));
+        }
+        return ResponseEntity.ok(Map.of("format", result.format(),
+                "confidence", result.confidence(), "reason", result.reason()));
     }
 
     @PostMapping("/parse")
-    public EdiDocument parse(@RequestBody Map<String, String> body) {
-        return parser.parse(body.get("content"));
+    public ResponseEntity<?> parse(@RequestBody Map<String, String> body) {
+        try {
+            return ResponseEntity.ok(parser.parse(body.get("content")));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Parse failed: " + e.getMessage(),
+                    "details", e.getClass().getSimpleName()));
+        }
     }
 
     @PostMapping("/convert")
-    public ResponseEntity<String> convert(@RequestBody Map<String, String> body) {
-        EdiDocument doc = parser.parse(body.get("content"));
-        String target = body.getOrDefault("target", "JSON");
-        String ct = switch (target.toUpperCase()) {
-            case "JSON", "TIF" -> "application/json"; case "XML" -> "application/xml";
-            case "CSV" -> "text/csv"; case "YAML" -> "application/yaml"; default -> "text/plain";
-        };
-        return ResponseEntity.ok().contentType(MediaType.parseMediaType(ct)).body(converter.convert(doc, target));
+    public ResponseEntity<?> convert(@RequestBody Map<String, String> body) {
+        try {
+            EdiDocument doc = parser.parse(body.get("content"));
+            String target = body.getOrDefault("target", "JSON");
+            String ct = switch (target.toUpperCase()) {
+                case "JSON", "TIF" -> "application/json"; case "XML" -> "application/xml";
+                case "CSV" -> "text/csv"; case "YAML" -> "application/yaml"; default -> "text/plain";
+            };
+            return ResponseEntity.ok().contentType(MediaType.parseMediaType(ct)).body(converter.convert(doc, target));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Conversion failed: " + e.getMessage()));
+        }
     }
 
     @PostMapping(value = "/convert/file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<String> convertFile(@RequestPart("file") MultipartFile file,
-            @RequestParam(defaultValue = "JSON") String target) throws Exception {
-        EdiDocument doc = parser.parse(new String(file.getBytes()));
-        return ResponseEntity.ok().body(converter.convert(doc, target));
+    public ResponseEntity<?> convertFile(@RequestPart("file") MultipartFile file,
+            @RequestParam(defaultValue = "JSON") String target) {
+        try {
+            EdiDocument doc = parser.parse(new String(file.getBytes()));
+            return ResponseEntity.ok().body(converter.convert(doc, target));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Conversion failed: " + e.getMessage()));
+        }
     }
 
     // ===================================================================
@@ -77,9 +106,14 @@ public class EdiConverterController {
     // ===================================================================
 
     @PostMapping("/explain")
-    public EdiExplainer.ExplainedDocument explain(@RequestBody Map<String, String> body) {
-        EdiDocument doc = parser.parse(body.get("content"));
-        return explainer.explain(doc);
+    public ResponseEntity<?> explain(@RequestBody Map<String, String> body) {
+        try {
+            EdiDocument doc = parser.parse(body.get("content"));
+            return ResponseEntity.ok(explainer.explain(doc));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Explain failed: " + e.getMessage()));
+        }
     }
 
     // ===================================================================
@@ -87,9 +121,25 @@ public class EdiConverterController {
     // ===================================================================
 
     @PostMapping("/validate")
-    public SmartValidator.ValidationReport validate(@RequestBody Map<String, String> body) {
-        EdiDocument doc = parser.parse(body.get("content"));
-        return validator.validate(doc);
+    public ResponseEntity<?> validate(@RequestBody Map<String, String> body) {
+        try {
+            EdiDocument doc = parser.parse(body.get("content"));
+            return ResponseEntity.ok(validator.validate(doc));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Validation failed: " + e.getMessage()));
+        }
+    }
+
+    @PostMapping(value = "/validate/file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> validateFile(@RequestPart("file") MultipartFile file) {
+        try {
+            EdiDocument doc = parser.parse(new String(file.getBytes()));
+            return ResponseEntity.ok(validator.validate(doc));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Validation failed: " + e.getMessage()));
+        }
     }
 
     // ===================================================================
