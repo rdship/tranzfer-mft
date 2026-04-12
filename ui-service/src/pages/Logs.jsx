@@ -75,6 +75,15 @@ export default function Logs() {
             {LEVELS.map(l => <option key={l}>{l}</option>)}
           </select>
         </div>
+        <div className="flex gap-1.5 mb-3 flex-wrap">
+          {['STORAGE_WRITE', 'ENCRYPT', 'DECRYPT', 'CHECKSUM_VERIFY', 'LOGIN', 'LOGIN_FAIL', 'FILE_ROUTE', 'SCREENING_BYPASSED'].map(tag => (
+            <button key={tag} onClick={() => { setSearch(tag); setPage(0) }}
+              className={`px-2 py-0.5 text-[10px] font-medium rounded-full border transition-colors ${
+                search === tag ? 'bg-blue-600 text-white border-blue-600' : 'border-border text-muted hover:text-primary hover:border-blue-300'
+              }`}>{tag}</button>
+          ))}
+          {search && <button onClick={() => setSearch('')} className="px-2 py-0.5 text-[10px] text-red-500 hover:text-red-700">clear</button>}
+        </div>
         {isLoading ? <LoadingSpinner /> : (
           <>
             <p className="text-xs text-muted mb-2">Tip: Double-click any row to open detailed view</p>

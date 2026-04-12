@@ -412,6 +412,9 @@ function TransferDetailPanel({ row, flowExec, events, navigate, onEditConfig }) 
                       {step.durationMs != null && (
                         <p className="text-muted">{step.durationMs}ms</p>
                       )}
+                      {step.queueName && (
+                        <p className="text-[9px] text-blue-500 font-mono">{step.queueName}</p>
+                      )}
                     </div>
                   </div>
                   {idx < flowExec.steps.length - 1 && (
