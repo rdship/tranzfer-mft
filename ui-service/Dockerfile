@@ -8,7 +8,7 @@ RUN npm run build
 
 # Runtime stage
 FROM nginx:alpine
-RUN apk add --no-cache openssl && mkdir -p /etc/nginx/ssl
+RUN apk add --no-cache openssl && mkdir -p /etc/nginx/ssl && chmod 777 /etc/nginx/ssl
 
 # Create non-root user and fix permissions for nginx to run as non-root.
 # nginx.conf now listens on 8080 (not 80) because non-root users cannot
@@ -25,5 +25,5 @@ COPY --chown=appuser:appgroup nginx.conf /etc/nginx/conf.d/default.conf
 USER appuser
 EXPOSE 8080
 CMD ["nginx", "-g", "daemon off;"]
-COPY entrypoint.sh /entrypoint.sh
+COPY --chmod=755 entrypoint.sh /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]

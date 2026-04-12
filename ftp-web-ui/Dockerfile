@@ -6,7 +6,7 @@ COPY . .
 RUN npm run build
 
 FROM nginx:alpine
-RUN apk add --no-cache openssl && mkdir -p /etc/nginx/ssl
+RUN apk add --no-cache openssl && mkdir -p /etc/nginx/ssl && chmod 777 /etc/nginx/ssl
 
 # nginx.conf listens on 8080 (non-root can't bind to 80). Host 3001 -> 8080.
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser && \
@@ -19,5 +19,5 @@ COPY --chown=appuser:appgroup nginx.conf /etc/nginx/conf.d/default.conf
 USER appuser
 EXPOSE 8080
 CMD ["nginx", "-g", "daemon off;"]
-COPY entrypoint.sh /entrypoint.sh
+COPY --chmod=755 entrypoint.sh /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
