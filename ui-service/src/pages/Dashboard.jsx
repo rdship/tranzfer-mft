@@ -57,7 +57,6 @@ const quickActions = [
   { label: 'Activity Monitor', to: '/operations/activity',icon: RectangleStackIcon,      color: '#22d3ee' },
   { label: 'Sentinel',         to: '/sentinel',           icon: ShieldCheckIcon,         color: '#f87171' },
   { label: 'EDI Convert',      to: '/edi',                icon: DocumentMagnifyingGlassIcon, color: '#34d399' },
-  { label: 'EDI Map Editor',   to: '/edi-mapping',        icon: DocumentMagnifyingGlassIcon, color: '#fbbf24' },
   { label: 'Keystore',         to: '/keystore',           icon: KeyIcon,                 color: '#8b5cf6' },
   { label: 'Storage Manager',  to: '/storage',            icon: CircleStackIcon,         color: '#22d3ee' },
   { label: 'File Manager',     to: '/file-manager',       icon: FolderIcon,              color: '#34d399' },

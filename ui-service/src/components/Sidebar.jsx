@@ -146,7 +146,6 @@ const navGroups = [
     label: 'EDI',
     items: [
       { to: '/edi',           icon: DocumentTextIcon,    label: 'EDI Convert' },
-      { to: '/edi-mapping',   icon: ArrowsRightLeftIcon, label: 'EDI Map Editor' },
       { to: '/edi-partners',  icon: BuildingOfficeIcon,  label: 'EDI Partners' },
     ],
   },
