@@ -50,7 +50,8 @@ public class AgentRegistrar {
      * Registers all background agents with the agent manager on application startup.
      * Agents are staggered by priority to avoid thundering-herd effects.
      */
-    @PostConstruct
+    @org.springframework.scheduling.annotation.Async
+    @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
     public void registerAllAgents() {
         log.info("Initializing AI security agent framework...");
 

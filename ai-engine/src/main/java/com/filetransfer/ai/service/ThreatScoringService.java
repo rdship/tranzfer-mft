@@ -29,8 +29,9 @@ public class ThreatScoringService {
     // warmed from recent audit logs on startup so IPs survive restarts
     private final Map<String, Set<String>> knownIps = new ConcurrentHashMap<>();
 
-    @PostConstruct
-    void warmIpCache() {
+    @org.springframework.scheduling.annotation.Async
+    @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
+    public void warmIpCache() {
         try {
             List<AuditLog> recent = auditLogRepository.findAll(
                     PageRequest.of(0, 500, Sort.by(Sort.Direction.DESC, "timestamp"))).getContent();

@@ -22,6 +22,8 @@ x-common-env: &common-env
     -Dserver.tomcat.accept-count=200
     -Dserver.tomcat.threads.max=300
     -Dspring.jpa.properties.hibernate.default_batch_fetch_size=20
+    -Dspring.kafka.admin.properties.request.timeout.ms=15000
+    -Dspring.kafka.properties.reconnect.backoff.max.ms=5000
   PLATFORM_RATE_LIMIT_DEFAULT_LIMIT: 10000
   DATABASE_URL: jdbc:postgresql://postgres:5432/filetransfer?stringtype=unspecified
   DB_USERNAME: postgres
