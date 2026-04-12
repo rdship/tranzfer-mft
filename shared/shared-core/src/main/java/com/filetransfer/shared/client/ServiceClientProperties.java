@@ -33,23 +33,23 @@ import org.springframework.context.annotation.Configuration;
 @Getter @Setter
 public class ServiceClientProperties {
 
-    private ServiceEndpoint onboardingApi = new ServiceEndpoint("http://onboarding-api:8080");
-    private ServiceEndpoint sftpService = new ServiceEndpoint("http://sftp-service:8081");
-    private ServiceEndpoint ftpService = new ServiceEndpoint("http://ftp-service:8082");
-    private ServiceEndpoint ftpWebService = new ServiceEndpoint("http://ftp-web-service:8083");
-    private ServiceEndpoint configService = new ServiceEndpoint("http://config-service:8084");
-    private ServiceEndpoint gatewayService = new ServiceEndpoint("http://gateway-service:8085");
-    private ServiceEndpoint encryptionService = new ServiceEndpoint("http://encryption-service:8086");
-    private ServiceEndpoint forwarderService = new ServiceEndpoint("http://external-forwarder-service:8087");
-    private ServiceEndpoint dmzProxy = new ServiceEndpoint("http://dmz-proxy:8088");
-    private ServiceEndpoint licenseService = new ServiceEndpoint("http://license-service:8089");
-    private ServiceEndpoint analyticsService = new ServiceEndpoint("http://analytics-service:8090");
-    private ServiceEndpoint aiEngine = new ServiceEndpoint("http://ai-engine:8091");
-    private ServiceEndpoint screeningService = new ServiceEndpoint("http://screening-service:8092");
-    private ServiceEndpoint keystoreManager = new ServiceEndpoint("http://keystore-manager:8093");
-    private ServiceEndpoint as2Service = new ServiceEndpoint("http://as2-service:8094");
-    private ServiceEndpoint ediConverter = new ServiceEndpoint("http://edi-converter:8095");
-    private ServiceEndpoint storageManager = new ServiceEndpoint("http://storage-manager:8096");
+    private ServiceEndpoint onboardingApi = new ServiceEndpoint("https://onboarding-api:9080");
+    private ServiceEndpoint sftpService = new ServiceEndpoint("https://sftp-service:9081");
+    private ServiceEndpoint ftpService = new ServiceEndpoint("https://ftp-service:9082");
+    private ServiceEndpoint ftpWebService = new ServiceEndpoint("https://ftp-web-service:9083");
+    private ServiceEndpoint configService = new ServiceEndpoint("https://config-service:9084");
+    private ServiceEndpoint gatewayService = new ServiceEndpoint("https://gateway-service:9085");
+    private ServiceEndpoint encryptionService = new ServiceEndpoint("https://encryption-service:9086");
+    private ServiceEndpoint forwarderService = new ServiceEndpoint("https://external-forwarder-service:9087");
+    private ServiceEndpoint dmzProxy = new ServiceEndpoint("https://dmz-proxy:9088");
+    private ServiceEndpoint licenseService = new ServiceEndpoint("https://license-service:9089");
+    private ServiceEndpoint analyticsService = new ServiceEndpoint("https://analytics-service:9090");
+    private ServiceEndpoint aiEngine = new ServiceEndpoint("https://ai-engine:9091");
+    private ServiceEndpoint screeningService = new ServiceEndpoint("https://screening-service:9092");
+    private ServiceEndpoint keystoreManager = new ServiceEndpoint("https://keystore-manager:9093");
+    private ServiceEndpoint as2Service = new ServiceEndpoint("https://as2-service:9094");
+    private ServiceEndpoint ediConverter = new ServiceEndpoint("https://edi-converter:9095");
+    private ServiceEndpoint storageManager = new ServiceEndpoint("https://storage-manager:9096");
 
     @Getter @Setter
     public static class ServiceEndpoint {

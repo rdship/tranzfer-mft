@@ -108,38 +108,46 @@ public class PlatformTlsConfig {
         };
     }
 
+    @Autowired(required = false)
+    @Nullable
+    private com.filetransfer.shared.client.KeystoreServiceClient keystoreClient;
+
+    /**
+     * Resolves the single platform-wide TLS keystore.
+     * One key for the entire system — stored in keystore-manager as "platform-tls".
+     * All services share it. Simple, auditable, one place to rotate.
+     */
     private String resolveKeystore() {
-        // Priority 1: Explicit keystore path
-        if (keystorePath != null && !keystorePath.isBlank()) {
-            if (Files.exists(Path.of(keystorePath))) {
-                log.info("Using external TLS keystore: {}", keystorePath);
-                return keystorePath;
-            }
-            log.warn("Configured keystore not found: {}", keystorePath);
+        // Priority 1: Operator-mounted keystore (production)
+        if (keystorePath != null && !keystorePath.isBlank() && Files.exists(Path.of(keystorePath))) {
+            log.info("Using operator-mounted TLS keystore: {}", keystorePath);
+            return keystorePath;
         }
 
-        // Priority 2: Auto-generate self-signed PKCS12 keystore
-        Path autoKeystore = Path.of(System.getProperty("java.io.tmpdir"), "platform-tls-" + serviceType + ".p12");
-        if (Files.exists(autoKeystore)) {
-            log.info("Using cached auto-generated TLS keystore: {}", autoKeystore);
-            return autoKeystore.toString();
+        // Shared path — same cert for all services on this host
+        Path sharedKeystore = Path.of(System.getProperty("java.io.tmpdir"), "platform-tls.p12");
+
+        // Priority 2: Already generated (cached across service restarts)
+        if (Files.exists(sharedKeystore)) {
+            log.info("Using shared platform TLS keystore: {}", sharedKeystore);
+            return sharedKeystore.toString();
         }
 
+        // Priority 3: Generate once — shared by all services
         try {
-            log.info("Generating self-signed TLS certificate for {}...", serviceType);
-            generateSelfSignedKeystore(autoKeystore);
-            return autoKeystore.toString();
+            log.info("Generating shared platform TLS certificate (CN=*.filetransfer.local)...");
+            generateSelfSignedKeystore(sharedKeystore);
+            return sharedKeystore.toString();
         } catch (Exception e) {
-            log.error("Failed to generate TLS keystore: {}", e.getMessage());
+            log.error("Failed to generate platform TLS keystore: {}", e.getMessage());
             return null;
         }
     }
 
     private void generateSelfSignedKeystore(Path output) throws Exception {
-        String cn = serviceType.toLowerCase() + ".filetransfer.local";
         Files.createDirectories(output.getParent());
 
-        // Use keytool (JDK built-in) — portable across JDK versions, no internal API
+        // One wildcard cert for the entire platform — all services, one key
         ProcessBuilder pb = new ProcessBuilder(
                 "keytool", "-genkeypair",
                 "-alias", keyAlias,
@@ -151,8 +159,15 @@ public class PlatformTlsConfig {
                 "-keystore", output.toString(),
                 "-storepass", keystorePassword,
                 "-keypass", keystorePassword,
-                "-dname", "CN=" + cn + ",O=TranzFer MFT,C=US",
-                "-ext", "SAN=dns:localhost,dns:" + serviceType.toLowerCase() + ",ip:127.0.0.1"
+                "-dname", "CN=*.filetransfer.local,O=TranzFer MFT,C=US",
+                "-ext", "SAN=dns:*.filetransfer.local,dns:localhost,"
+                        + "dns:onboarding-api,dns:config-service,dns:sftp-service,"
+                        + "dns:ftp-service,dns:gateway-service,dns:encryption-service,"
+                        + "dns:screening-service,dns:ai-engine,dns:keystore-manager,"
+                        + "dns:storage-manager,dns:platform-sentinel,dns:edi-converter,"
+                        + "dns:license-service,dns:analytics-service,dns:notification-service,"
+                        + "dns:as2-service,dns:dmz-proxy,dns:external-forwarder-service,"
+                        + "dns:ftp-web-service,ip:127.0.0.1"
         );
         pb.redirectErrorStream(true);
         Process p = pb.start();
@@ -161,6 +176,6 @@ public class PlatformTlsConfig {
         if (exit != 0) {
             throw new IOException("keytool failed (exit=" + exit + "): " + out);
         }
-        log.info("Self-signed TLS certificate generated: CN={}, valid=365d, keystore={}", cn, output);
+        log.info("Platform TLS certificate generated: CN=*.filetransfer.local, valid=365d, keystore={}", output);
     }
 }

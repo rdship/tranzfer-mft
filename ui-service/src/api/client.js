@@ -33,14 +33,16 @@ const GATEWAY_URL = import.meta.env.VITE_API_GATEWAY_URL
 
 // In gateway mode, ALL requests go through one URL (the gateway routes internally)
 // In direct mode, each service gets its own port
-export const onboardingApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8080' }))
+// Default to HTTPS gateway. Dev override: VITE_API_GATEWAY_URL=http://localhost:80
+const DEFAULT_GATEWAY = window.location.origin  // Same origin as the UI (gateway serves both)
+export const onboardingApi = withAuth(axios.create({ baseURL: GATEWAY_URL || DEFAULT_GATEWAY }))
 export const onboardingClient = onboardingApi
-export const configApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8084' }))
+export const configApi = withAuth(axios.create({ baseURL: GATEWAY_URL || DEFAULT_GATEWAY }))
 export const configClient = configApi
-export const analyticsApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8090' }))
-export const licenseApi = axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8089' })
-export const gatewayApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8085' }))
-export const dmzApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8088' }))
+export const analyticsApi = withAuth(axios.create({ baseURL: GATEWAY_URL || DEFAULT_GATEWAY }))
+export const licenseApi = axios.create({ baseURL: GATEWAY_URL || DEFAULT_GATEWAY })
+export const gatewayApi = withAuth(axios.create({ baseURL: GATEWAY_URL || DEFAULT_GATEWAY }))
+export const dmzApi = withAuth(axios.create({ baseURL: GATEWAY_URL || DEFAULT_GATEWAY }))
 
 // DMZ proxy requires X-Internal-Key for all management endpoints
 dmzApi.interceptors.request.use((config) => {
