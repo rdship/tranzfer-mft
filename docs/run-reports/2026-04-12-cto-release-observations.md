@@ -147,3 +147,38 @@ The CTO's `SelectiveEntityScanConfig` shows DRAMATIC improvement where it's prop
 8. **Vault dev mode healthcheck** is a common gotcha — document in INSTALLATION.md
 9. **TLS cert generation adds ~8s to every service boot** — acceptable for security, but should be cached between restarts (currently regenerated every time)
 10. **`eclipse-temurin:25-jre` = JDK 25** — the CTO upgraded from JDK 21 to JDK 25. This is a major JDK version bump that should be tested thoroughly. JDK 25 has new JIT behavior that may affect the 360-437s startup times.
+
+---
+
+## Startup Time Observations — Final Run (d050b06)
+
+### SelectiveEntityScan: 50x Speedup WHERE Configured
+
+| Service | Startup | SelectiveEntityScan | Speedup vs Unconfigured |
+|---|---|---|---|
+| **storage-manager** | **9s** | ✅ Active | **50x faster** |
+| **platform-sentinel** | **11s** | ✅ Active | **41x faster** |
+| edi-converter | 37s | N/A (no JPA) | — |
+| sftp-service | 400s | ❌ Not configured | — |
+| config-service | 437s | ❌ Not configured | — |
+| ai-engine | 447s | ❌ Not configured | — |
+| onboarding-api | **454s** | ❌ Not configured | — |
+
+**onboarding-api regressed from 18s (with SelectiveEntityScan in dry run) to 454s (without it in this run).** The CTO configured SelectiveEntityScan for storage-manager and sentinel but not for the other 20 services.
+
+### Action Required: Configure SelectiveEntityScan for ALL Services
+
+Each service needs `platform.entity-scan.packages` in its `application.yml` specifying ONLY the entities it uses. Without this:
+- Hibernate validates all 100+ entities from shared-platform (90s+)
+- Spring scans all shared beans (50s+)
+- Combined with TLS cert generation (8s) and Kafka init (10s), total boot exceeds 400s
+
+With it (as proven by storage-manager at 9s): the service validates only its 5-10 entities and boots 50x faster.
+
+### Other Boot Observations
+
+- **Vault healthcheck**: Fixed (VAULT_ADDR=http://127.0.0.1:8200) — working
+- **db-migrate**: Still exits(1) after running migrations — needs CTO investigation
+- **HTTPS gateway**: TLS cert not present on fresh boot (entrypoint.sh generates it but the cert may not persist between recreates)
+- **Total boot time**: ~8 minutes from `docker compose up -d` to 36/41 healthy (most time is the 400s+ Java service boot)
+- **Target**: With SelectiveEntityScan on all services, total boot should drop to ~2 minutes
