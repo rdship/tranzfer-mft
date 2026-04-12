@@ -39,34 +39,42 @@ export default function Terminal() {
 
     setLoading(true)
     try {
-      // Check if this is natural language (starts with "ai:" or doesn't match known commands)
-      const isNlp = cmd.startsWith('ai:') || cmd.startsWith('ask ') || cmd.startsWith('?')
-      const isFlowDesign = cmd.startsWith('design flow:') || cmd.startsWith('create flow:')
+      // Every command goes through NLP first — admin speaks English.
+      // NLP translates to CLI command → execute. If NLP is down → direct CLI fallback.
+      // No prefix needed. "create a flow for acme" works. "track TRZ-X7K9M2" also works.
+      let handled = false
 
-      if (isFlowDesign) {
-        const desc = cmd.replace(/^(design|create) flow:\s*/i, '')
-        setLines(prev => [...prev, { type: 'system', text: '🤖 Designing flow...' }])
-        const suggestion = await suggestFlow(desc)
-        if (suggestion.success) {
-          setLines(prev => [...prev,
-            { type: 'output', text: suggestion.explanation + '\n\nSuggested flow:\n' + JSON.stringify(suggestion.flowDefinition, null, 2) }
-          ])
-        } else {
-          setLines(prev => [...prev, { type: 'error', text: 'Could not design flow.' }])
-        }
-      } else if (isNlp) {
-        const query = cmd.replace(/^(ai:|ask |\?)/, '').trim()
-        setLines(prev => [...prev, { type: 'system', text: '🤖 Thinking...' }])
-        const nlp = await nlpCommand(query)
-        if (nlp.understood && nlp.command) {
-          setLines(prev => [...prev, { type: 'system', text: '→ ' + nlp.command }])
-          const res = await onboardingApi.post('/api/cli/execute', { command: nlp.command })
-          setLines(prev => [...prev, { type: 'output', text: res.data.output }])
-        } else {
-          setLines(prev => [...prev, { type: 'output', text: nlp.response || 'Could not understand.' }])
-        }
-      } else {
-        // Standard CLI command
+      // Try flow design intent (creates full flow definition)
+      if (/\b(design|create|build|make|set ?up)\b.*\bflow\b/i.test(cmd)) {
+        try {
+          const suggestion = await suggestFlow(cmd)
+          if (suggestion.success) {
+            setLines(prev => [...prev,
+              { type: 'output', text: suggestion.explanation + '\n\nSuggested flow:\n' + JSON.stringify(suggestion.flowDefinition, null, 2) }
+            ])
+            handled = true
+          }
+        } catch { /* fall through */ }
+      }
+
+      // Try NLP translation (English → CLI command)
+      if (!handled) {
+        try {
+          const nlp = await nlpCommand(cmd)
+          if (nlp.understood && nlp.command) {
+            setLines(prev => [...prev, { type: 'system', text: '→ ' + nlp.command }])
+            const res = await onboardingApi.post('/api/cli/execute', { command: nlp.command })
+            setLines(prev => [...prev, { type: 'output', text: res.data.output }])
+            handled = true
+          } else if (nlp.response) {
+            setLines(prev => [...prev, { type: 'output', text: nlp.response }])
+            handled = true
+          }
+        } catch { /* NLP unavailable — fall through to direct CLI */ }
+      }
+
+      // Direct CLI fallback (works without AI engine)
+      if (!handled) {
         const res = await onboardingApi.post('/api/cli/execute', { command: cmd })
         setLines(prev => [...prev, { type: 'output', text: res.data.output }])
       }
