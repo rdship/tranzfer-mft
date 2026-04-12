@@ -211,7 +211,9 @@ public class RoutingEngine {
             return; // VIRTUAL accounts: flow IS the routing; skip physical routing below
         }
 
-        // ── PHYSICAL-mode accounts: existing path-based flow execution ────────────
+        // ── PHYSICAL-mode accounts: flow-based pipeline ────────────────────────
+        // If a FileFlow matches, it IS the complete pipeline — processing + delivery.
+        // No folder mapping needed. The flow handles everything end-to-end.
         if (matchedFlow != null) {
             log.info("[{}] Executing flow '{}' ({} steps)", trackId, matchedFlow.getName(),
                     matchedFlow.getSteps().size());
@@ -219,10 +221,8 @@ public class RoutingEngine {
                 FlowExecution exec = flowEngine.executeFlow(matchedFlow, trackId, filename,
                         processedFilePath, matchedFlow.getMatchCriteria());
                 if (exec.getStatus() == FlowExecution.FlowStatus.COMPLETED) {
-                    processedFilePath = exec.getCurrentFilePath();
                     log.info("[{}] Flow '{}' completed. Output: {}", trackId, matchedFlow.getName(),
-                            processedFilePath);
-                    // ── Lifecycle event: flow completed ──
+                            exec.getCurrentFilePath());
                     connectorDispatcher.dispatch(ConnectorDispatcher.MftEvent.builder()
                             .eventType("FLOW_COMPLETED").severity("INFO").trackId(trackId)
                             .filename(filename).account(sourceAccount.getUsername())
@@ -235,9 +235,13 @@ public class RoutingEngine {
             } catch (Exception e) {
                 log.error("[{}] Flow execution error: {}", trackId, e.getMessage());
             }
+            // Flow handled everything — skip legacy folder mapping routing
+            return;
         }
 
-        // Step 2: AI Classification — scan for PCI/PII before routing
+        // ── No flow matched — fall back to legacy folder mapping routing ──────────
+
+        // AI Classification — only needed for legacy path (flows include SCREEN step)
         boolean isEncrypted = processedFilePath.endsWith(".enc") || processedFilePath.endsWith(".pgp");
         AiClassificationClient.ClassificationDecision classification =
                 aiClassifier.classify(Paths.get(processedFilePath), trackId, isEncrypted);
@@ -253,11 +257,11 @@ public class RoutingEngine {
             return;
         }
 
-        // Step 3: Evaluate folder mappings and route
+        // Evaluate folder mappings and route (legacy path — only when no flow matched)
         List<RoutingEvaluator.RoutingDecision> decisions =
                 evaluator.evaluate(sourceAccount, relativeFilePath, absoluteSourcePath);
 
-        if (decisions.isEmpty() && matchedFlow == null) {
+        if (decisions.isEmpty()) {
             log.warn("[{}] UNMATCHED file: account={} file={}", trackId,
                     sourceAccount.getUsername(), filename);
             FlowExecution unmatchedExec = FlowExecution.builder()
