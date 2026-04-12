@@ -125,9 +125,10 @@ function MiniPipeline({ steps }) {
 }
 
 // ─── Step card in the builder ───
-function StepCard({ step, index, total, onRemove, onMoveUp, onMoveDown, onConfigChange }) {
+function StepCard({ step, index, total, onRemove, onMoveUp, onMoveDown, onConfigChange, availableQueues }) {
   const [expanded, setExpanded] = useState(false)
   const meta = STEP_TYPE_CATALOG[step.type] || { label: step.type, icon: '?', color: 'text-secondary bg-hover', configFields: [] }
+  const queuesForType = (availableQueues || []).filter(q => q.functionType === step.type && q.enabled)
 
   return (
     <div className={`border rounded-lg transition-all ${expanded ? 'border-blue-300 shadow-sm' : 'border-border'}`}>
@@ -158,8 +159,29 @@ function StepCard({ step, index, total, onRemove, onMoveUp, onMoveDown, onConfig
           </button>
         </div>
       </div>
-      {expanded && meta.configFields.length > 0 && (
+      {expanded && (
         <div className="px-3 pb-3 pt-1 border-t border-border space-y-2">
+          {/* Queue profile picker — admin picks which queue profile to use for this step */}
+          {queuesForType.length > 1 && (
+            <div>
+              <label className="text-xs font-medium text-secondary">Queue Profile</label>
+              <select
+                value={step.config?.queueId || ''}
+                onChange={e => onConfigChange('queueId', e.target.value)}
+                className="mt-0.5 text-sm"
+              >
+                <option value="">Default ({queuesForType.find(q => q.defaultQueue)?.displayName || step.type})</option>
+                {queuesForType.filter(q => !q.defaultQueue).map(q => (
+                  <option key={q.id} value={q.id}>
+                    {q.displayName} (retry={q.retryCount}, timeout={q.timeoutSeconds}s, workers={q.minConcurrency}-{q.maxConcurrency})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {queuesForType.length === 1 && (
+            <p className="text-[10px] text-muted">Queue: {queuesForType[0].displayName} (retry={queuesForType[0].retryCount}, timeout={queuesForType[0].timeoutSeconds}s)</p>
+          )}
           {meta.configFields.map(field => (
             <div key={field.key}>
               <label className="text-xs font-medium text-secondary">{field.label}</label>
@@ -836,6 +858,12 @@ export default function Flows() {
     queryKey: ['partners-for-flows'],
     queryFn: () => onboardingApi.get('/api/partners').then(r => r.data?.content || r.data || []),
     staleTime: 300000
+  })
+
+  const { data: functionQueues = [] } = useQuery({
+    queryKey: ['function-queues-for-flows'],
+    queryFn: () => configApi.get('/api/function-queues').then(r => r.data),
+    staleTime: 60000
   })
 
   // ─── Cascading protocol filters ───
@@ -2001,6 +2029,7 @@ export default function Flows() {
                     onMoveUp={() => moveStep(i, -1)}
                     onMoveDown={() => moveStep(i, 1)}
                     onConfigChange={(key, val) => updateStepConfig(i, key, val)}
+                    availableQueues={functionQueues}
                   />
                 ))}
                 {form.steps.length === 0 && (
