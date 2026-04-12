@@ -759,8 +759,21 @@ create_scheduled_tasks() {
 
   for task in "${tasks[@]}"; do
     IFS='|' read -r name cron type tz <<< "$task"
+    # EXECUTE_SCRIPT tasks require a config.command — provide sensible defaults
+    local config_field=""
+    if [ "$type" = "EXECUTE_SCRIPT" ]; then
+      case "$name" in
+        *"PGP Key Rotation"*)  config_field=',"config":{"command":"check-pgp-expiry","timeoutSeconds":"300"}' ;;
+        *"Data Transform"*)    config_field=',"config":{"command":"transform-nightly","timeoutSeconds":"600"}' ;;
+        *"DMZ Health"*)        config_field=',"config":{"command":"dmz-health-probe","timeoutSeconds":"60"}' ;;
+        *"Sanctions List"*)    config_field=',"config":{"command":"refresh-sanctions-lists","timeoutSeconds":"300"}' ;;
+        *"Certificate Expiry"*) config_field=',"config":{"command":"check-cert-expiry","timeoutSeconds":"120"}' ;;
+        *"License Audit"*)     config_field=',"config":{"command":"license-usage-audit","timeoutSeconds":"300"}' ;;
+        *)                     config_field=',"config":{"command":"noop","timeoutSeconds":"60"}' ;;
+      esac
+    fi
     post "$CFG/api/scheduler" \
-      "{\"name\":\"$name\",\"cronExpression\":\"$cron\",\"taskType\":\"$type\",\"timezone\":\"$tz\",\"enabled\":true}" \
+      "{\"name\":\"$name\",\"cronExpression\":\"$cron\",\"taskType\":\"$type\",\"timezone\":\"$tz\",\"enabled\":true${config_field}}" \
       "Scheduler: $name" > /dev/null
   done
 }
