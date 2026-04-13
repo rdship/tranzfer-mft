@@ -21,6 +21,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 const TABS = [
   { id: 'convert', label: 'Convert' },
   { id: 'maps', label: 'Maps' },
+  { id: 'templates', label: 'Templates' },
   { id: 'explain', label: 'Explain' },
   { id: 'heal', label: 'Self-Heal' },
   { id: 'compliance', label: 'Compliance' },
@@ -1102,6 +1103,11 @@ export default function Edi() {
         </div>
       )}
 
+      {/* Templates Tab */}
+      {tab === 'templates' && (
+        <TemplatesTab />
+      )}
+
       {/* Explain Tab */}
       {tab === 'explain' && (
         <div className="card space-y-4">
@@ -1393,6 +1399,81 @@ export default function Edi() {
         onConfirm={confirmDeleteMap}
         onCancel={() => setDeleteMapTarget(null)}
       />
+    </div>
+  )
+}
+
+/** Templates tab — browse and generate EDI from templates */
+function TemplatesTab() {
+  const [templates, setTemplates] = useState([])
+  const [selected, setSelected] = useState(null)
+  const [values, setValues] = useState({})
+  const [result, setResult] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    api.get('/api/v1/convert/templates').then(r => {
+      setTemplates(r.data || [])
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
+
+  const generate = async () => {
+    if (!selected) return
+    try {
+      const r = await api.post(`/api/v1/convert/templates/${selected.id}/generate`, values)
+      setResult(r.data)
+      toast.success('Generated from template')
+    } catch (e) {
+      toast.error('Generation failed: ' + (e?.response?.data?.error || e?.message))
+    }
+  }
+
+  if (loading) return <div className="card p-8 text-center opacity-50">Loading templates...</div>
+  if (templates.length === 0) return (
+    <div className="card p-8 text-center">
+      <p className="text-lg font-semibold text-secondary mb-2">No templates available</p>
+      <p className="text-sm opacity-60">EDI templates allow generating standard documents with pre-filled fields.</p>
+    </div>
+  )
+
+  return (
+    <div className="card space-y-4">
+      <h3 className="font-semibold text-primary">EDI Templates</h3>
+      <p className="text-sm text-secondary">Select a template and fill in values to generate a compliant EDI document.</p>
+      <div className="grid grid-cols-3 gap-2">
+        {templates.map(t => (
+          <button key={t.id} onClick={() => { setSelected(t); setValues({}); setResult(null) }}
+            className={`p-3 rounded-lg text-left border transition-colors text-sm ${selected?.id === t.id ? 'border-blue-500 bg-blue-500/10' : 'border-border hover:bg-hover'}`}>
+            <p className="font-medium">{t.name || t.id}</p>
+            {t.description && <p className="text-xs opacity-60 mt-1">{t.description}</p>}
+            {t.format && <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded mt-1 inline-block">{t.format}</span>}
+          </button>
+        ))}
+      </div>
+      {selected && (
+        <div className="border-t border-border pt-4 space-y-3">
+          <p className="text-sm font-medium">Fill template values for: <span className="text-blue-500">{selected.name || selected.id}</span></p>
+          {(selected.fields || []).map(f => (
+            <div key={f.name}>
+              <label className="text-xs font-medium text-secondary">{f.label || f.name}{f.required && ' *'}</label>
+              <input className="w-full mt-1" placeholder={f.placeholder || f.name}
+                value={values[f.name] || ''}
+                onChange={e => setValues(v => ({ ...v, [f.name]: e.target.value }))} />
+            </div>
+          ))}
+          <button onClick={generate} className="px-4 py-2 rounded-lg text-sm font-medium"
+            style={{ background: 'rgb(var(--accent))', color: '#fff' }}>
+            Generate
+          </button>
+        </div>
+      )}
+      {result && (
+        <div className="border-t border-border pt-4">
+          <p className="text-xs font-medium text-secondary mb-2">Generated Output</p>
+          <pre className="bg-black/20 p-4 rounded-lg text-xs overflow-auto max-h-80 font-mono">{typeof result === 'string' ? result : JSON.stringify(result, null, 2)}</pre>
+        </div>
+      )}
     </div>
   )
 }

@@ -43,3 +43,20 @@ export const chatWithMap = (mapId, message, context) =>
 
 export const submitMapFeedback = (mapId, approved, comments, corrections) =>
   aiApi.post(`/api/v1/edi/maps/${mapId}/feedback`, { approved, comments, corrections }).then(r => r.data)
+
+// ── Create / Export / Import (ai-engine :8091) ──────────────────────────────
+export const createMap = (map) =>
+  aiApi.post('/api/v1/edi/maps', map).then(r => r.data)
+
+export const exportMap = (mapId) =>
+  aiApi.get(`/api/v1/edi/maps/${mapId}/export`).then(r => r.data)
+
+export const importMap = (importData) =>
+  aiApi.post('/api/v1/edi/maps/import', importData).then(r => r.data)
+
+// ── Templates (edi-converter :8095) ─────────────────────────────────────────
+export const getTemplates = () =>
+  ediApi.get('/api/v1/convert/templates').then(r => r.data)
+
+export const generateFromTemplate = (templateId, values) =>
+  ediApi.post(`/api/v1/convert/templates/${templateId}/generate`, values).then(r => r.data)

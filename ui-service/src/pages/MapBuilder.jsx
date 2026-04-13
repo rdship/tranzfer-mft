@@ -5,7 +5,7 @@ import {
   PlusIcon, ArrowPathIcon, MagnifyingGlassIcon,
   DocumentDuplicateIcon, CheckCircleIcon,
 } from '@heroicons/react/24/outline'
-import { getAvailableMaps, getMapDetail, updateMap } from '../api/ediConverter'
+import { getAvailableMaps, getMapDetail, updateMap, createMap, exportMap, importMap } from '../api/ediConverter'
 import MapEditor from '../components/MapEditor'
 import MapTestPanel from '../components/MapTestPanel'
 import MapAssistant from '../components/MapAssistant'
@@ -140,24 +140,61 @@ export default function MapBuilder() {
 
   const handleMapSave = async (updatedDef) => {
     const id = updatedDef?.mapId || updatedDef?.id
-    if (!id) {
-      toast.error('Cannot save: map has no id yet. Use "Build Map from Samples" for new maps.')
-      return
-    }
     setSaving(true)
     try {
-      await updateMap(id, updatedDef)
-      toast.success('Map saved')
-      setMapDef(updatedDef)
+      if (!id) {
+        // Create new map via POST /api/v1/edi/maps
+        const created = await createMap({
+          name: updatedDef.name || 'Untitled Map',
+          partnerId: updatedDef.partnerId || null,
+          sourceFormat: updatedDef.sourceFormat || 'X12',
+          sourceType: updatedDef.sourceType || null,
+          targetFormat: updatedDef.targetFormat || 'JSON',
+          targetType: updatedDef.targetType || null,
+          fieldMappingsJson: updatedDef.fieldMappingsJson || JSON.stringify(updatedDef.fieldMappings || []),
+        })
+        toast.success('Map created: ' + created.name)
+        setMapDef({ ...updatedDef, id: created.id, mapId: created.id })
+        setSelectedMapId(created.id)
+      } else {
+        await updateMap(id, updatedDef)
+        toast.success('Map saved')
+        setMapDef(updatedDef)
+      }
       setDirty(false)
       setIsNewMap(false)
-      // Refresh the browser list so counts / names stay current
       loadMaps()
     } catch (e) {
       toast.error('Save failed: ' + (e?.response?.data?.message || e?.message))
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleExport = async () => {
+    if (!selectedMapId) return
+    try {
+      const data = await exportMap(selectedMapId)
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = (mapDef?.name || 'map') + '.json'; a.click()
+      URL.revokeObjectURL(url)
+      toast.success('Map exported')
+    } catch (e) { toast.error('Export failed: ' + e?.message) }
+  }
+
+  const handleImport = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+      const result = await importMap(data)
+      toast.success('Map imported: ' + result.name)
+      loadMaps()
+      setSelectedMapId(result.id)
+    } catch (err) { toast.error('Import failed: ' + err?.message) }
   }
 
   const handleHeaderSave = () => {

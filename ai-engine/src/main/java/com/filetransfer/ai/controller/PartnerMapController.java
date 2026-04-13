@@ -33,6 +33,69 @@ public class PartnerMapController {
     private final ObjectMapper objectMapper;
 
     // ===================================================================
+    // CREATE (blank map)
+    // ===================================================================
+
+    /** Create a new blank partner map — enables manual map building in MapBuilder UI */
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public MapResponse createMap(@RequestBody CreateMapRequest request) {
+        if (request.getName() == null || request.getName().isBlank())
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "name is required");
+        if (request.getSourceFormat() == null || request.getSourceFormat().isBlank())
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sourceFormat is required");
+        if (request.getTargetFormat() == null || request.getTargetFormat().isBlank())
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "targetFormat is required");
+
+        ConversionMap map = partnerMapService.createBlank(
+                request.getName(), request.getPartnerId(),
+                request.getSourceFormat(), request.getSourceType(),
+                request.getTargetFormat(), request.getTargetType(),
+                request.getFieldMappingsJson());
+        return toResponse(map);
+    }
+
+    // ===================================================================
+    // EXPORT / IMPORT
+    // ===================================================================
+
+    /** Export a map as JSON — for backup, transfer between environments, version control */
+    @GetMapping("/{mapId}/export")
+    public ResponseEntity<Map<String, Object>> exportMap(@PathVariable UUID mapId) {
+        ConversionMap map = partnerMapService.getById(mapId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Map not found: " + mapId));
+        Map<String, Object> export = new java.util.LinkedHashMap<>();
+        export.put("exportVersion", "1.0");
+        export.put("exportedAt", java.time.Instant.now().toString());
+        export.put("map", toResponse(map));
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=\"" + map.getName() + ".json\"")
+                .body(export);
+    }
+
+    /** Import a map from JSON export */
+    @PostMapping("/import")
+    @ResponseStatus(HttpStatus.CREATED)
+    public MapResponse importMap(@RequestBody Map<String, Object> importData) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> mapData = (Map<String, Object>) importData.get("map");
+        if (mapData == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing 'map' field in import data");
+
+        String name = (String) mapData.getOrDefault("name", "Imported Map");
+        String partnerId = (String) mapData.get("partnerId");
+        String sourceFormat = (String) mapData.getOrDefault("sourceFormat", "X12");
+        String sourceType = (String) mapData.get("sourceType");
+        String targetFormat = (String) mapData.getOrDefault("targetFormat", "JSON");
+        String targetType = (String) mapData.get("targetType");
+        String fieldMappingsJson = mapData.get("fieldMappingsJson") != null
+                ? mapData.get("fieldMappingsJson").toString() : null;
+
+        ConversionMap map = partnerMapService.createBlank(
+                name, partnerId, sourceFormat, sourceType, targetFormat, targetType, fieldMappingsJson);
+        return toResponse(map);
+    }
+
+    // ===================================================================
     // CLONE
     // ===================================================================
 
@@ -193,6 +256,17 @@ public class PartnerMapController {
                 .usageCount(map.getUsageCount())
                 .createdAt(map.getCreatedAt() != null ? map.getCreatedAt().toString() : null)
                 .build();
+    }
+
+    @Data @NoArgsConstructor @AllArgsConstructor
+    public static class CreateMapRequest {
+        private String name;
+        private String partnerId;
+        private String sourceFormat;     // X12, EDIFACT, etc.
+        private String sourceType;       // 850, ORDERS, etc.
+        private String targetFormat;     // JSON, XML, CSV
+        private String targetType;       // optional
+        private String fieldMappingsJson; // optional initial field mappings
     }
 
     @Data @NoArgsConstructor @AllArgsConstructor

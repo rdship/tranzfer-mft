@@ -40,6 +40,37 @@ public class PartnerMapService {
     // ===================================================================
 
     /**
+     * Create a blank partner map from scratch — for manual mapping in MapBuilder UI.
+     */
+    @Transactional
+    public ConversionMap createBlank(String name, String partnerId,
+                                      String sourceFormat, String sourceType,
+                                      String targetFormat, String targetType,
+                                      String fieldMappingsJson) {
+        String mapKey = (sourceFormat + "_" + (sourceType != null ? sourceType : "ANY")
+                + "_TO_" + targetFormat + "_" + (targetType != null ? targetType : "ANY")
+                + "_" + (partnerId != null ? partnerId : "GLOBAL")).toUpperCase();
+
+        ConversionMap map = ConversionMap.builder()
+                .mapKey(mapKey)
+                .name(name)
+                .sourceFormat(sourceFormat)
+                .sourceType(sourceType)
+                .targetFormat(targetFormat)
+                .targetType(targetType)
+                .partnerId(partnerId)
+                .status("DRAFT")
+                .version(1)
+                .active(false)
+                .confidence(0)
+                .fieldMappingCount(0)
+                .fieldMappingsJson(fieldMappingsJson != null ? fieldMappingsJson : "[]")
+                .usageCount(0)
+                .build();
+        return mapRepo.save(map);
+    }
+
+    /**
      * Clone a standard map as a partner-specific map.
      * Fetches the standard map definition from edi-converter, stores it in DB.
      */
