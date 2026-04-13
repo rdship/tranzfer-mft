@@ -5,7 +5,7 @@ import { useServices } from '../context/ServiceContext'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { useRecentlyViewed } from '../hooks/useRecentlyViewed'
-import { configApi, onboardingApi, screeningApi } from '../api/client'
+import { configApi, onboardingApi, screeningApi, sentinelApi } from '../api/client'
 import { getFabricStuck } from '../api/fabric'
 import { SunIcon, MoonIcon } from '@heroicons/react/24/solid'
 import {
@@ -197,7 +197,7 @@ export default function Sidebar() {
   const { data: sentinelOpenCount } = useQuery({
     queryKey: ['sidebar-sentinel-count'],
     queryFn: () =>
-      onboardingApi.get('/api/v1/sentinel/findings', { params: { status: 'OPEN', size: 1 } })
+      sentinelApi.get('/api/v1/sentinel/findings', { params: { status: 'OPEN', size: 1 } })
         .then(r => r.data?.totalElements ?? r.data?.total ?? (Array.isArray(r.data) ? r.data.length : 0))
         .catch(() => 0),
     refetchInterval: 60000,

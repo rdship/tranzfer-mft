@@ -112,9 +112,15 @@ COMPOSE_PROFILES="${COMPOSE_PROFILES:-minio}" docker compose --profile minio up 
 # sentinel_correlation_groups. These tables are required by platform-sentinel
 # at startup but the V54 migration is never run by Flyway because the DB is
 # already at V999 (write-intents migration). Apply manually every cold boot.
-log "Applying V54 sentinel tables (Flyway skip workaround)..."
+log "Applying service-specific migrations (not in shared db-migrate classpath)..."
 docker exec -i mft-postgres psql -U postgres -d filetransfer \
   < "$(dirname "$0")/../platform-sentinel/src/main/resources/db/migration/V54__sentinel_tables.sql" \
+  2>&1 | grep -v "^$" || true
+docker exec -i mft-postgres psql -U postgres -d filetransfer \
+  < "$(dirname "$0")/../storage-manager/src/main/resources/db/migration/V54__write_intents_and_moving_tier.sql" \
+  2>&1 | grep -v "^$" || true
+docker exec -i mft-postgres psql -U postgres -d filetransfer \
+  < "$(dirname "$0")/../screening-service/src/main/resources/db/migration/V51__screening_hits_column.sql" \
   2>&1 | grep -v "^$" || true
 
 # --- Phase 3: wait for onboarding-api + best-effort key services -------------

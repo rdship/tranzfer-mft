@@ -42,10 +42,7 @@ spring:
     open-in-view: true  # OSIV: controllers return raw JPA entities
     hibernate:
       ddl-auto: none
-platform:
-  entity-scan:
-    mode: selective
-    packages: com.filetransfer.shared.entity.EncryptionKey
+    show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -69,6 +66,11 @@ platform:
     placeholder-replacement: false
     locations: classpath:db/migration
     validate-on-migrate: false
+
+platform:
+  entity-scan:
+    mode: selective
+    packages: com.filetransfer.shared.entity.EncryptionKey
 
 jwt:
   secret: ${JWT_SECRET:change_me_in_production_256bit_secret_key!!}
