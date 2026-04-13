@@ -4,6 +4,7 @@ import com.filetransfer.shared.repository.TransferActivityViewRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @ConditionalOnBean(TransferActivityViewRepository.class)
+@ConditionalOnProperty(name = "activity.view.refresh.enabled", havingValue = "true", matchIfMissing = false)
 public class ActivityViewRefresher {
 
     @Autowired

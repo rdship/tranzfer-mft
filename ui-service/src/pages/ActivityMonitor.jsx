@@ -670,7 +670,8 @@ export default function ActivityMonitor() {
     let es
     try {
       const baseUrl = onboardingApi.defaults.baseURL || ''
-      es = new EventSource(`${baseUrl}/api/activity-monitor/stream`)
+      const jwt = localStorage.getItem('token') || ''
+      es = new EventSource(`${baseUrl}/api/activity-monitor/stream?token=${encodeURIComponent(jwt)}`)
       es.onopen = () => setSseConnected(true)
       es.onerror = () => setSseConnected(false)
       es.addEventListener('transfer-new', () => {

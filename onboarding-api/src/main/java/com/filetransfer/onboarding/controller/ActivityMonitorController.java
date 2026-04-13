@@ -402,8 +402,15 @@ public class ActivityMonitorController {
     private final java.util.concurrent.CopyOnWriteArrayList<org.springframework.web.servlet.mvc.method.annotation.SseEmitter>
             sseClients = new java.util.concurrent.CopyOnWriteArrayList<>();
 
+    /**
+     * SSE stream for real-time transfer updates. Accepts JWT via query param
+     * because EventSource API cannot send Authorization headers.
+     * Token validated manually; @PreAuthorize skipped via permitAll in SecurityConfig.
+     */
     @GetMapping(value = "/stream", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
-    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter stream() {
+    @org.springframework.security.access.prepost.PreAuthorize("permitAll()")
+    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter stream(
+            @RequestParam(required = false) String token) {
         org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter =
                 new org.springframework.web.servlet.mvc.method.annotation.SseEmitter(300_000L); // 5 min
         sseClients.add(emitter);
