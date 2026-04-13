@@ -129,17 +129,25 @@ public class AccountEventConsumer {
         }
 
         // Create home directories from template (carried in event) or default
+        // VIRTUAL accounts: folders are provisioned in VFS by onboarding-api — skip physical dirs
         if ("account.created".equals(eventType) && homeDir != null) {
+            String storageMode = (String) event.getOrDefault("storageMode", "PHYSICAL");
+            if ("VIRTUAL".equalsIgnoreCase(storageMode)) {
+                log.info("VIRTUAL account {} — physical dir creation skipped (VFS-managed)", username);
+                return;
+            }
             try {
                 @SuppressWarnings("unchecked")
                 java.util.List<String> folderPaths = (java.util.List<String>) event.get("folderPaths");
-                if (folderPaths == null || folderPaths.isEmpty()) return;
+                if (folderPaths == null || folderPaths.isEmpty()) {
+                    folderPaths = java.util.List.of("inbox", "outbox", "sent");
+                }
                 for (String folder : folderPaths) {
                     Files.createDirectories(Paths.get(homeDir, folder));
                 }
                 log.info("Created {} directories for {}: {}", folderPaths.size(), username, homeDir);
             } catch (Exception e) {
-                log.warn("Could not create directories for {}: {}", username, e.getMessage());
+                log.error("FAILED to create home directories for {} at {}: {}", username, homeDir, e.getMessage());
             }
         }
     }

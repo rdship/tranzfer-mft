@@ -21,4 +21,5 @@ public class AccountCreatedEvent {
     private String homeDir;
     private String serverInstance;
     private List<String> folderPaths;
+    private String storageMode;
 }

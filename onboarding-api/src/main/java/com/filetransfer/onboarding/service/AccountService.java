@@ -124,6 +124,7 @@ public class AccountService {
                 .homeDir(account.getHomeDir())
                 .serverInstance(account.getServerInstance())
                 .folderPaths(folderPaths)
+                .storageMode(account.getStorageMode())
                 .build());
 
         return toResponse(account);
