@@ -1721,3 +1721,335 @@ Rule Engine                  Kafka                    Flow Workers
 **When ANY trigger from C.3 is hit:** Extract using Pattern C (event-driven via Kafka). The infrastructure is already there — it's a 2-3 week code reorganization, not an architectural rewrite.
 
 **The extraction is a topology change, not a paradigm change.** Same code, same Kafka topics, same consumer groups — just running in a different pod.
+
+---
+
+## Appendix D: File Write Lifecycle — Who Writes, When, How, Recovery
+
+### D.1 Byte Arrival — Protocol Layer Writes the File
+
+**The file hits disk BEFORE our code runs.** The protocol server (Apache MINA SSHD / Apache FTPServer / HTTP servlet) handles the raw byte transfer. Our event listeners fire AFTER the file is complete and the client has received confirmation.
+
+```
+SFTP Client                    Apache MINA SSHD              Our Code
+    │                              │                            │
+    │  SSH_FXP_OPEN (WRITE)        │                            │
+    │  ──────────────────────────▶ │                            │
+    │                              │  opening() callback        │
+    │                              │  ─────────────────────────▶│ record handle
+    │                              │                            │
+    │  SSH_FXP_WRITE (bytes)       │                            │
+    │  ──────────────────────────▶ │                            │
+    │                              │  writes to disk directly   │
+    │  ... (more WRITE chunks) ... │  (Java NIO FileChannel)    │
+    │                              │                            │
+    │  SSH_FXP_CLOSE               │                            │
+    │  ──────────────────────────▶ │                            │
+    │                              │  flushes + closes file     │
+    │  SSH_FXP_STATUS (OK)         │                            │
+    │  ◀────────────────────────── │  client has confirmation   │
+    │                              │                            │
+    │                              │  closing() callback        │
+    │                              │  ─────────────────────────▶│ onFileUploaded()
+    │                              │                            │ (file is 100% on disk)
+```
+
+| Protocol | Server | Write Mechanism | Client Confirmation | Our Callback |
+|----------|--------|----------------|--------------------|--------------| 
+| **SFTP** | Apache MINA SSHD | `FileChannel.write()` | SSH_FXP_STATUS OK | `SftpRoutingEventListener.closing()` |
+| **FTP** | Apache FTPServer | `FileOutputStream` | FTP 226 Transfer complete | `FtpletRoutingAdapter.onUploadEnd()` |
+| **AS2** | Spring HTTP (Servlet) | `request.getInputStream().readAllBytes()` | HTTP 200 + MDN | `As2RoutingHandler.routeInboundMessage()` |
+| **HTTP** | Gateway (MINA/FTP) | Same as SFTP/FTP | Same as SFTP/FTP | Same listeners |
+
+**Key guarantee:** By the time `onFileUploaded()` is called, the file is **fully written, flushed, and the client has received success confirmation**. Our code never races with an incomplete write.
+
+### D.2 The 7-Stage Write Pipeline
+
+After the protocol layer confirms the file is on disk, our pipeline takes over. Here are the 7 stages, in order, with who does what:
+
+```
+STAGE 1: EVENT PUBLISH (RoutingEngine)
+─────────────────────────────────────────
+  Who:    RoutingEngine.onFileUploaded()
+  What:   Generates trackId, publishes FileUploadedEvent to RabbitMQ
+  Output: Event in queue (file.upload.events)
+  If fails: Falls back to synchronous processing (same JVM)
+
+STAGE 2: RULE MATCHING (FileUploadEventConsumer → RoutingEngine)
+─────────────────────────────────────────
+  Who:    FileUploadEventConsumer picks up event → calls onFileUploadedInternal()
+  What:   Builds MatchContext (16 dimensions), evaluates FlowRuleRegistry
+  Output: CompiledFlowRule (matched) or null (unmatched)
+  Cost:   <3µs (pre-compiled Predicates, zero I/O)
+
+STAGE 3: RECORD CREATION (RoutingEngine)
+─────────────────────────────────────────
+  Who:    RoutingEngine.onFileUploadedInternal()
+  What:   Creates FileTransferRecord with status=PENDING
+  Output: Record in DB (or batch writer queue)
+  Fields: trackId, filename, sourceAccountId, flowId, fileSizeBytes
+
+STAGE 4: STORAGE PUSH (RoutingEngine → Storage-Manager)
+─────────────────────────────────────────
+  Who:    RoutingEngine calls storageClient.storeStream()
+  What:   Pushes file to Storage-Manager CAS
+  Output: SHA-256 hash (= sourceChecksum), storageKey, sizeBytes
+  Path:   file → temp file → SHA-256 digest → atomic rename to CAS path
+          → fsync (if enabled) → response with hash
+  Dedup:  If SHA-256 already in CAS → skip write, return existing key
+  WAIL:   Write-Ahead Intent created BEFORE write, committed AFTER rename
+
+STAGE 5: FLOW EXECUTION (FlowProcessingEngine)
+─────────────────────────────────────────
+  Who:    FlowProcessingEngine.executeFlow() or executeFlowRef()
+  What:   Executes ordered pipeline steps (SCREEN → ENCRYPT → COMPRESS → FORWARD)
+  Path:   Fabric (Kafka per-function topics) OR SEDA (bounded queue) OR synchronous
+
+  Per step:
+    a. Read input from Storage-Manager (by SHA-256 key)
+    b. Execute step (encrypt, compress, scan, etc.)
+    c. Write output to Storage-Manager (new SHA-256 key)
+    d. Publish FlowStepEvent (async → FlowStepSnapshot in DB)
+    e. Update FlowExecution.currentStep + currentStorageKey
+    f. If Fabric: publish next step to flow.step.{NEXT_TYPE} topic
+       If SEDA: continue loop in same thread
+
+STAGE 6: DELIVERY (ForwarderService)
+─────────────────────────────────────────
+  Who:    SftpForwarderService / FtpForwarderService / As2ForwarderService
+  What:   Reads final output from Storage-Manager, writes to partner endpoint
+  Confirmation:
+    SFTP: SSH_FXP_STATUS OK after handle close
+    FTP:  226 Transfer complete
+    AS2:  MDN (Message Disposition Notification) with MIC verification
+    HTTP: 200 OK response
+
+STAGE 7: COMPLETION (RoutingEngine or FlowProcessingEngine)
+─────────────────────────────────────────
+  Who:    RoutingEngine.onFileDownloaded() OR FlowProcessingEngine on last step
+  What:   Updates FileTransferRecord:
+          - status: PENDING → IN_OUTBOX → MOVED_TO_SENT
+          - destinationChecksum: SHA-256 of delivered file
+          - completedAt: Instant.now()
+          - destinationAccountId: recipient account UUID
+  Events: transfer.completed → RabbitMQ → SSE (real-time UI) + notifications
+```
+
+### D.3 Checksum Chain — Source to Destination Integrity
+
+```
+File arrives at SFTP
+    │
+    ▼
+STAGE 4: Storage-Manager computes SHA-256 during CAS write
+    │     Returns: sha256 = "a1b2c3d4e5..."
+    │     RoutingEngine sets: transferRecord.sourceChecksum = "a1b2c3d4e5..."
+    │
+    ▼
+STAGE 5: Each flow step produces a NEW SHA-256 key
+    │     Step 0 input:  "a1b2c3d4e5..." (original)
+    │     Step 0 output: "f6g7h8i9j0..." (encrypted version)
+    │     Step 1 input:  "f6g7h8i9j0..."
+    │     Step 1 output: "k1l2m3n4o5..." (compressed+encrypted)
+    │     All tracked in FlowStepSnapshot (immutable audit trail)
+    │
+    ▼
+STAGE 6: Delivery — final output written to partner
+    │
+    ▼
+STAGE 7: Compute destination checksum
+    │     PHYSICAL: AuditService.sha256(deliveredFilePath)
+    │     VIRTUAL:  destinationChecksum = sourceChecksum (zero-copy, same content)
+    │     transferRecord.destinationChecksum = "k1l2m3n4o5..."
+    │
+    ▼
+Activity Monitor shows:
+    sourceChecksum:      "a1b2c3d4e5..."
+    destinationChecksum: "k1l2m3n4o5..."
+    integrityStatus:     VERIFIED (both non-null + flow completed)
+                    or   MISMATCH (checksums differ unexpectedly)
+                    or   PENDING  (destination checksum not yet computed)
+```
+
+### D.4 VFS Write Path (VIRTUAL Accounts)
+
+VIRTUAL accounts don't write to the local filesystem. Files exist only in CAS (Content-Addressable Storage) with metadata in PostgreSQL.
+
+```
+SFTP client writes "invoice.edi" to VIRTUAL account
+    │
+    ▼
+VirtualSftpFileSystem.createOutputStream()
+    │  Returns a VfsOutputStream that buffers bytes
+    │
+    ▼
+VfsOutputStream.close()  ← triggered when SFTP client closes handle
+    │
+    ▼
+VirtualFileSystem.writeFile(accountId, "/inbox/invoice.edi", bytes)
+    │
+    ├─ 1. LOCK: DistributedVfsLock.lockPath(accountId, path)
+    │        Redis: SET NX EX 30s "platform:vfs:lock:{hash}"
+    │        Fallback: pg_advisory_xact_lock(hash)
+    │        Retry: 5 attempts × 200ms backoff
+    │
+    ├─ 2. INTENT: VfsIntent.create(WRITE, PENDING)
+    │        Persisted to vfs_intents table (partitioned: active/resolved)
+    │
+    ├─ 3. BUCKET ROUTING:
+    │        size ≤ 64KB  → INLINE (store gzipped bytes in DB row)
+    │        64KB-64MB    → STANDARD (store in CAS via Storage-Manager)
+    │        >64MB        → CHUNKED (4MB chunks, each in CAS)
+    │
+    ├─ 4. STORAGE:
+    │        INLINE:   VirtualEntry.inlineContent = gzip(bytes)
+    │        STANDARD: storageClient.storeStream() → SHA-256 key
+    │        CHUNKED:  for each 4MB chunk:
+    │                    storageClient.storeStream(chunk) → chunk SHA-256
+    │                    VfsChunk.register(entryId, chunkIndex, sha256)
+    │
+    ├─ 5. DB WRITE: VirtualEntry saved (accountId, path, storageKey, bucket, size)
+    │
+    ├─ 6. COMMIT: VfsIntent.status = COMMITTED (same transaction as step 5)
+    │
+    └─ 7. UNLOCK: lock.close() → Redis DELETE
+```
+
+### D.5 Recovery Mechanisms
+
+#### A. VFS Intent Recovery (Write-Ahead Intent Protocol)
+
+```
+Normal flow:                     Crash scenario:
+  PENDING ──▶ COMMITTED           PENDING ──▶ [POD DIES]
+                                              │
+                                  VfsIntentRecoveryJob (every 2 min):
+                                    Find PENDING intents > 5 min old
+                                              │
+                                  ┌───────────▼────────────┐
+                                  │ Check CAS for storageKey│
+                                  └───────────┬────────────┘
+                                     ┌────────┴────────┐
+                                     │                  │
+                                CAS has file       CAS missing file
+                                     │                  │
+                                DB has entry?      ABORTED
+                                  YES → COMMITTED    (file never stored,
+                                  NO  → replay         nothing to recover)
+                                        writeFile()
+                                        → COMMITTED
+```
+
+#### B. Flow Execution Recovery
+
+```
+Normal flow:                     Crash scenario:
+  PROCESSING ──▶ COMPLETED        PROCESSING ──▶ [POD DIES]
+                                                  │
+                                  FlowExecutionRecoveryJob (every 5 min):
+                                    Find PROCESSING executions > 5 min old
+                                                  │
+                                  ┌───────────────▼──────────────┐
+                                  │ Check if owner pod is alive   │
+                                  │ (Redis heartbeat)             │
+                                  └───────────────┬──────────────┘
+                                     ┌────────────┴──────────┐
+                                     │                        │
+                                  Pod alive               Pod dead
+                                  (just slow)             │
+                                  → skip               Has checkpoint?
+                                                     ┌───────┴───────┐
+                                                     │               │
+                                                 YES (key)       NO (null)
+                                                     │               │
+                                                 PENDING         FAILED
+                                                 attempt++       "Pod died,
+                                                 restart from    no checkpoint"
+                                                 checkpoint
+```
+
+#### C. CAS Orphan Reaper (Storage Garbage Collection)
+
+```
+Runs daily:
+  1. Scan all StorageObject records
+  2. For each SHA-256 key:
+     │
+     ├─ Check VirtualEntry references: entryRepository.countByStorageKey(sha256)
+     ├─ Check VfsChunk references:     chunkRepository.countByStorageKey(sha256)
+     ├─ Check pending VfsIntents:      intentRepository.countPendingByStorageKey(sha256)
+     │
+     └─ If ALL counts = 0 AND created > 24h ago (grace period):
+           → Soft-delete (if vfs.cas-gc-enabled=true)
+           → Dry-run log (if false, default)
+```
+
+#### D. Storage-Manager Down — Graceful Degradation
+
+```
+RoutingEngine tries:
+  storageClient.storeStream(file, size, name, account, trackId)
+    │
+    ▼
+  Connection refused / timeout (Storage-Manager down)
+    │
+    ▼
+  catch (Exception e):
+    log.debug("Storage push skipped: {}", e.getMessage())
+    │
+    ▼
+  Fallback: compute SHA-256 locally
+    MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(path))
+    transferRecord.setSourceChecksum(localChecksum)
+    │
+    ▼
+  FileTransferRecord still created (PENDING status)
+  Flow still executes (file is on local disk)
+  Activity Monitor still shows the transfer
+  Download button won't work until storage-manager recovers
+    │
+    ▼
+  When storage-manager recovers:
+    - Next file uploads work normally
+    - Admin can re-push missing files via API
+    - No data loss — file was on protocol service disk all along
+```
+
+#### E. RabbitMQ Down — Synchronous Fallback
+
+```
+RoutingEngine.onFileUploaded():
+  rabbitTemplate.convertAndSend(exchange, "file.uploaded", event)
+    │
+    ▼
+  AmqpException (RabbitMQ unreachable)
+    │
+    ▼
+  catch: log.warn("RabbitMQ publish failed — falling back to synchronous")
+    │
+    ▼
+  onFileUploadedInternal(account, path, sourceIp, filename, trackId)
+    │
+    ▼
+  Entire pipeline runs synchronously in caller thread:
+    match → record → storage push → flow execution → delivery
+    │
+    ▼
+  SFTP event listener blocks until processing completes
+  (slower but no data loss — file still processed)
+```
+
+### D.6 Summary: Write Ownership Map
+
+| What Gets Written | Who Writes | When | Where | Confirmation |
+|-------------------|-----------|------|-------|-------------|
+| **Raw file bytes** | Protocol server (MINA/FTPServer) | During SFTP/FTP session | Local disk (`/data/sftp/{user}/inbox/`) | SSH_FXP_STATUS OK / FTP 226 |
+| **VFS entry** (VIRTUAL) | VirtualFileSystem.writeFile() | After SFTP close | PostgreSQL `virtual_entries` + CAS | VfsIntent COMMITTED |
+| **CAS object** | Storage-Manager (ParallelIOEngine) | On storage push | Local disk (`/data/storage/{sha256}`) | HTTP 200 + SHA-256 in response |
+| **FileTransferRecord** | RoutingEngine (or BatchWriter) | After match, before flow | PostgreSQL `file_transfer_records` | DB commit (or batch flush) |
+| **FlowExecution** | FlowProcessingEngine | At flow start | PostgreSQL `flow_executions` | DB commit |
+| **FlowStepSnapshot** | FlowStepEventListener (async) | After each step | PostgreSQL `flow_step_snapshots` | Async — fire-and-forget |
+| **FabricCheckpoint** | FlowFabricBridge | Before/after each Kafka step | PostgreSQL `fabric_checkpoints` | DB commit |
+| **Delivered file** | ForwarderService | During delivery step | Remote partner SFTP/FTP/AS2 | Protocol confirmation (SSH OK / FTP 226 / MDN) |
+| **Completion update** | RoutingEngine.onFileDownloaded() | When recipient downloads | PostgreSQL (status update) | DB commit |
+| **Destination checksum** | AuditService.sha256() | On delivery completion | FileTransferRecord field | Same transaction as status update |
