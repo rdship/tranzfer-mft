@@ -64,13 +64,24 @@ public class StepPipelineConfig {
                 .with("flow.step.dead");
     }
 
+    @Value("${flow.step-pipeline.prefetch:5}")
+    private int stepPrefetch;
+
+    @Value("${flow.step-pipeline.concurrency.min:4}")
+    private int stepMinConcurrency;
+
+    @Value("${flow.step-pipeline.concurrency.max:16}")
+    private int stepMaxConcurrency;
+
     /**
      * Listener container factory for step pipeline workers.
-     * Key settings for reliability + performance:
-     * - prefetchCount=1: process one step at a time (backpressure)
-     * - acknowledgeMode=AUTO: ACK after handler returns (NACK on exception)
-     * - concurrency=2-8: scales with CPU cores
-     * - defaultRequeueRejected=false: failed messages go to DLQ, not requeued infinitely
+     *
+     * <p><b>Phase 2 — Concurrency unlocking:</b>
+     * <ul>
+     *   <li>prefetch configurable (default=5, was hardcoded 1)</li>
+     *   <li>concurrency 4-16 (was 2-8)</li>
+     *   <li>Higher prefetch keeps workers busy during I/O-heavy steps (encrypt, compress)</li>
+     * </ul>
      */
     @Bean
     public SimpleRabbitListenerContainerFactory stepPipelineFactory(
@@ -78,9 +89,9 @@ public class StepPipelineConfig {
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory);
         factory.setMessageConverter(messageConverter);
-        factory.setPrefetchCount(1);
-        factory.setConcurrentConsumers(2);
-        factory.setMaxConcurrentConsumers(8);
+        factory.setPrefetchCount(stepPrefetch);
+        factory.setConcurrentConsumers(stepMinConcurrency);
+        factory.setMaxConcurrentConsumers(stepMaxConcurrency);
         factory.setDefaultRequeueRejected(false); // failures → DLQ
         return factory;
     }

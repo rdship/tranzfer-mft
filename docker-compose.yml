@@ -64,6 +64,18 @@ x-common-env: &common-env
   # Phase 1 pipeline optimizations (feature flags)
   PIPELINE_CACHE_PARTNER_ENABLED: "true"
   PIPELINE_RECORDS_BATCH__WRITE: "true"
+  # Phase 2 concurrency unlocking — SEDA stages + RabbitMQ consumers
+  UPLOAD_CONSUMER_PREFETCH: "10"
+  UPLOAD_CONSUMER_CONCURRENCY: "4-16"
+  FLOW_STAGE_INTAKE_QUEUE: "5000"
+  FLOW_STAGE_INTAKE_THREADS: "64"
+  FLOW_STAGE_PIPELINE_QUEUE: "2000"
+  FLOW_STAGE_PIPELINE_THREADS: "128"
+  FLOW_STAGE_DELIVERY_QUEUE: "5000"
+  FLOW_STAGE_DELIVERY_THREADS: "64"
+  FLOW_STEP__PIPELINE_PREFETCH: "5"
+  FLOW_STEP__PIPELINE_CONCURRENCY_MIN: "4"
+  FLOW_STEP__PIPELINE_CONCURRENCY_MAX: "16"
   KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
   SPRING_KAFKA_BOOTSTRAP__SERVERS: redpanda:9092
 
@@ -452,6 +464,9 @@ services:
       SFTP_PORT: 2222
       SFTP_HOME_BASE: /data/sftp
       SFTP_INSTANCE_ID: sftp-1
+      # Phase 2: SFTP is the primary file intake — scale pool + concurrency
+      SPRING_DATASOURCE_HIKARI_MAXIMUM__POOL__SIZE: 30
+      SPRING_DATASOURCE_HIKARI_MINIMUM__IDLE: 8
     volumes:
       - sftp_data:/data/sftp
       - platform_tls:/tls:ro
@@ -507,6 +522,9 @@ services:
       FTP_HOME_BASE: /data/ftp
       FTP_INSTANCE_ID: ftp-1
       PLATFORM_REPLICA_COUNT: 2
+      # Phase 2: FTP is secondary file intake
+      SPRING_DATASOURCE_HIKARI_MAXIMUM__POOL__SIZE: 25
+      SPRING_DATASOURCE_HIKARI_MINIMUM__IDLE: 5
     volumes:
       - ftp_data:/data/ftp
       - platform_tls:/tls:ro
@@ -689,6 +707,9 @@ services:
       CLUSTER_HOST: gateway-service
       SERVER_PORT: 8085
       GATEWAY_FTP_PORT: 2122
+      # Phase 2: Gateway handles HTTP uploads + multi-protocol proxying
+      SPRING_DATASOURCE_HIKARI_MAXIMUM__POOL__SIZE: 25
+      SPRING_DATASOURCE_HIKARI_MINIMUM__IDLE: 5
       INTERNAL_SFTP_HOST: sftp-service
       INTERNAL_SFTP_PORT: 2222
       INTERNAL_FTP_HOST: ftp-service

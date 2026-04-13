@@ -31,7 +31,8 @@ public class FileUploadEventConsumer {
 
     @RabbitListener(
             queues = "#{@fileUploadQueue.name}",
-            concurrency = "${upload.consumer.concurrency:2-4}"
+            containerFactory = "uploadListenerFactory",
+            concurrency = "${upload.consumer.concurrency:4-16}"
     )
     public void onFileUploaded(FileUploadedEvent event) {
         MDC.put("trackId", event.getTrackId());
