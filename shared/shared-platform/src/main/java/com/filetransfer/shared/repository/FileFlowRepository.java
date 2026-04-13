@@ -31,6 +31,9 @@ public interface FileFlowRepository extends JpaRepository<FileFlow, UUID> {
 
     boolean existsByName(String name);
 
+    /** Phase 3.4: cheap count check — used to skip full reload when unchanged. */
+    long countByActiveTrue();
+
     // Partner-scoped queries
     List<FileFlow> findByPartnerId(UUID partnerId);
 

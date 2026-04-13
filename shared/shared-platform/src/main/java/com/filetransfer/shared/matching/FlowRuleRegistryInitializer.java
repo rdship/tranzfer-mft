@@ -79,14 +79,23 @@ public class FlowRuleRegistryInitializer {
         }
     }
 
+    /** Phase 3.4: track last refresh count to skip no-op reloads. */
+    private volatile int lastRefreshCount = -1;
+
     /**
-     * Periodic refresh — reloads all active flows from DB every 30s.
-     * Catches stale cache when RabbitMQ events are missed or when flows
-     * are modified directly in the DB.
+     * Phase 3.4: Periodic refresh — reloads active flows every 5s (was 30s).
+     * Skips reload if flow count hasn't changed (cheap COUNT query).
+     * Full reload only when count differs or on first call.
      */
-    @Scheduled(fixedDelay = 30_000, initialDelay = 60_000)
+    @Scheduled(fixedDelay = 5_000, initialDelay = 10_000)
     public void refresh() {
         try {
+            // Quick count check — skip full reload if count unchanged
+            long currentCount = flowRepository.countByActiveTrue();
+            if (currentCount == lastRefreshCount && lastRefreshCount >= 0) {
+                return; // No change — skip the expensive findAll + compile cycle
+            }
+
             List<FileFlow> activeFlows = flowRepository.findByActiveTrueOrderByPriorityAsc();
             Map<UUID, CompiledFlowRule> compiled = new LinkedHashMap<>();
             for (FileFlow flow : activeFlows) {
@@ -98,9 +107,9 @@ public class FlowRuleRegistryInitializer {
             }
             int before = registry.size();
             registry.loadAll(compiled);
-            // Phase 1: refresh flow cache alongside rule registry
             flowCache.clear();
             activeFlows.forEach(f -> flowCache.put(f.getId(), f));
+            lastRefreshCount = compiled.size();
             if (compiled.size() != before) {
                 log.info("Flow rule registry refreshed: {} → {} active flows", before, compiled.size());
             }
