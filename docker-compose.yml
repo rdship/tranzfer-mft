@@ -1386,6 +1386,8 @@ services:
       - config-service
       - analytics-service
       - license-service
+    volumes:
+      - platform_tls:/tls:ro
     # H4 fix: hit static /nginx-health endpoint, not proxied / (which depends on backends)
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/nginx-health > /dev/null || exit 1"]
@@ -1401,6 +1403,8 @@ services:
       - "127.0.0.1:3002:8080"
     depends_on:
       - onboarding-api
+    volumes:
+      - platform_tls:/tls:ro
     # H4 fix: hit static /nginx-health endpoint
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/nginx-health > /dev/null || exit 1"]
@@ -1416,6 +1420,8 @@ services:
       - "127.0.0.1:3001:8080"
     depends_on:
       - ftp-web-service
+    volumes:
+      - platform_tls:/tls:ro
     # H4 fix: hit static /nginx-health endpoint
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/nginx-health > /dev/null || exit 1"]

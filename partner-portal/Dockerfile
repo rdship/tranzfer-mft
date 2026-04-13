@@ -15,7 +15,7 @@ RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser &&
     touch /var/run/nginx.pid && chown appuser:appgroup /var/run/nginx.pid
 
 COPY --from=builder --chown=appuser:appgroup /app/dist /usr/share/nginx/html
-RUN echo 'server { listen 8080; root /usr/share/nginx/html; index index.html; location = /nginx-health { access_log off; return 200 "ok\n"; add_header Content-Type text/plain; } location / { try_files $uri $uri/ /index.html; } }' > /etc/nginx/conf.d/default.conf && \
+RUN printf 'server {\n  listen 8080;\n  listen 8443 ssl;\n  ssl_certificate /etc/nginx/ssl/server.crt;\n  ssl_certificate_key /etc/nginx/ssl/server.key;\n  root /usr/share/nginx/html;\n  index index.html;\n  location = /nginx-health { access_log off; return 200 "ok\\n"; add_header Content-Type text/plain; }\n  location / { try_files $uri $uri/ /index.html; }\n}\n' > /etc/nginx/conf.d/default.conf && \
     chown appuser:appgroup /etc/nginx/conf.d/default.conf
 
 USER appuser

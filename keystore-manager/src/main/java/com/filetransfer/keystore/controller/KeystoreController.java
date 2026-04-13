@@ -126,10 +126,14 @@ public class KeystoreController {
                 material = key.getKeyMaterial();
                 filename = alias + ".key";
             }
+            // M6 fix: proper Content-Type for PEM files + explicit UTF-8 charset
+            MediaType contentType = filename.endsWith(".pem")
+                    ? new MediaType("application", "x-pem-file", java.nio.charset.StandardCharsets.UTF_8)
+                    : MediaType.APPLICATION_OCTET_STREAM;
             return ResponseEntity.ok()
                     .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .body(material.getBytes());
+                    .contentType(contentType)
+                    .body(material.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         }).orElse(ResponseEntity.notFound().build());
     }
 
