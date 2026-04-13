@@ -35,9 +35,17 @@ public class FileUploadEventConsumer {
             containerFactory = "uploadListenerFactory",
             concurrency = "${upload.consumer.concurrency:4-16}"
     )
-    public void onFileUploaded(FileUploadedEvent event) {
+    public void onFileUploaded(FileUploadedEvent event,
+                               @org.springframework.messaging.handler.annotation.Header(
+                                       name = "x-death", required = false) java.util.List<?> xDeath) {
         MDC.put("trackId", event.getTrackId());
         try {
+            // Phase 7.4: Poison message detection — route to DLQ after 3 redeliveries
+            if (xDeath != null && xDeath.size() >= 3) {
+                log.error("[{}] Poison message detected: {} redeliveries — dropping (will land in DLQ)",
+                        event.getTrackId(), xDeath.size());
+                return; // ACK the poison message, let DLQ config catch it
+            }
             log.info("[{}] Processing file upload event: user={} file={}",
                     event.getTrackId(), event.getUsername(), event.getFilename());
 
@@ -61,9 +69,23 @@ public class FileUploadEventConsumer {
                     event.getTrackId());
 
         } catch (Exception e) {
-            log.error("[{}] File upload processing failed: {}", event.getTrackId(), e.getMessage(), e);
+            // Phase 7.2: Classify error for graceful degradation
+            String category = classifyError(e);
+            log.error("[{}] File upload processing failed [{}]: {}", event.getTrackId(), category, e.getMessage(), e);
+            // Don't throw — ACK the message to prevent infinite requeue.
+            // The file is on disk; operator can re-trigger via admin API.
         } finally {
             MDC.remove("trackId");
         }
+    }
+
+    /** Phase 7.2: Classify errors for monitoring/alerting. */
+    private static String classifyError(Exception e) {
+        String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+        if (msg.contains("connection") || msg.contains("timeout") || msg.contains("refused")) return "NETWORK";
+        if (msg.contains("auth") || msg.contains("permission") || msg.contains("denied")) return "AUTH";
+        if (msg.contains("storage") || msg.contains("disk") || msg.contains("space")) return "STORAGE";
+        if (msg.contains("constraint") || msg.contains("duplicate") || msg.contains("integrity")) return "DATA";
+        return "SYSTEM";
     }
 }

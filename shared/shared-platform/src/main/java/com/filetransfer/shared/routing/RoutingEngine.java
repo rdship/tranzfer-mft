@@ -169,6 +169,11 @@ public class RoutingEngine {
     void onFileUploadedInternal(TransferAccount sourceAccount, String relativeFilePath,
                                          String absoluteSourcePath, String sourceIp,
                                          String filename, String trackId) {
+        // Phase 7.1: Idempotency — skip if trackId already processed (RabbitMQ redelivery)
+        if (recordRepository.findByTrackId(trackId).isPresent()) {
+            log.info("[{}] Idempotent skip — trackId already exists in file_transfer_records", trackId);
+            return;
+        }
         log.info("[{}] File received: account={} file={}", trackId, sourceAccount.getUsername(), filename);
 
         // Step 1: Build match context and find matching flow

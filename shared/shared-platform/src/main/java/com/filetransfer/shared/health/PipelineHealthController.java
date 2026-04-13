@@ -44,6 +44,8 @@ public class PipelineHealthController {
     @Autowired(required = false) @Nullable private StepSnapshotBatchWriter snapshotWriter;
     @Autowired(required = false) @Nullable private PartnerCache partnerCache;
     @Autowired(required = false) @Nullable private ActivityViewRefresher viewRefresher;
+    @Autowired(required = false) @Nullable
+    private com.filetransfer.shared.routing.FlowExecutionRecoveryJob recoveryJob;
 
     @org.springframework.beans.factory.annotation.Value("${spring.application.name:unknown}")
     private String serviceName;
@@ -97,6 +99,11 @@ public class PipelineHealthController {
         // Materialized View Refresher — real stats, not dummy
         if (viewRefresher != null) {
             result.put("matViewRefresh", viewRefresher.getStats());
+        }
+
+        // Phase 7.3: Recovery job stats
+        if (recoveryJob != null) {
+            result.put("recovery", recoveryJob.getStats());
         }
 
         return result;
