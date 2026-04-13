@@ -460,6 +460,7 @@ services:
         condition: service_healthy
 
   sftp-service-2:
+    profiles: ["replicas"]
     build: ./sftp-service
     container_name: mft-sftp-service-2
     <<: *healthcheck
@@ -514,6 +515,7 @@ services:
         condition: service_healthy
 
   ftp-service-2:
+    profiles: ["replicas"]
     build: ./ftp-service
     container_name: mft-ftp-service-2
     <<: *healthcheck
@@ -542,6 +544,7 @@ services:
         condition: service_healthy
 
   sftp-service-3:
+    profiles: ["replicas"]
     build: ./sftp-service
     container_name: mft-sftp-service-3
     <<: *healthcheck
@@ -568,6 +571,7 @@ services:
         condition: service_healthy
 
   ftp-service-3:
+    profiles: ["replicas"]
     build: ./ftp-service
     container_name: mft-ftp-service-3
     <<: *healthcheck
@@ -620,6 +624,7 @@ services:
         condition: service_healthy
 
   ftp-web-service-2:
+    profiles: ["replicas"]
     build: ./ftp-web-service
     container_name: mft-ftp-web-service-2
     <<: *healthcheck
@@ -940,6 +945,7 @@ services:
       - spire-socket:/run/spire/sockets:ro
 
   ai-engine-2:
+    profiles: ["replicas"]
     build: ./ai-engine
     container_name: mft-ai-engine-2
     <<: *healthcheck
