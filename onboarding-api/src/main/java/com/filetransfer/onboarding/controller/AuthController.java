@@ -37,8 +37,8 @@ public class AuthController {
     private final AuthService authService;
     private final BruteForceProtection bruteForceProtection;
 
-    // --- IP-based rate limiting ---
-    private static final int MAX_AUTH_REQUESTS_PER_MINUTE = 20;
+    // --- IP-based rate limiting (BLOCKER 1 fix: raised from 20 to 200/min) ---
+    private static final int MAX_AUTH_REQUESTS_PER_MINUTE = 200;
     private static final long WINDOW_MS = 60_000;
     private final ConcurrentHashMap<String, IpWindow> ipWindows = new ConcurrentHashMap<>();
 
@@ -89,6 +89,15 @@ public class AuthController {
     public ResponseEntity<Map<String, String>> unlockAccount(@PathVariable String email) {
         bruteForceProtection.unlock(email);
         return ResponseEntity.ok(Map.of("status", "UNLOCKED", "email", email));
+    }
+
+    /** BLOCKER 1: Emergency reset ALL lockouts + IP rate limits. */
+    @PostMapping("/admin/reset-all-lockouts")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, String>> resetAllLockouts() {
+        bruteForceProtection.resetAll();
+        ipWindows.clear();
+        return ResponseEntity.ok(Map.of("status", "ALL_LOCKOUTS_AND_RATE_LIMITS_CLEARED"));
     }
 
     private static class IpWindow {

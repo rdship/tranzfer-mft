@@ -60,36 +60,36 @@ class AuthControllerTest {
         public AuthResponse register(RegisterRequest request) { return registerResponse; }
     }
 
-    // --- Rate limiting: 20 requests from same IP succeed, 21st throws TOO_MANY_REQUESTS ---
+    // --- Rate limiting: 200 requests from same IP succeed, 201st throws TOO_MANY_REQUESTS ---
 
     @Test
-    void rateLimiting_first20RequestsFromSameIpSucceed() {
+    void rateLimiting_first200RequestsFromSameIpSucceed() {
         when(httpRequest.getRemoteAddr()).thenReturn("192.168.1.1");
 
         LoginRequest loginRequest = new LoginRequest();
         loginRequest.setEmail("user@test.com");
         loginRequest.setPassword("password123");
 
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < 200; i++) {
             AuthResponse response = controller.login(loginRequest, httpRequest);
             assertNotNull(response);
         }
     }
 
     @Test
-    void rateLimiting_21stRequestFromSameIpThrowsTooManyRequests() {
+    void rateLimiting_201stRequestFromSameIpThrowsTooManyRequests() {
         when(httpRequest.getRemoteAddr()).thenReturn("10.0.0.1");
 
         LoginRequest loginRequest = new LoginRequest();
         loginRequest.setEmail("user@test.com");
         loginRequest.setPassword("password123");
 
-        // First 20 succeed
-        for (int i = 0; i < 20; i++) {
+        // First 200 succeed
+        for (int i = 0; i < 200; i++) {
             controller.login(loginRequest, httpRequest);
         }
 
-        // 21st should throw
+        // 201st should throw
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> controller.login(loginRequest, httpRequest));
         assertEquals(429, ex.getStatusCode().value());
@@ -109,7 +109,7 @@ class AuthControllerTest {
         loginRequest.setPassword("password123");
 
         // Exhaust limit on IP1
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < 200; i++) {
             controller.login(loginRequest, httpRequest);
         }
 
@@ -152,7 +152,7 @@ class AuthControllerTest {
         loginRequest.setPassword("password123");
 
         // Both requests resolve to "203.0.113.5", so they share a rate limit window
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < 200; i++) {
             controller.login(loginRequest, httpRequest);
         }
 
@@ -238,15 +238,15 @@ class AuthControllerTest {
         loginRequest.setEmail("user@test.com");
         loginRequest.setPassword("password123");
 
-        // Use 10 register + 10 login = 20 total from same IP
-        for (int i = 0; i < 10; i++) {
+        // Use 100 register + 100 login = 200 total from same IP
+        for (int i = 0; i < 100; i++) {
             controller.register(regRequest, httpRequest);
         }
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 100; i++) {
             controller.login(loginRequest, httpRequest);
         }
 
-        // 21st request (login) should be blocked
+        // 201st request (login) should be blocked
         assertThrows(ResponseStatusException.class,
                 () -> controller.login(loginRequest, httpRequest));
     }

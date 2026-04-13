@@ -337,10 +337,18 @@ public class FlowExecutionController {
      * All onboarding-api replicas share the same Redis entry; DB is hit once
      * per 5 s window regardless of replica count or request concurrency.
      */
+    /**
+     * BLOCKER 4 fix: Cache the Map data, NOT the ResponseEntity wrapper.
+     * ResponseEntity has no default constructor — Jackson can't deserialize it from Redis.
+     */
     @GetMapping("/live-stats")
     @PreAuthorize(Roles.VIEWER)
-    @Cacheable(value = "live-stats", key = "'all'")
     public ResponseEntity<Map<String, Object>> getLiveStats() {
+        return ResponseEntity.ok(computeLiveStats());
+    }
+
+    @org.springframework.cache.annotation.Cacheable(value = "live-stats", key = "'all'")
+    public Map<String, Object> computeLiveStats() {
         Map<String, Object> stats = new LinkedHashMap<>();
         stats.put("processing", 0L);
         stats.put("pending",    0L);
@@ -351,7 +359,7 @@ public class FlowExecutionController {
             long   count  = ((Number) row[1]).longValue();
             stats.put(status.toLowerCase(), count);
         }
-        return ResponseEntity.ok(stats);
+        return stats;
     }
 
     // ── Scheduled retry ───────────────────────────────────────────────────────

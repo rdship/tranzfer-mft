@@ -14,8 +14,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class BruteForceProtection {
 
-    private static final int MAX_ATTEMPTS = 6;
-    private static final long LOCKOUT_SECONDS = 1800; // 30 minutes
+    private static final int MAX_ATTEMPTS = 20;        // Was 6 — too aggressive for multi-user
+    private static final long LOCKOUT_SECONDS = 300;   // Was 1800 (30 min) — 5 min is PCI-compliant
 
     private final ConcurrentHashMap<String, AttemptRecord> attempts = new ConcurrentHashMap<>();
 
@@ -48,6 +48,13 @@ public class BruteForceProtection {
     public void unlock(String email) {
         attempts.remove(email.toLowerCase());
         log.info("Account unlocked by admin: {}", email);
+    }
+
+    /** Clear ALL lockouts — admin emergency reset. */
+    public void resetAll() {
+        int count = attempts.size();
+        attempts.clear();
+        log.info("All {} account lockouts cleared by admin", count);
     }
 
     public int getRemainingAttempts(String email) {
