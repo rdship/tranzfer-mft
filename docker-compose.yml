@@ -40,6 +40,9 @@ x-common-env: &common-env
   VAULT_ADDR: ${VAULT_ADDR:-http://vault:8200}
   VAULT_TOKEN: ${VAULT_TOKEN:-mft-dev-token}
   SPRING_FLYWAY_LOCK_RETRY_COUNT: 200
+  # Schema validation mode: validate (on-premise) | none (demo/k8s — Flyway is source of truth)
+  # Background SchemaHealthIndicator still detects drift post-boot and alerts via Sentinel.
+  SPRING_JPA_HIBERNATE_DDL__AUTO: ${HIBERNATE_SCHEMA_VALIDATION:-none}
   JWT_SECRET: ${JWT_SECRET:-change_me_in_production_256bit_secret_key!!}
   CONTROL_API_KEY: ${CONTROL_API_KEY:-internal_control_secret}  # HMAC secret for PCI audit log signing — NOT inter-service auth
   CLUSTER_ID: ${CLUSTER_ID:-cluster-1}
