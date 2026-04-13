@@ -22,20 +22,28 @@ const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'
 const GROUP_OPS = ['AND', 'OR']
 
 const FIELD_CATALOG = [
-  { name: 'filename',        label: 'Filename',         category: 'File',       type: 'string',  ops: ['GLOB', 'REGEX', 'EQ', 'CONTAINS', 'STARTS_WITH', 'ENDS_WITH'] },
-  { name: 'extension',       label: 'Extension',        category: 'File',       type: 'string',  ops: ['EQ', 'IN'] },
-  { name: 'fileSize',        label: 'File Size',        category: 'File',       type: 'number',  ops: ['GT', 'LT', 'GTE', 'LTE', 'BETWEEN'] },
-  { name: 'protocol',        label: 'Protocol',         category: 'Source',     type: 'enum',    ops: ['EQ', 'IN'], values: PROTOCOLS },
-  { name: 'direction',       label: 'Direction',        category: 'Source',     type: 'enum',    ops: ['EQ'], values: ['INBOUND', 'OUTBOUND'] },
-  { name: 'accountUsername',  label: 'Account',          category: 'Source',     type: 'string',  ops: ['EQ', 'IN', 'REGEX'] },
-  { name: 'partnerSlug',     label: 'Partner',          category: 'Source',     type: 'string',  ops: ['EQ', 'IN'] },
-  { name: 'sourcePath',      label: 'Source Path',      category: 'Source',     type: 'string',  ops: ['EQ', 'CONTAINS', 'STARTS_WITH', 'REGEX'] },
-  { name: 'sourceIp',        label: 'Source IP',        category: 'Network',    type: 'string',  ops: ['EQ', 'IN', 'CIDR'] },
-  { name: 'ediStandard',     label: 'EDI Standard',     category: 'EDI',        type: 'enum',    ops: ['EQ', 'IN'], values: EDI_STANDARDS },
-  { name: 'ediType',         label: 'EDI Type',         category: 'EDI',        type: 'enum',    ops: ['EQ', 'IN'], values: EDI_TYPES.map(t => t.value) },
-  { name: 'dayOfWeek',       label: 'Day of Week',      category: 'Schedule',   type: 'enum',    ops: ['EQ', 'IN'], values: DAYS },
-  { name: 'hour',            label: 'Hour (0-23)',      category: 'Schedule',   type: 'number',  ops: ['EQ', 'GTE', 'LTE'] },
-  { name: 'metadata',        label: 'Metadata Key',     category: 'Advanced',   type: 'map',     ops: ['KEY_EQ', 'CONTAINS', 'EQ'] },
+  // File dimensions
+  { name: 'filename',        label: 'Filename',          category: 'File',       type: 'string',  ops: ['GLOB', 'REGEX', 'EQ', 'CONTAINS', 'STARTS_WITH', 'ENDS_WITH'] },
+  { name: 'extension',       label: 'Extension',         category: 'File',       type: 'string',  ops: ['EQ', 'IN'] },
+  { name: 'fileSize',        label: 'File Size (bytes)', category: 'File',       type: 'number',  ops: ['GT', 'LT', 'GTE', 'LTE', 'BETWEEN'] },
+  // Source dimensions
+  { name: 'protocol',        label: 'Protocol',          category: 'Source',     type: 'enum',    ops: ['EQ', 'IN'], values: PROTOCOLS },
+  { name: 'direction',       label: 'Direction',         category: 'Source',     type: 'enum',    ops: ['EQ'], values: ['INBOUND', 'OUTBOUND'] },
+  { name: 'accountUsername',  label: 'Account Username',  category: 'Source',     type: 'string',  ops: ['EQ', 'IN', 'REGEX'] },
+  { name: 'sourceAccountId', label: 'Account ID',        category: 'Source',     type: 'string',  ops: ['EQ'] },
+  { name: 'partnerSlug',     label: 'Partner Slug',      category: 'Source',     type: 'string',  ops: ['EQ', 'IN'] },
+  { name: 'sourcePath',      label: 'Source Path',       category: 'Source',     type: 'string',  ops: ['EQ', 'CONTAINS', 'STARTS_WITH', 'REGEX'] },
+  // Network dimensions
+  { name: 'sourceIp',        label: 'Source IP',         category: 'Network',    type: 'string',  ops: ['EQ', 'IN', 'CIDR'] },
+  // EDI dimensions
+  { name: 'ediStandard',     label: 'EDI Standard',      category: 'EDI',        type: 'enum',    ops: ['EQ', 'IN'], values: EDI_STANDARDS },
+  { name: 'ediType',         label: 'EDI Type',          category: 'EDI',        type: 'enum',    ops: ['EQ', 'IN'], values: EDI_TYPES.map(t => t.value) },
+  // Schedule dimensions
+  { name: 'dayOfWeek',       label: 'Day of Week',       category: 'Schedule',   type: 'enum',    ops: ['EQ', 'IN'], values: DAYS },
+  { name: 'hour',            label: 'Hour (0-23)',       category: 'Schedule',   type: 'number',  ops: ['EQ', 'GTE', 'LTE'] },
+  { name: 'timeOfDay',       label: 'Time (HH:MM)',     category: 'Schedule',   type: 'string',  ops: ['GTE', 'LTE', 'BETWEEN'] },
+  // Advanced dimensions
+  { name: 'metadata',        label: 'Metadata Key',      category: 'Advanced',   type: 'map',     ops: ['KEY_EQ', 'CONTAINS', 'EQ'] },
 ]
 
 const FIELD_MAP = Object.fromEntries(FIELD_CATALOG.map(f => [f.name, f]))

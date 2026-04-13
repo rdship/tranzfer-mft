@@ -187,6 +187,23 @@ public class RoutingEngine {
             }
         }
 
+        // Build metadata from available context (account, partner, platform)
+        // Enables metadata.KEY_EQ rules like: metadata.region = "APAC"
+        java.util.Map<String, String> matchMetadata = new java.util.HashMap<>();
+        if (sourceAccount.getStorageMode() != null) {
+            matchMetadata.put("storageMode", sourceAccount.getStorageMode());
+        }
+        if (partnerSlug != null) {
+            matchMetadata.put("partner", partnerSlug);
+        }
+        if (partnerCache != null && sourceAccount.getPartnerId() != null) {
+            PartnerCache.PartnerSnapshot snap = partnerCache.get(sourceAccount.getPartnerId());
+            if (snap != null && snap.companyName() != null) {
+                matchMetadata.put("partnerName", snap.companyName());
+            }
+        }
+        // Protocol services can inject custom metadata via FileUploadedEvent in the future
+
         MatchContext matchContext = MatchContext.builder()
                 .fromUploadEvent(sourceAccount.getProtocol(), sourceAccount.getUsername(),
                         sourceAccount.getId(), sourceAccount.getPartnerId(),
@@ -197,6 +214,7 @@ public class RoutingEngine {
                 .withSourceIp(sourceIp)
                 .withPartnerSlug(partnerSlug)
                 .withTimeNow()
+                .withMetadata(matchMetadata)
                 .build();
 
         String processedFilePath = absoluteSourcePath;
