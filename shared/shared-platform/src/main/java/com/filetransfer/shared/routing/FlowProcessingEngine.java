@@ -1657,12 +1657,10 @@ public class FlowProcessingEngine {
                     if (fn.isPresent()) {
                         log.info("[{}] Executing plugin function (VIRTUAL): {} (step {})",
                                 trackId, step.getType(), stepIndex);
-                        // Materialize bytes from storage-manager to a temp file
-                        byte[] raw = storageClient.retrieveBySha256(storageKey);
-                        Path tempDir = Files.createTempDirectory("flow-plugin-");
+                        // Stream from CAS → temp file (no full byte[] in heap)
                         String filename = VirtualFileSystem.nameOf(virtualPath);
-                        Path tempInput = tempDir.resolve(filename);
-                        Files.write(tempInput, raw);
+                        Path tempInput = materializeFromCas(storageKey, filename);
+                        Path tempDir = tempInput.getParent();
 
                         FlowFunctionContext ctx = new FlowFunctionContext(
                                 tempInput, tempDir, cfg, trackId, filename);
@@ -1931,14 +1929,14 @@ public class FlowProcessingEngine {
                                    FileRef origin, String trackId,
                                    Map<String, String> cfg) throws Exception {
         log.info("[{}] SCREEN (VIRTUAL) key={}", trackId, abbrev(storageKey));
+        Path screenTemp = null;
         try {
-            byte[] fileBytes = storageClient.retrieveBySha256(storageKey);
+            // Stream from CAS → temp file (no full byte[] in heap)
             final String displayName = VirtualFileSystem.nameOf(virtualPath);
+            screenTemp = materializeFromCas(storageKey, displayName);
             org.springframework.util.LinkedMultiValueMap<String, Object> body =
                     new org.springframework.util.LinkedMultiValueMap<>();
-            body.add("file", new org.springframework.core.io.ByteArrayResource(fileBytes) {
-                @Override public String getFilename() { return displayName; }
-            });
+            body.add("file", new org.springframework.core.io.FileSystemResource(screenTemp.toFile()));
             HttpHeaders screenHdr = new HttpHeaders();
             screenHdr.setContentType(MediaType.MULTIPART_FORM_DATA);
             addInternalAuth(screenHdr, "screening-service");
@@ -1966,6 +1964,12 @@ public class FlowProcessingEngine {
             if (auditService != null) {
                 auditService.logAction("system", "SCREENING_BYPASSED", true, null,
                         Map.of("trackId", trackId, "reason", "Screening service unreachable — file allowed under graceful degradation"));
+            }
+        } finally {
+            // Cleanup screen temp file
+            if (screenTemp != null) {
+                try { Files.deleteIfExists(screenTemp); } catch (Exception ignored) {}
+                try { Files.deleteIfExists(screenTemp.getParent()); } catch (Exception ignored) {}
             }
         }
         return new StepOutcome(storageKey, virtualPath, sizeBytes);
@@ -2140,6 +2144,30 @@ public class FlowProcessingEngine {
     private static String abbrev(String key) {
         if (key == null) return "null";
         return key.length() > 8 ? key.substring(0, 8) + "…" : key;
+    }
+
+    /**
+     * Materialize a CAS object to a temporary file via streaming (no full byte[] in heap).
+     * Caller MUST delete the returned file when done (use try-finally).
+     * Memory: ~64 KB buffer (was: entire file in byte[]).
+     */
+    private Path materializeFromCas(String storageKey, String filename) throws IOException {
+        Path tempDir = Files.createTempDirectory("flow-cas-");
+        Path tempFile = tempDir.resolve(filename);
+        try (java.io.OutputStream out = Files.newOutputStream(tempFile)) {
+            storageClient.streamToOutput(storageKey, out);
+        }
+        return tempFile;
+    }
+
+    /** Read temp file content — used after materialization for steps that need byte[]. */
+    private byte[] readAndCleanup(Path tempFile) throws IOException {
+        try {
+            return Files.readAllBytes(tempFile);
+        } finally {
+            try { Files.deleteIfExists(tempFile); } catch (Exception ignored) {}
+            try { Files.deleteIfExists(tempFile.getParent()); } catch (Exception ignored) {}
+        }
     }
 
 }
