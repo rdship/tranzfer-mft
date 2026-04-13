@@ -41,6 +41,10 @@ public class FlowRuleEventListener {
     private final FileFlowRepository flowRepository;
     private final FlowRuleCompiler compiler;
 
+    /** Phase 1: keep flow cache in sync on hot-reload (not just periodic refresh). */
+    @Autowired(required = false)
+    private FlowRuleRegistryInitializer registryInitializer;
+
     @Autowired(required = false)
     private EventFabricBridge eventFabricBridge;
 
@@ -101,16 +105,33 @@ public class FlowRuleEventListener {
                             try {
                                 CompiledFlowRule compiled = compiler.compile(flow);
                                 registry.register(flow.getId(), flow.getName(), compiled);
+                                // Phase 1: keep flow cache in sync with hot-reload
+                                if (registryInitializer != null) {
+                                    registryInitializer.cacheFlow(flow);
+                                }
                             } catch (Exception e) {
                                 log.error("Failed to compile flow rule: {} (id={})", flow.getName(), flow.getId(), e);
                             }
                         } else {
                             registry.unregister(flow.getId());
+                            if (registryInitializer != null) {
+                                registryInitializer.uncacheFlow(flow.getId());
+                            }
                         }
                     },
-                    () -> registry.unregister(event.flowId())
+                    () -> {
+                        registry.unregister(event.flowId());
+                        if (registryInitializer != null) {
+                            registryInitializer.uncacheFlow(event.flowId());
+                        }
+                    }
             );
-            case DELETED -> registry.unregister(event.flowId());
+            case DELETED -> {
+                registry.unregister(event.flowId());
+                if (registryInitializer != null) {
+                    registryInitializer.uncacheFlow(event.flowId());
+                }
+            }
         }
     }
 

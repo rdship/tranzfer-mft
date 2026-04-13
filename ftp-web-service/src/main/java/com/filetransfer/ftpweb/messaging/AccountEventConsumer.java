@@ -1,6 +1,7 @@
 package com.filetransfer.ftpweb.messaging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.filetransfer.shared.cache.PartnerCache;
 import com.filetransfer.shared.fabric.EventFabricBridge;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +31,9 @@ public class AccountEventConsumer {
 
     @Autowired(required = false)
     private ObjectMapper objectMapper;
+
+    @Autowired(required = false)
+    private PartnerCache partnerCache;
 
     @Value("${rabbitmq.exchange}")
     private String exchange;
@@ -96,6 +100,14 @@ public class AccountEventConsumer {
         // Evict credential cache on account updates so next request picks up fresh data
         if ("account.updated".equals(eventType) && username != null) {
             log.info("FTP-Web cache evicted for updated account: {}", username);
+        }
+
+        // Phase 1: evict partner cache on account events
+        Object partnerIdObj = event.get("partnerId");
+        if (partnerCache != null && partnerIdObj != null) {
+            try {
+                partnerCache.evict(java.util.UUID.fromString(partnerIdObj.toString()));
+            } catch (Exception ignored) {}
         }
 
         // Create home directories from template (carried in event) or defaults

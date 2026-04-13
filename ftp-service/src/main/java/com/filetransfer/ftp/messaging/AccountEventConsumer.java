@@ -2,6 +2,7 @@ package com.filetransfer.ftp.messaging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.filetransfer.ftp.service.CredentialService;
+import com.filetransfer.shared.cache.PartnerCache;
 import com.filetransfer.shared.fabric.EventFabricBridge;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +34,9 @@ public class AccountEventConsumer {
 
     @Autowired(required = false)
     private ObjectMapper objectMapper;
+
+    @Autowired(required = false)
+    private PartnerCache partnerCache;
 
     @Value("${rabbitmq.exchange}")
     private String exchange;
@@ -101,6 +105,14 @@ public class AccountEventConsumer {
 
         if ("account.updated".equals(eventType) || "account.created".equals(eventType)) {
             credentialService.evictFromCache(username);
+        }
+
+        // Phase 1: evict partner cache on account events
+        Object partnerIdObj = event.get("partnerId");
+        if (partnerCache != null && partnerIdObj != null) {
+            try {
+                partnerCache.evict(java.util.UUID.fromString(partnerIdObj.toString()));
+            } catch (Exception ignored) {}
         }
 
         // Create home directories from template (carried in event) or defaults

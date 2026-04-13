@@ -43,6 +43,20 @@ public class FlowRuleRegistryInitializer {
         return flowId != null ? flowCache.get(flowId) : null;
     }
 
+    /** Hot-reload: add/update a single flow in the cache (called by FlowRuleEventListener). */
+    public void cacheFlow(FileFlow flow) {
+        if (flow != null && flow.getId() != null) {
+            flowCache.put(flow.getId(), flow);
+        }
+    }
+
+    /** Hot-reload: remove a flow from the cache (called by FlowRuleEventListener on delete/deactivate). */
+    public void uncacheFlow(UUID flowId) {
+        if (flowId != null) {
+            flowCache.remove(flowId);
+        }
+    }
+
     @EventListener(ApplicationReadyEvent.class)
     public void onStartup() {
         try {

@@ -1,6 +1,7 @@
 package com.filetransfer.sftp.messaging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.filetransfer.shared.cache.PartnerCache;
 import com.filetransfer.shared.fabric.EventFabricBridge;
 import com.filetransfer.sftp.service.CredentialService;
 import com.filetransfer.sftp.session.ConnectionManager;
@@ -34,6 +35,10 @@ public class AccountEventConsumer {
 
     @Autowired(required = false)
     private ObjectMapper injectedObjectMapper;
+
+    /** Phase 1: evict partner cache on account events (partner may have changed). */
+    @Autowired(required = false)
+    private PartnerCache partnerCache;
 
     @Value("${rabbitmq.exchange:file-transfer.events}")
     private String exchange;
@@ -114,6 +119,14 @@ public class AccountEventConsumer {
 
         // Evict cache so next auth picks up fresh DB data
         credentialService.evictFromCache(username);
+
+        // Phase 1: evict partner cache on account events (partner linkage may have changed)
+        Object partnerIdObj = event.get("partnerId");
+        if (partnerCache != null && partnerIdObj != null) {
+            try {
+                partnerCache.evict(java.util.UUID.fromString(partnerIdObj.toString()));
+            } catch (Exception ignored) {}
+        }
 
         // Live QoS update: re-register bandwidth and session limits for active sessions
         if ("account.updated".equals(eventType) && bandwidthThrottleManager.hasUserLimits(username)) {
