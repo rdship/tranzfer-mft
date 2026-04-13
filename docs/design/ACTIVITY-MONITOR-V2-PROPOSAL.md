@@ -1,9 +1,11 @@
-# TranzFer MFT — Next-Generation Activity Monitor Design
+# TranzFer MFT — Activity Monitor V2 Proposal
 
 **Date:** 2026-04-13  
-**Author:** QA/Architecture Review (Claude Code)  
-**For:** CTO Roshan Dubey & Development Team  
-**Status:** Design Proposal  
+**Author:** QA & Architecture Team  
+**Audience:** CTO Roshan Dubey, Development Team  
+**Type:** Design Proposal  
+**Status:** Open for Review  
+**Priority:** High — core platform feature with critical data-quality gaps  
 
 ---
 
