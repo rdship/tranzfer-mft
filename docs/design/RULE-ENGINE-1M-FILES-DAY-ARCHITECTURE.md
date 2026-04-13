@@ -1431,3 +1431,293 @@ Before each phase goes live, verify the complete pipeline:
 ---
 
 *This document is the blueprint. Each phase is independently deployable, feature-flagged, and rollback-safe. The pipeline flows like water — measured at every joint, bounded at every stage, recoverable at every checkpoint.*
+
+---
+
+## Appendix C: Rule Engine Extraction — Decision Document
+
+**Status:** DECISION PENDING — revisit when ready  
+**Last updated:** 2026-04-13  
+
+### C.1 What IS a Rule? (The 16 Match Dimensions)
+
+A rule is a composable AND/OR/NOT decision tree that matches on **16 dimensions** of every incoming file. Not just filename — every attribute of the file, source, network, schedule, and custom metadata.
+
+```
+WHAT arrived?           │  WHO sent it?            │  HOW/WHEN?
+────────────────────────┼──────────────────────────┼─────────────────────
+filename   GLOB/REGEX   │  partnerId       EQ/IN   │  protocol    EQ/IN
+extension  EQ/IN        │  partnerSlug     EQ/IN   │  direction   EQ
+fileSize   GT/LT/BETWEEN│  accountUsername  EQ/REGEX│  sourceIp    CIDR
+ediStandard EQ/IN       │  sourceAccountId EQ      │  timeOfDay   BETWEEN
+ediType    EQ/IN        │  sourcePath      REGEX   │  dayOfWeek   EQ/IN
+                        │                          │  metadata.*  KEY_EQ
+```
+
+Rules compose: `(extension=csv AND protocol=SFTP) OR (partnerSlug REGEX "bank-.*" AND sourceIp CIDR "10.0.0.0/8")`.
+
+When a rule matches → it triggers a **FileFlow** pipeline (ordered steps: SCREEN → ENCRYPT → COMPRESS → FORWARD → AUDIT).
+
+**Current demo:** 200 rules using only `filenamePattern` + `direction` (2 of 16 dimensions). All 16 are wired end-to-end: UI → API → JSONB → Compiler → Runtime.
+
+### C.2 Current Architecture (Embedded — No Extraction)
+
+```
+SFTP/FTP/AS2/Gateway (5 protocol services, each with its own copy)
+    │
+    └─ RoutingEngine (shared-platform JAR)
+         ├─ FlowRuleRegistry        in-memory, 200 rules, 160 KB, <1µs match
+         ├─ FlowRuleCompiler        pre-compiles Predicates at load time
+         ├─ FlowRuleRegistryInit    loads from DB every 30s + hot-reload via events
+         ├─ PartnerCache            L1 ConcurrentHashMap + L2 Redis
+         ├─ TransferRecordBatchWriter  async DB writes
+         └─ FlowProcessingEngine    executes steps via SEDA or Kafka Fabric
+
+    5 services × 160 KB rules = 800 KB total memory. Negligible.
+    Rule matching CPU: 0.002% of one core at 1M files/day.
+```
+
+### C.3 Extraction Triggers (When MUST You Extract?)
+
+| Trigger | Threshold | Why |
+|---------|-----------|-----|
+| **Rule count exceeds memory** | >50,000 rules | 40MB per pod × 5+ pods = 200MB+ wasted |
+| **Refresh storm kills DB** | pods × rules > 500,000 | 50 pods × 10K rules = 500K; each refreshing every 30s |
+| **Independent deployment** | Rule engine logic changes monthly | Can't restart all protocol services for a rule compiler fix |
+| **Multi-tenant isolation** | 5+ enterprise tenants | Partner A must never evaluate Partner B's rules |
+| **Cluster memory waste** | >2 GB duplicate rules | 50K rules × 50 pods = 2 GB of identical copies |
+
+**Current state (200 rules, 5 pods):** None of these triggers are hit. Keep embedded.
+
+### C.4 Extraction Architecture — Pattern C: Event-Driven via Kafka
+
+**This pattern was chosen because it uses infrastructure that already exists.**
+
+```
+BEFORE (today):
+  SFTP ──▶ RabbitMQ (file.uploaded) ──▶ FileUploadEventConsumer
+              ──▶ RoutingEngine.findMatch() [in-process]
+              ──▶ FlowProcessingEngine ──▶ Kafka (flow.step.*)
+              ──▶ FlowFabricConsumer executes steps
+
+AFTER (extracted):
+  SFTP ──▶ Kafka (file.evaluate) ──▶ Rule Engine Service
+              ──▶ findMatch() [in-process to rule-engine]
+              ──▶ Kafka (flow.step.*) [SAME EXISTING TOPICS]
+              ──▶ FlowFabricConsumer executes steps [UNCHANGED]
+```
+
+**What protocol services become (thin file receivers):**
+
+```java
+// SFTP Service — after extraction:
+public void onFileUploaded(TransferAccount account, String path, String sourceIp) {
+    FileEvaluateEvent event = FileEvaluateEvent.builder()
+        .trackId(trackIdGenerator.generate())
+        .accountId(account.getId())
+        .username(account.getUsername())
+        .protocol(account.getProtocol())
+        .partnerId(account.getPartnerId())
+        .storageMode(account.getStorageMode())
+        .relativeFilePath(path)
+        .sourceIp(sourceIp)
+        .filename(extractFilename(path))
+        .fileSizeBytes(Files.size(Paths.get(path)))
+        .build();
+    // One Kafka publish. SFTP service is done.
+    fabricClient.publish("file.evaluate", event.getTrackId(), event);
+}
+```
+
+**What the Rule Engine Service does:**
+
+```java
+// rule-engine-service: consumes file.evaluate, produces flow.step.*
+@KafkaListener(topics = "file.evaluate", groupId = "rule-engine")
+public void onFileEvaluate(FileEvaluateEvent event) {
+    // 1. Build MatchContext from event fields (all 16 dimensions)
+    MatchContext ctx = MatchContext.builder()
+        .fromEvent(event)              // filename, extension, protocol, etc.
+        .withPartnerSlug(partnerCache.get(event.getPartnerId()))
+        .withTimeNow()
+        .build();
+
+    // 2. Match — in-process, <3µs (same FlowRuleRegistry, same Predicates)
+    CompiledFlowRule matched = registry.findMatch(ctx);
+    if (matched == null) {
+        executionRepository.save(FlowExecution.unmatched(event));
+        return;
+    }
+
+    // 3. Create FlowExecution record
+    FileFlow flow = flowCache.get(matched.flowId());
+    FlowExecution exec = FlowExecution.start(flow, event.getTrackId());
+    executionRepository.save(exec);
+
+    // 4. Publish first step to existing per-function Kafka topic
+    //    THIS IS THE HANDOFF — flow workers pick up from here
+    String firstStepType = flow.getSteps().get(0).getType();
+    fabricClient.publish(
+        "flow.step." + firstStepType,       // e.g., flow.step.ENCRYPT_PGP
+        event.getTrackId(),                  // partition key (ordering guarantee)
+        StepMessage.of(exec.getId(), 0, event.getStorageKey())
+    );
+}
+```
+
+**What stays UNCHANGED:**
+
+```
+FlowFabricConsumer          — still consumes flow.step.* topics, executes steps
+FlowProcessingEngine        — still runs step logic (encrypt, compress, screen)
+Storage-Manager             — still serves CAS reads/writes
+Encryption-Service          — still does PGP/AES
+Screening-Service           — still does DLP/sanctions
+All per-function topics     — flow.step.ENCRYPT_PGP, flow.step.SCREEN, etc.
+All consumer groups         — shared groups for load balancing
+All checkpointing           — FabricCheckpoint for crash recovery
+```
+
+### C.5 Data Flow Diagram — Extracted
+
+```
+┌──────────────┐                        ┌─────────────────────────────┐
+│ SFTP Service │─┐                      │    rule-engine-service      │
+│ FTP  Service │─┤   file.evaluate      │                             │
+│ AS2  Service │─┼──────────────────────▶│  FlowRuleRegistry (1 copy) │
+│ GW   Service │─┤   (Kafka topic,      │  PartnerCache (1 copy)     │
+│ FTP-Web Svc  │─┘    32 partitions)    │  FlowRuleCompiler          │
+│              │                        │  FlowRuleEventListener     │
+│ Thin:        │                        │                             │
+│ - Receive file│                       │  Consumes: file.evaluate   │
+│ - Publish     │                       │  Produces: flow.step.*     │
+│   1 event     │                       │                             │
+│ - Done        │                       │  NO DB for rules (REST→    │
+│              │                        │   config-service on init)   │
+└──────────────┘                        │  DB only for FlowExecution │
+                                        └──────────┬──────────────────┘
+                                                   │
+                                            flow.step.ENCRYPT_PGP
+                                            flow.step.SCREEN
+                                            flow.step.COMPRESS_GZIP
+                                            flow.step.FORWARD_SFTP
+                                                   │
+                                        ┌──────────▼──────────────────┐
+                                        │  FlowFabricConsumer         │
+                                        │  (runs in any service pod)  │
+                                        │                             │
+                                        │  Step 0: ENCRYPT_PGP       │
+                                        │    → calls encryption-svc   │
+                                        │    → publishes step 1       │
+                                        │                             │
+                                        │  Step 1: COMPRESS_GZIP     │
+                                        │    → compresses in-process  │
+                                        │    → publishes step 2       │
+                                        │                             │
+                                        │  Step N: FORWARD_SFTP      │
+                                        │    → calls forwarder-svc    │
+                                        │    → marks COMPLETED        │
+                                        │    → publishes transfer.*   │
+                                        └─────────────────────────────┘
+```
+
+### C.6 Communication: No REST Between Rule Engine and Flow Engine
+
+**The rule engine does NOT call the flow engine via REST.** It publishes a Kafka message. The flow engine picks it up asynchronously.
+
+```
+Rule Engine                  Kafka                    Flow Workers
+    │                          │                          │
+    │  publish(                 │                          │
+    │    "flow.step.ENCRYPT",  │                          │
+    │    trackId,              │                          │
+    │    {execId, step:0,      │                          │
+    │     storageKey}          │                          │
+    │  ) ─────────────────────▶│                          │
+    │                          │                          │
+    │  DONE. Rule engine       │  consumer poll           │
+    │  moves to next file.     │  ────────────────────────▶
+    │                          │                          │
+    │                          │  Executes step 0         │
+    │                          │  Publishes step 1        │
+    │                          │◀─────────────────────────│
+    │                          │                          │
+    │                          │  consumer poll           │
+    │                          │  ────────────────────────▶
+    │                          │  Executes step 1...      │
+```
+
+**Why Kafka, not REST:**
+- Decoupled: rule engine doesn't wait for step execution (fire-and-forget)
+- Scalable: 32 partitions × N consumer pods = automatic load balancing
+- Recoverable: if flow worker dies, message stays in Kafka (redelivered)
+- Ordered: partition key = trackId → steps for same file stay ordered
+- Already exists: `flow.step.*` topics, `FlowFabricConsumer`, checkpointing
+
+### C.7 Pod Count at Scale
+
+| Scale | Files/Day | Rule Engine Pods | Protocol Pods | Flow Worker Pods | Total |
+|-------|-----------|-----------------|---------------|-----------------|-------|
+| Current | 100K-1M | 0 (embedded) | 5 | 0 (embedded) | 5 |
+| 10M | 10M | 0 (embedded) | 20 | 0 (embedded) | 20 |
+| Extract point | 50M+ | 2 (HA pair) | 30 | 10 | 42 |
+| Enterprise | 100M | 3 | 50 | 20 | 73 |
+| Billion | 1B | 6 | 200 | 50 | 256 |
+| 10 Billion | 10B | 16 | 1000 | 200 | 1,216 |
+
+**Rule engine is never > 16 pods.** It's pure CPU, sub-microsecond matching. The bottleneck is always storage I/O, encryption CPU, or network bandwidth.
+
+### C.8 What Already Exists (90% Built)
+
+| Infrastructure | Status | Reused By Extraction |
+|---------------|--------|---------------------|
+| `file.uploaded` RabbitMQ topic | EXISTS | Replaced by `file.evaluate` Kafka topic |
+| `flow.step.*` Kafka topics (per-function) | EXISTS | **Unchanged** — rule engine publishes to same topics |
+| `flow.intake` Kafka topic | EXISTS | **Unchanged** |
+| FlowFabricConsumer (step worker) | EXISTS | **Unchanged** — consumes same topics |
+| FabricClient (Kafka producer/consumer) | EXISTS | Used by rule engine service |
+| Per-function topic routing | EXISTS | **Unchanged** |
+| 32 Kafka partitions | EXISTS | Shared between rule engine and flow workers |
+| Shared consumer groups (FabricGroupIds) | EXISTS | Rule engine gets its own group |
+| FlowExecution checkpointing | EXISTS | **Unchanged** |
+| FlowRuleRegistry | EXISTS | Moves to rule engine service |
+| FlowRuleCompiler | EXISTS | Moves to rule engine service |
+| FlowRuleEventListener (dual RabbitMQ+Fabric) | EXISTS | Moves to rule engine service |
+| PartnerCache (L1+L2) | EXISTS | Moves to rule engine service |
+| SPIFFE/SPIRE identity | EXISTS | Auto-registered for new service |
+| Circuit breakers (Resilience4j) | EXISTS | Protocol services add RuleEngineClient |
+
+### C.9 Effort Estimate
+
+| Task | LOC | Days |
+|------|-----|------|
+| Create rule-engine-service module (Application, config, Dockerfile) | ~200 | 1 |
+| Move FlowRuleRegistry + Compiler + Initializer + EventListener | ~0 (same code, new home) | 1 |
+| Create FileEvaluateEvent DTO + Kafka consumer | ~150 | 1 |
+| Create RuleMatchController (REST, for admin/debug) | ~100 | 0.5 |
+| Refactor protocol services: replace RoutingEngine with single Kafka publish | ~50 per service × 5 | 3 |
+| Add FlowExecution creation to rule engine service | ~100 | 1 |
+| Wire into docker-compose + spire-init registration | ~30 | 0.5 |
+| Integration testing (all protocols × match × execute chain) | - | 3 |
+| **Total** | **~800** | **~11 days (2-3 weeks with buffer)** |
+
+### C.10 Decision Matrix
+
+| Factor | Keep Embedded | Extract to Service |
+|--------|:------------:|:-----------------:|
+| Latency (<3µs match) | **WIN** | +1-5ms overhead |
+| Memory efficiency (1 copy vs N) | Acceptable at 200 rules | **WIN** at 10K+ rules |
+| Independent deployment | Restart all protocol services | **WIN** — restart only rule engine |
+| Operational simplicity | **WIN** — fewer services | +1 service to monitor |
+| Multi-tenant isolation | Impossible | **WIN** — per-tenant rule sets |
+| Debug/audit (match explanation) | Possible but scattered | **WIN** — centralized |
+| Scaling (rule evaluation CPU) | Scales with protocol pods | **WIN** — scales independently |
+| Existing infrastructure reuse | N/A | **WIN** — 90% already built |
+
+### C.11 Recommendation
+
+**Today (200 rules, 5 pods, <10M files/day):** Keep embedded. Zero overhead.
+
+**When ANY trigger from C.3 is hit:** Extract using Pattern C (event-driven via Kafka). The infrastructure is already there — it's a 2-3 week code reorganization, not an architectural rewrite.
+
+**The extraction is a topology change, not a paradigm change.** Same code, same Kafka topics, same consumer groups — just running in a different pod.
