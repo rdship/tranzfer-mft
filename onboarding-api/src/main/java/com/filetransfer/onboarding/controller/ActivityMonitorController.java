@@ -219,7 +219,7 @@ public class ActivityMonitorController {
                 .destinationChecksum(r.getDestinationChecksum())
                 .integrityStatus(integrityStatus)
                 // Encryption
-                .encryptionOption(fm.getEncryptionOption().name())
+                .encryptionOption(fm != null && fm.getEncryptionOption() != null ? fm.getEncryptionOption().name() : null)
                 // Flow
                 .flowName(flowExec != null && flowExec.getFlow() != null ? flowExec.getFlow().getName() : null)
                 .flowStatus(flowExec != null ? flowExec.getStatus().name() : null)
