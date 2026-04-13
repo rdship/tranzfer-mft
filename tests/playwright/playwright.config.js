@@ -11,7 +11,8 @@ module.exports = defineConfig({
     ['json', { outputFile: 'test-results/results.json' }],
   ],
   use: {
-    baseURL: process.env.BASE_URL || 'http://localhost',
+    baseURL: process.env.BASE_URL || 'https://localhost',
+    ignoreHTTPSErrors: true,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
     headless: true,

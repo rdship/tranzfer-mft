@@ -17,10 +17,6 @@ import OperationsLayout from './layouts/OperationsLayout'
 // by every operator goes here; everything else is lazy.
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
-import ActivityMonitor from './pages/ActivityMonitor'
-import FabricDashboard from './pages/FabricDashboard'
-import Journey from './pages/Journey'
-import Activity from './pages/Activity'
 import Sentinel from './pages/Sentinel'
 
 // Partner portal is a separate small app — keep its shell eager.
@@ -29,6 +25,13 @@ import PartnerPortalLayout from './components/PartnerPortalLayout'
 import PartnerPortalDashboard from './pages/PartnerPortalDashboard'
 import PartnerPortalTransfers from './pages/PartnerPortalTransfers'
 import PartnerPortalSettings from './pages/PartnerPortalSettings'
+
+// Move heavy operations pages to lazy to break circular dependency chain
+// that causes "Cannot access 'It' before initialization" in production build
+const ActivityMonitor = lazy(() => import('./pages/ActivityMonitor'))
+const FabricDashboard = lazy(() => import('./pages/FabricDashboard'))
+const Journey = lazy(() => import('./pages/Journey'))
+const Activity = lazy(() => import('./pages/Activity'))
 
 // ── LAZY IMPORTS ──────────────────────────────────────────────────────
 // Cold-path pages split into their own chunks. Each chunk is downloaded
@@ -205,10 +208,10 @@ export default function App() {
                 a crash in one tab doesn't take out the rest. */}
             <Route path="operations" element={<OperationsLayout />}>
               <Route index element={<EagerRoute><Dashboard /></EagerRoute>} />
-              <Route path="fabric" element={<EagerRoute><FabricDashboard /></EagerRoute>} />
-              <Route path="activity" element={<EagerRoute><ActivityMonitor /></EagerRoute>} />
-              <Route path="live" element={<EagerRoute><Activity /></EagerRoute>} />
-              <Route path="journey" element={<EagerRoute><Journey /></EagerRoute>} />
+              <Route path="fabric" element={<LazyRoute><FabricDashboard /></LazyRoute>} />
+              <Route path="activity" element={<LazyRoute><ActivityMonitor /></LazyRoute>} />
+              <Route path="live" element={<LazyRoute><Activity /></LazyRoute>} />
+              <Route path="journey" element={<LazyRoute><Journey /></LazyRoute>} />
             </Route>
 
             {/* Back-compat redirects — old URLs still work, always */}
