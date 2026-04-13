@@ -445,12 +445,15 @@ public class FlowProcessingEngine {
                     if (flowEventJournal != null) {
                         flowEventJournal.recordStepCompleted(trackId, exec.getId(), i, step.getType(), null, 0, duration);
                     }
-                    // ── Durable checkpoint: store intermediate result in storage-manager ──
-                    // Keeps output in virtual storage (SHA-256 key) so restart-from-step
-                    // works even after reboot. Physical temp files are ephemeral.
+                    // ── Phase 4.1: Lazy checkpointing — only for critical steps ──
+                    // ALWAYS: FORWARD_*, FILE_DELIVERY, APPROVE, last step (delivery points)
+                    // ON_FAILURE: ENCRYPT_*, COMPRESS_*, TRANSFORM (re-runnable from input)
+                    // NEVER: SCREEN, AUDIT_LOG, WEBHOOK, RENAME (stateless/metadata-only)
                     String checkpointKey = null;
                     long checkpointSize = 0L;
-                    if (storageClient != null && outputFile != null) {
+                    boolean isLastStep = (i == flow.getSteps().size() - 1);
+                    boolean shouldCheckpoint = isLastStep || shouldAlwaysCheckpoint(step.getType());
+                    if (shouldCheckpoint && storageClient != null && outputFile != null) {
                         try {
                             java.nio.file.Path outPath = java.nio.file.Paths.get(outputFile);
                             if (java.nio.file.Files.exists(outPath)) {
@@ -1711,7 +1714,9 @@ public class FlowProcessingEngine {
      */
     private StepOutcome refCompressGzip(String storageKey, String virtualPath,
                                          FileRef origin, String trackId) throws IOException {
-        byte[] raw = storageClient.retrieveBySha256(storageKey);
+        // Phase 4.2: stream from CAS → temp file → read (avoids HTTP client double-buffer)
+        Path tempCas = materializeFromCas(storageKey, VirtualFileSystem.nameOf(virtualPath));
+        byte[] raw = readAndCleanup(tempCas);
         String newPath = virtualPath + ".gz";
         String filename = VirtualFileSystem.nameOf(newPath);
 
@@ -1740,7 +1745,8 @@ public class FlowProcessingEngine {
      */
     private StepOutcome refDecompressGzip(String storageKey, String virtualPath,
                                            FileRef origin, String trackId) throws IOException {
-        byte[] compressed = storageClient.retrieveBySha256(storageKey);
+        Path tempCas = materializeFromCas(storageKey, VirtualFileSystem.nameOf(virtualPath));
+        byte[] compressed = readAndCleanup(tempCas);
         String newPath = virtualPath.endsWith(".gz")
                 ? virtualPath.substring(0, virtualPath.length() - 3) : virtualPath + ".ungz";
         String filename = VirtualFileSystem.nameOf(newPath);
@@ -1768,7 +1774,8 @@ public class FlowProcessingEngine {
     /** COMPRESS_ZIP — zip raw bytes in a virtual thread → pipe to storage-manager. */
     private StepOutcome refCompressZip(String storageKey, String virtualPath,
                                         FileRef origin, String trackId) throws IOException {
-        byte[] raw = storageClient.retrieveBySha256(storageKey);
+        Path tempCas = materializeFromCas(storageKey, VirtualFileSystem.nameOf(virtualPath));
+        byte[] raw = readAndCleanup(tempCas);
         String entryName = VirtualFileSystem.nameOf(virtualPath);
         String newPath   = virtualPath + ".zip";
         String filename  = VirtualFileSystem.nameOf(newPath);
@@ -1797,7 +1804,8 @@ public class FlowProcessingEngine {
     /** DECOMPRESS_ZIP — extract first file entry in-memory → store-stream to storage-manager. */
     private StepOutcome refDecompressZip(String storageKey, String virtualPath,
                                           FileRef origin, String trackId) throws IOException {
-        byte[] compressed = storageClient.retrieveBySha256(storageKey);
+        Path tempCas = materializeFromCas(storageKey, VirtualFileSystem.nameOf(virtualPath));
+        byte[] compressed = readAndCleanup(tempCas);
         String newPath = virtualPath.endsWith(".zip")
                 ? virtualPath.substring(0, virtualPath.length() - 4) : virtualPath + ".unzip";
         String filename = VirtualFileSystem.nameOf(newPath);
@@ -2091,7 +2099,9 @@ public class FlowProcessingEngine {
         String targetFormat = cfg.getOrDefault("targetFormat", "JSON");
         String partnerId    = cfg.get("partnerId");
 
-        byte[] raw     = storageClient.retrieveBySha256(storageKey);
+        // Phase 4.3: stream from CAS → temp file → read (avoids HTTP double-buffer)
+        Path tempCas = materializeFromCas(storageKey, VirtualFileSystem.nameOf(virtualPath));
+        byte[] raw = readAndCleanup(tempCas);
         String content = new String(raw, java.nio.charset.StandardCharsets.UTF_8);
 
         Map<String, Object> body = new LinkedHashMap<>();
@@ -2145,6 +2155,21 @@ public class FlowProcessingEngine {
         log.info("[{}] CONVERT_EDI (VIRTUAL): {} -> {} (targetType={}, format={}, mapUsed={}, confidence={})",
                 trackId, virtualPath, newPath, targetType, targetFormat, mapUsed, confidence);
         return new StepOutcome(newKey, newPath, newSize);
+    }
+
+    /**
+     * Phase 4.1: Determine checkpoint strategy by step type.
+     * ALWAYS checkpoint: delivery steps (irreversible external I/O) + APPROVE (pause point).
+     * Other steps are re-runnable from earlier checkpoint — skip storage push to save I/O.
+     */
+    private static boolean shouldAlwaysCheckpoint(String stepType) {
+        if (stepType == null) return false;
+        return switch (stepType.toUpperCase()) {
+            case "FILE_DELIVERY", "FORWARD_SFTP", "FORWARD_FTP", "FORWARD_AS2",
+                 "FORWARD_HTTP", "DELIVER_SFTP", "DELIVER_FTP", "DELIVER_HTTP",
+                 "DELIVER_AS2", "DELIVER_KAFKA", "MAILBOX", "APPROVE" -> true;
+            default -> false;
+        };
     }
 
     private static String abbrev(String key) {
