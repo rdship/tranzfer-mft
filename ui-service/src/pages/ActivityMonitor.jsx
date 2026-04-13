@@ -1794,6 +1794,9 @@ export default function ActivityMonitor() {
         )}
       </div>}
 
+      {/* ── Pipeline Stats Footer (Phase 6) ─────────────────── */}
+      <PipelineStatsFooter />
+
       {/* ── Bulk Restart Confirmation ──────────────────────── */}
       <ConfirmDialog
         open={showBulkConfirm}
@@ -1956,5 +1959,36 @@ function FabricMiniCard({ label, value, hint, to, color }) {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
       </svg>
     </Link>
+  )
+}
+
+/** Phase 6: Pipeline stats footer — shows processing throughput below Activity Monitor. */
+function PipelineStatsFooter() {
+  const { data } = useQuery({
+    queryKey: ['pipeline-health-footer'],
+    queryFn: () => onboardingApi.get('/api/pipeline/health').then(r => r.data).catch(() => null),
+    refetchInterval: 15000,
+    retry: false,
+  })
+  if (!data) return null
+  const rules = data.ruleEngine || {}
+  const writers = data.batchWriters || {}
+  const items = [
+    { label: 'Rules Active', value: rules.ruleCount },
+    { label: 'Matched', value: rules.totalMatches?.toLocaleString() },
+    { label: 'Unmatched', value: rules.totalUnmatched },
+    { label: 'Record Buffer', value: writers.records?.pending || 0 },
+    { label: 'Records Flushed', value: (writers.records?.flushed || 0).toLocaleString() },
+    { label: 'Snapshot Buffer', value: writers.snapshots?.pending || 0 },
+    { label: 'Partner Cache', value: (data.partnerCache?.size || 0) + ' entries' },
+  ].filter(i => i.value !== undefined && i.value !== null)
+
+  return (
+    <div className="flex items-center gap-4 px-4 py-2 text-[10px] opacity-50 border-t border-border bg-canvas/30 rounded-b-lg overflow-x-auto">
+      <span className="font-medium">Pipeline:</span>
+      {items.map(i => (
+        <span key={i.label}>{i.label}: <span className="font-semibold">{i.value}</span></span>
+      ))}
+    </div>
   )
 }

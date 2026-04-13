@@ -482,6 +482,76 @@ function SentinelFindingsPreview() {
 }
 
 /* ────────────────────────────────────────────────────────────────────────
+   Panel D — Pipeline Health (Phase 6: every stage measured)
+   ──────────────────────────────────────────────────────────────────────── */
+function PipelineHealthCard() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['pipeline-health'],
+    queryFn: () => onboardingApi.get('/api/pipeline/health').then(r => r.data),
+    refetchInterval: 10000,
+    retry: false,
+  })
+
+  if (isLoading || !data) return null
+
+  const seda = data.seda || {}
+  const writers = data.batchWriters || {}
+  const rules = data.ruleEngine || {}
+  const cache = data.partnerCache || {}
+
+  const Stat = ({ label, value, sub }) => (
+    <div className="text-center">
+      <p className="text-lg font-bold" style={{ color: 'rgb(var(--accent))' }}>{value ?? '-'}</p>
+      <p className="text-[10px] opacity-60">{label}</p>
+      {sub && <p className="text-[9px] opacity-40">{sub}</p>}
+    </div>
+  )
+
+  const SedaStage = ({ name, stats }) => {
+    if (!stats) return null
+    const saturation = stats.queueSize / (stats.queueSize + stats.queueRemaining + 1) * 100
+    const color = saturation > 80 ? '#ef4444' : saturation > 50 ? '#fbbf24' : '#22c55e'
+    return (
+      <div className="flex items-center gap-3 py-1.5">
+        <div className="w-16 text-[10px] font-medium uppercase opacity-70">{name}</div>
+        <div className="flex-1 bg-white/5 rounded-full h-2 relative">
+          <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(saturation, 100)}%`, backgroundColor: color }} />
+        </div>
+        <div className="text-[9px] opacity-50 w-20 text-right">
+          {stats.processed?.toLocaleString()} processed
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="card">
+      <p className="section-title flex items-center gap-2 mb-3">
+        <BoltIcon className="w-4 h-4" style={{ color: '#a78bfa' }} />
+        Pipeline Health
+      </p>
+
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
+        <Stat label="Rules" value={rules.ruleCount} sub={`${rules.bucketCount || 0} buckets`} />
+        <Stat label="Matched" value={rules.totalMatches?.toLocaleString()} sub={`${rules.totalUnmatched || 0} unmatched`} />
+        <Stat label="Record Buffer" value={writers.records?.pending || 0} sub={`${(writers.records?.flushed || 0).toLocaleString()} flushed`} />
+        <Stat label="Snapshot Buffer" value={writers.snapshots?.pending || 0} sub={`${(writers.snapshots?.flushed || 0).toLocaleString()} flushed`} />
+        <Stat label="Partner Cache" value={cache.size || 0} sub="entries (L1)" />
+      </div>
+
+      {(seda.intake || seda.pipeline || seda.delivery) && (
+        <div className="border-t border-white/5 pt-3">
+          <p className="text-[10px] font-medium opacity-50 mb-2">SEDA STAGES</p>
+          <SedaStage name="Intake" stats={seda.intake} />
+          <SedaStage name="Pipeline" stats={seda.pipeline} />
+          <SedaStage name="Delivery" stats={seda.delivery} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ────────────────────────────────────────────────────────────────────────
    Panel C — Service Health grid
    ──────────────────────────────────────────────────────────────────────── */
 function ServiceHealthGrid() {
@@ -880,6 +950,9 @@ export default function Dashboard() {
 
       {/* ── Panel C: Service Health grid ── */}
       <ServiceHealthGrid />
+
+      {/* ── Panel D: Pipeline Health (Phase 6 — observability) ── */}
+      <PipelineHealthCard />
 
       {/* ── Bottom Grid: Protocol + Recommendations ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
