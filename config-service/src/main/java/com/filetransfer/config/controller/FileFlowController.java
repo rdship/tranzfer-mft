@@ -106,6 +106,42 @@ public class FileFlowController {
         return FileFlowDto.from(saved);
     }
 
+    /**
+     * Partial update — accepts any subset of fields. Fixes H5: PUT requires all fields,
+     * but admins often just want to deactivate a flow with {"active": false}.
+     */
+    @PatchMapping("/{id}")
+    @CacheEvict(value = "flows", allEntries = true)
+    @Transactional
+    public FileFlowDto patchFlow(@PathVariable UUID id, @RequestBody java.util.Map<String, Object> updates) {
+        FileFlow flow = flowRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Flow not found: " + id));
+        if (updates.containsKey("active")) {
+            flow.setActive(Boolean.TRUE.equals(updates.get("active")));
+        }
+        if (updates.containsKey("name")) {
+            flow.setName(sanitizeName(updates.get("name").toString()));
+        }
+        if (updates.containsKey("description")) {
+            Object desc = updates.get("description");
+            flow.setDescription(desc != null ? desc.toString() : null);
+        }
+        if (updates.containsKey("priority")) {
+            flow.setPriority(((Number) updates.get("priority")).intValue());
+        }
+        if (updates.containsKey("direction")) {
+            Object dir = updates.get("direction");
+            flow.setDirection(dir != null ? dir.toString() : null);
+        }
+        if (updates.containsKey("filenamePattern")) {
+            Object fp = updates.get("filenamePattern");
+            flow.setFilenamePattern(fp != null ? fp.toString() : null);
+        }
+        FileFlow saved = flowRepository.save(flow);
+        flowRuleEventPublisher.publishUpdated(saved.getId());
+        return FileFlowDto.from(saved);
+    }
+
     @DeleteMapping("/{id}")
     @CacheEvict(value = "flows", allEntries = true)
     public ResponseEntity<Void> deleteFlow(@PathVariable UUID id) {

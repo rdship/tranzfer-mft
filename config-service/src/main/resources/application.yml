@@ -50,10 +50,14 @@ spring:
         temp:
           use_jdbc_metadata_defaults: false
   cache:
-    type: caffeine
-    caffeine:
-      spec: maximumSize=500,expireAfterWrite=30s
-    cache-names: flows,security-profiles,connectors
+    # Phase fix C8: switched from Caffeine (per-instance) to Redis (shared across pods).
+    # Caffeine's 500-entry cap + 30s TTL caused cache thrashing under 100 concurrent.
+    # Redis provides shared cache — one miss serves all subsequent concurrent requests.
+    type: redis
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
   flyway:
     enabled: true
     baseline-on-migrate: true
