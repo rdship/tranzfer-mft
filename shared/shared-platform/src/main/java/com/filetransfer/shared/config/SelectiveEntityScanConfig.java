@@ -36,9 +36,23 @@ public class SelectiveEntityScanConfig {
         return (ConfigurableListableBeanFactory beanFactory) -> {
             String packages = env.getProperty("platform.entity-scan.packages", "");
             if (!packages.isBlank()) {
-                String[] pkgs = packages.split(",");
-                log.info("Selective entity scan: loading {} package(s) instead of full shared.entity", pkgs.length);
-                // This overrides the default EntityScanPackages bean
+                String[] entries = packages.split(",");
+                // EntityScanPackages only accepts package names, not class names.
+                // If an entry looks like a class (last segment starts uppercase), extract its package.
+                java.util.Set<String> resolvedPackages = new java.util.LinkedHashSet<>();
+                for (String entry : entries) {
+                    String trimmed = entry.trim();
+                    int lastDot = trimmed.lastIndexOf('.');
+                    if (lastDot > 0 && Character.isUpperCase(trimmed.charAt(lastDot + 1))) {
+                        // Class name → extract package
+                        resolvedPackages.add(trimmed.substring(0, lastDot));
+                    } else {
+                        resolvedPackages.add(trimmed);
+                    }
+                }
+                String[] pkgs = resolvedPackages.toArray(String[]::new);
+                log.info("Selective entity scan: {} package(s) from {} entries: {}",
+                        pkgs.length, entries.length, String.join(", ", pkgs));
                 EntityScanPackages.register(
                         (org.springframework.beans.factory.support.BeanDefinitionRegistry) beanFactory,
                         pkgs);
