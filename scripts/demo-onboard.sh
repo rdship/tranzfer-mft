@@ -272,35 +272,35 @@ create_tenants() {
 create_server_instances() {
   log "=== STEP 2: Server Instances (28) ==="
 
-  # SFTP instances
+  # SFTP instances (ServerConfig format: name, serviceType, host, port, properties)
   for i in $(seq 1 8); do
     post "$API/api/servers" \
-      "{\"instanceId\":\"sftp-$i\",\"protocol\":\"SFTP\",\"name\":\"SFTP Server $i\",\"internalHost\":\"sftp-service\",\"internalPort\":$((2222+i-1)),\"externalHost\":\"sftp$i.tranzfer.io\",\"externalPort\":22,\"maxConnections\":500}" \
-      "ServerInstance: sftp-$i" > /dev/null
+      "{\"name\":\"sftp-$i\",\"serviceType\":\"SFTP\",\"host\":\"sftp-service\",\"port\":$((2222+i-1)),\"properties\":{\"maxConnections\":\"500\",\"externalHost\":\"sftp$i.tranzfer.io\",\"externalPort\":\"22\"}}" \
+      "ServerConfig: sftp-$i" > /dev/null
     sleep 0.05
   done
 
   # FTP instances
   for i in $(seq 1 8); do
     post "$API/api/servers" \
-      "{\"instanceId\":\"ftp-$i\",\"protocol\":\"FTP\",\"name\":\"FTP Server $i\",\"internalHost\":\"ftp-service\",\"internalPort\":$((21+i-1)),\"externalHost\":\"ftp$i.tranzfer.io\",\"externalPort\":21,\"maxConnections\":500}" \
-      "ServerInstance: ftp-$i" > /dev/null
+      "{\"name\":\"ftp-$i\",\"serviceType\":\"FTP\",\"host\":\"ftp-service\",\"port\":$((21+i-1)),\"properties\":{\"maxConnections\":\"500\",\"externalHost\":\"ftp$i.tranzfer.io\",\"externalPort\":\"21\"}}" \
+      "ServerConfig: ftp-$i" > /dev/null
     sleep 0.05
   done
 
   # FTP_WEB instances
   for i in $(seq 1 6); do
     post "$API/api/servers" \
-      "{\"instanceId\":\"ftpweb-$i\",\"protocol\":\"FTP_WEB\",\"name\":\"FTP Web Portal $i\",\"internalHost\":\"ftp-web-service\",\"internalPort\":8083,\"externalHost\":\"web$i.tranzfer.io\",\"externalPort\":443,\"maxConnections\":200}" \
-      "ServerInstance: ftpweb-$i" > /dev/null
+      "{\"name\":\"ftpweb-$i\",\"serviceType\":\"FTP_WEB\",\"host\":\"ftp-web-service\",\"port\":8083,\"properties\":{\"maxConnections\":\"200\",\"externalHost\":\"web$i.tranzfer.io\",\"externalPort\":\"443\"}}" \
+      "ServerConfig: ftpweb-$i" > /dev/null
     sleep 0.05
   done
 
-  # HTTPS instances
+  # Gateway instances
   for i in $(seq 1 6); do
     post "$API/api/servers" \
-      "{\"instanceId\":\"https-$i\",\"protocol\":\"HTTPS\",\"name\":\"HTTPS API Server $i\",\"internalHost\":\"gateway-service\",\"internalPort\":8085,\"externalHost\":\"api$i.tranzfer.io\",\"externalPort\":443,\"maxConnections\":1000}" \
-      "ServerInstance: https-$i" > /dev/null
+      "{\"name\":\"https-$i\",\"serviceType\":\"GATEWAY\",\"host\":\"gateway-service\",\"port\":8085,\"properties\":{\"maxConnections\":\"1000\",\"externalHost\":\"api$i.tranzfer.io\",\"externalPort\":\"443\"}}" \
+      "ServerConfig: https-$i" > /dev/null
     sleep 0.05
   done
 }
@@ -591,7 +591,7 @@ create_delivery_endpoints() {
 # =============================================================================
 create_as2_partnerships() {
   log "=== STEP 11: AS2/AS4 Partnerships (42) ==="
-  local enc_algos=("AES128" "AES256" "3DES")
+  local enc_algos=("AES128" "AES256" "AES192")
   local sign_algos=("SHA256" "SHA384" "SHA512")
 
   for i in $(seq 1 28); do
