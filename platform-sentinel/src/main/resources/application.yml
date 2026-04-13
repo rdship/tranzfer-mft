@@ -82,9 +82,6 @@ cluster:
   communication-mode: ${CLUSTER_COMM_MODE:WITHIN_CLUSTER}
 
 platform:
-  entity-scan:
-    mode: selective
-    packages: com.filetransfer.shared.entity.AuditLog,com.filetransfer.shared.entity.ConnectionAudit,com.filetransfer.shared.entity.DeadLetterMessage,com.filetransfer.shared.entity.FileTransferRecord,com.filetransfer.shared.entity.LoginAttempt,com.filetransfer.shared.entity.QuarantineRecord,com.filetransfer.sentinel.entity
   environment: ${PLATFORM_ENVIRONMENT:PROD}
   track-id:
     prefix: ${TRACK_ID_PREFIX:TRZ}

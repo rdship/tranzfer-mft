@@ -101,9 +101,6 @@ cluster:
   communication-mode: ${CLUSTER_COMM_MODE:WITHIN_CLUSTER}
 
 platform:
-  entity-scan:
-    mode: selective
-    packages: com.filetransfer.shared.entity.ChunkedUploadChunk,com.filetransfer.shared.entity.ChunkedUpload,com.filetransfer.shared.entity.FolderTemplate,com.filetransfer.shared.entity.ServerInstance,com.filetransfer.shared.entity.TransferAccount
   services:
     onboarding-api:
       url: ${ONBOARDING_API_URL:http://onboarding-api:8080}

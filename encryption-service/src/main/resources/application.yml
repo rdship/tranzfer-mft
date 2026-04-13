@@ -67,10 +67,7 @@ spring:
     locations: classpath:db/migration
     validate-on-migrate: false
 
-platform:
-  entity-scan:
-    mode: selective
-    packages: com.filetransfer.shared.entity.EncryptionKey
+platform: {}
 
 jwt:
   secret: ${JWT_SECRET:change_me_in_production_256bit_secret_key!!}

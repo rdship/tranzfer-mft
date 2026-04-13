@@ -80,9 +80,6 @@ rabbitmq:
   exchange: file-transfer.events
 
 platform:
-  entity-scan:
-    mode: selective
-    packages: com.filetransfer.shared.entity
   services:
     onboarding-api:
       url: ${ONBOARDING_API_URL:http://onboarding-api:8080}

@@ -101,9 +101,6 @@ cluster:
   communication-mode: ${CLUSTER_COMM_MODE:WITHIN_CLUSTER}
 
 platform:
-  entity-scan:
-    mode: selective
-    packages: com.filetransfer.shared.entity.DlpPolicy,com.filetransfer.shared.entity.QuarantineRecord,com.filetransfer.screening.entity
   services:
     onboarding-api:
       url: ${ONBOARDING_API_URL:http://onboarding-api:8080}

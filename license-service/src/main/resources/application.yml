@@ -81,9 +81,6 @@ license:
   validation-cache-hours: 6
 
 platform:
-  entity-scan:
-    mode: selective
-    packages: com.filetransfer.license.entity
   services:
     onboarding-api:
       url: ${ONBOARDING_API_URL:http://onboarding-api:8080}

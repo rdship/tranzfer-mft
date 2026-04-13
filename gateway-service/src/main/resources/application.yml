@@ -104,9 +104,6 @@ control-api:
   key: ${CONTROL_API_KEY:internal_control_secret}
 
 platform:
-  entity-scan:
-    mode: selective
-    packages: com.filetransfer.shared.entity.LegacyServerConfig,com.filetransfer.shared.entity.ServerConfig,com.filetransfer.shared.entity.ServerInstance,com.filetransfer.shared.entity.TransferAccount
   services:
     onboarding-api:
       url: ${ONBOARDING_API_URL:http://onboarding-api:8080}
