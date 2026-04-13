@@ -184,6 +184,16 @@ public class FabricObservabilityController {
      * @param hours  time window in hours (default 1, clamped to 1..24)
      * @param sample max sample rows to include in percentile calculation (default 10000, clamped to 100..50000)
      */
+    /** List recent checkpoints with pagination. Addresses H15 — /api/fabric/checkpoints was missing. */
+    @GetMapping("/checkpoints")
+    public org.springframework.data.domain.Page<FabricCheckpoint> checkpoints(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        return checkpointRepo.findAll(
+                org.springframework.data.domain.PageRequest.of(page, Math.min(size, 200),
+                        org.springframework.data.domain.Sort.by("createdAt").descending()));
+    }
+
     @GetMapping("/latency")
     public Map<String, Object> latency(@RequestParam(defaultValue = "1") int hours,
                                        @RequestParam(defaultValue = "10000") int sample) {

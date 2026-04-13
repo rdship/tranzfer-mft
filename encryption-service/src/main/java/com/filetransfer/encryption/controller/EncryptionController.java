@@ -21,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -150,6 +151,18 @@ public class EncryptionController {
         }
         byte[] encrypted = aesService.encrypt(plaintext.getBytes(StandardCharsets.UTF_8), masterKeyBase64);
         return Map.of("encrypted", Base64.getEncoder().encodeToString(encrypted));
+    }
+
+    /** Service status — reports available algorithms and key count. Addresses H15 /api/encrypt/status. */
+    @GetMapping("/status")
+    public Map<String, Object> status() {
+        long keyCount = keyRepository.count();
+        return Map.of(
+                "status", "UP",
+                "algorithms", List.of("AES-256-GCM", "PGP"),
+                "keyCount", keyCount,
+                "masterKeyConfigured", masterKeyBase64 != null && !masterKeyBase64.isEmpty()
+        );
     }
 
     @PostMapping("/credential/decrypt")

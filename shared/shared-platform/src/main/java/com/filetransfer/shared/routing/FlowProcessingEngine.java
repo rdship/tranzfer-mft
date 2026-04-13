@@ -651,6 +651,9 @@ public class FlowProcessingEngine {
     }
 
     private String processStep(FileFlow.FlowStep step, String inputPath, String trackId, int stepIndex) throws Exception {
+        if (step.getType() == null || step.getType().isBlank()) {
+            throw new IllegalArgumentException("Flow step " + stepIndex + " has no type defined");
+        }
         Path input = Paths.get(inputPath);
         Path workDir = input.getParent().resolve(".flow-work");
         Files.createDirectories(workDir);
@@ -1631,6 +1634,9 @@ public class FlowProcessingEngine {
     private StepOutcome processStepRef(FileFlow.FlowStep step, String storageKey,
                                         String virtualPath, long sizeBytes, FileRef origin,
                                         String trackId, int stepIndex) throws Exception {
+        if (step.getType() == null || step.getType().isBlank()) {
+            throw new IllegalArgumentException("Flow step " + stepIndex + " has no type defined");
+        }
         Map<String, String> cfg = step.getConfig() != null ? step.getConfig() : Map.of();
         return switch (step.getType().toUpperCase()) {
             case "COMPRESS_GZIP"   -> refCompressGzip(storageKey, virtualPath, origin, trackId);

@@ -99,6 +99,25 @@ public class VirtualSftpFileSystemProvider extends FileSystemProvider {
         };
     }
 
+    // ── File Creation (required for SFTP put operations) ──────────────
+
+    /**
+     * Creates an empty file at the given path. Apache MINA SSHD calls
+     * {@code Files.newByteChannel(path, CREATE, WRITE)} for SFTP put operations.
+     * The default FileSystemProvider.createFile() delegates to newByteChannel with
+     * CREATE_NEW + WRITE, which our implementation already handles.
+     *
+     * <p>We override the behavior here NOT via @Override (createFile is not abstract
+     * in FileSystemProvider — it's already implemented correctly), but by ensuring
+     * newByteChannel handles all write open options properly (line 68-69: checks for
+     * WRITE, CREATE, CREATE_NEW, APPEND).
+     *
+     * <p>The actual fix for "Operation unsupported": ensure newByteChannel correctly
+     * handles the case when the file does not yet exist and CREATE/CREATE_NEW is set.
+     */
+    // Note: FileSystemProvider.createFile() already delegates to newByteChannel.
+    // The real issue is in newByteChannel — VirtualWriteChannel must handle file creation.
+
     // ── Directory Creation ──────────────────────────────────────────────
 
     @Override
@@ -171,7 +190,20 @@ public class VirtualSftpFileSystemProvider extends FileSystemProvider {
 
     @Override
     public FileStore getFileStore(Path path) {
-        throw new UnsupportedOperationException("FileStore not supported");
+        // Return a minimal FileStore — Apache MINA SSHD may query this during write ops.
+        // "Operation unsupported" errors can originate from this throwing UnsupportedOperationException.
+        return new FileStore() {
+            @Override public String name() { return "vfs"; }
+            @Override public String type() { return "virtual"; }
+            @Override public boolean isReadOnly() { return false; }
+            @Override public long getTotalSpace() { return Long.MAX_VALUE; }
+            @Override public long getUsableSpace() { return Long.MAX_VALUE; }
+            @Override public long getUnallocatedSpace() { return Long.MAX_VALUE; }
+            @Override public boolean supportsFileAttributeView(Class<? extends FileAttributeView> type) { return false; }
+            @Override public boolean supportsFileAttributeView(String name) { return false; }
+            @Override public <V extends FileStoreAttributeView> V getFileStoreAttributeView(Class<V> type) { return null; }
+            @Override public Object getAttribute(String attribute) { return null; }
+        };
     }
 
     @Override
