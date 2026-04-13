@@ -83,6 +83,11 @@ public class FlowProcessingEngine {
     @Nullable
     private PartnerWebhookDispatcher partnerWebhookDispatcher;
 
+    /** Encryption-service typed client — multipart upload, no Base64 heap load. */
+    @Autowired(required = false)
+    @Nullable
+    private EncryptionServiceClient encryptionClient;
+
     /** Append-only event journal for flow execution audit trail and actor recovery. */
     @Autowired(required = false)
     @Nullable
@@ -784,26 +789,33 @@ public class FlowProcessingEngine {
             return output.toString();
         }
 
-        // Call encryption-service REST API with Base64 payload
-        byte[] fileBytes = Files.readAllBytes(input);
-        String base64Input = java.util.Base64.getEncoder().encodeToString(fileBytes);
-
-        String endpoint = encryptionUrl + "/api/encrypt/" + operation + "/base64?keyId=" + keyId;
-        log.info("Calling encryption-service: {} {} (keyId={})", operation.toUpperCase(), algo, keyId);
-
+        // Use multipart upload to encryption-service — file streams from disk, no Base64 heap load.
+        // EncryptionServiceClient.encryptFile/decryptFile uses FileSystemResource (streaming).
+        log.info("Calling encryption-service: {} {} (keyId={}) [multipart]", operation.toUpperCase(), algo, keyId);
         try {
-            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-            headers.setContentType(org.springframework.http.MediaType.TEXT_PLAIN);
-            org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(base64Input, headers);
-            String base64Result = restTemplate.postForObject(endpoint, entity, String.class);
-
-            byte[] resultBytes = java.util.Base64.getDecoder().decode(base64Result);
+            UUID keyUuid = UUID.fromString(keyId);
+            byte[] resultBytes;
+            if (encryptionClient != null) {
+                resultBytes = "encrypt".equals(operation)
+                        ? encryptionClient.encryptFile(keyUuid, input)
+                        : encryptionClient.decryptFile(keyUuid, input);
+            } else {
+                // Fallback: raw REST call with multipart (same result, no resilience wrapper)
+                var headers = new org.springframework.http.HttpHeaders();
+                headers.setContentType(org.springframework.http.MediaType.MULTIPART_FORM_DATA);
+                var body = new org.springframework.util.LinkedMultiValueMap<String, Object>();
+                body.add("file", new org.springframework.core.io.FileSystemResource(input.toFile()));
+                var entity = new org.springframework.http.HttpEntity<>(body, headers);
+                var resp = restTemplate.postForEntity(
+                        encryptionUrl + "/api/encrypt/" + operation + "?keyId=" + keyId,
+                        entity, byte[].class);
+                resultBytes = resp.getBody();
+            }
             Files.write(output, resultBytes);
             log.info("{}({}) complete: {} -> {} ({} bytes)", operation.toUpperCase(), algo,
                     input.getFileName(), output.getFileName(), resultBytes.length);
         } catch (Exception e) {
             // SECURITY: Never pass through unencrypted — encryption was explicitly configured.
-            // Let the flow retry mechanism handle transient failures (encryption-service or keystore-manager not ready).
             throw new RuntimeException("Encryption step failed (keyId=" + keyId + "): " + e.getMessage(), e);
         }
         return output.toString();
@@ -1844,27 +1856,49 @@ public class FlowProcessingEngine {
             return new StepOutcome(storageKey, newPath, -1);
         }
 
-        byte[] fileBytes    = storageClient.retrieveBySha256(storageKey);
-        String base64Input  = java.util.Base64.getEncoder().encodeToString(fileBytes);
-        String endpoint     = serviceProps.getEncryptionService().getUrl()
-                + "/api/encrypt/" + operation + "/base64?keyId=" + keyId;
-        log.info("[{}] {} (VIRTUAL) via encryption-service (keyId={})", trackId, stepType, keyId);
+        // Materialize CAS object to temp file → multipart to encryption-service → store result back to CAS.
+        // No Base64 encoding. Temp file cleaned up after use.
+        log.info("[{}] {} (VIRTUAL) via encryption-service [multipart] (keyId={})", trackId, stepType, keyId);
+        Path tempDir = Files.createTempDirectory("flow-encrypt-");
+        Path tempInput = tempDir.resolve(VirtualFileSystem.nameOf(virtualPath));
+        try {
+            // Stream CAS → temp file (only place bytes hit disk, ~64KB buffer)
+            try (java.io.OutputStream out = Files.newOutputStream(tempInput)) {
+                storageClient.streamToOutput(storageKey, out);
+            }
 
-        HttpHeaders encHdr = new HttpHeaders();
-        encHdr.setContentType(MediaType.TEXT_PLAIN);
-        addInternalAuth(encHdr, "encryption-service");
-        String base64Result = restTemplate.postForObject(
-                endpoint, new HttpEntity<>(base64Input, encHdr), String.class);
+            // Multipart upload to encryption-service (streams from temp file, no heap load)
+            byte[] resultBytes;
+            UUID keyUuid = UUID.fromString(keyId);
+            if (encryptionClient != null) {
+                resultBytes = "encrypt".equals(operation)
+                        ? encryptionClient.encryptFile(keyUuid, tempInput)
+                        : encryptionClient.decryptFile(keyUuid, tempInput);
+            } else {
+                var headers = new HttpHeaders();
+                headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+                addInternalAuth(headers, "encryption-service");
+                var body = new org.springframework.util.LinkedMultiValueMap<String, Object>();
+                body.add("file", new org.springframework.core.io.FileSystemResource(tempInput.toFile()));
+                var resp = restTemplate.postForEntity(
+                        serviceProps.getEncryptionService().getUrl() + "/api/encrypt/" + operation + "?keyId=" + keyId,
+                        new HttpEntity<>(body, headers), byte[].class);
+                resultBytes = resp.getBody();
+            }
 
-        byte[] resultBytes = java.util.Base64.getDecoder().decode(base64Result);
-        Map<String, Object> stored = storageClient.storeStream(
-                new ByteArrayInputStream(resultBytes), resultBytes.length,
-                newName, origin.accountId().toString(), trackId);
-        String newKey  = (String) stored.get("sha256");
-        long   newSize = ((Number) stored.get("sizeBytes")).longValue();
-        String ct      = "encrypt".equals(operation) ? "application/octet-stream" : origin.contentType();
-        vfsBridge.registerRef(origin.accountId(), newPath, newKey, newSize, trackId, ct);
-        return new StepOutcome(newKey, newPath, newSize);
+            Map<String, Object> stored = storageClient.storeStream(
+                    new ByteArrayInputStream(resultBytes), resultBytes.length,
+                    newName, origin.accountId().toString(), trackId);
+            String newKey  = (String) stored.get("sha256");
+            long   newSize = ((Number) stored.get("sizeBytes")).longValue();
+            String ct      = "encrypt".equals(operation) ? "application/octet-stream" : origin.contentType();
+            vfsBridge.registerRef(origin.accountId(), newPath, newKey, newSize, trackId, ct);
+            return new StepOutcome(newKey, newPath, newSize);
+        } finally {
+            // Clean up temp file — bytes are in CAS now
+            try { Files.deleteIfExists(tempInput); } catch (Exception ignored) {}
+            try { Files.deleteIfExists(tempDir); } catch (Exception ignored) {}
+        }
     }
 
     /**
