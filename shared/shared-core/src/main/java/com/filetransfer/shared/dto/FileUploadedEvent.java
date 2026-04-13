@@ -20,7 +20,8 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class FileUploadedEvent {
+public class FileUploadedEvent implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private String trackId;
     private UUID accountId;
     private String username;

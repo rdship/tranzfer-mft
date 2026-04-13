@@ -82,6 +82,11 @@ public class RoutingEngine {
     @Nullable
     private org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate;
 
+    /** Storage-manager client for persisting uploaded files (enables download button). */
+    @Autowired(required = false)
+    @Nullable
+    private com.filetransfer.shared.client.StorageServiceClient storageClient;
+
     @org.springframework.beans.factory.annotation.Value("${rabbitmq.exchange:file-transfer.events}")
     private String exchange;
 
@@ -192,12 +197,26 @@ public class RoutingEngine {
                 .flowId(matchedFlow != null ? matchedFlow.getId() : null)
                 .fileSizeBytes(fileSizeBytes > 0 ? fileSizeBytes : null)
                 .status(FileTransferStatus.PENDING)
+                .routedAt(java.time.Instant.now())
                 .build();
         try {
             recordRepository.save(transferRecord);
             log.info("[{}] FileTransferRecord created (Activity Monitor)", trackId);
         } catch (Exception e) {
             log.warn("[{}] Could not create FileTransferRecord: {}", trackId, e.getMessage());
+        }
+
+        // Push file to storage-manager (enables download from Activity Monitor)
+        if (storageClient != null) {
+            try {
+                java.io.InputStream fileStream = java.nio.file.Files.newInputStream(
+                        java.nio.file.Paths.get(absoluteSourcePath));
+                storageClient.storeStream(fileStream, fileSizeBytes,
+                        filename, sourceAccount.getUsername(), trackId);
+                log.info("[{}] File stored in storage-manager (download enabled)", trackId);
+            } catch (Exception e) {
+                log.debug("[{}] Storage push skipped: {}", trackId, e.getMessage());
+            }
         }
 
         // ── VIRTUAL-mode accounts (default): FileRef-based streaming pipeline ──────────

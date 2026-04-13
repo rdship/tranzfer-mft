@@ -46,6 +46,7 @@ x-common-env: &common-env
   SPRING_JPA_PROPERTIES_HIBERNATE_BOOT_ALLOW__JDBC__METADATA__ACCESS: "false"
   SPRING_JPA_PROPERTIES_HIBERNATE_TEMP_USE__JDBC__METADATA__DEFAULTS: "false"
   JWT_SECRET: ${JWT_SECRET:-change_me_in_production_256bit_secret_key!!}
+  JWT_EXPIRATION: ${JWT_EXPIRATION:-28800000}
   CONTROL_API_KEY: ${CONTROL_API_KEY:-internal_control_secret}  # HMAC secret for PCI audit log signing — NOT inter-service auth
   CLUSTER_ID: ${CLUSTER_ID:-cluster-1}
   CLUSTER_COMM_MODE: ${CLUSTER_COMM_MODE:-WITHIN_CLUSTER}
@@ -59,6 +60,7 @@ x-common-env: &common-env
   SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
   FABRIC_ENABLED: "true"
   FABRIC_BROKER_URL: redpanda:9092
+  FLOW_RULES_ENABLED: "true"
   KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
   SPRING_KAFKA_BOOTSTRAP__SERVERS: redpanda:9092
 
