@@ -107,18 +107,10 @@ docker compose build ui-service partner-portal ftp-web-ui api-gateway 2>&1 | tai
 # Include minio via its profile so the S3 gateway is available
 COMPOSE_PROFILES="${COMPOSE_PROFILES:-minio}" docker compose --profile minio up -d
 
-# --- Pre-Phase 3: apply missing migrations that Flyway skips (V999 barrier) --
-# V54 creates sentinel_findings, sentinel_health_scores, sentinel_rules, and
-# sentinel_correlation_groups. These tables are required by platform-sentinel
-# at startup but the V54 migration is never run by Flyway because the DB is
-# already at V999 (write-intents migration). Apply manually every cold boot.
-log "Applying service-specific migrations (not in shared db-migrate classpath)..."
-docker exec -i mft-postgres psql -U postgres -d filetransfer \
-  < "$(dirname "$0")/../platform-sentinel/src/main/resources/db/migration/V54__sentinel_tables.sql" \
-  2>&1 | grep -v "^$" || true
-docker exec -i mft-postgres psql -U postgres -d filetransfer \
-  < "$(dirname "$0")/../storage-manager/src/main/resources/db/migration/V54__write_intents_and_moving_tier.sql" \
-  2>&1 | grep -v "^$" || true
+# --- Pre-Phase 3: apply service-specific migrations not in shared db-migrate --
+# V59 now handles sentinel + storage tables in shared migrations (db-migrate runs them).
+# Only screening V51 remains service-specific.
+log "Applying service-specific migrations..."
 docker exec -i mft-postgres psql -U postgres -d filetransfer \
   < "$(dirname "$0")/../screening-service/src/main/resources/db/migration/V51__screening_hits_column.sql" \
   2>&1 | grep -v "^$" || true
