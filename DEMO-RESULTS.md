@@ -1002,3 +1002,186 @@ targets an unknown entity named 'com.filetransfer.shared.entity.User'
 **Fix:** The scan must walk `@ManyToOne`/`@OneToMany`/`@OneToOne`/`@ManyToMany` associations transitively and include ALL referenced entity classes in the scan set (graph closure).
 
 **JVM tuning (positive):** CTO added `-Xmx384m`, ZGC, lazy-init, batch-fetch-20, Flyway disabled — all good, will work once scan is fixed.
+
+### Snapshot — baseline (single-replica) — 18:59:10
+
+```
+Containers: 35 · Total memory used: 13640 MB (~13.3 GB)
+```
+
+```
+NAME                       CPU %     MEM USAGE / LIMIT     MEM %     NET I/O
+mft-dmz-proxy-internal     0.29%     204.7MiB / 23.43GiB   0.85%     52.2kB / 51.1kB
+mft-partner-portal         0.00%     9.074MiB / 23.43GiB   0.04%     4.82kB / 126B
+mft-api-gateway            0.00%     12.79MiB / 23.43GiB   0.05%     801kB / 893kB
+mft-ui-service             0.00%     11.2MiB / 23.43GiB    0.05%     149kB / 1.8MB
+mft-ftp-web-ui             0.00%     11.16MiB / 23.43GiB   0.05%     11.4kB / 126B
+mft-grafana                0.04%     53.79MiB / 23.43GiB   0.22%     349kB / 16.8kB
+mft-promtail               0.32%     53.63MiB / 23.43GiB   0.22%     75.3kB / 689kB
+mft-platform-sentinel      4.34%     690.5MiB / 23.43GiB   2.88%     221kB / 240kB
+mft-notification-service   0.54%     797.5MiB / 23.43GiB   3.32%     416kB / 491kB
+mft-ai-engine              0.69%     690.1MiB / 23.43GiB   2.88%     416kB / 4.99MB
+mft-prometheus             1.32%     71.05MiB / 23.43GiB   0.30%     42MB / 903kB
+mft-ftp-service            0.49%     645.1MiB / 23.43GiB   2.69%     1.59MB / 3.72MB
+mft-onboarding-api         0.50%     830.4MiB / 23.43GiB   3.46%     2.5MB / 2.96MB
+mft-edi-converter          0.30%     351.5MiB / 23.43GiB   1.46%     89.6kB / 67.8kB
+mft-alertmanager           1.26%     20.53MiB / 23.43GiB   0.09%     287kB / 39.2kB
+mft-gateway-service        0.66%     741.1MiB / 23.43GiB   3.09%     1.6MB / 3.76MB
+mft-ftp-web-service        0.47%     690.6MiB / 23.43GiB   2.88%     1.54MB / 247kB
+mft-storage-manager        0.45%     707.7MiB / 23.43GiB   2.95%     208kB / 205kB
+mft-encryption-service     9.10%     675.5MiB / 23.43GiB   2.81%     294kB / 3.9MB
+mft-forwarder-service      0.54%     724MiB / 23.43GiB     3.02%     175kB / 3.44MB
+mft-screening-service      0.42%     682.1MiB / 23.43GiB   2.84%     7.26MB / 8.69MB
+mft-as2-service            9.58%     676.9MiB / 23.43GiB   2.82%     2.06MB / 322kB
+mft-sftp-service           0.54%     674.4MiB / 23.43GiB   2.81%     1.51MB / 3.57MB
+mft-config-service         0.47%     790.7MiB / 23.43GiB   3.29%     3.53MB / 8.39MB
+mft-keystore-manager       0.51%     650.4MiB / 23.43GiB   2.71%     195kB / 3.95MB
+mft-license-service        0.59%     653.1MiB / 23.43GiB   2.72%     179kB / 3.5MB
+mft-analytics-service      0.50%     686.6MiB / 23.43GiB   2.86%     256kB / 4.15MB
+mft-loki                   0.35%     77.85MiB / 23.43GiB   0.32%     702kB / 65.7kB
+mft-spire-agent            0.26%     27.98MiB / 23.43GiB   0.12%     978kB / 211kB
+mft-spire-server           0.35%     31.5MiB / 23.43GiB    0.13%     214kB / 976kB
+mft-postgres               0.33%     181.2MiB / 23.43GiB   0.76%     9.84MB / 12.2MB
+mft-rabbitmq               0.36%     154.1MiB / 23.43GiB   0.64%     349kB / 1.05MB
+mft-redis                  0.39%     9.68MiB / 23.43GiB    0.04%     67.1kB / 184kB
+mft-vault                  0.43%     161.4MiB / 23.43GiB   0.67%     32.8kB / 16.8kB
+mft-redpanda               0.55%     190MiB / 23.43GiB     0.79%     267kB / 122kB
+```
+
+---
+
+## FINAL QA REPORT: "Couldn't load data" / "Network Error" — Root Cause & Permanent Fix (2026-04-13)
+
+**Error logs with 20-line context:** `docs/run-reports/mft-final-report-20260413.zip`
+
+### What the User Sees
+
+Every page in the Admin UI shows toast notifications:
+- `"Couldn't load data: An unexpected error occurred"`
+- `"Couldn't load data: Network Error"`
+
+These appear as red toast popups on the top-right of EVERY page when navigating the sidebar. The user sees 3-5 toasts stacking up per page transition. This is the WORST user experience a professional platform can deliver — it tells the user "this product doesn't work."
+
+### The Fundamental Problem
+
+**The platform returns raw JPA entities from REST controllers but sets `open-in-view=false`.** This is an architectural contradiction:
+
+1. `open-in-view=false` means: Hibernate session closes when the controller method returns
+2. Raw JPA entities have `@ManyToOne(fetch=LAZY)` associations (TransferAccount→User, FolderMapping→sourceAccount, FlowExecution→flow, etc.)
+3. Jackson serialization happens AFTER the controller returns (in the HTTP message converter)
+4. Jackson tries to access lazy associations → session is closed → `LazyInitializationException`
+5. Spring catches it → returns HTTP 500 `"An unexpected error occurred"`
+6. The UI React code catches the 500 → shows toast `"Couldn't load data"`
+
+**This is NOT a per-endpoint bug. It's a systemic architecture issue.** Every controller that returns an entity with a lazy association will crash. There are ~50 such endpoints. Band-aid fixes (`@JsonIgnore` on individual fields, `@Transactional` on individual methods) will never cover all cases.
+
+### Every Failing Endpoint (via gateway, what the UI calls)
+
+| Endpoint | HTTP | Root Cause | Service |
+|---|---|---|---|
+| `/api/folder-mappings` | 500 | LazyInit: TransferAccount proxy, no session | onboarding-api |
+| `/api/flow-executions/{id}` | 500 | LazyInit: FileFlow proxy, no session | onboarding-api |
+| `/api/flow-executions/scheduled-retries` | 500 | LazyInit: FlowExecution→flow | onboarding-api |
+| `/api/flow-executions/live-stats` | 500 | LazyInit: FlowExecution→flow | onboarding-api |
+| `/api/activity/recent` | 500 | Same LazyInit chain | config-service |
+| `/api/v1/analytics/observatory` | 500 | Column mismatch or LazyInit | analytics-service |
+| `/api/v1/ai/predictions` | 500 | LazyInit or missing data | ai-engine |
+| `/api/v1/screening/policies` | 500 | Unknown — see context log | screening-service |
+| `/api/v1/screening/stats` | 500 | Unknown — see context log | screening-service |
+| `/api/v1/licenses` | 400 | Missing `X-Admin-Key` header | license-service |
+| `/api/encrypt/status` | 500 | Unknown — see context log | encryption-service |
+| `/api/gateway/status` | 500 | Unknown — see context log | gateway-service |
+| `/api/gateway/routes` | 500 | Unknown — see context log | gateway-service |
+| `/api/dmz/status` | 404 | Endpoint doesn't exist at this path | dmz-proxy |
+
+### The Permanent Fix (Not a Band-Aid)
+
+**There are exactly two correct approaches. Pick one:**
+
+#### Option A: Re-enable `open-in-view=true` (quick, pragmatic)
+
+Add to JAVA_TOOL_OPTIONS or remove the `-Dspring.jpa.open-in-view=false` override:
+```yaml
+JAVA_TOOL_OPTIONS: >-
+  -Dspring.jpa.open-in-view=true
+```
+
+**Pros:** Fixes ALL LazyInit errors instantly, zero code changes
+**Cons:** Considered an anti-pattern (lazy queries during view rendering can cause N+1)
+**When to use:** When the codebase returns raw entities and has no DTOs
+
+#### Option B: Return DTOs from every controller (correct, production-grade)
+
+Every REST controller must return a DTO (Data Transfer Object), NOT a JPA entity:
+
+```java
+// ❌ WRONG — returns raw entity, lazy proxies crash Jackson
+@GetMapping("/api/folder-mappings")
+public List<FolderMapping> list() {
+    return repo.findAll();
+}
+
+// ✅ CORRECT — returns DTO, no lazy proxies
+@GetMapping("/api/folder-mappings")
+public List<FolderMappingDto> list() {
+    return repo.findAll().stream()
+        .map(m -> new FolderMappingDto(m.getId(), m.getSourcePath(), 
+             m.getDestinationPath(), m.getSourceAccount().getUsername()))
+        .toList();
+}
+```
+
+**Pros:** Clean separation, no lazy-loading surprises, API contract is explicit
+**Cons:** Requires creating a DTO class for every entity (~50 DTOs), refactoring ~50 controller methods
+**When to use:** When building a production-grade platform (which is the goal)
+
+### Why This Must Be Thought Through During Development
+
+1. **The CTO set `open-in-view=false` (correct for production)** but the codebase still returns raw entities everywhere. These two things are incompatible. You can't have both.
+
+2. **Every new endpoint added by any developer will crash** unless they remember to either use a DTO or add `@Transactional`. This is a trap that will bite every new feature.
+
+3. **The UI error handling masks the real issue.** The UI catches EVERY error and shows a generic "Couldn't load data" toast. The user has NO idea which API failed or why. The UI should show the SPECIFIC page/widget that failed, not a floating toast that disappears.
+
+4. **Testing should catch this before release.** Every PR that adds a new REST endpoint should have an integration test that calls the endpoint and verifies it returns 200. Currently, 14 endpoints return 500 in production — this means zero integration testing on the API layer.
+
+### Additional Issues Found During End-to-End Testing
+
+1. **FileTransferRecord not created for SEDA pipeline files** — uploads via SFTP are processed by the flow engine but never create a `file_transfer_records` row, so Activity Monitor doesn't show them
+
+2. **RabbitMQ message serialization broken** — `SimpleMessageConverter only supports String, byte[] and Serializable payloads, received: FileUploadedEvent`. Needs Jackson message converter configured for RabbitMQ.
+
+3. **FlowRuleRegistry stale cache** — deleted flows still match files until service restart (no cache invalidation)
+
+4. **Flow execution "failed: null"** before SEDA pipeline processes — the routing engine logs failure before the async pipeline finishes. Race condition between sync error logging and async execution.
+
+### Files Included in Error Log Package
+
+```
+mft-final-report-20260413.zip
+├── context/
+│   ├── mft-ai-engine-error-context.log         (110 lines — 20 before/after each error)
+│   ├── mft-alertmanager-error-context.log       (1404 lines — SMTP failures)
+│   ├── mft-analytics-service-error-context.log  (3 lines)
+│   ├── mft-config-service-error-context.log     (1029 lines — Redis + Prometheus)
+│   ├── mft-encryption-service-error-context.log (21 lines)
+│   ├── mft-gateway-service-error-context.log    (55 lines)
+│   ├── mft-onboarding-api-error-context.log     (11 lines — LazyInit)
+│   └── mft-screening-service-error-context.log  (8 lines)
+├── {service}-full.log                           (complete logs per service)
+├── {service}-errors.log                         (filtered error lines)
+├── api-failures.txt                             (every failing endpoint + HTTP code + message)
+├── ui-api-client.js                             (UI API client config — shows how UI calls backend)
+├── ui-api-auth.js                               (UI login flow)
+└── ui-api-config.js                             (UI API configuration)
+```
+
+### Summary for Development Team
+
+**Stop adding REST endpoints that return raw JPA entities.** Either:
+- Adopt DTOs across the entire API layer (2-3 week investment, permanent fix)
+- OR re-enable `open-in-view=true` until DTOs are in place (1-minute fix, buys time)
+
+**Stop shipping without integration tests on the API layer.** 14 of 40 endpoints return 500. This is a QA gap that no amount of unit testing will catch — these are runtime serialization failures that only manifest when Jackson tries to write the HTTP response.
+
+**The user experience of seeing 5 error toasts per page is unacceptable for a product that aims to be enterprise-grade.** Fix the root cause, don't catch-and-toast.
