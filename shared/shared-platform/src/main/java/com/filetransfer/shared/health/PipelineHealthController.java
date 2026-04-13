@@ -48,9 +48,17 @@ public class PipelineHealthController {
     @org.springframework.beans.factory.annotation.Value("${spring.application.name:unknown}")
     private String serviceName;
 
+    @org.springframework.beans.factory.annotation.Value("${platform.version:1.0.0-SNAPSHOT}")
+    private String platformVersion;
+
+    @org.springframework.beans.factory.annotation.Value("${platform.build.timestamp:#{T(java.time.Instant).now().toString()}}")
+    private String buildTimestamp;
+
     @GetMapping("/health")
     public Map<String, Object> health() {
         Map<String, Object> result = new LinkedHashMap<>();
+        result.put("version", platformVersion);
+        result.put("build", buildTimestamp);
         result.put("timestamp", Instant.now().toString());
         result.put("service", serviceName);
 

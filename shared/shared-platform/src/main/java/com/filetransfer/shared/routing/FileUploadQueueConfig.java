@@ -23,6 +23,7 @@ import org.springframework.context.annotation.Configuration;
  * </ul>
  */
 @Configuration
+@org.springframework.context.annotation.Lazy(false)  // Must be eager — declares RabbitMQ queues at startup
 @ConditionalOnProperty(name = "flow.rules.enabled", havingValue = "true", matchIfMissing = false)
 public class FileUploadQueueConfig {
 

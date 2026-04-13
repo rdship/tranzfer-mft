@@ -526,10 +526,18 @@ function PipelineHealthCard() {
 
   return (
     <div className="card">
-      <p className="section-title flex items-center gap-2 mb-3">
-        <BoltIcon className="w-4 h-4" style={{ color: '#a78bfa' }} />
-        Pipeline Health
-      </p>
+      <div className="flex items-center justify-between mb-3">
+        <p className="section-title flex items-center gap-2">
+          <BoltIcon className="w-4 h-4" style={{ color: '#a78bfa' }} />
+          Pipeline Health
+        </p>
+        {data.version && (
+          <span className="text-[10px] px-2 py-0.5 rounded-full font-mono"
+                style={{ background: 'rgba(var(--accent), 0.1)', color: 'rgb(var(--accent))' }}>
+            v{data.version}
+          </span>
+        )}
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
         <Stat label="Rules" value={rules.ruleCount} sub={`${rules.bucketCount || 0} buckets`} />

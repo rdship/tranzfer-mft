@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Slf4j
 @Component
+@org.springframework.context.annotation.Lazy(false)  // Must be eager — @Scheduled refresh + hot-path cache
 @ConditionalOnProperty(name = "pipeline.cache.partner.enabled", havingValue = "true", matchIfMissing = true)
 public class PartnerCache {
 

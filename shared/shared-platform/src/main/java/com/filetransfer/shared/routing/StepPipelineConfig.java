@@ -24,6 +24,7 @@ import org.springframework.context.annotation.Configuration;
  * <p>Activated by {@code flow.step-pipeline.enabled=true}.
  */
 @Configuration
+@org.springframework.context.annotation.Lazy(false)  // Must be eager — declares RabbitMQ queues at startup
 @ConditionalOnProperty(name = "flow.step-pipeline.enabled", havingValue = "true", matchIfMissing = false)
 public class StepPipelineConfig {
 

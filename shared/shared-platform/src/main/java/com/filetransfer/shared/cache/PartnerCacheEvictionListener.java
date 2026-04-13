@@ -28,6 +28,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Component
+@org.springframework.context.annotation.Lazy(false)  // Must be eager — registers RabbitMQ listener
 @ConditionalOnBean(PartnerCache.class)
 public class PartnerCacheEvictionListener {
 
