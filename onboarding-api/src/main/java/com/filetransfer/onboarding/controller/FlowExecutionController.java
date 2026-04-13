@@ -1,5 +1,6 @@
 package com.filetransfer.onboarding.controller;
 
+import com.filetransfer.shared.dto.FlowExecutionDto;
 import com.filetransfer.shared.entity.FlowApproval;
 import com.filetransfer.shared.entity.FlowEvent;
 import com.filetransfer.shared.entity.FlowExecution;
@@ -57,13 +58,13 @@ public class FlowExecutionController {
     @GetMapping("/{trackId}")
     @PreAuthorize(Roles.VIEWER)
     @Transactional(readOnly = true)
-    public ResponseEntity<FlowExecution> get(@PathVariable String trackId) {
+    public ResponseEntity<FlowExecutionDto> get(@PathVariable String trackId) {
         FlowExecution exec = executionRepo.findByTrackId(trackId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "No execution for trackId=" + trackId));
         Hibernate.initialize(exec.getFlow());
         Hibernate.initialize(exec.getTransferRecord());
-        return ResponseEntity.ok(exec);
+        return ResponseEntity.ok(FlowExecutionDto.from(exec));
     }
 
     /** Full event journal for a track ID — time-travel debugging. */

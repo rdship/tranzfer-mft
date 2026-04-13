@@ -3,6 +3,8 @@ package com.filetransfer.config.controller;
 import com.filetransfer.config.dto.QuickFlowRequest;
 import com.filetransfer.config.messaging.FlowRuleEventPublisher;
 import com.filetransfer.config.service.MatchCriteriaService;
+import com.filetransfer.shared.dto.FileFlowDto;
+import com.filetransfer.shared.dto.FlowExecutionDto;
 import com.filetransfer.shared.entity.FileFlow;
 import com.filetransfer.shared.entity.FlowExecution;
 import com.filetransfer.shared.flow.FlowFunctionRegistry;
@@ -19,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -50,19 +53,24 @@ public class FileFlowController {
 
     @GetMapping
     @Cacheable(value = "flows", unless = "#result.isEmpty()")
-    public List<FileFlow> getAllFlows() {
-        return flowRepository.findByActiveTrueOrderByPriorityAsc();
+    @Transactional(readOnly = true)
+    public List<FileFlowDto> getAllFlows() {
+        List<FileFlow> flows = flowRepository.findByActiveTrueOrderByPriorityAsc();
+        return flows.stream().map(FileFlowDto::from).toList();
     }
 
     @GetMapping("/{id}")
-    public FileFlow getFlow(@PathVariable UUID id) {
-        return flowRepository.findById(id)
+    @Transactional(readOnly = true)
+    public FileFlowDto getFlow(@PathVariable UUID id) {
+        FileFlow flow = flowRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Flow not found: " + id));
+        return FileFlowDto.from(flow);
     }
 
     @PostMapping
     @CacheEvict(value = "flows", allEntries = true)
-    public ResponseEntity<FileFlow> createFlow(@Valid @RequestBody FileFlow flow) {
+    @Transactional
+    public ResponseEntity<FileFlowDto> createFlow(@Valid @RequestBody FileFlow flow) {
         flow.setName(sanitizeName(flow.getName()));
         if (flowRepository.existsByName(flow.getName())) {
             throw new IllegalArgumentException("Flow name already exists: " + flow.getName());
@@ -70,30 +78,32 @@ public class FileFlowController {
         flow.setId(null);
         FileFlow saved = flowRepository.save(flow);
         flowRuleEventPublisher.publishCreated(saved.getId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+        return ResponseEntity.status(HttpStatus.CREATED).body(FileFlowDto.from(saved));
     }
 
     @PutMapping("/{id}")
     @CacheEvict(value = "flows", allEntries = true)
-    public FileFlow updateFlow(@PathVariable UUID id, @Valid @RequestBody FileFlow flow) {
+    @Transactional
+    public FileFlowDto updateFlow(@PathVariable UUID id, @Valid @RequestBody FileFlow flow) {
         if (!flowRepository.existsById(id))
             throw new EntityNotFoundException("Flow not found: " + id);
         flow.setName(sanitizeName(flow.getName()));
         flow.setId(id);
         FileFlow saved = flowRepository.save(flow);
         flowRuleEventPublisher.publishUpdated(saved.getId());
-        return saved;
+        return FileFlowDto.from(saved);
     }
 
     @PatchMapping("/{id}/toggle")
     @CacheEvict(value = "flows", allEntries = true)
-    public FileFlow toggleFlow(@PathVariable UUID id) {
+    @Transactional
+    public FileFlowDto toggleFlow(@PathVariable UUID id) {
         FileFlow flow = flowRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Flow not found: " + id));
         flow.setActive(!flow.isActive());
         FileFlow saved = flowRepository.save(flow);
         flowRuleEventPublisher.publishUpdated(saved.getId());
-        return saved;
+        return FileFlowDto.from(saved);
     }
 
     @DeleteMapping("/{id}")
@@ -116,7 +126,8 @@ public class FileFlowController {
      */
     @PostMapping("/quick")
     @CacheEvict(value = "flows", allEntries = true)
-    public ResponseEntity<FileFlow> createQuickFlow(@RequestBody QuickFlowRequest req) {
+    @Transactional
+    public ResponseEntity<FileFlowDto> createQuickFlow(@RequestBody QuickFlowRequest req) {
         // Auto-generate name if not provided
         String name = req.getName();
         if (name == null || name.isBlank()) {
@@ -185,26 +196,30 @@ public class FileFlowController {
         log.info("Quick flow created: '{}' (id={}, {} steps, priority={})",
                 saved.getName(), saved.getId(), saved.getSteps().size(), saved.getPriority());
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+        return ResponseEntity.status(HttpStatus.CREATED).body(FileFlowDto.from(saved));
     }
 
     // --- Flow Executions / Tracking ---
 
     @GetMapping("/executions")
-    public Page<FlowExecution> searchExecutions(
+    @Transactional(readOnly = true)
+    public Page<FlowExecutionDto> searchExecutions(
             @RequestParam(required = false) String trackId,
             @RequestParam(required = false) String filename,
             @RequestParam(required = false) FlowExecution.FlowStatus status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return executionRepository.search(trackId, filename, status,
-                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "startedAt")));
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "startedAt")))
+                .map(FlowExecutionDto::from);
     }
 
     @GetMapping("/executions/{trackId}")
-    public FlowExecution getExecution(@PathVariable String trackId) {
-        return executionRepository.findByTrackId(trackId)
+    @Transactional(readOnly = true)
+    public FlowExecutionDto getExecution(@PathVariable String trackId) {
+        FlowExecution exec = executionRepository.findByTrackId(trackId)
                 .orElseThrow(() -> new EntityNotFoundException("Execution not found: " + trackId));
+        return FlowExecutionDto.from(exec);
     }
 
     @GetMapping("/step-types")

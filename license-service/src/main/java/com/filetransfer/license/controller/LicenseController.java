@@ -5,6 +5,7 @@ import com.filetransfer.license.catalog.ProductTier;
 import com.filetransfer.license.dto.*;
 import com.filetransfer.license.entity.LicenseActivation;
 import com.filetransfer.license.entity.LicenseRecord;
+import com.filetransfer.shared.dto.LicenseActivationDto;
 import com.filetransfer.license.service.LicenseService;
 import com.filetransfer.shared.security.Roles;
 import jakarta.validation.Valid;
@@ -14,6 +15,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
@@ -79,11 +81,14 @@ public class LicenseController {
 
     @GetMapping("/{licenseId}/activations")
     @PreAuthorize(Roles.ADMIN)
-    public ResponseEntity<List<LicenseActivation>> getActivations(
+    @Transactional(readOnly = true)
+    public ResponseEntity<List<LicenseActivationDto>> getActivations(
             @RequestHeader("X-Admin-Key") String key,
             @PathVariable String licenseId) {
         if (!constantTimeEquals(adminKey, key)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        return ResponseEntity.ok(licenseService.getActivations(licenseId));
+        List<LicenseActivationDto> dtos = licenseService.getActivations(licenseId).stream()
+                .map(LicenseController::toDto).toList();
+        return ResponseEntity.ok(dtos);
     }
 
     @GetMapping("/health")
@@ -137,6 +142,26 @@ public class LicenseController {
             return m;
         }).collect(Collectors.toList());
         return ResponseEntity.ok(tiers);
+    }
+
+    /** Convert license-service-local entity to shared DTO (entity not visible from shared-platform). */
+    private static LicenseActivationDto toDto(LicenseActivation a) {
+        LicenseActivationDto.LicenseActivationDtoBuilder b = LicenseActivationDto.builder()
+                .id(a.getId())
+                .serviceType(a.getServiceType())
+                .hostId(a.getHostId())
+                .activatedAt(a.getActivatedAt())
+                .lastCheckIn(a.getLastCheckIn())
+                .active(a.isActive());
+        try {
+            if (a.getLicenseRecord() != null) {
+                b.licenseId(a.getLicenseRecord().getLicenseId());
+                b.customerName(a.getLicenseRecord().getCustomerName());
+                b.edition(a.getLicenseRecord().getEdition() != null ? a.getLicenseRecord().getEdition().name() : null);
+                b.expiresAt(a.getLicenseRecord().getExpiresAt());
+            }
+        } catch (Exception ignored) { /* LazyInit outside tx — skip */ }
+        return b.build();
     }
 
     /** Constant-time string comparison to prevent timing attacks on API key validation */

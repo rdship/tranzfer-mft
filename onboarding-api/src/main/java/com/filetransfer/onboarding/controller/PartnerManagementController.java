@@ -3,6 +3,7 @@ package com.filetransfer.onboarding.controller;
 import com.filetransfer.onboarding.dto.request.CreateAccountRequest;
 import com.filetransfer.onboarding.dto.request.CreatePartnerRequest;
 import com.filetransfer.onboarding.dto.request.UpdatePartnerRequest;
+import com.filetransfer.shared.dto.FileFlowDto;
 import com.filetransfer.shared.security.Roles;
 import com.filetransfer.onboarding.dto.response.PartnerDetailResponse;
 import com.filetransfer.onboarding.service.AccountService;
@@ -93,8 +94,9 @@ public class PartnerManagementController {
     }
 
     @GetMapping("/{id}/flows")
-    public List<FileFlow> listFlows(@PathVariable UUID id) {
-        return partnerService.getPartnerFlows(id);
+    @Transactional(readOnly = true)
+    public List<FileFlowDto> listFlows(@PathVariable UUID id) {
+        return partnerService.getPartnerFlows(id).stream().map(FileFlowDto::from).toList();
     }
 
     @GetMapping("/{id}/endpoints")

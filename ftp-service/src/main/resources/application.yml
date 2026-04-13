@@ -41,7 +41,7 @@ spring:
       connection-timeout: 30000
       pool-name: FTP-Pool
   jpa:
-    open-in-view: true  # OSIV: controllers return raw JPA entities
+    open-in-view: false  # OSIV off: controllers return DTOs, not raw entities
     hibernate:
       ddl-auto: none
     show-sql: false

@@ -46,7 +46,7 @@ spring:
       connection-timeout: 30000
       pool-name: Storage-Pool
   jpa:
-    open-in-view: true  # OSIV: controllers return raw JPA entities
+    open-in-view: false  # OSIV off: controllers return DTOs, not raw entities
     hibernate:
       ddl-auto: none
     properties:
