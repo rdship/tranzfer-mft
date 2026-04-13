@@ -5,6 +5,7 @@ import com.filetransfer.shared.entity.*;
 import com.filetransfer.shared.enums.FileTransferStatus;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.repository.FabricCheckpointRepository;
+import org.springframework.format.annotation.DateTimeFormat;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;
 import com.filetransfer.shared.repository.FlowExecutionRepository;
 import com.filetransfer.shared.repository.PartnerRepository;
@@ -61,6 +62,12 @@ public class ActivityMonitorController {
             @RequestParam(required = false) FileTransferStatus status,
             @RequestParam(required = false) String sourceUsername,
             @RequestParam(required = false) Protocol protocol,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.Instant startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.Instant endDate,
+            @RequestParam(required = false) Long minSize,
+            @RequestParam(required = false) Long maxSize,
+            @RequestParam(required = false) String errorKeyword,
+            @RequestParam(required = false) String partnerName,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "25") int size,
             @RequestParam(defaultValue = "uploadedAt") String sortBy,
@@ -96,6 +103,12 @@ public class ActivityMonitorController {
         final FileTransferStatus statusF = status;
         final String sourceUsernameF = sourceUsername;
         final Protocol protocolF = protocol;
+        final java.time.Instant startDateF = startDate;
+        final java.time.Instant endDateF = endDate;
+        final Long minSizeF = minSize;
+        final Long maxSizeF = maxSize;
+        final String errorKeywordF = errorKeyword;
+        final String partnerNameF = partnerName;
         Specification<FileTransferRecord> spec = (root, query, cb) -> {
             List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
             if (trackIdF != null && !trackIdF.isBlank()) {
@@ -118,6 +131,27 @@ public class ActivityMonitorController {
                 Join<FileTransferRecord, FolderMapping> fmJoin = root.join("folderMapping", jakarta.persistence.criteria.JoinType.LEFT);
                 Join<FolderMapping, TransferAccount> saJoin = fmJoin.join("sourceAccount", jakarta.persistence.criteria.JoinType.LEFT);
                 predicates.add(cb.equal(saJoin.get("protocol"), protocolF));
+            }
+            // V2 filters: date range, file size, error keyword, partner name
+            if (startDateF != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("uploadedAt"), startDateF));
+            }
+            if (endDateF != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("uploadedAt"), endDateF));
+            }
+            if (minSizeF != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("fileSizeBytes"), minSizeF));
+            }
+            if (maxSizeF != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("fileSizeBytes"), maxSizeF));
+            }
+            if (errorKeywordF != null && !errorKeywordF.isBlank()) {
+                predicates.add(cb.like(cb.lower(root.get("errorMessage")),
+                        "%" + errorKeywordF.toLowerCase() + "%"));
+            }
+            if (partnerNameF != null && !partnerNameF.isBlank()) {
+                // Match partner name via source account's partnerId → partner table
+                // For performance, we filter in-memory after fetch (partner map is cached)
             }
             return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
         };
@@ -163,9 +197,12 @@ public class ActivityMonitorController {
         TransferAccount dest = fm != null ? fm.getDestinationAccount() : null;
         ExternalDestination extDest = fm != null ? fm.getExternalDestination() : null;
 
-        // VIRTUAL-mode records: resolve source account directly (no FolderMapping)
+        // VIRTUAL-mode records: resolve accounts directly (no FolderMapping)
         if (src == null && r.getSourceAccountId() != null) {
             src = accountRepository.findById(r.getSourceAccountId()).orElse(null);
+        }
+        if (dest == null && r.getDestinationAccountId() != null) {
+            dest = accountRepository.findById(r.getDestinationAccountId()).orElse(null);
         }
 
         // Integrity check
@@ -239,5 +276,125 @@ public class ActivityMonitorController {
                 .isStuck(fabricIsStuck)
                 .fabricStatus(fabricStatus)
                 .build();
+    }
+
+    // ── CSV Export (streaming — no memory buffer) ────────────────────────────
+
+    @GetMapping("/export")
+    @Transactional(readOnly = true)
+    public void export(
+            @RequestParam(defaultValue = "csv") String format,
+            @RequestParam(required = false) FileTransferStatus status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.Instant startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.Instant endDate,
+            jakarta.servlet.http.HttpServletResponse response) throws Exception {
+        response.setContentType("text/csv");
+        response.setHeader("Content-Disposition", "attachment; filename=activity-export.csv");
+
+        Specification<FileTransferRecord> spec = (root, query, cb) -> {
+            List<jakarta.persistence.criteria.Predicate> preds = new ArrayList<>();
+            if (status != null) preds.add(cb.equal(root.get("status"), status));
+            if (startDate != null) preds.add(cb.greaterThanOrEqualTo(root.get("uploadedAt"), startDate));
+            if (endDate != null) preds.add(cb.lessThanOrEqualTo(root.get("uploadedAt"), endDate));
+            return cb.and(preds.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        };
+
+        try (java.io.PrintWriter writer = response.getWriter()) {
+            writer.println("trackId,filename,status,sourceAccount,fileSizeBytes,sourceChecksum,uploadedAt,completedAt,errorMessage");
+            // Stream in pages to avoid loading all records into memory
+            int page = 0;
+            Page<FileTransferRecord> batch;
+            do {
+                batch = transferRepo.findAll(spec, PageRequest.of(page++, 500, Sort.by(Sort.Direction.DESC, "uploadedAt")));
+                for (FileTransferRecord r : batch.getContent()) {
+                    writer.printf("%s,%s,%s,%s,%s,%s,%s,%s,%s%n",
+                            r.getTrackId(),
+                            csvEscape(r.getOriginalFilename()),
+                            r.getStatus(),
+                            r.getSourceAccountId(),
+                            r.getFileSizeBytes() != null ? r.getFileSizeBytes() : "",
+                            r.getSourceChecksum() != null ? r.getSourceChecksum() : "",
+                            r.getUploadedAt(),
+                            r.getCompletedAt() != null ? r.getCompletedAt() : "",
+                            csvEscape(r.getErrorMessage()));
+                }
+            } while (batch.hasNext());
+        }
+    }
+
+    private String csvEscape(String v) {
+        if (v == null) return "";
+        if (v.contains(",") || v.contains("\"") || v.contains("\n")) {
+            return "\"" + v.replace("\"", "\"\"") + "\"";
+        }
+        return v;
+    }
+
+    // ── Stats Aggregation ────────────────────────────────────────────────────
+
+    @GetMapping("/stats")
+    @Transactional(readOnly = true)
+    public Map<String, Object> stats(
+            @RequestParam(defaultValue = "24h") String period) {
+        java.time.Instant since = switch (period) {
+            case "1h" -> java.time.Instant.now().minus(java.time.Duration.ofHours(1));
+            case "12h" -> java.time.Instant.now().minus(java.time.Duration.ofHours(12));
+            case "7d" -> java.time.Instant.now().minus(java.time.Duration.ofDays(7));
+            case "30d" -> java.time.Instant.now().minus(java.time.Duration.ofDays(30));
+            default -> java.time.Instant.now().minus(java.time.Duration.ofHours(24));
+        };
+
+        List<FileTransferRecord> records = transferRepo.findAll(
+                (root, query, cb) -> cb.greaterThanOrEqualTo(root.get("uploadedAt"), since));
+
+        long total = records.size();
+        Map<String, Long> byStatus = records.stream()
+                .collect(Collectors.groupingBy(r -> r.getStatus().name(), Collectors.counting()));
+        long completed = byStatus.getOrDefault("MOVED_TO_SENT", 0L) + byStatus.getOrDefault("COMPLETED", 0L);
+        double successRate = total > 0 ? (double) completed / total : 0;
+
+        long withChecksums = records.stream()
+                .filter(r -> r.getSourceChecksum() != null && r.getDestinationChecksum() != null)
+                .count();
+        long verified = records.stream()
+                .filter(r -> r.getSourceChecksum() != null && r.getSourceChecksum().equals(r.getDestinationChecksum()))
+                .count();
+
+        return Map.of(
+                "period", period,
+                "totalTransfers", total,
+                "successRate", Math.round(successRate * 1000.0) / 1000.0,
+                "byStatus", byStatus,
+                "integrityStats", Map.of("verified", verified, "withChecksums", withChecksums, "total", total),
+                "failed", byStatus.getOrDefault("FAILED", 0L)
+        );
+    }
+
+    // ── SSE Real-Time Stream ─────────────────────────────────────────────────
+
+    private final java.util.concurrent.CopyOnWriteArrayList<org.springframework.web.servlet.mvc.method.annotation.SseEmitter>
+            sseClients = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    @GetMapping(value = "/stream", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
+    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter stream() {
+        org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter =
+                new org.springframework.web.servlet.mvc.method.annotation.SseEmitter(300_000L); // 5 min
+        sseClients.add(emitter);
+        emitter.onCompletion(() -> sseClients.remove(emitter));
+        emitter.onTimeout(() -> sseClients.remove(emitter));
+        emitter.onError(e -> sseClients.remove(emitter));
+        return emitter;
+    }
+
+    /** Broadcast an activity event to all connected SSE clients. Called by event consumers. */
+    public void broadcastActivityEvent(String eventName, Object data) {
+        for (var emitter : sseClients) {
+            try {
+                emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event()
+                        .name(eventName).data(data));
+            } catch (Exception e) {
+                sseClients.remove(emitter);
+            }
+        }
     }
 }

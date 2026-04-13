@@ -38,6 +38,10 @@ public class FileTransferRecord {
     @Column(name = "flow_id")
     private UUID flowId;
 
+    /** Destination account (set by MAILBOX step or flow delivery) */
+    @Column(name = "destination_account_id")
+    private UUID destinationAccountId;
+
     @NotBlank
     @Column(nullable = false)
     private String originalFilename;

@@ -99,6 +99,7 @@ public class AccountService {
                 .permissions(permissions)
                 .serverInstance(request.getServerInstance())
                 .storageMode(storageMode)
+                .partnerId(partnerId)
                 .build();
 
         // Apply QoS: explicit request values > SLA tier defaults

@@ -187,6 +187,18 @@ public class RoutingEngine {
             }
         }
 
+        // ── Compute source checksum (SHA-256) for integrity verification ──
+        String sourceChecksum = null;
+        try {
+            if (Files.exists(Paths.get(absoluteSourcePath))) {
+                java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+                byte[] hash = digest.digest(Files.readAllBytes(Paths.get(absoluteSourcePath)));
+                sourceChecksum = java.util.HexFormat.of().formatHex(hash);
+            }
+        } catch (Exception e) {
+            log.debug("[{}] Source checksum computation skipped: {}", trackId, e.getMessage());
+        }
+
         // ── Create FileTransferRecord for Activity Monitor (both VIRTUAL and PHYSICAL) ──
         FileTransferRecord transferRecord = FileTransferRecord.builder()
                 .trackId(trackId)
@@ -196,6 +208,7 @@ public class RoutingEngine {
                 .sourceAccountId(sourceAccount.getId())
                 .flowId(matchedFlow != null ? matchedFlow.getId() : null)
                 .fileSizeBytes(fileSizeBytes > 0 ? fileSizeBytes : null)
+                .sourceChecksum(sourceChecksum)
                 .status(FileTransferStatus.PENDING)
                 .build();
         try {
