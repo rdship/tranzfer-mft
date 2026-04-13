@@ -57,6 +57,8 @@ x-common-env: &common-env
   SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
   FABRIC_ENABLED: "true"
   FABRIC_BROKER_URL: redpanda:9092
+  KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+  SPRING_KAFKA_BOOTSTRAP__SERVERS: redpanda:9092
 
 x-service-healthcheck: &healthcheck
   # Java Spring services typically need 45-90s to finish Flyway migrations,
@@ -427,6 +429,7 @@ services:
         condition: service_healthy
     volumes:
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
 
   sftp-service:
     build: ./sftp-service
@@ -445,6 +448,7 @@ services:
     volumes:
       - sftp_data:/data/sftp
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -470,6 +474,7 @@ services:
     volumes:
       - sftp_data:/data/sftp
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -497,6 +502,7 @@ services:
     volumes:
       - ftp_data:/data/ftp
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -526,6 +532,7 @@ services:
     volumes:
       - ftp_data:/data/ftp
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -551,6 +558,7 @@ services:
     volumes:
       - sftp_data:/data/sftp
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -578,6 +586,7 @@ services:
     volumes:
       - ftp_data:/data/ftp
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -599,6 +608,7 @@ services:
     volumes:
       - ftpweb_data:/data/ftpweb
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -622,6 +632,7 @@ services:
     volumes:
       - ftpweb_data:/data/ftpweb
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -650,6 +661,7 @@ services:
         condition: service_healthy
     volumes:
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
 
   gateway-service:
     build: ./gateway-service
@@ -684,6 +696,7 @@ services:
         condition: service_healthy
     volumes:
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
 
   encryption-service:
     build: ./encryption-service
@@ -704,6 +717,7 @@ services:
         condition: service_healthy
     volumes:
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
 
   external-forwarder-service:
     build: ./external-forwarder-service
@@ -724,6 +738,7 @@ services:
         condition: service_healthy
     volumes:
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
 
   # ── DMZ Proxy — INTERNAL group ────────────────────────────────────────────
   # Handles corporate/private network traffic (SFTP, FTP, AS2, HTTPS from LAN/VPN).
@@ -771,6 +786,7 @@ services:
         condition: service_started
     volumes:
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
 
   # ── DMZ Proxy — EXTERNAL group ────────────────────────────────────────────
   # Handles internet-facing traffic (public partner integrations, AS2, cloud).
@@ -845,6 +861,7 @@ services:
     volumes:
       - sftp_data:/data/as2    # reuse sftp_data volume for AS2 inbox/outbox
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -873,6 +890,7 @@ services:
         condition: service_healthy
     volumes:
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
 
   analytics-service:
     build: ./analytics-service
@@ -895,6 +913,7 @@ services:
         condition: service_healthy
     volumes:
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
 
   ai-engine:
     build: ./ai-engine
@@ -916,6 +935,7 @@ services:
         condition: service_healthy
     volumes:
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
 
   ai-engine-2:
     build: ./ai-engine
@@ -937,6 +957,7 @@ services:
         condition: service_healthy
     volumes:
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
 
   keystore-manager:
     build: ./keystore-manager
@@ -957,6 +978,7 @@ services:
         condition: service_healthy
     volumes:
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
 
   # ─────────────────────────────────────────────────────────────────────────────
   # IMPORTANT — Multi-replica storage warning:
@@ -996,6 +1018,7 @@ services:
     volumes:
       - storage_data:/data/storage
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -1108,6 +1131,7 @@ services:
     volumes:
       - quarantine_data:/data/quarantine
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -1139,6 +1163,7 @@ services:
         condition: service_healthy
     volumes:
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
 
   platform-sentinel:
     build: ./platform-sentinel
@@ -1164,6 +1189,7 @@ services:
         condition: service_healthy
     volumes:
       - platform_tls:/tls:ro
+      - spire-socket:/run/spire/sockets:ro
 
   # ---------------------------------------------------------------------------
   # Security Services
