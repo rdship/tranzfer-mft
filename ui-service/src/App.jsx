@@ -28,7 +28,7 @@ import PartnerPortalSettings from './pages/PartnerPortalSettings'
 
 // Move heavy operations pages to lazy to break circular dependency chain
 // that causes "Cannot access 'It' before initialization" in production build
-const ActivityMonitor = lazy(() => import('./pages/ActivityMonitor'))
+const ActivityMonitor = safeLazy(() => import('./pages/ActivityMonitor'), 'Activity Monitor')
 const FabricDashboard = lazy(() => import('./pages/FabricDashboard'))
 const Journey = lazy(() => import('./pages/Journey'))
 const Activity = lazy(() => import('./pages/Activity'))
@@ -37,6 +37,23 @@ const Activity = lazy(() => import('./pages/Activity'))
 // Cold-path pages split into their own chunks. Each chunk is downloaded
 // on first navigation and cached for the session. A ChunkLoadErrorBoundary
 // catches the stale-HTML-after-deploy case and offers the user a refresh.
+// safeLazy: catches module init errors ("Cannot access X before initialization")
+function safeLazy(importFn, name) {
+  return lazy(() => importFn().catch(err => {
+    console.error(`[${name}] Module load failed:`, err)
+    return { default: () => (
+      <div className="p-8 text-center">
+        <p className="text-lg font-semibold text-red-500 mb-2">Page failed to load</p>
+        <p className="text-sm opacity-60 mb-4">{name}: {err?.message || 'Unknown error'}</p>
+        <button onClick={() => window.location.reload()}
+          className="px-4 py-2 rounded-lg text-sm" style={{ background: 'rgb(var(--accent))', color: '#fff' }}>
+          Reload
+        </button>
+      </div>
+    )}
+  }))
+}
+
 const Partners           = lazy(() => import('./pages/Partners'))
 const PartnerDetail      = lazy(() => import('./pages/PartnerDetail'))
 const PartnerSetup       = lazy(() => import('./pages/PartnerSetup'))
@@ -53,8 +70,8 @@ const Analytics          = lazy(() => import('./pages/Analytics'))
 const Predictions        = lazy(() => import('./pages/Predictions'))
 const Logs               = lazy(() => import('./pages/Logs'))
 const Flows              = lazy(() => import('./pages/Flows'))
-const GatewayStatus      = lazy(() => import('./pages/GatewayStatus'))
-const DmzProxy           = lazy(() => import('./pages/DmzProxy'))
+const GatewayStatus      = safeLazy(() => import('./pages/GatewayStatus'), 'Gateway')
+const DmzProxy           = safeLazy(() => import('./pages/DmzProxy'), 'DMZ Proxy')
 const ProxyGroups        = lazy(() => import('./pages/ProxyGroups'))
 const Keystore           = lazy(() => import('./pages/Keystore'))
 const Scheduler          = lazy(() => import('./pages/Scheduler'))
@@ -84,7 +101,7 @@ const License            = lazy(() => import('./pages/License'))
 const DlqManager         = lazy(() => import('./pages/DlqManager'))
 const Quarantine         = lazy(() => import('./pages/Quarantine'))
 const FileManager        = lazy(() => import('./pages/FileManager'))
-const ClusterDashboard   = lazy(() => import('./pages/ClusterDashboard'))
+const ClusterDashboard   = safeLazy(() => import('./pages/ClusterDashboard'), 'Cluster')
 const AutoOnboarding     = lazy(() => import('./pages/AutoOnboarding'))
 const Migration          = lazy(() => import('./pages/Migration'))
 const ThreatIntelligence = lazy(() => import('./pages/ThreatIntelligence'))
