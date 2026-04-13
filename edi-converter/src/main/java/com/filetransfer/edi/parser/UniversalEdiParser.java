@@ -71,9 +71,24 @@ public class UniversalEdiParser {
     );
 
     public EdiDocument parse(String content) {
-        String format = detector.detect(content);
+        if (content == null || content.isBlank()) {
+            return EdiDocument.builder().sourceFormat("UNKNOWN").rawContent("")
+                    .segments(List.of()).parseErrors(List.of("Empty content"))
+                    .parseWarnings(List.of()).build();
+        }
+        String format;
+        try {
+            format = detector.detect(content);
+        } catch (Exception e) {
+            log.warn("Format detection failed: {}", e.getMessage());
+            return EdiDocument.builder().sourceFormat("UNKNOWN").rawContent(content)
+                    .segments(List.of()).parseErrors(List.of("Format detection failed: " + e.getMessage()))
+                    .parseWarnings(List.of()).build();
+        }
         log.info("Parsing EDI format: {}", format);
 
+        // M10 fix: top-level try-catch prevents 500 on truncated/malformed documents
+        try {
         return switch (format) {
             case "X12" -> {
                 EdiDocument x12Doc = parseX12(content);
@@ -95,6 +110,13 @@ public class UniversalEdiParser {
             default -> EdiDocument.builder().sourceFormat("UNKNOWN").rawContent(content).segments(List.of())
                     .parseErrors(List.of()).parseWarnings(List.of()).build();
         };
+        } catch (Exception e) {
+            log.error("EDI parse failed (format={}): {}", format, e.getMessage());
+            return EdiDocument.builder().sourceFormat(format).rawContent(content)
+                    .segments(List.of())
+                    .parseErrors(List.of("Parse failed: " + e.getMessage()))
+                    .parseWarnings(List.of()).build();
+        }
     }
 
     // ========================================================================
@@ -102,6 +124,13 @@ public class UniversalEdiParser {
     // ========================================================================
 
     private EdiDocument parseX12(String content) {
+        // M9 fix: validate X12 structure before parsing — reject obviously non-X12 content
+        if (!content.startsWith("ISA") || content.length() < 106) {
+            return EdiDocument.builder().sourceFormat("X12").rawContent(content)
+                    .segments(List.of())
+                    .parseErrors(List.of("Invalid X12: must start with ISA and be at least 106 characters (ISA segment)"))
+                    .parseWarnings(List.of()).build();
+        }
         DelimiterInfo delimiters = detectX12Delimiters(content);
         char elemSep = delimiters.getElementSeparator();
         char segTerm = delimiters.getSegmentTerminator();

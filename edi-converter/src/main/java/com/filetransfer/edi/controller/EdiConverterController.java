@@ -120,10 +120,24 @@ public class EdiConverterController {
     // SMART VALIDATION
     // ===================================================================
 
-    @PostMapping("/validate")
+    /** M8 fix: explicitly consumes application/json to prevent 415 from unclear Content-Type. */
+    @PostMapping(value = "/validate", consumes = {
+            org.springframework.http.MediaType.APPLICATION_JSON_VALUE,
+            org.springframework.http.MediaType.ALL_VALUE})
     public ResponseEntity<?> validate(@RequestBody Map<String, String> body) {
         try {
-            EdiDocument doc = parser.parse(body.get("content"));
+            String content = body.get("content");
+            if (content == null || content.isBlank()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "No 'content' field provided"));
+            }
+            EdiDocument doc = parser.parse(content);
+            // M9: if parser returned errors, report as validation failure
+            if (doc.getParseErrors() != null && !doc.getParseErrors().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "valid", false,
+                        "errors", doc.getParseErrors(),
+                        "format", doc.getSourceFormat()));
+            }
             return ResponseEntity.ok(validator.validate(doc));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of(

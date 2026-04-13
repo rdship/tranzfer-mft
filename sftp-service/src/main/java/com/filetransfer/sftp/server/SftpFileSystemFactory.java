@@ -86,6 +86,8 @@ public class SftpFileSystemFactory implements FileSystemFactory {
 
         // ── Physical mode: legacy rooted filesystem ─────────────────────
         Path homeDir = resolvePhysicalHomeDir(username, account.orElse(null));
+        // H6 fix: always ensure homeDir exists (even if no folder templates configured)
+        Files.createDirectories(homeDir);
         for (String folder : resolveFolderPaths()) {
             Files.createDirectories(homeDir.resolve(folder));
         }
