@@ -197,7 +197,6 @@ public class RoutingEngine {
                 .flowId(matchedFlow != null ? matchedFlow.getId() : null)
                 .fileSizeBytes(fileSizeBytes > 0 ? fileSizeBytes : null)
                 .status(FileTransferStatus.PENDING)
-                .routedAt(java.time.Instant.now())
                 .build();
         try {
             recordRepository.save(transferRecord);
@@ -207,7 +206,7 @@ public class RoutingEngine {
         }
 
         // Push file to storage-manager (enables download from Activity Monitor)
-        if (storageClient != null) {
+        if (storageClient != null && Files.exists(Paths.get(absoluteSourcePath))) {
             try {
                 java.io.InputStream fileStream = java.nio.file.Files.newInputStream(
                         java.nio.file.Paths.get(absoluteSourcePath));
@@ -237,6 +236,8 @@ public class RoutingEngine {
                         FlowExecution exec = flowEngine.executeFlowRef(matchedFlow, trackId,
                                 filename, ref, matchedFlow.getMatchCriteria());
                         if (exec.getStatus() == FlowExecution.FlowStatus.COMPLETED) {
+                            transferRecord.setRoutedAt(Instant.now());
+                            recordRepository.save(transferRecord);
                             log.info("[{}] Flow '{}' completed (VIRTUAL). Final key={}",
                                     trackId, matchedFlow.getName(), exec.getCurrentStorageKey());
                         } else {

@@ -45,11 +45,11 @@ public class FlowStepSnapshot {
     private String stepStatus;
 
     /** SHA-256 of the file before this step. Always set. */
-    @Column(length = 64)
+    @Column(length = 512)
     private String inputStorageKey;
 
     /** SHA-256 of the file after this step. Null on failure; same as input for pass-through steps. */
-    @Column(length = 64)
+    @Column(length = 512)
     private String outputStorageKey;
 
     @Column(length = 1024)
