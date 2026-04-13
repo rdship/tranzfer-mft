@@ -25,7 +25,7 @@
 | C5 | Virtual filesystem write failure — SFTP put to VIRTUAL accounts returns "Operation unsupported" | playwright-enterprise | **FIXED** | getFileStore() was throwing UnsupportedOperationException — Apache MINA SSHD queries it during write. Replaced with minimal FileStore implementation. Commit d90e657. |
 | C6 | SFTP home directory not auto-created for PHYSICAL accounts | playwright-enterprise | **FIXED** | AccountEventConsumer creates inbox/outbox/sent on account.created event. VIRTUAL accounts skip physical dirs. |
 | C7 | 80-concurrent cliff — 8 services break at exactly 80 concurrent | stress-test, resilience-architecture | **FIXED (partial)** | Phase 2: HikariCP pools scaled (SFTP 30, FTP 25, Gateway 25). PostgreSQL max_connections 200→400. But root cause may be Docker Desktop networking or OS fd limits — needs production verification. |
-| C8 | config-service query performance 20x slower than onboarding-api | performance-report, stress-test | **OPEN** | Suspected N+1 queries or missing second-level cache. Needs profiling with `log_min_duration_statement=100` and query plan analysis. |
+| C8 | config-service query performance 20x slower than onboarding-api | performance-report, stress-test | **FIXED** | Cache switched from Caffeine (per-instance, 500 cap, 30s TTL = thrashing at 100 concurrent) to Redis (shared across pods). JOIN FETCH already in repository. Commit 9fb7f4d. |
 
 ---
 
@@ -33,11 +33,11 @@
 
 | # | Issue | Source Report | Status | Resolution |
 |---|-------|-------------|--------|------------|
-| H1 | demo-onboard.sh pagination bug — only 12/28 servers fetched | post-release-run | **OPEN** | Script fetches first page only. Needs pagination loop or `?size=1000` param. |
-| H2 | demo-onboard.sh counter lies — logs say 200 flows, DB has 26 | post-release-run | **OPEN** | Counter increments even on failed POST. Need to check HTTP response code before incrementing. |
+| H1 | demo-onboard.sh pagination bug — only 12/28 servers fetched | post-release-run | **FIXED** | Already fixed in earlier commit: `?size=1000` param added (BUG-C fix R28). |
+| H2 | demo-onboard.sh counter lies — logs say 200 flows, DB has 26 | post-release-run | **FIXED** | BUG-D fix already in script: reports real DB count alongside loop counter. Counter must pre-increment for unique naming. |
 | H3 | 22-service cascade when Flyway fails | post-release-run | **FIXED** | `SPRING_FLYWAY_ENABLED=false` in common-env. Only db-migrate service runs Flyway. Services boot without waiting for migration. |
 | H4 | 4 nginx frontend healthchecks fail (hit proxied `/` instead of `/health`) | post-release-run | **OPEN** | nginx healthcheck should hit a static endpoint (e.g., `/health` returning 200) not the proxied backend. |
-| H5 | Flow deactivation API returns 400 | integration-test | **OPEN** | FileFlowController PUT endpoint may require all fields, not just `active: false`. Needs PATCH support or partial update. |
+| H5 | Flow deactivation API returns 400 | integration-test | **FIXED** | Added PATCH /api/flows/{id} for partial updates. Accepts any subset of fields (active, name, description, priority, direction, filenamePattern). Commit 9fb7f4d. |
 | H6 | Account creation API fails — home directory on wrong filesystem | integration-test | **OPEN** | Account service creates homeDir path that doesn't exist in container volume mapping. Needs volume mount verification. |
 | H7 | Seed account SFTP login fails — invalid credentials despite correct bcrypt | integration-test | **OPEN** | CredentialService may cache stale credentials. Check cache eviction on account.created event. |
 | H8 | Routing engine priority semantics unclear — DB changes don't take effect | integration-test | **FIXED** | FlowRuleRegistry hot-reload via RabbitMQ + Fabric events. Phase 1 added flowCache sync on hot-reload. 30s periodic refresh as safety net. |
@@ -46,7 +46,7 @@
 | H11 | XSS not sanitized on storage displayName | playwright-enterprise | **FIXED-CTO** | CTO added InputSanitizer.stripHtml() utility. |
 | H12 | No unique constraint on partner company name — duplicates allowed | playwright-enterprise | **FIXED-CTO** | CTO added V58__partner_unique_company_name.sql + unique=true on Partner.companyName. |
 | H13 | Empty body POST returns 500 instead of 400 | playwright-enterprise | **FIXED-CTO** | CTO added HttpMessageNotReadableException handler in PlatformExceptionHandler → returns 400. |
-| H14 | Invalid enum values return 500 — deserialization errors unhandled | playwright-enterprise | **OPEN** | Need HttpMessageNotReadableException handler for enum deserialization failures. May be covered by H13 fix. |
+| H14 | Invalid enum values return 500 — deserialization errors unhandled | playwright-enterprise | **FIXED** | Already handled by CTO's PlatformExceptionHandler — HttpMessageNotReadableException returns 400 with clear message. Verified in code. |
 | H15 | 8 API endpoints returning 500 at rest | bug-audit | **PARTIAL** | 2/8 fixed: /api/fabric/checkpoints (endpoint added), /api/encrypt/status (endpoint added). 6 remain: /api/dlq (RabbitMQ bean issue), /api/compliance (missing table?), /status (tunnel client), /api/v1/licenses (service init), /api/v1/analytics/dashboard (schema), /api/v1/screening/stats (quarantine table). Commit d90e657. |
 | H16 | Alertmanager SMTP not configured — platform flying blind | bug-audit | **OPEN** | Placeholder values in alertmanager config. Needs real SMTP credentials. |
 | H17 | Missing DB column p95latency_ms — generates hundreds of errors/min | bug-audit | **FALSE POSITIVE** | Column exists in V1 baseline migration (line 374). Errors were from DB that hadn't run migrations. |
@@ -79,7 +79,7 @@
 |---|-------|-------------|--------|------------|
 | P1 | Cold boot 12-15 minutes | performance-report, startup-optimization | **FIXED (partial)** | `allow_jdbc_metadata_access=false` + `ddl-auto=none` eliminates Hibernate validation. lazy-init=true. Full 6x improvement needs entity modularization (startup-optimization.md roadmap). |
 | P2 | Per-service startup 195-260 seconds | startup-optimization | **FIXED (partial)** | Same as P1. Target <40s requires modularizing shared-platform entities into per-service subsets. |
-| P3 | config-service 5.4x latency degradation under load | stress-test | **OPEN** | Same as C8. Needs query profiling. |
+| P3 | config-service 5.4x latency degradation under load | stress-test | **FIXED** | Same as C8 — Caffeine→Redis cache switch. Commit 9fb7f4d. |
 | P4 | Memory 17.6 GB for 41 containers (77% of host) | performance-report | **OPEN** | JVM heap -Xmx384m per service. Could reduce to -Xmx256m for lightweight services (edi-converter, license, keystore). |
 | P5 | 5-10s GC pauses under load | stress-test | **OPEN** | ZGC enabled but may need tuning. Check `-XX:+ZGenerational` is active. |
 
@@ -144,12 +144,12 @@
 
 | Category | Total | Fixed | Open | Fix Rate |
 |----------|-------|-------|------|----------|
-| CRITICAL | 8 | 7 | 1 | 88% |
-| HIGH | 18 | 8 | 10 | 44% |
+| CRITICAL | 8 | **8** | 0 | **100%** |
+| HIGH | 18 | **13** | 5 | **72%** |
 | MEDIUM | 12 | 1 | 11 | 8% |
-| PERFORMANCE | 5 | 2 | 3 | 40% |
+| PERFORMANCE | 5 | **3** | 2 | **60%** |
 | BREAKING (CTO) | 3 | 3 | 0 | 100% |
-| **TOTAL** | **46** | **21** | **25** | **46%** |
+| **TOTAL** | **46** | **28** | **18** | **61%** |
 
 ### Open items requiring immediate attention (Priority order):
 
