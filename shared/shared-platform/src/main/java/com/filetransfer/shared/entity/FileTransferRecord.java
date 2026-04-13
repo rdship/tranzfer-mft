@@ -27,18 +27,24 @@ public class FileTransferRecord {
     private String trackId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "folder_mapping_id", nullable = false)
+    @JoinColumn(name = "folder_mapping_id")
     private FolderMapping folderMapping;
+
+    /** Source account for VIRTUAL-mode transfers (no FolderMapping) */
+    @Column(name = "source_account_id")
+    private UUID sourceAccountId;
+
+    /** Flow that processed this transfer (VIRTUAL mode) */
+    @Column(name = "flow_id")
+    private UUID flowId;
 
     @NotBlank
     @Column(nullable = false)
     private String originalFilename;
 
-    @NotBlank
     @Column(nullable = false)
     private String sourceFilePath;
 
-    @NotBlank
     @Column(nullable = false)
     private String destinationFilePath;
 

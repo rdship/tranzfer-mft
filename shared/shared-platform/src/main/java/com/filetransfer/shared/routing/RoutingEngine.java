@@ -182,6 +182,24 @@ public class RoutingEngine {
             }
         }
 
+        // ── Create FileTransferRecord for Activity Monitor (both VIRTUAL and PHYSICAL) ──
+        FileTransferRecord transferRecord = FileTransferRecord.builder()
+                .trackId(trackId)
+                .originalFilename(filename)
+                .sourceFilePath(relativeFilePath)
+                .destinationFilePath(relativeFilePath) // updated when delivery completes
+                .sourceAccountId(sourceAccount.getId())
+                .flowId(matchedFlow != null ? matchedFlow.getId() : null)
+                .fileSizeBytes(fileSizeBytes > 0 ? fileSizeBytes : null)
+                .status(FileTransferStatus.PENDING)
+                .build();
+        try {
+            recordRepository.save(transferRecord);
+            log.info("[{}] FileTransferRecord created (Activity Monitor)", trackId);
+        } catch (Exception e) {
+            log.warn("[{}] Could not create FileTransferRecord: {}", trackId, e.getMessage());
+        }
+
         // ── VIRTUAL-mode accounts (default): FileRef-based streaming pipeline ──────────
         boolean isVirtual = !"PHYSICAL".equalsIgnoreCase(sourceAccount.getStorageMode());
         if (isVirtual && vfsBridge != null) {

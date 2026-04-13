@@ -45,6 +45,7 @@ public class ActivityMonitorController {
     private final FileTransferRecordRepository transferRepo;
     private final FlowExecutionRepository flowExecRepo;
     private final PartnerRepository partnerRepo;
+    private final com.filetransfer.shared.repository.TransferAccountRepository accountRepository;
 
     /** Optional — null when shared-fabric not configured. Used for activity enrichment. */
     @Autowired(required = false)
@@ -109,13 +110,13 @@ public class ActivityMonitorController {
                 predicates.add(cb.equal(root.get("status"), statusF));
             }
             if (sourceUsernameF != null && !sourceUsernameF.isBlank()) {
-                Join<FileTransferRecord, FolderMapping> fmJoin = root.join("folderMapping");
-                Join<FolderMapping, TransferAccount> saJoin = fmJoin.join("sourceAccount");
+                Join<FileTransferRecord, FolderMapping> fmJoin = root.join("folderMapping", jakarta.persistence.criteria.JoinType.LEFT);
+                Join<FolderMapping, TransferAccount> saJoin = fmJoin.join("sourceAccount", jakarta.persistence.criteria.JoinType.LEFT);
                 predicates.add(cb.equal(saJoin.get("username"), sourceUsernameF));
             }
             if (protocolF != null) {
-                Join<FileTransferRecord, FolderMapping> fmJoin = root.join("folderMapping");
-                Join<FolderMapping, TransferAccount> saJoin = fmJoin.join("sourceAccount");
+                Join<FileTransferRecord, FolderMapping> fmJoin = root.join("folderMapping", jakarta.persistence.criteria.JoinType.LEFT);
+                Join<FolderMapping, TransferAccount> saJoin = fmJoin.join("sourceAccount", jakarta.persistence.criteria.JoinType.LEFT);
                 predicates.add(cb.equal(saJoin.get("protocol"), protocolF));
             }
             return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
@@ -158,9 +159,14 @@ public class ActivityMonitorController {
                                          Map<String, FlowExecution> flowMap,
                                          Map<String, FabricCheckpoint> latestCpByTrackId) {
         FolderMapping fm = r.getFolderMapping();
-        TransferAccount src = fm.getSourceAccount();
-        TransferAccount dest = fm.getDestinationAccount();
-        ExternalDestination extDest = fm.getExternalDestination();
+        TransferAccount src = fm != null ? fm.getSourceAccount() : null;
+        TransferAccount dest = fm != null ? fm.getDestinationAccount() : null;
+        ExternalDestination extDest = fm != null ? fm.getExternalDestination() : null;
+
+        // VIRTUAL-mode records: resolve source account directly (no FolderMapping)
+        if (src == null && r.getSourceAccountId() != null) {
+            src = accountRepository.findById(r.getSourceAccountId()).orElse(null);
+        }
 
         // Integrity check
         String integrityStatus = "PENDING";
