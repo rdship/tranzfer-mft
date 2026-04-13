@@ -635,6 +635,30 @@ export default function ActivityMonitor() {
   const isFirstLoad = isLoading && !data
   const showSkeleton = useDelayedFlag(isFirstLoad, 100)
 
+  // ── SSE Real-Time Stream ──────────────────────────────────────────────
+  const [liveCount, setLiveCount] = useState(0)
+  const [sseConnected, setSseConnected] = useState(false)
+  useEffect(() => {
+    let es
+    try {
+      const baseUrl = onboardingApi.defaults.baseURL || ''
+      es = new EventSource(`${baseUrl}/api/activity-monitor/stream`)
+      es.onopen = () => setSseConnected(true)
+      es.onerror = () => setSseConnected(false)
+      es.addEventListener('transfer-new', () => {
+        setLiveCount(c => c + 1)
+        qc.invalidateQueries({ queryKey: ['activity-monitor'] })
+      })
+      es.addEventListener('transfer-completed', () => {
+        qc.invalidateQueries({ queryKey: ['activity-monitor'] })
+      })
+      es.addEventListener('transfer-failed', () => {
+        qc.invalidateQueries({ queryKey: ['activity-monitor'] })
+      })
+    } catch (e) { /* SSE not available — fall back to polling */ }
+    return () => { if (es) es.close() }
+  }, [qc])
+
   const rawRows = data?.content || []
   // Client-side filters layered on top of the server query:
   //   stuckOnly   — hide non-stuck rows
@@ -1013,7 +1037,15 @@ export default function ActivityMonitor() {
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-primary">Activity Monitor</h1>
+            <h1 className="text-2xl font-bold text-primary">
+              Activity Monitor
+              {sseConnected && (
+                <span className="ml-2 inline-flex items-center text-xs font-normal text-green-600">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse" />
+                  Live{liveCount > 0 ? ` (${liveCount} new)` : ''}
+                </span>
+              )}
+            </h1>
             {totalElements > 0 && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-semibold rounded-full ring-1 ring-inset ring-blue-600/10">
                 {totalElements.toLocaleString()} transfers

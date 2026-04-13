@@ -64,6 +64,7 @@ public class ActivityMonitorController {
             @RequestParam(required = false) Protocol protocol,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.Instant startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.Instant endDate,
+            @RequestParam(required = false) String integrityStatus,
             @RequestParam(required = false) Long minSize,
             @RequestParam(required = false) Long maxSize,
             @RequestParam(required = false) String errorKeyword,
@@ -84,13 +85,7 @@ public class ActivityMonitorController {
         Sort.Direction direction = "ASC".equalsIgnoreCase(sortDir) ? Sort.Direction.ASC : Sort.Direction.DESC;
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by(direction, sortBy));
 
-        // Load partner map once: partnerId -> displayName (or companyName)
-        Map<UUID, String> partnerMap = partnerRepo.findAll().stream()
-                .collect(Collectors.toMap(
-                        Partner::getId,
-                        p -> p.getDisplayName() != null ? p.getDisplayName() : p.getCompanyName(),
-                        (a, b) -> a
-                ));
+        Map<UUID, String> partnerMap = getPartnerNameMap();
 
         // Build a dynamic Specification. Every filter is optional — we only
         // add a predicate when the caller supplied a non-null value, which
@@ -109,6 +104,7 @@ public class ActivityMonitorController {
         final Long maxSizeF = maxSize;
         final String errorKeywordF = errorKeyword;
         final String partnerNameF = partnerName;
+        final String integrityStatusF = integrityStatus;
         Specification<FileTransferRecord> spec = (root, query, cb) -> {
             List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
             if (trackIdF != null && !trackIdF.isBlank()) {
@@ -152,6 +148,21 @@ public class ActivityMonitorController {
             if (partnerNameF != null && !partnerNameF.isBlank()) {
                 // Match partner name via source account's partnerId → partner table
                 // For performance, we filter in-memory after fetch (partner map is cached)
+            }
+            if (integrityStatusF != null && !integrityStatusF.isBlank()) {
+                switch (integrityStatusF.toUpperCase()) {
+                    case "VERIFIED" -> predicates.add(cb.and(
+                            cb.isNotNull(root.get("sourceChecksum")),
+                            cb.isNotNull(root.get("destinationChecksum")),
+                            cb.equal(root.get("sourceChecksum"), root.get("destinationChecksum"))));
+                    case "MISMATCH" -> predicates.add(cb.and(
+                            cb.isNotNull(root.get("sourceChecksum")),
+                            cb.isNotNull(root.get("destinationChecksum")),
+                            cb.notEqual(root.get("sourceChecksum"), root.get("destinationChecksum"))));
+                    case "PENDING" -> predicates.add(cb.or(
+                            cb.isNull(root.get("sourceChecksum")),
+                            cb.isNull(root.get("destinationChecksum"))));
+                }
             }
             return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
         };
@@ -320,6 +331,14 @@ public class ActivityMonitorController {
                 }
             } while (batch.hasNext());
         }
+    }
+
+    @org.springframework.cache.annotation.Cacheable(value = "partner-names", unless = "#result.isEmpty()")
+    public Map<UUID, String> getPartnerNameMap() {
+        return partnerRepo.findAll().stream()
+                .collect(Collectors.toMap(Partner::getId,
+                        p -> p.getDisplayName() != null ? p.getDisplayName() : p.getCompanyName(),
+                        (a, b) -> a));
     }
 
     private String csvEscape(String v) {

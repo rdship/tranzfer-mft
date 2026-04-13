@@ -262,6 +262,12 @@ public class RoutingEngine {
                                 filename, ref, matchedFlow.getMatchCriteria());
                         if (exec.getStatus() == FlowExecution.FlowStatus.COMPLETED) {
                             transferRecord.setRoutedAt(Instant.now());
+                            transferRecord.setCompletedAt(Instant.now());
+                            transferRecord.setStatus(FileTransferStatus.MOVED_TO_SENT);
+                            // VIRTUAL: destination checksum = source (zero-copy, same content)
+                            if (transferRecord.getSourceChecksum() != null) {
+                                transferRecord.setDestinationChecksum(transferRecord.getSourceChecksum());
+                            }
                             recordRepository.save(transferRecord);
                             log.info("[{}] Flow '{}' completed (VIRTUAL). Final key={}",
                                     trackId, matchedFlow.getName(), exec.getCurrentStorageKey());
@@ -422,6 +428,17 @@ public class RoutingEngine {
             record.setDownloadedAt(Instant.now());
             record.setCompletedAt(Instant.now());
             record.setDestinationFilePath(sentPath.toString());
+            record.setDestinationAccountId(destAccount.getId());
+
+            // Compute destination checksum for integrity verification
+            try {
+                java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+                byte[] hash = digest.digest(Files.readAllBytes(sentPath));
+                record.setDestinationChecksum(java.util.HexFormat.of().formatHex(hash));
+            } catch (Exception ex) {
+                log.debug("[{}] Destination checksum skipped: {}", record.getTrackId(), ex.getMessage());
+            }
+
             recordRepository.save(record);
             log.info("[{}] Transfer complete: {} -> {}", record.getTrackId(), record.getOriginalFilename(), sentPath);
 
