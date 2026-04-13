@@ -6,7 +6,7 @@ import com.filetransfer.sftp.security.LoginAttemptTracker;
 import com.filetransfer.sftp.service.CredentialService;
 import com.filetransfer.sftp.session.ConnectionManager;
 import com.filetransfer.sftp.throttle.BandwidthThrottleManager;
-import com.filetransfer.shared.entity.TransferAccount;
+import com.filetransfer.shared.entity.core.TransferAccount;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.sshd.server.auth.password.PasswordAuthenticator;

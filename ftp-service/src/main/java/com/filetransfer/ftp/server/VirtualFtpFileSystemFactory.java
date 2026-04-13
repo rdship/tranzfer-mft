@@ -1,7 +1,7 @@
 package com.filetransfer.ftp.server;
 
 import com.filetransfer.shared.client.StorageServiceClient;
-import com.filetransfer.shared.entity.TransferAccount;
+import com.filetransfer.shared.entity.core.TransferAccount;
 import com.filetransfer.shared.repository.TransferAccountRepository;
 import com.filetransfer.shared.vfs.VirtualFileSystem;
 // VirtualFtpFileSystemView is in this package (ftp.server)

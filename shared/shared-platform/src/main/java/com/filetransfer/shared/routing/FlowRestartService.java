@@ -1,9 +1,9 @@
 package com.filetransfer.shared.routing;
 
 import com.filetransfer.shared.audit.AuditService;
-import com.filetransfer.shared.entity.FileFlow;
-import com.filetransfer.shared.entity.FlowExecution;
-import com.filetransfer.shared.entity.FlowStepSnapshot;
+import com.filetransfer.shared.entity.transfer.FileFlow;
+import com.filetransfer.shared.entity.transfer.FlowExecution;
+import com.filetransfer.shared.entity.transfer.FlowStepSnapshot;
 import com.filetransfer.shared.repository.FileFlowRepository;
 import com.filetransfer.shared.repository.FlowExecutionRepository;
 import com.filetransfer.shared.repository.FlowStepSnapshotRepository;

@@ -1,6 +1,6 @@
 package com.filetransfer.onboarding.messaging;
 
-import com.filetransfer.shared.entity.DeadLetterMessage;
+import com.filetransfer.shared.entity.transfer.DeadLetterMessage;
 import com.filetransfer.shared.repository.DeadLetterMessageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

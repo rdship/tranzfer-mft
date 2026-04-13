@@ -1,8 +1,8 @@
 package com.filetransfer.config.controller;
 
-import com.filetransfer.shared.entity.ComplianceProfile;
-import com.filetransfer.shared.entity.ComplianceViolation;
-import com.filetransfer.shared.entity.ServerInstance;
+import com.filetransfer.shared.entity.security.ComplianceProfile;
+import com.filetransfer.shared.entity.security.ComplianceViolation;
+import com.filetransfer.shared.entity.core.ServerInstance;
 import com.filetransfer.shared.repository.ComplianceProfileRepository;
 import com.filetransfer.shared.repository.ComplianceViolationRepository;
 import com.filetransfer.shared.repository.ServerInstanceRepository;

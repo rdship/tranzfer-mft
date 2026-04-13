@@ -1,6 +1,6 @@
 package com.filetransfer.onboarding.controller;
 
-import com.filetransfer.shared.entity.TotpConfig;
+import com.filetransfer.shared.entity.security.TotpConfig;
 import com.filetransfer.shared.repository.TotpConfigRepository;
 import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;

@@ -1,6 +1,6 @@
 package com.filetransfer.shared.repository;
 
-import com.filetransfer.shared.entity.DeliveryEndpoint;
+import com.filetransfer.shared.entity.transfer.DeliveryEndpoint;
 import com.filetransfer.shared.enums.DeliveryProtocol;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;

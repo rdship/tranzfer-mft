@@ -1,6 +1,6 @@
 package com.filetransfer.config.controller;
 
-import com.filetransfer.shared.entity.ExternalDestination;
+import com.filetransfer.shared.entity.core.ExternalDestination;
 import com.filetransfer.shared.enums.ExternalDestinationType;
 import com.filetransfer.shared.repository.ExternalDestinationRepository;
 import com.filetransfer.shared.security.Roles;

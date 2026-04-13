@@ -2,8 +2,8 @@ package com.filetransfer.ftpweb.service;
 
 import com.filetransfer.shared.client.StorageServiceClient;
 import com.filetransfer.shared.dto.FolderDefinition;
-import com.filetransfer.shared.entity.TransferAccount;
-import com.filetransfer.shared.entity.VirtualEntry;
+import com.filetransfer.shared.entity.core.TransferAccount;
+import com.filetransfer.shared.entity.vfs.VirtualEntry;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.repository.FolderTemplateRepository;
 import com.filetransfer.shared.repository.ServerInstanceRepository;

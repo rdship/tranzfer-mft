@@ -1,7 +1,7 @@
 package com.filetransfer.onboarding.controller;
 
-import com.filetransfer.shared.entity.FabricCheckpoint;
-import com.filetransfer.shared.entity.FabricInstance;
+import com.filetransfer.shared.entity.transfer.FabricCheckpoint;
+import com.filetransfer.shared.entity.transfer.FabricInstance;
 import com.filetransfer.shared.repository.FabricCheckpointRepository;
 import com.filetransfer.shared.repository.FabricInstanceRepository;
 import com.filetransfer.shared.security.Roles;

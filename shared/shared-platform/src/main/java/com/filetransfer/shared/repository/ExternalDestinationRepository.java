@@ -1,6 +1,6 @@
 package com.filetransfer.shared.repository;
 
-import com.filetransfer.shared.entity.ExternalDestination;
+import com.filetransfer.shared.entity.core.ExternalDestination;
 import com.filetransfer.shared.enums.ExternalDestinationType;
 import org.springframework.data.jpa.repository.JpaRepository;
 

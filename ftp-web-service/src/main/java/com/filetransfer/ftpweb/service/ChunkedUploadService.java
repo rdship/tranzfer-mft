@@ -1,7 +1,7 @@
 package com.filetransfer.ftpweb.service;
 
-import com.filetransfer.shared.entity.ChunkedUpload;
-import com.filetransfer.shared.entity.ChunkedUploadChunk;
+import com.filetransfer.shared.entity.vfs.ChunkedUpload;
+import com.filetransfer.shared.entity.vfs.ChunkedUploadChunk;
 import com.filetransfer.shared.repository.ChunkedUploadChunkRepository;
 import com.filetransfer.shared.repository.ChunkedUploadRepository;
 import jakarta.annotation.PostConstruct;

@@ -6,12 +6,12 @@ import com.filetransfer.onboarding.dto.response.AccountResponse;
 import com.filetransfer.onboarding.messaging.AccountEventPublisher;
 import com.filetransfer.shared.dto.AccountCreatedEvent;
 import com.filetransfer.shared.dto.AccountUpdatedEvent;
-import com.filetransfer.shared.entity.TransferAccount;
-import com.filetransfer.shared.entity.User;
+import com.filetransfer.shared.entity.core.TransferAccount;
+import com.filetransfer.shared.entity.core.User;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.dto.FolderDefinition;
-import com.filetransfer.shared.entity.FolderTemplate;
-import com.filetransfer.shared.entity.ServerInstance;
+import com.filetransfer.shared.entity.core.FolderTemplate;
+import com.filetransfer.shared.entity.core.ServerInstance;
 import com.filetransfer.shared.repository.FolderTemplateRepository;
 import com.filetransfer.shared.repository.ServerInstanceRepository;
 import com.filetransfer.shared.repository.TransferAccountRepository;
@@ -23,7 +23,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.filetransfer.shared.entity.Partner;
+import com.filetransfer.shared.entity.core.Partner;
 import com.filetransfer.shared.repository.PartnerRepository;
 
 import java.io.IOException;

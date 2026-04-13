@@ -1,8 +1,8 @@
 package com.filetransfer.sftp.vfs;
 
 import com.filetransfer.shared.client.StorageServiceClient;
-import com.filetransfer.shared.entity.VfsChunk;
-import com.filetransfer.shared.entity.VirtualEntry;
+import com.filetransfer.shared.entity.vfs.VfsChunk;
+import com.filetransfer.shared.entity.vfs.VirtualEntry;
 import com.filetransfer.shared.repository.VfsChunkRepository;
 import com.filetransfer.shared.repository.TransferAccountRepository;
 import com.filetransfer.shared.repository.VfsIntentRepository;

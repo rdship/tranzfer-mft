@@ -1,6 +1,6 @@
 package com.filetransfer.notification.service;
 
-import com.filetransfer.shared.entity.NotificationRule;
+import com.filetransfer.shared.entity.integration.NotificationRule;
 import com.filetransfer.shared.repository.NotificationRuleRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

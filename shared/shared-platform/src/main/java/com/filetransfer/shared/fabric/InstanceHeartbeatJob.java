@@ -2,7 +2,7 @@ package com.filetransfer.shared.fabric;
 
 import com.filetransfer.fabric.FabricClient;
 import com.filetransfer.fabric.config.FabricProperties;
-import com.filetransfer.shared.entity.FabricInstance;
+import com.filetransfer.shared.entity.transfer.FabricInstance;
 import com.filetransfer.shared.repository.FabricCheckpointRepository;
 import com.filetransfer.shared.repository.FabricInstanceRepository;
 import lombok.RequiredArgsConstructor;

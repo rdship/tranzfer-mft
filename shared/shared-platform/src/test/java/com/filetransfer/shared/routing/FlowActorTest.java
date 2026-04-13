@@ -1,6 +1,6 @@
 package com.filetransfer.shared.routing;
 
-import com.filetransfer.shared.entity.FlowEvent;
+import com.filetransfer.shared.entity.transfer.FlowEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

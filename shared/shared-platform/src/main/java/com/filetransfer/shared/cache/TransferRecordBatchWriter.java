@@ -1,6 +1,6 @@
 package com.filetransfer.shared.cache;
 
-import com.filetransfer.shared.entity.FileTransferRecord;
+import com.filetransfer.shared.entity.transfer.FileTransferRecord;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

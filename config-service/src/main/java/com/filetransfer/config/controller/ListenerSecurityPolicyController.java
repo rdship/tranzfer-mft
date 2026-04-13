@@ -1,7 +1,7 @@
 package com.filetransfer.config.controller;
 
 import com.filetransfer.shared.client.DmzProxyClient;
-import com.filetransfer.shared.entity.ListenerSecurityPolicy;
+import com.filetransfer.shared.entity.security.ListenerSecurityPolicy;
 import com.filetransfer.shared.repository.ListenerSecurityPolicyRepository;
 import com.filetransfer.shared.security.Roles;
 import jakarta.validation.Valid;

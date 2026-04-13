@@ -1,6 +1,6 @@
 package com.filetransfer.shared.cache;
 
-import com.filetransfer.shared.entity.Partner;
+import com.filetransfer.shared.entity.core.Partner;
 import com.filetransfer.shared.repository.PartnerRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;

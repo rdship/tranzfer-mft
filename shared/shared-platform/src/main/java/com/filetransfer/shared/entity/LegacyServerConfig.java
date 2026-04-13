@@ -1,5 +1,7 @@
 package com.filetransfer.shared.entity;
 
+import com.filetransfer.shared.entity.core.*;
+
 import com.filetransfer.shared.enums.Protocol;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;

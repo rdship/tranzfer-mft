@@ -1,7 +1,7 @@
 package com.filetransfer.shared.vfs;
 
 import com.filetransfer.shared.client.StorageServiceClient;
-import com.filetransfer.shared.entity.VfsIntent;
+import com.filetransfer.shared.entity.vfs.VfsIntent;
 import com.filetransfer.shared.repository.VfsChunkRepository;
 import com.filetransfer.shared.repository.VfsIntentRepository;
 import com.filetransfer.shared.repository.VirtualEntryRepository;

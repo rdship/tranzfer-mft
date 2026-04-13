@@ -1,6 +1,6 @@
 package com.filetransfer.forwarder.service;
 
-import com.filetransfer.shared.entity.ExternalDestination;
+import com.filetransfer.shared.entity.core.ExternalDestination;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.ProducerRecord;

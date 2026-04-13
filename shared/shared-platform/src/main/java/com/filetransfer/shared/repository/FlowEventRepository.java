@@ -1,6 +1,6 @@
 package com.filetransfer.shared.repository;
 
-import com.filetransfer.shared.entity.FlowEvent;
+import com.filetransfer.shared.entity.transfer.FlowEvent;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.time.Instant;
 import java.util.List;

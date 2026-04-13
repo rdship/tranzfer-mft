@@ -8,7 +8,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(scanBasePackages = {"com.filetransfer.analytics", "com.filetransfer.shared"})
-@EntityScan(basePackages = {"com.filetransfer.analytics.entity", "com.filetransfer.shared.entity"})
+@EntityScan(basePackages = {"com.filetransfer.shared.entity", "com.filetransfer.shared.entity.core", "com.filetransfer.shared.entity.transfer"})
 @EnableJpaRepositories(basePackages = {"com.filetransfer.analytics.repository", "com.filetransfer.shared.repository"})
 @EnableCaching
 @EnableScheduling

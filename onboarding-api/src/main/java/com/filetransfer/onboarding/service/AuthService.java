@@ -6,7 +6,7 @@ import com.filetransfer.onboarding.dto.response.AuthResponse;
 import com.filetransfer.onboarding.security.BruteForceProtection;
 import com.filetransfer.onboarding.security.PasswordPolicy;
 import com.filetransfer.shared.audit.AuditService;
-import com.filetransfer.shared.entity.User;
+import com.filetransfer.shared.entity.core.User;
 import com.filetransfer.shared.enums.UserRole;
 import com.filetransfer.shared.repository.UserRepository;
 import com.filetransfer.shared.util.JwtUtil;

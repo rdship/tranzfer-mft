@@ -1,7 +1,7 @@
 package com.filetransfer.shared.connector;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.filetransfer.shared.entity.WebhookConnector;
+import com.filetransfer.shared.entity.integration.WebhookConnector;
 import com.filetransfer.shared.repository.WebhookConnectorRepository;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;

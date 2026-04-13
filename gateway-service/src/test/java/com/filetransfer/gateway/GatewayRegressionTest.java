@@ -3,7 +3,7 @@ package com.filetransfer.gateway;
 import com.filetransfer.gateway.client.ConnectionAuditClient;
 import com.filetransfer.gateway.controller.GatewayStatusController;
 import com.filetransfer.gateway.routing.UserRoutingService;
-import com.filetransfer.shared.entity.TransferAccount;
+import com.filetransfer.shared.entity.core.TransferAccount;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.repository.LegacyServerConfigRepository;
 import com.filetransfer.shared.repository.ServerInstanceRepository;

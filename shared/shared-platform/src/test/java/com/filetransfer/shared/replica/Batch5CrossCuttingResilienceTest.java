@@ -3,7 +3,7 @@ package com.filetransfer.shared.replica;
 import com.filetransfer.shared.client.ServiceClientProperties;
 import com.filetransfer.shared.cluster.ClusterContext;
 import com.filetransfer.shared.cluster.ClusterService;
-import com.filetransfer.shared.entity.ServiceRegistration;
+import com.filetransfer.shared.entity.core.ServiceRegistration;
 import com.filetransfer.shared.enums.ClusterCommunicationMode;
 import com.filetransfer.shared.enums.ServiceType;
 import com.filetransfer.shared.repository.ServiceRegistrationRepository;

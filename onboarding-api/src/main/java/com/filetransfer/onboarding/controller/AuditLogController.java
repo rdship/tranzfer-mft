@@ -1,6 +1,6 @@
 package com.filetransfer.onboarding.controller;
 
-import com.filetransfer.shared.entity.AuditLog;
+import com.filetransfer.shared.entity.core.AuditLog;
 import com.filetransfer.shared.repository.AuditLogRepository;
 import com.filetransfer.shared.security.Roles;
 import io.swagger.v3.oas.annotations.Operation;

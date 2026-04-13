@@ -1,9 +1,9 @@
 package com.filetransfer.onboarding.controller;
 
 import com.filetransfer.shared.dto.FlowExecutionDto;
-import com.filetransfer.shared.entity.FlowApproval;
-import com.filetransfer.shared.entity.FlowEvent;
-import com.filetransfer.shared.entity.FlowExecution;
+import com.filetransfer.shared.entity.transfer.FlowApproval;
+import com.filetransfer.shared.entity.transfer.FlowEvent;
+import com.filetransfer.shared.entity.transfer.FlowExecution;
 import com.filetransfer.shared.repository.FlowExecutionRepository;
 import com.filetransfer.shared.routing.FlowApprovalService;
 import com.filetransfer.shared.routing.FlowEventJournal;

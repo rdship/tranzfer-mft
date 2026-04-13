@@ -9,6 +9,11 @@ import com.filetransfer.shared.connector.ConnectorDispatcher;
 import com.filetransfer.shared.dto.FileForwardRequest;
 import com.filetransfer.shared.dto.FileUploadedEvent;
 import com.filetransfer.shared.entity.*;
+import com.filetransfer.shared.entity.core.*;
+import com.filetransfer.shared.entity.transfer.*;
+import com.filetransfer.shared.entity.vfs.*;
+import com.filetransfer.shared.entity.security.*;
+import com.filetransfer.shared.entity.integration.*;
 import com.filetransfer.shared.enums.FileTransferStatus;
 import com.filetransfer.shared.matching.CompiledFlowRule;
 import com.filetransfer.shared.matching.FlowRuleRegistry;
@@ -306,10 +311,10 @@ public class RoutingEngine {
         // ── VIRTUAL-mode accounts (default): FileRef-based streaming pipeline ──────────
         boolean isVirtual = !"PHYSICAL".equalsIgnoreCase(sourceAccount.getStorageMode());
         if (isVirtual && vfsBridge != null) {
-            Optional<com.filetransfer.shared.entity.VirtualEntry> entryOpt =
+            Optional<com.filetransfer.shared.entity.vfs.VirtualEntry> entryOpt =
                     vfsBridge.getVfs().stat(sourceAccount.getId(), relativeFilePath);
             if (entryOpt.isPresent()) {
-                com.filetransfer.shared.entity.VirtualEntry entry = entryOpt.get();
+                com.filetransfer.shared.entity.vfs.VirtualEntry entry = entryOpt.get();
                 FileRef ref = new FileRef(
                         entry.getStorageKey(), relativeFilePath, sourceAccount.getId(),
                         entry.getSizeBytes(), trackId, entry.getContentType(),

@@ -1,6 +1,6 @@
 package com.filetransfer.shared.repository;
 
-import com.filetransfer.shared.entity.ChunkedUpload;
+import com.filetransfer.shared.entity.vfs.ChunkedUpload;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.Instant;

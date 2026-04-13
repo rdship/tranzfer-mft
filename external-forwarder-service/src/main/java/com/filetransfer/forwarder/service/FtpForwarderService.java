@@ -5,7 +5,7 @@ import com.filetransfer.forwarder.transfer.TransferSession;
 import com.filetransfer.forwarder.transfer.TransferStallException;
 import com.filetransfer.forwarder.transfer.TransferWatchdog;
 import com.filetransfer.shared.crypto.CredentialCryptoClient;
-import com.filetransfer.shared.entity.ExternalDestination;
+import com.filetransfer.shared.entity.core.ExternalDestination;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.net.ftp.FTP;

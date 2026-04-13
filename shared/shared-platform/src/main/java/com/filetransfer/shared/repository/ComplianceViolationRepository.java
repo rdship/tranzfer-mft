@@ -1,6 +1,6 @@
 package com.filetransfer.shared.repository;
 
-import com.filetransfer.shared.entity.ComplianceViolation;
+import com.filetransfer.shared.entity.security.ComplianceViolation;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

@@ -1,6 +1,6 @@
 package com.filetransfer.shared.repository;
 
-import com.filetransfer.shared.entity.QuarantineRecord;
+import com.filetransfer.shared.entity.security.QuarantineRecord;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

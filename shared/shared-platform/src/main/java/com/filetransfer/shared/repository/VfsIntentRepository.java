@@ -1,7 +1,7 @@
 package com.filetransfer.shared.repository;
 
-import com.filetransfer.shared.entity.VfsIntent;
-import com.filetransfer.shared.entity.VfsIntent.IntentStatus;
+import com.filetransfer.shared.entity.vfs.VfsIntent;
+import com.filetransfer.shared.entity.vfs.VfsIntent.IntentStatus;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;

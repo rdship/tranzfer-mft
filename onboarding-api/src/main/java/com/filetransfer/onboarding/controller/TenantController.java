@@ -1,6 +1,6 @@
 package com.filetransfer.onboarding.controller;
 
-import com.filetransfer.shared.entity.Tenant;
+import com.filetransfer.shared.entity.core.Tenant;
 import com.filetransfer.shared.repository.TenantRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;

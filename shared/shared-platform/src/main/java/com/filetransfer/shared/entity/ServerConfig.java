@@ -1,5 +1,7 @@
 package com.filetransfer.shared.entity;
 
+import com.filetransfer.shared.entity.core.*;
+
 import com.filetransfer.shared.enums.ServiceType;
 import jakarta.persistence.*;
 import lombok.*;

@@ -4,7 +4,7 @@ import com.filetransfer.forwarder.transfer.TransferSession;
 import com.filetransfer.forwarder.transfer.TransferStallException;
 import com.filetransfer.forwarder.transfer.TransferWatchdog;
 import com.filetransfer.shared.crypto.CredentialCryptoClient;
-import com.filetransfer.shared.entity.DeliveryEndpoint;
+import com.filetransfer.shared.entity.transfer.DeliveryEndpoint;
 import com.filetransfer.shared.enums.AuthType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

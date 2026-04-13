@@ -8,7 +8,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(scanBasePackages = {"com.filetransfer.ai", "com.filetransfer.shared"})
-@EntityScan(basePackages = {"com.filetransfer.ai", "com.filetransfer.shared.entity"})
+@EntityScan(basePackages = {"com.filetransfer.shared.entity", "com.filetransfer.shared.entity.core", "com.filetransfer.shared.entity.transfer"})
 @EnableJpaRepositories(basePackages = {"com.filetransfer.ai", "com.filetransfer.shared.repository"})
 @EnableScheduling
 @EnableAsync

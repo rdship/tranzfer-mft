@@ -2,7 +2,7 @@ package com.filetransfer.screening.controller;
 
 import com.filetransfer.screening.service.AntivirusEngine;
 import com.filetransfer.screening.client.ClamAvClient;
-import com.filetransfer.shared.entity.QuarantineRecord;
+import com.filetransfer.shared.entity.security.QuarantineRecord;
 import com.filetransfer.shared.repository.QuarantineRecordRepository;
 import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;

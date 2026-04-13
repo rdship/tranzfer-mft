@@ -22,7 +22,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.filetransfer.shared.entity.SecurityProfile;
+import com.filetransfer.shared.entity.core.SecurityProfile;
 
 import java.nio.file.Paths;
 import java.time.Duration;

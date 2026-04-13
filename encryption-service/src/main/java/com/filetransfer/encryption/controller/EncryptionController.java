@@ -5,7 +5,7 @@ import com.filetransfer.encryption.service.PgpService;
 import com.filetransfer.shared.audit.AuditService;
 import com.filetransfer.shared.client.KeystoreServiceClient;
 import com.filetransfer.shared.kms.VaultKmsClient;
-import com.filetransfer.shared.entity.EncryptionKey;
+import com.filetransfer.shared.entity.core.EncryptionKey;
 import com.filetransfer.shared.enums.EncryptionAlgorithm;
 import com.filetransfer.shared.repository.EncryptionKeyRepository;
 import jakarta.annotation.PostConstruct;

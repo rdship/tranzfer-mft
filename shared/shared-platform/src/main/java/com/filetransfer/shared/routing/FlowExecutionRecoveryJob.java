@@ -1,6 +1,6 @@
 package com.filetransfer.shared.routing;
 
-import com.filetransfer.shared.entity.FlowExecution;
+import com.filetransfer.shared.entity.transfer.FlowExecution;
 import com.filetransfer.shared.repository.FlowExecutionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

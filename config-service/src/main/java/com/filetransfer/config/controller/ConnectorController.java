@@ -1,6 +1,6 @@
 package com.filetransfer.config.controller;
 
-import com.filetransfer.shared.entity.WebhookConnector;
+import com.filetransfer.shared.entity.integration.WebhookConnector;
 import com.filetransfer.shared.repository.WebhookConnectorRepository;
 import com.filetransfer.shared.security.Roles;
 import jakarta.persistence.EntityNotFoundException;

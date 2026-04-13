@@ -2,7 +2,7 @@ package com.filetransfer.ftp.routing;
 
 import com.filetransfer.ftp.audit.AuditEventLogger;
 import com.filetransfer.ftp.connection.ConnectionTracker;
-import com.filetransfer.shared.entity.TransferAccount;
+import com.filetransfer.shared.entity.core.TransferAccount;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.repository.TransferAccountRepository;
 import com.filetransfer.shared.routing.RoutingEngine;

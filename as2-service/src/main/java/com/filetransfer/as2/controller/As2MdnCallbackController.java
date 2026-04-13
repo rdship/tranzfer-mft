@@ -1,6 +1,6 @@
 package com.filetransfer.as2.controller;
 
-import com.filetransfer.shared.entity.As2Message;
+import com.filetransfer.shared.entity.integration.As2Message;
 import com.filetransfer.shared.repository.As2MessageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

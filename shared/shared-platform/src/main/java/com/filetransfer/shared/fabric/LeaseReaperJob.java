@@ -1,8 +1,8 @@
 package com.filetransfer.shared.fabric;
 
 import com.filetransfer.fabric.config.FabricProperties;
-import com.filetransfer.shared.entity.FabricCheckpoint;
-import com.filetransfer.shared.entity.FlowExecution;
+import com.filetransfer.shared.entity.transfer.FabricCheckpoint;
+import com.filetransfer.shared.entity.transfer.FlowExecution;
 import com.filetransfer.shared.repository.FabricCheckpointRepository;
 import com.filetransfer.shared.repository.FlowExecutionRepository;
 import lombok.RequiredArgsConstructor;

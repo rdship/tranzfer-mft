@@ -3,7 +3,7 @@ package com.filetransfer.onboarding.dryrun;
 import com.filetransfer.shared.client.EdiConverterClient;
 import com.filetransfer.shared.client.KeystoreServiceClient;
 import com.filetransfer.shared.client.ScreeningServiceClient;
-import com.filetransfer.shared.entity.FileFlow;
+import com.filetransfer.shared.entity.transfer.FileFlow;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.Nullable;

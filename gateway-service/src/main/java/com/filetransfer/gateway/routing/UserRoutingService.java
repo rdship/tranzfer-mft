@@ -2,8 +2,8 @@ package com.filetransfer.gateway.routing;
 
 import com.filetransfer.gateway.client.ConnectionAuditClient;
 import com.filetransfer.shared.entity.LegacyServerConfig;
-import com.filetransfer.shared.entity.ServerInstance;
-import com.filetransfer.shared.entity.TransferAccount;
+import com.filetransfer.shared.entity.core.ServerInstance;
+import com.filetransfer.shared.entity.core.TransferAccount;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.repository.LegacyServerConfigRepository;
 import com.filetransfer.shared.repository.ServerInstanceRepository;

@@ -1,5 +1,7 @@
 package com.filetransfer.shared.entity;
 
+import com.filetransfer.shared.entity.core.*;
+
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.Instant;

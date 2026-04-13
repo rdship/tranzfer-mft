@@ -1,6 +1,6 @@
 package com.filetransfer.shared.routing;
 
-import com.filetransfer.shared.entity.FlowEvent;
+import com.filetransfer.shared.entity.transfer.FlowEvent;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 

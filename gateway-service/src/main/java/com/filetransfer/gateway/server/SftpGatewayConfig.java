@@ -18,7 +18,7 @@ import org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider;
 import org.apache.sshd.server.session.ServerSession;
 import org.apache.sshd.sftp.client.SftpClientFactory;
 import org.apache.sshd.sftp.server.SftpSubsystemFactory;
-import com.filetransfer.shared.entity.SecurityProfile;
+import com.filetransfer.shared.entity.core.SecurityProfile;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;

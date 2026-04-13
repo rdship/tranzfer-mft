@@ -1,7 +1,7 @@
 package com.filetransfer.config.controller;
 
 import com.filetransfer.config.service.PlatformSettingsService;
-import com.filetransfer.shared.entity.PlatformSetting;
+import com.filetransfer.shared.entity.core.PlatformSetting;
 import com.filetransfer.shared.enums.Environment;
 import com.filetransfer.shared.security.Roles;
 import jakarta.validation.Valid;

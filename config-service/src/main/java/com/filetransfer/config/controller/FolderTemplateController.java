@@ -1,7 +1,7 @@
 package com.filetransfer.config.controller;
 
 import com.filetransfer.config.service.FolderTemplateService;
-import com.filetransfer.shared.entity.FolderTemplate;
+import com.filetransfer.shared.entity.core.FolderTemplate;
 import com.filetransfer.shared.security.Roles;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

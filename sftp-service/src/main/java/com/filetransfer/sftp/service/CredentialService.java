@@ -1,7 +1,7 @@
 package com.filetransfer.sftp.service;
 
-import com.filetransfer.shared.entity.AuditLog;
-import com.filetransfer.shared.entity.TransferAccount;
+import com.filetransfer.shared.entity.core.AuditLog;
+import com.filetransfer.shared.entity.core.TransferAccount;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.repository.AuditLogRepository;
 import com.filetransfer.shared.repository.TransferAccountRepository;

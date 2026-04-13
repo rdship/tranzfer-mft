@@ -3,7 +3,7 @@ package com.filetransfer.config.controller;
 import com.filetransfer.config.service.MigrationService;
 import com.filetransfer.shared.entity.ConnectionAudit;
 import com.filetransfer.shared.entity.MigrationEvent;
-import com.filetransfer.shared.entity.Partner;
+import com.filetransfer.shared.entity.core.Partner;
 import com.filetransfer.shared.repository.PartnerRepository;
 import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;

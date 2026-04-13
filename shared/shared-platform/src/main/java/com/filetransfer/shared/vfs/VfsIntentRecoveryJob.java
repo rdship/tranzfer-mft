@@ -1,8 +1,8 @@
 package com.filetransfer.shared.vfs;
 
 import com.filetransfer.shared.client.StorageServiceClient;
-import com.filetransfer.shared.entity.VfsIntent;
-import com.filetransfer.shared.entity.VfsIntent.IntentStatus;
+import com.filetransfer.shared.entity.vfs.VfsIntent;
+import com.filetransfer.shared.entity.vfs.VfsIntent.IntentStatus;
 import com.filetransfer.shared.repository.VfsIntentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -1,6 +1,6 @@
 package com.filetransfer.shared.config;
 
-import com.filetransfer.shared.entity.PlatformSetting;
+import com.filetransfer.shared.entity.core.PlatformSetting;
 import com.filetransfer.shared.enums.Environment;
 import com.filetransfer.shared.repository.PlatformSettingRepository;
 import jakarta.annotation.PostConstruct;

@@ -1,6 +1,6 @@
 package com.filetransfer.shared.repository;
 
-import com.filetransfer.shared.entity.FileTransferRecord;
+import com.filetransfer.shared.entity.transfer.FileTransferRecord;
 import com.filetransfer.shared.enums.FileTransferStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.repository.JpaRepository;

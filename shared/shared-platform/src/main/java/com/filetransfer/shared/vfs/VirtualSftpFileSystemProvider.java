@@ -1,6 +1,6 @@
 package com.filetransfer.shared.vfs;
 
-import com.filetransfer.shared.entity.VirtualEntry;
+import com.filetransfer.shared.entity.vfs.VirtualEntry;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;

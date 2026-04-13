@@ -1,6 +1,6 @@
 package com.filetransfer.sentinel.collector;
 
-import com.filetransfer.shared.entity.FileTransferRecord;
+import com.filetransfer.shared.entity.transfer.FileTransferRecord;
 import com.filetransfer.shared.enums.FileTransferStatus;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;
 import lombok.Getter;

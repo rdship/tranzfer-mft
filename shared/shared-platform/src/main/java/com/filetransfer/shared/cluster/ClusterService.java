@@ -1,6 +1,6 @@
 package com.filetransfer.shared.cluster;
 
-import com.filetransfer.shared.entity.ServiceRegistration;
+import com.filetransfer.shared.entity.core.ServiceRegistration;
 import com.filetransfer.shared.enums.ClusterCommunicationMode;
 import com.filetransfer.shared.enums.ServiceType;
 import com.filetransfer.shared.repository.ServiceRegistrationRepository;

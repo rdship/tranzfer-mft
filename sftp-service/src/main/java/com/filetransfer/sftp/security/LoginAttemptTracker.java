@@ -1,6 +1,6 @@
 package com.filetransfer.sftp.security;
 
-import com.filetransfer.shared.entity.LoginAttempt;
+import com.filetransfer.shared.entity.security.LoginAttempt;
 import com.filetransfer.shared.repository.LoginAttemptRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

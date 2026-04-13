@@ -1,6 +1,6 @@
 package com.filetransfer.shared.dto;
 
-import com.filetransfer.shared.entity.FileFlow;
+import com.filetransfer.shared.entity.transfer.FileFlow;
 import lombok.Builder;
 import lombok.Data;
 

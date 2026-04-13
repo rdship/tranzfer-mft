@@ -2,8 +2,8 @@ package com.filetransfer.onboarding.service;
 
 import com.filetransfer.onboarding.dto.request.CreateFolderMappingRequest;
 import com.filetransfer.onboarding.dto.response.FolderMappingResponse;
-import com.filetransfer.shared.entity.FolderMapping;
-import com.filetransfer.shared.entity.TransferAccount;
+import com.filetransfer.shared.entity.transfer.FolderMapping;
+import com.filetransfer.shared.entity.core.TransferAccount;
 import com.filetransfer.shared.repository.FolderMappingRepository;
 import com.filetransfer.shared.repository.TransferAccountRepository;
 import lombok.RequiredArgsConstructor;

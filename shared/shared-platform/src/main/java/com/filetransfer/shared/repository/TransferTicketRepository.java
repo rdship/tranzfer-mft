@@ -1,6 +1,6 @@
 package com.filetransfer.shared.repository;
 
-import com.filetransfer.shared.entity.TransferTicket;
+import com.filetransfer.shared.entity.transfer.TransferTicket;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.Instant;

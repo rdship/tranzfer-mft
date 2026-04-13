@@ -2,7 +2,7 @@ package com.filetransfer.ai.service.phase3;
 
 import com.filetransfer.ai.service.SmartRetryService;
 import com.filetransfer.shared.connector.ConnectorDispatcher;
-import com.filetransfer.shared.entity.FileTransferRecord;
+import com.filetransfer.shared.entity.transfer.FileTransferRecord;
 import com.filetransfer.shared.enums.FileTransferStatus;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;
 import lombok.*;

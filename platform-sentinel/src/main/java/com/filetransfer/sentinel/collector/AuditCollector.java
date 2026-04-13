@@ -1,6 +1,6 @@
 package com.filetransfer.sentinel.collector;
 
-import com.filetransfer.shared.entity.AuditLog;
+import com.filetransfer.shared.entity.core.AuditLog;
 import com.filetransfer.shared.repository.AuditLogRepository;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

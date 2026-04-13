@@ -1,7 +1,7 @@
 package com.filetransfer.ftp.server;
 
 import com.filetransfer.shared.client.StorageServiceClient;
-import com.filetransfer.shared.entity.VirtualEntry;
+import com.filetransfer.shared.entity.vfs.VirtualEntry;
 import com.filetransfer.shared.vfs.VirtualFileSystem;
 import org.apache.ftpserver.ftplet.FileSystemView;
 import org.apache.ftpserver.ftplet.FtpException;

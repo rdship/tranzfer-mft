@@ -1,6 +1,6 @@
 package com.filetransfer.screening.service;
 
-import com.filetransfer.shared.entity.DlpPolicy;
+import com.filetransfer.shared.entity.security.DlpPolicy;
 import com.filetransfer.shared.repository.DlpPolicyRepository;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;

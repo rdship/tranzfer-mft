@@ -1,7 +1,7 @@
 package com.filetransfer.as2.service;
 
-import com.filetransfer.shared.entity.As2Message;
-import com.filetransfer.shared.entity.As2Partnership;
+import com.filetransfer.shared.entity.integration.As2Message;
+import com.filetransfer.shared.entity.integration.As2Partnership;
 import com.filetransfer.shared.repository.As2MessageRepository;
 import com.filetransfer.shared.repository.As2PartnershipRepository;
 import org.junit.jupiter.api.BeforeEach;

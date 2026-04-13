@@ -1,7 +1,7 @@
 package com.filetransfer.onboarding.controller;
 
 import com.filetransfer.onboarding.dto.response.ServiceRegistrationResponse;
-import com.filetransfer.shared.entity.ServiceRegistration;
+import com.filetransfer.shared.entity.core.ServiceRegistration;
 import com.filetransfer.shared.enums.ServiceType;
 import com.filetransfer.shared.repository.ServiceRegistrationRepository;
 import lombok.RequiredArgsConstructor;

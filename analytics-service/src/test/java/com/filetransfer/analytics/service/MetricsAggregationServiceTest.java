@@ -2,9 +2,9 @@ package com.filetransfer.analytics.service;
 
 import com.filetransfer.analytics.entity.MetricSnapshot;
 import com.filetransfer.analytics.repository.MetricSnapshotRepository;
-import com.filetransfer.shared.entity.FileTransferRecord;
-import com.filetransfer.shared.entity.FolderMapping;
-import com.filetransfer.shared.entity.TransferAccount;
+import com.filetransfer.shared.entity.transfer.FileTransferRecord;
+import com.filetransfer.shared.entity.transfer.FolderMapping;
+import com.filetransfer.shared.entity.core.TransferAccount;
 import com.filetransfer.shared.enums.FileTransferStatus;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;

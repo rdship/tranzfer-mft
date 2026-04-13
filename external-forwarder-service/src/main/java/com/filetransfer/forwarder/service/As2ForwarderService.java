@@ -1,8 +1,8 @@
 package com.filetransfer.forwarder.service;
 
 import com.filetransfer.shared.crypto.CredentialCryptoClient;
-import com.filetransfer.shared.entity.As2Message;
-import com.filetransfer.shared.entity.As2Partnership;
+import com.filetransfer.shared.entity.integration.As2Message;
+import com.filetransfer.shared.entity.integration.As2Partnership;
 import com.filetransfer.shared.repository.As2MessageRepository;
 import com.filetransfer.shared.repository.As2PartnershipRepository;
 import lombok.RequiredArgsConstructor;

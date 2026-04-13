@@ -1,6 +1,6 @@
 package com.filetransfer.shared.repository;
 
-import com.filetransfer.shared.entity.ServiceRegistration;
+import com.filetransfer.shared.entity.core.ServiceRegistration;
 import com.filetransfer.shared.enums.ServiceType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;

@@ -1,6 +1,6 @@
 package com.filetransfer.ai.service.phase3;
 
-import com.filetransfer.shared.entity.FileTransferRecord;
+import com.filetransfer.shared.entity.transfer.FileTransferRecord;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;

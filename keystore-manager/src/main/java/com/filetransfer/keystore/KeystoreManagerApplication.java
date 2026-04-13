@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(scanBasePackages = {"com.filetransfer.keystore", "com.filetransfer.shared"})
-@EntityScan(basePackages = {"com.filetransfer.keystore", "com.filetransfer.shared.entity"})
+@EntityScan(basePackages = {"com.filetransfer.shared.entity", "com.filetransfer.shared.entity.core"})
 @EnableJpaRepositories(basePackages = {"com.filetransfer.keystore", "com.filetransfer.shared.repository"})
 @EnableScheduling
 public class KeystoreManagerApplication {

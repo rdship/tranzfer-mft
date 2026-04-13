@@ -1,12 +1,12 @@
 package com.filetransfer.ftp.server;
 
 import com.filetransfer.shared.client.StorageServiceClient;
-import com.filetransfer.shared.entity.VirtualEntry;
+import com.filetransfer.shared.entity.vfs.VirtualEntry;
 import com.filetransfer.shared.vfs.VirtualFileSystem;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ftpserver.ftplet.FtpFile;
 
-import com.filetransfer.shared.entity.VirtualEntry;
+import com.filetransfer.shared.entity.vfs.VirtualEntry;
 
 import java.io.*;
 import java.nio.file.Files;

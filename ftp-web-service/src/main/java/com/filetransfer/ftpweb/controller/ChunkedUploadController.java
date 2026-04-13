@@ -1,8 +1,8 @@
 package com.filetransfer.ftpweb.controller;
 
 import com.filetransfer.ftpweb.service.ChunkedUploadService;
-import com.filetransfer.shared.entity.ChunkedUpload;
-import com.filetransfer.shared.entity.ChunkedUploadChunk;
+import com.filetransfer.shared.entity.vfs.ChunkedUpload;
+import com.filetransfer.shared.entity.vfs.ChunkedUploadChunk;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

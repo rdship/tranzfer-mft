@@ -1,6 +1,6 @@
 package com.filetransfer.shared.matching;
 
-import com.filetransfer.shared.entity.FileFlow;
+import com.filetransfer.shared.entity.transfer.FileFlow;
 import com.filetransfer.shared.repository.FileFlowRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

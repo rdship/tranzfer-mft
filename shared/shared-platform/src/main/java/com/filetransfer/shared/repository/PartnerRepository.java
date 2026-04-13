@@ -1,6 +1,6 @@
 package com.filetransfer.shared.repository;
 
-import com.filetransfer.shared.entity.Partner;
+import com.filetransfer.shared.entity.core.Partner;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

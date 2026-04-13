@@ -1,6 +1,6 @@
 package com.filetransfer.onboarding.dryrun;
 
-import com.filetransfer.shared.entity.FileFlow;
+import com.filetransfer.shared.entity.transfer.FileFlow;
 import com.filetransfer.shared.repository.FileFlowRepository;
 import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;

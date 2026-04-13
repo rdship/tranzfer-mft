@@ -1,6 +1,6 @@
 package com.filetransfer.shared.matching;
 
-import com.filetransfer.shared.entity.FileFlow;
+import com.filetransfer.shared.entity.transfer.FileFlow;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 

@@ -1,8 +1,8 @@
 package com.filetransfer.onboarding.service;
 
 import com.filetransfer.shared.audit.AuditService;
-import com.filetransfer.shared.entity.TransferAccount;
-import com.filetransfer.shared.entity.User;
+import com.filetransfer.shared.entity.core.TransferAccount;
+import com.filetransfer.shared.entity.core.User;
 import com.filetransfer.shared.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

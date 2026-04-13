@@ -3,7 +3,7 @@ package com.filetransfer.sftp.server;
 import com.filetransfer.sftp.service.CredentialService;
 import com.filetransfer.shared.client.StorageServiceClient;
 import com.filetransfer.shared.dto.FolderDefinition;
-import com.filetransfer.shared.entity.TransferAccount;
+import com.filetransfer.shared.entity.core.TransferAccount;
 import com.filetransfer.shared.repository.FolderTemplateRepository;
 import com.filetransfer.shared.repository.ServerInstanceRepository;
 import com.filetransfer.shared.vfs.VirtualFileSystem;

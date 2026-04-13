@@ -1,8 +1,8 @@
 package com.filetransfer.as2.service;
 
-import com.filetransfer.shared.entity.As2Partnership;
-import com.filetransfer.shared.entity.TransferAccount;
-import com.filetransfer.shared.entity.User;
+import com.filetransfer.shared.entity.integration.As2Partnership;
+import com.filetransfer.shared.entity.core.TransferAccount;
+import com.filetransfer.shared.entity.core.User;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.repository.TransferAccountRepository;
 import com.filetransfer.shared.repository.UserRepository;

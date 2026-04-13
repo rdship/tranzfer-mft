@@ -1,8 +1,8 @@
 package com.filetransfer.shared.scheduler;
 
 import com.filetransfer.shared.connector.ConnectorDispatcher;
-import com.filetransfer.shared.entity.FileTransferRecord;
-import com.filetransfer.shared.entity.PartnerAgreement;
+import com.filetransfer.shared.entity.transfer.FileTransferRecord;
+import com.filetransfer.shared.entity.integration.PartnerAgreement;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;
 import com.filetransfer.shared.repository.PartnerAgreementRepository;
 import lombok.*;

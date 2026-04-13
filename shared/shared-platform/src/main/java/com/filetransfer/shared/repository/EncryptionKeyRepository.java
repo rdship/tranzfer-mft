@@ -1,6 +1,6 @@
 package com.filetransfer.shared.repository;
 
-import com.filetransfer.shared.entity.EncryptionKey;
+import com.filetransfer.shared.entity.core.EncryptionKey;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

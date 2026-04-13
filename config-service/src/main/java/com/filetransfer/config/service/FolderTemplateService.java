@@ -1,7 +1,7 @@
 package com.filetransfer.config.service;
 
 import com.filetransfer.shared.dto.FolderDefinition;
-import com.filetransfer.shared.entity.FolderTemplate;
+import com.filetransfer.shared.entity.core.FolderTemplate;
 import com.filetransfer.shared.repository.FolderTemplateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

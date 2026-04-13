@@ -3,7 +3,7 @@ package com.filetransfer.analytics.service;
 import com.filetransfer.analytics.dto.ObservatoryDto;
 import com.filetransfer.analytics.entity.MetricSnapshot;
 import com.filetransfer.analytics.repository.MetricSnapshotRepository;
-import com.filetransfer.shared.entity.FlowExecution;
+import com.filetransfer.shared.entity.transfer.FlowExecution;
 import com.filetransfer.shared.repository.FlowExecutionRepository;
 import com.filetransfer.shared.repository.FlowStepSnapshotRepository;
 import lombok.RequiredArgsConstructor;

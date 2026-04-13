@@ -6,7 +6,7 @@ import com.filetransfer.ftp.security.LoginLockoutService;
 import com.filetransfer.ftp.service.CredentialService;
 import com.filetransfer.ftp.throttle.BandwidthThrottleService;
 import com.filetransfer.shared.dto.FolderDefinition;
-import com.filetransfer.shared.entity.TransferAccount;
+import com.filetransfer.shared.entity.core.TransferAccount;
 import com.filetransfer.shared.repository.FolderTemplateRepository;
 import com.filetransfer.shared.repository.ServerInstanceRepository;
 import lombok.RequiredArgsConstructor;

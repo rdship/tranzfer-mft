@@ -1,6 +1,6 @@
 package com.filetransfer.shared.repository;
 
-import com.filetransfer.shared.entity.ChunkedUploadChunk;
+import com.filetransfer.shared.entity.vfs.ChunkedUploadChunk;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

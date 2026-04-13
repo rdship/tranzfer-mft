@@ -1,8 +1,8 @@
 package com.filetransfer.config.controller;
 
-import com.filetransfer.shared.entity.ExternalDestination;
-import com.filetransfer.shared.entity.ListenerSecurityPolicy;
-import com.filetransfer.shared.entity.ServerInstance;
+import com.filetransfer.shared.entity.core.ExternalDestination;
+import com.filetransfer.shared.entity.security.ListenerSecurityPolicy;
+import com.filetransfer.shared.entity.core.ServerInstance;
 import com.filetransfer.shared.enums.SecurityTier;
 import com.filetransfer.shared.repository.ListenerSecurityPolicyRepository;
 import org.junit.jupiter.api.BeforeEach;

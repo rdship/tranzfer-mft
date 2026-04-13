@@ -1,7 +1,7 @@
 package com.filetransfer.onboarding.controller;
 
 import com.filetransfer.onboarding.service.UserDeletionService;
-import com.filetransfer.shared.entity.User;
+import com.filetransfer.shared.entity.core.User;
 import com.filetransfer.shared.enums.UserRole;
 import com.filetransfer.shared.security.Roles;
 import io.swagger.v3.oas.annotations.Operation;

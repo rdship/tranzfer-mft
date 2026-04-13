@@ -1,8 +1,8 @@
 package com.filetransfer.onboarding.controller;
 
 import com.filetransfer.shared.entity.ServerAccountAssignment;
-import com.filetransfer.shared.entity.ServerInstance;
-import com.filetransfer.shared.entity.TransferAccount;
+import com.filetransfer.shared.entity.core.ServerInstance;
+import com.filetransfer.shared.entity.core.TransferAccount;
 import com.filetransfer.shared.repository.ServerAccountAssignmentRepository;
 import com.filetransfer.shared.repository.ServerInstanceRepository;
 import com.filetransfer.shared.repository.TransferAccountRepository;

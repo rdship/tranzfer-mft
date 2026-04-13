@@ -1,7 +1,7 @@
 package com.filetransfer.config.controller;
 
-import com.filetransfer.shared.entity.VfsIntent;
-import com.filetransfer.shared.entity.VfsIntent.IntentStatus;
+import com.filetransfer.shared.entity.vfs.VfsIntent;
+import com.filetransfer.shared.entity.vfs.VfsIntent.IntentStatus;
 import java.util.EnumMap;
 import java.util.HashMap;
 import com.filetransfer.shared.repository.VfsChunkRepository;

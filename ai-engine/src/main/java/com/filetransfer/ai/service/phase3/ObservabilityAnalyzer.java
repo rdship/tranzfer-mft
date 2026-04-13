@@ -1,6 +1,6 @@
 package com.filetransfer.ai.service.phase3;
 
-import com.filetransfer.shared.entity.FileTransferRecord;
+import com.filetransfer.shared.entity.transfer.FileTransferRecord;
 import com.filetransfer.shared.enums.FileTransferStatus;
 import com.filetransfer.shared.repository.AuditLogRepository;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;

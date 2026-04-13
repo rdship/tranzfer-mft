@@ -1,6 +1,6 @@
 package com.filetransfer.shared.security;
 
-import com.filetransfer.shared.entity.User;
+import com.filetransfer.shared.entity.core.User;
 import com.filetransfer.shared.repository.RolePermissionRepository;
 import com.filetransfer.shared.repository.UserPermissionRepository;
 import com.filetransfer.shared.repository.UserRepository;

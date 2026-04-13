@@ -1,6 +1,6 @@
 package com.filetransfer.config.controller;
 
-import com.filetransfer.shared.entity.SecurityProfile;
+import com.filetransfer.shared.entity.core.SecurityProfile;
 import com.filetransfer.shared.repository.SecurityProfileRepository;
 import com.filetransfer.shared.security.Roles;
 import jakarta.persistence.EntityNotFoundException;

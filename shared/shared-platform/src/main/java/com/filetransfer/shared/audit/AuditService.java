@@ -1,7 +1,7 @@
 package com.filetransfer.shared.audit;
 
-import com.filetransfer.shared.entity.AuditLog;
-import com.filetransfer.shared.entity.TransferAccount;
+import com.filetransfer.shared.entity.core.AuditLog;
+import com.filetransfer.shared.entity.core.TransferAccount;
 import com.filetransfer.shared.repository.AuditLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -1,6 +1,6 @@
 package com.filetransfer.shared.flow;
 
-import com.filetransfer.shared.entity.FlowEvent;
+import com.filetransfer.shared.entity.transfer.FlowEvent;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.flow.builtin.ChecksumVerifyFunction;
 import com.filetransfer.shared.matching.CompiledFlowRule;

@@ -1,7 +1,7 @@
 package com.filetransfer.onboarding.controller;
 
 import com.filetransfer.shared.client.StorageServiceClient;
-import com.filetransfer.shared.entity.FlowStepSnapshot;
+import com.filetransfer.shared.entity.transfer.FlowStepSnapshot;
 import com.filetransfer.shared.repository.FlowStepSnapshotRepository;
 import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;

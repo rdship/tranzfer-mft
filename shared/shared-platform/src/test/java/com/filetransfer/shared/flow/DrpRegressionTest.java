@@ -1,7 +1,7 @@
 package com.filetransfer.shared.flow;
 
-import com.filetransfer.shared.entity.FlowExecution;
-import com.filetransfer.shared.entity.FileFlow;
+import com.filetransfer.shared.entity.transfer.FlowExecution;
+import com.filetransfer.shared.entity.transfer.FileFlow;
 import com.filetransfer.shared.flow.builtin.ChecksumVerifyFunction;
 import com.filetransfer.shared.matching.*;
 import org.junit.jupiter.api.*;

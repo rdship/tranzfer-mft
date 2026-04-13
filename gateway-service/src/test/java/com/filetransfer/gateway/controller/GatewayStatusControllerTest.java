@@ -1,7 +1,7 @@
 package com.filetransfer.gateway.controller;
 
 import com.filetransfer.shared.entity.LegacyServerConfig;
-import com.filetransfer.shared.entity.ServerInstance;
+import com.filetransfer.shared.entity.core.ServerInstance;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.repository.LegacyServerConfigRepository;
 import com.filetransfer.shared.repository.ServerInstanceRepository;

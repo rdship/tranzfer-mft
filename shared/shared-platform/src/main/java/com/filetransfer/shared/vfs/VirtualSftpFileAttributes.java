@@ -1,6 +1,6 @@
 package com.filetransfer.shared.vfs;
 
-import com.filetransfer.shared.entity.VirtualEntry;
+import com.filetransfer.shared.entity.vfs.VirtualEntry;
 
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;

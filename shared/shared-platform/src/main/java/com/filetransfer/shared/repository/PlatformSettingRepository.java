@@ -1,6 +1,6 @@
 package com.filetransfer.shared.repository;
 
-import com.filetransfer.shared.entity.PlatformSetting;
+import com.filetransfer.shared.entity.core.PlatformSetting;
 import com.filetransfer.shared.enums.Environment;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;

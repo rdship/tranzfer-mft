@@ -1,7 +1,7 @@
 package com.filetransfer.shared.repository;
 
-import com.filetransfer.shared.entity.VfsChunk;
-import com.filetransfer.shared.entity.VfsChunk.ChunkStatus;
+import com.filetransfer.shared.entity.vfs.VfsChunk;
+import com.filetransfer.shared.entity.vfs.VfsChunk.ChunkStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;

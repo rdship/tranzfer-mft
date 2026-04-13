@@ -1,6 +1,6 @@
 package com.filetransfer.shared.repository;
 
-import com.filetransfer.shared.entity.FlowApproval;
+import com.filetransfer.shared.entity.transfer.FlowApproval;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

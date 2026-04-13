@@ -2,7 +2,7 @@ package com.filetransfer.onboarding.controller;
 
 import com.filetransfer.shared.cluster.ClusterContext;
 import com.filetransfer.shared.cluster.ClusterService;
-import com.filetransfer.shared.entity.User;
+import com.filetransfer.shared.entity.core.User;
 import com.filetransfer.shared.repository.*;
 import com.filetransfer.shared.util.TrackIdGenerator;
 import org.junit.jupiter.api.BeforeEach;

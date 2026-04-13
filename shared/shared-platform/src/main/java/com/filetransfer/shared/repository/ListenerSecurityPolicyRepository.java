@@ -1,6 +1,6 @@
 package com.filetransfer.shared.repository;
 
-import com.filetransfer.shared.entity.ListenerSecurityPolicy;
+import com.filetransfer.shared.entity.security.ListenerSecurityPolicy;
 import com.filetransfer.shared.enums.SecurityTier;
 import org.springframework.data.jpa.repository.JpaRepository;
 

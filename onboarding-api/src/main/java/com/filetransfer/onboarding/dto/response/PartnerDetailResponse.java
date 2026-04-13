@@ -1,8 +1,8 @@
 package com.filetransfer.onboarding.dto.response;
 
-import com.filetransfer.shared.entity.Partner;
-import com.filetransfer.shared.entity.PartnerContact;
-import com.filetransfer.shared.entity.TransferAccount;
+import com.filetransfer.shared.entity.core.Partner;
+import com.filetransfer.shared.entity.integration.PartnerContact;
+import com.filetransfer.shared.entity.core.TransferAccount;
 import lombok.Builder;
 import lombok.Data;
 

@@ -1,6 +1,6 @@
 package com.filetransfer.onboarding.controller;
 
-import com.filetransfer.shared.entity.PartnerWebhook;
+import com.filetransfer.shared.entity.integration.PartnerWebhook;
 import com.filetransfer.shared.repository.PartnerWebhookRepository;
 import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;

@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(scanBasePackages = {"com.filetransfer.notification", "com.filetransfer.shared"})
-@EntityScan(basePackages = {"com.filetransfer.notification.entity", "com.filetransfer.shared.entity"})
+@EntityScan(basePackages = {"com.filetransfer.shared.entity", "com.filetransfer.shared.entity.core", "com.filetransfer.shared.entity.integration"})
 @EnableJpaRepositories(basePackages = {"com.filetransfer.notification.repository", "com.filetransfer.shared.repository"})
 @EnableScheduling
 public class NotificationApplication {

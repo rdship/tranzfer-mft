@@ -1,6 +1,11 @@
 package com.filetransfer.config.service;
 
 import com.filetransfer.shared.entity.*;
+import com.filetransfer.shared.entity.core.*;
+import com.filetransfer.shared.entity.transfer.*;
+import com.filetransfer.shared.entity.vfs.*;
+import com.filetransfer.shared.entity.security.*;
+import com.filetransfer.shared.entity.integration.*;
 import com.filetransfer.shared.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
