@@ -29,4 +29,16 @@ public class FileReceiveController {
         log.info("Receiving forwarded file: record={} dest={}", request.getRecordId(), request.getDestinationAbsolutePath());
         routingEngine.receiveForwardedFile(request);
     }
+
+    /** Streaming multipart receive — no Base64, bytes flow directly from HTTP body to disk. */
+    @PostMapping(value = "/receive-stream", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasRole('INTERNAL')")
+    public void receiveStream(@RequestPart("file") org.springframework.web.multipart.MultipartFile file,
+                               @RequestParam java.util.UUID recordId,
+                               @RequestParam String destinationPath,
+                               @RequestParam String originalFilename) throws IOException {
+        log.info("Receiving streamed file: record={} dest={}", recordId, destinationPath);
+        routingEngine.receiveStreamedFile(recordId, destinationPath, originalFilename, file.getInputStream());
+    }
 }

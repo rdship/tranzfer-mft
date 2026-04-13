@@ -1965,8 +1965,11 @@ public class FlowProcessingEngine {
     }
 
     /**
-     * FILE_DELIVERY — fetch bytes from storage-manager → deliver to external endpoints
-     * via forwarder-service. No disk I/O; bytes only transit JVM heap during Base64 encoding.
+     * FILE_DELIVERY — stream file from storage-manager CAS → forwarder-service → partner.
+     *
+     * <p>Uses streaming multipart POST (no Base64, no full heap load). Bytes flow:
+     * {@code CAS disk → PipedStream → multipart HTTP → forwarder → partner SFTP/FTP/AS2}.
+     * Memory overhead: ~64 KB pipe buffer per delivery (was: 133% of file size with Base64).
      */
     private StepOutcome refFileDelivery(String storageKey, String virtualPath, long sizeBytes,
                                          FileRef origin, String trackId,
@@ -1980,23 +1983,46 @@ public class FlowProcessingEngine {
         if (endpoints.isEmpty())
             throw new IllegalArgumentException("No active delivery endpoints for: " + endpointIdsStr);
 
-        byte[] fileBytes = storageClient.retrieveBySha256(storageKey);
-        String base64    = Base64.getEncoder().encodeToString(fileBytes);
         String filename  = VirtualFileSystem.nameOf(virtualPath);
         String fwdUrl    = serviceProps.getForwarderService().getUrl();
         int ok = 0; List<String> failures = new ArrayList<>();
 
         for (DeliveryEndpoint ep : endpoints) {
             try {
-                String url = fwdUrl + "/api/forward/deliver/" + ep.getId() + "/base64"
+                // Stream CAS → PipedStream → multipart POST (zero full-heap load)
+                java.io.PipedOutputStream pipedOut = new java.io.PipedOutputStream();
+                java.io.PipedInputStream  pipedIn  = new java.io.PipedInputStream(pipedOut, 65536);
+
+                // Virtual thread: pump CAS bytes into the pipe
+                Thread.ofVirtual().name("delivery-pump-" + trackId).start(() -> {
+                    try {
+                        storageClient.streamToOutput(storageKey, pipedOut);
+                    } catch (Exception e) {
+                        log.error("[{}] CAS stream pump failed: {}", trackId, e.getMessage());
+                    } finally {
+                        try { pipedOut.close(); } catch (Exception ignored) {}
+                    }
+                });
+
+                // Streaming InputStreamResource — Spring reads from pipe on demand
+                org.springframework.core.io.InputStreamResource streamResource =
+                        new org.springframework.core.io.InputStreamResource(pipedIn) {
+                            @Override public long contentLength() { return sizeBytes; }
+                            @Override public String getFilename() { return filename; }
+                        };
+
+                String url = fwdUrl + "/api/forward/deliver/" + ep.getId()
                         + "?filename=" + java.net.URLEncoder.encode(filename, "UTF-8")
                         + "&trackId=" + java.net.URLEncoder.encode(trackId != null ? trackId : "", "UTF-8");
                 HttpHeaders fwdHdr = new HttpHeaders();
-                fwdHdr.setContentType(MediaType.TEXT_PLAIN);
+                fwdHdr.setContentType(MediaType.MULTIPART_FORM_DATA);
                 addInternalAuth(fwdHdr, "external-forwarder-service");
-                restTemplate.postForEntity(url, new HttpEntity<>(base64, fwdHdr), Map.class);
+                org.springframework.util.LinkedMultiValueMap<String, Object> body =
+                        new org.springframework.util.LinkedMultiValueMap<>();
+                body.add("file", streamResource);
+                restTemplate.postForEntity(url, new HttpEntity<>(body, fwdHdr), Map.class);
                 ok++;
-                log.info("[{}] FILE_DELIVERY (VIRTUAL) to '{}' OK", trackId, ep.getName());
+                log.info("[{}] FILE_DELIVERY (VIRTUAL/streaming) to '{}' OK", trackId, ep.getName());
             } catch (Exception e) {
                 failures.add(ep.getName() + ": " + e.getMessage());
                 log.error("[{}] FILE_DELIVERY (VIRTUAL) failed for '{}': {}", trackId, ep.getName(), e.getMessage());

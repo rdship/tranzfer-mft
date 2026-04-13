@@ -22,4 +22,14 @@ public class FileReceiveController {
     public void receive(@RequestBody FileForwardRequest request) throws IOException {
         routingEngine.receiveForwardedFile(request);
     }
+
+    @PostMapping(value = "/receive-stream", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasRole('INTERNAL')")
+    public void receiveStream(@RequestPart("file") org.springframework.web.multipart.MultipartFile file,
+                               @RequestParam java.util.UUID recordId,
+                               @RequestParam String destinationPath,
+                               @RequestParam String originalFilename) throws IOException {
+        routingEngine.receiveStreamedFile(recordId, destinationPath, originalFilename, file.getInputStream());
+    }
 }

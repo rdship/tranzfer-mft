@@ -531,6 +531,25 @@ public class RoutingEngine {
         }
     }
 
+    /**
+     * Receive a forwarded file via streaming multipart — no Base64 encoding.
+     * File bytes stream directly from the HTTP request body to local disk.
+     */
+    @Transactional
+    public void receiveStreamedFile(java.util.UUID recordId, String destinationPath,
+                                     String originalFilename, java.io.InputStream fileData) throws IOException {
+        Path dest = Paths.get(destinationPath);
+        Files.createDirectories(dest.getParent());
+        Files.copy(fileData, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+
+        FileTransferRecord record = recordRepository.findById(recordId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown record: " + recordId));
+        record.setStatus(FileTransferStatus.IN_OUTBOX);
+        record.setRoutedAt(Instant.now());
+        recordRepository.save(record);
+        log.info("[{}] Received streamed file: {}", record.getTrackId(), dest);
+    }
+
     @Transactional
     public void receiveForwardedFile(FileForwardRequest request) throws IOException {
         Path dest = Paths.get(request.getDestinationAbsolutePath());
@@ -592,30 +611,35 @@ public class RoutingEngine {
         log.info("[{}] Routed locally: {} -> {}", trackId, src.getFileName(), dst.getFileName());
     }
 
+    /**
+     * Route file to a remote service instance via streaming multipart POST.
+     * Bytes flow directly from local disk → HTTP body → remote service. No Base64, no full heap load.
+     * Memory overhead: ~8 KB buffer (was: 233% of file size with Base64 in JSON body).
+     */
     private void routeRemotely(String sourceAbsPath, FileTransferRecord record,
                                 ServiceRegistration destService, String trackId) throws IOException {
-        byte[] bytes = Files.readAllBytes(Paths.get(sourceAbsPath));
-        String encoded = Base64.getEncoder().encodeToString(bytes);
-
         // Embed trackId in destination filename
         String destPath = record.getDestinationFilePath();
         Path destP = Paths.get(destPath);
         String destWithTrack = destP.getParent().resolve(embedTrackId(destP.getFileName().toString(), trackId)).toString();
 
-        FileForwardRequest req = FileForwardRequest.builder()
-                .recordId(record.getId())
-                .destinationAbsolutePath(destWithTrack)
-                .originalFilename(embedTrackId(record.getOriginalFilename(), trackId))
-                .fileContentBase64(encoded)
-                .build();
+        // Stream file directly from disk as multipart — no byte[] in heap
+        org.springframework.core.io.FileSystemResource fileResource =
+                new org.springframework.core.io.FileSystemResource(Paths.get(sourceAbsPath).toFile());
 
         String url = "http://" + destService.getHost() + ":" + destService.getControlPort()
-                + "/internal/files/receive";
+                + "/internal/files/receive-stream"
+                + "?recordId=" + record.getId()
+                + "&destinationPath=" + java.net.URLEncoder.encode(destWithTrack, "UTF-8")
+                + "&originalFilename=" + java.net.URLEncoder.encode(
+                        embedTrackId(record.getOriginalFilename(), trackId), "UTF-8");
 
         HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
         addInternalAuth(headers, destService.getHost());
-        HttpEntity<FileForwardRequest> entity = new HttpEntity<>(req, headers);
+        org.springframework.util.LinkedMultiValueMap<String, Object> body =
+                new org.springframework.util.LinkedMultiValueMap<>();
+        body.add("file", fileResource);
 
         // ── Compute destination checksum before forwarding (PCI 11.5 integrity) ──
         try {
@@ -624,12 +648,13 @@ public class RoutingEngine {
             log.warn("[{}] Could not compute destination checksum for remote route: {}", trackId, e.getMessage());
         }
 
-        ResponseEntity<Void> response = restTemplate.exchange(url, HttpMethod.POST, entity, Void.class);
+        ResponseEntity<Void> response = restTemplate.exchange(url, HttpMethod.POST,
+                new HttpEntity<>(body, headers), Void.class);
         if (response.getStatusCode().is2xxSuccessful()) {
             record.setStatus(FileTransferStatus.IN_OUTBOX);
             record.setRoutedAt(Instant.now());
             recordRepository.save(record);
-            log.info("[{}] Routed remotely to {}:{}", trackId, destService.getHost(), destService.getControlPort());
+            log.info("[{}] Routed remotely (streaming) to {}:{}", trackId, destService.getHost(), destService.getControlPort());
         } else {
             throw new RuntimeException("Remote forward returned " + response.getStatusCode());
         }
