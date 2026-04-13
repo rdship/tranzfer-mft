@@ -1185,3 +1185,94 @@ mft-final-report-20260413.zip
 **Stop shipping without integration tests on the API layer.** 14 of 40 endpoints return 500. This is a QA gap that no amount of unit testing will catch — these are runtime serialization failures that only manifest when Jackson tries to write the HTTP response.
 
 **The user experience of seeing 5 error toasts per page is unacceptable for a product that aims to be enterprise-grade.** Fix the root cause, don't catch-and-toast.
+
+---
+
+## End-to-End File Flow Test Results (2026-04-13)
+
+### Test: Upload "AKCHI-final-001.txt" containing "one small step for man kind" via DMZ proxy SFTP
+
+**Account:** `e2e_flow_test` (password: SftpPass@1!, server: sftp-1)
+**Flow created:** `akchi-final-flow` (pattern: AKCHI.*, priority: 1, steps: CHECKSUM_VERIFY → MAILBOX)
+**Upload method:** SFTP via DMZ proxy (port 32222)
+**Track ID:** `TRZJJJ3BRNL9`
+
+### Pipeline Trace (with timing)
+
+| Step | Time | Status | Detail |
+|---|---|---|---|
+| SFTP login via DMZ proxy | 0ms | ✅ | Authenticated as e2e_flow_test |
+| File upload (28 bytes) | 959ms | ✅ | /inbound/AKCHI-final-001.txt |
+| File detection by routing engine | <1ms | ✅ | SftpRoutingEventListener fired |
+| RabbitMQ event publish | — | ⚠ | Failed: SimpleMessageConverter can't serialize FileUploadedEvent (fell back to synchronous) |
+| Flow matching | <1ms | ⚠ | Matched 'Mailbox Distribution' (priority=100) NOT 'akchi-final-flow' (priority=1) — FlowRuleRegistry stale cache |
+| FileTransferRecord created | <1ms | ✅ | **NEW: CTO's V56 migration works!** Record visible in DB |
+| Step 1/3: SCREEN | 51ms | ✅ | Screening service unreachable → graceful degradation (allowed) |
+| Step 2/3: RENAME | 9ms | ✅ | File renamed to AKCHI-final-001_{timestamp}.txt |
+| Step 3/3: MAILBOX | 6ms | ❌ | Destination account 'retailmax-ftp-web' not found (wrong flow matched) |
+| AI classification | — | ✅ | Ran in parallel |
+| Activity Monitor visibility | — | ✅ | **Record appears at position #1** with track ID TRZJJJ3BRNL9 |
+| Download button | — | ❌ | File not in storage-manager (SEDA pipeline doesn't push to centralized storage) |
+
+### What Works End-to-End
+
+1. ✅ SFTP upload through DMZ proxy — authentication, session, file transfer all working
+2. ✅ File detection — routing engine picks up the file within milliseconds
+3. ✅ Flow execution starts — SEDA pipeline stages (INTAKE → PIPELINE → DELIVERY) fire
+4. ✅ Individual steps execute — SCREEN (51ms), RENAME (9ms), CHECKSUM_VERIFY (3-7ms in earlier tests)
+5. ✅ FileTransferRecord created — CTO's V56 migration creates the record for SEDA files
+6. ✅ Activity Monitor shows the transfer — track ID visible, status PENDING
+7. ✅ Error persistence — FAILED status + clear error message in flow_executions table
+8. ✅ Graceful degradation — screening service unreachable → allows transfer (doesn't block)
+
+### What Doesn't Work
+
+1. ❌ **FlowRuleRegistry stale cache** — new flows created via API aren't picked up by the routing engine until service restart. Our `akchi-final-flow` (priority=1) should have matched but the registry still had the old compiled rules. File matched `Mailbox Distribution` (priority=100) instead.
+
+   **Fix needed:** Add cache refresh mechanism — either a scheduled poll every 30s or a Kafka/RabbitMQ event when a flow is created/updated/deleted.
+
+2. ❌ **RabbitMQ message serialization** — `SimpleMessageConverter only supports String, byte[] and Serializable payloads, received: FileUploadedEvent`. The event class needs to implement `Serializable` or RabbitMQ needs a Jackson message converter.
+
+   **Fix needed:** Either `implements Serializable` on `FileUploadedEvent` or configure `Jackson2JsonMessageConverter` as the RabbitMQ message converter.
+
+3. ❌ **Download button "Failed to fetch"** — the UI calls `/api/v1/storage/retrieve/{trackId}` but the file was processed on the SFTP container's local filesystem, never pushed to storage-manager (MinIO). Files processed through SEDA stay local.
+
+   **Fix needed:** SEDA pipeline's MAILBOX step (or a post-processing step) should upload the file to storage-manager after processing. Or: the download button should fall back to fetching from the SFTP service directly.
+
+4. ❌ **MAILBOX step fails on wrong destination** — because the wrong flow matched (stale cache), the MAILBOX step tried to deliver to `retailmax-ftp-web` which doesn't exist as an SFTP account.
+
+   **Fix needed:** Fix #1 (FlowRuleRegistry refresh) resolves this — the correct flow with the correct destination would match.
+
+5. ❌ **Activity Monitor `originalFilename` shows as `?`** — the DTO mapping doesn't include the filename field. The field exists in the DB (`original_filename=AKCHI-final-001.txt`) but the API response doesn't expose it.
+
+   **Fix needed:** Map `originalFilename` in the ActivityMonitorController's response DTO.
+
+6. ❌ **`routed_at` is NULL for SEDA-processed files** — the FileTransferRecord is created but `routed_at` timestamp isn't set. This affects sorting in the Activity Monitor.
+
+   **Fix needed:** Set `routed_at = Instant.now()` when creating the FileTransferRecord in the routing engine.
+
+7. ❌ **`flow_step_snapshots` column too narrow** — `input_storage_key` column is `varchar(64)` but file paths can exceed 64 chars. Causes `value too long for type character varying(64)` when persisting step snapshots.
+
+   **Fix needed:** `ALTER TABLE flow_step_snapshots ALTER COLUMN input_storage_key TYPE varchar(512), ALTER COLUMN output_storage_key TYPE varchar(512);`
+
+### Session Summary — All Fixes Pushed to Git Today
+
+| Commit | What Fixed |
+|---|---|
+| FolderMapping `@JsonIgnore` on lazy fields | /api/folder-mappings LazyInit |
+| FlowExecution gateway route → onboarding-api | /flow-executions/live-stats + scheduled-retries |
+| Analytics `JavaTimeModule` for Redis cache | /analytics/observatory Instant serialization |
+| Gateway path rewrites (screening→dlp, ai→recommendations, activity→events) | 3 endpoints returning wrong "No static resource" |
+| ActivityMonitor null-check on `fm.getEncryptionOption()` | NPE when FolderMapping is null (SEDA files) |
+| DMZ-proxy healthcheck accepts DEGRADED | Was permanently unhealthy |
+| Partner-portal HTTP healthcheck | Was checking HTTPS:8443 on HTTP-only service |
+
+### What Dev Team Should Focus On Next
+
+**Priority 1 — FlowRuleRegistry live refresh:** Without this, no new flow created via the UI will ever match a file until ALL services restart. This blocks the entire "create flow → test it" workflow.
+
+**Priority 2 — RabbitMQ Jackson message converter:** Event-driven architecture doesn't work until this is fixed. Currently falls back to synchronous processing.
+
+**Priority 3 — Storage-manager integration for SEDA files:** Download button won't work until files are pushed to centralized storage after processing.
+
+**Priority 4 — JWT token refresh / longer TTL:** 15-minute token expiry causes 403 on every page after the user has been browsing for >15 minutes. Either implement refresh tokens or increase TTL to 3600s for the admin UI.
