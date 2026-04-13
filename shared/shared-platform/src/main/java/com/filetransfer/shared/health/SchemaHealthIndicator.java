@@ -3,33 +3,41 @@ package com.filetransfer.shared.health;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.metamodel.EntityType;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
+import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
 
 /**
- * Background schema health sensor.
+ * Lightweight background schema health sensor.
  *
- * <p>Runs 30s after boot (non-blocking). Validates that every JPA entity's table
- * exists in the database. Reports results via {@code /actuator/health/schema}
- * and logs drift for Platform Sentinel to detect.
+ * <p>Non-blocking: service boots and serves immediately. This sensor checks
+ * entity-to-table mapping on a configurable schedule (default: every 5 min).
+ * First check runs 30s after boot.
  *
- * <p>This replaces blocking Hibernate schema validation on boot:
- * <ul>
- *   <li>Demo/K8s: boot fast, sensor detects drift in background
- *   <li>On-premise: same — admin is alerted, service keeps running
- * </ul>
+ * <p>Configuration (application.yml or env var):
+ * <pre>
+ * platform:
+ *   schema-check:
+ *     enabled: true           # default true
+ *     initial-delay-seconds: 30   # first check after boot
+ *     interval-seconds: 300       # repeat every 5 min (configurable via Scheduler UI)
+ * </pre>
+ *
+ * <p>Results visible at {@code /actuator/health/schema} and via REST API
+ * {@code GET /api/internal/schema-health}. Logs SCHEMA_DRIFT as ERROR
+ * for Platform Sentinel to detect.
  */
 @Slf4j
 @Component
@@ -39,9 +47,23 @@ public class SchemaHealthIndicator implements HealthIndicator {
     private final EntityManager entityManager;
     private final DataSource dataSource;
 
+    @Value("${platform.schema-check.enabled:true}")
+    private boolean enabled;
+
+    @Value("${platform.schema-check.initial-delay-seconds:30}")
+    private int initialDelaySeconds;
+
+    @Value("${platform.schema-check.interval-seconds:300}")
+    private int intervalSeconds;
+
+    @Value("${cluster.service-type:UNKNOWN}")
+    private String serviceType;
+
     private volatile boolean checked = false;
     private volatile boolean healthy = true;
-    private final Map<String, String> findings = new ConcurrentHashMap<>();
+    private volatile Instant lastChecked;
+    private final Map<String, Object> findings = new ConcurrentHashMap<>();
+    private ScheduledExecutorService scheduler;
 
     public SchemaHealthIndicator(EntityManager entityManager, DataSource dataSource) {
         this.entityManager = entityManager;
@@ -49,18 +71,26 @@ public class SchemaHealthIndicator implements HealthIndicator {
     }
 
     @EventListener(ApplicationReadyEvent.class)
-    @Async
-    public void validateSchemaInBackground() {
-        try {
-            // Wait 30s after boot so the service is serving traffic immediately
-            Thread.sleep(30_000);
-            runValidation();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+    public void startScheduledValidation() {
+        if (!enabled) {
+            log.info("Schema health check disabled (platform.schema-check.enabled=false)");
+            checked = true;
+            findings.put("status", "DISABLED");
+            return;
         }
+        scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "schema-health");
+            t.setDaemon(true);
+            return t;
+        });
+        scheduler.scheduleAtFixedRate(this::runValidation,
+                initialDelaySeconds, intervalSeconds, TimeUnit.SECONDS);
+        log.info("Schema health check scheduled: first in {}s, then every {}s",
+                initialDelaySeconds, intervalSeconds);
     }
 
-    private void runValidation() {
+    /** Run on-demand (called by scheduler or API trigger). */
+    public Map<String, Object> runValidation() {
         try (Connection conn = dataSource.getConnection()) {
             DatabaseMetaData meta = conn.getMetaData();
             Set<EntityType<?>> entities = entityManager.getMetamodel().getEntities();
@@ -72,45 +102,54 @@ public class SchemaHealthIndicator implements HealthIndicator {
                 String tableName = resolveTableName(entity);
                 if (tableName == null) continue;
 
-                try (ResultSet rs = meta.getTables(null, null, tableName, new String[]{"TABLE"})) {
-                    if (rs.next()) {
-                        validated++;
-                    } else {
-                        // Try lowercase (PostgreSQL normalizes to lowercase)
-                        try (ResultSet rs2 = meta.getTables(null, null, tableName.toLowerCase(), new String[]{"TABLE"})) {
-                            if (rs2.next()) {
-                                validated++;
-                            } else {
-                                missing.add(entity.getName() + " → " + tableName);
-                            }
-                        }
-                    }
+                if (tableExists(meta, tableName) || tableExists(meta, tableName.toLowerCase())) {
+                    validated++;
+                } else {
+                    missing.add(entity.getName() + " → " + tableName);
                 }
             }
 
             checked = true;
+            lastChecked = Instant.now();
 
             if (missing.isEmpty()) {
                 healthy = true;
                 findings.put("status", "ALL_TABLES_PRESENT");
-                findings.put("validated", String.valueOf(validated));
-                log.info("Schema health check passed: {}/{} entity tables verified",
-                        validated, entities.size());
+                findings.put("validated", validated);
+                findings.put("total", entities.size());
+                findings.put("lastChecked", lastChecked.toString());
+                findings.put("service", serviceType);
+                findings.remove("missing");
+                if (log.isDebugEnabled()) {
+                    log.debug("Schema check passed: {}/{} tables", validated, entities.size());
+                }
             } else {
                 healthy = false;
                 findings.put("status", "SCHEMA_DRIFT_DETECTED");
-                findings.put("validated", String.valueOf(validated));
-                findings.put("missing", String.join(", ", missing));
-                // Log as ERROR so Sentinel picks it up
-                log.error("SCHEMA_DRIFT: {} missing table(s): {}",
-                        missing.size(), String.join("; ", missing));
+                findings.put("validated", validated);
+                findings.put("total", entities.size());
+                findings.put("missingCount", missing.size());
+                findings.put("missing", missing);
+                findings.put("lastChecked", lastChecked.toString());
+                findings.put("service", serviceType);
+                log.error("SCHEMA_DRIFT [{}]: {} missing table(s): {}",
+                        serviceType, missing.size(), String.join("; ", missing));
             }
         } catch (Exception e) {
             checked = true;
+            lastChecked = Instant.now();
             healthy = false;
             findings.put("status", "VALIDATION_ERROR");
             findings.put("error", e.getMessage());
+            findings.put("lastChecked", lastChecked.toString());
             log.error("Schema health check failed: {}", e.getMessage());
+        }
+        return Collections.unmodifiableMap(findings);
+    }
+
+    private boolean tableExists(DatabaseMetaData meta, String name) throws Exception {
+        try (ResultSet rs = meta.getTables(null, null, name, new String[]{"TABLE"})) {
+            return rs.next();
         }
     }
 
@@ -121,7 +160,6 @@ public class SchemaHealthIndicator implements HealthIndicator {
             if (table != null && !table.name().isEmpty()) {
                 return table.name();
             }
-            // Default: camelCase → snake_case
             return camelToSnake(entity.getName());
         } catch (Exception e) {
             return null;
@@ -132,21 +170,36 @@ public class SchemaHealthIndicator implements HealthIndicator {
         return name.replaceAll("([a-z])([A-Z])", "$1_$2").toLowerCase();
     }
 
+    /** Actuator health endpoint: /actuator/health/schema */
     @Override
     public Health health() {
+        if (!enabled) {
+            return Health.up().withDetail("schema", "DISABLED").build();
+        }
         if (!checked) {
             return Health.up()
-                    .withDetail("schema", "PENDING — background check runs 30s after boot")
+                    .withDetail("schema", "PENDING — first check in " + initialDelaySeconds + "s")
                     .build();
         }
-        if (healthy) {
-            return Health.up()
-                    .withDetails(findings)
-                    .build();
+        Health.Builder builder = healthy ? Health.up() : Health.up(); // never DOWN — advisory only
+        findings.forEach((k, v) -> builder.withDetail(k, v));
+        return builder.build();
+    }
+
+    /** For REST API access and configuration updates. */
+    public int getIntervalSeconds() { return intervalSeconds; }
+
+    public void setIntervalSeconds(int seconds) {
+        this.intervalSeconds = Math.max(10, seconds); // minimum 10s
+        if (scheduler != null) {
+            scheduler.shutdownNow();
+            scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "schema-health");
+                t.setDaemon(true);
+                return t;
+            });
+            scheduler.scheduleAtFixedRate(this::runValidation, intervalSeconds, intervalSeconds, TimeUnit.SECONDS);
+            log.info("Schema check interval updated to {}s", intervalSeconds);
         }
-        // DOWN would prevent traffic — use DEGRADED via OUT_OF_SERVICE or just add detail
-        return Health.up()
-                .withDetails(findings)
-                .build();
     }
 }
