@@ -81,19 +81,14 @@ public class PipelineHealthController {
         }
         if (!writers.isEmpty()) result.put("batchWriters", writers);
 
-        // Partner Cache
+        // Partner Cache — real hit/miss stats, not just size
         if (partnerCache != null) {
-            result.put("partnerCache", Map.of(
-                    "size", partnerCache.size()
-            ));
+            result.put("partnerCache", partnerCache.getStats());
         }
 
-        // Materialized View Refresher
+        // Materialized View Refresher — real stats, not dummy
         if (viewRefresher != null) {
-            result.put("matViewRefresh", Map.of(
-                    "enabled", true,
-                    "intervalMs", 30000
-            ));
+            result.put("matViewRefresh", viewRefresher.getStats());
         }
 
         return result;

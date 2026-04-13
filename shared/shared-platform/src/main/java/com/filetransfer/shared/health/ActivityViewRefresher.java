@@ -22,14 +22,38 @@ public class ActivityViewRefresher {
     @Autowired
     private TransferActivityViewRepository viewRepo;
 
+    // Phase 6: observability — track refresh stats for pipeline health API
+    private volatile java.time.Instant lastRefreshAt;
+    private volatile long lastRefreshDurationMs;
+    private volatile long refreshCount;
+    private volatile String lastError;
+
     @Scheduled(fixedDelay = 30_000, initialDelay = 45_000)
     public void refresh() {
+        long start = System.currentTimeMillis();
         try {
             viewRepo.refresh();
-            log.debug("Activity materialized view refreshed");
+            lastRefreshDurationMs = System.currentTimeMillis() - start;
+            lastRefreshAt = java.time.Instant.now();
+            refreshCount++;
+            lastError = null;
+            log.debug("Activity materialized view refreshed in {}ms", lastRefreshDurationMs);
         } catch (Exception e) {
-            // First boot: view may not exist yet (migration hasn't run)
+            lastRefreshDurationMs = System.currentTimeMillis() - start;
+            lastError = e.getMessage();
             log.debug("Activity view refresh skipped: {}", e.getMessage());
         }
+    }
+
+    /** Phase 6: stats for pipeline health endpoint. */
+    public java.util.Map<String, Object> getStats() {
+        java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+        m.put("enabled", true);
+        m.put("intervalMs", 30000);
+        m.put("refreshCount", refreshCount);
+        m.put("lastRefreshAt", lastRefreshAt != null ? lastRefreshAt.toString() : null);
+        m.put("lastDurationMs", lastRefreshDurationMs);
+        if (lastError != null) m.put("lastError", lastError);
+        return m;
     }
 }

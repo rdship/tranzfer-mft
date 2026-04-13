@@ -536,7 +536,7 @@ function PipelineHealthCard() {
         <Stat label="Matched" value={rules.totalMatches?.toLocaleString()} sub={`${rules.totalUnmatched || 0} unmatched`} />
         <Stat label="Record Buffer" value={writers.records?.pending || 0} sub={`${(writers.records?.flushed || 0).toLocaleString()} flushed`} />
         <Stat label="Snapshot Buffer" value={writers.snapshots?.pending || 0} sub={`${(writers.snapshots?.flushed || 0).toLocaleString()} flushed`} />
-        <Stat label="Partner Cache" value={cache.size || 0} sub="entries (L1)" />
+        <Stat label="Partner Cache" value={cache.size || 0} sub={cache.hitRate ? `hit rate: ${cache.hitRate}` : 'entries (L1)'} />
       </div>
 
       {(seda.intake || seda.pipeline || seda.delivery) && (

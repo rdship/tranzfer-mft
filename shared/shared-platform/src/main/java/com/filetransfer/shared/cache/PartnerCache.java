@@ -32,6 +32,11 @@ public class PartnerCache {
     /** L1: in-process, per-pod, zero-latency. */
     private final ConcurrentHashMap<UUID, PartnerSnapshot> l1 = new ConcurrentHashMap<>();
 
+    // Phase 6: hit/miss counters for observability
+    private final java.util.concurrent.atomic.AtomicLong l1Hits = new java.util.concurrent.atomic.AtomicLong();
+    private final java.util.concurrent.atomic.AtomicLong l2Hits = new java.util.concurrent.atomic.AtomicLong();
+    private final java.util.concurrent.atomic.AtomicLong dbMisses = new java.util.concurrent.atomic.AtomicLong();
+
     @Autowired
     private PartnerRepository partnerRepository;
 
@@ -51,7 +56,7 @@ public class PartnerCache {
 
         // L1: per-JVM ConcurrentHashMap
         PartnerSnapshot cached = l1.get(partnerId);
-        if (cached != null) return cached;
+        if (cached != null) { l1Hits.incrementAndGet(); return cached; }
 
         // L2: Redis (shared across pods)
         if (redis != null) {
@@ -61,6 +66,7 @@ public class PartnerCache {
                     cached = deserialize(json);
                     if (cached != null) {
                         l1.put(partnerId, cached);
+                        l2Hits.incrementAndGet();
                         return cached;
                     }
                 }
@@ -76,6 +82,7 @@ public class PartnerCache {
         cached = new PartnerSnapshot(partner.getId(), partner.getSlug(), partner.getCompanyName());
         l1.put(partnerId, cached);
         storeInRedis(partnerId, cached);
+        dbMisses.incrementAndGet();
         return cached;
     }
 
@@ -114,6 +121,18 @@ public class PartnerCache {
     }
 
     public int size() { return l1.size(); }
+
+    /** Phase 6: cache stats for pipeline health endpoint. */
+    public java.util.Map<String, Object> getStats() {
+        long total = l1Hits.get() + l2Hits.get() + dbMisses.get();
+        java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+        m.put("size", l1.size());
+        m.put("l1Hits", l1Hits.get());
+        m.put("l2Hits", l2Hits.get());
+        m.put("dbMisses", dbMisses.get());
+        m.put("hitRate", total > 0 ? String.format("%.1f%%", (l1Hits.get() + l2Hits.get()) * 100.0 / total) : "N/A");
+        return m;
+    }
 
     // ── Serialization (simple pipe-delimited — no Jackson dependency in hot path) ──
 
