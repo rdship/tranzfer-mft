@@ -151,6 +151,27 @@
 | BREAKING (CTO) | 3 | 3 | 0 | 100% |
 | **TOTAL** | **46** | **46** | **0** | **100%** |
 
+---
+
+## NEW ISSUES (2026-04-13 Evening Session)
+
+| # | Issue | Severity | Status | Details |
+|---|-------|----------|--------|---------|
+| N1 | **Activity Monitor crashes when empty — THE core feature of the product is invisible** | CRITICAL | **OPEN** | When there are 0 transfer records, the ActivityMonitor page crashes with `Cannot access 'be' before initialization` instead of showing an empty state. **This is not a cosmetic issue — Activity Monitor IS the product.** It's the single screen that proves files are moving. Every customer demo, every operator shift, every compliance audit starts here. If it crashes on empty data, it means: (1) fresh installs look broken, (2) new customers see a crash before their first file transfer, (3) operators cannot tell if the system is idle or dead, (4) the first impression of a multi-million dollar platform is an error page. The fix must handle 0 records gracefully — show "No transfers yet. Upload a file via SFTP to see activity here." with a visual prompt. Never crash on empty data. |
+| N2 | **Gateway, DMZ Proxy, Cluster pages crash** — `Cannot access 'It' before initialization` | CRITICAL | **OPEN** | Vite production build circular dependency. These 3 pages have been broken since the first test session. Run `npx vite build --mode development` to find the real import cycle. |
+| N3 | **Flows modal ignores Escape key** — all other modals close on Escape, Flows doesn't | MEDIUM | **OPEN** | Quick Flow / Create Flow modal does not respond to Escape key press. Check if child component calls event.stopPropagation() on keydown. |
+| N4 | **Redis @Cacheable poisons live-stats** — `FlowExecutionController.getLiveStats()` caches ResponseEntity in Redis, deserialization fails | CRITICAL | **OPEN** | `ResponseEntity` has no default constructor. Fix: cache the `Map<String, Object>` body, not the `ResponseEntity` wrapper. Every Redis restart or cache expiry re-poisons on next call. |
+| N5 | **`/api/pipeline/health` returns 500** — `PipelineHealthController` bean not loaded due to lazy-init | HIGH | **OPEN** | Controller exists in shared-platform but `lazy-initialization=true` prevents Spring from registering it. Dashboard polls this endpoint every 5s causing repeated error toasts. |
+| N6 | **`/api/compliance` returns 500** — endpoint does not exist in config-service | HIGH | **OPEN** | `No static resource api/compliance` — no ComplianceController. UI has Compliance page that calls this. |
+| N7 | **RabbitMQ definitions.json needs vhost declaration** — without `"vhosts": [{"name": "/"}]` RabbitMQ crashes on startup | CRITICAL | **FIXED** | Original definitions.json only had exchanges. RabbitMQ requires vhost to exist before importing. Fixed in commit b8c8cb4. |
+| N8 | **CORS not configured for HTTPS** — all non-onboarding services return 403 when browser sends Origin: https://localhost | HIGH | **OPEN** | Workaround: nginx strips Origin header. Permanent fix: add CORS to shared SecurityConfig for all services. |
+| N9 | **Auth rate limiter is in-memory, survives restart, no admin reset** — 20 req/min per IP locks out entire platform | CRITICAL | **OPEN** | CTO improved the limiter but it's still in-memory. Needs Redis backing, per-user (not per-IP) limits, admin reset endpoint, and higher threshold (100/min). |
+| N10 | **File upload → routing pipeline disconnected** — `lazy-initialization=true` in JAVA_TOOL_OPTIONS prevents RabbitMQ queue creation, SFTP uploads never trigger routing | CRITICAL | **OPEN** | Root cause: global `-Dspring.main.lazy-initialization=true` overrides `@Lazy(false)` annotations. Fix: remove the global flag from JAVA_TOOL_OPTIONS. Boot speed should come from entity scan filtering, not lazy-init. |
+| N11 | **10 of 16 Java services boot in 170-200s** — only 4 boot in 20s | HIGH | **OPEN** | Fast-boot Hibernate config works for 4 services. Remaining 10 need entity scan filtering (100+ entities scanned per service when only 5-15 needed). |
+| N12 | **V58-V63 migrations not in db-migrate container** — must be applied manually after every fresh deploy | HIGH | **OPEN** | db-migrate only has up to V56. Newer migrations (V58 partner unique, V59 sentinel/storage, V61 materialized view, V62 query timeout, V63 partitioning) require manual `psql` execution. |
+
+---
+
 ### Open items requiring immediate attention (Priority order):
 
 **Must fix for demo/production:**
