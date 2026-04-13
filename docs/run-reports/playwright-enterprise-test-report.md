@@ -435,6 +435,51 @@ React code-splits each page into separate chunks. The first visit to a page trig
 
 ---
 
+## Deep Validation Results (Run 3 — Extended)
+
+### API Stress Test
+| Test | Result |
+|------|--------|
+| 200 sequential API requests | **200/200 pass, 0 fail, 75 req/sec** |
+| 200 concurrent API requests | **200/200 pass, completed in 0.64s (312 req/sec)** |
+| 29 gateway endpoints | **29/29 returning 200** |
+| 50 parallel flow creates | **Completed in 0.38s (131/sec)** |
+
+### Activity Monitor Latency (with V61 Materialized View)
+| Query | Latency |
+|-------|---------|
+| Default page (25 records) | 8.7ms |
+| 100 records | 15.9ms |
+| Filter: status=FAILED | 35ms |
+| Filter: protocol=SFTP | 9.9ms |
+| Sort: completedAt ASC | 6.1ms |
+| Sort: fileSizeBytes DESC | 9.4ms |
+
+### CRUD Cycle (Create → Read → Update → Delete)
+| Entity | Create | Read | Update | Delete |
+|--------|--------|------|--------|--------|
+| Partner | 201 | 200 | 200 | 204 |
+| Flow | 201 | — | — | 204 |
+| Account | 201 | — | — | 204 |
+
+### Auth Security
+| Test | Response |
+|------|----------|
+| Expired JWT token | 403 (rejected) |
+| No token | 403 (rejected) |
+| SQL injection in login | 400 (rejected) |
+
+### UI Pages — 3 Hard Crashes (Persistent Bug)
+| Page | Path | Error | Root Cause |
+|------|------|-------|------------|
+| **Gateway** | `/gateway` | `Cannot access 'It' before initialization` | Vite minification circular dependency |
+| **DMZ Proxy** | `/dmz-proxy` | Same | Same — shared API imports |
+| **Cluster** | `/cluster` | Same | Same pattern |
+
+**Note:** These 3 pages have been crashing since the first test session. The error `Cannot access 'It' before initialization` is a Vite/Rollup production build issue where a minified variable is used before its module is evaluated. The CTO should: (1) run `vite build --mode development` to get the real unminified error, (2) check for circular imports in `gateway.js`, `dmz.js`, `cluster.js` API files, or (3) add explicit import ordering in the page components.
+
+---
+
 ## Conclusion
 
 The TranzFer MFT platform is fundamentally sound. The API layer is well-designed, authentication is properly implemented, and the 22 microservices all start, register, and respond to health checks. The 206/355 first-pass rate (with 20 flaky and 0 hard failures) indicates solid reliability.
