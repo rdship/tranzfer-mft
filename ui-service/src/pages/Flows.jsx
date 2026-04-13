@@ -1001,9 +1001,9 @@ export default function Flows() {
 
   const openEdit = useCallback((flow) => {
     setEditingId(flow.id)
-    const deliveryMode = flow.externalDestination && flow.destinationAccount ? 'both'
-      : flow.externalDestination ? 'external'
-      : flow.destinationAccount ? 'mailbox' : 'none'
+    const deliveryMode = flow.externalDestinationId && flow.destinationAccountId ? 'both'
+      : flow.externalDestinationId ? 'external'
+      : flow.destinationAccountId ? 'mailbox' : 'none'
     // Use matchCriteria if present, otherwise auto-generate from legacy fields
     const criteria = flow.matchCriteria || buildCriteriaFromLegacy(flow)
     setForm({
@@ -1015,12 +1015,12 @@ export default function Flows() {
       priority: flow.priority || 100,
       active: flow.active ?? true,
       steps: (flow.steps || []).map(s => ({ type: s.type, config: s.config || {}, order: s.order })),
-      sourceAccountId: flow.sourceAccount?.id || '',
+      sourceAccountId: flow.sourceAccountId || '',
       protocol: flow.protocol || 'ANY',
       serverId: flow.server?.id || '',
       deliveryMode,
-      externalDestinationId: flow.externalDestination?.id || '',
-      destinationAccountId: flow.destinationAccount?.id || '',
+      externalDestinationId: flow.externalDestinationId || '',
+      destinationAccountId: flow.destinationAccountId || '',
       matchCriteria: criteria,
       direction: flow.direction || null,
     })
@@ -1495,14 +1495,14 @@ export default function Flows() {
                   )}
                   {/* Usage chips: source, destination, partner, external dest, execution count */}
                   <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                    {flow.sourceAccount && (
+                    {flow.sourceAccountId && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200" onClick={e => e.stopPropagation()}>
-                        Source: <ConfigLink type="account" id={flow.sourceAccount.id} name={flow.sourceAccount.username} navigateTo="/accounts" />
+                        Source: <ConfigLink type="account" id={flow.sourceAccountId} name={flow.sourceAccountUsername || flow.sourceAccountId} navigateTo="/accounts" />
                       </span>
                     )}
-                    {flow.destinationAccount && (
+                    {flow.destinationAccountId && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-50 text-green-700 border border-green-200" onClick={e => e.stopPropagation()}>
-                        Dest: <ConfigLink type="account" id={flow.destinationAccount.id} name={flow.destinationAccount.username} navigateTo="/accounts" />
+                        Dest: <ConfigLink type="account" id={flow.destinationAccountId} name={flow.destinationAccountUsername || flow.destinationAccountId} navigateTo="/accounts" />
                       </span>
                     )}
                     {flow.partnerId && (() => {
@@ -1513,9 +1513,9 @@ export default function Flows() {
                         </span>
                       )
                     })()}
-                    {flow.externalDestination && (
+                    {flow.externalDestinationId && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200" onClick={e => e.stopPropagation()}>
-                        Ext: <ConfigLink type="destination" id={flow.externalDestination.id} name={flow.externalDestination.name || flow.externalDestination.host || 'External'} />
+                        Ext: <ConfigLink type="destination" id={flow.externalDestinationId} name={flow.externalDestinationName || 'External'} />
                       </span>
                     )}
                     {executionCountByFlowId[flow.id] > 0 && (
@@ -1529,8 +1529,8 @@ export default function Flows() {
                       <MatchSummaryBadges criteria={flow.matchCriteria} />
                     ) : (
                       <div className="flex items-center gap-4 text-xs text-muted">
-                        {flow.sourceAccount && (
-                          <span>Source: <span className="font-medium text-secondary">{flow.sourceAccount.username}</span></span>
+                        {flow.sourceAccountId && (
+                          <span>Source: <span className="font-medium text-secondary">{flow.sourceAccountUsername || flow.sourceAccountId}</span></span>
                         )}
                         {flow.filenamePattern && (
                           <span className="font-mono">Pattern: {flow.filenamePattern}</span>

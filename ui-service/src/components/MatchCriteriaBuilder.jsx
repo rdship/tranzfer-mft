@@ -66,8 +66,8 @@ export function buildCriteriaFromLegacy(flow) {
   if (flow.sourcePath && flow.sourcePath !== '/inbox') {
     conditions.push({ field: 'sourcePath', op: 'CONTAINS', value: flow.sourcePath })
   }
-  if (flow.sourceAccount?.id) {
-    conditions.push({ field: 'sourceAccountId', op: 'EQ', value: flow.sourceAccount.id })
+  if (flow.sourceAccountId) {
+    conditions.push({ field: 'sourceAccountId', op: 'EQ', value: flow.sourceAccountId })
   }
   if (flow.protocol && flow.protocol !== 'ANY') {
     conditions.push({ field: 'protocol', op: 'EQ', value: flow.protocol })

@@ -82,7 +82,7 @@ export default function EvidenceReport({ journey, execDetail }) {
         )}
         {receivedStage?.timestamp && <Row label="Received At"   value={fmtTs(receivedStage.timestamp)} />}
         {execDetail?.completedAt  && <Row label="Completed At"  value={fmtTs(execDetail.completedAt)} />}
-        {execDetail?.flow?.name   && <Row label="Processing Flow" value={execDetail.flow.name} />}
+        {execDetail?.flowName     && <Row label="Processing Flow" value={execDetail.flowName} />}
       </Section>
 
       {/* ── Integrity Verification ── */}

@@ -590,30 +590,12 @@ export default function Journey() {
             )}
 
             {/* Config references — flow, source/dest accounts, partner */}
-            {execDetail?.flow && (
+            {execDetail?.flowId && (
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2 p-3 rounded-lg bg-canvas border border-border text-sm mb-4">
-                {execDetail.flow.name && (
+                {execDetail.flowName && (
                   <span className="flex items-center gap-1.5">
                     <span className="text-secondary text-xs">Flow:</span>
-                    <ConfigLink type="flow" id={execDetail.flow.id} name={execDetail.flow.name} onEdit={setEditConfig} navigateTo="/flows" />
-                  </span>
-                )}
-                {execDetail.flow.sourceAccount?.username && (
-                  <span className="flex items-center gap-1.5">
-                    <span className="text-secondary text-xs">Source:</span>
-                    <ConfigLink type="account" id={execDetail.flow.sourceAccount.id} name={execDetail.flow.sourceAccount.username} onEdit={setEditConfig} navigateTo="/accounts" />
-                  </span>
-                )}
-                {execDetail.flow.destinationAccount?.username && (
-                  <span className="flex items-center gap-1.5">
-                    <span className="text-secondary text-xs">Dest:</span>
-                    <ConfigLink type="account" id={execDetail.flow.destinationAccount.id} name={execDetail.flow.destinationAccount.username} onEdit={setEditConfig} navigateTo="/accounts" />
-                  </span>
-                )}
-                {execDetail.flow.externalDestination?.name && (
-                  <span className="flex items-center gap-1.5">
-                    <span className="text-secondary text-xs">Ext Dest:</span>
-                    <ConfigLink type="destination" id={execDetail.flow.externalDestination.id} name={execDetail.flow.externalDestination.name} onEdit={setEditConfig} navigateTo="/external-destinations" />
+                    <ConfigLink type="flow" id={execDetail.flowId} name={execDetail.flowName} onEdit={setEditConfig} navigateTo="/flows" />
                   </span>
                 )}
               </div>

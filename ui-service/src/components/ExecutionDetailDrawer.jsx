@@ -482,7 +482,7 @@ export default function ExecutionDetailDrawer({ trackId, open, onClose, showActi
             <div className="flex items-center gap-2">
               <h2 className="text-base font-bold text-[rgb(var(--tx-primary))] truncate">
                 {execution?.flowName ? (
-                  <ConfigLink type="flow" name={execution.flowName} id={execution.flowId || execution.flow?.id}
+                  <ConfigLink type="flow" name={execution.flowName} id={execution.flowId}
                     onEdit={setEditConfig} navigateTo="/flows" />
                 ) : 'Execution Detail'}
               </h2>
@@ -691,9 +691,9 @@ export default function ExecutionDetailDrawer({ trackId, open, onClose, showActi
             >
               Sentinel Findings →
             </Link>
-            {execution.flow?.id && (
+            {execution.flowId && (
               <Link
-                to={`/flows?id=${execution.flow.id}`}
+                to={`/flows?id=${execution.flowId}`}
                 className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded border transition-colors hover:bg-[rgb(var(--surface-hover))]"
                 style={{ borderColor: 'rgb(var(--border))', color: 'rgb(74, 222, 128)' }}
                 title="View the Flow definition that ran this execution"
