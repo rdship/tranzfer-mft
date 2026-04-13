@@ -42,9 +42,10 @@ x-common-env: &common-env
   SPRING_FLYWAY_LOCK_RETRY_COUNT: 200
   # Fast boot: Flyway owns schema, Hibernate skips DB round trips on startup.
   # SchemaHealthIndicator validates in background 30s after boot.
-  SPRING_JPA_HIBERNATE_DDL__AUTO: none
-  SPRING_JPA_PROPERTIES_HIBERNATE_BOOT_ALLOW__JDBC__METADATA__ACCESS: "false"
-  SPRING_JPA_PROPERTIES_HIBERNATE_TEMP_USE__JDBC__METADATA__DEFAULTS: "false"
+  # Fast boot: double-underscore bug fixed — single underscore for relaxed binding
+  SPRING_JPA_HIBERNATE_DDLAUTO: none
+  SPRING_JPA_PROPERTIES_HIBERNATE_BOOT_ALLOWJDBCMETADATAACCESS: "false"
+  SPRING_JPA_PROPERTIES_HIBERNATE_TEMP_USEJDBCMETADATADEFAULTS: "false"
   JWT_SECRET: ${JWT_SECRET:-change_me_in_production_256bit_secret_key!!}
   JWT_EXPIRATION: ${JWT_EXPIRATION:-28800000}
   CONTROL_API_KEY: ${CONTROL_API_KEY:-internal_control_secret}  # HMAC secret for PCI audit log signing — NOT inter-service auth
