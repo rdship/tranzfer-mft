@@ -359,8 +359,10 @@ public class ActivityMonitorController {
 
     // ── Stats Aggregation ────────────────────────────────────────────────────
 
+    /** Phase 5.2: Stats cached for 10s — prevents repeated full-table scans under load. */
     @GetMapping("/stats")
     @Transactional(readOnly = true)
+    @org.springframework.cache.annotation.Cacheable(value = "activity-stats", key = "#period")
     public Map<String, Object> stats(
             @RequestParam(defaultValue = "24h") String period) {
         java.time.Instant since = switch (period) {

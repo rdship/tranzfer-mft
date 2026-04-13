@@ -44,7 +44,9 @@ public class OnboardingCacheConfig {
         return RedisCacheManager.builder(cf)
                 .cacheDefaults(base.entryTtl(Duration.ofSeconds(30)))
                 .withInitialCacheConfigurations(Map.of(
-                        "live-stats", base.entryTtl(Duration.ofSeconds(5))
+                        "live-stats", base.entryTtl(Duration.ofSeconds(5)),
+                        // Phase 5.2: Activity Monitor stats cached for 10s
+                        "activity-stats", base.entryTtl(Duration.ofSeconds(10))
                 ))
                 .build();
     }
