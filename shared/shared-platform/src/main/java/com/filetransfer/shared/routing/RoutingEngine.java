@@ -229,6 +229,18 @@ public class RoutingEngine {
                         entry.getStorageKey(), relativeFilePath, sourceAccount.getId(),
                         entry.getSizeBytes(), trackId, entry.getContentType(),
                         entry.getStorageBucket() != null ? entry.getStorageBucket() : "STANDARD");
+
+                // Register CAS object in storage-manager (enables download button)
+                if (storageClient != null && entry.getStorageKey() != null) {
+                    try {
+                        storageClient.register(trackId, entry.getStorageKey(), filename,
+                                sourceAccount.getUsername(), entry.getSizeBytes());
+                        log.info("[{}] VIRTUAL file registered in storage-manager (download enabled)", trackId);
+                    } catch (Exception e) {
+                        log.debug("[{}] Storage register skipped: {}", trackId, e.getMessage());
+                    }
+                }
+
                 if (matchedFlow != null) {
                     log.info("[{}] Executing flow '{}' ({} steps) [VIRTUAL]",
                             trackId, matchedFlow.getName(), matchedFlow.getSteps().size());

@@ -62,6 +62,22 @@ public class StorageServiceClient extends ResilientServiceClient {
         });
     }
 
+    /** Register an existing CAS object with a trackId (no re-upload). Used by VIRTUAL-mode routing. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> register(String trackId, String sha256, String filename, String account, long sizeBytes) {
+        try {
+            String path = "/api/v1/storage/register?trackId=" + trackId
+                    + "&sha256=" + sha256
+                    + "&filename=" + java.net.URLEncoder.encode(filename, java.nio.charset.StandardCharsets.UTF_8)
+                    + "&sizeBytes=" + sizeBytes
+                    + (account != null ? "&account=" + java.net.URLEncoder.encode(account, java.nio.charset.StandardCharsets.UTF_8) : "");
+            return withResilience("register", () -> post(path, null, Map.class));
+        } catch (Exception e) {
+            log.debug("Storage register failed for trackId={}: {}", trackId, e.getMessage());
+            return Map.of("status", "FAILED", "error", e.getMessage());
+        }
+    }
+
     /** Check if a CAS object exists by SHA-256 key. Used by WAIP recovery. */
     @SuppressWarnings("unchecked")
     public boolean existsBySha256(String sha256) {

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { onboardingApi, configApi } from '../api/client'
+import { useAuth } from '../context/AuthContext'
 import { getFabricQueues, getFabricStuck, getFabricLatency, getFabricInstances } from '../api/fabric'
 import CopyButton from '../components/CopyButton'
 import useStickyFilters from '../hooks/useStickyFilters'
@@ -507,6 +508,8 @@ function TransferDetailPanel({ row, flowExec, events, navigate, onEditConfig }) 
 export default function ActivityMonitor() {
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const { isAdmin } = useAuth()
+  const canOperate = isAdmin // OPERATOR+ can restart/stop/terminate
   const { visibleKeys, visibleColumns, toggle, resetToDefaults } = useColumnPreferences()
 
   // URL-driven filter state — enables deep-linking from Flow Fabric KPI cards
@@ -1570,7 +1573,7 @@ export default function ActivityMonitor() {
                                 trackId={row.trackId}
                                 filename={row.filename}
                               />
-                              {(row.status === 'FAILED' || row.status === 'CANCELLED') && (
+                              {canOperate && (row.status === 'FAILED' || row.status === 'CANCELLED') && (
                                 <button
                                   onClick={() => { if (window.confirm(`Restart transfer ${row.trackId}?`)) restartOneMut.mutate(row.trackId) }}
                                   disabled={restartOneMut.isPending}
@@ -1581,7 +1584,7 @@ export default function ActivityMonitor() {
                                   Restart
                                 </button>
                               )}
-                              {(row.status === 'PROCESSING' || row.status === 'IN_PROGRESS' || row.status === 'DOWNLOADED') && (
+                              {canOperate && (row.status === 'PROCESSING' || row.status === 'IN_PROGRESS' || row.status === 'DOWNLOADED') && (
                                 <button
                                   onClick={() => { if (window.confirm(`Terminate transfer ${row.trackId}?`)) terminateOneMut.mutate(row.trackId) }}
                                   disabled={terminateOneMut.isPending}
@@ -1592,7 +1595,7 @@ export default function ActivityMonitor() {
                                   Stop
                                 </button>
                               )}
-                              {row.status === 'FAILED' && (
+                              {canOperate && row.status === 'FAILED' && (
                                 <button
                                   onClick={() => { setScheduleModal({ trackId: row.trackId, filename: row.filename }); setScheduleInput('') }}
                                   className="text-[10px] text-muted hover:text-blue-600 px-1.5 py-0.5 rounded hover:bg-blue-50 transition-colors whitespace-nowrap"

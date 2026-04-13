@@ -385,6 +385,35 @@ public class StorageController {
                 "keySource", encrypted ? "Vault KMS / env var" : "N/A");
     }
 
+    /**
+     * Register an existing CAS object with a trackId — no re-upload needed.
+     * Used by VIRTUAL-mode routing: file is already in CAS, just needs metadata.
+     */
+    @PostMapping("/register")
+    public ResponseEntity<Map<String, Object>> register(
+            @RequestParam String trackId,
+            @RequestParam String sha256,
+            @RequestParam String filename,
+            @RequestParam(required = false) String account,
+            @RequestParam(required = false, defaultValue = "0") long sizeBytes) {
+        // Check if already registered
+        if (objectRepo.findByTrackIdAndDeletedFalse(trackId).isPresent()) {
+            return ResponseEntity.ok(Map.of("status", "ALREADY_REGISTERED", "trackId", trackId));
+        }
+        StorageObject obj = StorageObject.builder()
+                .trackId(trackId)
+                .filename(filename)
+                .sha256(sha256)
+                .physicalPath(sha256) // CAS key = SHA-256
+                .sizeBytes(sizeBytes)
+                .accountUsername(account)
+                .tier("HOT")
+                .build();
+        objectRepo.save(obj);
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+                .body(Map.of("status", "REGISTERED", "trackId", trackId, "sha256", sha256));
+    }
+
     @GetMapping("/health")
     public Map<String, Object> health() {
         Map<String, Object> h = new LinkedHashMap<>(lifecycle.getStorageMetrics());
