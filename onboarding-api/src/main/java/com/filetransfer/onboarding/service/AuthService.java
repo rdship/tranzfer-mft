@@ -31,10 +31,19 @@ public class AuthService {
     private final BruteForceProtection bruteForceProtection;
     private final AuditService auditService;
 
+    /**
+     * H9 fix: register is now idempotent under concurrent requests.
+     * Uses saveAndFlush + DataIntegrityViolationException catch as the
+     * authoritative duplicate check (DB unique constraint is the source of truth,
+     * not the existsByEmail pre-check which has a TOCTOU race window).
+     */
     @Transactional
     public AuthResponse register(RegisterRequest request) {
+        // Pre-check (fast path for obvious duplicates — not authoritative)
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new IllegalArgumentException("Email already registered: " + request.getEmail());
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.CONFLICT,
+                    "Email already registered: " + request.getEmail());
         }
 
         // PCI DSS 8.2 — enforce password policy
@@ -46,9 +55,12 @@ public class AuthService {
                 .role(UserRole.USER)
                 .build();
         try {
-            userRepository.save(user);
+            userRepository.saveAndFlush(user);
         } catch (DataIntegrityViolationException e) {
-            throw new IllegalArgumentException("Email already registered: " + request.getEmail());
+            // Concurrent registration won the race — return 409 not 500
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.CONFLICT,
+                    "Email already registered: " + request.getEmail());
         }
 
         auditService.logLogin(request.getEmail(), null, true, "registration");

@@ -88,7 +88,7 @@ inhibit_rules:
 receivers:
   - name: default-webhook
     webhook_configs:
-      - url: 'http://localhost:9095/api/v1/alerts'
+      - url: 'http://notification-service:8097/api/v1/alerts'
         send_resolved: true
 
   - name: critical-alerts
@@ -98,7 +98,7 @@ receivers:
         headers:
           Subject: '[CRITICAL] TranzFer MFT — {{ .GroupLabels.alertname }}'
     webhook_configs:
-      - url: 'http://localhost:9095/api/v1/alerts'
+      - url: 'http://notification-service:8097/api/v1/alerts'
         send_resolved: true
 
   - name: security-alerts
@@ -108,5 +108,5 @@ receivers:
         headers:
           Subject: '[SECURITY] TranzFer MFT — {{ .GroupLabels.alertname }}'
     webhook_configs:
-      - url: 'http://localhost:9095/api/v1/alerts'
+      - url: 'http://notification-service:8097/api/v1/alerts'
         send_resolved: true

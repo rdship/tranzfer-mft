@@ -915,6 +915,12 @@ services:
       <<: *common-env
       CLUSTER_HOST: license-service
       LICENSE_ADMIN_KEY: ${LICENSE_ADMIN_KEY:-license_admin_secret_key}
+      # P4: lightweight service — reduce heap (384m→256m saves 128m)
+      JAVA_TOOL_OPTIONS: >-
+        -Xmx256m -Xms128m
+        -XX:+UseZGC -XX:+ZGenerational -XX:+UseStringDeduplication
+        -Dspring.jmx.enabled=false -Dspring.main.lazy-initialization=true
+        -Dspring.jpa.open-in-view=false
       SERVER_PORT: 8089
     depends_on:
       postgres:
@@ -1004,6 +1010,12 @@ services:
       CLUSTER_HOST: keystore-manager
       SERVER_PORT: 8093
       KEYSTORE_MASTER_PASSWORD: ${KEYSTORE_MASTER_PASSWORD:-change-this-master-password}
+      # P4: lightweight service — reduce heap (384m→256m saves 128m)
+      JAVA_TOOL_OPTIONS: >-
+        -Xmx256m -Xms128m
+        -XX:+UseZGC -XX:+ZGenerational -XX:+UseStringDeduplication
+        -Dspring.jmx.enabled=false -Dspring.main.lazy-initialization=true
+        -Dspring.jpa.open-in-view=false
       PLATFORM_ENVIRONMENT: DEV
     depends_on:
       postgres:
@@ -1374,8 +1386,9 @@ services:
       - config-service
       - analytics-service
       - license-service
+    # H4 fix: hit static /nginx-health endpoint, not proxied / (which depends on backends)
     healthcheck:
-      test: ["CMD-SHELL", "curl -skf https://localhost:8443/ > /dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/nginx-health > /dev/null || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -1388,8 +1401,9 @@ services:
       - "127.0.0.1:3002:8080"
     depends_on:
       - onboarding-api
+    # H4 fix: hit static /nginx-health endpoint
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/ > /dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/nginx-health > /dev/null || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -1402,8 +1416,9 @@ services:
       - "127.0.0.1:3001:8080"
     depends_on:
       - ftp-web-service
+    # H4 fix: hit static /nginx-health endpoint
     healthcheck:
-      test: ["CMD-SHELL", "curl -skf https://localhost:8443/ > /dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/nginx-health > /dev/null || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 3

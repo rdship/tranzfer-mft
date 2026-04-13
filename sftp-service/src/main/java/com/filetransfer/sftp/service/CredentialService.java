@@ -27,8 +27,14 @@ public class CredentialService {
     @org.springframework.beans.factory.annotation.Value("${sftp.instance-id:#{null}}")
     private String instanceId;
 
-    // Simple in-memory cache: username → account. Busted by RabbitMQ events.
-    private final ConcurrentHashMap<String, TransferAccount> cache = new ConcurrentHashMap<>();
+    // In-memory cache with TTL: username → (account, expiry). Busted by RabbitMQ events + auto-expiry.
+    // H7 fix: 60s TTL prevents stale entries when RabbitMQ event is delayed or lost.
+    private static final long CACHE_TTL_MS = 60_000;
+    private final ConcurrentHashMap<String, CacheEntry> cache = new ConcurrentHashMap<>();
+
+    private record CacheEntry(TransferAccount account, long expiresAt) {
+        boolean isExpired() { return System.currentTimeMillis() > expiresAt; }
+    }
 
     public boolean authenticatePassword(String username, String password, String ipAddress) {
         Optional<TransferAccount> opt = findAccount(username);
@@ -65,18 +71,24 @@ public class CredentialService {
     }
 
     public Optional<TransferAccount> findAccount(String username) {
-        TransferAccount cached = cache.get(username);
-        if (cached != null) return Optional.of(cached);
+        // H7 fix: TTL-based cache — stale entries auto-expire after 60s
+        CacheEntry entry = cache.get(username);
+        if (entry != null && !entry.isExpired()) {
+            return Optional.of(entry.account());
+        }
+        if (entry != null && entry.isExpired()) {
+            cache.remove(username); // Clean up expired entry
+        }
 
         Optional<TransferAccount> dbAccount;
         if (instanceId != null) {
-            // Instance-aware: only accept users assigned to this instance or unassigned
             dbAccount = accountRepository.findByUsernameAndProtocolAndInstance(
                     username, Protocol.SFTP, instanceId);
         } else {
             dbAccount = accountRepository.findByUsernameAndProtocolAndActiveTrue(username, Protocol.SFTP);
         }
-        dbAccount.ifPresent(a -> cache.put(username, a));
+        dbAccount.ifPresent(a -> cache.put(username,
+                new CacheEntry(a, System.currentTimeMillis() + CACHE_TTL_MS)));
         return dbAccount;
     }
 

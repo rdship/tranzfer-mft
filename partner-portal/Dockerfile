@@ -15,7 +15,7 @@ RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser &&
     touch /var/run/nginx.pid && chown appuser:appgroup /var/run/nginx.pid
 
 COPY --from=builder --chown=appuser:appgroup /app/dist /usr/share/nginx/html
-RUN echo 'server { listen 8080; root /usr/share/nginx/html; index index.html; location / { try_files $uri $uri/ /index.html; } }' > /etc/nginx/conf.d/default.conf && \
+RUN echo 'server { listen 8080; root /usr/share/nginx/html; index index.html; location = /nginx-health { access_log off; return 200 "ok\n"; add_header Content-Type text/plain; } location / { try_files $uri $uri/ /index.html; } }' > /etc/nginx/conf.d/default.conf && \
     chown appuser:appgroup /etc/nginx/conf.d/default.conf
 
 USER appuser
