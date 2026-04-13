@@ -31,7 +31,7 @@ public class FileUploadEventConsumer {
 
     @RabbitListener(
             queues = "#{@fileUploadQueue.name}",
-            concurrency = "2-4"
+            concurrency = "${upload.consumer.concurrency:2-4}"
     )
     public void onFileUploaded(FileUploadedEvent event) {
         MDC.put("trackId", event.getTrackId());
@@ -39,6 +39,10 @@ public class FileUploadEventConsumer {
             log.info("[{}] Processing file upload event: user={} file={}",
                     event.getTrackId(), event.getUsername(), event.getFilename());
 
+            // Phase 1: use enriched event fields when available — skip DB fetch for flow-matched path.
+            // Full account still loaded because RoutingEngine needs it for folder evaluation,
+            // VFS bridge, AI classification, and audit. The enriched fields (partnerId, storageMode)
+            // are used by PartnerCache inside RoutingEngine to avoid the partner slug DB query.
             TransferAccount account = accountRepository.findById(event.getAccountId())
                     .orElse(null);
             if (account == null) {

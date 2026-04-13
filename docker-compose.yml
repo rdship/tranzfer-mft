@@ -61,6 +61,9 @@ x-common-env: &common-env
   FABRIC_ENABLED: "true"
   FABRIC_BROKER_URL: redpanda:9092
   FLOW_RULES_ENABLED: "true"
+  # Phase 1 pipeline optimizations (feature flags)
+  PIPELINE_CACHE_PARTNER_ENABLED: "true"
+  PIPELINE_RECORDS_BATCH__WRITE: "true"
   KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
   SPRING_KAFKA_BOOTSTRAP__SERVERS: redpanda:9092
 

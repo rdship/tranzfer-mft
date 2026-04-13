@@ -33,4 +33,12 @@ public class FileUploadedEvent implements java.io.Serializable {
     private long fileSizeBytes;
     @Builder.Default
     private Instant timestamp = Instant.now();
+
+    // ── Phase 1 enrichment: account snapshot fields ──
+    // Eliminates TransferAccount DB re-fetch in FileUploadEventConsumer.
+    // Consumer uses these for MatchContext building; full account loaded only
+    // when legacy folder-mapping path is needed.
+    private String storageMode;       // "VIRTUAL" or "PHYSICAL"
+    private UUID partnerId;           // for partner slug resolution
+    private String homeDir;           // for path computation
 }

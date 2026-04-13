@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Loads all active flow rules into the in-memory registry at application startup.
@@ -30,6 +31,18 @@ public class FlowRuleRegistryInitializer {
     private final FlowRuleRegistry registry;
     private final FlowRuleCompiler compiler;
 
+    /**
+     * Phase 1: In-memory flow cache — populated alongside rule registry every 30s.
+     * RoutingEngine calls {@link #getFlow(UUID)} instead of flowRepository.findById().
+     * Eliminates one DB round-trip per matched file.
+     */
+    private final ConcurrentHashMap<UUID, FileFlow> flowCache = new ConcurrentHashMap<>();
+
+    /** Get a cached FileFlow by ID. Returns null if not in cache (caller should fall back to DB). */
+    public FileFlow getFlow(UUID flowId) {
+        return flowId != null ? flowCache.get(flowId) : null;
+    }
+
     @EventListener(ApplicationReadyEvent.class)
     public void onStartup() {
         try {
@@ -43,6 +56,9 @@ public class FlowRuleRegistryInitializer {
                 }
             }
             registry.loadAll(compiled);
+            // Phase 1: populate flow cache alongside rule registry
+            flowCache.clear();
+            activeFlows.forEach(f -> flowCache.put(f.getId(), f));
             log.info("Flow rule registry initialized with {} active flows", registry.size());
         } catch (Exception e) {
             log.warn("Flow rule registry initialization skipped: {}", e.getMessage());
@@ -68,6 +84,9 @@ public class FlowRuleRegistryInitializer {
             }
             int before = registry.size();
             registry.loadAll(compiled);
+            // Phase 1: refresh flow cache alongside rule registry
+            flowCache.clear();
+            activeFlows.forEach(f -> flowCache.put(f.getId(), f));
             if (compiled.size() != before) {
                 log.info("Flow rule registry refreshed: {} → {} active flows", before, compiled.size());
             }

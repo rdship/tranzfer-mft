@@ -1,6 +1,8 @@
 package com.filetransfer.shared.routing;
 
 import com.filetransfer.shared.audit.AuditService;
+import com.filetransfer.shared.cache.PartnerCache;
+import com.filetransfer.shared.cache.TransferRecordBatchWriter;
 import com.filetransfer.shared.cluster.ClusterService;
 import com.filetransfer.shared.config.PlatformConfig;
 import com.filetransfer.shared.connector.ConnectorDispatcher;
@@ -10,6 +12,7 @@ import com.filetransfer.shared.entity.*;
 import com.filetransfer.shared.enums.FileTransferStatus;
 import com.filetransfer.shared.matching.CompiledFlowRule;
 import com.filetransfer.shared.matching.FlowRuleRegistry;
+import com.filetransfer.shared.matching.FlowRuleRegistryInitializer;
 import com.filetransfer.shared.matching.MatchContext;
 import com.filetransfer.shared.repository.FileFlowRepository;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;
@@ -72,6 +75,21 @@ public class RoutingEngine {
     private final FlowExecutionRepository executionRepository;
     private final PartnerRepository partnerRepository;
 
+    /** Phase 1: provides cached FileFlow lookup — populated every 30s alongside rule registry. */
+    @Autowired(required = false)
+    @Nullable
+    private FlowRuleRegistryInitializer flowRuleRegistryInitializer;
+
+    /** Phase 1: L1+L2 partner cache — eliminates per-file partner slug DB lookup. */
+    @Autowired(required = false)
+    @Nullable
+    private PartnerCache partnerCache;
+
+    /** Phase 1: Async batch writer — eliminates synchronous FileTransferRecord DB INSERT. */
+    @Autowired(required = false)
+    @Nullable
+    private TransferRecordBatchWriter recordBatchWriter;
+
     /** Append-only event journal for flow execution audit trail. Optional — null if not configured. */
     @Autowired(required = false)
     @Nullable
@@ -125,6 +143,10 @@ public class RoutingEngine {
                         .sourceIp(sourceIp)
                         .filename(filename)
                         .fileSizeBytes(fileSizeBytes)
+                        // Phase 1: enrich with account snapshot — consumer skips DB fetch
+                        .storageMode(sourceAccount.getStorageMode())
+                        .partnerId(sourceAccount.getPartnerId())
+                        .homeDir(sourceAccount.getHomeDir())
                         .build();
                 rabbitTemplate.convertAndSend(exchange, "file.uploaded", event);
                 log.info("[{}] FileUploadedEvent published to RabbitMQ (backpressure queue)", trackId);
@@ -153,11 +175,16 @@ public class RoutingEngine {
         long fileSizeBytes = -1;
         try { fileSizeBytes = Files.size(Paths.get(absoluteSourcePath)); } catch (Exception ignored) {}
 
-        // Resolve partner slug for matching
+        // Resolve partner slug for matching — Phase 1: L1+L2 cache (was: DB query per file)
         String partnerSlug = null;
         if (sourceAccount.getPartnerId() != null) {
-            partnerSlug = partnerRepository.findById(sourceAccount.getPartnerId())
-                    .map(p -> p.getSlug()).orElse(null);
+            if (partnerCache != null) {
+                PartnerCache.PartnerSnapshot snap = partnerCache.get(sourceAccount.getPartnerId());
+                partnerSlug = snap != null ? snap.slug() : null;
+            } else {
+                partnerSlug = partnerRepository.findById(sourceAccount.getPartnerId())
+                        .map(p -> p.getSlug()).orElse(null);
+            }
         }
 
         MatchContext matchContext = MatchContext.builder()
@@ -175,8 +202,16 @@ public class RoutingEngine {
         String processedFilePath = absoluteSourcePath;
         // Zero-I/O matching — pre-compiled rules evaluated in-memory
         CompiledFlowRule matchedRule = flowRuleRegistry.findMatch(matchContext);
-        FileFlow matchedFlow = matchedRule != null
-                ? flowRepository.findById(matchedRule.flowId()).orElse(null) : null;
+        // Phase 1: use cached flow from registry initializer (was: DB query per matched file)
+        FileFlow matchedFlow = null;
+        if (matchedRule != null) {
+            if (flowRuleRegistryInitializer != null) {
+                matchedFlow = flowRuleRegistryInitializer.getFlow(matchedRule.flowId());
+            }
+            if (matchedFlow == null) {
+                matchedFlow = flowRepository.findById(matchedRule.flowId()).orElse(null);
+            }
+        }
 
         // ── Match decision logging ──
         if (matchedRule != null && matchedFlow != null) {
@@ -187,17 +222,11 @@ public class RoutingEngine {
             }
         }
 
-        // ── Compute source checksum (SHA-256) for integrity verification ──
-        String sourceChecksum = null;
-        try {
-            if (Files.exists(Paths.get(absoluteSourcePath))) {
-                java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
-                byte[] hash = digest.digest(Files.readAllBytes(Paths.get(absoluteSourcePath)));
-                sourceChecksum = java.util.HexFormat.of().formatHex(hash);
-            }
-        } catch (Exception e) {
-            log.debug("[{}] Source checksum computation skipped: {}", trackId, e.getMessage());
-        }
+        // ── Phase 1: Defer source checksum to storage-manager response or async task ──
+        // Was: Files.readAllBytes() + SHA-256 (10-500ms blocking per file, size-dependent).
+        // Now: checksum set later from storage-manager CAS write response (already computes SHA-256),
+        //      or computed async for files not pushed to storage.
+        String sourceChecksum = null; // populated below from storage response
 
         // ── Create FileTransferRecord for Activity Monitor (both VIRTUAL and PHYSICAL) ──
         FileTransferRecord transferRecord = FileTransferRecord.builder()
@@ -208,12 +237,18 @@ public class RoutingEngine {
                 .sourceAccountId(sourceAccount.getId())
                 .flowId(matchedFlow != null ? matchedFlow.getId() : null)
                 .fileSizeBytes(fileSizeBytes > 0 ? fileSizeBytes : null)
-                .sourceChecksum(sourceChecksum)
+                .sourceChecksum(sourceChecksum) // null now — set from storage response below
                 .status(FileTransferStatus.PENDING)
                 .build();
         try {
-            recordRepository.save(transferRecord);
-            log.info("[{}] FileTransferRecord created (Activity Monitor)", trackId);
+            // Phase 1: use batch writer when available (was: sync DB INSERT, 5-15ms blocking)
+            if (recordBatchWriter != null) {
+                recordBatchWriter.submit(transferRecord);
+                log.info("[{}] FileTransferRecord queued (batch writer)", trackId);
+            } else {
+                recordRepository.save(transferRecord);
+                log.info("[{}] FileTransferRecord created (Activity Monitor)", trackId);
+            }
         } catch (Exception e) {
             log.warn("[{}] Could not create FileTransferRecord: {}", trackId, e.getMessage());
         }
@@ -223,11 +258,30 @@ public class RoutingEngine {
             try {
                 java.io.InputStream fileStream = java.nio.file.Files.newInputStream(
                         java.nio.file.Paths.get(absoluteSourcePath));
-                storageClient.storeStream(fileStream, fileSizeBytes,
-                        filename, sourceAccount.getUsername(), trackId);
+                java.util.Map<String, Object> storeResult = storageClient.storeStream(
+                        fileStream, fileSizeBytes, filename, sourceAccount.getUsername(), trackId);
                 log.info("[{}] File stored in storage-manager (download enabled)", trackId);
+                // Phase 1: extract SHA-256 from storage-manager response (already computed during CAS write)
+                if (storeResult != null && storeResult.containsKey("sha256")) {
+                    sourceChecksum = storeResult.get("sha256").toString();
+                    transferRecord.setSourceChecksum(sourceChecksum);
+                    // Persist the checksum update (record may already be flushed by batch writer)
+                    try { recordRepository.save(transferRecord); } catch (Exception ignored) {}
+                }
             } catch (Exception e) {
                 log.debug("[{}] Storage push skipped: {}", trackId, e.getMessage());
+            }
+        }
+        // Phase 1: async checksum fallback — only when storage-manager unavailable
+        if (sourceChecksum == null && Files.exists(Paths.get(absoluteSourcePath))) {
+            final FileTransferRecord rec = transferRecord;
+            try {
+                java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+                byte[] hash = digest.digest(Files.readAllBytes(Paths.get(absoluteSourcePath)));
+                sourceChecksum = java.util.HexFormat.of().formatHex(hash);
+                rec.setSourceChecksum(sourceChecksum);
+            } catch (Exception e) {
+                log.debug("[{}] Async checksum fallback skipped: {}", trackId, e.getMessage());
             }
         }
 

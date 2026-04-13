@@ -9,6 +9,7 @@ import java.time.LocalTime;
 import java.util.*;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Compiles a FileFlow's MatchCriteria tree into a pre-compiled {@link CompiledFlowRule}.
@@ -32,9 +33,46 @@ public class FlowRuleCompiler {
 
         Set<String> protocols = extractProtocols(flow.getMatchCriteria());
 
+        // Phase 1: build flow snapshot to eliminate post-match DB fetch
+        CompiledFlowRule.FlowSnapshot snapshot = buildSnapshot(flow);
+
         return new CompiledFlowRule(
                 flow.getId(), flow.getName(), flow.getPriority(),
-                flow.getDirection(), protocols, matcher);
+                flow.getDirection(), protocols, matcher, snapshot);
+    }
+
+    /**
+     * Builds an immutable snapshot of FileFlow fields needed for execution.
+     * Serializes steps to List of Map for portability (shared-core has no FileFlow dependency).
+     */
+    @SuppressWarnings("unchecked")
+    private CompiledFlowRule.FlowSnapshot buildSnapshot(FileFlow flow) {
+        List<Map<String, Object>> stepMaps = flow.getSteps() != null
+                ? flow.getSteps().stream().map(step -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("type", step.getType());
+                    m.put("config", step.getConfig() != null ? new LinkedHashMap<>(step.getConfig()) : Map.of());
+                    m.put("order", step.getOrder());
+                    return (Map<String, Object>) m;
+                }).collect(Collectors.toList())
+                : List.of();
+
+        return new CompiledFlowRule.FlowSnapshot(
+                flow.getId(),
+                flow.getName(),
+                flow.getFilenamePattern(),
+                flow.getSourceAccount() != null ? flow.getSourceAccount().getId() : null,
+                flow.getSourcePath(),
+                flow.getDestinationAccount() != null ? flow.getDestinationAccount().getId() : null,
+                flow.getDestinationPath(),
+                flow.getExternalDestination() != null ? flow.getExternalDestination().getId() : null,
+                flow.getPartnerId(),
+                flow.getDirection(),
+                flow.getPriority(),
+                flow.isActive(),
+                stepMaps,
+                flow.getMatchCriteria()
+        );
     }
 
     /**
