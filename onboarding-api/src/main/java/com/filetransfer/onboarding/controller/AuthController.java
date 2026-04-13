@@ -3,6 +3,7 @@ package com.filetransfer.onboarding.controller;
 import com.filetransfer.onboarding.dto.request.LoginRequest;
 import com.filetransfer.onboarding.dto.request.RegisterRequest;
 import com.filetransfer.onboarding.dto.response.AuthResponse;
+import com.filetransfer.onboarding.security.BruteForceProtection;
 import com.filetransfer.onboarding.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -11,10 +12,13 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -31,6 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class AuthController {
 
     private final AuthService authService;
+    private final BruteForceProtection bruteForceProtection;
 
     // --- IP-based rate limiting ---
     private static final int MAX_AUTH_REQUESTS_PER_MINUTE = 20;
@@ -77,6 +82,13 @@ public class AuthController {
                                HttpServletRequest httpRequest) {
         checkIpRateLimit(httpRequest);
         return authService.login(request);
+    }
+
+    @PostMapping("/admin/unlock/{email}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, String>> unlockAccount(@PathVariable String email) {
+        bruteForceProtection.unlock(email);
+        return ResponseEntity.ok(Map.of("status", "UNLOCKED", "email", email));
     }
 
     private static class IpWindow {

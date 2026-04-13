@@ -2,6 +2,7 @@ package com.filetransfer.onboarding.controller;
 
 import com.filetransfer.onboarding.dto.request.CreateAccountRequest;
 import com.filetransfer.onboarding.dto.request.CreatePartnerRequest;
+import com.filetransfer.shared.util.InputSanitizer;
 import com.filetransfer.onboarding.dto.request.UpdatePartnerRequest;
 import com.filetransfer.shared.dto.FileFlowDto;
 import com.filetransfer.shared.security.Roles;
@@ -37,6 +38,8 @@ public class PartnerManagementController {
     @ResponseStatus(HttpStatus.CREATED)
     public Partner create(@AuthenticationPrincipal String email,
                           @Valid @RequestBody CreatePartnerRequest request) {
+        if (request.getDisplayName() != null) request.setDisplayName(InputSanitizer.stripHtml(request.getDisplayName()));
+        if (request.getNotes() != null) request.setNotes(InputSanitizer.stripHtml(request.getNotes()));
         return partnerService.createPartner(request, email);
     }
 

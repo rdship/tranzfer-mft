@@ -25,7 +25,7 @@ public class Partner extends Auditable {
     private UUID id;
 
     @NotBlank
-    @Column(nullable = false)
+    @Column(unique = true, nullable = false)
     private String companyName;
 
     private String displayName;

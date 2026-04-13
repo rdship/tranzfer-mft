@@ -35,7 +35,7 @@ class AuthControllerTest {
         authService = new StubAuthService();
         authService.setLoginResponse(dummyAuthResponse());
         authService.setRegisterResponse(dummyAuthResponse());
-        controller = new AuthController(authService);
+        controller = new AuthController(authService, new com.filetransfer.onboarding.security.BruteForceProtection());
     }
 
     /**
@@ -126,7 +126,7 @@ class AuthControllerTest {
 
     @Test
     void rateLimiting_newControllerInstanceHasFreshWindows() {
-        AuthController freshController = new AuthController(authService);
+        AuthController freshController = new AuthController(authService, new com.filetransfer.onboarding.security.BruteForceProtection());
         when(httpRequest.getRemoteAddr()).thenReturn("10.0.0.1");
 
         LoginRequest loginRequest = new LoginRequest();

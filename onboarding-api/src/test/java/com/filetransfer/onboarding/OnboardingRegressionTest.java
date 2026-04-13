@@ -104,7 +104,7 @@ class OnboardingRegressionTest {
         authService = new StubAuthService();
         authService.setLoginResponse(AuthResponse.builder()
                 .accessToken("test-token").tokenType("Bearer").expiresIn(900).build());
-        authController = new AuthController(authService);
+        authController = new AuthController(authService, new com.filetransfer.onboarding.security.BruteForceProtection());
 
         // TOTP
         totpController = new TotpController(totpRepo);

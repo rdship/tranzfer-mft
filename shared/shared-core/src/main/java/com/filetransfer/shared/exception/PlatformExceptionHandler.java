@@ -22,6 +22,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Platform-wide exception handler. Active by default for all services.
@@ -148,6 +149,18 @@ public class PlatformExceptionHandler {
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(
                 ApiError.of(405, "Method Not Allowed", ErrorCode.VALIDATION_FAILED.getCode(),
                         ex.getMessage(), request.getRequestURI()));
+    }
+
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, Object>> handleMessageNotReadable(
+            org.springframework.http.converter.HttpMessageNotReadableException ex) {
+        String msg = ex.getMostSpecificCause() != null
+            ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
+        return ResponseEntity.badRequest().body(Map.of(
+            "status", 400,
+            "error", "Bad Request",
+            "message", "Invalid request body: " + msg
+        ));
     }
 
     @ExceptionHandler(ResourceAccessException.class)

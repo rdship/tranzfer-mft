@@ -12,6 +12,7 @@ import com.filetransfer.shared.repository.UserRepository;
 import com.filetransfer.shared.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -44,7 +45,11 @@ public class AuthService {
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .role(UserRole.USER)
                 .build();
-        userRepository.save(user);
+        try {
+            userRepository.save(user);
+        } catch (DataIntegrityViolationException e) {
+            throw new IllegalArgumentException("Email already registered: " + request.getEmail());
+        }
 
         auditService.logLogin(request.getEmail(), null, true, "registration");
         log.info("User registered: {}", request.getEmail());

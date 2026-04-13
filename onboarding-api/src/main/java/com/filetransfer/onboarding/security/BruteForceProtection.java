@@ -45,6 +45,11 @@ public class BruteForceProtection {
         return true;
     }
 
+    public void unlock(String email) {
+        attempts.remove(email.toLowerCase());
+        log.info("Account unlocked by admin: {}", email);
+    }
+
     public int getRemainingAttempts(String email) {
         AttemptRecord rec = attempts.get(email);
         if (rec == null) return MAX_ATTEMPTS;
