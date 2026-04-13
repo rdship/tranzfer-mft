@@ -1,14 +1,28 @@
 {
   "name": "tranzfer-mft-e2e-tests",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "description": "Enterprise-grade Playwright test suite for TranzFer MFT Platform",
   "scripts": {
     "test": "npx playwright test",
     "test:ui": "npx playwright test --ui",
     "test:headed": "npx playwright test --headed",
     "test:report": "npx playwright show-report",
-    "test:smoke": "npx playwright test --grep @smoke",
-    "test:full": "npx playwright test --grep @full",
-    "test:api": "npx playwright test --grep @api"
+    "test:smoke": "npx playwright test tests/smoke.spec.js",
+    "test:auth": "npx playwright test tests/auth.spec.js",
+    "test:partners": "npx playwright test tests/partners.spec.js",
+    "test:accounts": "npx playwright test tests/accounts.spec.js",
+    "test:users": "npx playwright test tests/users.spec.js",
+    "test:flows": "npx playwright test tests/flows.spec.js",
+    "test:activity": "npx playwright test tests/activity-monitor.spec.js",
+    "test:security": "npx playwright test tests/security.spec.js",
+    "test:infra": "npx playwright test tests/analytics-edi-infra.spec.js",
+    "test:e2e": "npx playwright test tests/e2e-workflows.spec.js",
+    "test:api-validation": "npx playwright test tests/api-validation.spec.js",
+    "test:ui-interactions": "npx playwright test tests/ui-interactions.spec.js",
+    "test:portals": "npx playwright test tests/partner-portal.spec.js tests/file-portal.spec.js",
+    "test:servers": "npx playwright test tests/servers-and-mappings.spec.js",
+    "test:full": "npx playwright test",
+    "test:api-only": "npx playwright test tests/auth.spec.js tests/api-validation.spec.js tests/activity-monitor.spec.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.45.0"
