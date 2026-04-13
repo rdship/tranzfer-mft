@@ -3,6 +3,9 @@ server:
   shutdown: graceful
 
 spring:
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
   main:
     allow-bean-definition-overriding: true
   lifecycle:

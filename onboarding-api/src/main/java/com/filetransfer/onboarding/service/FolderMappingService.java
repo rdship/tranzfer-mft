@@ -39,16 +39,19 @@ public class FolderMappingService {
         return toResponse(mappingRepository.save(mapping));
     }
 
+    @Transactional(readOnly = true)
     public FolderMappingResponse get(UUID id) {
         return toResponse(findById(id));
     }
 
+    @Transactional(readOnly = true)
     public List<FolderMappingResponse> listAll() {
         return mappingRepository.findAll().stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<FolderMappingResponse> listForAccount(UUID accountId) {
         return mappingRepository
                 .findBySourceAccountIdOrDestinationAccountId(accountId, accountId)

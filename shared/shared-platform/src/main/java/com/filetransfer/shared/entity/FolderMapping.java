@@ -1,5 +1,6 @@
 package com.filetransfer.shared.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.filetransfer.shared.enums.EncryptionOption;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
@@ -16,6 +17,7 @@ public class FolderMapping extends Auditable {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "source_account_id", nullable = false)
     private TransferAccount sourceAccount;
@@ -29,6 +31,7 @@ public class FolderMapping extends Auditable {
      * Internal destination account. Null when externalDestination is set.
      * Either destinationAccount OR externalDestination must be non-null.
      */
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "destination_account_id")
     private TransferAccount destinationAccount;
@@ -40,6 +43,7 @@ public class FolderMapping extends Auditable {
      * External destination (SFTP/FTP/Kafka outside our system).
      * When set, destinationAccount is ignored.
      */
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "external_destination_id")
     private ExternalDestination externalDestination;
@@ -57,6 +61,7 @@ public class FolderMapping extends Auditable {
      * Encryption key to use. For ENCRYPT_BEFORE_FORWARD: destination's public key.
      * For DECRYPT_THEN_FORWARD: source's private key.
      */
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "encryption_key_id")
     private EncryptionKey encryptionKey;
