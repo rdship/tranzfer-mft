@@ -126,19 +126,62 @@ public class PartnerCache {
         }
     }
 
+    /**
+     * JSON serialization — safe for any characters in slug/companyName.
+     * No Jackson dependency in hot path — manual JSON for speed.
+     */
     private String serialize(PartnerSnapshot snap) {
-        // Format: id|slug|companyName
-        return snap.id() + "|" + (snap.slug() != null ? snap.slug() : "") +
-                "|" + (snap.companyName() != null ? snap.companyName() : "");
+        StringBuilder sb = new StringBuilder(128);
+        sb.append("{\"id\":\"").append(snap.id()).append('"');
+        sb.append(",\"slug\":"); appendJsonString(sb, snap.slug());
+        sb.append(",\"company\":"); appendJsonString(sb, snap.companyName());
+        sb.append('}');
+        return sb.toString();
+    }
+
+    private void appendJsonString(StringBuilder sb, String value) {
+        if (value == null) { sb.append("null"); return; }
+        sb.append('"');
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            switch (c) {
+                case '"' -> sb.append("\\\"");
+                case '\\' -> sb.append("\\\\");
+                default -> sb.append(c);
+            }
+        }
+        sb.append('"');
     }
 
     private PartnerSnapshot deserialize(String raw) {
-        String[] parts = raw.split("\\|", 3);
-        if (parts.length < 3) return null;
-        return new PartnerSnapshot(
-                UUID.fromString(parts[0]),
-                parts[1].isEmpty() ? null : parts[1],
-                parts[2].isEmpty() ? null : parts[2]
-        );
+        try {
+            // Minimal JSON parse — extract 3 fields between quotes
+            String id = extractJsonField(raw, "id");
+            String slug = extractJsonField(raw, "slug");
+            String company = extractJsonField(raw, "company");
+            if (id == null) return null;
+            return new PartnerSnapshot(UUID.fromString(id), slug, company);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String extractJsonField(String json, String field) {
+        String key = "\"" + field + "\":";
+        int idx = json.indexOf(key);
+        if (idx < 0) return null;
+        int start = idx + key.length();
+        if (start >= json.length()) return null;
+        if (json.charAt(start) == 'n') return null; // null
+        if (json.charAt(start) != '"') return null;
+        start++; // skip opening quote
+        StringBuilder sb = new StringBuilder();
+        for (int i = start; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (c == '\\' && i + 1 < json.length()) { sb.append(json.charAt(++i)); continue; }
+            if (c == '"') break;
+            sb.append(c);
+        }
+        return sb.toString();
     }
 }

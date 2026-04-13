@@ -244,32 +244,8 @@ public class RoutingEngine {
         // Was: Files.readAllBytes() + SHA-256 (10-500ms blocking per file, size-dependent).
         // Now: checksum set later from storage-manager CAS write response (already computes SHA-256),
         //      or computed async for files not pushed to storage.
-        String sourceChecksum = null; // populated below from storage response
-
-        // ── Create FileTransferRecord for Activity Monitor (both VIRTUAL and PHYSICAL) ──
-        FileTransferRecord transferRecord = FileTransferRecord.builder()
-                .trackId(trackId)
-                .originalFilename(filename)
-                .sourceFilePath(relativeFilePath)
-                .destinationFilePath(relativeFilePath) // updated when delivery completes
-                .sourceAccountId(sourceAccount.getId())
-                .flowId(matchedFlow != null ? matchedFlow.getId() : null)
-                .fileSizeBytes(fileSizeBytes > 0 ? fileSizeBytes : null)
-                .sourceChecksum(sourceChecksum) // null now — set from storage response below
-                .status(FileTransferStatus.PENDING)
-                .build();
-        try {
-            // Phase 1: use batch writer when available (was: sync DB INSERT, 5-15ms blocking)
-            if (recordBatchWriter != null) {
-                recordBatchWriter.submit(transferRecord);
-                log.info("[{}] FileTransferRecord queued (batch writer)", trackId);
-            } else {
-                recordRepository.save(transferRecord);
-                log.info("[{}] FileTransferRecord created (Activity Monitor)", trackId);
-            }
-        } catch (Exception e) {
-            log.warn("[{}] Could not create FileTransferRecord: {}", trackId, e.getMessage());
-        }
+        // ── Compute source checksum BEFORE creating record (eliminates batch writer race) ──
+        String sourceChecksum = null;
 
         // Push file to storage-manager (enables download from Activity Monitor)
         if (storageClient != null && Files.exists(Paths.get(absoluteSourcePath))) {
@@ -279,28 +255,47 @@ public class RoutingEngine {
                 java.util.Map<String, Object> storeResult = storageClient.storeStream(
                         fileStream, fileSizeBytes, filename, sourceAccount.getUsername(), trackId);
                 log.info("[{}] File stored in storage-manager (download enabled)", trackId);
-                // Phase 1: extract SHA-256 from storage-manager response (already computed during CAS write)
+                // Extract SHA-256 from CAS write response (already computed during storage)
                 if (storeResult != null && storeResult.containsKey("sha256")) {
                     sourceChecksum = storeResult.get("sha256").toString();
-                    transferRecord.setSourceChecksum(sourceChecksum);
-                    // Persist the checksum update (record may already be flushed by batch writer)
-                    try { recordRepository.save(transferRecord); } catch (Exception ignored) {}
                 }
             } catch (Exception e) {
                 log.debug("[{}] Storage push skipped: {}", trackId, e.getMessage());
             }
         }
-        // Phase 1: async checksum fallback — only when storage-manager unavailable
+        // Fallback checksum — only when storage-manager unavailable
         if (sourceChecksum == null && Files.exists(Paths.get(absoluteSourcePath))) {
-            final FileTransferRecord rec = transferRecord;
             try {
                 java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
                 byte[] hash = digest.digest(Files.readAllBytes(Paths.get(absoluteSourcePath)));
                 sourceChecksum = java.util.HexFormat.of().formatHex(hash);
-                rec.setSourceChecksum(sourceChecksum);
             } catch (Exception e) {
-                log.debug("[{}] Async checksum fallback skipped: {}", trackId, e.getMessage());
+                log.debug("[{}] Checksum fallback skipped: {}", trackId, e.getMessage());
             }
+        }
+
+        // ── Create FileTransferRecord WITH checksum already set (no post-save update needed) ──
+        FileTransferRecord transferRecord = FileTransferRecord.builder()
+                .trackId(trackId)
+                .originalFilename(filename)
+                .sourceFilePath(relativeFilePath)
+                .destinationFilePath(relativeFilePath) // updated when delivery completes
+                .sourceAccountId(sourceAccount.getId())
+                .flowId(matchedFlow != null ? matchedFlow.getId() : null)
+                .fileSizeBytes(fileSizeBytes > 0 ? fileSizeBytes : null)
+                .sourceChecksum(sourceChecksum)
+                .status(FileTransferStatus.PENDING)
+                .build();
+        try {
+            if (recordBatchWriter != null) {
+                recordBatchWriter.submit(transferRecord);
+                log.info("[{}] FileTransferRecord queued (batch writer)", trackId);
+            } else {
+                recordRepository.save(transferRecord);
+                log.info("[{}] FileTransferRecord created (Activity Monitor)", trackId);
+            }
+        } catch (Exception e) {
+            log.warn("[{}] Could not create FileTransferRecord: {}", trackId, e.getMessage());
         }
 
         // ── VIRTUAL-mode accounts (default): FileRef-based streaming pipeline ──────────

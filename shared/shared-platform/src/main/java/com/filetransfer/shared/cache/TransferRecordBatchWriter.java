@@ -84,6 +84,29 @@ public class TransferRecordBatchWriter {
         }
     }
 
+    /** Flush remaining records on shutdown — prevents data loss during rolling deployments. */
+    @jakarta.annotation.PreDestroy
+    public void shutdown() {
+        log.info("TransferRecordBatchWriter shutting down — flushing {} pending records", buffer.size());
+        List<FileTransferRecord> remaining = new ArrayList<>();
+        buffer.drainTo(remaining);
+        if (!remaining.isEmpty()) {
+            try {
+                repository.saveAll(remaining);
+                log.info("TransferRecordBatchWriter shutdown flush: {} records persisted", remaining.size());
+            } catch (Exception e) {
+                log.error("TransferRecordBatchWriter shutdown flush failed ({} records): {}",
+                        remaining.size(), e.getMessage());
+                // Last resort: save individually
+                for (FileTransferRecord r : remaining) {
+                    try { repository.save(r); } catch (Exception ex) {
+                        log.error("Lost record on shutdown (trackId={}): {}", r.getTrackId(), ex.getMessage());
+                    }
+                }
+            }
+        }
+    }
+
     /** Pending records in buffer. */
     public int pendingCount() { return buffer.size(); }
 
