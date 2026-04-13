@@ -97,6 +97,30 @@ const ALL_COLUMNS = [
   { key: 'downloadedAt', label: 'Downloaded At', defaultVisible: false, width: 'w-40', render: (v) => formatTimestamp(v) },
   { key: 'retryCount', label: 'Retries', defaultVisible: false, width: 'w-20', render: (v) => v != null ? v : '--' },
   { key: 'errorMessage', label: 'Error', defaultVisible: false, width: 'min-w-[200px] max-w-[300px]', render: (v) => v ? <span className="text-red-600 truncate block text-xs" title={v}>{v}</span> : '--' },
+  { key: 'errorCategory', label: 'Error Type', defaultVisible: false, width: 'w-24',
+    render: (v) => {
+      if (!v) return '--'
+      const colors = { NETWORK: 'bg-orange-100 text-orange-700', AUTH: 'bg-red-100 text-red-700',
+                       STORAGE: 'bg-blue-100 text-blue-700', BUSINESS: 'bg-purple-100 text-purple-700',
+                       SYSTEM: 'bg-gray-100 text-gray-700' }
+      return <span className={`${colors[v] || 'bg-gray-100'} px-1.5 py-0.5 rounded text-[10px] font-medium`}>{v}</span>
+    }
+  },
+  { key: 'healthScore', label: 'Health', defaultVisible: true, width: 'w-16',
+    render: (v) => {
+      const color = v >= 80 ? 'text-green-600' : v >= 50 ? 'text-yellow-600' : 'text-red-600'
+      const bg = v >= 80 ? 'bg-green-50' : v >= 50 ? 'bg-yellow-50' : 'bg-red-50'
+      return <span className={`${color} ${bg} px-1.5 py-0.5 rounded text-xs font-bold`}>{v ?? '--'}</span>
+    }
+  },
+  { key: 'durationMs', label: 'Duration', defaultVisible: true, width: 'w-20',
+    render: (v) => {
+      if (v == null) return '--'
+      if (v < 1000) return `${v}ms`
+      if (v < 60000) return `${(v/1000).toFixed(1)}s`
+      return `${(v/60000).toFixed(1)}m`
+    }
+  },
   {
     key: 'currentStepType',
     label: 'Current Step',
@@ -579,6 +603,10 @@ export default function ActivityMonitor() {
   // Execution detail drawer state (double-click)
   const [drawerTrackId, setDrawerTrackId] = useState(null)
 
+  // Keyboard navigation state
+  const [selectedRowIdx, setSelectedRowIdx] = useState(-1)
+  const filenameInputRef = useRef(null)
+
   // Inline config editor state
   const [editConfig, setEditConfig] = useState(null)
 
@@ -671,6 +699,42 @@ export default function ActivityMonitor() {
   }, [rawRows, stuckOnly, stepTypeFilter])
   const totalElements = (stuckOnly || stepTypeFilter) ? rows.length : (data?.totalElements || 0)
   const totalPages    = (stuckOnly || stepTypeFilter) ? 1 : (data?.totalPages || 0)
+
+  // ── Keyboard Shortcuts ────────────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return
+      if (e.key === 'j') {
+        setSelectedRowIdx(prev => {
+          const max = (rows?.length || 1) - 1
+          return Math.min(prev + 1, max)
+        })
+      }
+      if (e.key === 'k') {
+        setSelectedRowIdx(prev => Math.max(prev - 1, 0))
+      }
+      if (e.key === 'r') {
+        if (selectedRowIdx >= 0 && rows[selectedRowIdx]) {
+          const row = rows[selectedRowIdx]
+          if ((row.status === 'FAILED' || row.status === 'CANCELLED') && canOperate) {
+            if (window.confirm(`Restart transfer ${row.trackId}?`)) restartOneMut.mutate(row.trackId)
+          }
+        }
+      }
+      if (e.key === 'd') {
+        if (selectedRowIdx >= 0 && rows[selectedRowIdx]) {
+          const row = rows[selectedRowIdx]
+          if (row.trackId) setDrawerTrackId(row.trackId)
+        }
+      }
+      if (e.key === '/') {
+        e.preventDefault()
+        filenameInputRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [selectedRowIdx, rows, canOperate, restartOneMut])
 
   // ── Fabric KPI strip (polled independently so it never blocks the main table) ──
   // Gives the user at-a-glance Fabric context while they explore the Activity list.
@@ -1420,8 +1484,9 @@ export default function ActivityMonitor() {
           <div className="relative">
             <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted pointer-events-none" />
             <input
+              ref={filenameInputRef}
               className="!w-48 !py-1.5 !pl-8 !pr-3 !text-xs"
-              placeholder="Filename..."
+              placeholder="Filename... (press /)"
               value={filenameFilter}
               onChange={e => setFilenameFilter(e.target.value)}
             />
@@ -1573,7 +1638,7 @@ export default function ActivityMonitor() {
                     return (
                       <React.Fragment key={row.trackId || i}>
                         <tr
-                          className={`table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)] group ${isExpanded ? 'bg-blue-50/70' : ''} ${isSelected ? 'bg-red-50/50' : ''}`}
+                          className={`table-row cursor-pointer transition-colors duration-150 hover:bg-[rgba(100,140,255,0.06)] group ${isExpanded ? 'bg-blue-50/70' : ''} ${isSelected ? 'bg-red-50/50' : ''} ${selectedRowIdx === i ? 'ring-2 ring-inset ring-blue-400 bg-blue-50/40' : ''}`}
                           onClick={() => handleRowClick(row)}
                           onDoubleClick={() => row.trackId && setDrawerTrackId(row.trackId)}
                         >

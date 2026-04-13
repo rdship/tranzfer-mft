@@ -286,6 +286,14 @@ public class ActivityMonitorController {
                 .leaseRemainingMs(fabricLeaseRemainingMs)
                 .isStuck(fabricIsStuck)
                 .fabricStatus(fabricStatus)
+                // Phase 5: health score, error category, duration
+                .healthScore(ActivityMonitorEntry.computeHealthScore(
+                        integrityStatus, r.getStatus().name(), r.getRetryCount(),
+                        fm != null && fm.getEncryptionOption() != null ? fm.getEncryptionOption().name() : null,
+                        r.getUploadedAt(), r.getCompletedAt()))
+                .errorCategory(ActivityMonitorEntry.categorizeError(r.getErrorMessage()))
+                .durationMs(r.getUploadedAt() != null && r.getCompletedAt() != null
+                        ? java.time.Duration.between(r.getUploadedAt(), r.getCompletedAt()).toMillis() : null)
                 .build();
     }
 
