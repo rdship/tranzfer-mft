@@ -1276,3 +1276,108 @@ mft-final-report-20260413.zip
 **Priority 3 — Storage-manager integration for SEDA files:** Download button won't work until files are pushed to centralized storage after processing.
 
 **Priority 4 — JWT token refresh / longer TTL:** 15-minute token expiry causes 403 on every page after the user has been browsing for >15 minutes. Either implement refresh tokens or increase TTL to 3600s for the admin UI.
+
+---
+
+## Automated UI Testing Framework — Playwright (2026-04-13)
+
+### Results: 77 PASS / 3 FAIL / 3 FLAKY (83 total, 3 minutes)
+
+### Test Coverage
+
+| Category | Tests | Pass | Fail | What It Covers |
+|---|---|---|---|---|
+| Authentication | 3 | 3 | 0 | Login, invalid creds, session redirect |
+| Page Navigation | 44 | 41 | 3 | Every page loads without "This page crashed" banner |
+| API Endpoints | 31 | 30 | 0+1 flaky | Every gateway route returns HTTP 200 |
+| CRUD Operations | 2 | 2 | 0 | Create/read/delete flows + partners |
+| UI Interactions | 3 | 3 | 0 | Sidebar nav, Activity Monitor data, Quick Flow Wizard |
+
+### Pages That FAIL (crash on load)
+
+| Page | Path | Failure |
+|---|---|---|
+| Gateway Status | `/gateway` | "This page crashed" — likely missing API data |
+| DMZ Proxy | `/dmz-proxy` | "This page crashed" — component error |
+| Cluster | `/cluster` | "This page crashed" — component error |
+
+### Flaky Tests (pass on retry)
+
+| Test | Issue |
+|---|---|
+| AS2 Partnerships page | Slow to load — times out on first try, passes on retry |
+| Monitoring page | Prometheus/Loki connection delay — passes on retry |
+| Flow Exec Live Stats API | Intermittent 500 — race condition in scheduled retries query |
+
+### How to Run
+
+```bash
+cd tests/playwright
+npm install                  # First time only
+npm test                     # Full suite (83 tests, ~3 min)
+npm run test:smoke           # Quick smoke (auth + navigation)
+npm run test:api             # API endpoints only
+npm run test:headed          # Watch tests in browser
+npm run test:report          # Open HTML report with screenshots
+```
+
+### What's Tested
+
+**Every single page in the Admin UI (44 pages):**
+Dashboard, Activity Monitor, Transfer Journey, Fabric, Live Activity, Partners, Accounts, Server Instances, Flows, Folder Mappings, Folder Templates, Security Profiles, External Destinations, Connectors, Scheduler, SLA, Function Queues, Listeners, AS2 Partnerships, EDI Converter, Screening, Quarantine, Keystore, Notifications, Storage, Analytics, Predictions, Observatory, Sentinel, Compliance, Threat Intelligence, Users, Tenants, Platform Config, License, Services, Logs, Terminal, Monitoring, Gateway, DMZ Proxy, DLQ Manager, Circuit Breakers, Cluster
+
+**Every API endpoint through the gateway (31 endpoints):**
+activity-monitor, partners, servers, accounts, flows, folder-mappings, audit-logs, security-profiles, platform-settings, scheduler, function-queues, connectors, sla, service-registry, clusters, listeners, sentinel/findings, sentinel/health-score, analytics/dashboard, analytics/observatory, ai/anomalies, ai/predictions, keys, edi/maps, notifications/templates, notifications/rules, storage/objects, screening/policies, activity/recent, flow-executions/live-stats, flow-executions/scheduled-retries
+
+**CRUD operations:**
+- Create a file flow → verify 201 → read flows → verify 200 → delete flow → verify 204
+- Create a partner → verify 201 → read partners → verify 200
+
+**UI interactions:**
+- Sidebar navigation between sections without crashes
+- Activity Monitor page loads with data rows
+- Quick Flow Wizard opens from the Flows page
+
+### For Future Development
+
+When adding a new page or endpoint:
+1. Add the page path to the `pages` array in `tests/smoke.spec.js`
+2. Add the API endpoint to the `endpoints` array
+3. Run `npm test` — the new page/endpoint is automatically tested
+4. For complex features (forms, wizards, file uploads), add a new `test.describe` block
+
+### Extending the Test Suite
+
+```javascript
+// Add a new page test:
+{ name: 'My New Page', path: '/my-new-page' },
+
+// Add a new API test:
+{ name: 'My New API', path: '/api/v1/my-endpoint' },
+
+// Add a complex interaction test:
+test('My feature works end-to-end', async ({ page }) => {
+  await login(page);
+  await page.goto('/my-feature');
+  await page.click('button:has-text("Create")');
+  await page.fill('input[name="name"]', 'Test');
+  await page.click('button:has-text("Save")');
+  await expect(page.locator('text=Created successfully')).toBeVisible();
+});
+```
+
+### CI Integration
+
+Add to `.github/workflows/`:
+```yaml
+- name: Run Playwright Tests
+  run: |
+    cd tests/playwright
+    npm ci
+    npx playwright install chromium
+    npm test
+  env:
+    BASE_URL: http://localhost
+    ADMIN_EMAIL: superadmin@tranzfer.io
+    ADMIN_PASS: superadmin
+```
