@@ -75,3 +75,6 @@ tests/reports/
 mft-client/dist/
 mft-client/jre-cache/
 tranzfer-mft/
+tests/playwright/node_modules/
+tests/playwright/test-results/
+tests/playwright/playwright-report/

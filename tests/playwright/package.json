@@ -1,0 +1,16 @@
+{
+  "name": "tranzfer-mft-e2e-tests",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "npx playwright test",
+    "test:ui": "npx playwright test --ui",
+    "test:headed": "npx playwright test --headed",
+    "test:report": "npx playwright show-report",
+    "test:smoke": "npx playwright test --grep @smoke",
+    "test:full": "npx playwright test --grep @full",
+    "test:api": "npx playwright test --grep @api"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.45.0"
+  }
+}
