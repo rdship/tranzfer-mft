@@ -2053,3 +2053,235 @@ RoutingEngine.onFileUploaded():
 | **Delivered file** | ForwarderService | During delivery step | Remote partner SFTP/FTP/AS2 | Protocol confirmation (SSH OK / FTP 226 / MDN) |
 | **Completion update** | RoutingEngine.onFileDownloaded() | When recipient downloads | PostgreSQL (status update) | DB commit |
 | **Destination checksum** | AuditService.sha256() | On delivery completion | FileTransferRecord field | Same transaction as status update |
+
+### D.7 Delivery Step — How File Streams From Storage-Manager to External Partner
+
+The file is in CAS (Storage-Manager) by the time the delivery step runs. Here's exactly how bytes flow to the partner, for both PHYSICAL and VIRTUAL modes.
+
+#### PHYSICAL Mode — File on Local Disk
+
+```
+FlowProcessingEngine.executeFileDelivery(Path input, cfg, trackId)
+    │
+    │  "input" is a local Path: /tmp/flow-work/TRZ000042/report.csv.pgp
+    │  (output of previous step — e.g., encrypted file on local disk)
+    │
+    ├─ 1. Resolve delivery endpoints from DB
+    │     deliveryEndpointRepository.findByIdInAndActiveTrue(ids)
+    │     → List<DeliveryEndpoint> [{name:"Acme SFTP", protocol:SFTP, host:"sftp.acme.com", port:22}]
+    │
+    ├─ 2. Create FileSystemResource from local Path
+    │     FileSystemResource fileResource = new FileSystemResource(input.toFile())
+    │     → Spring streams directly from disk (no full heap load)
+    │
+    ├─ 3. For EACH endpoint: HTTP multipart POST to forwarder-service
+    │     POST http://forwarder-service:8087/api/forward/deliver/{endpointId}/file
+    │       Content-Type: multipart/form-data
+    │       Part "file": [streaming from disk via FileSystemResource]
+    │       Query params: filename=report.csv.pgp&trackId=TRZ000042
+    │       Auth: SPIFFE JWT-SVID header
+    │
+    └─ 4. ForwarderController.deliverFile() receives multipart
+          │  file.getBytes() → byte[] in heap
+          │  dispatchDelivery(endpoint, filename, bytes, trackId)
+          │     ↓ (routes by protocol)
+          │
+          ├─ SFTP: SftpForwarderService.forward(dest, filename, bytes)
+          │     │  Apache MINA SSHD client
+          │     │  connect → auth → openRemote(path, WRITE|CREATE)
+          │     │  write loop: sftp.write(handle, offset, buf, 0, read)
+          │     │  TransferWatchdog: stall detection (30s no-progress → abort)
+          │     │  Close handle → SSH confirms write
+          │     └─ DONE: bytes on partner's SFTP server
+          │
+          ├─ FTP: FtpForwarderService.forward(dest, filename, bytes)
+          │     │  Apache Commons FTPClient
+          │     │  connect → login → storeFile(remotePath, inputStream)
+          │     │  FTP 226 Transfer complete
+          │     └─ DONE: bytes on partner's FTP server
+          │
+          ├─ AS2: As2ForwarderService.forward(partnership, filename, bytes, trackId)
+          │     │  HTTP POST to partnership.getEndpointUrl()
+          │     │  Headers: AS2-From, AS2-To, Message-ID, MIC
+          │     │  Body: raw binary (application/octet-stream)
+          │     │  Receives synchronous MDN (Message Disposition Notification)
+          │     └─ DONE: bytes on partner's AS2 endpoint, MIC verified
+          │
+          ├─ HTTP: HttpForwarderService.forward(dest, filename, bytes)
+          │     │  HTTP POST to dest.getEndpointUrl()
+          │     │  Body: multipart or raw bytes
+          │     │  200 OK confirms receipt
+          │     └─ DONE
+          │
+          └─ KAFKA: KafkaForwarderService.forward(dest, filename, bytes)
+                │  KafkaTemplate.send(topic, key, bytes)
+                │  Future.get() confirms broker ACK
+                └─ DONE: bytes on Kafka topic
+```
+
+#### VIRTUAL Mode — File in CAS (No Local Disk)
+
+```
+FlowProcessingEngine.refFileDelivery(storageKey, virtualPath, sizeBytes, origin, trackId, cfg)
+    │
+    │  "storageKey" is SHA-256: "a1b2c3d4e5f6..."
+    │  File is ONLY in Storage-Manager CAS. No local disk copy.
+    │
+    ├─ 1. Resolve delivery endpoints (same as PHYSICAL)
+    │
+    ├─ 2. FETCH bytes from Storage-Manager
+    │     byte[] fileBytes = storageClient.retrieveBySha256(storageKey)
+    │       → HTTP GET http://storage-manager:8096/api/v1/storage/retrieve-by-key/{sha256}
+    │       → Storage-Manager reads from CAS disk: FileChannel.transferTo() (zero-copy sendfile)
+    │       → Returns byte[] to flow worker
+    │
+    ├─ 3. Base64 encode (current implementation)
+    │     String base64 = Base64.getEncoder().encodeToString(fileBytes)
+    │     ⚠ Heap allocation: 133% of file size (Base64 overhead)
+    │     ⚠ This is a known bottleneck (Phase 4 replaces with streaming)
+    │
+    ├─ 4. For EACH endpoint: HTTP POST to forwarder-service
+    │     POST http://forwarder-service:8087/api/forward/deliver/{endpointId}/base64
+    │       Content-Type: text/plain
+    │       Body: Base64-encoded file bytes
+    │       Query params: filename=report.csv.pgp&trackId=TRZ000042
+    │       Auth: SPIFFE JWT-SVID header
+    │
+    └─ 5. ForwarderController.deliverBase64() receives Base64 string
+          │  byte[] bytes = Base64.getDecoder().decode(base64Content)
+          │  dispatchDelivery(endpoint, filename, bytes, trackId)
+          │     ↓ (same protocol dispatch as PHYSICAL mode)
+          │
+          └─ SFTP/FTP/AS2/HTTP/KAFKA (identical to PHYSICAL from here)
+```
+
+#### The Complete Byte Journey (VIRTUAL, 3-Step Flow)
+
+```
+Partner uploads file via SFTP
+    │
+    ▼
+① SFTP Server writes to VFS (VirtualFileSystem)
+   │  VFS stores in CAS via Storage-Manager
+   │  storageClient.storeStream(bytes) → SHA-256: "aaa111"
+   │  CAS path: /data/storage/aaa111
+    │
+    ▼
+② Step 0: ENCRYPT_PGP
+   │  Flow worker: storageClient.retrieveBySha256("aaa111") → bytes
+   │  Encrypt with PGP → new bytes
+   │  storageClient.storeStream(encrypted) → SHA-256: "bbb222"
+   │  CAS path: /data/storage/bbb222
+    │
+    ▼
+③ Step 1: COMPRESS_GZIP
+   │  Flow worker: storageClient.retrieveBySha256("bbb222") → bytes
+   │  Compress with GZIP → new bytes
+   │  storageClient.storeStream(compressed) → SHA-256: "ccc333"
+   │  CAS path: /data/storage/ccc333
+    │
+    ▼
+④ Step 2: FILE_DELIVERY (to partner's SFTP)
+   │  Flow worker: storageClient.retrieveBySha256("ccc333") → bytes
+   │  Base64 encode → POST to forwarder-service
+   │  Forwarder: Base64 decode → SFTP connect → write to partner
+   │  Partner confirms: SSH_FXP_STATUS OK
+    │
+    ▼
+⑤ FlowExecution.status = COMPLETED
+   FileTransferRecord.destinationChecksum = SHA-256 of delivered file
+   Event: transfer.completed → RabbitMQ → SSE → Activity Monitor
+
+CAS State After Flow:
+  /data/storage/aaa111  ← original file (source)
+  /data/storage/bbb222  ← encrypted intermediate
+  /data/storage/ccc333  ← compressed+encrypted (delivered to partner)
+  All three retained until CasOrphanReaper runs (24h grace period)
+```
+
+#### MAILBOX Step — Zero-Copy Internal Delivery (VIRTUAL Only)
+
+```
+refMailbox(storageKey, virtualPath, ..., cfg)
+    │
+    │  When destination is another account on the SAME platform:
+    │  NO bytes are copied. Only a new VirtualEntry row is created
+    │  pointing to the SAME storageKey in CAS.
+    │
+    ├─ 1. Resolve destination account
+    │     accountRepository.findByUsernameAndProtocolAndActiveTrue(destUsername, protocol)
+    │
+    ├─ 2. Create FileRef pointing to existing CAS object
+    │     FileRef src = new FileRef(storageKey, virtualPath, destAccountId, ...)
+    │
+    ├─ 3. Link to destination account (zero-copy)
+    │     vfsBridge.linkToAccount(src, destAccountId, destPath, trackId)
+    │       → Creates new VirtualEntry row in DB
+    │       → Same storageKey, different accountId + path
+    │       → CAS ref-count incremented (prevents garbage collection)
+    │
+    └─ 4. DONE: 0 bytes copied, 1 DB row created (~200 bytes)
+          Destination account's SFTP client sees the file in their inbox
+          Same CAS object serves both source and destination reads
+```
+
+#### Forwarder Delivery Confirmation Chain
+
+```
+Flow Worker                  Forwarder Service            Partner Server
+    │                              │                           │
+    │  POST /deliver/{id}/file     │                           │
+    │  ───────────────────────────▶│                           │
+    │                              │  SSH connect + auth       │
+    │                              │  ────────────────────────▶│
+    │                              │                           │  SSH OK
+    │                              │  sftp.write(handle, bytes)│
+    │                              │  ────────────────────────▶│
+    │                              │                           │  bytes on disk
+    │                              │  sftp.close(handle)       │
+    │                              │  ────────────────────────▶│
+    │                              │                           │  SSH_FXP_STATUS OK
+    │                              │  ◀────────────────────────│
+    │                              │                           │
+    │  HTTP 202 Accepted           │                           │
+    │  ◀───────────────────────────│                           │
+    │  {"status":"delivered"}      │                           │
+    │                              │                           │
+    │  FlowExecution: step OK      │                           │
+    │  Publish next step or COMPLETE                           │
+    ▼                              ▼                           ▼
+```
+
+#### What If Delivery Fails?
+
+```
+Failure at any point:
+    │
+    ├─ Network timeout (forwarder → partner)
+    │    TransferWatchdog detects 30s stall → TransferStallException
+    │    Forwarder returns HTTP 500
+    │    Flow worker catches → step status = FAILED
+    │    FlowExecution.errorMessage = "Transfer stalled after 30s"
+    │
+    ├─ Auth failure (wrong credentials)
+    │    SSH auth.verify() timeout → IOException
+    │    Forwarder returns HTTP 500
+    │    Flow worker catches → step status = FAILED
+    │
+    ├─ Disk full on partner
+    │    sftp.write() → SftpException (SSH_FX_FAILURE)
+    │    Forwarder catches → returns HTTP 500
+    │    Flow worker → FAILED
+    │
+    └─ Forwarder service down (circuit breaker)
+         ResilientServiceClient opens circuit after 5 failures
+         Flow worker → FAILED immediately (no wait)
+         FlowExecution.errorMessage = "Circuit breaker open"
+
+Recovery:
+    FlowExecution stays in FAILED status
+    Admin can retry from last checkpoint:
+      POST /api/flow-executions/{id}/restart
+      → picks up from currentStorageKey at currentStep
+      → file still in CAS (never lost)
+```
