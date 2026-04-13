@@ -986,3 +986,19 @@ platform:
 - **db-migrate**: Still needs manual network fix (`docker network connect`)
 - **partner-portal + dmz-proxy**: Unhealthy (healthcheck issues persist)
 - **config-service**: 325s with selective scan ON but with full package = no improvement
+
+---
+
+## CRITICAL: SelectiveEntityScan Breaks 20+ Services (2026-04-13)
+
+**Every Java service except onboarding-api and config-service crashes with:**
+```
+Association 'com.filetransfer.shared.entity.TransferAccount.user' 
+targets an unknown entity named 'com.filetransfer.shared.entity.User'
+```
+
+**Root cause:** `SelectiveEntityScanConfig` filters entities per service but does NOT include referenced entities (JPA association targets). `TransferAccount.user` is `@ManyToOne` to `User` — when `User` is excluded from the scan, Hibernate crashes.
+
+**Fix:** The scan must walk `@ManyToOne`/`@OneToMany`/`@OneToOne`/`@ManyToMany` associations transitively and include ALL referenced entity classes in the scan set (graph closure).
+
+**JVM tuning (positive):** CTO added `-Xmx384m`, ZGC, lazy-init, batch-fetch-20, Flyway disabled — all good, will work once scan is fixed.
