@@ -24,7 +24,6 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 @Slf4j
 @Component
-@org.springframework.context.annotation.Lazy(false)  // Must be eager — @Scheduled flush timer
 @ConditionalOnProperty(name = "pipeline.records.batch-write", havingValue = "true", matchIfMissing = false)
 public class TransferRecordBatchWriter {
 

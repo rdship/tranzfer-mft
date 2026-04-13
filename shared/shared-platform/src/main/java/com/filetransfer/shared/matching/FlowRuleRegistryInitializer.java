@@ -24,7 +24,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@org.springframework.context.annotation.Lazy(false)  // Must be eager — loads rules on ApplicationReadyEvent
 @ConditionalOnProperty(name = "flow.rules.enabled", havingValue = "true", matchIfMissing = false)
 public class FlowRuleRegistryInitializer {
 

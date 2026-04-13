@@ -26,7 +26,6 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@org.springframework.context.annotation.Lazy(false)
 public class FlowExecutionRecoveryJob {
 
     private final FlowExecutionRepository executionRepository;

@@ -23,7 +23,6 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@org.springframework.context.annotation.Lazy(false)  // Must be eager — registers RabbitMQ listener
 @ConditionalOnProperty(name = "flow.rules.enabled", havingValue = "true", matchIfMissing = false)
 public class FileUploadEventConsumer {
 

@@ -33,7 +33,6 @@ import java.util.UUID;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@org.springframework.context.annotation.Lazy(false)  // Must be eager — registers RabbitMQ listener for hot-reload
 @ConditionalOnClass(name = "org.springframework.amqp.rabbit.core.RabbitTemplate")
 @ConditionalOnProperty(name = "flow.rules.enabled", havingValue = "true", matchIfMissing = false)
 public class FlowRuleEventListener {

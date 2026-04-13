@@ -15,7 +15,6 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
-@org.springframework.context.annotation.Lazy(false)  // Must be eager — @Scheduled refresh timer
 @ConditionalOnBean(TransferActivityViewRepository.class)
 @ConditionalOnProperty(name = "activity.view.refresh.enabled", havingValue = "true", matchIfMissing = false)
 public class ActivityViewRefresher {
