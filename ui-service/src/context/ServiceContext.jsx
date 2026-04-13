@@ -134,10 +134,10 @@ const PAGE_SERVICE_MAP = {
   '/edi-training': ['aiEngine'],
   '/proxy-intelligence': ['aiEngine'],
 
-  // EDI converter (full-stack only — page hides on tier-2)
-  '/edi': ['ediConverter'],
-  '/edi-mapping': ['ediConverter'],
-  '/edi-partners': ['ediConverter'],
+  // EDI converter — always visible (page handles service-down gracefully via useQuery error)
+  '/edi': ['core'],
+  '/edi-mapping': ['core'],
+  '/edi-partners': ['core'],
 
   // AS2/AS4
   '/as2-partnerships': ['as2'],
