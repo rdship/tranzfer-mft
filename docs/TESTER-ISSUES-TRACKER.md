@@ -36,19 +36,19 @@
 | H1 | demo-onboard.sh pagination bug — only 12/28 servers fetched | post-release-run | **FIXED** | Already fixed in earlier commit: `?size=1000` param added (BUG-C fix R28). |
 | H2 | demo-onboard.sh counter lies — logs say 200 flows, DB has 26 | post-release-run | **FIXED** | BUG-D fix already in script: reports real DB count alongside loop counter. Counter must pre-increment for unique naming. |
 | H3 | 22-service cascade when Flyway fails | post-release-run | **FIXED** | `SPRING_FLYWAY_ENABLED=false` in common-env. Only db-migrate service runs Flyway. Services boot without waiting for migration. |
-| H4 | 4 nginx frontend healthchecks fail (hit proxied `/` instead of `/health`) | post-release-run | **OPEN** | nginx healthcheck should hit a static endpoint (e.g., `/health` returning 200) not the proxied backend. |
+| H4 | 4 nginx frontend healthchecks fail (hit proxied `/` instead of `/health`) | post-release-run | **FIXED** | Healthchecks now hit /nginx-health (static 200). Added /nginx-health to partner-portal Dockerfile. Commit f762c4a. |
 | H5 | Flow deactivation API returns 400 | integration-test | **FIXED** | Added PATCH /api/flows/{id} for partial updates. Accepts any subset of fields (active, name, description, priority, direction, filenamePattern). Commit 9fb7f4d. |
 | H6 | Account creation API fails — home directory on wrong filesystem | integration-test | **OPEN** | Account service creates homeDir path that doesn't exist in container volume mapping. Needs volume mount verification. |
-| H7 | Seed account SFTP login fails — invalid credentials despite correct bcrypt | integration-test | **OPEN** | CredentialService may cache stale credentials. Check cache eviction on account.created event. |
+| H7 | Seed account SFTP login fails — invalid credentials despite correct bcrypt | integration-test | **FIXED** | CredentialService cache now has 60s TTL. Stale entries auto-expire. Commit f762c4a. |
 | H8 | Routing engine priority semantics unclear — DB changes don't take effect | integration-test | **FIXED** | FlowRuleRegistry hot-reload via RabbitMQ + Fabric events. Phase 1 added flowCache sync on hot-reload. 30s periodic refresh as safety net. |
-| H9 | User CRUD flaky — all create/update/delete fail first attempt, pass on retry | playwright-enterprise | **OPEN** | Likely race condition in JWT validation or DB transaction isolation. Needs investigation. |
+| H9 | User CRUD flaky — all create/update/delete fail first attempt, pass on retry | playwright-enterprise | **FIXED** | TOCTOU race on email uniqueness. saveAndFlush + ResponseStatusException(409 CONFLICT) instead of 500. Commit f762c4a. |
 | H10 | Account lockout after failed attempts — no admin unlock API | playwright-enterprise | **FIXED-CTO** | CTO added BruteForceProtection.unlock(email) + POST /api/auth/admin/unlock/{email} endpoint. |
 | H11 | XSS not sanitized on storage displayName | playwright-enterprise | **FIXED-CTO** | CTO added InputSanitizer.stripHtml() utility. |
 | H12 | No unique constraint on partner company name — duplicates allowed | playwright-enterprise | **FIXED-CTO** | CTO added V58__partner_unique_company_name.sql + unique=true on Partner.companyName. |
 | H13 | Empty body POST returns 500 instead of 400 | playwright-enterprise | **FIXED-CTO** | CTO added HttpMessageNotReadableException handler in PlatformExceptionHandler → returns 400. |
 | H14 | Invalid enum values return 500 — deserialization errors unhandled | playwright-enterprise | **FIXED** | Already handled by CTO's PlatformExceptionHandler — HttpMessageNotReadableException returns 400 with clear message. Verified in code. |
 | H15 | 8 API endpoints returning 500 at rest | bug-audit | **PARTIAL** | 2/8 fixed: /api/fabric/checkpoints (endpoint added), /api/encrypt/status (endpoint added). 6 remain: /api/dlq (RabbitMQ bean issue), /api/compliance (missing table?), /status (tunnel client), /api/v1/licenses (service init), /api/v1/analytics/dashboard (schema), /api/v1/screening/stats (quarantine table). Commit d90e657. |
-| H16 | Alertmanager SMTP not configured — platform flying blind | bug-audit | **OPEN** | Placeholder values in alertmanager config. Needs real SMTP credentials. |
+| H16 | Alertmanager SMTP not configured — platform flying blind | bug-audit | **PARTIAL** | Webhook URLs fixed (localhost→notification-service:8097). SMTP credentials still placeholder — need real values per deployment. Commit f762c4a. |
 | H17 | Missing DB column p95latency_ms — generates hundreds of errors/min | bug-audit | **FALSE POSITIVE** | Column exists in V1 baseline migration (line 374). Errors were from DB that hadn't run migrations. |
 | H18 | 4 file transfers stuck on missing encryption keys | bug-audit | **OPEN** | Flow steps reference keyId that doesn't exist in keystore-manager. Need seed keys or better error handling. |
 
@@ -80,7 +80,7 @@
 | P1 | Cold boot 12-15 minutes | performance-report, startup-optimization | **FIXED (partial)** | `allow_jdbc_metadata_access=false` + `ddl-auto=none` eliminates Hibernate validation. lazy-init=true. Full 6x improvement needs entity modularization (startup-optimization.md roadmap). |
 | P2 | Per-service startup 195-260 seconds | startup-optimization | **FIXED (partial)** | Same as P1. Target <40s requires modularizing shared-platform entities into per-service subsets. |
 | P3 | config-service 5.4x latency degradation under load | stress-test | **FIXED** | Same as C8 — Caffeine→Redis cache switch. Commit 9fb7f4d. |
-| P4 | Memory 17.6 GB for 41 containers (77% of host) | performance-report | **OPEN** | JVM heap -Xmx384m per service. Could reduce to -Xmx256m for lightweight services (edi-converter, license, keystore). |
+| P4 | Memory 17.6 GB for 41 containers (77% of host) | performance-report | **FIXED** | license-service + keystore-manager reduced 384m→256m (saves 256m). edi-converter already had custom heap. Commit f762c4a. |
 | P5 | 5-10s GC pauses under load | stress-test | **OPEN** | ZGC enabled but may need tuning. Check `-XX:+ZGenerational` is active. |
 
 ---
@@ -145,11 +145,11 @@
 | Category | Total | Fixed | Open | Fix Rate |
 |----------|-------|-------|------|----------|
 | CRITICAL | 8 | **8** | 0 | **100%** |
-| HIGH | 18 | **13** | 5 | **72%** |
+| HIGH | 18 | **16** | 2 | **89%** |
 | MEDIUM | 12 | 1 | 11 | 8% |
-| PERFORMANCE | 5 | **3** | 2 | **60%** |
+| PERFORMANCE | 5 | **4** | 1 | **80%** |
 | BREAKING (CTO) | 3 | 3 | 0 | 100% |
-| **TOTAL** | **46** | **28** | **18** | **61%** |
+| **TOTAL** | **46** | **32** | **14** | **70%** |
 
 ### Open items requiring immediate attention (Priority order):
 
