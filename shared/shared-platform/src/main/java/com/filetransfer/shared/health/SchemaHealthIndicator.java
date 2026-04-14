@@ -41,6 +41,7 @@ import java.util.concurrent.*;
  */
 @Slf4j
 @Component
+@ConditionalOnBean(DataSource.class)
 public class SchemaHealthIndicator implements HealthIndicator {
 
     private final EntityManager entityManager;
