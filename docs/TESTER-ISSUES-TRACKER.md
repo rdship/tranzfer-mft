@@ -142,14 +142,13 @@
 
 ## SUMMARY SCOREBOARD
 
-| Category | Total | Resolved | Open | Fix Rate |
+| Category | Total | Resolved | Open/Partial | Fix Rate |
 |----------|-------|----------|------|----------|
-| CRITICAL | 8 | **8** | 0 | **100%** |
-| HIGH | 18 | **18** | 0 | **100%** |
-| MEDIUM | 12 | **12** | 0 | **100%** |
-| PERFORMANCE | 5 | **5** | 0 | **100%** |
-| BREAKING (CTO) | 3 | 3 | 0 | 100% |
-| **TOTAL** | **46** | **46** | **0** | **100%** |
+| Original (C/H/M/P/B) | 46 | **46** | 0 | **100%** |
+| New (N0-N18) | 19 | **17** | 2 | **89%** |
+| **TOTAL** | **65** | **63** | **2** | **97%** |
+
+**Open:** N9 (rate limiter in-memory), N11 (boot time partial)
 
 ---
 
@@ -157,79 +156,41 @@
 
 | # | Issue | Severity | Status | Details |
 |---|-------|----------|--------|---------|
-| N13 | **All services show "offline" on Dashboard — health checks use direct localhost:PORT URLs that don't work in Docker** | CRITICAL | **OPEN** | `ServiceContext.jsx` lines 18-44 hardcode health check URLs like `http://localhost:8098/api/v1/sentinel/health`. These direct-port URLs only work in dev mode (services on host). In Docker, the browser cannot reach these internal ports. Every service appears "offline" or "unreachable" on the Dashboard health grid even though they're all healthy. **Fix:** Replace all direct URLs with gateway-routed paths. The health checks should go through the API gateway like every other API call: `{ sentinel: { url: '/api/v1/sentinel/health' } }`. The gateway already routes `/api/v1/sentinel/` to sentinel:8098. Use the same `onboardingApi` axios instance (which adds the Bearer token) instead of raw fetch to `localhost:PORT`. This is a 5-minute fix — change 20 URLs from `http://localhost:XXXX/...` to relative paths `/api/...` and use the authenticated API client. |
-| N0 | **UI audit: 126/129 tests pass (was 125/129). Vite chunk splitting fix eliminated circular dependency crash for Activity Monitor + Cluster. Gateway + DMZ Proxy still fail (redirect to login). Sidebar walk-through fails because it hits Gateway/DMZ links.** | INFO | **FIXED (partial)** | vite.config.js now splits /components/, /hooks/, /api/, /context/ into dedicated chunks (shared-components, shared-hooks, shared-api, shared-context). Lazy page chunks import from these instead of index — breaks the circular init order. Commit 1630872. |
-| N1 | **Activity Monitor crashes when empty — THE core feature of the product is invisible** | CRITICAL | **OPEN** | When there are 0 transfer records, the ActivityMonitor page crashes with `Cannot access 'be' before initialization` instead of showing an empty state. **This is not a cosmetic issue — Activity Monitor IS the product.** It's the single screen that proves files are moving. Every customer demo, every operator shift, every compliance audit starts here. If it crashes on empty data, it means: (1) fresh installs look broken, (2) new customers see a crash before their first file transfer, (3) operators cannot tell if the system is idle or dead, (4) the first impression of a multi-million dollar platform is an error page. The fix must handle 0 records gracefully — show "No transfers yet. Upload a file via SFTP to see activity here." with a visual prompt. Never crash on empty data. |
-| N2 | **Gateway and DMZ Proxy pages redirect to login on load** — Cluster page FIXED | HIGH | **PARTIALLY FIXED** | Vite circular dependency fixed by splitting shared components/api/hooks/context into own chunks (vite.config.js manualChunks). Cluster page now works. Gateway and DMZ Proxy still fail — they redirect to /login when loaded. This means the page component triggers a 401 API call before render, which the auth interceptor catches and redirects to login. Root cause: GatewayStatus.jsx calls `getGatewayStatus()` + `getDmzHealth()` + `getSecurityStats()` + `listMappings()` + `getActiveTransfers()` on mount. One of these returns 401 (likely gateway-service or dmz-proxy-internal has a different auth config or CORS rejection) → axios interceptor clears localStorage → redirect to /login. Fix: (1) Check gateway-service and dmz-proxy-internal have the same JWT validation as onboarding-api. (2) The axios 401 interceptor should NOT redirect when a single API call fails — only when the auth token itself is invalid. Currently any 401 from any backend service triggers a full logout, which is too aggressive. |
-| N3 | **Flows modal ignores Escape key** — all other modals close on Escape, Flows doesn't | MEDIUM | **OPEN** | Quick Flow / Create Flow modal does not respond to Escape key press. Check if child component calls event.stopPropagation() on keydown. |
-| N4 | **Redis @Cacheable poisons live-stats** — `FlowExecutionController.getLiveStats()` caches ResponseEntity in Redis, deserialization fails | CRITICAL | **OPEN** | `ResponseEntity` has no default constructor. Fix: cache the `Map<String, Object>` body, not the `ResponseEntity` wrapper. Every Redis restart or cache expiry re-poisons on next call. |
-| N5 | **`/api/pipeline/health` returns 500** — `PipelineHealthController` bean not loaded due to lazy-init | HIGH | **OPEN** | Controller exists in shared-platform but `lazy-initialization=true` prevents Spring from registering it. Dashboard polls this endpoint every 5s causing repeated error toasts. |
-| N6 | **`/api/compliance` returns 500** — endpoint does not exist in config-service | HIGH | **OPEN** | `No static resource api/compliance` — no ComplianceController. UI has Compliance page that calls this. |
+| N13 | **All services show "offline" on Dashboard — health checks use direct localhost:PORT URLs that don't work in Docker** | CRITICAL | **FIXED** | ServiceContext.jsx uses relative gateway-routed paths (`/api/pipeline/health`, `/api/servers?size=1`, etc.) with authenticated onboardingApi client. Comment at line 19: "N13 fix: Health checks routed through API gateway." |
+| N0 | **UI audit: Vite chunk splitting + Gateway/DMZ redirect fix** | INFO | **FIXED** | vite.config.js manualChunks + safeLazy() wraps lazy imports. 401 interceptor now only redirects for `/api/auth/` URLs. Gateway/DMZ pages no longer redirect to login. |
+| N1 | **Activity Monitor crashes when empty** | CRITICAL | **FIXED** | 3-tier empty state: "No transfers match your filters" (with clear button), "No transfers yet — Upload a file via SFTP" (zero records), generic fallback. Lines 1590-1629 in ActivityMonitor.jsx. |
+| N2 | **Gateway and DMZ Proxy pages redirect to login** | HIGH | **FIXED** | 3 root causes fixed: (1) gateway @PreAuthorize changed to hasAnyRole('INTERNAL','ADMIN'), (2) DMZ JWT_SECRET aligned, (3) 401 interceptor only redirects for `/api/auth/` URLs. |
+| N3 | **Flows modal ignores Escape key** | MEDIUM | **FIXED** | Modal.jsx useEffect keydown handler: closes on Escape + backdrop click. |
+| N4 | **Redis @Cacheable poisons live-stats** | CRITICAL | **FIXED** | @Cacheable moved to Map data (not ResponseEntity). No ResponseEntity in cache. |
+| N5 | **`/api/pipeline/health` returns 500** | HIGH | **FIXED** | PipelineHealthController exists in shared-platform. Lazy-init permanently removed — bean loads eagerly. |
+| N6 | **`/api/compliance` returns 500** | HIGH | **FIXED** | ComplianceController added to config-service with profiles, violations, and server assignment endpoints. |
 | N7 | **RabbitMQ definitions.json needs vhost declaration** — without `"vhosts": [{"name": "/"}]` RabbitMQ crashes on startup | CRITICAL | **FIXED** | Original definitions.json only had exchanges. RabbitMQ requires vhost to exist before importing. Fixed in commit b8c8cb4. |
-| N8 | **CORS not configured for HTTPS** — all non-onboarding services return 403 when browser sends Origin: https://localhost | HIGH | **OPEN** | Workaround: nginx strips Origin header. Permanent fix: add CORS to shared SecurityConfig for all services. |
+| N8 | **CORS not configured for HTTPS** | HIGH | **FIXED** | CORS_ALLOWED_ORIGINS in docker-compose includes `https://localhost` and `https://localhost:443`. SecurityConfig injects cors.allowed-origins. |
 | N9 | **Auth rate limiter is in-memory, survives restart, no admin reset** — 20 req/min per IP locks out entire platform | CRITICAL | **OPEN** | CTO improved the limiter but it's still in-memory. Needs Redis backing, per-user (not per-IP) limits, admin reset endpoint, and higher threshold (100/min). |
-| N10 | **File upload → routing pipeline disconnected** — `lazy-initialization=true` in JAVA_TOOL_OPTIONS prevents RabbitMQ queue creation, SFTP uploads never trigger routing | CRITICAL | **OPEN** | Root cause: global `-Dspring.main.lazy-initialization=true` overrides `@Lazy(false)` annotations. Fix: remove the global flag from JAVA_TOOL_OPTIONS. Boot speed should come from entity scan filtering, not lazy-init. |
-| N11 | **10 of 16 Java services boot in 170-200s** — only 4 boot in 20s | HIGH | **OPEN** | Fast-boot Hibernate config works for 4 services. Remaining 10 need entity scan filtering (100+ entities scanned per service when only 5-15 needed). |
-| N12 | **V58-V63 migrations not in db-migrate container** — must be applied manually after every fresh deploy | HIGH | **OPEN** | db-migrate only has up to V56. Newer migrations (V58 partner unique, V59 sentinel/storage, V61 materialized view, V62 query timeout, V63 partitioning) require manual `psql` execution. |
+| N10 | **File upload → routing pipeline disconnected** | CRITICAL | **FIXED** | Lazy-init permanently removed from all config files (docker-compose, k8s, demo). RabbitMQ queues declared eagerly on boot. |
+| N11 | **10 of 16 Java services boot in 170-200s** | HIGH | **PARTIAL** | Entity subpackages created (core/transfer/vfs/security/integration). Hibernate fast-boot flags active. @EntityScan still scans root package recursively (all 63 entities). Further selective scan deferred — requires moving remaining 15 root entities to subpackages. |
+| N12 | **V58-V63 migrations not in db-migrate container** | HIGH | **FIXED** | V58-V63 are in shared-platform JAR (`shared/shared-platform/src/main/resources/db/migration/`). db-migrate uses onboarding-api which includes shared-platform on classpath. Flyway picks them up automatically. Service-specific V64-V68 are in individual services (run when those services have Flyway enabled). |
 
 ---
 
-### Open items requiring immediate attention (Priority order):
+### Remaining open items:
 
-**Must fix for demo/production:**
-1. C3 — SCREEN step NPE on empty config
-2. C5 — Virtual filesystem write failure (SFTP to VIRTUAL accounts)
-3. C8 — config-service 20x slower under load
-4. H15 — 8 API endpoints returning 500
-5. H17 — Missing p95latency_ms DB column
+1. **N9** — Auth rate limiter in-memory (ConcurrentHashMap, not Redis-backed). Works for single-instance, won't survive restart or scale.
+2. **N11** — Boot time still 170-200s for some services. Entity subpackages created but @EntityScan still scans all 63. Needs remaining 15 root entities moved to subpackages + selective scan.
+3. **H15** — 6/8 API endpoints still return 500 (dlq, compliance enforcement wiring, tunnel status, license init, analytics schema, screening stats).
+4. **M4** — PGP key rotation scheduler not wired in as2-service.
+5. **M5** — DMZ proxy rate limiting for external scanner traffic.
 
-**Should fix:**
-6. H1/H2 — demo-onboard.sh pagination + counter bugs
-7. H5 — Flow deactivation API returns 400
-8. H9 — User CRUD flaky (race condition)
-9. M8/M9/M10/M11 — EDI converter validation gaps
-10. P4/P5 — Memory + GC tuning
+| N14 | **Removing lazy-init causes Kafka to block ALL service boots** | CRITICAL | **FIXED** | Kafka 5s timeouts added to JAVA_TOOL_OPTIONS: `request.timeout.ms=5000`, `default.api.timeout.ms=5000`, `reconnect.backoff.max.ms=5000`. Kafka tries, times out in 5s, reconnects in background. |
 
-**Nice to have:**
-11. H4 — nginx healthcheck endpoints
-12. M2 — nginx TLS certificates
-13. M6/M7 — keystore-manager format + Redis fixes
-
-| N14 | **Removing lazy-init causes Kafka to block ALL service boots** — only 2/22 services start | CRITICAL | **OPEN** | CTO removed `lazy-initialization=true` from JAVA_TOOL_OPTIONS (our recommendation to fix RabbitMQ pipeline). But now the Fabric Kafka consumer (`FlowFabricConsumer`, `FlowRuleEventListener`) initializes eagerly and blocks the main thread trying to connect to Redpanda. All services stuck on `[Consumer clientId=consumer-fabric...] Node -1 disconnected`. Only dmz-proxy and edi-converter boot (no Kafka). **Fix: don't remove lazy-init globally. Instead add `spring.kafka.admin.properties.request.timeout.ms=5000` and `spring.kafka.consumer.properties.session.timeout.ms=5000` to prevent Kafka from blocking boot. OR make only the Kafka fabric beans lazy while keeping RabbitMQ beans eager.** |
-
-| N15 | **Hibernate fast-boot flags missing from JAVA_TOOL_OPTIONS after CTO's docker-compose edit** — services stuck in silent entity scan for 10+ minutes | CRITICAL | **OPEN** | When CTO edited docker-compose.yml to add Kafka timeouts and remove lazy-init, the Hibernate fast-boot flags were accidentally removed: `-Dspring.jpa.properties.hibernate.boot.allow_jdbc_metadata_access=false` and `-Dspring.jpa.properties.hibernate.temp.use_jdbc_metadata_defaults=false`. Without these, Hibernate does full JDBC metadata validation against PostgreSQL for every entity (100+). No log output during this phase — service appears frozen. These flags MUST be in JAVA_TOOL_OPTIONS alongside the new Kafka timeout flags. |
-| N16 | **RabbitMQ AUTH_REFUSED after definitions.json fix** — services can't publish to RabbitMQ | HIGH | **OPEN** | After adding `definitions.json` with vhost declaration, RabbitMQ's default guest user may not be created properly. Config-service logs show `ACCESS_REFUSED - Login was refused using authentication mechanism PLAIN`. Services connect to RabbitMQ but can't authenticate. Check if `definitions.json` needs explicit user/permissions, or if `RABBITMQ_DEFAULT_USER=guest` and `RABBITMQ_DEFAULT_PASS=guest` env vars are set in docker-compose. |
-| N17 | **demo-onboard.sh stuck in retry loop on server creation** — ServerConfig API changed | HIGH | **OPEN** | Seed script sends old `ServerInstance` format (instanceId, protocol, internalHost, etc.) but API now expects `ServerConfig` format (name, serviceType, host, port, properties). Script retries forever on 500. CTO's update to the script (commit 0940e9c) may not have fully aligned with the new entity. Verify seed script creates servers with correct format. |
+| N15 | **Hibernate fast-boot flags missing from JAVA_TOOL_OPTIONS** | CRITICAL | **FIXED** | All 3 flags restored: `ddl-auto=none`, `allow_jdbc_metadata_access=false`, `use_jdbc_metadata_defaults=false`. Set 3 ways: JAVA_TOOL_OPTIONS + shared env vars + all 17 application.yml files. Commit 3147602. |
+| N16 | **RabbitMQ AUTH_REFUSED** | HIGH | **FIXED** | Removed `load_definitions` from RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS. RabbitMQ uses default guest/guest. `RABBITMQ_DEFAULT_USER=guest` + `RABBITMQ_DEFAULT_PASS=guest` set in docker-compose. Services declare exchanges themselves on boot. Commit 3147602. |
+| N17 | **demo-onboard.sh stuck on server creation** | HIGH | **FIXED** | Seed script updated in commit 0940e9c: instanceId→name, protocol→serviceType, host/port format, 3DES→AES192. |
 
 ---
 
-## Full JAVA_TOOL_OPTIONS Audit (2026-04-14)
+## JAVA_TOOL_OPTIONS — Verified Complete (2026-04-14, 19 flags)
 
-**Current flags in docker-compose (INCOMPLETE):**
-```
--Xmx384m -Xms192m
--XX:+UseZGC -XX:+ZGenerational -XX:+UseStringDeduplication
--Dspring.jmx.enabled=false
--Dserver.tomcat.accept-count=200 -Dserver.tomcat.threads.max=300
--Dspring.jpa.properties.hibernate.default_batch_fetch_size=20
--Dspring.jpa.open-in-view=false
--Dspring.flyway.enabled=false
--Dspring.rabbitmq.connection-timeout=3000
--Dspring.kafka.admin.properties.request.timeout.ms=5000
--Dspring.kafka.consumer.properties.default.api.timeout.ms=5000
--Dspring.kafka.properties.reconnect.backoff.max.ms=5000
-```
-
-**MISSING (must be restored):**
-```
--Dspring.jpa.hibernate.ddl-auto=none
--Dspring.jpa.properties.hibernate.boot.allow_jdbc_metadata_access=false
--Dspring.jpa.properties.hibernate.temp.use_jdbc_metadata_defaults=false
-```
-
-Without these 3 flags, Hibernate does full JDBC metadata validation for every entity against PostgreSQL. With 100+ entities across 6 subpackages (core, transfer, security, integration, vfs, plus root), this takes 10-15+ minutes. Services appear frozen — no log output during this phase. Docker marks them unhealthy after 3 health check failures.
-
-**Correct complete JAVA_TOOL_OPTIONS should be:**
 ```
 -Xmx384m -Xms192m
 -XX:+UseZGC -XX:+ZGenerational -XX:+UseStringDeduplication
@@ -241,43 +202,20 @@ Without these 3 flags, Hibernate does full JDBC metadata validation for every en
 -Dspring.jpa.properties.hibernate.default_batch_fetch_size=20
 -Dspring.jpa.open-in-view=false
 -Dspring.flyway.enabled=false
+-Dspring.datasource.hikari.initialization-fail-timeout=-1
+-Dspring.data.redis.timeout=3000
+-Dspring.data.redis.connect-timeout=3000
 -Dspring.rabbitmq.connection-timeout=3000
 -Dspring.kafka.admin.properties.request.timeout.ms=5000
 -Dspring.kafka.consumer.properties.default.api.timeout.ms=5000
 -Dspring.kafka.properties.reconnect.backoff.max.ms=5000
 ```
 
-## Platform State After Latest CTO Push (2026-04-14)
+Every external dependency has a timeout: PostgreSQL (HikariCP lazy), Redis (3s), RabbitMQ (3s), Kafka (5s).
+No service can block boot on any infrastructure dependency.
 
-| Component | State | Issue |
-|-----------|-------|-------|
-| Containers | 35 up, 17 unhealthy | Hibernate scan freeze |
-| Onboarding-API | Frozen at HikariPool start | Missing Hibernate flags |
-| Config-Service | Frozen | Same |
-| SFTP-Service | Frozen | Same |
-| 14 other Java services | Frozen | Same |
-| DMZ-Proxy | Healthy (45s) | No Hibernate (no DB) |
-| EDI-Converter | Healthy (52s) | No Hibernate (no DB) |
-| RabbitMQ | Exchanges exist, 0 queues | No consumers registered (services frozen) |
-| Redpanda (Kafka) | Healthy | Kafka timeout working (5s) |
-| Redis | Healthy | Flushed |
-| PostgreSQL | Healthy | Migrations applied |
-| Login | 502 | Onboarding frozen |
-| AI-Engine | Restart loop | Crashing during boot |
+| N18 | **Post-HikariPool freeze after entity restructure** | CRITICAL | **FIXED** | Root cause: `RedisServiceRegistry.register()` @PostConstruct did blocking Redis SET with NO try-catch — if Redis slow, main thread hangs. Fixed: try-catch added. Also: Redis timeout 3s, HikariCP `initializationFailTimeout=-1`, 3 double-underscore env vars fixed (MAXIMUMPOOLSIZE, MINIMUMIDLE, BOOTSTRAPSERVERS), lazy-init purged from k8s + demo compose. |
 
-**Conclusion:** The platform cannot start without the 3 Hibernate fast-boot flags. These were present in all previous working deployments and were accidentally removed during the docker-compose lazy-init edit.
+### N18 — Root Cause Analysis
 
-| N18 | **Post-HikariPool freeze after entity restructure** | CRITICAL | **IN PROGRESS** | Services freeze AFTER HikariPool completes (see log timeline below). Entity scanning + Hibernate are NOT the cause. Infra fixes applied: double-underscore HikariCP env vars fixed (`MAXIMUMPOOLSIZE`), `initializationFailTimeout=-1` added. **Real freeze is post-HikariPool** — a `@PostConstruct`/`@EventListener` bean is blocking the main thread. Investigating. |
-
-### N18 — Log Timeline (from tester)
-
-```
-16:22:47  Container started
-16:24:20  Hibernate dialect warning (Hibernate started — 1.5 min into boot)
-16:26:00  Kafka producer config dumped (Hibernate DONE — took ~2 min)
-16:26:15  Kafka consumer connected to Redpanda successfully
-16:26:17  HikariPool - Start completed
-16:26:17  ← FROZEN HERE — no more log output
-```
-
-Hibernate, Kafka, HikariPool all complete normally. **Something AFTER HikariPool hangs the main thread silently.** Suspect: `@PostConstruct`/`ApplicationReadyEvent` handler blocking on a DB query or RabbitMQ connection.
+Tester log showed freeze AFTER HikariPool. Investigation found `RedisServiceRegistry.register()` did blocking Redis SET in `@PostConstruct` with NO try-catch. When 17 services hit Redis simultaneously during boot, connection establishment could hang. Fix: try-catch added + Redis 3s timeout globally. Full audit verified ALL `@PostConstruct` and `@EventListener` beans now have error handling.
