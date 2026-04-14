@@ -26,6 +26,9 @@ x-common-env: &common-env
     -Dspring.jpa.properties.hibernate.default_batch_fetch_size=20
     -Dspring.jpa.open-in-view=false
     -Dspring.flyway.enabled=false
+    -Dspring.datasource.hikari.initialization-fail-timeout=-1
+    -Dspring.data.redis.timeout=3000
+    -Dspring.data.redis.connect-timeout=3000
     -Dspring.rabbitmq.connection-timeout=3000
     -Dspring.kafka.admin.properties.request.timeout.ms=5000
     -Dspring.kafka.consumer.properties.default.api.timeout.ms=5000
@@ -473,8 +476,8 @@ services:
       SFTP_HOME_BASE: /data/sftp
       SFTP_INSTANCE_ID: sftp-1
       # Phase 2: SFTP is the primary file intake — scale pool + concurrency
-      SPRING_DATASOURCE_HIKARI_MAXIMUM__POOL__SIZE: 30
-      SPRING_DATASOURCE_HIKARI_MINIMUM__IDLE: 8
+      SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE: 30
+      SPRING_DATASOURCE_HIKARI_MINIMUMIDLE: 8
     volumes:
       - sftp_data:/data/sftp
       - platform_tls:/tls:ro
@@ -531,8 +534,8 @@ services:
       FTP_INSTANCE_ID: ftp-1
       PLATFORM_REPLICA_COUNT: 2
       # Phase 2: FTP is secondary file intake
-      SPRING_DATASOURCE_HIKARI_MAXIMUM__POOL__SIZE: 25
-      SPRING_DATASOURCE_HIKARI_MINIMUM__IDLE: 5
+      SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE: 25
+      SPRING_DATASOURCE_HIKARI_MINIMUMIDLE: 5
     volumes:
       - ftp_data:/data/ftp
       - platform_tls:/tls:ro
@@ -716,8 +719,8 @@ services:
       SERVER_PORT: 8085
       GATEWAY_FTP_PORT: 2122
       # Phase 2: Gateway handles HTTP uploads + multi-protocol proxying
-      SPRING_DATASOURCE_HIKARI_MAXIMUM__POOL__SIZE: 25
-      SPRING_DATASOURCE_HIKARI_MINIMUM__IDLE: 5
+      SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE: 25
+      SPRING_DATASOURCE_HIKARI_MINIMUMIDLE: 5
       INTERNAL_SFTP_HOST: sftp-service
       INTERNAL_SFTP_PORT: 2222
       INTERNAL_FTP_HOST: ftp-service

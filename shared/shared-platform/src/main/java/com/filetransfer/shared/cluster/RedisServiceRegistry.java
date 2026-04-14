@@ -69,10 +69,14 @@ public class RedisServiceRegistry {
         String instanceId = clusterContext.getServiceInstanceId();
         instanceKey = INSTANCE_KEY_PREFIX + serviceType.name() + ":" + instanceId;
 
-        redis.opsForValue().set(instanceKey, buildPayload(), Duration.ofSeconds(PRESENCE_TTL_SECONDS));
-
-        publish("JOINED");
-        log.info("[ClusterRegistry] Registered in Redis: key={} url=http://{}:{}", instanceKey, host, port);
+        try {
+            redis.opsForValue().set(instanceKey, buildPayload(), Duration.ofSeconds(PRESENCE_TTL_SECONDS));
+            publish("JOINED");
+            log.info("[ClusterRegistry] Registered in Redis: key={} url=http://{}:{}", instanceKey, host, port);
+        } catch (Exception e) {
+            // Don't block boot — heartbeat will register on next tick (10s)
+            log.warn("[ClusterRegistry] Redis registration deferred (will retry via heartbeat): {}", e.getMessage());
+        }
     }
 
     @Scheduled(fixedRate = 10_000, initialDelay = 10_000)

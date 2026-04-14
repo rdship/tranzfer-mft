@@ -267,11 +267,9 @@ Without these 3 flags, Hibernate does full JDBC metadata validation for every en
 
 **Conclusion:** The platform cannot start without the 3 Hibernate fast-boot flags. These were present in all previous working deployments and were accidentally removed during the docker-compose lazy-init edit.
 
-| N18 | **Entity package restructure (323-file push) breaks Hibernate boot even with fast-boot flags** | CRITICAL | **OPEN** | CTO moved 100+ entities into subpackages (`entity/core/`, `entity/transfer/`, `entity/security/`, `entity/integration/`, `entity/vfs/`). All 3 Hibernate fast-boot flags are present in JAVA_TOOL_OPTIONS but services still freeze at HikariPool start. Only dmz-proxy and edi-converter boot (they have no DB). Likely cause: `@EntityScan` or Spring Boot auto-configuration is scanning the new deeper package structure differently. The `allow_jdbc_metadata_access=false` flag may not prevent scanning when entity classes are in subpackages that weren't in the original base package. **Fix:** Verify `@EntityScan(basePackages = "com.filetransfer.shared.entity")` is set on each service's main application class — this should recursively scan all subpackages. If it's missing, Spring Boot scans the entire classpath for `@Entity` annotations. |
+| N18 | **Post-HikariPool freeze after entity restructure** | CRITICAL | **IN PROGRESS** | Services freeze AFTER HikariPool completes (see log timeline below). Entity scanning + Hibernate are NOT the cause. Infra fixes applied: double-underscore HikariCP env vars fixed (`MAXIMUMPOOLSIZE`), `initializationFailTimeout=-1` added. **Real freeze is post-HikariPool** — a `@PostConstruct`/`@EventListener` bean is blocking the main thread. Investigating. |
 
-### N18 Update — Corrected Root Cause Analysis
-
-The freeze is NOT Hibernate entity scanning. Timeline from logs:
+### N18 — Log Timeline (from tester)
 
 ```
 16:22:47  Container started
@@ -282,14 +280,4 @@ The freeze is NOT Hibernate entity scanning. Timeline from logs:
 16:26:17  ← FROZEN HERE — no more log output
 ```
 
-Hibernate completes in ~2 minutes (not frozen). Kafka connects successfully (5s timeout works). HikariPool starts fine. **Something AFTER HikariPool hangs the main thread silently.** 
-
-Possible causes:
-1. **Flyway migration** — `spring.flyway.enabled=false` is in JAVA_TOOL_OPTIONS so this should be skipped. But verify.
-2. **Spring Data JPA repository initialization** — After HikariPool, Spring creates all JPA repository proxies. With 60+ repositories pointing to entities in new subpackages, a classpath scan issue could hang.
-3. **RabbitMQ connection** — `spring.rabbitmq.connection-timeout=3000` is set but if the connection itself blocks (AUTH_REFUSED loop), it could hang the main thread.
-4. **A `@PostConstruct` or `ApplicationReadyEvent` handler** that blocks — `FlowRuleRegistryInitializer.onStartup()` loads all flows from DB. `PartnerCache` warms from DB. `PipelineHealthController` may query. `ActivityViewRefresher` may refresh materialized view. Any of these blocking on a DB query to a table that doesn't exist (missing V58-V63 migrations) would hang.
-
-**Most likely cause: V58-V63 migrations applied to PostgreSQL directly but NOT recorded in flyway_schema_history. When a @PostConstruct bean queries a table created by V61 (transfer_activity_view), the query works. But when FlowRuleRegistryInitializer loads flows from file_flows table, a query referencing the new entity subpackages fails silently.**
-
-**Recommended debug step:** Add `-Dlogging.level.org.springframework=DEBUG` to JAVA_TOOL_OPTIONS temporarily to see exactly what Spring is doing after HikariPool starts.
+Hibernate, Kafka, HikariPool all complete normally. **Something AFTER HikariPool hangs the main thread silently.** Suspect: `@PostConstruct`/`ApplicationReadyEvent` handler blocking on a DB query or RabbitMQ connection.
