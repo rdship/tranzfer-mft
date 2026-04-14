@@ -21,7 +21,7 @@ function extractMessage(err) {
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, staleTime: 30000, refetchOnWindowFocus: false },
+    queries: { retry: 1, staleTime: 30000, refetchOnWindowFocus: true },
     mutations: { retry: 0 },
   },
   queryCache: new QueryCache({

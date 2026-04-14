@@ -764,19 +764,19 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
   const { data: folderTemplates = [] } = useQuery({
     queryKey: ['folder-templates-picker'],
     queryFn: getFolderTemplates,
-    staleTime: 300_000
+    staleTime: 30_000
   })
 
   const { data: complianceProfiles = [] } = useQuery({
     queryKey: ['compliance-profiles-picker'],
     queryFn: () => configApi.get('/api/compliance/profiles').then(r => r.data),
-    staleTime: 300_000
+    staleTime: 30_000
   })
 
   const { data: securityProfiles = [] } = useQuery({
     queryKey: ['security-profiles-picker'],
     queryFn: () => configApi.get('/api/listener-security-policies').then(r => r.data),
-    staleTime: 300_000
+    staleTime: 30_000
   })
 
   // Filter proxy groups by selected protocol

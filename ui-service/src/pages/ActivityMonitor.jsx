@@ -1104,10 +1104,15 @@ export default function ActivityMonitor() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-primary">
               Activity Monitor
-              {sseConnected && (
+              {sseConnected ? (
                 <span className="ml-2 inline-flex items-center text-xs font-normal text-green-600">
                   <span className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse" />
                   Live{liveCount > 0 ? ` (${liveCount} new)` : ''}
+                </span>
+              ) : (
+                <span className="ml-2 inline-flex items-center text-xs font-normal text-amber-600">
+                  <span className="w-2 h-2 bg-amber-500 rounded-full mr-1" />
+                  Polling (30s)
                 </span>
               )}
             </h1>

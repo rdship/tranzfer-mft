@@ -704,7 +704,7 @@ export default function DatabaseAdvisory() {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['db-advisory'],
     queryFn: fetchAdvisory,
-    staleTime: 300_000,
+    staleTime: 30_000,
     meta: { errorMessage: "Couldn't load database advisory" },
   })
   const statusQuery = useQuery({

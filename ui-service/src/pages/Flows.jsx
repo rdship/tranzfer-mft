@@ -857,7 +857,7 @@ export default function Flows() {
   const { data: partners = [] } = useQuery({
     queryKey: ['partners-for-flows'],
     queryFn: () => onboardingApi.get('/api/partners').then(r => r.data?.content || r.data || []),
-    staleTime: 300000
+    staleTime: 30000
   })
 
   const { data: functionQueues = [] } = useQuery({

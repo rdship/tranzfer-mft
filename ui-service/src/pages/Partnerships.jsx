@@ -43,7 +43,7 @@ export default function Partnerships() {
   const { data: partners = [] } = useQuery({
     queryKey: ['partners-for-partnership'],
     queryFn: () => onboardingApi.get('/api/partners').then(r => r.data?.content || r.data || []),
-    staleTime: 300000
+    staleTime: 30000
   })
 
   const { data: partnerships = [], isLoading } = useQuery({ queryKey: ['partnerships'], queryFn: getPartnerships })
