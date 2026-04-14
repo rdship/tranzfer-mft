@@ -1,7 +1,7 @@
 package com.filetransfer.onboarding.controller;
 
 import com.filetransfer.onboarding.service.ProxyGroupService;
-import com.filetransfer.shared.entity.ProxyGroup;
+import com.filetransfer.shared.entity.core.ProxyGroup;
 import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

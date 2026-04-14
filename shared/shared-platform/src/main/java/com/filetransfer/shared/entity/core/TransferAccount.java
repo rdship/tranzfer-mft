@@ -1,6 +1,6 @@
 package com.filetransfer.shared.entity.core;
 
-import com.filetransfer.shared.entity.Auditable;
+import com.filetransfer.shared.entity.core.Auditable;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;

@@ -4,7 +4,6 @@ import com.filetransfer.shared.audit.AuditService;
 import com.filetransfer.shared.cluster.ClusterService;
 import com.filetransfer.shared.config.PlatformConfig;
 import com.filetransfer.shared.connector.ConnectorDispatcher;
-import com.filetransfer.shared.entity.*;
 import com.filetransfer.shared.entity.core.*;
 import com.filetransfer.shared.entity.transfer.*;
 import com.filetransfer.shared.entity.vfs.*;

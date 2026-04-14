@@ -2,7 +2,7 @@ package com.filetransfer.shared.entity.transfer;
 
 import com.filetransfer.shared.entity.core.*;
 
-import com.filetransfer.shared.entity.Auditable;
+import com.filetransfer.shared.entity.core.Auditable;
 
 import com.filetransfer.shared.enums.AuthType;
 import com.filetransfer.shared.enums.DeliveryProtocol;

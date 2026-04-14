@@ -1,6 +1,6 @@
 package com.filetransfer.onboarding.controller;
 
-import com.filetransfer.shared.entity.BlockchainAnchor;
+import com.filetransfer.shared.entity.integration.BlockchainAnchor;
 import com.filetransfer.shared.entity.transfer.FileTransferRecord;
 import com.filetransfer.shared.repository.BlockchainAnchorRepository;
 import com.filetransfer.shared.repository.FileTransferRecordRepository;

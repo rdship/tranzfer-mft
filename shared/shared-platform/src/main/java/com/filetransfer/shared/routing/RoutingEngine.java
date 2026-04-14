@@ -8,7 +8,6 @@ import com.filetransfer.shared.config.PlatformConfig;
 import com.filetransfer.shared.connector.ConnectorDispatcher;
 import com.filetransfer.shared.dto.FileForwardRequest;
 import com.filetransfer.shared.dto.FileUploadedEvent;
-import com.filetransfer.shared.entity.*;
 import com.filetransfer.shared.entity.core.*;
 import com.filetransfer.shared.entity.transfer.*;
 import com.filetransfer.shared.entity.vfs.*;

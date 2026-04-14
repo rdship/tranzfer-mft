@@ -1,6 +1,6 @@
 package com.filetransfer.shared.repository;
 
-import com.filetransfer.shared.entity.LegacyServerConfig;
+import com.filetransfer.shared.entity.core.LegacyServerConfig;
 import com.filetransfer.shared.enums.Protocol;
 import org.springframework.data.jpa.repository.JpaRepository;
 

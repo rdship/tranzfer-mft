@@ -1,7 +1,7 @@
 package com.filetransfer.config.controller;
 
 import com.filetransfer.config.service.ServerConfigService;
-import com.filetransfer.shared.entity.ServerConfig;
+import com.filetransfer.shared.entity.core.ServerConfig;
 import com.filetransfer.shared.enums.ServiceType;
 import com.filetransfer.shared.security.Roles;
 import io.swagger.v3.oas.annotations.Operation;

@@ -1,4 +1,4 @@
-package com.filetransfer.shared.entity;
+package com.filetransfer.shared.entity.integration;
 
 import com.filetransfer.shared.entity.core.*;
 

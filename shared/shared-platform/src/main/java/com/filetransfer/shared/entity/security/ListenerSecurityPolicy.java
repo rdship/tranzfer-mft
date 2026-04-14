@@ -2,7 +2,7 @@ package com.filetransfer.shared.entity.security;
 
 import com.filetransfer.shared.entity.core.*;
 
-import com.filetransfer.shared.entity.Auditable;
+import com.filetransfer.shared.entity.core.Auditable;
 
 import com.filetransfer.shared.enums.SecurityTier;
 import jakarta.persistence.*;

@@ -1,6 +1,6 @@
 package com.filetransfer.shared.connector;
 
-import com.filetransfer.shared.entity.ActivityEvent;
+import com.filetransfer.shared.entity.transfer.ActivityEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;

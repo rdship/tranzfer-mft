@@ -1,7 +1,7 @@
 package com.filetransfer.onboarding.controller;
 
 import com.filetransfer.shared.audit.AuditService;
-import com.filetransfer.shared.entity.ClientPresence;
+import com.filetransfer.shared.entity.core.ClientPresence;
 import com.filetransfer.shared.security.Roles;
 import com.filetransfer.shared.entity.core.TransferAccount;
 import com.filetransfer.shared.entity.transfer.TransferTicket;

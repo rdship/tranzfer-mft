@@ -1,6 +1,6 @@
 package com.filetransfer.shared.repository;
 
-import com.filetransfer.shared.entity.ConnectionAudit;
+import com.filetransfer.shared.entity.security.ConnectionAudit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import java.time.Instant;

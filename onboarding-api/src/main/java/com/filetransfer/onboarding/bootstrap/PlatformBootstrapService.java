@@ -1,7 +1,6 @@
 package com.filetransfer.onboarding.bootstrap;
 
 import com.filetransfer.shared.dto.FolderDefinition;
-import com.filetransfer.shared.entity.*;
 import com.filetransfer.shared.entity.core.*;
 import com.filetransfer.shared.entity.transfer.*;
 import com.filetransfer.shared.entity.vfs.*;

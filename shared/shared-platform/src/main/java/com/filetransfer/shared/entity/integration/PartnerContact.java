@@ -3,7 +3,7 @@ package com.filetransfer.shared.entity.integration;
 import com.filetransfer.shared.entity.core.*;
 import com.filetransfer.shared.entity.transfer.*;
 
-import com.filetransfer.shared.entity.Auditable;
+import com.filetransfer.shared.entity.core.Auditable;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;

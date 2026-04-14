@@ -1,6 +1,6 @@
 package com.filetransfer.config.controller;
 
-import com.filetransfer.shared.entity.FunctionQueue;
+import com.filetransfer.shared.entity.transfer.FunctionQueue;
 import com.filetransfer.shared.repository.FileFlowRepository;
 import com.filetransfer.shared.repository.FunctionQueueRepository;
 import com.filetransfer.shared.security.Roles;

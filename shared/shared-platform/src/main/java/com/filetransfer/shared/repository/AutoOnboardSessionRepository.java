@@ -1,6 +1,6 @@
 package com.filetransfer.shared.repository;
 
-import com.filetransfer.shared.entity.AutoOnboardSession;
+import com.filetransfer.shared.entity.core.AutoOnboardSession;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.*;
 

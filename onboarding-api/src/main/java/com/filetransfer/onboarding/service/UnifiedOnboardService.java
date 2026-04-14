@@ -10,7 +10,6 @@ import com.filetransfer.onboarding.messaging.AccountEventPublisher;
 import com.filetransfer.onboarding.security.PasswordPolicy;
 import com.filetransfer.shared.audit.AuditService;
 import com.filetransfer.shared.dto.AccountCreatedEvent;
-import com.filetransfer.shared.entity.*;
 import com.filetransfer.shared.entity.core.*;
 import com.filetransfer.shared.entity.transfer.*;
 import com.filetransfer.shared.entity.vfs.*;

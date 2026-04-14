@@ -1,7 +1,7 @@
 package com.filetransfer.config.controller;
 
 import com.filetransfer.shared.connector.ActivityMonitor;
-import com.filetransfer.shared.entity.ActivityEvent;
+import com.filetransfer.shared.entity.transfer.ActivityEvent;
 import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;

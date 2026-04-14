@@ -1,6 +1,5 @@
 package com.filetransfer.config.service;
 
-import com.filetransfer.shared.entity.*;
 import com.filetransfer.shared.entity.core.*;
 import com.filetransfer.shared.entity.transfer.*;
 import com.filetransfer.shared.entity.vfs.*;

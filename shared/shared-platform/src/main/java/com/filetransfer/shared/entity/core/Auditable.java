@@ -1,4 +1,4 @@
-package com.filetransfer.shared.entity;
+package com.filetransfer.shared.entity.core;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.Column;

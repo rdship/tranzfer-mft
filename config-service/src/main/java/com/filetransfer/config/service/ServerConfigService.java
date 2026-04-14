@@ -1,6 +1,6 @@
 package com.filetransfer.config.service;
 
-import com.filetransfer.shared.entity.ServerConfig;
+import com.filetransfer.shared.entity.core.ServerConfig;
 import com.filetransfer.shared.enums.ServiceType;
 import com.filetransfer.shared.repository.ServerConfigRepository;
 import lombok.RequiredArgsConstructor;

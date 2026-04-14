@@ -1,6 +1,6 @@
 package com.filetransfer.shared.repository;
 
-import com.filetransfer.shared.entity.Permission;
+import com.filetransfer.shared.entity.security.Permission;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

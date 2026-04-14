@@ -2,7 +2,7 @@ package com.filetransfer.shared.entity.transfer;
 
 import com.filetransfer.shared.entity.core.*;
 
-import com.filetransfer.shared.entity.Auditable;
+import com.filetransfer.shared.entity.core.Auditable;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;

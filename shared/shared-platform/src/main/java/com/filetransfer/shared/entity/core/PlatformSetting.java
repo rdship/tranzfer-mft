@@ -1,6 +1,6 @@
 package com.filetransfer.shared.entity.core;
 
-import com.filetransfer.shared.entity.Auditable;
+import com.filetransfer.shared.entity.core.Auditable;
 
 import com.filetransfer.shared.enums.Environment;
 import jakarta.persistence.*;

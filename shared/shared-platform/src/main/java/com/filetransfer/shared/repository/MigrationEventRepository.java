@@ -1,6 +1,6 @@
 package com.filetransfer.shared.repository;
 
-import com.filetransfer.shared.entity.MigrationEvent;
+import com.filetransfer.shared.entity.core.MigrationEvent;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.time.Instant;
 import java.util.List;
