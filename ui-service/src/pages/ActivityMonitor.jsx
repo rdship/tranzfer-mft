@@ -1592,16 +1592,43 @@ export default function ActivityMonitor() {
             <div className="w-16 h-16 bg-hover rounded-2xl flex items-center justify-center mb-4">
               <TableCellsIcon className="w-8 h-8 text-muted" />
             </div>
-            <h3 className="text-base font-semibold text-primary mb-1">No transfers found</h3>
-            <p className="text-sm text-secondary text-center max-w-sm">
-              {hasFilters
-                ? 'No transfers match your current filters. Try adjusting or clearing them.'
-                : 'File transfers will appear here once they are processed by the platform.'}
-            </p>
-            {hasFilters && (
-              <button onClick={clearFilters} className="btn-secondary mt-4 text-xs">
-                <XMarkIcon className="w-3.5 h-3.5" /> Clear Filters
-              </button>
+            {hasFilters ? (
+              <>
+                <h3 className="text-base font-semibold text-primary mb-1">No transfers match</h3>
+                <p className="text-sm text-secondary text-center max-w-sm">
+                  No transfers match your current filters. Try adjusting or clearing them.
+                </p>
+                <button onClick={clearFilters} className="btn-secondary mt-4 text-xs">
+                  <XMarkIcon className="w-3.5 h-3.5" /> Clear Filters
+                </button>
+              </>
+            ) : totalElements === 0 ? (
+              <>
+                <h3 className="text-base font-semibold text-primary mb-1">No transfers yet</h3>
+                <p className="text-sm text-secondary text-center max-w-md mb-4">
+                  Upload a file via SFTP to see activity here. The Activity Monitor tracks every file
+                  from arrival to delivery — checksums, routing decisions, flow execution, and delivery confirmation.
+                </p>
+                <div className="flex gap-3">
+                  <a href="/flows" className="px-4 py-2 rounded-lg text-xs font-medium"
+                     style={{ background: 'rgb(var(--accent))', color: '#fff' }}>
+                    Configure Flows
+                  </a>
+                  <a href="/accounts" className="px-4 py-2 rounded-lg text-xs font-medium border border-border hover:bg-hover">
+                    Create Account
+                  </a>
+                </div>
+                <p className="text-[10px] text-muted mt-6 text-center max-w-xs">
+                  {sseConnected ? '🟢 Live stream connected — transfers will appear instantly' : '🟡 Polling every 30s — transfers appear on next refresh'}
+                </p>
+              </>
+            ) : (
+              <>
+                <h3 className="text-base font-semibold text-primary mb-1">No transfers found</h3>
+                <p className="text-sm text-secondary text-center max-w-sm">
+                  File transfers will appear here once they are processed by the platform.
+                </p>
+              </>
             )}
           </div>
         ) : (
