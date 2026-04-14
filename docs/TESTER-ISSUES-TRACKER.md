@@ -200,3 +200,69 @@
 | N15 | **Hibernate fast-boot flags missing from JAVA_TOOL_OPTIONS after CTO's docker-compose edit** — services stuck in silent entity scan for 10+ minutes | CRITICAL | **OPEN** | When CTO edited docker-compose.yml to add Kafka timeouts and remove lazy-init, the Hibernate fast-boot flags were accidentally removed: `-Dspring.jpa.properties.hibernate.boot.allow_jdbc_metadata_access=false` and `-Dspring.jpa.properties.hibernate.temp.use_jdbc_metadata_defaults=false`. Without these, Hibernate does full JDBC metadata validation against PostgreSQL for every entity (100+). No log output during this phase — service appears frozen. These flags MUST be in JAVA_TOOL_OPTIONS alongside the new Kafka timeout flags. |
 | N16 | **RabbitMQ AUTH_REFUSED after definitions.json fix** — services can't publish to RabbitMQ | HIGH | **OPEN** | After adding `definitions.json` with vhost declaration, RabbitMQ's default guest user may not be created properly. Config-service logs show `ACCESS_REFUSED - Login was refused using authentication mechanism PLAIN`. Services connect to RabbitMQ but can't authenticate. Check if `definitions.json` needs explicit user/permissions, or if `RABBITMQ_DEFAULT_USER=guest` and `RABBITMQ_DEFAULT_PASS=guest` env vars are set in docker-compose. |
 | N17 | **demo-onboard.sh stuck in retry loop on server creation** — ServerConfig API changed | HIGH | **OPEN** | Seed script sends old `ServerInstance` format (instanceId, protocol, internalHost, etc.) but API now expects `ServerConfig` format (name, serviceType, host, port, properties). Script retries forever on 500. CTO's update to the script (commit 0940e9c) may not have fully aligned with the new entity. Verify seed script creates servers with correct format. |
+
+---
+
+## Full JAVA_TOOL_OPTIONS Audit (2026-04-14)
+
+**Current flags in docker-compose (INCOMPLETE):**
+```
+-Xmx384m -Xms192m
+-XX:+UseZGC -XX:+ZGenerational -XX:+UseStringDeduplication
+-Dspring.jmx.enabled=false
+-Dserver.tomcat.accept-count=200 -Dserver.tomcat.threads.max=300
+-Dspring.jpa.properties.hibernate.default_batch_fetch_size=20
+-Dspring.jpa.open-in-view=false
+-Dspring.flyway.enabled=false
+-Dspring.rabbitmq.connection-timeout=3000
+-Dspring.kafka.admin.properties.request.timeout.ms=5000
+-Dspring.kafka.consumer.properties.default.api.timeout.ms=5000
+-Dspring.kafka.properties.reconnect.backoff.max.ms=5000
+```
+
+**MISSING (must be restored):**
+```
+-Dspring.jpa.hibernate.ddl-auto=none
+-Dspring.jpa.properties.hibernate.boot.allow_jdbc_metadata_access=false
+-Dspring.jpa.properties.hibernate.temp.use_jdbc_metadata_defaults=false
+```
+
+Without these 3 flags, Hibernate does full JDBC metadata validation for every entity against PostgreSQL. With 100+ entities across 6 subpackages (core, transfer, security, integration, vfs, plus root), this takes 10-15+ minutes. Services appear frozen — no log output during this phase. Docker marks them unhealthy after 3 health check failures.
+
+**Correct complete JAVA_TOOL_OPTIONS should be:**
+```
+-Xmx384m -Xms192m
+-XX:+UseZGC -XX:+ZGenerational -XX:+UseStringDeduplication
+-Dspring.jmx.enabled=false
+-Dserver.tomcat.accept-count=200 -Dserver.tomcat.threads.max=300
+-Dspring.jpa.hibernate.ddl-auto=none
+-Dspring.jpa.properties.hibernate.boot.allow_jdbc_metadata_access=false
+-Dspring.jpa.properties.hibernate.temp.use_jdbc_metadata_defaults=false
+-Dspring.jpa.properties.hibernate.default_batch_fetch_size=20
+-Dspring.jpa.open-in-view=false
+-Dspring.flyway.enabled=false
+-Dspring.rabbitmq.connection-timeout=3000
+-Dspring.kafka.admin.properties.request.timeout.ms=5000
+-Dspring.kafka.consumer.properties.default.api.timeout.ms=5000
+-Dspring.kafka.properties.reconnect.backoff.max.ms=5000
+```
+
+## Platform State After Latest CTO Push (2026-04-14)
+
+| Component | State | Issue |
+|-----------|-------|-------|
+| Containers | 35 up, 17 unhealthy | Hibernate scan freeze |
+| Onboarding-API | Frozen at HikariPool start | Missing Hibernate flags |
+| Config-Service | Frozen | Same |
+| SFTP-Service | Frozen | Same |
+| 14 other Java services | Frozen | Same |
+| DMZ-Proxy | Healthy (45s) | No Hibernate (no DB) |
+| EDI-Converter | Healthy (52s) | No Hibernate (no DB) |
+| RabbitMQ | Exchanges exist, 0 queues | No consumers registered (services frozen) |
+| Redpanda (Kafka) | Healthy | Kafka timeout working (5s) |
+| Redis | Healthy | Flushed |
+| PostgreSQL | Healthy | Migrations applied |
+| Login | 502 | Onboarding frozen |
+| AI-Engine | Restart loop | Crashing during boot |
+
+**Conclusion:** The platform cannot start without the 3 Hibernate fast-boot flags. These were present in all previous working deployments and were accidentally removed during the docker-compose lazy-init edit.
