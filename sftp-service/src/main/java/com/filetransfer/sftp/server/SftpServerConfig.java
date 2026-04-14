@@ -5,6 +5,7 @@ import com.filetransfer.sftp.routing.SftpAuditingEventListener;
 import com.filetransfer.sftp.routing.SftpRoutingEventListener;
 import com.filetransfer.sftp.session.SftpSessionListener;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.sshd.common.NamedFactory;
 import org.apache.sshd.common.cipher.BuiltinCiphers;
@@ -48,38 +49,72 @@ public class SftpServerConfig {
     private final SftpSessionListener sessionListener;
     private final KeystoreManagerClient keystoreManagerClient;
 
+    @Autowired(required = false)
+    @org.springframework.lang.Nullable
+    private com.filetransfer.shared.repository.ServerInstanceRepository serverInstanceRepository;
+
     @Value("${sftp.port:2222}")
     private int sftpPort;
 
     @Value("${sftp.host-key-path:./sftp_host_key}")
     private String hostKeyPath;
 
-    /** Idle timeout in seconds. 0 = no timeout (backward compatible default). */
+    @Value("${sftp.instance-id:#{null}}")
+    private String instanceId;
+
+    // ENV defaults — overridden by ServerInstance DB config when available
     @Value("${sftp.idle-timeout-seconds:0}")
     private int idleTimeoutSeconds;
 
-    /** Maximum session duration in seconds. 0 = unlimited. */
     @Value("${sftp.max-session-duration-seconds:0}")
     private int maxSessionDurationSeconds;
 
-    /** Pre-authentication banner message. Empty = no banner. */
     @Value("${sftp.banner-message:}")
     private String bannerMessage;
 
-    /** Comma-separated list of allowed ciphers. Empty = MINA defaults. */
     @Value("${sftp.algorithms.ciphers:}")
     private String configuredCiphers;
 
-    /** Comma-separated list of allowed MACs. Empty = MINA defaults. */
     @Value("${sftp.algorithms.macs:}")
     private String configuredMacs;
 
-    /** Comma-separated list of allowed key exchange algorithms. Empty = MINA defaults. */
     @Value("${sftp.algorithms.kex:}")
     private String configuredKex;
 
     @Bean
     public SshServer sshServer() {
+        // Load per-instance config from DB — UI changes take effect on next restart.
+        // ENV vars are the fallback when no DB record exists (fresh install).
+        if (instanceId != null && serverInstanceRepository != null) {
+            serverInstanceRepository.findByInstanceId(instanceId).ifPresent(si -> {
+                if (si.getAllowedCiphers() != null && !si.getAllowedCiphers().isBlank()) {
+                    configuredCiphers = si.getAllowedCiphers();
+                    log.info("SFTP ciphers loaded from DB: {}", configuredCiphers);
+                }
+                if (si.getAllowedMacs() != null && !si.getAllowedMacs().isBlank()) {
+                    configuredMacs = si.getAllowedMacs();
+                    log.info("SFTP MACs loaded from DB: {}", configuredMacs);
+                }
+                if (si.getAllowedKex() != null && !si.getAllowedKex().isBlank()) {
+                    configuredKex = si.getAllowedKex();
+                    log.info("SFTP KEX loaded from DB: {}", configuredKex);
+                }
+                if (si.getIdleTimeoutSeconds() > 0) {
+                    idleTimeoutSeconds = si.getIdleTimeoutSeconds();
+                    log.info("SFTP idle timeout loaded from DB: {}s", idleTimeoutSeconds);
+                }
+                if (si.getSessionMaxDurationSeconds() > 0) {
+                    maxSessionDurationSeconds = si.getSessionMaxDurationSeconds();
+                    log.info("SFTP session max duration loaded from DB: {}s", maxSessionDurationSeconds);
+                }
+                if (si.getSshBannerMessage() != null && !si.getSshBannerMessage().isBlank()) {
+                    bannerMessage = si.getSshBannerMessage();
+                    log.info("SFTP banner loaded from DB");
+                }
+                log.info("SFTP instance '{}' config loaded from database", instanceId);
+            });
+        }
+
         SftpSubsystemFactory sftpFactory = new SftpSubsystemFactory();
         sftpFactory.addSftpEventListener(routingEventListener);
         sftpFactory.addSftpEventListener(auditingEventListener);

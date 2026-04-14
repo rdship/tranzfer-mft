@@ -5,6 +5,7 @@ import com.filetransfer.ftp.security.FtpBounceFilter;
 import com.filetransfer.ftp.security.FileOperationFilter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.apache.ftpserver.ConnectionConfigFactory;
 import org.apache.ftpserver.DataConnectionConfigurationFactory;
 import org.apache.ftpserver.FtpServer;
@@ -37,6 +38,13 @@ public class FtpServerConfig {
     private final FtpBounceFilter ftpBounceFilter;
     private final FileOperationFilter fileOperationFilter;
     private final VirtualFtpFileSystemFactory virtualFtpFileSystemFactory;
+
+    @Autowired(required = false)
+    @org.springframework.lang.Nullable
+    private com.filetransfer.shared.repository.ServerInstanceRepository serverInstanceRepository;
+
+    @Value("${ftp.instance-id:#{null}}")
+    private String instanceId;
 
     @Value("${ftp.port:21}")
     private int ftpPort;
@@ -93,6 +101,21 @@ public class FtpServerConfig {
      */
     @Bean
     public FtpServer ftpServer() {
+        // Load per-instance config from DB — UI changes take effect on restart.
+        if (instanceId != null && serverInstanceRepository != null) {
+            serverInstanceRepository.findByInstanceId(instanceId).ifPresent(si -> {
+                if (si.getIdleTimeoutSeconds() > 0) {
+                    idleTimeoutSeconds = si.getIdleTimeoutSeconds();
+                    log.info("FTP idle timeout loaded from DB: {}s", idleTimeoutSeconds);
+                }
+                if (si.getSshBannerMessage() != null && !si.getSshBannerMessage().isBlank()) {
+                    bannerMessage = si.getSshBannerMessage();
+                    log.info("FTP banner loaded from DB");
+                }
+                log.info("FTP instance '{}' config loaded from database", instanceId);
+            });
+        }
+
         FtpServerFactory serverFactory = new FtpServerFactory();
         serverFactory.setUserManager(ftpUserManager);
         serverFactory.setFileSystem(virtualFtpFileSystemFactory);
