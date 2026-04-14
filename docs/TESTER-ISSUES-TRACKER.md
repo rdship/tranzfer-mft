@@ -194,3 +194,5 @@
 11. H4 — nginx healthcheck endpoints
 12. M2 — nginx TLS certificates
 13. M6/M7 — keystore-manager format + Redis fixes
+
+| N14 | **Removing lazy-init causes Kafka to block ALL service boots** — only 2/22 services start | CRITICAL | **OPEN** | CTO removed `lazy-initialization=true` from JAVA_TOOL_OPTIONS (our recommendation to fix RabbitMQ pipeline). But now the Fabric Kafka consumer (`FlowFabricConsumer`, `FlowRuleEventListener`) initializes eagerly and blocks the main thread trying to connect to Redpanda. All services stuck on `[Consumer clientId=consumer-fabric...] Node -1 disconnected`. Only dmz-proxy and edi-converter boot (no Kafka). **Fix: don't remove lazy-init globally. Instead add `spring.kafka.admin.properties.request.timeout.ms=5000` and `spring.kafka.consumer.properties.session.timeout.ms=5000` to prevent Kafka from blocking boot. OR make only the Kafka fabric beans lazy while keeping RabbitMQ beans eager.** |
