@@ -20,6 +20,9 @@ x-common-env: &common-env
     -Dspring.jmx.enabled=false
     -Dserver.tomcat.accept-count=200
     -Dserver.tomcat.threads.max=300
+    -Dspring.jpa.hibernate.ddl-auto=none
+    -Dspring.jpa.properties.hibernate.boot.allow_jdbc_metadata_access=false
+    -Dspring.jpa.properties.hibernate.temp.use_jdbc_metadata_defaults=false
     -Dspring.jpa.properties.hibernate.default_batch_fetch_size=20
     -Dspring.jpa.open-in-view=false
     -Dspring.flyway.enabled=false
@@ -384,9 +387,7 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
-      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: >-
-        -rabbit vm_memory_high_watermark 0.8
-        -rabbitmq_management load_definitions "/etc/rabbitmq/definitions.json"
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: -rabbit vm_memory_high_watermark 0.8
     ports:
       - "127.0.0.1:5672:5672"
       - "127.0.0.1:15672:15672"
