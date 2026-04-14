@@ -124,7 +124,7 @@ services:
     ports:
       - "8191:8091"
     environment:
-      JAVA_TOOL_OPTIONS: "-Xmx256m -Xms128m -XX:+UseG1GC -Dspring.main.lazy-initialization=true"
+      JAVA_TOOL_OPTIONS: "-Xmx256m -Xms128m -XX:+UseG1GC -Dspring.flyway.enabled=false -Dspring.datasource.hikari.initialization-fail-timeout=-1 -Dspring.data.redis.timeout=3000 -Dspring.rabbitmq.connection-timeout=3000"
       DATABASE_URL: jdbc:postgresql://postgres:5432/filetransfer?stringtype=unspecified
       DB_USERNAME: postgres
       DB_PASSWORD: postgres

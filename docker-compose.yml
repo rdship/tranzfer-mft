@@ -87,7 +87,7 @@ x-common-env: &common-env
   FLOW_STEPPIPELINE_CONCURRENCY_MIN: "4"
   FLOW_STEPPIPELINE_CONCURRENCY_MAX: "16"
   KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
-  SPRING_KAFKA_BOOTSTRAP__SERVERS: redpanda:9092
+  SPRING_KAFKA_BOOTSTRAPSERVERS: redpanda:9092
 
 x-service-healthcheck: &healthcheck
   # Java Spring services typically need 45-90s to finish Flyway migrations,

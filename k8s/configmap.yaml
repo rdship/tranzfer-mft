@@ -34,7 +34,14 @@ data:
     -XX:MaxGCPauseMillis=100
     -XX:+UseStringDeduplication
     -Dspring.jmx.enabled=false
-    -Dspring.main.lazy-initialization=true
+    -Dspring.flyway.enabled=false
+    -Dspring.datasource.hikari.initialization-fail-timeout=-1
+    -Dspring.data.redis.timeout=3000
+    -Dspring.data.redis.connect-timeout=3000
+    -Dspring.rabbitmq.connection-timeout=3000
+    -Dspring.kafka.admin.properties.request.timeout.ms=5000
+    -Dspring.kafka.consumer.properties.default.api.timeout.ms=5000
+    -Dspring.kafka.properties.reconnect.backoff.max.ms=5000
 
   # ── Proxy (DMZ) ───────────────────────────────────────────────────────────────
   # All outbound internet traffic routes through DMZ proxy (internal network only)
