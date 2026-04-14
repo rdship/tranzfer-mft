@@ -28,10 +28,9 @@ import java.util.UUID;
  */
 @Slf4j
 @Component
-@ConditionalOnBean(PartnerCache.class)
 public class PartnerCacheEvictionListener {
 
-    @Autowired
+    @Autowired(required = false)
     private PartnerCache partnerCache;
 
     @Autowired(required = false)
@@ -42,7 +41,7 @@ public class PartnerCacheEvictionListener {
 
     @PostConstruct
     void subscribeFabricAccountEvents() {
-        if (eventFabricBridge == null || objectMapper == null) return;
+        if (partnerCache == null || eventFabricBridge == null || objectMapper == null) return;
         String serviceName = System.getenv().getOrDefault("SERVICE_NAME", "cache-eviction");
         try {
             String groupId = com.filetransfer.shared.fabric.FabricGroupIds.fanout(
@@ -67,6 +66,7 @@ public class PartnerCacheEvictionListener {
             key = "account.*"
     ))
     public void onAccountEvent(Map<String, Object> event) {
+        if (partnerCache == null) return;
         evictFromEvent(event);
     }
 

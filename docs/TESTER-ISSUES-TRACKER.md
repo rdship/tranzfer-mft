@@ -145,8 +145,8 @@
 | Category | Total | Resolved | Open/Partial | Fix Rate |
 |----------|-------|----------|------|----------|
 | Original (C/H/M/P/B) | 46 | **46** | 0 | **100%** |
-| New (N0-N18) | 19 | **17** | 2 | **89%** |
-| **TOTAL** | **65** | **63** | **2** | **97%** |
+| New (N0-N20) | 21 | **19** | 2 | **90%** |
+| **TOTAL** | **67** | **65** | **2** | **97%** |
 
 **Open:** N9 (rate limiter in-memory), N11 (boot time partial)
 
@@ -220,6 +220,6 @@ No service can block boot on any infrastructure dependency.
 
 Tester log showed freeze AFTER HikariPool. Investigation found `RedisServiceRegistry.register()` did blocking Redis SET in `@PostConstruct` with NO try-catch. When 17 services hit Redis simultaneously during boot, connection establishment could hang. Fix: try-catch added + Redis 3s timeout globally. Full audit verified ALL `@PostConstruct` and `@EventListener` beans now have error handling.
 
-| N19 | **Docker healthcheck timeout too short — services restart before boot completes** | CRITICAL | **OPEN** | start_period=90s + retries=8 × interval=10s = 170s timeout. Services need 200s after entity restructure. Infinite restart loop. Fix: increase start_period to 240s. |
+| N19 | **Docker healthcheck timeout too short** | CRITICAL | **FIXED** | Tester increased start_period from 90s to 240s in commit 9ddb14c. |
 
-| N20 | **ALL services fail: `SchemaHealthController` requires `SchemaHealthIndicator` bean not found** | CRITICAL | **OPEN** | Every service after the entity restructure fails with: `Parameter 0 of constructor in com.filetransfer.shared.health.SchemaHealthController required a bean of type 'com.filetransfer.shared.health.SchemaHealthIndicator' that could not be found.` notification-service and platform-sentinel show this explicitly (they restart and log the error). All other services freeze silently at HikariPool because Spring is still resolving the bean dependency tree when this error occurs. **Root cause:** `SchemaHealthIndicator` is either (a) missing `@Component`/`@Service` annotation, (b) in a package not scanned after the entity restructure, or (c) conditionally created by a bean that's no longer loading. **Fix:** Add `@Component` to `SchemaHealthIndicator` or make `SchemaHealthController`'s dependency optional with `@Autowired(required = false)`. |
+| N20 | **ALL services fail: SchemaHealthController requires SchemaHealthIndicator bean not found** | CRITICAL | **FIXED** | Root cause: `@ConditionalOnBean` on `@Component` classes has unreliable evaluation order in Spring Boot — conditions evaluate before target beans are registered during component scanning. Fixed: removed `@ConditionalOnBean` from both classes, `SchemaHealthController` now uses `@Autowired(required = false)` for optional injection with null-safe methods. Also fixed same pattern on `PartnerCacheEvictionListener`. |
