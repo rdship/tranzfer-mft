@@ -219,3 +219,5 @@ No service can block boot on any infrastructure dependency.
 ### N18 — Root Cause Analysis
 
 Tester log showed freeze AFTER HikariPool. Investigation found `RedisServiceRegistry.register()` did blocking Redis SET in `@PostConstruct` with NO try-catch. When 17 services hit Redis simultaneously during boot, connection establishment could hang. Fix: try-catch added + Redis 3s timeout globally. Full audit verified ALL `@PostConstruct` and `@EventListener` beans now have error handling.
+
+| N19 | **Docker healthcheck timeout too short — services restart before boot completes** | CRITICAL | **OPEN** | start_period=90s + retries=8 × interval=10s = 170s timeout. Services need 200s after entity restructure. Infinite restart loop. Fix: increase start_period to 240s. |
