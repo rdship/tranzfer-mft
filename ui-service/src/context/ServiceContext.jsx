@@ -16,31 +16,29 @@ import { onboardingApi, licenseApi } from '../api/client'
  * - Everything is dynamic — no code changes needed.
  */
 
+// N13 fix: Health checks routed through API gateway (not direct localhost:PORT).
+// Browser can't reach Docker internal ports. Gateway routes all /api/* paths
+// to the correct backend. Uses relative paths so it works in any environment.
 const SERVICE_HEALTH_ENDPOINTS = {
-  onboarding: { url: 'http://localhost:8080/actuator/health', port: 8080 },
-  config: { url: 'http://localhost:8084/api/servers', port: 8084 },
-  sftp: { url: 'http://localhost:8081/health', port: 8081 },
-  ftp: { url: 'http://localhost:8082/health', port: 8082 },
-  ftpWeb: { url: 'http://localhost:8083/actuator/health', port: 8083 },
-  gateway: { url: 'http://localhost:8085/actuator/health', port: 8085 },
-  encryption: { url: 'http://localhost:8086/actuator/health', port: 8086 },
-  forwarder: { url: 'http://localhost:8087/api/forward/health', port: 8087 },
-  dmz: { url: 'http://localhost:8088/api/proxy/health', port: 8088 },
-  license: { url: 'http://localhost:8089/api/v1/licenses/health', port: 8089 },
-  analytics: { url: 'http://localhost:8090/api/v1/analytics/dashboard', port: 8090 },
-  aiEngine: { url: 'http://localhost:8091/api/v1/ai/health', port: 8091 },
-  screening: { url: 'http://localhost:8092/api/v1/screening/health', port: 8092 },
-  keystore: { url: 'http://localhost:8093/api/v1/keys/health', port: 8093 },
-  sentinel: { url: 'http://localhost:8098/api/v1/sentinel/health', port: 8098 },
-  // Using /actuator/health/readiness (not root /health) because Spring Boot's
-  // root health aggregates every indicator — a single transient Kafka or
-  // RabbitMQ blip flips the whole thing to DOWN even when the service is
-  // actually serving traffic. Readiness is what the demo-onboard.sh wait
-  // function settled on after hitting exactly this bug.
-  ediConverter: { url: 'http://localhost:8095/actuator/health/readiness', port: 8095 },
-  notification: { url: 'http://localhost:8097/actuator/health', port: 8097 },
-  storage: { url: 'http://localhost:8096/actuator/health', port: 8096 },
-  as2: { url: 'http://localhost:8094/actuator/health', port: 8094 },
+  onboarding: { url: '/api/pipeline/health' },
+  config: { url: '/api/servers?size=1' },
+  sftp: { url: '/api/pipeline/health' },
+  ftp: { url: '/api/pipeline/health' },
+  ftpWeb: { url: '/api/pipeline/health' },
+  gateway: { url: '/api/gateway/status' },
+  encryption: { url: '/api/encrypt/status' },
+  forwarder: { url: '/api/forward/health' },
+  dmz: { url: '/api/proxy/health' },
+  license: { url: '/api/v1/licenses/health' },
+  analytics: { url: '/api/v1/analytics/dashboard' },
+  aiEngine: { url: '/api/v1/ai/health' },
+  screening: { url: '/api/v1/screening/health' },
+  keystore: { url: '/api/v1/keys/health' },
+  sentinel: { url: '/api/v1/sentinel/health' },
+  ediConverter: { url: '/api/v1/convert/health' },
+  notification: { url: '/api/notifications/health' },
+  storage: { url: '/api/v1/storage/health' },
+  as2: { url: '/api/as2/health' },
 }
 
 /**
@@ -172,14 +170,12 @@ export function ServiceProvider({ children }) {
     const results = {}
     const checks = Object.entries(SERVICE_HEALTH_ENDPOINTS).map(async ([key, { url }]) => {
       try {
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 3000)
-        const res = await fetch(url, { signal: controller.signal, mode: 'no-cors' }).catch(() => null)
-        clearTimeout(timeout)
-        // no-cors returns opaque response (type: 'opaque', status: 0) but means the server responded
-        results[key] = res !== null
-      } catch {
-        results[key] = false
+        // N13 fix: use authenticated API client through gateway (not raw fetch to localhost)
+        await onboardingApi.get(url, { timeout: 4000 })
+        results[key] = true
+      } catch (err) {
+        // 401/403 means service IS running but auth differs — still "reachable"
+        results[key] = err?.response?.status === 401 || err?.response?.status === 403
       }
     })
     await Promise.all(checks)
