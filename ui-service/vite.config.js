@@ -24,7 +24,19 @@ export default defineConfig({
         // independently of page code. Changing a page does not invalidate
         // the vendor bundles, and vice versa.
         manualChunks(id) {
-          if (!id.includes('node_modules')) return undefined
+          // ── Shared app code ────────────────────────────────────────
+          // Components, hooks, API modules, and contexts used by BOTH
+          // eager (index) and lazy page chunks must live in their own
+          // chunk. Without this, Vite inlines them into index → lazy
+          // chunk imports from index → circular reference →
+          // "Cannot access 'be' before initialization" crash.
+          if (!id.includes('node_modules')) {
+            if (id.includes('/components/')) return 'shared-components'
+            if (id.includes('/hooks/'))      return 'shared-hooks'
+            if (id.includes('/api/'))        return 'shared-api'
+            if (id.includes('/context/'))    return 'shared-context'
+            return undefined
+          }
 
           // React core
           if (id.includes('react-dom') || /\/react\//.test(id) || id.includes('scheduler')) {
