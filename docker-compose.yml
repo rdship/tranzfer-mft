@@ -793,7 +793,7 @@ services:
       - "127.0.0.1:4443:443"        # FTP-Web (internal HTTPS)
       - "127.0.0.1:9443:9443"       # Tunnel port (gateway-service connects inbound)
     environment:
-      PLATFORM_SECURITY_JWT_SECRET: ${PLATFORM_JWT_SECRET:-changeme_32char_secret_here_!!!!}
+      PLATFORM_SECURITY_JWT_SECRET: ${JWT_SECRET:-change_me_in_production_256bit_secret_key!!}
       SERVER_PORT: 8088
       PROXY_GROUP_NAME: internal
       PROXY_GROUP_TYPE: INTERNAL
@@ -844,7 +844,7 @@ services:
       - "127.0.0.1:8443:443"         # FTP-Web HTTPS (external)
       - "127.0.0.1:9444:9443"        # Tunnel port (separate tunnel for external proxy)
     environment:
-      PLATFORM_SECURITY_JWT_SECRET: ${PLATFORM_JWT_SECRET:-changeme_32char_secret_here_!!!!}
+      PLATFORM_SECURITY_JWT_SECRET: ${JWT_SECRET:-change_me_in_production_256bit_secret_key!!}
       SERVER_PORT: 8088
       PROXY_GROUP_NAME: external
       PROXY_GROUP_TYPE: EXTERNAL

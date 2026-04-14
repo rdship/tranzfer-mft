@@ -10,9 +10,19 @@ const withAuth = (instance) => {
     (res) => res,
     (err) => {
       if (err.response?.status === 401) {
-        localStorage.removeItem('token')
-        localStorage.removeItem('user')
-        window.location.href = '/login'
+        // Only redirect to login if the auth token itself is invalid.
+        // Don't redirect when a management endpoint (gateway, dmz, proxy)
+        // rejects the request — the user is still logged in, just lacks
+        // permission for that specific service.
+        const url = err.config?.url || ''
+        const isAuthEndpoint = url.includes('/api/auth/')
+        const isTokenExpired = !localStorage.getItem('token')
+        if (isAuthEndpoint || isTokenExpired) {
+          localStorage.removeItem('token')
+          localStorage.removeItem('user')
+          window.location.href = '/login'
+        }
+        // For non-auth 401s: let the component handle it (shows error toast)
       }
       return Promise.reject(err)
     }

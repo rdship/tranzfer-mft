@@ -58,7 +58,7 @@ public class GatewayStatusController {
     private int internalFtpWebPort;
 
     @GetMapping("/status")
-    @PreAuthorize("hasRole('INTERNAL')")
+    @PreAuthorize("hasAnyRole('INTERNAL', 'ADMIN')")
     public Map<String, Object> status() {
         return Map.of(
                 "sftpGatewayPort", sftpPort,
@@ -68,7 +68,7 @@ public class GatewayStatusController {
     }
 
     @GetMapping("/legacy-servers")
-    @PreAuthorize("hasRole('INTERNAL')")
+    @PreAuthorize("hasAnyRole('INTERNAL', 'ADMIN')")
     public List<LegacyServerConfig> legacyServers(
             @RequestParam(required = false) Protocol protocol) {
         return protocol != null
@@ -78,7 +78,7 @@ public class GatewayStatusController {
 
     /** Full route table: default services + server instances + legacy fallbacks */
     @GetMapping("/routes")
-    @PreAuthorize("hasRole('INTERNAL')")
+    @PreAuthorize("hasAnyRole('INTERNAL', 'ADMIN')")
     public Map<String, Object> routes() {
         // Default internal routes
         List<Map<String, Object>> defaultRoutes = List.of(
@@ -134,7 +134,7 @@ public class GatewayStatusController {
 
     /** Gateway statistics: account counts, instance counts, port mapping */
     @GetMapping("/stats")
-    @PreAuthorize("hasRole('INTERNAL')")
+    @PreAuthorize("hasAnyRole('INTERNAL', 'ADMIN')")
     public Map<String, Object> stats() {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("sftpGatewayPort", sftpPort);
