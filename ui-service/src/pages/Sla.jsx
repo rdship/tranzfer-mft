@@ -36,7 +36,7 @@ export default function Sla() {
   const [search, setSearch] = useState('')
 
   const { data: slas = [], isLoading, isError: slasError, refetch: refetchSlas } = useQuery({ queryKey: ['slas'], queryFn: () => configApi.get('/api/sla').then(r => r.data), retry: 1 })
-  const { data: breaches = [], isError: breachesError, refetch: refetchBreaches } = useQuery({ queryKey: ['sla-breaches'], queryFn: () => configApi.get('/api/sla/breaches').then(r => r.data), refetchInterval: 60000, retry: 1 })
+  const { data: breaches = [], isError: breachesError, refetch: refetchBreaches } = useQuery({ queryKey: ['sla-breaches'], queryFn: () => configApi.get('/api/sla/breaches').then(r => r.data), meta: { silent: true }, refetchInterval: 60000, retry: 1 })
 
   const isError = slasError || breachesError
   const refetch = () => { refetchSlas(); refetchBreaches() }

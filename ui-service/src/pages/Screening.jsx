@@ -114,7 +114,7 @@ export default function Screening() {
   const { data: results = [] } = useQuery({
     queryKey: ['screen-results'],
     queryFn: () => screeningApi.get('/api/v1/screening/results').then(r => r.data),
-    refetchInterval: 15000,
+    meta: { silent: true }, refetchInterval: 15000,
     retry: 1,
     meta: { errorMessage: "Couldn't load screening results" },
   })
@@ -132,7 +132,7 @@ export default function Screening() {
   const { data: quarantineStats = {}, isLoading: loadingStats } = useQuery({
     queryKey: ['quarantine-stats'],
     queryFn: () => screeningApi.get('/api/v1/quarantine/stats').then(r => r.data),
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
     retry: 1,
     meta: { errorMessage: "Couldn't load quarantine stats" },
   })
@@ -140,7 +140,7 @@ export default function Screening() {
   const { data: quarantineItems = [], isLoading: loadingQuarantine } = useQuery({
     queryKey: ['quarantine-items'],
     queryFn: () => screeningApi.get('/api/v1/quarantine').then(r => r.data),
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
     retry: 1,
     meta: { errorMessage: "Couldn't load quarantine items" },
   })
@@ -237,7 +237,7 @@ export default function Screening() {
     queryKey: ['screening-quarantine'],
     queryFn: () => screeningApi.get('/api/v1/quarantine', { params: { page: 0, size: 10 } })
       .then(r => r.data?.content || r.data || []),
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
     retry: 1,
     meta: { errorMessage: "Couldn't load screening quarantine" },
   })

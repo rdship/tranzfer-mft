@@ -7,8 +7,8 @@ import { format } from 'date-fns'
 
 export default function PeerTransfers() {
   const [expandedTicket, setExpandedTicket] = useState(null)
-  const { data: peers = [], isError: peersError, refetch: refetchPeers } = useQuery({ queryKey: ['p2p-peers'], queryFn: () => onboardingApi.get('/api/p2p/presence').then(r => r.data), refetchInterval: 15000, retry: 1 })
-  const { data: tickets = [], isLoading, isError: ticketsError, refetch: refetchTickets } = useQuery({ queryKey: ['p2p-tickets'], queryFn: () => onboardingApi.get('/api/p2p/tickets').then(r => r.data), refetchInterval: 10000, retry: 1 })
+  const { data: peers = [], isError: peersError, refetch: refetchPeers } = useQuery({ queryKey: ['p2p-peers'], queryFn: () => onboardingApi.get('/api/p2p/presence').then(r => r.data), meta: { silent: true }, refetchInterval: 15000, retry: 1 })
+  const { data: tickets = [], isLoading, isError: ticketsError, refetch: refetchTickets } = useQuery({ queryKey: ['p2p-tickets'], queryFn: () => onboardingApi.get('/api/p2p/tickets').then(r => r.data), meta: { silent: true }, refetchInterval: 10000, retry: 1 })
 
   const isError = peersError || ticketsError
   const refetch = () => { refetchPeers(); refetchTickets() }

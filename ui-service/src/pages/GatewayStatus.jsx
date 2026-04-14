@@ -58,42 +58,42 @@ export default function GatewayStatus() {
 
   // ─── Queries ───
   const { data: gwStatus } = useQuery({
-    queryKey: ['gateway-status'], queryFn: getGatewayStatus, refetchInterval: 15000,
+    queryKey: ['gateway-status'], queryFn: getGatewayStatus, meta: { silent: true }, refetchInterval: 15000,
     retry: false, placeholderData: {}
   })
   const { data: gwRoutes } = useQuery({
-    queryKey: ['gateway-routes'], queryFn: getGatewayRoutes, refetchInterval: 30000,
+    queryKey: ['gateway-routes'], queryFn: getGatewayRoutes, meta: { silent: true }, refetchInterval: 30000,
     retry: false, placeholderData: { defaultRoutes: [], instanceRoutes: [], legacyRoutes: [], totalRoutes: 0 }
   })
   const { data: gwStats } = useQuery({
-    queryKey: ['gateway-stats'], queryFn: getGatewayStats, refetchInterval: 15000,
+    queryKey: ['gateway-stats'], queryFn: getGatewayStats, meta: { silent: true }, refetchInterval: 15000,
     retry: false, placeholderData: {}
   })
   const { data: dmzHealth } = useQuery({
-    queryKey: ['dmz-health'], queryFn: getDmzHealth, refetchInterval: 15000,
+    queryKey: ['dmz-health'], queryFn: getDmzHealth, meta: { silent: true }, refetchInterval: 15000,
     retry: false, placeholderData: null
   })
   const { data: securityStats } = useQuery({
-    queryKey: ['dmz-security'], queryFn: getSecurityStats, refetchInterval: 10000,
+    queryKey: ['dmz-security'], queryFn: getSecurityStats, meta: { silent: true }, refetchInterval: 10000,
     retry: false, enabled: activeTab === 'security', placeholderData: null
   })
   const { data: dmzMappings = [] } = useQuery({
-    queryKey: ['dmz-mappings'], queryFn: listMappings, refetchInterval: 15000,
+    queryKey: ['dmz-mappings'], queryFn: listMappings, meta: { silent: true }, refetchInterval: 15000,
     retry: false, placeholderData: []
   })
   const { data: transferData } = useQuery({
-    queryKey: ['active-transfers'], queryFn: getActiveTransfers, refetchInterval: 5000,
+    queryKey: ['active-transfers'], queryFn: getActiveTransfers, meta: { silent: true }, refetchInterval: 5000,
     retry: false, enabled: activeTab === 'transfers' || activeTab === 'overview',
     placeholderData: { activeCount: 0, transfers: [] }
   })
   const { data: forwarderHealth } = useQuery({
-    queryKey: ['forwarder-health'], queryFn: getForwarderHealth, refetchInterval: 15000,
+    queryKey: ['forwarder-health'], queryFn: getForwarderHealth, meta: { silent: true }, refetchInterval: 15000,
     retry: false, placeholderData: null
   })
   const { data: services = [], isError: servicesError, refetch: refetchServices } = useQuery({
     queryKey: ['service-registry-gw'],
     queryFn: () => onboardingApi.get('/api/service-registry').then(r => r.data),
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
     retry: 1
   })
 

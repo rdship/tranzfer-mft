@@ -654,7 +654,7 @@ export default function ActivityMonitor() {
     queryKey: ['activity-monitor', queryParams],
     queryFn: () => onboardingApi.get('/api/activity-monitor', { params: queryParams }).then(r => r.data),
     placeholderData: keepPreviousData,
-    refetchInterval: autoRefresh ? 30000 : false,
+    meta: { silent: true }, refetchInterval: autoRefresh ? 30000 : false,
     meta: { errorMessage: "Couldn't load transfers" },
   })
 
@@ -795,7 +795,7 @@ export default function ActivityMonitor() {
   const { data: scheduledRetries = [], isLoading: loadingRetries } = useQuery({
     queryKey: ['activity-scheduled-retries'],
     queryFn: () => onboardingApi.get('/api/flow-executions/scheduled-retries').then(r => r.data),
-    refetchInterval: 60000
+    meta: { silent: true }, refetchInterval: 60000
   })
 
   // ── Mutations ──────────────────────────────────────────────────────────
@@ -1972,7 +1972,7 @@ function PipelineStatsFooter() {
   const { data } = useQuery({
     queryKey: ['pipeline-health-footer'],
     queryFn: () => onboardingApi.get('/api/pipeline/health').then(r => r.data).catch(() => null),
-    refetchInterval: 15000,
+    meta: { silent: true }, refetchInterval: 15000,
     retry: false,
   })
   if (!data) return null

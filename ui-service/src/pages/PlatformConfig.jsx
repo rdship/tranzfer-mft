@@ -336,7 +336,7 @@ function SnapshotRetentionCard() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['snapshot-retention'],
     queryFn: getSnapshotRetention,
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
     retry: false,
   })
 

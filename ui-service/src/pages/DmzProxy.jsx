@@ -54,59 +54,59 @@ export default function DmzProxy() {
   // ─── Queries ───
   const { data: health } = useQuery({
     queryKey: ['dmz-health'], queryFn: dmzApi.getDmzHealth,
-    refetchInterval: 15000, retry: false, placeholderData: null,
+    meta: { silent: true }, refetchInterval: 15000, retry: false, placeholderData: null,
   })
   const { data: mappings = [] } = useQuery({
     queryKey: ['dmz-mappings'], queryFn: dmzApi.listMappings,
-    refetchInterval: 15000, retry: false, placeholderData: [],
+    meta: { silent: true }, refetchInterval: 15000, retry: false, placeholderData: [],
   })
   const { data: listeners = [] } = useQuery({
     queryKey: ['dmz-listeners'], queryFn: dmzApi.getListeners,
-    refetchInterval: 10000, retry: false, placeholderData: [],
+    meta: { silent: true }, refetchInterval: 10000, retry: false, placeholderData: [],
   })
   const { data: securityStats } = useQuery({
     queryKey: ['dmz-security-stats'], queryFn: dmzApi.getSecurityStats,
-    refetchInterval: 10000, retry: false,
+    meta: { silent: true }, refetchInterval: 10000, retry: false,
     enabled: activeTab === 'security' || activeTab === 'overview',
     placeholderData: null,
   })
   const { data: securitySummary } = useQuery({
     queryKey: ['dmz-security-summary'], queryFn: dmzApi.getSecuritySummary,
-    refetchInterval: 10000, retry: false, placeholderData: null,
+    meta: { silent: true }, refetchInterval: 10000, retry: false, placeholderData: null,
   })
   const { data: backendHealth } = useQuery({
     queryKey: ['dmz-backend-health'], queryFn: dmzApi.getBackendHealth,
-    refetchInterval: 15000, retry: false,
+    meta: { silent: true }, refetchInterval: 15000, retry: false,
     enabled: activeTab === 'health' || activeTab === 'overview',
     placeholderData: null,
   })
   const { data: qosStats } = useQuery({
     queryKey: ['dmz-qos'], queryFn: dmzApi.getQosStats,
-    refetchInterval: 10000, retry: false,
+    meta: { silent: true }, refetchInterval: 10000, retry: false,
     enabled: activeTab === 'health',
     placeholderData: null,
   })
   const { data: auditStats } = useQuery({
     queryKey: ['dmz-audit'], queryFn: dmzApi.getAuditStats,
-    refetchInterval: 30000, retry: false,
+    meta: { silent: true }, refetchInterval: 30000, retry: false,
     enabled: activeTab === 'audit',
     placeholderData: null,
   })
   const { data: egressStats } = useQuery({
     queryKey: ['dmz-egress'], queryFn: dmzApi.getEgressStats,
-    refetchInterval: 30000, retry: false,
+    meta: { silent: true }, refetchInterval: 30000, retry: false,
     enabled: activeTab === 'audit',
     placeholderData: null,
   })
   const { data: zoneRules } = useQuery({
     queryKey: ['dmz-zones'], queryFn: dmzApi.getZoneRules,
-    refetchInterval: 30000, retry: false,
+    meta: { silent: true }, refetchInterval: 30000, retry: false,
     enabled: activeTab === 'audit',
     placeholderData: null,
   })
   const { data: connectionStats } = useQuery({
     queryKey: ['dmz-connections'], queryFn: dmzApi.getConnectionStats,
-    refetchInterval: 10000, retry: false,
+    meta: { silent: true }, refetchInterval: 10000, retry: false,
     enabled: activeTab === 'security',
     placeholderData: null,
   })

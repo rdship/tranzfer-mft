@@ -14,7 +14,7 @@ export default function Listeners() {
   const { data: listeners = [], isLoading } = useQuery({
     queryKey: ['platform-listeners'],
     queryFn: () => onboardingApi.get('/api/platform/listeners').then(r => r.data),
-    refetchInterval: 15000,
+    meta: { silent: true }, refetchInterval: 15000,
     meta: { errorMessage: 'Failed to load listeners' },
   })
 

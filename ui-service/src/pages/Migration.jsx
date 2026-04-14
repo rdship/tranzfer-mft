@@ -253,13 +253,13 @@ function OverviewTab({ onSelectPartner }) {
   const { data: dashboard, isLoading } = useQuery({
     queryKey: ['migration-dashboard'],
     queryFn: migrationApi.getMigrationDashboard,
-    refetchInterval: 30_000,
+    meta: { silent: true }, refetchInterval: 30_000,
   })
 
   const { data: connStats } = useQuery({
     queryKey: ['migration-connection-stats'],
     queryFn: migrationApi.getConnectionStats,
-    refetchInterval: 15_000,
+    meta: { silent: true }, refetchInterval: 15_000,
   })
 
   if (isLoading) return <LoadingSpinner text="Loading migration dashboard..." />
@@ -403,7 +403,7 @@ function PartnersTab({ onSelectPartner }) {
   const { data: partners = [], isLoading } = useQuery({
     queryKey: ['migration-partners', statusFilter],
     queryFn: () => migrationApi.getMigrationPartners(statusFilter || undefined),
-    refetchInterval: 30_000,
+    meta: { silent: true }, refetchInterval: 30_000,
   })
 
   const filtered = useMemo(() => {
@@ -784,19 +784,19 @@ function PartnerDetailTab({ partner, onBack }) {
   const { data: detail, isLoading: detailLoading } = useQuery({
     queryKey: ['migration-partner-detail', partner.id],
     queryFn: () => migrationApi.getMigrationPartnerDetail(partner.id),
-    refetchInterval: 15_000,
+    meta: { silent: true }, refetchInterval: 15_000,
   })
 
   const { data: events = [] } = useQuery({
     queryKey: ['migration-partner-events', partner.id],
     queryFn: () => migrationApi.getPartnerEvents(partner.id),
-    refetchInterval: 30_000,
+    meta: { silent: true }, refetchInterval: 30_000,
   })
 
   const { data: connections = [] } = useQuery({
     queryKey: ['migration-partner-connections', partner.id],
     queryFn: () => migrationApi.getPartnerConnections(partner.id),
-    refetchInterval: 15_000,
+    meta: { silent: true }, refetchInterval: 15_000,
   })
 
   /* ── Mutations ── */
@@ -1322,7 +1322,7 @@ export default function Migration() {
   } = useQuery({
     queryKey: ['migration-health'],
     queryFn: migrationApi.getMigrationDashboard,
-    refetchInterval: 60000,
+    meta: { silent: true }, refetchInterval: 60000,
     retry: 1,
   })
 

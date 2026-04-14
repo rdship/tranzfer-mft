@@ -57,13 +57,13 @@ export default function AutoOnboarding() {
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ['auto-onboard-sessions', statusFilter],
     queryFn: () => autoOnboardingApi.getOnboardingSessions(statusFilter === 'ALL' ? null : statusFilter),
-    refetchInterval: 15000,
+    meta: { silent: true }, refetchInterval: 15000,
   })
 
   const { data: stats } = useQuery({
     queryKey: ['auto-onboard-stats'],
     queryFn: autoOnboardingApi.getOnboardingStats,
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
   })
 
   const { data: sessionDetail } = useQuery({

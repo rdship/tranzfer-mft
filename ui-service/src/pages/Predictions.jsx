@@ -10,7 +10,7 @@ export default function Predictions() {
   const { data: predictions = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ['predictions'],
     queryFn: getPredictions,
-    refetchInterval: 300000,
+    meta: { silent: true }, refetchInterval: 300000,
     retry: 1,
   })
   if (isLoading) return <LoadingSpinner />

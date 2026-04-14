@@ -67,14 +67,14 @@ export default function Quarantine() {
   const { data, isLoading } = useQuery({
     queryKey: ['quarantine-files', page],
     queryFn: () => quarantineApi.getQuarantinedFiles(page, 20),
-    refetchInterval: 15000,
+    meta: { silent: true }, refetchInterval: 15000,
     meta: { errorMessage: "Couldn't load quarantined files" },
   })
 
   const { data: stats } = useQuery({
     queryKey: ['quarantine-stats'],
     queryFn: quarantineApi.getQuarantineStats,
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
     meta: { silent: true }, // cosmetic counts, missing badge is its own signal
   })
 

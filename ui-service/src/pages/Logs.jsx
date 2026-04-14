@@ -25,7 +25,7 @@ export default function Logs() {
     queryFn: () => onboardingApi.get('/api/audit-logs', {
       params: { search: search || undefined, level: level !== 'ALL' ? level : undefined, service: service !== 'ALL' ? service : undefined }
     }).then(r => r.data),
-    refetchInterval: 15000,
+    meta: { silent: true }, refetchInterval: 15000,
     retry: 1
   })
 

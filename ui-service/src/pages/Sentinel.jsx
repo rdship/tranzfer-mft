@@ -75,10 +75,10 @@ function StatCard({ label, value, color = 'text-white' }) {
 function OverviewTab() {
   const navigate = useNavigate()
   const { data: dashboard, isLoading } = useQuery({
-    queryKey: ['sentinel-dashboard'], queryFn: sentinelApi.getDashboard, refetchInterval: 30000
+    queryKey: ['sentinel-dashboard'], queryFn: sentinelApi.getDashboard, meta: { silent: true }, refetchInterval: 30000
   })
   const { data: history } = useQuery({
-    queryKey: ['sentinel-health-history'], queryFn: () => sentinelApi.getHealthScoreHistory(24), refetchInterval: 60000
+    queryKey: ['sentinel-health-history'], queryFn: () => sentinelApi.getHealthScoreHistory(24), meta: { silent: true }, refetchInterval: 60000
   })
 
   if (isLoading) return <div className="flex justify-center py-12"><div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
@@ -186,7 +186,7 @@ function FindingsTab() {
   const { data, isLoading } = useQuery({
     queryKey: ['sentinel-findings', filters],
     queryFn: () => sentinelApi.getFindings({ ...filters, size: 20 }),
-    refetchInterval: 15000
+    meta: { silent: true }, refetchInterval: 15000
   })
 
   const dismiss = useMutation({ mutationFn: sentinelApi.dismissFinding, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sentinel-findings'] }) })
@@ -389,7 +389,7 @@ function FindingsTab() {
 // --- Correlations Tab ---
 function CorrelationsTab() {
   const { data: correlations, isLoading } = useQuery({
-    queryKey: ['sentinel-correlations'], queryFn: sentinelApi.getCorrelations, refetchInterval: 30000
+    queryKey: ['sentinel-correlations'], queryFn: sentinelApi.getCorrelations, meta: { silent: true }, refetchInterval: 30000
   })
 
   if (isLoading) return <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
@@ -644,7 +644,7 @@ export default function Sentinel() {
   const queryClient = useQueryClient()
 
   const { data: health } = useQuery({
-    queryKey: ['sentinel-health'], queryFn: sentinelApi.getSentinelHealth, refetchInterval: 30000,
+    queryKey: ['sentinel-health'], queryFn: sentinelApi.getSentinelHealth, meta: { silent: true }, refetchInterval: 30000,
     retry: 1
   })
 

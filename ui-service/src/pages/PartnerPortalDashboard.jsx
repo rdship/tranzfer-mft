@@ -58,7 +58,7 @@ export default function PartnerPortalDashboard() {
   const { data: dashboard, isLoading } = useQuery({
     queryKey: ['partner-dashboard'],
     queryFn: getPartnerDashboard,
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
   })
 
   const { data: sla } = useQuery({

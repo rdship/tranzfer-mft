@@ -40,28 +40,28 @@ export default function FabricDashboard() {
   const { data: queues, isError: qErr } = useQuery({
     queryKey: ['fabric-queues'],
     queryFn: getFabricQueues,
-    refetchInterval: 5000,
+    meta: { silent: true }, refetchInterval: 5000,
     retry: 1,
   })
 
   const { data: instances, isError: iErr } = useQuery({
     queryKey: ['fabric-instances'],
     queryFn: getFabricInstances,
-    refetchInterval: 10000,
+    meta: { silent: true }, refetchInterval: 10000,
     retry: 1,
   })
 
   const { data: stuck, isError: sErr } = useQuery({
     queryKey: ['fabric-stuck'],
     queryFn: getFabricStuck,
-    refetchInterval: 10000,
+    meta: { silent: true }, refetchInterval: 10000,
     retry: 1,
   })
 
   const { data: latency, isError: lErr } = useQuery({
     queryKey: ['fabric-latency'],
     queryFn: getFabricLatency,
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
     retry: 1,
   })
 
@@ -73,7 +73,7 @@ export default function FabricDashboard() {
       onboardingApi
         .get('/api/activity-monitor', { params: { page: 0, size: 10, sortBy: 'uploadedAt', sortDir: 'DESC' } })
         .then(r => r.data),
-    refetchInterval: 5000,
+    meta: { silent: true }, refetchInterval: 5000,
   })
 
   const anyError = qErr || iErr || sErr || lErr

@@ -133,7 +133,7 @@ export default function Connectors() {
   const { data: partnerWebhooks = [], isLoading: webhooksLoading, isError: webhooksError, refetch: refetchWebhooks } = useQuery({
     queryKey: ['partner-webhooks'],
     queryFn: () => onboardingApi.get('/api/partner-webhooks').then(r => r.data),
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
     retry: 1
   })
 

@@ -116,7 +116,7 @@ export default function Notifications() {
       }
       return notificationApi.get('/api/notifications/logs/recent').then(r => r.data)
     },
-    refetchInterval: searchTrackId ? false : 15000,
+    meta: { silent: true }, refetchInterval: searchTrackId ? false : 15000,
     retry: 1
   })
 

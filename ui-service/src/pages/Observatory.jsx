@@ -548,7 +548,7 @@ export default function Observatory() {
   const { data, isLoading, isError, error, dataUpdatedAt, refetch, isFetching } = useQuery({
     queryKey: ['observatory'],
     queryFn: getObservatoryData,
-    refetchInterval: 30_000,
+    meta: { silent: true }, refetchInterval: 30_000,
     staleTime: 25_000,
     retry: 1,
     placeholderData: prev => prev,   // keep previous data visible during background refetch
@@ -572,7 +572,7 @@ export default function Observatory() {
   const { data: latencyData } = useQuery({
     queryKey: ['step-latency', latencyHours],
     queryFn: () => getStepLatency(latencyHours),
-    refetchInterval: 60_000,
+    meta: { silent: true }, refetchInterval: 60_000,
     staleTime: 55_000,
     retry: false,
   })

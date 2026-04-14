@@ -311,7 +311,7 @@ function StatPanel({ panel }) {
   const { data, isLoading, dataUpdatedAt } = useQuery({
     queryKey: ['mon-instant', panel.id, panel.instant],
     queryFn: () => promQuery(panel.instant),
-    refetchInterval: 15_000,
+    meta: { silent: true }, refetchInterval: 15_000,
     retry: 1,
     meta: { silent: true }, // proxy surfaces its own 503 body
   })
@@ -353,7 +353,7 @@ function ChartPanel({ panel, window }) {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['mon-range', panel.id, panel.query, start, end, step],
     queryFn: () => promRange(panel.query, start, end, step),
-    refetchInterval: 30_000,
+    meta: { silent: true }, refetchInterval: 30_000,
     retry: 1,
     meta: { silent: true },
   })
@@ -428,7 +428,7 @@ function TargetsTable() {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['mon-targets'],
     queryFn: overview,
-    refetchInterval: 20_000,
+    meta: { silent: true }, refetchInterval: 20_000,
     retry: 1,
     meta: { silent: true },
   })
@@ -511,7 +511,7 @@ function LogsTab({ window }) {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['mon-logs', submitted, startNs, nowNs],
     queryFn: () => lokiRange(submitted, startNs, nowNs, 200, 'backward'),
-    refetchInterval: 10_000,
+    meta: { silent: true }, refetchInterval: 10_000,
     retry: 1,
     meta: { silent: true },
   })
@@ -605,7 +605,7 @@ function AlertsTab() {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['mon-prom-alerts'],
     queryFn: () => promQuery('ALERTS{alertstate="firing"}'),
-    refetchInterval: 15_000,
+    meta: { silent: true }, refetchInterval: 15_000,
     retry: 1,
     meta: { silent: true },
   })

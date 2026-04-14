@@ -190,7 +190,7 @@ export default function Sidebar() {
   const { data: complianceCount } = useQuery({
     queryKey: ['sidebar-compliance-count'],
     queryFn: () => configApi.get('/api/compliance/violations/count').then(r => r.data?.unresolved || 0).catch(() => 0),
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
     retry: 0,
   })
 
@@ -200,7 +200,7 @@ export default function Sidebar() {
       sentinelApi.get('/api/v1/sentinel/findings', { params: { status: 'OPEN', size: 1 } })
         .then(r => r.data?.totalElements ?? r.data?.total ?? (Array.isArray(r.data) ? r.data.length : 0))
         .catch(() => 0),
-    refetchInterval: 60000,
+    meta: { silent: true }, refetchInterval: 60000,
     retry: 0,
   })
 
@@ -210,7 +210,7 @@ export default function Sidebar() {
       getFabricStuck({ page: 0, size: 1 })
         .then(r => r?.totalElements ?? (Array.isArray(r) ? r.length : r?.items?.length ?? 0))
         .catch(() => 0),
-    refetchInterval: 15000,
+    meta: { silent: true }, refetchInterval: 15000,
     retry: 0,
   })
 
@@ -220,7 +220,7 @@ export default function Sidebar() {
       onboardingApi.get('/api/dlq/messages', { params: { size: 1 } })
         .then(r => r.data?.totalElements ?? r.data?.total ?? 0)
         .catch(() => 0),
-    refetchInterval: 60000,
+    meta: { silent: true }, refetchInterval: 60000,
     retry: 0,
   })
 
@@ -234,7 +234,7 @@ export default function Sidebar() {
       screeningApi.get('/api/v1/quarantine/stats')
         .then(r => r.data?.total ?? r.data?.count ?? 0)
         .catch(() => 0),
-    refetchInterval: 60000,
+    meta: { silent: true }, refetchInterval: 60000,
     retry: 0,
   })
 

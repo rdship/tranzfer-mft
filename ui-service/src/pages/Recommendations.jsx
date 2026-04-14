@@ -25,13 +25,13 @@ export default function Recommendations() {
   const { data: recs = [], isLoading, isError: recsError, refetch: refetchRecs } = useQuery({
     queryKey: ['recommendations'],
     queryFn: () => aiApi.get('/api/v1/ai/recommendations').then(r => r.data),
-    refetchInterval: 60000,
+    meta: { silent: true }, refetchInterval: 60000,
     retry: 1
   })
   const { data: summary = {}, isError: summaryError, refetch: refetchSummary } = useQuery({
     queryKey: ['rec-summary'],
     queryFn: () => aiApi.get('/api/v1/ai/recommendations/summary').then(r => r.data),
-    refetchInterval: 60000,
+    meta: { silent: true }, refetchInterval: 60000,
     retry: 1
   })
 

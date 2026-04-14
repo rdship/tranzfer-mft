@@ -355,7 +355,7 @@ export default function ExecutionDetailDrawer({ trackId, open, onClose, showActi
     queryKey: ['execution', trackId],
     queryFn: () => getExecution(trackId),
     enabled: !!trackId && open,
-    refetchInterval: (query) => {
+    meta: { silent: true }, refetchInterval: (query) => {
       const status = query.state.data?.status
       return (status === 'PROCESSING' || status === 'RUNNING') ? 3000 : false
     },
@@ -365,7 +365,7 @@ export default function ExecutionDetailDrawer({ trackId, open, onClose, showActi
     queryKey: ['flow-steps', trackId],
     queryFn: () => getFlowSteps(trackId),
     enabled: !!trackId && open,
-    refetchInterval: () => {
+    meta: { silent: true }, refetchInterval: () => {
       const execStatus = execution?.status
       return (execStatus === 'PROCESSING' || execStatus === 'RUNNING') ? 3000 : false
     },
@@ -382,7 +382,7 @@ export default function ExecutionDetailDrawer({ trackId, open, onClose, showActi
     queryKey: ['fabric-timeline', trackId],
     queryFn: () => getFabricTimeline(trackId),
     enabled: !!trackId && open,
-    refetchInterval: 5000,
+    meta: { silent: true }, refetchInterval: 5000,
     retry: 1,
   })
 

@@ -155,7 +155,7 @@ function AccountsPanel({ server, onClose }) {
   const { data: assignments = [], isLoading } = useQuery({
     queryKey: ['server-accounts', server.id],
     queryFn: () => getServerAccounts(server.id),
-    refetchInterval: 15000,
+    meta: { silent: true }, refetchInterval: 15000,
   })
 
   const revokeMut = useMutation({

@@ -315,7 +315,7 @@ export default function ProxyGroups() {
   const { data: groups = [], isLoading, refetch, isFetching } = useQuery({
     queryKey: ['proxy-groups'],
     queryFn: getProxyGroups,
-    refetchInterval: 30_000,
+    meta: { silent: true }, refetchInterval: 30_000,
     staleTime: 25_000,
   })
 

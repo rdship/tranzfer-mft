@@ -140,14 +140,14 @@ function OverviewTab() {
   const { data: dashboard, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['proxy-dashboard'],
     queryFn: api.getProxyDashboard,
-    refetchInterval: 15000,
+    meta: { silent: true }, refetchInterval: 15000,
     retry: 1,
   })
 
   const { data: events } = useQuery({
     queryKey: ['proxy-events'],
     queryFn: api.getProxyEvents,
-    refetchInterval: 20000,
+    meta: { silent: true }, refetchInterval: 20000,
     retry: 1,
     // React Query v5 removed per-query onError — use meta.errorMessage
     // instead, which is read by the global QueryCache onError handler
@@ -450,13 +450,13 @@ function ListsTab() {
   const { data: blocklist, isLoading: blockLoading } = useQuery({
     queryKey: ['proxy-blocklist'],
     queryFn: api.getBlocklist,
-    refetchInterval: 15000,
+    meta: { silent: true }, refetchInterval: 15000,
   })
 
   const { data: allowlist, isLoading: allowLoading } = useQuery({
     queryKey: ['proxy-allowlist'],
     queryFn: api.getAllowlist,
-    refetchInterval: 15000,
+    meta: { silent: true }, refetchInterval: 15000,
   })
 
   const addBlock = useMutation({
@@ -660,7 +660,7 @@ function GeoTab() {
   const { data: geoStats, isLoading } = useQuery({
     queryKey: ['proxy-geo-stats'],
     queryFn: api.getGeoStats,
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
   })
 
   const { data: verdicts } = useQuery({
@@ -819,7 +819,7 @@ export default function ProxyIntelligence() {
   } = useQuery({
     queryKey: ['proxy-dashboard-header'],
     queryFn: api.getProxyDashboard,
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
     retry: 1,
   })
 

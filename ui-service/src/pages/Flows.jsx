@@ -720,7 +720,7 @@ export default function Flows() {
   const { data: executions = [] } = useQuery({
     queryKey: ['flow-executions'],
     queryFn: () => configApi.get('/api/flows/executions?size=20').then(r => r.data?.content || r.data || []),
-    refetchInterval: 10000
+    meta: { silent: true }, refetchInterval: 10000
   })
 
   // Approval queue — the global query error handler will surface a toast
@@ -730,7 +730,7 @@ export default function Flows() {
   const { data: pendingApprovals = [], isError: approvalsError } = useQuery({
     queryKey: ['pending-approvals'],
     queryFn: getPendingApprovals,
-    refetchInterval: 15000,
+    meta: { silent: true }, refetchInterval: 15000,
     retry: 1,
     meta: { errorMessage: "Couldn't load pending approvals" },
   })
@@ -833,7 +833,7 @@ export default function Flows() {
   const { data: scheduledRetries = [] } = useQuery({
     queryKey: ['scheduled-retries'],
     queryFn: () => onboardingApi.get('/api/flow-executions/scheduled-retries').then(r => r.data),
-    refetchInterval: 60000  // was 30s — scheduled retries change infrequently
+    meta: { silent: true }, refetchInterval: 60000  // was 30s — scheduled retries change infrequently
   })
 
   const { data: accounts = [] } = useQuery({

@@ -11,7 +11,7 @@ const tierColors = { HOT: 'bg-red-100 text-red-800', WARM: 'bg-amber-100 text-am
 export default function Storage() {
   const qc = useQueryClient()
   const { data: metrics = {}, isLoading, isError: metricsError, refetch: refetchMetrics } = useQuery({ queryKey: ['storage-metrics'],
-    queryFn: () => storageApi.get('/api/v1/storage/metrics').then(r => r.data), refetchInterval: 30000, retry: 1 })
+    queryFn: () => storageApi.get('/api/v1/storage/metrics').then(r => r.data), meta: { silent: true }, refetchInterval: 30000, retry: 1 })
   const { data: objects = [], isError: objectsError, refetch: refetchObjects } = useQuery({ queryKey: ['storage-objects'],
     queryFn: () => storageApi.get('/api/v1/storage/objects').then(r => r.data), retry: 1 })
   const { data: actions = [], isError: actionsError, refetch: refetchActions } = useQuery({ queryKey: ['storage-actions'],
@@ -19,7 +19,7 @@ export default function Storage() {
 
   const { data: drpStats = null } = useQuery({ queryKey: ['drp-stats'],
     queryFn: () => storageApi.get('/api/v1/storage/drp-stats').then(r => r.data),
-    refetchInterval: 30000 })
+    meta: { silent: true }, refetchInterval: 30000 })
 
   const isError = metricsError || objectsError || actionsError
   const refetch = () => { refetchMetrics(); refetchObjects(); refetchActions() }

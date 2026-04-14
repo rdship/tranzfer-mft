@@ -33,6 +33,8 @@ const queryClient = new QueryClient({
       // `meta: { errorMessage: "Couldn't load X" }` which is shown to the
       // operator instead of the generic default.
       if (query?.meta?.silent) return
+      // Never toast for background polling queries — show degraded UI instead
+      if (query?.options?.refetchInterval) return
       const key = Array.isArray(query?.queryKey) ? query.queryKey.join('-') : 'query-error'
       const label = query?.meta?.errorMessage || "Couldn't load data"
       toast.error(`${label}: ${extractMessage(err)}`, { id: `qerr-${key}` })
@@ -53,7 +55,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <BrowserRouter>
     <QueryClientProvider client={queryClient}>
       <App />
-      <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
+      <Toaster position="top-right" toastOptions={{ duration: 4000 }}
+               containerStyle={{ top: 16, right: 16 }}
+               gutter={8}
+      />
     </QueryClientProvider>
   </BrowserRouter>
 )

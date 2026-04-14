@@ -710,7 +710,7 @@ export default function DatabaseAdvisory() {
   const statusQuery = useQuery({
     queryKey: ['db-advisory-status'],
     queryFn: fetchStatus,
-    refetchInterval: 60_000,
+    meta: { silent: true }, refetchInterval: 60_000,
     meta: { errorMessage: "Couldn't load live compliance status" },
   })
 

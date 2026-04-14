@@ -116,7 +116,7 @@ export default function ServiceManagement() {
       )
       return results
     },
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
   })
 
   const handleRefresh = () => {

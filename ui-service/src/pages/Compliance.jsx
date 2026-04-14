@@ -98,7 +98,7 @@ export default function Compliance() {
       }
       return configApi.get(`/api/compliance/violations?${violationParams}`).then(r => r.data)
     },
-    refetchInterval: 15000,
+    meta: { silent: true }, refetchInterval: 15000,
     retry: 1,
     meta: { errorMessage: "Couldn't load violations" },
   })
@@ -106,7 +106,7 @@ export default function Compliance() {
   const { data: violationCount = {} } = useQuery({
     queryKey: ['compliance-violation-count'],
     queryFn: () => configApi.get('/api/compliance/violations/count').then(r => r.data),
-    refetchInterval: 15000,
+    meta: { silent: true }, refetchInterval: 15000,
     retry: 1,
     // Count query — meta.silent opts out of the global toast handler.
     // Count badge disappears as its own failure signal.

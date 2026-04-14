@@ -9,11 +9,11 @@ import { format } from 'date-fns'
 export default function Activity() {
   const navigate = useNavigate()
   const { data: snapshot = {}, isLoading, isError: snapError, refetch: refetchSnap } = useQuery({ queryKey: ['activity-snap'],
-    queryFn: () => configApi.get('/api/activity/snapshot').then(r => r.data), refetchInterval: 5000, retry: 1 })
+    queryFn: () => configApi.get('/api/activity/snapshot').then(r => r.data), meta: { silent: true }, refetchInterval: 5000, retry: 1 })
   const { data: transfers = [], isError: transfersError, refetch: refetchTransfers } = useQuery({ queryKey: ['activity-transfers'],
-    queryFn: () => configApi.get('/api/activity/transfers').then(r => r.data), refetchInterval: 5000, retry: 1 })
+    queryFn: () => configApi.get('/api/activity/transfers').then(r => r.data), meta: { silent: true }, refetchInterval: 5000, retry: 1 })
   const { data: events = [], isError: eventsError, refetch: refetchEvents } = useQuery({ queryKey: ['activity-events'],
-    queryFn: () => configApi.get('/api/activity/events?limit=50').then(r => r.data), refetchInterval: 5000, retry: 1 })
+    queryFn: () => configApi.get('/api/activity/events?limit=50').then(r => r.data), meta: { silent: true }, refetchInterval: 5000, retry: 1 })
 
   const isError = snapError || transfersError || eventsError
   const refetch = () => { refetchSnap(); refetchTransfers(); refetchEvents() }

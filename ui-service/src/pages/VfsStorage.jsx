@@ -29,13 +29,13 @@ export default function VfsStorage() {
   const { data: dashboard, isLoading } = useQuery({
     queryKey: ['vfs-dashboard'],
     queryFn: getVfsDashboard,
-    refetchInterval: 15000
+    meta: { silent: true }, refetchInterval: 15000
   })
 
   const { data: recentIntents = [] } = useQuery({
     queryKey: ['vfs-recent-intents'],
     queryFn: () => getVfsRecentIntents(50),
-    refetchInterval: 15000
+    meta: { silent: true }, refetchInterval: 15000
   })
 
   const { data: accounts = [] } = useQuery({
@@ -49,7 +49,7 @@ export default function VfsStorage() {
     queryKey: ['vfs-account-usage', selectedAccountId],
     queryFn: () => getVfsAccountUsage(selectedAccountId),
     enabled: !!selectedAccountId,
-    refetchInterval: 15000
+    meta: { silent: true }, refetchInterval: 15000
   })
 
   if (isLoading) return <LoadingSpinner />

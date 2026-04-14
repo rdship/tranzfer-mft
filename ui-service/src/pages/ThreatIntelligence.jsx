@@ -78,22 +78,22 @@ function OverviewTab() {
   const { data: dashboard, isLoading } = useQuery({
     queryKey: ['threat-dashboard'],
     queryFn: threatApi.getThreatDashboard,
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
   })
   const { data: incidents } = useQuery({
     queryKey: ['threat-incidents'],
     queryFn: threatApi.getIncidents,
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
   })
   const { data: actors } = useQuery({
     queryKey: ['threat-actors'],
     queryFn: threatApi.getThreatActors,
-    refetchInterval: 60000,
+    meta: { silent: true }, refetchInterval: 60000,
   })
   const { data: chains } = useQuery({
     queryKey: ['threat-chains-overview'],
     queryFn: threatApi.getAttackChains,
-    refetchInterval: 60000,
+    meta: { silent: true }, refetchInterval: 60000,
   })
 
   if (isLoading) return <Spinner />
@@ -241,7 +241,7 @@ function IndicatorsTab() {
   const { data, isLoading } = useQuery({
     queryKey: ['threat-indicators', params],
     queryFn: () => threatApi.getIndicators(params),
-    refetchInterval: 20000,
+    meta: { silent: true }, refetchInterval: 20000,
   })
 
   const createMutation = useMutation({
@@ -626,12 +626,12 @@ function MitreTab() {
   const { data: mapping, isLoading: loadingMapping } = useQuery({
     queryKey: ['mitre-mapping'],
     queryFn: threatApi.getMitreMapping,
-    refetchInterval: 120000,
+    meta: { silent: true }, refetchInterval: 120000,
   })
   const { data: coverage, isLoading: loadingCoverage } = useQuery({
     queryKey: ['mitre-coverage'],
     queryFn: threatApi.getMitreCoverage,
-    refetchInterval: 120000,
+    meta: { silent: true }, refetchInterval: 120000,
   })
 
   const [selectedCell, setSelectedCell] = useState(null)
@@ -805,7 +805,7 @@ function AttackChainsTab() {
   const { data: chains, isLoading } = useQuery({
     queryKey: ['threat-chains'],
     queryFn: threatApi.getAttackChains,
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
   })
 
   if (isLoading) return <Spinner />
@@ -927,7 +927,7 @@ export default function ThreatIntelligence() {
   } = useQuery({
     queryKey: ['threat-intel-health'],
     queryFn: threatApi.getThreatDashboard,
-    refetchInterval: 60000,
+    meta: { silent: true }, refetchInterval: 60000,
     retry: 1,
   })
   const queryClient = useQueryClient()

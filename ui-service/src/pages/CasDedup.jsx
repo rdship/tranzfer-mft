@@ -145,7 +145,7 @@ export default function CasDedup() {
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ['dedup-stats'],
     queryFn: getDedupStats,
-    refetchInterval: 300_000,  // was 60s — dedup ratio changes on minutes/hours timescale
+    meta: { silent: true }, refetchInterval: 300_000,  // was 60s — dedup ratio changes on minutes/hours timescale
     staleTime: 55_000,
     retry: false,
   })

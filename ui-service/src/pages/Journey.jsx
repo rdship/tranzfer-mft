@@ -489,7 +489,7 @@ export default function Journey() {
   const { data: journey, isLoading, isError } = useQuery({
     queryKey: ['journey', searchId], enabled: !!searchId,
     queryFn: () => onboardingApi.get(`/api/journey/${searchId}`).then(r => r.data),
-    refetchInterval: (data) => {
+    meta: { silent: true }, refetchInterval: (data) => {
       // Auto-refresh while processing
       const s = data?.overallStatus
       return (s === 'PROCESSING' || s === 'PENDING') ? 4000 : false

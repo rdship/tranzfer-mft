@@ -93,7 +93,7 @@ export default function Header() {
   const { data: dashboard } = useQuery({
     queryKey: ['dashboard'],
     queryFn: getDashboard,
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
     staleTime: 20000,
   })
   const alertCount = dashboard?.alerts?.length || 0
@@ -114,7 +114,7 @@ export default function Header() {
           return { items, total }
         })
         .catch(() => null), // silent degradation
-    refetchInterval: 60000,
+    meta: { silent: true }, refetchInterval: 60000,
     retry: 0,
   })
   const sentinelItems = sentinelData?.items ?? []

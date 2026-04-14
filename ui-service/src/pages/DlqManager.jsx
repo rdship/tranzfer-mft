@@ -53,7 +53,7 @@ export default function DlqManager() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['dlq-messages', page],
     queryFn: () => dlqApi.getDlqMessages(page, 20),
-    refetchInterval: autoRefresh ? 5000 : false,
+    meta: { silent: true }, refetchInterval: autoRefresh ? 5000 : false,
   })
 
   const messages = data?.content || data || []

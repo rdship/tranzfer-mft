@@ -70,13 +70,13 @@ export default function ClusterDashboard() {
   const { data: topology = [], isLoading: loadingTopology } = useQuery({
     queryKey: ['cluster-topology'],
     queryFn: getTopology,
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
   })
 
   const { data: registry = [], isLoading: loadingRegistry } = useQuery({
     queryKey: ['cluster-registry'],
     queryFn: getLiveRegistry,
-    refetchInterval: 10000,
+    meta: { silent: true }, refetchInterval: 10000,
   })
 
   const { data: clusters = [] } = useQuery({

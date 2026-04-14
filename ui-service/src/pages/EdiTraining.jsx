@@ -103,13 +103,13 @@ function SessionsTab() {
   const { data: sessions, isLoading } = useQuery({
     queryKey: ['edi-training-sessions'],
     queryFn: api.getTrainingSessions,
-    refetchInterval: 10000,
+    meta: { silent: true }, refetchInterval: 10000,
   })
 
   const { data: health } = useQuery({
     queryKey: ['edi-training-health'],
     queryFn: api.getTrainingHealth,
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
   })
 
   const train = useMutation({
@@ -323,13 +323,13 @@ function SamplesTab() {
   const { data: samples, isLoading: samplesLoading } = useQuery({
     queryKey: ['edi-training-samples', sampleFilter],
     queryFn: () => api.getSamples(sampleFilter ? { format: sampleFilter } : {}),
-    refetchInterval: 15000,
+    meta: { silent: true }, refetchInterval: 15000,
   })
 
   const { data: maps, isLoading: mapsLoading } = useQuery({
     queryKey: ['edi-training-maps'],
     queryFn: api.getMaps,
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
   })
 
   const addSample = useMutation({
@@ -526,7 +526,7 @@ function CorrectionsTab() {
   const { data: corrections, isLoading } = useQuery({
     queryKey: ['edi-correction-sessions'],
     queryFn: api.getCorrectionSessions,
-    refetchInterval: 15000,
+    meta: { silent: true }, refetchInterval: 15000,
   })
 
   const approve = useMutation({
@@ -673,7 +673,7 @@ export default function EdiTraining() {
   const { data: health } = useQuery({
     queryKey: ['edi-training-health'],
     queryFn: api.getTrainingHealth,
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
     retry: 1,
   })
 

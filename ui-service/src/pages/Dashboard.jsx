@@ -270,7 +270,7 @@ function FlowFabricStrip() {
   const queuesQ = useQuery({
     queryKey: ['dash-fabric-queues'],
     queryFn: getFabricQueues,
-    refetchInterval: 10_000,
+    meta: { silent: true }, refetchInterval: 10_000,
     retry: 0,
     staleTime: 8_000,
     meta: { silent: true },
@@ -278,7 +278,7 @@ function FlowFabricStrip() {
   const instancesQ = useQuery({
     queryKey: ['dash-fabric-instances'],
     queryFn: getFabricInstances,
-    refetchInterval: 10_000,
+    meta: { silent: true }, refetchInterval: 10_000,
     retry: 0,
     staleTime: 8_000,
     meta: { silent: true },
@@ -286,7 +286,7 @@ function FlowFabricStrip() {
   const stuckQ = useQuery({
     queryKey: ['dash-fabric-stuck'],
     queryFn: () => getFabricStuck({ page: 0, size: 1 }),
-    refetchInterval: 10_000,
+    meta: { silent: true }, refetchInterval: 10_000,
     retry: 0,
     staleTime: 8_000,
     meta: { silent: true },
@@ -294,7 +294,7 @@ function FlowFabricStrip() {
   const latencyQ = useQuery({
     queryKey: ['dash-fabric-latency'],
     queryFn: () => getFabricLatency({ hours: 1, sample: 2000 }),
-    refetchInterval: 10_000,
+    meta: { silent: true }, refetchInterval: 10_000,
     retry: 0,
     staleTime: 8_000,
     meta: { silent: true },
@@ -393,7 +393,7 @@ function SentinelFindingsPreview() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['dash-sentinel-findings'],
     queryFn: () => sentinelApi.getFindings({ status: 'OPEN', size: 5, sortBy: 'severity' }),
-    refetchInterval: 30_000,
+    meta: { silent: true }, refetchInterval: 30_000,
     retry: 1,
     staleTime: 20_000,
   })
@@ -488,7 +488,7 @@ function PipelineHealthCard() {
   const { data, isLoading } = useQuery({
     queryKey: ['pipeline-health'],
     queryFn: () => onboardingApi.get('/api/pipeline/health').then(r => r.data),
-    refetchInterval: 10000,
+    meta: { silent: true }, refetchInterval: 10000,
     retry: false,
   })
 
@@ -637,7 +637,7 @@ function RecentActivityStrip() {
     queryFn: () => onboardingApi
       .get('/api/activity-monitor', { params: { page: 0, size: 5, sortBy: 'uploadedAt', sortDir: 'DESC' } })
       .then(r => r.data),
-    refetchInterval: 5_000,
+    meta: { silent: true }, refetchInterval: 5_000,
     retry: 0,
     staleTime: 4_000,
     // Cosmetic strip — the page itself handles isError via an inline
@@ -715,7 +715,7 @@ export default function Dashboard() {
   const { data: dashboard, isLoading } = useQuery({
     queryKey: ['dashboard'],
     queryFn: getDashboard,
-    refetchInterval: 30000,
+    meta: { silent: true }, refetchInterval: 30000,
   })
   const { data: predictions } = useQuery({
     queryKey: ['predictions'],
@@ -726,7 +726,7 @@ export default function Dashboard() {
   } = useQuery({
     queryKey: ['agents-dashboard'],
     queryFn: getAgentsDashboard,
-    refetchInterval: 15_000,   // was 5s — AI agent states change slowly
+    meta: { silent: true }, refetchInterval: 15_000,   // was 5s — AI agent states change slowly
     staleTime: 12_000,
     retry: false,
   })
@@ -735,7 +735,7 @@ export default function Dashboard() {
   } = useQuery({
     queryKey: ['flow-live-stats'],
     queryFn: getFlowLiveStats,
-    refetchInterval: 10_000,   // was 5s — halves DB load while keeping "live" feel
+    meta: { silent: true }, refetchInterval: 10_000,   // was 5s — halves DB load while keeping "live" feel
     staleTime: 8_000,
     retry: false,
   })
