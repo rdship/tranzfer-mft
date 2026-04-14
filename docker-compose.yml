@@ -111,7 +111,7 @@ x-service-healthcheck: &healthcheck
     interval: 10s
     timeout: 5s
     retries: 8
-    start_period: 90s
+    start_period: 240s
 
 services:
   # ---------------------------------------------------------------------------
