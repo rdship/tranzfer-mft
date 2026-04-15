@@ -40,7 +40,6 @@ import org.springframework.http.*;
 import org.springframework.lang.Nullable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.*;
@@ -142,7 +141,6 @@ public class FlowProcessingEngine {
     /**
      * Execute a specific flow for a file. Creates execution record and processes each step.
      */
-    @Transactional
     public FlowExecution executeFlow(FileFlow flow, String trackId, String filename, String inputPath) {
         return executeFlow(flow, trackId, filename, inputPath, null);
     }
@@ -153,7 +151,6 @@ public class FlowProcessingEngine {
      * stage (bounded-queue, virtual-thread pool) and this method returns immediately
      * with status PROCESSING. When SEDA is absent, runs synchronously as before.
      */
-    @Transactional
     public FlowExecution executeFlow(FileFlow flow, String trackId, String filename,
                                       String inputPath, com.filetransfer.shared.matching.MatchCriteria matchedCriteria) {
         FlowExecution exec = FlowExecution.builder()
@@ -1304,7 +1301,6 @@ public class FlowProcessingEngine {
      * written at the start (status=PROCESSING) and updated once at the end
      * (COMPLETED or FAILED) — minimising DB round-trips per step.
      */
-    @Transactional
     public FlowExecution executeFlowRef(FileFlow flow, String trackId, String filename,
                                          FileRef ref,
                                          com.filetransfer.shared.matching.MatchCriteria matchedCriteria) {
@@ -1319,7 +1315,6 @@ public class FlowProcessingEngine {
      * @param existingExec if non-null, update this record rather than creating a new one
      * @param startFromStep 0 = full run; N = skip first N steps, start at step N
      */
-    @Transactional
     public FlowExecution executeFlowRef(FileFlow flow, String trackId, String filename,
                                          FileRef ref,
                                          com.filetransfer.shared.matching.MatchCriteria matchedCriteria,
