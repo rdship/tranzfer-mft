@@ -342,3 +342,5 @@ This should recursively scan subpackages. But the hang suggests either:
 | Kafka connect async (don't block main thread) | Phase 2: save ~5s | Low — already has timeout |
 | AppCDS (JDK class data sharing) | Phase 1: save ~5s | Low — Docker build change |
 | **Combined** | **179s → ~60s** | |
+
+| N26 | **Per-service scan filtering too aggressive — missing cross-package beans** | CRITICAL | **OPEN** | CTO's 293-file push added per-service `@EnableJpaRepositories` + `scanBasePackages` with specific subpackages. This excluded shared beans that services depend on. onboarding-api: `SlaBreachDetector requires ConnectorDispatcher` (ConnectorDispatcher not in scanned packages). Multiple services crash with similar missing bean errors. The scan paths need to include ALL shared subpackages that contain `@Component`/`@Service` beans, not just the entity/repository subpackages. Fix: each service's `scanBasePackages` must include `com.filetransfer.shared` (the full shared package) — not selective subpackages. |
