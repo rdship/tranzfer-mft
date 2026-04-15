@@ -33,6 +33,9 @@ x-common-env: &common-env
     -Dspring.kafka.admin.properties.request.timeout.ms=5000
     -Dspring.kafka.consumer.properties.default.api.timeout.ms=5000
     -Dspring.kafka.properties.reconnect.backoff.max.ms=5000
+    -Dlogging.level.org.springframework.orm.jpa=DEBUG
+    -Dlogging.level.org.springframework.data.repository.config=DEBUG
+    -Dlogging.level.org.hibernate.boot.model.internal=DEBUG
   PLATFORM_RATE_LIMIT_DEFAULT_LIMIT: 10000
   DATABASE_URL: jdbc:postgresql://postgres:5432/filetransfer?stringtype=unspecified
   DB_USERNAME: postgres
