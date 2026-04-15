@@ -4,7 +4,7 @@ import com.filetransfer.as2.service.As2AccountService;
 import com.filetransfer.shared.entity.integration.As2Message;
 import com.filetransfer.shared.entity.integration.As2Partnership;
 import com.filetransfer.shared.entity.core.TransferAccount;
-import com.filetransfer.shared.repository.As2MessageRepository;
+import com.filetransfer.shared.repository.integration.As2MessageRepository;
 import com.filetransfer.shared.routing.RoutingEngine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

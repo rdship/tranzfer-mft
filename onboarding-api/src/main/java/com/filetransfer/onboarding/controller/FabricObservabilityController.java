@@ -2,8 +2,8 @@ package com.filetransfer.onboarding.controller;
 
 import com.filetransfer.shared.entity.transfer.FabricCheckpoint;
 import com.filetransfer.shared.entity.transfer.FabricInstance;
-import com.filetransfer.shared.repository.FabricCheckpointRepository;
-import com.filetransfer.shared.repository.FabricInstanceRepository;
+import com.filetransfer.shared.repository.transfer.FabricCheckpointRepository;
+import com.filetransfer.shared.repository.transfer.FabricInstanceRepository;
 import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;

@@ -1,7 +1,7 @@
 package com.filetransfer.onboarding.controller;
 
 import com.filetransfer.shared.entity.security.TotpConfig;
-import com.filetransfer.shared.repository.TotpConfigRepository;
+import com.filetransfer.shared.repository.security.TotpConfigRepository;
 import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

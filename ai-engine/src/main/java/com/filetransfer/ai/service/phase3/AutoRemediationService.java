@@ -4,7 +4,7 @@ import com.filetransfer.ai.service.SmartRetryService;
 import com.filetransfer.shared.connector.ConnectorDispatcher;
 import com.filetransfer.shared.entity.transfer.FileTransferRecord;
 import com.filetransfer.shared.enums.FileTransferStatus;
-import com.filetransfer.shared.repository.FileTransferRecordRepository;
+import com.filetransfer.shared.repository.transfer.FileTransferRecordRepository;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;

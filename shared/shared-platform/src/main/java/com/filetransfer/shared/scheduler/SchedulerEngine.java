@@ -1,7 +1,7 @@
 package com.filetransfer.shared.scheduler;
 
 import com.filetransfer.shared.entity.integration.ScheduledTask;
-import com.filetransfer.shared.repository.ScheduledTaskRepository;
+import com.filetransfer.shared.repository.integration.ScheduledTaskRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;

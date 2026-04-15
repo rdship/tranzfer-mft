@@ -1,7 +1,7 @@
 package com.filetransfer.notification.service;
 
 import com.filetransfer.shared.entity.integration.NotificationRule;
-import com.filetransfer.shared.repository.NotificationRuleRepository;
+import com.filetransfer.shared.repository.integration.NotificationRuleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

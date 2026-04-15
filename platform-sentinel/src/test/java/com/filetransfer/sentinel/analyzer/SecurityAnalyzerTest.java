@@ -9,9 +9,9 @@ import com.filetransfer.shared.entity.core.AuditLog;
 import com.filetransfer.shared.entity.transfer.FileTransferRecord;
 import com.filetransfer.shared.entity.security.LoginAttempt;
 import com.filetransfer.shared.enums.FileTransferStatus;
-import com.filetransfer.shared.repository.AuditLogRepository;
-import com.filetransfer.shared.repository.LoginAttemptRepository;
-import com.filetransfer.shared.repository.QuarantineRecordRepository;
+import com.filetransfer.shared.repository.core.AuditLogRepository;
+import com.filetransfer.shared.repository.security.LoginAttemptRepository;
+import com.filetransfer.shared.repository.security.QuarantineRecordRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,12 +44,12 @@ class SecurityAnalyzerTest {
     void setUp() {
         AuditCollector auditCollector = new AuditCollector(auditLogRepository);
         TransferCollector transferCollector = new TransferCollector(
-                mock(com.filetransfer.shared.repository.FileTransferRecordRepository.class));
+                mock(com.filetransfer.shared.repository.transfer.FileTransferRecordRepository.class));
         SecurityCollector securityCollector = new SecurityCollector(
                 mock(org.springframework.web.client.RestTemplate.class),
                 mock(com.filetransfer.sentinel.config.SentinelConfig.class));
         DlqCollector dlqCollector = new DlqCollector(
-                mock(com.filetransfer.shared.repository.DeadLetterMessageRepository.class));
+                mock(com.filetransfer.shared.repository.transfer.DeadLetterMessageRepository.class));
 
         analyzer = new SecurityAnalyzer(ruleRepository, findingRepository,
                 auditCollector, transferCollector, securityCollector, dlqCollector,

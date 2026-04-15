@@ -4,7 +4,7 @@ import com.filetransfer.config.service.MigrationService;
 import com.filetransfer.shared.entity.security.ConnectionAudit;
 import com.filetransfer.shared.entity.core.MigrationEvent;
 import com.filetransfer.shared.entity.core.Partner;
-import com.filetransfer.shared.repository.PartnerRepository;
+import com.filetransfer.shared.repository.core.PartnerRepository;
 import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;

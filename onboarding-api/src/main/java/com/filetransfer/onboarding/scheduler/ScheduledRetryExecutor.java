@@ -1,7 +1,7 @@
 package com.filetransfer.onboarding.scheduler;
 
 import com.filetransfer.shared.entity.transfer.FlowExecution;
-import com.filetransfer.shared.repository.FlowExecutionRepository;
+import com.filetransfer.shared.repository.transfer.FlowExecutionRepository;
 import com.filetransfer.shared.routing.FlowRestartService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -1,7 +1,7 @@
 package com.filetransfer.shared.event;
 
 import com.filetransfer.shared.entity.transfer.FlowStepSnapshot;
-import com.filetransfer.shared.repository.FlowStepSnapshotRepository;
+import com.filetransfer.shared.repository.transfer.FlowStepSnapshotRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;

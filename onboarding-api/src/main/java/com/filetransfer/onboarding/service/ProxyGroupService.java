@@ -1,7 +1,7 @@
 package com.filetransfer.onboarding.service;
 
 import com.filetransfer.shared.entity.core.ProxyGroup;
-import com.filetransfer.shared.repository.ProxyGroupRepository;
+import com.filetransfer.shared.repository.core.ProxyGroupRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;

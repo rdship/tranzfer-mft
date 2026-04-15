@@ -4,7 +4,7 @@ import com.filetransfer.shared.entity.core.ExternalDestination;
 import com.filetransfer.shared.entity.security.ListenerSecurityPolicy;
 import com.filetransfer.shared.entity.core.ServerInstance;
 import com.filetransfer.shared.enums.SecurityTier;
-import com.filetransfer.shared.repository.ListenerSecurityPolicyRepository;
+import com.filetransfer.shared.repository.security.ListenerSecurityPolicyRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

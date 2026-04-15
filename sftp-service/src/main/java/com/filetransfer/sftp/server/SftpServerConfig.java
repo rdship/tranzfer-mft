@@ -51,7 +51,7 @@ public class SftpServerConfig {
 
     @Autowired(required = false)
     @org.springframework.lang.Nullable
-    private com.filetransfer.shared.repository.ServerInstanceRepository serverInstanceRepository;
+    private com.filetransfer.shared.repository.core.ServerInstanceRepository serverInstanceRepository;
 
     @Value("${sftp.port:2222}")
     private int sftpPort;

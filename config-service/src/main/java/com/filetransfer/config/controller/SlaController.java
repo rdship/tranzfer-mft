@@ -1,7 +1,7 @@
 package com.filetransfer.config.controller;
 
 import com.filetransfer.shared.entity.integration.PartnerAgreement;
-import com.filetransfer.shared.repository.PartnerAgreementRepository;
+import com.filetransfer.shared.repository.integration.PartnerAgreementRepository;
 import com.filetransfer.shared.scheduler.SlaBreachDetector;
 import com.filetransfer.shared.security.Roles;
 import jakarta.persistence.EntityNotFoundException;

@@ -6,13 +6,11 @@ import com.filetransfer.shared.entity.transfer.*;
 import com.filetransfer.shared.entity.vfs.*;
 import com.filetransfer.shared.entity.security.*;
 import com.filetransfer.shared.entity.integration.*;
+import com.filetransfer.shared.repository.core.*;
+import com.filetransfer.shared.repository.transfer.*;
 import com.filetransfer.shared.enums.FileTransferStatus;
 import com.filetransfer.shared.enums.Protocol;
-import com.filetransfer.shared.repository.FabricCheckpointRepository;
 import org.springframework.format.annotation.DateTimeFormat;
-import com.filetransfer.shared.repository.FileTransferRecordRepository;
-import com.filetransfer.shared.repository.FlowExecutionRepository;
-import com.filetransfer.shared.repository.PartnerRepository;
 import com.filetransfer.shared.security.Roles;
 import jakarta.persistence.criteria.Join;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,7 +48,7 @@ public class ActivityMonitorController {
     private final FileTransferRecordRepository transferRepo;
     private final FlowExecutionRepository flowExecRepo;
     private final PartnerRepository partnerRepo;
-    private final com.filetransfer.shared.repository.TransferAccountRepository accountRepository;
+    private final com.filetransfer.shared.repository.core.TransferAccountRepository accountRepository;
 
     /** Optional — null when shared-fabric not configured. Used for activity enrichment. */
     @Autowired(required = false)

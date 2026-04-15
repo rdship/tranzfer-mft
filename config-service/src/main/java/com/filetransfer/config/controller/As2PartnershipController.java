@@ -2,7 +2,7 @@ package com.filetransfer.config.controller;
 
 import com.filetransfer.shared.entity.integration.As2Partnership;
 import com.filetransfer.shared.entity.core.SecurityProfile;
-import com.filetransfer.shared.repository.As2PartnershipRepository;
+import com.filetransfer.shared.repository.integration.As2PartnershipRepository;
 import com.filetransfer.shared.security.Roles;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

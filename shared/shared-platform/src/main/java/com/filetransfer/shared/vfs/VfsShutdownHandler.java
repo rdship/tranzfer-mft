@@ -1,6 +1,6 @@
 package com.filetransfer.shared.vfs;
 
-import com.filetransfer.shared.repository.VfsIntentRepository;
+import com.filetransfer.shared.repository.vfs.VfsIntentRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;

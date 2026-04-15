@@ -7,7 +7,7 @@ import com.filetransfer.shared.client.KeystoreServiceClient;
 import com.filetransfer.shared.kms.VaultKmsClient;
 import com.filetransfer.shared.entity.core.EncryptionKey;
 import com.filetransfer.shared.enums.EncryptionAlgorithm;
-import com.filetransfer.shared.repository.EncryptionKeyRepository;
+import com.filetransfer.shared.repository.core.EncryptionKeyRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

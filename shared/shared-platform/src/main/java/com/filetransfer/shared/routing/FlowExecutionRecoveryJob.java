@@ -1,7 +1,7 @@
 package com.filetransfer.shared.routing;
 
 import com.filetransfer.shared.entity.transfer.FlowExecution;
-import com.filetransfer.shared.repository.FlowExecutionRepository;
+import com.filetransfer.shared.repository.transfer.FlowExecutionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;

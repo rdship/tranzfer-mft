@@ -3,7 +3,7 @@ package com.filetransfer.config.controller;
 import com.filetransfer.shared.crypto.CredentialCryptoClient;
 import com.filetransfer.shared.entity.transfer.DeliveryEndpoint;
 import com.filetransfer.shared.enums.DeliveryProtocol;
-import com.filetransfer.shared.repository.DeliveryEndpointRepository;
+import com.filetransfer.shared.repository.transfer.DeliveryEndpointRepository;
 import com.filetransfer.shared.security.Roles;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;

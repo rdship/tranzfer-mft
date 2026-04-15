@@ -11,7 +11,7 @@ import com.filetransfer.ai.service.edi.MappingCorrectionInterpreter.FieldMapping
 import com.filetransfer.ai.service.edi.MappingCorrectionService.*;
 import com.filetransfer.shared.client.ServiceClientProperties;
 import com.filetransfer.shared.config.PlatformConfig;
-import com.filetransfer.shared.repository.FileFlowRepository;
+import com.filetransfer.shared.repository.transfer.FileFlowRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

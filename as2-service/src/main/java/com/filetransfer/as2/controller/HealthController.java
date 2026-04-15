@@ -1,6 +1,6 @@
 package com.filetransfer.as2.controller;
 
-import com.filetransfer.shared.repository.As2PartnershipRepository;
+import com.filetransfer.shared.repository.integration.As2PartnershipRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;

@@ -2,8 +2,8 @@ package com.filetransfer.forwarder.service;
 
 import com.filetransfer.shared.entity.integration.As2Message;
 import com.filetransfer.shared.entity.integration.As2Partnership;
-import com.filetransfer.shared.repository.As2MessageRepository;
-import com.filetransfer.shared.repository.As2PartnershipRepository;
+import com.filetransfer.shared.repository.integration.As2MessageRepository;
+import com.filetransfer.shared.repository.integration.As2PartnershipRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

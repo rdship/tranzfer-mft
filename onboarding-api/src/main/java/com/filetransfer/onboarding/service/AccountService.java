@@ -12,10 +12,10 @@ import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.dto.FolderDefinition;
 import com.filetransfer.shared.entity.core.FolderTemplate;
 import com.filetransfer.shared.entity.core.ServerInstance;
-import com.filetransfer.shared.repository.FolderTemplateRepository;
-import com.filetransfer.shared.repository.ServerInstanceRepository;
-import com.filetransfer.shared.repository.TransferAccountRepository;
-import com.filetransfer.shared.repository.UserRepository;
+import com.filetransfer.shared.repository.core.FolderTemplateRepository;
+import com.filetransfer.shared.repository.core.ServerInstanceRepository;
+import com.filetransfer.shared.repository.core.TransferAccountRepository;
+import com.filetransfer.shared.repository.core.UserRepository;
 import com.filetransfer.shared.vfs.VirtualFileSystem;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,7 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.filetransfer.shared.entity.core.Partner;
-import com.filetransfer.shared.repository.PartnerRepository;
+import com.filetransfer.shared.repository.core.PartnerRepository;
 
 import java.io.IOException;
 import java.nio.file.Files;

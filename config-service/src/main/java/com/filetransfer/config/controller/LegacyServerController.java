@@ -2,7 +2,7 @@ package com.filetransfer.config.controller;
 
 import com.filetransfer.shared.entity.core.LegacyServerConfig;
 import com.filetransfer.shared.enums.Protocol;
-import com.filetransfer.shared.repository.LegacyServerConfigRepository;
+import com.filetransfer.shared.repository.core.LegacyServerConfigRepository;
 import com.filetransfer.shared.security.Roles;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

@@ -1,7 +1,7 @@
 package com.filetransfer.shared.matching;
 
 import com.filetransfer.shared.entity.transfer.FileFlow;
-import com.filetransfer.shared.repository.FileFlowRepository;
+import com.filetransfer.shared.repository.transfer.FileFlowRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

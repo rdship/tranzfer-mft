@@ -1,7 +1,7 @@
 package com.filetransfer.sftp.replica;
 
 import com.filetransfer.shared.entity.security.LoginAttempt;
-import com.filetransfer.shared.repository.LoginAttemptRepository;
+import com.filetransfer.shared.repository.security.LoginAttemptRepository;
 import com.filetransfer.sftp.security.LoginAttemptTracker;
 import org.junit.jupiter.api.Test;
 

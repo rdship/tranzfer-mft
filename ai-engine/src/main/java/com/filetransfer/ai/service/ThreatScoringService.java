@@ -1,7 +1,7 @@
 package com.filetransfer.ai.service;
 
 import com.filetransfer.shared.entity.core.AuditLog;
-import com.filetransfer.shared.repository.AuditLogRepository;
+import com.filetransfer.shared.repository.core.AuditLogRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;

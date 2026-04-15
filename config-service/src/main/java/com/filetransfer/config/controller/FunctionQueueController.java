@@ -1,8 +1,8 @@
 package com.filetransfer.config.controller;
 
 import com.filetransfer.shared.entity.transfer.FunctionQueue;
-import com.filetransfer.shared.repository.FileFlowRepository;
-import com.filetransfer.shared.repository.FunctionQueueRepository;
+import com.filetransfer.shared.repository.transfer.FileFlowRepository;
+import com.filetransfer.shared.repository.transfer.FunctionQueueRepository;
 import com.filetransfer.shared.security.Roles;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;

@@ -2,8 +2,8 @@ package com.filetransfer.ftpweb.service;
 
 import com.filetransfer.shared.entity.vfs.ChunkedUpload;
 import com.filetransfer.shared.entity.vfs.ChunkedUploadChunk;
-import com.filetransfer.shared.repository.ChunkedUploadChunkRepository;
-import com.filetransfer.shared.repository.ChunkedUploadRepository;
+import com.filetransfer.shared.repository.vfs.ChunkedUploadChunkRepository;
+import com.filetransfer.shared.repository.vfs.ChunkedUploadRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

@@ -2,7 +2,7 @@ package com.filetransfer.shared.routing;
 
 import com.filetransfer.shared.audit.AuditService;
 import com.filetransfer.shared.connector.ConnectorDispatcher;
-import com.filetransfer.shared.repository.FileTransferRecordRepository;
+import com.filetransfer.shared.repository.transfer.FileTransferRecordRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

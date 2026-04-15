@@ -2,7 +2,7 @@ package com.filetransfer.config.service;
 
 import com.filetransfer.shared.entity.core.ServerConfig;
 import com.filetransfer.shared.enums.ServiceType;
-import com.filetransfer.shared.repository.ServerConfigRepository;
+import com.filetransfer.shared.repository.core.ServerConfigRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;

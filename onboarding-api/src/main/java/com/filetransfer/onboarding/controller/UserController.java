@@ -28,7 +28,7 @@ import java.util.*;
 public class UserController {
 
     private final UserDeletionService userDeletionService;
-    private final com.filetransfer.shared.repository.UserRepository userRepository;
+    private final com.filetransfer.shared.repository.core.UserRepository userRepository;
 
     @GetMapping
     @PreAuthorize(Roles.ADMIN)

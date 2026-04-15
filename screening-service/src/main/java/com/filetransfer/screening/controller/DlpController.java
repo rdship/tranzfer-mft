@@ -2,7 +2,7 @@ package com.filetransfer.screening.controller;
 
 import com.filetransfer.screening.service.DlpEngine;
 import com.filetransfer.shared.entity.security.DlpPolicy;
-import com.filetransfer.shared.repository.DlpPolicyRepository;
+import com.filetransfer.shared.repository.security.DlpPolicyRepository;
 import com.filetransfer.shared.security.Roles;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

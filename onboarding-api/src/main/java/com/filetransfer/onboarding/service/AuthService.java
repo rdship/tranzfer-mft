@@ -8,7 +8,7 @@ import com.filetransfer.onboarding.security.PasswordPolicy;
 import com.filetransfer.shared.audit.AuditService;
 import com.filetransfer.shared.entity.core.User;
 import com.filetransfer.shared.enums.UserRole;
-import com.filetransfer.shared.repository.UserRepository;
+import com.filetransfer.shared.repository.core.UserRepository;
 import com.filetransfer.shared.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

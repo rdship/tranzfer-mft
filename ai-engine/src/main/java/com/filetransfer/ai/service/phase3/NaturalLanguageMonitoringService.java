@@ -2,9 +2,9 @@ package com.filetransfer.ai.service.phase3;
 
 import com.filetransfer.shared.entity.transfer.FileTransferRecord;
 import com.filetransfer.shared.enums.FileTransferStatus;
-import com.filetransfer.shared.repository.FileTransferRecordRepository;
-import com.filetransfer.shared.repository.TransferAccountRepository;
-import com.filetransfer.shared.repository.AuditLogRepository;
+import com.filetransfer.shared.repository.transfer.FileTransferRecordRepository;
+import com.filetransfer.shared.repository.core.TransferAccountRepository;
+import com.filetransfer.shared.repository.core.AuditLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;

@@ -2,7 +2,7 @@ package com.filetransfer.shared.config;
 
 import com.filetransfer.shared.entity.core.PlatformSetting;
 import com.filetransfer.shared.enums.Environment;
-import com.filetransfer.shared.repository.PlatformSettingRepository;
+import com.filetransfer.shared.repository.core.PlatformSettingRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

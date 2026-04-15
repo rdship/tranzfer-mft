@@ -2,7 +2,7 @@ package com.filetransfer.shared.connector;
 
 import com.filetransfer.shared.entity.transfer.FlowExecution;
 import com.filetransfer.shared.entity.integration.PartnerWebhook;
-import com.filetransfer.shared.repository.PartnerWebhookRepository;
+import com.filetransfer.shared.repository.integration.PartnerWebhookRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;

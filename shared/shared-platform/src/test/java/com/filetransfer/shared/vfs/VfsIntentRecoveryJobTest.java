@@ -3,7 +3,7 @@ package com.filetransfer.shared.vfs;
 import com.filetransfer.shared.client.StorageServiceClient;
 import com.filetransfer.shared.entity.vfs.VfsIntent;
 import com.filetransfer.shared.entity.vfs.VfsIntent.IntentStatus;
-import com.filetransfer.shared.repository.VfsIntentRepository;
+import com.filetransfer.shared.repository.vfs.VfsIntentRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

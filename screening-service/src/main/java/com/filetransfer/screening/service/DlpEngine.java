@@ -1,7 +1,7 @@
 package com.filetransfer.screening.service;
 
 import com.filetransfer.shared.entity.security.DlpPolicy;
-import com.filetransfer.shared.repository.DlpPolicyRepository;
+import com.filetransfer.shared.repository.security.DlpPolicyRepository;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

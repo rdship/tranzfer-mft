@@ -1,9 +1,9 @@
 package com.filetransfer.shared.security;
 
 import com.filetransfer.shared.config.PlatformConfig;
-import com.filetransfer.shared.repository.RolePermissionRepository;
-import com.filetransfer.shared.repository.UserPermissionRepository;
-import com.filetransfer.shared.repository.UserRepository;
+import com.filetransfer.shared.repository.security.RolePermissionRepository;
+import com.filetransfer.shared.repository.security.UserPermissionRepository;
+import com.filetransfer.shared.repository.core.UserRepository;
 import com.filetransfer.shared.spiffe.SpiffeMtlsAuthFilter;
 import com.filetransfer.shared.spiffe.SpiffeWorkloadClient;
 import com.filetransfer.shared.util.JwtUtil;

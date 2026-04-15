@@ -6,7 +6,7 @@ import com.filetransfer.shared.flow.builtin.ChecksumVerifyFunction;
 import com.filetransfer.shared.matching.CompiledFlowRule;
 import com.filetransfer.shared.matching.FlowRuleRegistry;
 import com.filetransfer.shared.matching.MatchContext;
-import com.filetransfer.shared.repository.FlowEventRepository;
+import com.filetransfer.shared.repository.transfer.FlowEventRepository;
 import com.filetransfer.shared.routing.FlowActor;
 import com.filetransfer.shared.routing.FlowEventJournal;
 import org.junit.jupiter.api.*;

@@ -5,8 +5,8 @@ import com.filetransfer.shared.entity.core.TransferAccount;
 import com.filetransfer.shared.entity.core.User;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.enums.UserRole;
-import com.filetransfer.shared.repository.TransferAccountRepository;
-import com.filetransfer.shared.repository.UserRepository;
+import com.filetransfer.shared.repository.core.TransferAccountRepository;
+import com.filetransfer.shared.repository.core.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

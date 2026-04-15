@@ -10,7 +10,7 @@ import com.filetransfer.ai.service.edi.MappingCorrectionInterpreter.*;
 import com.filetransfer.shared.client.ServiceClientProperties;
 import com.filetransfer.shared.config.PlatformConfig;
 import com.filetransfer.shared.entity.transfer.FileFlow;
-import com.filetransfer.shared.repository.FileFlowRepository;
+import com.filetransfer.shared.repository.transfer.FileFlowRepository;
 import com.filetransfer.shared.spiffe.SpiffeWorkloadClient;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;

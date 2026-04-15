@@ -41,7 +41,7 @@ class HealthScoreCalculatorTest {
         HealthCollector healthCollector = new HealthCollector(restTemplate, config);
         MetricsCollector metricsCollector = new MetricsCollector(restTemplate, config);
         DlqCollector dlqCollector = new DlqCollector(
-                mock(com.filetransfer.shared.repository.DeadLetterMessageRepository.class));
+                mock(com.filetransfer.shared.repository.transfer.DeadLetterMessageRepository.class));
 
         calculator = new HealthScoreCalculator(healthCollector, metricsCollector, dlqCollector,
                 findingRepository, healthScoreRepository, new ObjectMapper());

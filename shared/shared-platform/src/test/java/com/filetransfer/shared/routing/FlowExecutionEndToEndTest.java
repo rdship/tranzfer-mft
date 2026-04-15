@@ -2,7 +2,7 @@ package com.filetransfer.shared.routing;
 
 import com.filetransfer.shared.entity.transfer.FlowEvent;
 import com.filetransfer.shared.flow.*;
-import com.filetransfer.shared.repository.FlowEventRepository;
+import com.filetransfer.shared.repository.transfer.FlowEventRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

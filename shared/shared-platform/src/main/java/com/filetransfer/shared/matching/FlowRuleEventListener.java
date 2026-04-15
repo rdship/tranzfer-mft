@@ -3,7 +3,7 @@ package com.filetransfer.shared.matching;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.filetransfer.shared.dto.FlowRuleChangeEvent;
 import com.filetransfer.shared.fabric.EventFabricBridge;
-import com.filetransfer.shared.repository.FileFlowRepository;
+import com.filetransfer.shared.repository.transfer.FileFlowRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.Exchange;

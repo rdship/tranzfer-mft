@@ -2,8 +2,8 @@ package com.filetransfer.onboarding.controller;
 
 import com.filetransfer.shared.entity.core.PlatformSetting;
 import com.filetransfer.shared.enums.Environment;
-import com.filetransfer.shared.repository.FlowStepSnapshotRepository;
-import com.filetransfer.shared.repository.PlatformSettingRepository;
+import com.filetransfer.shared.repository.transfer.FlowStepSnapshotRepository;
+import com.filetransfer.shared.repository.core.PlatformSettingRepository;
 import com.filetransfer.shared.security.Roles;
 import com.filetransfer.onboarding.scheduler.SnapshotRetentionJob;
 import lombok.RequiredArgsConstructor;

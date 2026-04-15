@@ -1,7 +1,7 @@
 package com.filetransfer.onboarding.dryrun;
 
 import com.filetransfer.shared.entity.transfer.FileFlow;
-import com.filetransfer.shared.repository.FileFlowRepository;
+import com.filetransfer.shared.repository.transfer.FileFlowRepository;
 import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

@@ -3,8 +3,8 @@ package com.filetransfer.shared.routing;
 import com.filetransfer.shared.cluster.ClusterService;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.enums.ServiceType;
-import com.filetransfer.shared.repository.FileTransferRecordRepository;
-import com.filetransfer.shared.repository.FolderMappingRepository;
+import com.filetransfer.shared.repository.transfer.FileTransferRecordRepository;
+import com.filetransfer.shared.repository.transfer.FolderMappingRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

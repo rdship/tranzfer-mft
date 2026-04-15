@@ -1,7 +1,7 @@
 package com.filetransfer.shared.cache;
 
 import com.filetransfer.shared.entity.transfer.FlowStepSnapshot;
-import com.filetransfer.shared.repository.FlowStepSnapshotRepository;
+import com.filetransfer.shared.repository.transfer.FlowStepSnapshotRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.scheduling.annotation.Scheduled;

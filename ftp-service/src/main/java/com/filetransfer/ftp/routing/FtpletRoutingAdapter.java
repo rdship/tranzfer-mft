@@ -4,7 +4,7 @@ import com.filetransfer.ftp.audit.AuditEventLogger;
 import com.filetransfer.ftp.connection.ConnectionTracker;
 import com.filetransfer.shared.entity.core.TransferAccount;
 import com.filetransfer.shared.enums.Protocol;
-import com.filetransfer.shared.repository.TransferAccountRepository;
+import com.filetransfer.shared.repository.core.TransferAccountRepository;
 import com.filetransfer.shared.routing.RoutingEngine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

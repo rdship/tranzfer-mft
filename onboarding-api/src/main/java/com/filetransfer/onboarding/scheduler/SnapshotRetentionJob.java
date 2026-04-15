@@ -1,8 +1,8 @@
 package com.filetransfer.onboarding.scheduler;
 
 import com.filetransfer.shared.enums.Environment;
-import com.filetransfer.shared.repository.FlowStepSnapshotRepository;
-import com.filetransfer.shared.repository.PlatformSettingRepository;
+import com.filetransfer.shared.repository.transfer.FlowStepSnapshotRepository;
+import com.filetransfer.shared.repository.core.PlatformSettingRepository;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

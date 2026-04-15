@@ -1,7 +1,7 @@
 package com.filetransfer.onboarding.controller;
 
 import com.filetransfer.shared.entity.security.TotpConfig;
-import com.filetransfer.shared.repository.TotpConfigRepository;
+import com.filetransfer.shared.repository.security.TotpConfigRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

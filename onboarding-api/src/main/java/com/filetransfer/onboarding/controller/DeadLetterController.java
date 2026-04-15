@@ -1,7 +1,7 @@
 package com.filetransfer.onboarding.controller;
 
 import com.filetransfer.shared.entity.transfer.DeadLetterMessage;
-import com.filetransfer.shared.repository.DeadLetterMessageRepository;
+import com.filetransfer.shared.repository.transfer.DeadLetterMessageRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;

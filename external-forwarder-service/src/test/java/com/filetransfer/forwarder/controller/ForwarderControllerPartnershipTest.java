@@ -3,7 +3,7 @@ package com.filetransfer.forwarder.controller;
 import com.filetransfer.shared.entity.integration.As2Partnership;
 import com.filetransfer.shared.entity.transfer.DeliveryEndpoint;
 import com.filetransfer.shared.enums.DeliveryProtocol;
-import com.filetransfer.shared.repository.As2PartnershipRepository;
+import com.filetransfer.shared.repository.integration.As2PartnershipRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;

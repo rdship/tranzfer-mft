@@ -4,7 +4,7 @@ import com.filetransfer.shared.dto.FlowExecutionDto;
 import com.filetransfer.shared.entity.transfer.FlowApproval;
 import com.filetransfer.shared.entity.transfer.FlowEvent;
 import com.filetransfer.shared.entity.transfer.FlowExecution;
-import com.filetransfer.shared.repository.FlowExecutionRepository;
+import com.filetransfer.shared.repository.transfer.FlowExecutionRepository;
 import com.filetransfer.shared.routing.FlowApprovalService;
 import com.filetransfer.shared.routing.FlowEventJournal;
 import com.filetransfer.shared.routing.FlowRestartService;

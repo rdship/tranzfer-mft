@@ -1,9 +1,9 @@
 package com.filetransfer.shared.security;
 
 import com.filetransfer.shared.entity.core.User;
-import com.filetransfer.shared.repository.RolePermissionRepository;
-import com.filetransfer.shared.repository.UserPermissionRepository;
-import com.filetransfer.shared.repository.UserRepository;
+import com.filetransfer.shared.repository.security.RolePermissionRepository;
+import com.filetransfer.shared.repository.security.UserPermissionRepository;
+import com.filetransfer.shared.repository.core.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

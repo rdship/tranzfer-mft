@@ -2,7 +2,7 @@ package com.filetransfer.config.service;
 
 import com.filetransfer.shared.entity.core.PlatformSetting;
 import com.filetransfer.shared.enums.Environment;
-import com.filetransfer.shared.repository.PlatformSettingRepository;
+import com.filetransfer.shared.repository.core.PlatformSettingRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

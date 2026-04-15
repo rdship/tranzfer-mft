@@ -2,7 +2,7 @@ package com.filetransfer.config.service;
 
 import com.filetransfer.shared.dto.FolderDefinition;
 import com.filetransfer.shared.entity.core.FolderTemplate;
-import com.filetransfer.shared.repository.FolderTemplateRepository;
+import com.filetransfer.shared.repository.core.FolderTemplateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;

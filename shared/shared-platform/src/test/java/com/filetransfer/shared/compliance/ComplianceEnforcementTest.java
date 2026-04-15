@@ -4,8 +4,8 @@ import com.filetransfer.shared.compliance.ComplianceEnforcementService.Complianc
 import com.filetransfer.shared.compliance.ComplianceEnforcementService.ComplianceResult;
 import com.filetransfer.shared.entity.security.ComplianceProfile;
 import com.filetransfer.shared.entity.security.ComplianceViolation;
-import com.filetransfer.shared.repository.ComplianceProfileRepository;
-import com.filetransfer.shared.repository.ComplianceViolationRepository;
+import com.filetransfer.shared.repository.security.ComplianceProfileRepository;
+import com.filetransfer.shared.repository.security.ComplianceViolationRepository;
 import com.filetransfer.shared.routing.AiClassificationClient;
 import com.filetransfer.shared.routing.AiClassificationClient.ClassificationDecision;
 import org.junit.jupiter.api.BeforeEach;

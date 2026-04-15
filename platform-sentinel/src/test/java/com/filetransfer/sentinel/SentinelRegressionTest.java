@@ -11,10 +11,10 @@ import com.filetransfer.sentinel.repository.CorrelationGroupRepository;
 import com.filetransfer.sentinel.repository.HealthScoreRepository;
 import com.filetransfer.sentinel.repository.SentinelFindingRepository;
 import com.filetransfer.sentinel.repository.SentinelRuleRepository;
-import com.filetransfer.shared.repository.AuditLogRepository;
-import com.filetransfer.shared.repository.DeadLetterMessageRepository;
-import com.filetransfer.shared.repository.LoginAttemptRepository;
-import com.filetransfer.shared.repository.QuarantineRecordRepository;
+import com.filetransfer.shared.repository.core.AuditLogRepository;
+import com.filetransfer.shared.repository.transfer.DeadLetterMessageRepository;
+import com.filetransfer.shared.repository.security.LoginAttemptRepository;
+import com.filetransfer.shared.repository.security.QuarantineRecordRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -72,7 +72,7 @@ class SentinelRegressionTest {
 
         AuditCollector auditCollector = new AuditCollector(auditLogRepository);
         TransferCollector transferCollector = new TransferCollector(
-                mock(com.filetransfer.shared.repository.FileTransferRecordRepository.class));
+                mock(com.filetransfer.shared.repository.transfer.FileTransferRecordRepository.class));
         SecurityCollector securityCollector = new SecurityCollector(
                 mock(RestTemplate.class),
                 mock(SentinelConfig.class));

@@ -2,8 +2,8 @@ package com.filetransfer.ftpweb.service;
 
 import com.filetransfer.shared.entity.vfs.ChunkedUpload;
 import com.filetransfer.shared.entity.vfs.ChunkedUploadChunk;
-import com.filetransfer.shared.repository.ChunkedUploadChunkRepository;
-import com.filetransfer.shared.repository.ChunkedUploadRepository;
+import com.filetransfer.shared.repository.vfs.ChunkedUploadChunkRepository;
+import com.filetransfer.shared.repository.vfs.ChunkedUploadRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;

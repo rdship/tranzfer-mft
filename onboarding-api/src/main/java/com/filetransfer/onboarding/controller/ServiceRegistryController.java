@@ -3,7 +3,7 @@ package com.filetransfer.onboarding.controller;
 import com.filetransfer.onboarding.dto.response.ServiceRegistrationResponse;
 import com.filetransfer.shared.entity.core.ServiceRegistration;
 import com.filetransfer.shared.enums.ServiceType;
-import com.filetransfer.shared.repository.ServiceRegistrationRepository;
+import com.filetransfer.shared.repository.core.ServiceRegistrationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;

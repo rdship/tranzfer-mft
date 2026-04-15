@@ -1,8 +1,8 @@
 package com.filetransfer.config.controller;
 
 import com.filetransfer.shared.entity.core.EncryptionKey;
-import com.filetransfer.shared.repository.EncryptionKeyRepository;
-import com.filetransfer.shared.repository.TransferAccountRepository;
+import com.filetransfer.shared.repository.core.EncryptionKeyRepository;
+import com.filetransfer.shared.repository.core.TransferAccountRepository;
 import com.filetransfer.shared.security.Roles;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

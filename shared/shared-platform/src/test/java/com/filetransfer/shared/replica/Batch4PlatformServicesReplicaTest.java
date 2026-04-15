@@ -6,7 +6,7 @@ import com.filetransfer.shared.cluster.ClusterService;
 import com.filetransfer.shared.entity.core.ServiceRegistration;
 import com.filetransfer.shared.enums.ClusterCommunicationMode;
 import com.filetransfer.shared.enums.ServiceType;
-import com.filetransfer.shared.repository.ServiceRegistrationRepository;
+import com.filetransfer.shared.repository.core.ServiceRegistrationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

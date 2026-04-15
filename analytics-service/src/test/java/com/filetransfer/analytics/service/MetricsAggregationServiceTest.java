@@ -7,7 +7,7 @@ import com.filetransfer.shared.entity.transfer.FolderMapping;
 import com.filetransfer.shared.entity.core.TransferAccount;
 import com.filetransfer.shared.enums.FileTransferStatus;
 import com.filetransfer.shared.enums.Protocol;
-import com.filetransfer.shared.repository.FileTransferRecordRepository;
+import com.filetransfer.shared.repository.transfer.FileTransferRecordRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

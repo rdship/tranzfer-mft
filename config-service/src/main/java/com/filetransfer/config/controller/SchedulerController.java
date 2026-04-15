@@ -1,7 +1,7 @@
 package com.filetransfer.config.controller;
 
 import com.filetransfer.shared.entity.integration.ScheduledTask;
-import com.filetransfer.shared.repository.ScheduledTaskRepository;
+import com.filetransfer.shared.repository.integration.ScheduledTaskRepository;
 import com.filetransfer.shared.security.Roles;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;

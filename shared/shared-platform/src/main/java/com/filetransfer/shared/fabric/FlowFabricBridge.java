@@ -6,7 +6,7 @@ import com.filetransfer.fabric.config.FabricProperties;
 import com.filetransfer.shared.entity.transfer.FabricCheckpoint;
 import com.filetransfer.shared.entity.transfer.FileFlow;
 import com.filetransfer.shared.entity.transfer.FlowExecution;
-import com.filetransfer.shared.repository.FabricCheckpointRepository;
+import com.filetransfer.shared.repository.transfer.FabricCheckpointRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

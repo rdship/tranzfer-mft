@@ -2,7 +2,7 @@ package com.filetransfer.shared.audit;
 
 import com.filetransfer.shared.entity.core.AuditLog;
 import com.filetransfer.shared.entity.core.TransferAccount;
-import com.filetransfer.shared.repository.AuditLogRepository;
+import com.filetransfer.shared.repository.core.AuditLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

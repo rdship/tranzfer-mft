@@ -3,7 +3,7 @@ package com.filetransfer.as2.controller;
 import com.filetransfer.as2.routing.As2RoutingHandler;
 import com.filetransfer.as2.service.As2MessageProcessor;
 import com.filetransfer.as2.service.MdnGenerator;
-import com.filetransfer.shared.repository.As2MessageRepository;
+import com.filetransfer.shared.repository.integration.As2MessageRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -3,7 +3,7 @@ package com.filetransfer.shared.cluster;
 import com.filetransfer.shared.entity.core.ServiceRegistration;
 import com.filetransfer.shared.enums.ClusterCommunicationMode;
 import com.filetransfer.shared.enums.ServiceType;
-import com.filetransfer.shared.repository.ServiceRegistrationRepository;
+import com.filetransfer.shared.repository.core.ServiceRegistrationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

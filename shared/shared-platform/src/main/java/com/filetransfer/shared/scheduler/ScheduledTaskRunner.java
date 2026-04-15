@@ -2,7 +2,7 @@ package com.filetransfer.shared.scheduler;
 
 import com.filetransfer.shared.entity.transfer.FileFlow;
 import com.filetransfer.shared.entity.integration.ScheduledTask;
-import com.filetransfer.shared.repository.FileFlowRepository;
+import com.filetransfer.shared.repository.transfer.FileFlowRepository;
 import com.filetransfer.shared.routing.FlowProcessingEngine;
 import com.filetransfer.shared.util.TrackIdGenerator;
 import lombok.RequiredArgsConstructor;

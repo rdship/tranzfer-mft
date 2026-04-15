@@ -2,7 +2,7 @@ package com.filetransfer.shared.flow;
 
 import com.filetransfer.shared.entity.transfer.FlowEvent;
 import com.filetransfer.shared.flow.builtin.ChecksumVerifyFunction;
-import com.filetransfer.shared.repository.FlowEventRepository;
+import com.filetransfer.shared.repository.transfer.FlowEventRepository;
 import com.filetransfer.shared.routing.FlowActor;
 import com.filetransfer.shared.routing.FlowEventJournal;
 import org.junit.jupiter.api.*;

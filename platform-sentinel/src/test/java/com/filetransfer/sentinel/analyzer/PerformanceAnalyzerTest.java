@@ -46,7 +46,7 @@ class PerformanceAnalyzerTest {
 
         MetricsCollector metricsCollector = new MetricsCollector(restTemplate, config);
         TransferCollector transferCollector = new TransferCollector(
-                mock(com.filetransfer.shared.repository.FileTransferRecordRepository.class));
+                mock(com.filetransfer.shared.repository.transfer.FileTransferRecordRepository.class));
         healthCollector = new HealthCollector(restTemplate, config);
 
         analyzer = new PerformanceAnalyzer(ruleRepository, findingRepository,

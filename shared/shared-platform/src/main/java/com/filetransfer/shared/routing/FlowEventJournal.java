@@ -1,7 +1,7 @@
 package com.filetransfer.shared.routing;
 
 import com.filetransfer.shared.entity.transfer.FlowEvent;
-import com.filetransfer.shared.repository.FlowEventRepository;
+import com.filetransfer.shared.repository.transfer.FlowEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;

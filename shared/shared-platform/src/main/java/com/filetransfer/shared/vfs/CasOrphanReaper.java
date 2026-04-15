@@ -2,9 +2,9 @@ package com.filetransfer.shared.vfs;
 
 import com.filetransfer.shared.client.StorageServiceClient;
 import com.filetransfer.shared.entity.vfs.VfsIntent;
-import com.filetransfer.shared.repository.VfsChunkRepository;
-import com.filetransfer.shared.repository.VfsIntentRepository;
-import com.filetransfer.shared.repository.VirtualEntryRepository;
+import com.filetransfer.shared.repository.vfs.VfsChunkRepository;
+import com.filetransfer.shared.repository.vfs.VfsIntentRepository;
+import com.filetransfer.shared.repository.vfs.VirtualEntryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;

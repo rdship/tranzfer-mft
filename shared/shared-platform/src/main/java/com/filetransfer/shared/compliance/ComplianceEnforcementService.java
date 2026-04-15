@@ -2,8 +2,8 @@ package com.filetransfer.shared.compliance;
 
 import com.filetransfer.shared.entity.security.ComplianceProfile;
 import com.filetransfer.shared.entity.security.ComplianceViolation;
-import com.filetransfer.shared.repository.ComplianceProfileRepository;
-import com.filetransfer.shared.repository.ComplianceViolationRepository;
+import com.filetransfer.shared.repository.security.ComplianceProfileRepository;
+import com.filetransfer.shared.repository.security.ComplianceViolationRepository;
 import com.filetransfer.shared.routing.AiClassificationClient;
 import jakarta.annotation.Nullable;
 import lombok.RequiredArgsConstructor;

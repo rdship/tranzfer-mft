@@ -6,7 +6,7 @@ import com.filetransfer.shared.cluster.ClusterService;
 import com.filetransfer.shared.entity.core.ServiceRegistration;
 import com.filetransfer.shared.enums.ClusterCommunicationMode;
 import com.filetransfer.shared.enums.ServiceType;
-import com.filetransfer.shared.repository.ServiceRegistrationRepository;
+import com.filetransfer.shared.repository.core.ServiceRegistrationRepository;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.retry.Retry;

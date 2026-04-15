@@ -1,7 +1,7 @@
 package com.filetransfer.sentinel.collector;
 
 import com.filetransfer.shared.entity.transfer.DeadLetterMessage;
-import com.filetransfer.shared.repository.DeadLetterMessageRepository;
+import com.filetransfer.shared.repository.transfer.DeadLetterMessageRepository;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

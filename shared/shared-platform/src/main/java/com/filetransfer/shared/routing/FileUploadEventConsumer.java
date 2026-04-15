@@ -2,7 +2,7 @@ package com.filetransfer.shared.routing;
 
 import com.filetransfer.shared.dto.FileUploadedEvent;
 import com.filetransfer.shared.entity.core.TransferAccount;
-import com.filetransfer.shared.repository.TransferAccountRepository;
+import com.filetransfer.shared.repository.core.TransferAccountRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;

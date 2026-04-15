@@ -2,8 +2,8 @@ package com.filetransfer.onboarding.controller;
 
 import com.filetransfer.shared.entity.integration.BlockchainAnchor;
 import com.filetransfer.shared.entity.transfer.FileTransferRecord;
-import com.filetransfer.shared.repository.BlockchainAnchorRepository;
-import com.filetransfer.shared.repository.FileTransferRecordRepository;
+import com.filetransfer.shared.repository.integration.BlockchainAnchorRepository;
+import com.filetransfer.shared.repository.transfer.FileTransferRecordRepository;
 import com.filetransfer.shared.security.Roles;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

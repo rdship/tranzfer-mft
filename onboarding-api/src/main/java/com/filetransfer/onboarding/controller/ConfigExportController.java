@@ -2,11 +2,11 @@ package com.filetransfer.onboarding.controller;
 
 import com.filetransfer.onboarding.dto.configexport.ConfigBundle;
 import com.filetransfer.onboarding.service.configexport.ConfigBundleBuilder;
-import com.filetransfer.shared.repository.FileFlowRepository;
-import com.filetransfer.shared.repository.FolderMappingRepository;
-import com.filetransfer.shared.repository.PartnerRepository;
-import com.filetransfer.shared.repository.ServerInstanceRepository;
-import com.filetransfer.shared.repository.TransferAccountRepository;
+import com.filetransfer.shared.repository.transfer.FileFlowRepository;
+import com.filetransfer.shared.repository.transfer.FolderMappingRepository;
+import com.filetransfer.shared.repository.core.PartnerRepository;
+import com.filetransfer.shared.repository.core.ServerInstanceRepository;
+import com.filetransfer.shared.repository.core.TransferAccountRepository;
 import com.filetransfer.shared.security.Roles;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
