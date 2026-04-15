@@ -35,7 +35,7 @@ x-common-env: &common-env
     -Dspring.kafka.admin.properties.request.timeout.ms=5000
     -Dspring.kafka.consumer.properties.default.api.timeout.ms=5000
     -Dspring.kafka.properties.reconnect.backoff.max.ms=5000
-    -Dmanagement.metrics.data.repository.autotime.enabled=false
+    -Dmanagement.metrics.data.repository.autotime.enabled=true
     -Dspring.data.jpa.repositories.bootstrap-mode=lazy
   PLATFORM_RATE_LIMIT_DEFAULT_LIMIT: 10000
   DATABASE_URL: jdbc:postgresql://postgres:5432/filetransfer?stringtype=unspecified
@@ -62,8 +62,8 @@ x-common-env: &common-env
   CLUSTER_ID: ${CLUSTER_ID:-cluster-1}
   CLUSTER_COMM_MODE: ${CLUSTER_COMM_MODE:-WITHIN_CLUSTER}
   TRACK_ID_PREFIX: ${TRACK_ID_PREFIX:-TRZ}
-  PLATFORM_VERSION: "1.0.0-R48"
-  PLATFORM_BUILD_TIMESTAMP: "2026-04-17T00:00:00Z"
+  PLATFORM_VERSION: "1.0.0-R49"
+  PLATFORM_BUILD_TIMESTAMP: "2026-04-17T02:00:00Z"
   PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-DEV}
   PROXY_ENABLED: ${PROXY_ENABLED:-false}
   PROXY_TYPE: ${PROXY_TYPE:-HTTP}
@@ -865,8 +865,8 @@ services:
       DMZ_QOS_ENABLED: "true"
       DMZ_TUNNEL_ENABLED: ${DMZ_TUNNEL_ENABLED:-false}
       DMZ_TUNNEL_PORT: "9443"
-      PLATFORM_VERSION: "1.0.0-R48"
-      PLATFORM_BUILD_TIMESTAMP: "2026-04-17T00:00:00Z"
+      PLATFORM_VERSION: "1.0.0-R49"
+      PLATFORM_BUILD_TIMESTAMP: "2026-04-17T02:00:00Z"
       CLUSTER_SERVICE_TYPE: DMZ_PROXY
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8088/api/proxy/health | grep -qE '\"status\":\"(UP|DEGRADED)\"' || exit 1"]
@@ -1212,8 +1212,8 @@ services:
       SERVER_PORT: 8095
       <<: *spiffe-env
       AI_ENGINE_URL: http://ai-engine:8091
-      PLATFORM_VERSION: "1.0.0-R48"
-      PLATFORM_BUILD_TIMESTAMP: "2026-04-17T00:00:00Z"
+      PLATFORM_VERSION: "1.0.0-R49"
+      PLATFORM_BUILD_TIMESTAMP: "2026-04-17T02:00:00Z"
       PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-DEV}
       CLUSTER_SERVICE_TYPE: EDI_CONVERTER
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}

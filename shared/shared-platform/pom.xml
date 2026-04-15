@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.filetransfer</groupId>
         <artifactId>shared</artifactId>
-        <version>1.0.0-R48</version>
+        <version>1.0.0-R49</version>
     </parent>
 
     <artifactId>shared-platform</artifactId>
@@ -98,7 +98,7 @@
             <plugin>
                 <groupId>org.hibernate.orm.tooling</groupId>
                 <artifactId>hibernate-enhance-maven-plugin</artifactId>
-                <version>6.4.4.Final</version>
+                <version>6.6.13.Final</version>
                 <executions>
                     <execution>
                         <id>enhance</id>

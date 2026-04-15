@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.filetransfer</groupId>
         <artifactId>file-transfer-platform</artifactId>
-        <version>1.0.0-R48</version>
+        <version>1.0.0-R49</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <artifactId>mft-client</artifactId>
@@ -41,7 +41,7 @@
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
-            <version>1.4.14</version>
+            <version>1.5.16</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
