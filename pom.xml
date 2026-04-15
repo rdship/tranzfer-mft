@@ -6,7 +6,7 @@
 
     <groupId>com.filetransfer</groupId>
     <artifactId>file-transfer-platform</artifactId>
-    <version>1.0.0-R35</version>
+    <version>1.0.0-R36</version>
     <packaging>pom</packaging>
 
     <name>TranzFer MFT</name>
