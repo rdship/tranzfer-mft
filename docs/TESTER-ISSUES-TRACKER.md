@@ -344,3 +344,51 @@ This should recursively scan subpackages. But the hang suggests either:
 | **Combined** | **179s → ~60s** | |
 
 | N26 | **Per-service scan filtering too aggressive — missing cross-package beans** | CRITICAL | **OPEN** | CTO's 293-file push added per-service `@EnableJpaRepositories` + `scanBasePackages` with specific subpackages. This excluded shared beans that services depend on. onboarding-api: `SlaBreachDetector requires ConnectorDispatcher` (ConnectorDispatcher not in scanned packages). Multiple services crash with similar missing bean errors. The scan paths need to include ALL shared subpackages that contain `@Component`/`@Service` beans, not just the entity/repository subpackages. Fix: each service's `scanBasePackages` must include `com.filetransfer.shared` (the full shared package) — not selective subpackages. |
+
+| N27 | **ROOT CAUSE: `connection-init-sql` + `auto-commit: false` creates idle-in-transaction deadlock — onboarding-api and other services freeze at HikariPool** | CRITICAL | **OPEN** | `onboarding-api/src/main/resources/application.yml` line 55: `connection-init-sql: "SET statement_timeout = '30s'"`. Combined with `auto-commit: false` (line 50), every HikariPool connection runs `SET statement_timeout` inside an implicit transaction that never commits. Connections sit in PostgreSQL as `idle in transaction` forever. When Spring Data JPA tries to initialize repositories, it needs DB connections — but all pool connections are stuck in open transactions from the init SQL. **Evidence from PostgreSQL:** 7 connections `idle in transaction` for 6-9 minutes, all showing `SET statement_timeout = '30s'` as their last query. 4 belong to onboarding-api (172.19.0.20), 3 to db-migrate (172.19.0.10). **Why some services boot and others don't:** Services with fewer entities (ftp-service, sftp-service, encryption) complete JPA repo init before the pool connections time out. Services with more entities (onboarding with 63 entities) take longer → pool connections hang → deadlock. **Fix options:** (1) Remove `connection-init-sql` entirely — set timeout at PostgreSQL role level instead. (2) Change to `auto-commit: true` in hikari config. (3) Append COMMIT: `connection-init-sql: "SET statement_timeout = '30s'; COMMIT;"`. Option 1 is safest. |
+
+### N27 — Full PostgreSQL Evidence
+
+```
+pid | client_addr  | state               | idle_duration | query
+114 | 172.19.0.10  | idle in transaction | 00:09:06      | SET statement_timeout = '30s'
+115 | 172.19.0.10  | idle in transaction | 00:09:06      | SET statement_timeout = '30s'
+116 | 172.19.0.10  | idle in transaction | 00:09:05      | SET statement_timeout = '30s'
+257 | 172.19.0.20  | idle in transaction | 00:06:52      | SET statement_timeout = '30s'
+258 | 172.19.0.20  | idle in transaction | 00:06:52      | SET statement_timeout = '30s'
+259 | 172.19.0.20  | idle in transaction | 00:06:52      | SET statement_timeout = '30s'
+261 | 172.19.0.20  | idle in transaction | 00:06:52      | SET statement_timeout = '30s'
+
+172.19.0.10 = mft-db-migrate (3 connections)
+172.19.0.20 = mft-onboarding-api (4 connections)
+
+PostgreSQL: 50 total connections / 400 max — NOT connection exhaustion
+Problem: idle-in-transaction connections hold implicit locks, preventing
+JPA repository initialization from completing.
+```
+
+### N27 — Affected Configuration
+
+```yaml
+# onboarding-api/src/main/resources/application.yml
+spring:
+  datasource:
+    hikari:
+      auto-commit: false                                    # line 50
+      connection-init-sql: "SET statement_timeout = '30s'"  # line 55 ← THE PROBLEM
+```
+
+The `connection-init-sql` runs INSIDE the auto-commit=false transaction.
+HikariPool creates minimum-idle connections on startup. Each connection:
+1. Opens implicit transaction (auto-commit=false)
+2. Runs `SET statement_timeout = '30s'`
+3. Returns to pool in "idle in transaction" state
+4. Never commits because no application code uses it yet
+5. Spring Data JPA needs connections → gets ones stuck in open transactions
+6. JPA init hangs waiting for usable connections → service freezes
+
+This explains why:
+- Services with `auto-commit: false` + this init SQL freeze
+- Services without this config boot fine
+- The freeze happens AFTER HikariPool "Start completed" (pool ready, but connections unusable)
+- Only onboarding-api has this config, but db-migrate inherits the same shared-platform jar
