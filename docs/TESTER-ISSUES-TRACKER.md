@@ -293,3 +293,52 @@ This should recursively scan subpackages. But the hang suggests either:
 | N24 | **config-service fails to build — duplicate `spring.data:` key in application.yml (lines 19 and 59)** | CRITICAL | **OPEN** | `mvn clean package -DskipTests` fails on config-service with `DuplicateKeyException: found duplicate key data`. The YAML has `spring.data:` defined twice (line 19 for Redis, line 59 likely for something else). YAML doesn't allow duplicate keys at the same level. Fix: merge both `data:` blocks into one. This blocks the entire Maven build — all services after config-service are SKIPPED. Docker build works because it uses pre-built jars from a different layer, but `mvn package` from source fails. |
 
 | N25 | **Version banner shows UNKNOWN for edi-converter and dmz-proxy — missing common-env** | MEDIUM | **OPEN** | Banner now prints but shows `TranzFer MFT vUNKNOWN — UNKNOWN [UNKNOWN]` for services that only inherit `*spiffe-env` (edi-converter, dmz-proxy). They don't inherit `*common-env` which has `PLATFORM_VERSION`. Fix: add `<<: *common-env` to these services' environment block, or move `PLATFORM_VERSION` to a separate anchor that all services use. Services with `*common-env` (like onboarding-api) correctly show `1.0.0-R32`. |
+
+---
+
+## Boot Time Analysis (R32 Build — 2026-04-15)
+
+### Completed Services
+
+| Service | Boot Time | Phase 1 (Hibernate) | Phase 2 (SEDA+Kafka+Pool) | Phase 3 (JPA Repos) |
+|---------|-----------|--------------------|--------------------------|--------------------|
+| dmz-proxy | 39.5s | N/A (no DB) | N/A | N/A |
+| edi-converter | 35.2s | N/A (no DB) | N/A | N/A |
+| ftp-service | 179.0s | ~47s | ~73s | ~59s |
+| forwarder-service | 184.8s | ~60s | ~75s | ~50s |
+| gateway-service | 184.3s | ~55s | ~70s | ~59s |
+| sftp-service | 186.4s | ~52s | ~68s | ~66s |
+| notification-service | 191.3s | ~59s | ~77s | ~55s |
+| config-service | 204.3s | ~75s | ~76s | ~53s |
+
+### Boot Phase Breakdown
+
+**Phase 1: JVM + Classpath + Hibernate entity binding (~50-75s)**
+- JVM starts, Spring context initializes
+- Hibernate scans 63 entities across 6 subpackages
+- Binds properties, columns, collections
+- No DB access (allow_jdbc_metadata_access=false)
+
+**Phase 2: SEDA + Kafka Fabric + HikariPool (~68-77s)**
+- SEDA stages start (intake=5000/64, pipeline=2000/128, delivery=5000/64)
+- Kafka Fabric connects to Redpanda (5s timeout)
+- HikariPool starts (< 1s once DB is ready)
+
+**Phase 3: Spring Data JPA repositories + remaining beans (~50-66s)**
+- 60+ JPA repository proxies created
+- All remaining @Component/@Service beans initialized
+- Actuator endpoints exposed
+- Application ready
+
+**Total: 179-204s (3-3.4 minutes) per DB service**
+
+### Optimization Opportunities
+
+| Optimization | Expected Savings | Effort |
+|-------------|-----------------|--------|
+| Entity scan filtering per service (only scan needed entities) | Phase 1: 50s → 10s | Medium — per-service @EntityScan config |
+| Repository scan filtering (only needed repos) | Phase 3: 55s → 15s | Medium — per-service @EnableJpaRepositories |
+| SEDA lazy start (start stages after app ready) | Phase 2: save ~10s | Low — move to @EventListener |
+| Kafka connect async (don't block main thread) | Phase 2: save ~5s | Low — already has timeout |
+| AppCDS (JDK class data sharing) | Phase 1: save ~5s | Low — Docker build change |
+| **Combined** | **179s → ~60s** | |
