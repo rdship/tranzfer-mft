@@ -46,6 +46,15 @@ public class SecretSafetyValidator {
     @Value("${platform.environment:PROD}")
     private String environment;
 
+    @Value("${platform.version:UNKNOWN}")
+    private String platformVersion;
+
+    @Value("${platform.build-timestamp:UNKNOWN}")
+    private String buildTimestamp;
+
+    @Value("${cluster.service-type:UNKNOWN}")
+    private String serviceType;
+
     @Value("${spring.datasource.password:#{null}}")
     private String datasourcePassword;
 
@@ -55,10 +64,13 @@ public class SecretSafetyValidator {
 
     @PostConstruct
     public void validate() {
+        log.info("╔══════════════════════════════════════════════════════╗");
+        log.info("║  TranzFer MFT — {} v{}", serviceType, platformVersion);
+        log.info("║  Built: {}  Env: {}", buildTimestamp, environment.toUpperCase());
+        log.info("╚══════════════════════════════════════════════════════╝");
+
         boolean productionLike = isProductionLike();
         String envLabel = environment.toUpperCase();
-
-        log.info("SecretSafetyValidator running for environment: {}", envLabel);
 
         List<String> violations = new ArrayList<>();
 
