@@ -79,12 +79,11 @@ class OnboardingRegressionTest {
     private static class StubAuthService extends AuthService {
         private AuthResponse loginResponse;
 
-        StubAuthService() { super(null, null, null, null, null, null); }
+        StubAuthService() { super(null, null, null, null, null, null, null); }
         void setLoginResponse(AuthResponse response) { this.loginResponse = response; }
 
         @Override
         public AuthResponse login(LoginRequest request) {
-            // Validate fields to test our regression scenario
             if (request.getEmail() == null || request.getEmail().isBlank()) {
                 throw new IllegalArgumentException("Email is required");
             }
@@ -93,9 +92,17 @@ class OnboardingRegressionTest {
             }
             return loginResponse;
         }
+        @Override
+        public AuthResponse login(LoginRequest request, String ip, String ua) {
+            return login(request);
+        }
 
         @Override
         public AuthResponse register(com.filetransfer.onboarding.dto.request.RegisterRequest request) {
+            return loginResponse;
+        }
+        @Override
+        public AuthResponse register(com.filetransfer.onboarding.dto.request.RegisterRequest request, String ip, String ua) {
             return loginResponse;
         }
     }

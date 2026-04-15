@@ -73,15 +73,37 @@ public class AuthController {
     public AuthResponse register(@Valid @RequestBody RegisterRequest request,
                                   HttpServletRequest httpRequest) {
         checkIpRateLimit(httpRequest);
-        return authService.register(request);
+        return authService.register(request, resolveClientIp(httpRequest), httpRequest.getHeader("User-Agent"));
     }
 
     @PostMapping("/login")
-    @Operation(summary = "Authenticate and obtain a JWT token")
+    @Operation(summary = "Authenticate and obtain JWT access + refresh tokens")
     public AuthResponse login(@Valid @RequestBody LoginRequest request,
                                HttpServletRequest httpRequest) {
         checkIpRateLimit(httpRequest);
-        return authService.login(request);
+        return authService.login(request, resolveClientIp(httpRequest), httpRequest.getHeader("User-Agent"));
+    }
+
+    @PostMapping("/refresh")
+    @Operation(summary = "Refresh access token using a valid refresh token")
+    public AuthResponse refresh(@RequestBody Map<String, String> body,
+                                 HttpServletRequest httpRequest) {
+        String refreshToken = body.get("refreshToken");
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new org.springframework.security.authentication.BadCredentialsException("refreshToken is required");
+        }
+        return authService.refresh(refreshToken, resolveClientIp(httpRequest), httpRequest.getHeader("User-Agent"));
+    }
+
+    @PostMapping("/logout")
+    @Operation(summary = "Revoke all refresh tokens for the authenticated user")
+    public ResponseEntity<Map<String, String>> logout(
+            @org.springframework.security.core.annotation.AuthenticationPrincipal
+            org.springframework.security.core.userdetails.UserDetails principal) {
+        if (principal != null) {
+            authService.revokeAllSessions(principal.getUsername());
+        }
+        return ResponseEntity.ok(Map.of("status", "LOGGED_OUT"));
     }
 
     @PostMapping("/admin/unlock/{email}")

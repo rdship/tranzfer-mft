@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.filetransfer</groupId>
         <artifactId>file-transfer-platform</artifactId>
-        <version>1.0.0-R49</version>
+        <version>1.0.0-R50</version>
     </parent>
 
     <artifactId>shared</artifactId>

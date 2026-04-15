@@ -14,19 +14,24 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     const res = await onboardingApi.post('/api/auth/login', { email, password })
-    const { accessToken } = res.data
+    const { accessToken, refreshToken } = res.data
     // Decode JWT payload to extract user info (sub=email, role)
     const payload = JSON.parse(atob(accessToken.split('.')[1]))
     const u = { email: payload.sub, role: payload.role }
     localStorage.setItem('token', accessToken)
+    if (refreshToken) localStorage.setItem('refreshToken', refreshToken)
     localStorage.setItem('user', JSON.stringify(u))
     setToken(accessToken)
     setUser(u)
     navigate('/dashboard')
   }, [navigate])
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    try {
+      await onboardingApi.post('/api/auth/logout')
+    } catch { /* ignore — server might be down */ }
     localStorage.removeItem('token')
+    localStorage.removeItem('refreshToken')
     localStorage.removeItem('user')
     setToken(null)
     setUser(null)

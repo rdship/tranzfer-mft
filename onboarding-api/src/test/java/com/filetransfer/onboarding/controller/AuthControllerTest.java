@@ -47,7 +47,7 @@ class AuthControllerTest {
         private AuthResponse registerResponse;
 
         StubAuthService() {
-            super(null, null, null, null, null, null);
+            super(null, null, null, null, null, null, null);
         }
 
         void setLoginResponse(AuthResponse response) { this.loginResponse = response; }
@@ -55,9 +55,13 @@ class AuthControllerTest {
 
         @Override
         public AuthResponse login(LoginRequest request) { return loginResponse; }
+        @Override
+        public AuthResponse login(LoginRequest request, String ip, String ua) { return loginResponse; }
 
         @Override
         public AuthResponse register(RegisterRequest request) { return registerResponse; }
+        @Override
+        public AuthResponse register(RegisterRequest request, String ip, String ua) { return registerResponse; }
     }
 
     // --- Rate limiting: 200 requests from same IP succeed, 201st throws TOO_MANY_REQUESTS ---
@@ -174,7 +178,7 @@ class AuthControllerTest {
 
         AuthResponse response = controller.login(loginRequest, httpRequest);
         assertNotNull(response);
-        verify(httpRequest).getRemoteAddr();
+        verify(httpRequest, atLeast(1)).getRemoteAddr();
     }
 
     @Test
@@ -188,7 +192,7 @@ class AuthControllerTest {
 
         AuthResponse response = controller.login(loginRequest, httpRequest);
         assertNotNull(response);
-        verify(httpRequest).getRemoteAddr();
+        verify(httpRequest, atLeast(1)).getRemoteAddr();
     }
 
     // --- Register endpoint delegates to AuthService ---
