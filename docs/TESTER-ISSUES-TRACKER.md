@@ -392,3 +392,5 @@ This explains why:
 - Services without this config boot fine
 - The freeze happens AFTER HikariPool "Start completed" (pool ready, but connections unusable)
 - Only onboarding-api has this config, but db-migrate inherits the same shared-platform jar
+
+| N28 | **Main thread deadlocked on Spring Boot Actuator MetricsRepositoryMethodInvocationListener** | CRITICAL | **OPEN** | Thread dump shows main thread `WAITING (parking)` on `ReentrantLock` at `MetricsRepositoryMethodInvocationListener.afterInvocation` → `SingletonSupplier.get()`. This is a known Spring Boot/Micrometer deadlock where JPA repository metrics initialization blocks the main thread during Spring context refresh. Affects services with many JPA repositories (onboarding-api has 60+). Services with fewer repos boot because they acquire the lock before contention. **Fix options:** (1) Disable JPA repository metrics: `management.metrics.data.repository.autotime.enabled=false` (2) Upgrade to Spring Boot 3.3+ which fixes this deadlock (3) Add `spring.jpa.properties.hibernate.generate_statistics=false` to prevent the metrics listener from activating during init. |
