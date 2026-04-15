@@ -15,6 +15,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 public class DmzProxyApplication {
     public static void main(String[] args) {
-        SpringApplication.run(DmzProxyApplication.class, args);
+        SpringApplication app = new SpringApplication(DmzProxyApplication.class); app.setBanner((env, src, out) -> { out.println("TranzFer MFT v" + env.getProperty("platform.version", "UNKNOWN") + " — " + env.getProperty("cluster.service-type", "UNKNOWN") + " [" + env.getProperty("platform.build-timestamp", "UNKNOWN") + "]"); }); app.run(args);
     }
 }

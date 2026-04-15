@@ -1,6 +1,7 @@
 package com.filetransfer.ai;
 
 import org.springframework.boot.SpringApplication;
+import com.filetransfer.shared.config.PlatformBanner;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
@@ -14,6 +15,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableAsync
 public class AiEngineApplication {
     public static void main(String[] args) {
-        SpringApplication.run(AiEngineApplication.class, args);
+        SpringApplication app = new SpringApplication(AiEngineApplication.class); app.setBanner(new PlatformBanner()); app.run(args);
     }
 }

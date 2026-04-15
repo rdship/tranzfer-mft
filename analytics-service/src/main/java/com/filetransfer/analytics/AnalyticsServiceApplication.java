@@ -1,6 +1,7 @@
 package com.filetransfer.analytics;
 
 import org.springframework.boot.SpringApplication;
+import com.filetransfer.shared.config.PlatformBanner;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.cache.annotation.EnableCaching;
@@ -14,6 +15,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 public class AnalyticsServiceApplication {
     public static void main(String[] args) {
-        SpringApplication.run(AnalyticsServiceApplication.class, args);
+        SpringApplication app = new SpringApplication(AnalyticsServiceApplication.class); app.setBanner(new PlatformBanner()); app.run(args);
     }
 }

@@ -1,6 +1,7 @@
 package com.filetransfer.config;
 
 import org.springframework.boot.SpringApplication;
+import com.filetransfer.shared.config.PlatformBanner;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.cache.annotation.EnableCaching;
@@ -14,6 +15,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 public class ConfigServiceApplication {
     public static void main(String[] args) {
-        SpringApplication.run(ConfigServiceApplication.class, args);
+        SpringApplication app = new SpringApplication(ConfigServiceApplication.class); app.setBanner(new PlatformBanner()); app.run(args);
     }
 }

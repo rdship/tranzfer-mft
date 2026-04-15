@@ -2,6 +2,7 @@ package com.filetransfer.encryption;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.springframework.boot.SpringApplication;
+import com.filetransfer.shared.config.PlatformBanner;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.ComponentScan;
@@ -35,6 +36,6 @@ import java.security.Security;
 public class EncryptionServiceApplication {
     public static void main(String[] args) {
         Security.addProvider(new BouncyCastleProvider());
-        SpringApplication.run(EncryptionServiceApplication.class, args);
+        SpringApplication app = new SpringApplication(EncryptionServiceApplication.class); app.setBanner(new PlatformBanner()); app.run(args);
     }
 }

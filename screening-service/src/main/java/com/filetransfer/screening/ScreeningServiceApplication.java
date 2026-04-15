@@ -1,6 +1,7 @@
 package com.filetransfer.screening;
 
 import org.springframework.boot.SpringApplication;
+import com.filetransfer.shared.config.PlatformBanner;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
@@ -12,6 +13,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 public class ScreeningServiceApplication {
     public static void main(String[] args) {
-        SpringApplication.run(ScreeningServiceApplication.class, args);
+        SpringApplication app = new SpringApplication(ScreeningServiceApplication.class); app.setBanner(new PlatformBanner()); app.run(args);
     }
 }
