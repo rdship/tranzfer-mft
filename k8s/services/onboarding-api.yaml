@@ -48,8 +48,8 @@ spec:
         - configMapRef: {name: mft-common}
         - secretRef:    {name: mft-secrets}
         resources:
-          requests: {memory: "384Mi", cpu: "200m"}
-          limits:   {memory: "768Mi", cpu: "1000m"}
+          requests: {memory: "768Mi", cpu: "500m"}
+          limits:   {memory: "1024Mi", cpu: "2000m"}
         readinessProbe:
           httpGet: {path: /actuator/health/readiness, port: 8080}
           initialDelaySeconds: 20
@@ -60,7 +60,7 @@ spec:
           periodSeconds: 30
         startupProbe:
           httpGet: {path: /actuator/health, port: 8080}
-          failureThreshold: 30
+          failureThreshold: 60
           periodSeconds: 5
         volumeMounts:
         - {name: spire-socket, mountPath: /run/spire/sockets, readOnly: true}

@@ -101,7 +101,7 @@ spec:
           periodSeconds: 30
         startupProbe:
           httpGet: {path: /actuator/health, port: 8096}
-          failureThreshold: 30
+          failureThreshold: 60
           periodSeconds: 5
 
         # Verify the shared storage mount is writable before pod is ready

@@ -29,11 +29,22 @@ data:
 
   # ── JVM tuning (override per-service in Deployment env) ───────────────────────
   # Each service adds its own -Xmx via JAVA_TOOL_OPTIONS override
+  # Synchronized with docker-compose.yml x-common-env (R48)
+  # MUST be kept in sync — see docs/design/ARCHITECT-REVIEW-R47.md Section 5.1
   JAVA_TOOL_OPTIONS: >-
-    -XX:+UseG1GC
-    -XX:MaxGCPauseMillis=100
-    -XX:+UseStringDeduplication
+    -Xmx384m -Xms192m
+    -XX:+UseG1GC -XX:MaxGCPauseMillis=100
+    -XX:ActiveProcessorCount=2
+    -XX:MaxMetaspaceSize=150m
+    -Dnet.bytebuddy.experimental=true
     -Dspring.jmx.enabled=false
+    -Dserver.tomcat.accept-count=200
+    -Dserver.tomcat.threads.max=300
+    -Dspring.jpa.hibernate.ddl-auto=none
+    -Dspring.jpa.properties.hibernate.boot.allow_jdbc_metadata_access=false
+    -Dspring.jpa.properties.hibernate.temp.use_jdbc_metadata_defaults=false
+    -Dspring.jpa.properties.hibernate.default_batch_fetch_size=20
+    -Dspring.jpa.open-in-view=false
     -Dspring.flyway.enabled=false
     -Dspring.datasource.hikari.initialization-fail-timeout=-1
     -Dspring.data.redis.timeout=3000
@@ -42,6 +53,8 @@ data:
     -Dspring.kafka.admin.properties.request.timeout.ms=5000
     -Dspring.kafka.consumer.properties.default.api.timeout.ms=5000
     -Dspring.kafka.properties.reconnect.backoff.max.ms=5000
+    -Dmanagement.metrics.data.repository.autotime.enabled=false
+    -Dspring.data.jpa.repositories.bootstrap-mode=lazy
 
   # ── Proxy (DMZ) ───────────────────────────────────────────────────────────────
   # All outbound internet traffic routes through DMZ proxy (internal network only)
