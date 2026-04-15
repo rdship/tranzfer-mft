@@ -15,7 +15,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
     basePackages = {"com.filetransfer.sentinel", "com.filetransfer.shared"},
     excludeFilters = @ComponentScan.Filter(
         type = FilterType.REGEX,
-        pattern = "com\\.filetransfer\\.shared\\.(routing|vfs|fabric|cache|scheduler|event|matching|flow)\\..*"
+        pattern = "com\\.filetransfer\\.shared\\.(routing|vfs|compliance|scheduler|event)\\..*"
     )
 )
 @EntityScan(basePackages = {

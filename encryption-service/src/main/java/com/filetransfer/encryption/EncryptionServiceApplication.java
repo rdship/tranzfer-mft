@@ -14,17 +14,16 @@ import java.security.Security;
 /**
  * Encryption-service: selective shared bean loading.
  *
- * <p>Excludes heavy shared-platform packages that encryption-service doesn't need:
- * routing (RoutingEngine), vfs (VirtualFileSystem), fabric (Kafka consumers),
- * cache (PartnerCache, batch writers), matching initializer, connector, compliance,
- * scheduler. Entity/repository scans restricted to core subpackage only.
+ * <p>Excludes shared-platform packages that encryption-service doesn't need:
+ * routing, vfs, compliance, scheduler, event.
+ * Entity/repository scans restricted to core subpackage only.
  */
 @SpringBootApplication
 @ComponentScan(
     basePackages = {"com.filetransfer.encryption", "com.filetransfer.shared"},
     excludeFilters = @ComponentScan.Filter(
         type = FilterType.REGEX,
-        pattern = "com\\.filetransfer\\.shared\\.(routing|vfs|fabric|cache|connector|compliance|scheduler|event)\\..*"
+        pattern = "com\\.filetransfer\\.shared\\.(routing|vfs|compliance|scheduler|event)\\..*"
     )
 )
 @EntityScan(basePackages = {
