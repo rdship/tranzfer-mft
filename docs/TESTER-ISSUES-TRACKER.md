@@ -223,3 +223,65 @@ Tester log showed freeze AFTER HikariPool. Investigation found `RedisServiceRegi
 | N19 | **Docker healthcheck timeout too short** | CRITICAL | **FIXED** | Tester increased start_period from 90s to 240s in commit 9ddb14c. |
 
 | N20 | **ALL services fail: SchemaHealthController requires SchemaHealthIndicator bean not found** | CRITICAL | **FIXED** | Root cause: `@ConditionalOnBean` on `@Component` classes has unreliable evaluation order in Spring Boot — conditions evaluate before target beans are registered during component scanning. Fixed: removed `@ConditionalOnBean` from both classes, `SchemaHealthController` now uses `@Autowired(required = false)` for optional injection with null-safe methods. Also fixed same pattern on `PartnerCacheEvictionListener`. |
+
+| N21 | **Entity package restructure causes ALL DB services to freeze at HikariPool — platform cannot boot** | CRITICAL | **OPEN** | CTO's 323-file entity modularization moved 63 entities from `com.filetransfer.shared.entity.*` into 6 subpackages (`core/`, `transfer/`, `security/`, `integration/`, `vfs/`, root). Every service with `@EntityScan(basePackages = "com.filetransfer.shared.entity")` freezes silently after HikariPool starts. Only dmz-proxy (42s) and edi-converter (42s) boot — they have no DB. |
+
+### N21 — Full Evidence From Service Logs
+
+**Pattern:** Every DB service follows the same timeline then freezes:
+```
++0:00   Starting XxxApplication using Java 25.0.2
++1:20   HHH90000025: PostgreSQLDialect warning (Hibernate started)
++3:00   SEDA stages started (for routing services)
++3:15   [FlowFabricBridge] Initialized (Kafka connected)
++3:30   Xxx-Pool - Start completed (HikariPool ready)
++3:30   ← FROZEN — no more log output. Never reaches "Started XxxApplication"
+```
+
+**Affected services (16/22 — all with DB):**
+- onboarding-api: frozen at "Onboarding-Pool - Start completed"
+- config-service: frozen at "Config-Pool - Start completed"
+- sftp-service: frozen at "SFTP-Pool - Start completed"
+- ftp-service: frozen at "FTP-Pool - Start completed"
+- ftp-web-service: frozen at "FTPWeb-Pool - Start completed"
+- gateway-service: frozen at "Gateway-Pool - Start completed"
+- encryption-service: frozen at "Encryption-Pool - Start completed"
+- analytics-service: frozen at "Analytics-Pool - Start completed"
+- ai-engine: frozen at "AIEngine-Pool - Start completed"
+- screening-service: frozen at "Screening-Pool - Start completed"
+- keystore-manager: frozen at "Keystore-Pool - Start completed" (then VFS init, still frozen)
+- license-service: frozen at "License-Pool - Start completed" (then VFS init, still frozen)
+- storage-manager: frozen at "Storage-Pool - Start completed"
+- forwarder-service: frozen at "Forwarder-Pool - Start completed"
+- platform-sentinel: frozen (was crashing on SchemaHealthIndicator, now freezes like others)
+- notification-service: frozen (same)
+- as2-service: frozen at HikariPool
+
+**Not affected (2/22 — no DB):**
+- dmz-proxy: boots in 42s
+- edi-converter: boots in 42s
+
+**What happens after HikariPool:**
+Spring Data JPA initializes repository proxies for all 63 entities. With entities in the original flat package (`com.filetransfer.shared.entity.*`), this takes ~20s. After the restructure to subpackages, it appears to hang indefinitely. No log output, no error, no timeout.
+
+**The `@EntityScan` annotation on each service:**
+```java
+@EntityScan(basePackages = "com.filetransfer.shared.entity")
+@EnableJpaRepositories(basePackages = "com.filetransfer.shared.repository")
+```
+This should recursively scan subpackages. But the hang suggests either:
+1. A circular entity reference between subpackages (e.g., `transfer.FileFlow` → `core.TransferAccount` → `transfer.FolderMapping` → `core.ExternalDestination`) causing Hibernate metadata resolver to loop
+2. A `@ManyToOne(fetch = FetchType.EAGER)` on a cross-package entity pulling the entire entity graph during initialization
+3. Hibernate's `allow_jdbc_metadata_access=false` flag conflicting with the new package structure — Hibernate may need metadata access to resolve cross-package entity relationships
+
+**Diagnostic steps for CTO:**
+1. Add `-Dlogging.level.org.hibernate=DEBUG -Dlogging.level.org.springframework.data=DEBUG` to JAVA_TOOL_OPTIONS temporarily — this will show exactly which entity/repository Hibernate is stuck on
+2. Or revert the entity restructure to the flat package as a quick unblock — all entities back in `com.filetransfer.shared.entity.*`
+3. Or move entities incrementally — start with just `vfs/` package, test, then `security/`, test, etc. to find which package split causes the hang
+
+**JAVA_TOOL_OPTIONS confirmed present (not the issue):**
+```
+-Dspring.jpa.hibernate.ddl-auto=none ✓
+-Dspring.jpa.properties.hibernate.boot.allow_jdbc_metadata_access=false ✓
+-Dspring.jpa.properties.hibernate.temp.use_jdbc_metadata_defaults=false ✓
+```
