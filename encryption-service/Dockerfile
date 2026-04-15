@@ -7,7 +7,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf 
     mkdir -p /tmp && chmod 1777 /tmp
 
 COPY --chown=appuser:appgroup target/*.jar app.jar
+RUN java -Djarmode=tools -jar app.jar extract --destination /app/extracted && rm app.jar && chown -R appuser:appgroup /app/extracted
 
 USER appuser
 EXPOSE 8086
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-cp", "/app/extracted/lib/*:/app/extracted/app.jar", "org.springframework.boot.loader.launch.JarLauncher"]
