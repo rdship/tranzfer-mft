@@ -1436,10 +1436,10 @@ services:
   # ---------------------------------------------------------------------------
   ui-service:
     build:
-    restart: unless-stopped
       context: ./ui-service
       args:
         VITE_PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-PROD}
+    restart: unless-stopped
     container_name: mft-ui-service
     # Container port is 8080 (non-root nginx) — host URL stays http://localhost:3000
     ports:
