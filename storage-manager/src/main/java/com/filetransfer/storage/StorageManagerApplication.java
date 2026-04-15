@@ -18,11 +18,17 @@ import org.springframework.scheduling.annotation.EnableScheduling;
     )
 )
 @EntityScan(basePackages = {
-    "com.filetransfer.shared.entity.core"
+    "com.filetransfer.shared.entity.core",
+    "com.filetransfer.shared.entity.transfer",
+    "com.filetransfer.shared.entity.security",
+    "com.filetransfer.shared.entity.integration"
 })
 @EnableJpaRepositories(basePackages = {
     "com.filetransfer.storage.repository",
-    "com.filetransfer.shared.repository.core"
+    "com.filetransfer.shared.repository.core",
+    "com.filetransfer.shared.repository.transfer",
+    "com.filetransfer.shared.repository.security",
+    "com.filetransfer.shared.repository.integration"
 })
 @EnableScheduling
 public class StorageManagerApplication {

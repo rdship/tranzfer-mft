@@ -21,12 +21,14 @@ import org.springframework.scheduling.annotation.EnableScheduling;
     "com.filetransfer.shared.entity.core",
     "com.filetransfer.shared.entity.transfer",
     "com.filetransfer.shared.entity.security",
+    "com.filetransfer.shared.entity.integration",
     "com.filetransfer.shared.entity.vfs"
 })
 @EnableJpaRepositories(basePackages = {
     "com.filetransfer.shared.repository.core",
     "com.filetransfer.shared.repository.transfer",
     "com.filetransfer.shared.repository.security",
+    "com.filetransfer.shared.repository.integration",
     "com.filetransfer.shared.repository.vfs"
 })
 @EnableScheduling
