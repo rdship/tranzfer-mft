@@ -22,6 +22,15 @@ public class SecurityConfigValidator {
     @Value("${spring.profiles.active:default}")
     private String activeProfile;
 
+    @Value("${platform.version:UNKNOWN}")
+    private String platformVersion;
+
+    @Value("${platform.build-timestamp:UNKNOWN}")
+    private String buildTimestamp;
+
+    @Value("${cluster.service-type:UNKNOWN}")
+    private String serviceType;
+
     private static final java.util.Set<String> INSECURE_DEFAULTS = java.util.Set.of(
         "change_me_in_production_256bit_secret_key!!",
         "internal_control_secret",
@@ -30,6 +39,11 @@ public class SecurityConfigValidator {
 
     @PostConstruct
     public void validate() {
+        log.info("╔══════════════════════════════════════════════════════╗");
+        log.info("║  TranzFer MFT — {} v{}", serviceType, platformVersion);
+        log.info("║  Built: {}", buildTimestamp);
+        log.info("╚══════════════════════════════════════════════════════╝");
+
         boolean isProduction = activeProfile.contains("prod");
 
         if (INSECURE_DEFAULTS.contains(jwtSecret)) {
