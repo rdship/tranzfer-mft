@@ -285,3 +285,5 @@ This should recursively scan subpackages. But the hang suggests either:
 -Dspring.jpa.properties.hibernate.boot.allow_jdbc_metadata_access=false ✓
 -Dspring.jpa.properties.hibernate.temp.use_jdbc_metadata_defaults=false ✓
 ```
+
+| N22 | **Version banner (R30) never prints — SecurityConfigValidator not component-scanned** | HIGH | **OPEN** | `SecurityConfigValidator` in `com.filetransfer.shared.security` has `@Component` + `@PostConstruct` that prints the TranzFer version banner. But no service's `@SpringBootApplication` base package includes `com.filetransfer.shared.security`. The banner doesn't print on ANY service — not dmz-proxy (booted in 27s), not edi-converter (booted in 32s), not any other. **Fix:** Add `@ComponentScan(basePackages = {"com.filetransfer.shared"})` to each service's main application class, or move `SecurityConfigValidator` to a package that's already scanned. |
