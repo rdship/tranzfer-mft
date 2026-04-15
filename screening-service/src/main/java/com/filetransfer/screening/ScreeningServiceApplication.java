@@ -18,6 +18,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
     )
 )
 @EntityScan(basePackages = {
+    "com.filetransfer.screening.entity",
     "com.filetransfer.shared.entity.core",
     "com.filetransfer.shared.entity.security"
 })

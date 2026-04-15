@@ -10,6 +10,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(scanBasePackages = {"com.filetransfer.ai", "com.filetransfer.shared"})
 @EntityScan(basePackages = {
+    "com.filetransfer.ai.entity",
     "com.filetransfer.shared.entity.core",
     "com.filetransfer.shared.entity.transfer",
     "com.filetransfer.shared.entity.integration",
