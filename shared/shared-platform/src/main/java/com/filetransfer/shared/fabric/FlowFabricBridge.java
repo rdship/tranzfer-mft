@@ -9,6 +9,7 @@ import com.filetransfer.shared.entity.transfer.FlowExecution;
 import com.filetransfer.shared.repository.transfer.FabricCheckpointRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +31,7 @@ import java.util.UUID;
 @Component
 @RequiredArgsConstructor
 @Slf4j
+@ConditionalOnProperty(name = "flow.rules.enabled", havingValue = "true", matchIfMissing = false)
 public class FlowFabricBridge {
 
     public static final String TOPIC_FLOW_INTAKE = "flow.intake";

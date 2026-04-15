@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -51,6 +52,7 @@ import java.util.Optional;
  * <p>ShedLock ensures only one pod runs this at a time across the cluster.
  */
 @Component
+@ConditionalOnProperty(name = "flow.rules.enabled", havingValue = "true", matchIfMissing = false)
 @RequiredArgsConstructor
 @Slf4j
 public class LeaseReaperJob {

@@ -26,18 +26,8 @@ import java.security.Security;
         pattern = "com\\.filetransfer\\.shared\\.(routing|vfs|compliance|scheduler|event)\\..*"
     )
 )
-@EntityScan(basePackages = {
-    "com.filetransfer.shared.entity.core",
-    "com.filetransfer.shared.entity.transfer",
-    "com.filetransfer.shared.entity.security",
-    "com.filetransfer.shared.entity.integration"
-})
-@EnableJpaRepositories(basePackages = {
-    "com.filetransfer.shared.repository.core",
-    "com.filetransfer.shared.repository.transfer",
-    "com.filetransfer.shared.repository.security",
-    "com.filetransfer.shared.repository.integration"
-})
+@EntityScan(basePackages = "com.filetransfer.shared.entity.core")
+@EnableJpaRepositories(basePackages = "com.filetransfer.shared.repository.core")
 public class EncryptionServiceApplication {
     public static void main(String[] args) {
         Security.addProvider(new BouncyCastleProvider());

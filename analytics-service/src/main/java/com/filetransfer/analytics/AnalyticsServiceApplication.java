@@ -18,18 +18,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         pattern = "com\\.filetransfer\\.shared\\.(routing|vfs|compliance|scheduler|event)\\..*"
     )
 )
-@EntityScan(basePackages = {
-    "com.filetransfer.shared.entity.core",
-    "com.filetransfer.shared.entity.transfer",
-    "com.filetransfer.shared.entity.security",
-    "com.filetransfer.shared.entity.integration"
-})
+@EntityScan(basePackages = "com.filetransfer.shared.entity.core")
 @EnableJpaRepositories(basePackages = {
-    "com.filetransfer.analytics.repository",
     "com.filetransfer.shared.repository.core",
-    "com.filetransfer.shared.repository.transfer",
-    "com.filetransfer.shared.repository.security",
-    "com.filetransfer.shared.repository.integration"
+    "com.filetransfer.analytics.repository"
 })
 @EnableCaching
 @EnableScheduling

@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.filetransfer</groupId>
         <artifactId>file-transfer-platform</artifactId>
-        <version>1.0.0-R36</version>
+        <version>1.0.0-R37</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <artifactId>ai-engine</artifactId>

@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import jakarta.annotation.PostConstruct;
 import java.util.Map;
@@ -30,6 +31,7 @@ import java.util.UUID;
  * this bean is still created but does nothing in {@link #init()}.
  */
 @Component
+@ConditionalOnProperty(name = "flow.rules.enabled", havingValue = "true", matchIfMissing = false)
 @RequiredArgsConstructor
 @Slf4j
 public class FlowFabricConsumer {

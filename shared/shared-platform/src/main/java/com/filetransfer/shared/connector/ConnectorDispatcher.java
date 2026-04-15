@@ -5,6 +5,7 @@ import com.filetransfer.shared.entity.integration.WebhookConnector;
 import com.filetransfer.shared.repository.integration.WebhookConnectorRepository;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -31,6 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@ConditionalOnProperty(name = "platform.connectors.enabled", havingValue = "true", matchIfMissing = false)
 public class ConnectorDispatcher {
 
     private final WebhookConnectorRepository connectorRepository;
