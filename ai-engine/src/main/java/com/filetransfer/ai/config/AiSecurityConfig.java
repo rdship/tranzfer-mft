@@ -12,6 +12,8 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 @Configuration
 @EnableWebSecurity
@@ -28,17 +30,21 @@ public class AiSecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/**").permitAll()
-                        .requestMatchers("/internal/**").permitAll()
-                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers(ant("/actuator/**")).permitAll()
+                        .requestMatchers(ant("/internal/**")).permitAll()
+                        .requestMatchers(ant("/v3/api-docs/**"), ant("/swagger-ui/**"), ant("/swagger-ui.html")).permitAll()
                         // AI engine inter-service endpoints (called by DMZ proxy, no JWT)
-                        .requestMatchers("/api/v1/proxy/**").permitAll()
-                        .requestMatchers("/api/v1/intelligence/**").permitAll()
-                        .requestMatchers("/api/v1/edi/**").permitAll()
-                        .requestMatchers("/api/v1/ai/**").permitAll()
+                        .requestMatchers(ant("/api/v1/proxy/**")).permitAll()
+                        .requestMatchers(ant("/api/v1/intelligence/**")).permitAll()
+                        .requestMatchers(ant("/api/v1/edi/**")).permitAll()
+                        .requestMatchers(ant("/api/v1/ai/**")).permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class)
                 .build();
+    }
+
+    private static RequestMatcher ant(String pattern) {
+        return new AntPathRequestMatcher(pattern);
     }
 }

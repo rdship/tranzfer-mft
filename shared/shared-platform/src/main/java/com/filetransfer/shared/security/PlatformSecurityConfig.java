@@ -15,6 +15,8 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 /**
  * Default security configuration for all platform services.
@@ -29,6 +31,10 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  *
  * Open endpoints:
  *   - /actuator/** — health checks and management
+ *
+ * <p><b>N47 fix:</b> Spring Boot 3.4's PathPatternParser rejects {@code **}
+ * in the middle of patterns. All matchers use {@link AntPathRequestMatcher}
+ * explicitly to avoid PatternParseException.
  */
 @Configuration
 @EnableWebSecurity
@@ -57,13 +63,13 @@ public class PlatformSecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/**").permitAll()
-                        .requestMatchers("/internal/health").permitAll()
-                        .requestMatchers("/internal/**").hasRole("INTERNAL")
-                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers(ant("/actuator/**")).permitAll()
+                        .requestMatchers(ant("/internal/health")).permitAll()
+                        .requestMatchers(ant("/internal/**")).hasRole("INTERNAL")
+                        .requestMatchers(ant("/v3/api-docs/**"), ant("/swagger-ui/**"), ant("/swagger-ui.html")).permitAll()
                         // Health endpoints should never require auth — UI probes these to detect
                         // which services are running (ServiceContext.detectServices).
-                        .requestMatchers("/api/**/health", "/health").permitAll()
+                        .requestMatchers(ant("/api/**/health"), ant("/health")).permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class);
@@ -74,5 +80,9 @@ public class PlatformSecurityConfig {
         }
 
         return http.build();
+    }
+
+    private static RequestMatcher ant(String pattern) {
+        return new AntPathRequestMatcher(pattern);
     }
 }
