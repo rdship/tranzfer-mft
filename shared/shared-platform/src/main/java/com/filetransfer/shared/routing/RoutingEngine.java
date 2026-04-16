@@ -447,26 +447,9 @@ public class RoutingEngine {
                 log.warn("[{}] VIRTUAL account but no VirtualEntry for path={} — skipping",
                         trackId, relativeFilePath);
             }
-            // ── AI classification for VIRTUAL mode ──
-            if (aiClassifier != null) {
-                try {
-                    AiClassificationClient.ClassificationDecision decision =
-                            aiClassifier.classify(Paths.get(absoluteSourcePath), trackId,
-                                    absoluteSourcePath.endsWith(".enc") || absoluteSourcePath.endsWith(".pgp"));
-                    if (!decision.allowed()) {
-                        log.error("[{}] BLOCKED by AI classification (VIRTUAL): {}", trackId, decision.blockReason());
-                        auditService.logFailure(sourceAccount, trackId, "AI_BLOCKED",
-                                absoluteSourcePath, decision.blockReason());
-                        connectorDispatcher.dispatch(ConnectorDispatcher.MftEvent.builder()
-                                .eventType("AI_BLOCKED").severity("CRITICAL").trackId(trackId)
-                                .filename(filename).account(sourceAccount.getUsername())
-                                .summary("Transfer blocked: sensitive data detected without encryption (VIRTUAL)")
-                                .details(decision.blockReason()).service("routing-engine").build());
-                    }
-                } catch (Exception e) {
-                    log.debug("[{}] AI classification skipped (VIRTUAL): {}", trackId, e.getMessage());
-                }
-            }
+            // AI classification for VIRTUAL: handled by SCREEN step in the flow pipeline.
+            // File bytes are in VFS (MinIO/DB), not on disk — aiClassifier.classify(Path)
+            // can't read them. The SCREEN step materializes from VFS and scans properly.
             return; // VIRTUAL accounts: flow IS the routing; skip physical routing below
         }
 

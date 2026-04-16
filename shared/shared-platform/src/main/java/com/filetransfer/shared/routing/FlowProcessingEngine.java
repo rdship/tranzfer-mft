@@ -1330,6 +1330,12 @@ public class FlowProcessingEngine {
             exec.setStepResults(new ArrayList<>());
             exec.setTerminationRequested(false);
         } else {
+            // Idempotency: if another service already created the execution, use it
+            Optional<FlowExecution> existing = executionRepository.findByTrackId(trackId);
+            if (existing.isPresent()) {
+                log.info("[{}] FlowExecution already exists — skipping duplicate creation", trackId);
+                return existing.get();
+            }
             exec = FlowExecution.builder()
                     .trackId(trackId).flow(flow).originalFilename(filename)
                     .currentStorageKey(ref.storageKey())
