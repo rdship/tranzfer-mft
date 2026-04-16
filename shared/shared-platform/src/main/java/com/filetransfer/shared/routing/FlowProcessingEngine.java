@@ -1383,6 +1383,29 @@ public class FlowProcessingEngine {
         long   currentSize = ref.sizeBytes();
         List<FlowExecution.StepResult> results = new ArrayList<>();
 
+        // INLINE files (storageKey=null) must be promoted to CAS before step processing.
+        // Steps read via materializeFromCas(storageKey) — requires a valid key.
+        if (currentKey == null && vfsBridge != null && storageClient != null) {
+            try {
+                byte[] inlineData = vfsBridge.getVfs().readFile(ref.accountId(), currentPath);
+                if (inlineData != null && inlineData.length > 0) {
+                    String inlineFilename = VirtualFileSystem.nameOf(currentPath);
+                    Map<String, Object> stored = storageClient.storeStream(
+                            new java.io.ByteArrayInputStream(inlineData), inlineData.length,
+                            inlineFilename, ref.accountId().toString(), ref.trackId());
+                    currentKey = (String) stored.get("sha256");
+                    currentSize = inlineData.length;
+                    // Update VFS entry with the CAS key (promoted from INLINE to STANDARD)
+                    vfsBridge.getVfs().writeFile(ref.accountId(), currentPath, currentKey,
+                            currentSize, ref.trackId(), ref.contentType(), null);
+                    log.info("[{}] INLINE file promoted to CAS: key={}", ref.trackId(),
+                            currentKey != null ? currentKey.substring(0, 8) + "..." : "null");
+                }
+            } catch (Exception e) {
+                log.warn("[{}] INLINE promotion failed: {} — steps may fail", ref.trackId(), e.getMessage());
+            }
+        }
+
         // ── Journal: record execution start (VIRTUAL) ──
         if (flowEventJournal != null && startFromStep == 0) {
             flowEventJournal.recordExecutionStarted(trackId, exec.getId(), currentKey, flow.getSteps().size());
@@ -2188,8 +2211,36 @@ public class FlowProcessingEngine {
     private Path materializeFromCas(String storageKey, String filename) throws IOException {
         Path tempDir = Files.createTempDirectory("flow-cas-");
         Path tempFile = tempDir.resolve(filename);
-        try (java.io.OutputStream out = Files.newOutputStream(tempFile)) {
-            storageClient.streamToOutput(storageKey, out);
+        if (storageKey != null && storageClient != null) {
+            try (java.io.OutputStream out = Files.newOutputStream(tempFile)) {
+                storageClient.streamToOutput(storageKey, out);
+            }
+        } else {
+            throw new IOException("Cannot materialize file: storageKey is null for " + filename);
+        }
+        return tempFile;
+    }
+
+    /**
+     * Materialize a VIRTUAL file to temp — reads from CAS (STANDARD) or VFS (INLINE).
+     * Use this instead of materializeFromCas when the file may be INLINE-stored.
+     */
+    private Path materializeFromRef(FileRef ref) throws IOException {
+        String filename = VirtualFileSystem.nameOf(ref.virtualPath());
+        Path tempDir = Files.createTempDirectory("flow-cas-");
+        Path tempFile = tempDir.resolve(filename);
+
+        if (ref.storageKey() != null && storageClient != null) {
+            // STANDARD/CHUNKED: stream from storage-manager (MinIO)
+            try (java.io.OutputStream out = Files.newOutputStream(tempFile)) {
+                storageClient.streamToOutput(ref.storageKey(), out);
+            }
+        } else if (vfsBridge != null) {
+            // INLINE: read bytes from VFS database entry
+            byte[] data = vfsBridge.getVfs().readFile(ref.accountId(), ref.virtualPath());
+            Files.write(tempFile, data);
+        } else {
+            throw new IOException("Cannot materialize file: no storageKey and no VFS for " + filename);
         }
         return tempFile;
     }
