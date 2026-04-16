@@ -333,7 +333,9 @@ public class VirtualSftpFileSystemProvider extends FileSystemProvider {
 
         @Override
         public int write(ByteBuffer src) throws IOException {
-            return tempChannel.write(src);
+            int written = tempChannel.write(src);
+            log.info("[VFS] write(): {} bytes to {} (total={})", written, vpath, tempChannel.size());
+            return written;
         }
 
         @Override public long position() throws IOException { return tempChannel.position(); }
@@ -350,12 +352,19 @@ public class VirtualSftpFileSystemProvider extends FileSystemProvider {
 
         @Override
         public void close() throws IOException {
-            if (!open) return;
+            if (!open) {
+                log.warn("[VFS] close(): already closed for {}", vpath);
+                return;
+            }
             open = false;
 
             try {
                 long fileSize = tempChannel.size();
-                if (fileSize == 0) return;
+                log.info("[VFS] close(): {} fileSize={} bytes", vpath, fileSize);
+                if (fileSize == 0) {
+                    log.warn("[VFS] close(): 0 bytes written to {} — skipping storage", vpath);
+                    return;
+                }
 
                 String filename = VirtualFileSystem.nameOf(vpath);
                 String bucket = vfs().determineBucket(fileSize, accountId());
