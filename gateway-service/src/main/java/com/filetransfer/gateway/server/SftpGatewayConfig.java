@@ -103,7 +103,9 @@ public class SftpGatewayConfig {
         };
 
         sshd.setFileSystemFactory(proxyFsFactory);
-        sshd.setSubsystemFactories(Collections.singletonList(new SftpSubsystemFactory()));
+        SftpSubsystemFactory sftpFactory = new SftpSubsystemFactory();
+        sftpFactory.setFileSystemAccessor(new VfsSftpFileSystemAccessor());
+        sshd.setSubsystemFactories(Collections.singletonList(sftpFactory));
         return sshd;
     }
 

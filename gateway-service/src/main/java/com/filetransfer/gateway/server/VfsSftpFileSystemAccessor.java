@@ -1,4 +1,5 @@
-package com.filetransfer.sftp.server;
+package com.filetransfer.gateway.server;
+
 import org.apache.sshd.sftp.server.FileHandle;
 import org.apache.sshd.sftp.server.SftpFileSystemAccessor;
 import org.apache.sshd.sftp.server.SftpSubsystemProxy;
@@ -12,18 +13,10 @@ import java.nio.file.attribute.FileAttribute;
 import java.util.Set;
 
 /**
- * Custom SftpFileSystemAccessor that routes file I/O through the VFS provider.
- *
- * <p>MINA's default accessor calls {@code FileChannel.open()} directly, bypassing
- * our {@code VirtualSftpFileSystemProvider.newByteChannel()}. This means VFS writes
- * never reach MinIO — bytes go to local disk or fail silently.
- *
- * <p>This accessor delegates to the path's own {@code FileSystemProvider} which,
- * for VIRTUAL accounts, is {@code VirtualSftpFileSystemProvider} and returns a
- * {@code VirtualWriteChannel} that stores to MinIO on close.
- *
- * <p>For PHYSICAL accounts (standard filesystem), the provider's newByteChannel()
- * returns a normal FileChannel — same behavior as the default accessor.
+ * Routes SFTP file I/O through the path's own FileSystemProvider instead of
+ * FileChannel.open(). Ensures VFS-backed paths use VirtualWriteChannel.
+ * Same logic as sftp-service's copy — kept separate to avoid pulling MINA
+ * SFTP dependency into shared-platform.
  */
 public class VfsSftpFileSystemAccessor implements SftpFileSystemAccessor {
 
@@ -32,8 +25,6 @@ public class VfsSftpFileSystemAccessor implements SftpFileSystemAccessor {
                                          Path file, String handle,
                                          Set<? extends OpenOption> options,
                                          FileAttribute<?>... attrs) throws IOException {
-        // Delegate to the path's filesystem provider — this calls
-        // VirtualSftpFileSystemProvider.newByteChannel() for VIRTUAL accounts
         return file.getFileSystem().provider().newByteChannel(file, options, attrs);
     }
 
