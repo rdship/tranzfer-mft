@@ -14,6 +14,7 @@ import com.filetransfer.sentinel.repository.HealthScoreRepository;
 import com.filetransfer.sentinel.repository.SentinelFindingRepository;
 import com.filetransfer.sentinel.repository.SentinelRuleRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -25,6 +26,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/sentinel")
 @RequiredArgsConstructor
@@ -229,12 +231,21 @@ public class SentinelController {
 
     @GetMapping("/health")
     public ResponseEntity<Map<String, Object>> health() {
+        // DB stats are best-effort — health probe must never fail or block
+        long totalRules = -1;
+        long openFindings = -1;
+        try {
+            totalRules = ruleRepository.count();
+            openFindings = findingRepository.countByStatus("OPEN");
+        } catch (Exception e) {
+            log.debug("Health probe DB stats unavailable: {}", e.getMessage());
+        }
         return ResponseEntity.ok(Map.of(
                 "status", "UP",
                 "service", "platform-sentinel",
                 "port", 8098,
-                "totalRules", ruleRepository.count(),
-                "openFindings", findingRepository.countByStatus("OPEN")
+                "totalRules", totalRules,
+                "openFindings", openFindings
         ));
     }
 }

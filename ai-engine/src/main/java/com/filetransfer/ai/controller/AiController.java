@@ -275,17 +275,23 @@ public class AiController {
 
     @GetMapping("/health")
     public Map<String, Object> health() {
+        Map<String, Boolean> features = new java.util.LinkedHashMap<>();
+        features.put("classification", true);
+        features.put("anomalyDetection", true);
+        features.put("nlp", true);
+        features.put("riskScoring", true);
+        features.put("smartRetry", true);
+        features.put("contentValidation", true);
+        features.put("threatScoring", true);
+        features.put("partnerProfiles", true);
+        features.put("predictiveSla", true);
+        features.put("autoRemediation", true);
+        features.put("nlMonitoring", true);
+        features.put("formatDetection", true);
         return Map.of(
                 "status", "UP",
                 "service", "ai-engine",
                 "version", "3.0.0-phase3",
-                "features", new java.util.LinkedHashMap<>(Map.of(
-                        "classification", true, "anomalyDetection", true,
-                        "nlp", true, "riskScoring", true,
-                        "smartRetry", true, "contentValidation", true,
-                        "threatScoring", true,
-                        "partnerProfiles", true, "predictiveSla", true,
-                        "autoRemediation", true
-                )) {{ put("nlMonitoring", true); put("formatDetection", true); }});
+                "features", features);
     }
 }

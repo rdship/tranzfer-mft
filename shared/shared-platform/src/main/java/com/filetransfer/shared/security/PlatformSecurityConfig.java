@@ -61,6 +61,9 @@ public class PlatformSecurityConfig {
                         .requestMatchers("/internal/health").permitAll()
                         .requestMatchers("/internal/**").hasRole("INTERNAL")
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        // Health endpoints should never require auth — UI probes these to detect
+                        // which services are running (ServiceContext.detectServices).
+                        .requestMatchers("/api/**/health", "/health").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class);
