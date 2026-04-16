@@ -654,8 +654,8 @@ export default function ActivityMonitor() {
     queryKey: ['activity-monitor', queryParams],
     queryFn: () => onboardingApi.get('/api/activity-monitor', { params: queryParams }).then(r => r.data),
     placeholderData: keepPreviousData,
-    meta: { silent: true }, refetchInterval: autoRefresh ? 30000 : false,
-    meta: { errorMessage: "Couldn't load transfers" },
+    refetchInterval: autoRefresh ? 30000 : false,
+    meta: { silent: true, errorMessage: "Couldn't load transfers" },
   })
 
   // Skeleton only shows on the first fetch (no data yet), and only if the

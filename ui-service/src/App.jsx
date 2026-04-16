@@ -26,90 +26,102 @@ import PartnerPortalDashboard from './pages/PartnerPortalDashboard'
 import PartnerPortalTransfers from './pages/PartnerPortalTransfers'
 import PartnerPortalSettings from './pages/PartnerPortalSettings'
 
-// Move heavy operations pages to lazy to break circular dependency chain
-// that causes "Cannot access 'It' before initialization" in production build
-const ActivityMonitor = safeLazy(() => import('./pages/ActivityMonitor'), 'Activity Monitor')
-const FabricDashboard = lazy(() => import('./pages/FabricDashboard'))
-const Journey = lazy(() => import('./pages/Journey'))
-const Activity = lazy(() => import('./pages/Activity'))
-
 // ── LAZY IMPORTS ──────────────────────────────────────────────────────
 // Cold-path pages split into their own chunks. Each chunk is downloaded
-// on first navigation and cached for the session. A ChunkLoadErrorBoundary
-// catches the stale-HTML-after-deploy case and offers the user a refresh.
-// safeLazy: catches module init errors ("Cannot access X before initialization")
+// on first navigation and cached for the session.
+//
+// safeLazy: catches BOTH async import errors AND synchronous module
+// initialization errors ("Cannot access 'X' before initialization").
+// The sync error happens during Vite's module linking when minified code
+// references a shared chunk variable before it's initialized.
 function safeLazy(importFn, name) {
-  return lazy(() => importFn().catch(err => {
-    console.error(`[${name}] Module load failed:`, err)
-    return { default: () => (
-      <div className="p-8 text-center">
-        <p className="text-lg font-semibold text-red-500 mb-2">Page failed to load</p>
-        <p className="text-sm opacity-60 mb-4">{name}: {err?.message || 'Unknown error'}</p>
-        <button onClick={() => window.location.reload()}
-          className="px-4 py-2 rounded-lg text-sm" style={{ background: 'rgb(var(--accent))', color: '#fff' }}>
-          Reload
-        </button>
-      </div>
-    )}
-  }))
+  return lazy(async () => {
+    try {
+      const mod = await importFn()
+      // Verify the module actually exported a default component
+      if (!mod || !mod.default) {
+        throw new Error(`Module ${name} has no default export`)
+      }
+      return mod
+    } catch (err) {
+      console.error(`[${name}] Module load/init failed:`, err)
+      return { default: () => (
+        <div className="p-8 text-center">
+          <p className="text-lg font-semibold text-red-500 mb-2">{name} failed to load</p>
+          <p className="text-sm opacity-60 mb-4">{err?.message || 'Unknown error'}</p>
+          <button onClick={() => window.location.reload()}
+            className="px-4 py-2 rounded-lg text-sm" style={{ background: 'rgb(var(--accent))', color: '#fff' }}>
+            Reload Page
+          </button>
+        </div>
+      )}
+    }
+  })
 }
 
-const Partners           = lazy(() => import('./pages/Partners'))
-const PartnerDetail      = lazy(() => import('./pages/PartnerDetail'))
-const PartnerSetup       = lazy(() => import('./pages/PartnerSetup'))
-const ServiceManagement  = lazy(() => import('./pages/ServiceManagement'))
-const Accounts           = lazy(() => import('./pages/Accounts'))
-const Users              = lazy(() => import('./pages/Users'))
-const FolderMappings     = lazy(() => import('./pages/FolderMappings'))
-const ServerInstances    = lazy(() => import('./pages/ServerInstances'))
-const FolderTemplates    = lazy(() => import('./pages/FolderTemplates'))
-const SecurityProfiles   = lazy(() => import('./pages/SecurityProfiles'))
-const ExternalDestinations = lazy(() => import('./pages/ExternalDestinations'))
-const Partnerships       = lazy(() => import('./pages/Partnerships'))
-const Analytics          = lazy(() => import('./pages/Analytics'))
-const Predictions        = lazy(() => import('./pages/Predictions'))
-const Logs               = lazy(() => import('./pages/Logs'))
-const Flows              = lazy(() => import('./pages/Flows'))
+// ALL operations pages use safeLazy — these are the pages most likely to hit
+// circular dependency issues because they import from shared contexts + APIs
+const ActivityMonitor = safeLazy(() => import('./pages/ActivityMonitor'), 'Activity Monitor')
+const FabricDashboard = safeLazy(() => import('./pages/FabricDashboard'), 'Fabric Dashboard')
+const Journey = safeLazy(() => import('./pages/Journey'), 'Journey')
+const Activity = safeLazy(() => import('./pages/Activity'), 'Activity')
+
+const Partners           = safeLazy(() => import('./pages/Partners'), 'Partners')
+const PartnerDetail      = safeLazy(() => import('./pages/PartnerDetail'), 'Partner Detail')
+const PartnerSetup       = safeLazy(() => import('./pages/PartnerSetup'), 'Partner Setup')
+const ServiceManagement  = safeLazy(() => import('./pages/ServiceManagement'), 'Service Management')
+const Accounts           = safeLazy(() => import('./pages/Accounts'), 'Accounts')
+const Users              = safeLazy(() => import('./pages/Users'), 'Users')
+const FolderMappings     = safeLazy(() => import('./pages/FolderMappings'), 'Folder Mappings')
+const ServerInstances    = safeLazy(() => import('./pages/ServerInstances'), 'Server Instances')
+const FolderTemplates    = safeLazy(() => import('./pages/FolderTemplates'), 'Folder Templates')
+const SecurityProfiles   = safeLazy(() => import('./pages/SecurityProfiles'), 'Security Profiles')
+const ExternalDestinations = safeLazy(() => import('./pages/ExternalDestinations'), 'External Destinations')
+const Partnerships       = safeLazy(() => import('./pages/Partnerships'), 'Partnerships')
+const Analytics          = safeLazy(() => import('./pages/Analytics'), 'Analytics')
+const Predictions        = safeLazy(() => import('./pages/Predictions'), 'Predictions')
+const Logs               = safeLazy(() => import('./pages/Logs'), 'Logs')
+const Flows              = safeLazy(() => import('./pages/Flows'), 'Flows')
 const GatewayStatus      = safeLazy(() => import('./pages/GatewayStatus'), 'Gateway')
 const DmzProxy           = safeLazy(() => import('./pages/DmzProxy'), 'DMZ Proxy')
-const ProxyGroups        = lazy(() => import('./pages/ProxyGroups'))
-const Keystore           = lazy(() => import('./pages/Keystore'))
-const Scheduler          = lazy(() => import('./pages/Scheduler'))
-const FunctionQueues     = lazy(() => import('./pages/FunctionQueues'))
-const Listeners          = lazy(() => import('./pages/Listeners'))
-const Sla                = lazy(() => import('./pages/Sla'))
-const Screening          = lazy(() => import('./pages/Screening'))
-const Recommendations    = lazy(() => import('./pages/Recommendations'))
-const Storage            = lazy(() => import('./pages/Storage'))
-const CasDedup           = lazy(() => import('./pages/CasDedup'))
-const VfsStorage         = lazy(() => import('./pages/VfsStorage'))
-const CircuitBreakers    = lazy(() => import('./pages/CircuitBreakers'))
-const Observatory        = lazy(() => import('./pages/Observatory'))
-const TwoFactor          = lazy(() => import('./pages/TwoFactor'))
-const ApiConsole         = lazy(() => import('./pages/ApiConsole'))
-const Edi                = lazy(() => import('./pages/Edi'))
-const MapBuilder         = lazy(() => import('./pages/MapBuilder'))
-const Tenants            = lazy(() => import('./pages/Tenants'))
-const Blockchain         = lazy(() => import('./pages/Blockchain'))
-const Compliance         = lazy(() => import('./pages/Compliance'))
-const Notifications      = lazy(() => import('./pages/Notifications'))
-const Connectors         = lazy(() => import('./pages/Connectors'))
-const PlatformConfig     = lazy(() => import('./pages/PlatformConfig'))
-const PeerTransfers      = lazy(() => import('./pages/PeerTransfers'))
-const Terminal           = lazy(() => import('./pages/Terminal'))
-const License            = lazy(() => import('./pages/License'))
-const DlqManager         = lazy(() => import('./pages/DlqManager'))
-const Quarantine         = lazy(() => import('./pages/Quarantine'))
-const FileManager        = lazy(() => import('./pages/FileManager'))
+const ProxyGroups        = safeLazy(() => import('./pages/ProxyGroups'), 'Proxy Groups')
+const Keystore           = safeLazy(() => import('./pages/Keystore'), 'Keystore')
+const Scheduler          = safeLazy(() => import('./pages/Scheduler'), 'Scheduler')
+const FunctionQueues     = safeLazy(() => import('./pages/FunctionQueues'), 'Function Queues')
+const Listeners          = safeLazy(() => import('./pages/Listeners'), 'Listeners')
+const Sla                = safeLazy(() => import('./pages/Sla'), 'SLA')
+const Screening          = safeLazy(() => import('./pages/Screening'), 'Screening')
+const Recommendations    = safeLazy(() => import('./pages/Recommendations'), 'Recommendations')
+const Storage            = safeLazy(() => import('./pages/Storage'), 'Storage')
+const CasDedup           = safeLazy(() => import('./pages/CasDedup'), 'CAS Dedup')
+const VfsStorage         = safeLazy(() => import('./pages/VfsStorage'), 'VFS Storage')
+const CircuitBreakers    = safeLazy(() => import('./pages/CircuitBreakers'), 'Circuit Breakers')
+const Observatory        = safeLazy(() => import('./pages/Observatory'), 'Observatory')
+const TwoFactor          = safeLazy(() => import('./pages/TwoFactor'), 'Two Factor')
+const ApiConsole         = safeLazy(() => import('./pages/ApiConsole'), 'API Console')
+const Edi                = safeLazy(() => import('./pages/Edi'), 'Edi')
+const MapBuilder         = safeLazy(() => import('./pages/MapBuilder'), 'MapBuilder')
+const Tenants            = safeLazy(() => import('./pages/Tenants'), 'Tenants')
+const Blockchain         = safeLazy(() => import('./pages/Blockchain'), 'Blockchain')
+const Compliance         = safeLazy(() => import('./pages/Compliance'), 'Compliance')
+const Notifications      = safeLazy(() => import('./pages/Notifications'), 'Notifications')
+const Connectors         = safeLazy(() => import('./pages/Connectors'), 'Connectors')
+const PlatformConfig     = safeLazy(() => import('./pages/PlatformConfig'), 'PlatformConfig')
+const PeerTransfers      = safeLazy(() => import('./pages/PeerTransfers'), 'PeerTransfers')
+const Terminal           = safeLazy(() => import('./pages/Terminal'), 'Terminal')
+const License            = safeLazy(() => import('./pages/License'), 'License')
+const DlqManager         = safeLazy(() => import('./pages/DlqManager'), 'DlqManager')
+const Quarantine         = safeLazy(() => import('./pages/Quarantine'), 'Quarantine')
+const FileManager        = safeLazy(() => import('./pages/FileManager'), 'FileManager')
 const ClusterDashboard   = safeLazy(() => import('./pages/ClusterDashboard'), 'Cluster')
-const AutoOnboarding     = lazy(() => import('./pages/AutoOnboarding'))
-const Migration          = lazy(() => import('./pages/Migration'))
-const ThreatIntelligence = lazy(() => import('./pages/ThreatIntelligence'))
-const EdiTraining        = lazy(() => import('./pages/EdiTraining'))
-const ProxyIntelligence  = lazy(() => import('./pages/ProxyIntelligence'))
-const ConfigExport       = lazy(() => import('./pages/ConfigExport'))
-const Monitoring         = lazy(() => import('./pages/Monitoring'))
-const DatabaseAdvisory   = lazy(() => import('./pages/DatabaseAdvisory'))
+const AutoOnboarding     = safeLazy(() => import('./pages/AutoOnboarding'), 'AutoOnboarding')
+const Migration          = safeLazy(() => import('./pages/Migration'), 'Migration')
+const ThreatIntelligence = safeLazy(() => import('./pages/ThreatIntelligence'), 'ThreatIntelligence')
+const EdiTraining        = safeLazy(() => import('./pages/EdiTraining'), 'EdiTraining')
+const ProxyIntelligence  = safeLazy(() => import('./pages/ProxyIntelligence'), 'ProxyIntelligence')
+const ConfigExport       = safeLazy(() => import('./pages/ConfigExport'), 'ConfigExport')
+const Monitoring         = safeLazy(() => import('./pages/Monitoring'), 'Monitoring')
+const DatabaseAdvisory   = safeLazy(() => import('./pages/DatabaseAdvisory'), 'DatabaseAdvisory')
 
 /**
  * RouteFallback — shown while a lazy route chunk is being fetched.
