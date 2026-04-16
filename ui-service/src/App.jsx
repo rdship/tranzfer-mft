@@ -37,18 +37,27 @@ import PartnerPortalSettings from './pages/PartnerPortalSettings'
 function safeLazy(importFn, name) {
   return lazy(async () => {
     try {
-      const mod = await importFn()
-      // Verify the module actually exported a default component
-      if (!mod || !mod.default) {
-        throw new Error(`Module ${name} has no default export`)
+      return await importFn()
+    } catch (firstErr) {
+      // "Cannot access X before initialization" = circular dependency in Vite chunks.
+      // Retry once — the shared chunk may have finished initializing by now.
+      if (firstErr?.message?.includes('before initialization')) {
+        console.warn(`[${name}] Circular dep detected, retrying...`)
+        await new Promise(r => setTimeout(r, 100))
+        try {
+          return await importFn()
+        } catch (retryErr) {
+          console.error(`[${name}] Retry failed:`, retryErr)
+        }
       }
-      return mod
-    } catch (err) {
-      console.error(`[${name}] Module load/init failed:`, err)
+      // All other errors: show inline fallback instead of crashing the app.
+      // ChunkLoadErrorBoundary catches full navigation failures;
+      // this handles partial chunk init failures gracefully.
+      console.error(`[${name}] Module load failed:`, firstErr)
       return { default: () => (
         <div className="p-8 text-center">
           <p className="text-lg font-semibold text-red-500 mb-2">{name} failed to load</p>
-          <p className="text-sm opacity-60 mb-4">{err?.message || 'Unknown error'}</p>
+          <p className="text-sm opacity-60 mb-4">{firstErr?.message || 'Unknown error'}</p>
           <button onClick={() => window.location.reload()}
             className="px-4 py-2 rounded-lg text-sm" style={{ background: 'rgb(var(--accent))', color: '#fff' }}>
             Reload Page
