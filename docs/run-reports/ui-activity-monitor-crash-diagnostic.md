@@ -163,3 +163,27 @@ const SomeComponent = React.lazy(() => import('../components/SomeComponent'))
 5. Page shows: "This page crashed — Cannot access 'he' before initialization"
 
 Other pages (Partners, Accounts, Servers, Flows, etc.) work fine — they don't trigger both `shared-hooks` and `shared-components` in a way that hits the circular init.
+
+---
+
+## Update: Chunk Fix Applied But Crash Persists
+
+CTO merged `shared-hooks` + `shared-components` into `shared-app` chunk. No more cross-chunk cycle between hooks and components.
+
+**Current chunk structure (clean):**
+```
+shared-api    → no shared-* imports
+shared-app    → imports shared-api, shared-context (one-directional)
+shared-context → imports shared-api (one-directional)
+index         → imports shared-app, shared-api, shared-context
+ActivityMonitor → imports shared-app, shared-api, shared-context
+```
+
+No circular imports detected between chunks. But the crash persists.
+
+**Hypothesis:** The cycle may be WITHIN the `shared-app` chunk — between components and hooks that are now in the same file but still have circular `import` statements at the module level. Vite bundles them into one chunk but the ESM initialization order within the chunk can still cause TDZ if module A's top-level code references module B's export before B's declaration runs.
+
+**Dev needs to:**
+1. Build with `vite build --sourcemap` and check Chrome DevTools for the exact line
+2. OR run `npx madge --circular ui-service/src/` to find file-level circular imports
+3. The variable `he` in the error is a minified name — source maps will reveal the real variable
