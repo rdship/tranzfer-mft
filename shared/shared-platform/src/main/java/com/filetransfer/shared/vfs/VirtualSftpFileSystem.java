@@ -20,15 +20,6 @@ import java.util.*;
  */
 public class VirtualSftpFileSystem extends FileSystem {
 
-    /**
-     * Fired after VirtualWriteChannel.close() stores bytes and creates the VFS entry.
-     * The SFTP server uses this to publish FileUploadedEvent to RabbitMQ.
-     */
-    @FunctionalInterface
-    public interface WriteCompletionCallback {
-        void onFileWritten(String virtualPath, long sizeBytes, String storageKey);
-    }
-
     @Getter
     private final VirtualSftpFileSystemProvider provider;
     @Getter
@@ -38,12 +29,12 @@ public class VirtualSftpFileSystem extends FileSystem {
     @Getter
     private final StorageServiceClient storageClient;
     @Getter
-    private final WriteCompletionCallback writeCallback;
+    private final VfsWriteCallback writeCallback;
     private volatile boolean open = true;
 
     public VirtualSftpFileSystem(UUID accountId, VirtualFileSystem vfs,
                                   StorageServiceClient storageClient,
-                                  WriteCompletionCallback writeCallback) {
+                                  VfsWriteCallback writeCallback) {
         this.accountId = accountId;
         this.vfs = vfs;
         this.storageClient = storageClient;

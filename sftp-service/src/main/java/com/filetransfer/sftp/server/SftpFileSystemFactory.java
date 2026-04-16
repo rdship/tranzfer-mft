@@ -8,6 +8,7 @@ import com.filetransfer.shared.repository.core.FolderTemplateRepository;
 import com.filetransfer.shared.repository.core.ServerInstanceRepository;
 import com.filetransfer.shared.vfs.VirtualFileSystem;
 import com.filetransfer.shared.routing.RoutingEngine;
+import com.filetransfer.shared.vfs.VfsWriteCallback;
 import com.filetransfer.shared.vfs.VirtualSftpFileSystem;
 import com.filetransfer.shared.vfs.VirtualSftpPath;
 import lombok.RequiredArgsConstructor;
@@ -92,7 +93,7 @@ public class SftpFileSystemFactory implements FileSystemFactory {
             final String sourceIp = sessionIp;
 
             // Callback: after VFS write completes, trigger file routing
-            VirtualSftpFileSystem.WriteCompletionCallback onWritten = (virtualPath, sizeBytes, storageKey) -> {
+            VfsWriteCallback onWritten = (virtualPath, sizeBytes, storageKey) -> {
                 log.info("VFS write complete: user={} path={} size={} — triggering routing",
                         username, virtualPath, sizeBytes);
                 routingEngine.onFileUploaded(acct, virtualPath, acct.getHomeDir() + virtualPath, sourceIp);

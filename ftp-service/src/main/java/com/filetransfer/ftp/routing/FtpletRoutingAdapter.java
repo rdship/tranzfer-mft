@@ -78,7 +78,14 @@ public class FtpletRoutingAdapter extends DefaultFtplet {
         extras.put("duration_ms", durationMs);
         auditEventLogger.logEvent("UPLOAD", username, sourceIp, extras);
 
-        log.info("FTP upload detected: user={} path={} bytes={} ip={}", username, relativePath, bytes, sourceIp);
+        // VIRTUAL accounts: routing is triggered by VFS write callback (VirtualFtpFile.close()),
+        // not here. The VFS entry must exist before routing can match flows.
+        if ("VIRTUAL".equalsIgnoreCase(account.getStorageMode())) {
+            log.debug("FTP upload (VIRTUAL): user={} file={} — routing deferred to VFS close", username, relativePath);
+            return FtpletResult.DEFAULT;
+        }
+
+        log.info("FTP upload detected (PHYSICAL): user={} path={} bytes={} ip={}", username, relativePath, bytes, sourceIp);
         routingEngine.onFileUploaded(account, relativePath, absolutePath, sourceIp);
         return FtpletResult.DEFAULT;
     }

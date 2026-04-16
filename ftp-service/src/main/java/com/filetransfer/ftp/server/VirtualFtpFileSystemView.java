@@ -19,28 +19,32 @@ public class VirtualFtpFileSystemView implements FileSystemView {
     private final UUID accountId;
     private final VirtualFileSystem vfs;
     private final StorageServiceClient storageClient;
+    private final com.filetransfer.shared.vfs.VfsWriteCallback writeCallback;
     private String workingDir = "/";
     private VirtualEntry workingDirEntry; // cached from changeWorkingDirectory to avoid re-stat
 
-    public VirtualFtpFileSystemView(UUID accountId, VirtualFileSystem vfs, StorageServiceClient storageClient) {
+    public VirtualFtpFileSystemView(UUID accountId, VirtualFileSystem vfs,
+                                     StorageServiceClient storageClient,
+                                     com.filetransfer.shared.vfs.VfsWriteCallback writeCallback) {
         this.accountId = accountId;
         this.vfs = vfs;
         this.storageClient = storageClient;
+        this.writeCallback = writeCallback;
     }
 
     @Override
     public FtpFile getHomeDirectory() {
         // Root is special-cased in VirtualFtpFile (always exists, always directory) — no stat needed
-        return new VirtualFtpFile("/", accountId, vfs, storageClient, null);
+        return new VirtualFtpFile("/", accountId, vfs, storageClient);
     }
 
     @Override
     public FtpFile getWorkingDirectory() {
         // Root is special-cased — skip stat; otherwise use cached entry from changeWorkingDirectory
         if ("/".equals(workingDir)) {
-            return new VirtualFtpFile("/", accountId, vfs, storageClient, null);
+            return new VirtualFtpFile("/", accountId, vfs, storageClient);
         }
-        return new VirtualFtpFile(workingDir, accountId, vfs, storageClient, workingDirEntry);
+        return VirtualFtpFile.withEntry(workingDir, accountId, vfs, storageClient, workingDirEntry);
     }
 
     @Override
@@ -67,11 +71,15 @@ public class VirtualFtpFileSystemView implements FileSystemView {
         String resolved = resolvePath(file);
         // Root is special-cased in VirtualFtpFile — skip the stat call
         if ("/".equals(resolved)) {
-            return new VirtualFtpFile("/", accountId, vfs, storageClient, null);
+            return new VirtualFtpFile("/", accountId, vfs, storageClient);
         }
         // Single stat call here; entry passed directly to constructor (no second stat)
         VirtualEntry entry = vfs.stat(accountId, resolved).orElse(null);
-        return new VirtualFtpFile(resolved, accountId, vfs, storageClient, entry);
+        // For new files (entry=null, will be created on write), pass the write callback
+        if (entry == null) {
+            return new VirtualFtpFile(resolved, accountId, vfs, storageClient, writeCallback);
+        }
+        return VirtualFtpFile.withEntry(resolved, accountId, vfs, storageClient, entry);
     }
 
     @Override

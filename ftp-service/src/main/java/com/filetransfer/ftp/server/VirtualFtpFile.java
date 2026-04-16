@@ -30,22 +30,39 @@ public class VirtualFtpFile implements FtpFile {
     private final VirtualFileSystem vfs;
     private final StorageServiceClient storageClient;
     private final VirtualEntry entry; // null if path doesn't exist yet
+    private final com.filetransfer.shared.vfs.VfsWriteCallback writeCallback;
 
     public VirtualFtpFile(String virtualPath, UUID accountId, VirtualFileSystem vfs,
-                           StorageServiceClient storageClient) {
+                           StorageServiceClient storageClient,
+                           com.filetransfer.shared.vfs.VfsWriteCallback writeCallback) {
         this.virtualPath = VirtualFileSystem.normalizePath(virtualPath);
         this.accountId = accountId;
         this.vfs = vfs;
         this.storageClient = storageClient;
+        this.writeCallback = writeCallback;
         this.entry = vfs.stat(accountId, this.virtualPath).orElse(null);
     }
 
-    VirtualFtpFile(String virtualPath, UUID accountId, VirtualFileSystem vfs,
-                    StorageServiceClient storageClient, VirtualEntry entry) {
+    /** Backwards-compatible constructor (no callback). */
+    public VirtualFtpFile(String virtualPath, UUID accountId, VirtualFileSystem vfs,
+                           StorageServiceClient storageClient) {
+        this(virtualPath, accountId, vfs, storageClient, (com.filetransfer.shared.vfs.VfsWriteCallback) null);
+    }
+
+    static VirtualFtpFile withEntry(String virtualPath, UUID accountId, VirtualFileSystem vfs,
+                                     StorageServiceClient storageClient, VirtualEntry entry) {
+        return new VirtualFtpFile(virtualPath, accountId, vfs, storageClient, null, entry);
+    }
+
+    private VirtualFtpFile(String virtualPath, UUID accountId, VirtualFileSystem vfs,
+                            StorageServiceClient storageClient,
+                            com.filetransfer.shared.vfs.VfsWriteCallback writeCallback,
+                            VirtualEntry entry) {
         this.virtualPath = VirtualFileSystem.normalizePath(virtualPath);
         this.accountId = accountId;
         this.vfs = vfs;
         this.storageClient = storageClient;
+        this.writeCallback = writeCallback;
         this.entry = entry;
     }
 
@@ -148,7 +165,7 @@ public class VirtualFtpFile implements FtpFile {
     public List<? extends FtpFile> listFiles() {
         if (!isDirectory()) return List.of();
         return vfs.list(accountId, virtualPath).stream()
-                .map(e -> new VirtualFtpFile(e.getPath(), accountId, vfs, storageClient, e))
+                .map(e -> VirtualFtpFile.withEntry(e.getPath(), accountId, vfs, storageClient, e))
                 .map(f -> (FtpFile) f)
                 .toList();
     }
@@ -215,6 +232,7 @@ public class VirtualFtpFile implements FtpFile {
                 String filename = VirtualFileSystem.nameOf(virtualPath);
                 String bucket = vfs.determineBucket(bytesWritten, accountId);
 
+                String storedKey = null;
                 switch (bucket) {
                     case "INLINE" -> {
                         // Small file — read back to byte[] (< 64KB, safe in heap)
@@ -233,6 +251,16 @@ public class VirtualFtpFile implements FtpFile {
                         log.info("[VFS-FTP] CAS stored {}: {} ({} bytes)", virtualPath,
                                 sha256 != null ? sha256.substring(0, 8) + "..." : "n/a", bytesWritten);
                         vfs.writeFile(accountId, virtualPath, sha256, bytesWritten, trackId, null, null);
+                        storedKey = sha256;
+                    }
+                }
+
+                // VFS entry created — notify server to trigger file routing
+                if (writeCallback != null) {
+                    try {
+                        writeCallback.onFileWritten(virtualPath, bytesWritten, storedKey);
+                    } catch (Exception cbErr) {
+                        log.error("[VFS-FTP] Write callback failed for {}: {}", virtualPath, cbErr.getMessage());
                     }
                 }
             } catch (Exception e) {

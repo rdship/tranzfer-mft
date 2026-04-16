@@ -387,7 +387,7 @@ public class VirtualSftpFileSystemProvider extends FileSystemProvider {
                 }
 
                 // VFS entry created — notify SFTP server to trigger file routing
-                VirtualSftpFileSystem.WriteCompletionCallback cb = fileSystem.getWriteCallback();
+                VfsWriteCallback cb = fileSystem.getWriteCallback();
                 if (cb != null) {
                     try {
                         cb.onFileWritten(vpath, fileSize, storedKey);

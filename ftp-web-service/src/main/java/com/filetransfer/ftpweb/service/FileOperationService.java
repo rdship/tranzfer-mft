@@ -141,6 +141,8 @@ public class FileOperationService {
                             username, vpath, sha256 != null ? sha256.substring(0, 8) + "..." : "n/a");
                 }
             }
+            // VFS entry created — trigger routing for VIRTUAL upload
+            routingEngine.onFileUploaded(account, vpath, account.getHomeDir() + vpath);
             return;
         }
 
