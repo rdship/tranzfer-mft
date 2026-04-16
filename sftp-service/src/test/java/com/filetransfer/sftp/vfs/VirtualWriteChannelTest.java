@@ -205,6 +205,7 @@ class VirtualWriteChannelTest {
                 .path("/inbox/data.txt")
                 .type(VirtualEntry.EntryType.FILE)
                 .storageBucket("STANDARD")
+                .storageKey("sha256trk999")
                 .trackId("TRK999")
                 .sizeBytes(content.length)
                 .build();
@@ -212,7 +213,7 @@ class VirtualWriteChannelTest {
         // Override the lenient save mock for reads — need entry with ID
         when(entryRepository.findByAccountIdAndPathAndDeletedFalse(accountId, "/inbox/data.txt"))
                 .thenReturn(Optional.of(entry));
-        when(storageClient.retrieve("TRK999")).thenReturn(content);
+        when(storageClient.retrieveBySha256("sha256trk999")).thenReturn(content);
 
         VirtualSftpPath vpath = new VirtualSftpPath(fileSystem, "/inbox/data.txt");
         Set<OpenOption> opts = Set.of(StandardOpenOption.READ);
@@ -225,6 +226,6 @@ class VirtualWriteChannelTest {
         buf.get(result);
 
         assertArrayEquals(content, result);
-        verify(storageClient).retrieve("TRK999");
+        verify(storageClient).retrieveBySha256("sha256trk999");
     }
 }

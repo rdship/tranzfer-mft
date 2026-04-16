@@ -112,18 +112,19 @@ class StorageBucketTest {
                 .path("/inbox/medium.csv")
                 .type(VirtualEntry.EntryType.FILE)
                 .storageBucket("STANDARD")
+                .storageKey("sha256medium")
                 .trackId("TRK123")
                 .build();
 
         when(entryRepository.findByAccountIdAndPathAndDeletedFalse(any(), eq("/inbox/medium.csv")))
                 .thenReturn(Optional.of(entry));
         when(entryRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(storageClient.retrieve("TRK123")).thenReturn("csv content".getBytes());
+        when(storageClient.retrieveBySha256("sha256medium")).thenReturn("csv content".getBytes());
 
         byte[] result = vfs.readFile(accountId, "/inbox/medium.csv");
 
         assertArrayEquals("csv content".getBytes(), result);
-        verify(storageClient).retrieve("TRK123");
+        verify(storageClient).retrieveBySha256("sha256medium");
     }
 
     @Test
@@ -148,14 +149,14 @@ class StorageBucketTest {
         when(entryRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(chunkRepository.findByEntryIdOrderByChunkIndex(entryId))
                 .thenReturn(List.of(chunk0, chunk1));
-        when(storageClient.retrieve("key0")).thenReturn("AAAA".getBytes());
-        when(storageClient.retrieve("key1")).thenReturn("BBBB".getBytes());
+        when(storageClient.retrieveBySha256("key0")).thenReturn("AAAA".getBytes());
+        when(storageClient.retrieveBySha256("key1")).thenReturn("BBBB".getBytes());
 
         byte[] result = vfs.readFile(accountId, "/inbox/large.bin");
 
         assertArrayEquals("AAAABBBB".getBytes(), result);
-        verify(storageClient).retrieve("key0");
-        verify(storageClient).retrieve("key1");
+        verify(storageClient).retrieveBySha256("key0");
+        verify(storageClient).retrieveBySha256("key1");
     }
 
     // ── Chunk Registration ──────────────────────────────────────────────
@@ -186,13 +187,14 @@ class StorageBucketTest {
                 .path("/inbox/legacy.txt")
                 .type(VirtualEntry.EntryType.FILE)
                 .storageBucket(null)
+                .storageKey("sha256legacy")
                 .trackId("TRK_LEGACY")
                 .build();
 
         when(entryRepository.findByAccountIdAndPathAndDeletedFalse(any(), eq("/inbox/legacy.txt")))
                 .thenReturn(Optional.of(entry));
         when(entryRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(storageClient.retrieve("TRK_LEGACY")).thenReturn("legacy data".getBytes());
+        when(storageClient.retrieveBySha256("sha256legacy")).thenReturn("legacy data".getBytes());
 
         byte[] result = vfs.readFile(accountId, "/inbox/legacy.txt");
 

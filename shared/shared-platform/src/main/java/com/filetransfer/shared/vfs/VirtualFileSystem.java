@@ -411,7 +411,7 @@ public class VirtualFileSystem {
 
         // Single chunk — skip executor overhead
         if (chunks.size() == 1) {
-            return storageClient.retrieve(chunks.getFirst().getStorageKey());
+            return storageClient.retrieveBySha256(chunks.getFirst().getStorageKey());
         }
 
         // Parallel retrieval using virtual threads — each chunk fetch is I/O-bound,
@@ -420,7 +420,7 @@ public class VirtualFileSystem {
             // Launch all chunk fetches concurrently, preserving index order in the futures list
             List<CompletableFuture<byte[]>> futures = chunks.stream()
                     .map(chunk -> CompletableFuture.supplyAsync(
-                            () -> storageClient.retrieve(chunk.getStorageKey()), executor))
+                            () -> storageClient.retrieveBySha256(chunk.getStorageKey()), executor))
                     .toList();
 
             // Wait for all to complete — if any chunk fails, propagate immediately

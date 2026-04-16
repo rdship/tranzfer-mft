@@ -285,18 +285,19 @@ class VirtualFileSystemWaipTest {
                 .path("/inbox/report.csv")
                 .type(VirtualEntry.EntryType.FILE)
                 .storageBucket("STANDARD")
+                .storageKey("sha256abc123")
                 .trackId("TRK001")
                 .build();
 
         when(entryRepository.findByAccountIdAndPathAndDeletedFalse(any(), eq("/inbox/report.csv")))
                 .thenReturn(Optional.of(file));
         when(entryRepository.save(any(VirtualEntry.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(storageClient.retrieve("TRK001")).thenReturn("csv data".getBytes());
+        when(storageClient.retrieveBySha256("sha256abc123")).thenReturn("csv data".getBytes());
 
         byte[] result = vfs.readFile(accountId, "/inbox/report.csv");
 
         assertArrayEquals("csv data".getBytes(), result);
-        verify(storageClient).retrieve("TRK001");
+        verify(storageClient).retrieveBySha256("sha256abc123");
     }
 
     // ── Advisory Lock ──────────────────────────────────────────────────
