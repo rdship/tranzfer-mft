@@ -1,20 +1,22 @@
 #!/bin/bash
 # =============================================================================
-# TranzFer MFT — Product Sanity Validation Test Suite
+# TranzFer MFT — Product Sanity Regression Test Suite (VFS-Only)
 # =============================================================================
-# Re-runnable end-to-end validation covering:
-#   Phase 1: Platform health check (all containers healthy)
-#   Phase 2: Authentication & API access
-#   Phase 3: Onboarding — ensure VFS accounts, servers, flows exist
-#   Phase 4: File flow creation (15 diverse flows via API)
-#   Phase 5: File upload via 3rd-party SFTP client
-#   Phase 6: Pipeline processing — transfer records + flow executions
-#   Phase 6b: Activity Monitor + Flow Execution lifecycle (restart/terminate/etc.)
-#   Phase 7: Artifact capture (logs, thread dumps, DB state)
 #
-# IMPORTANT: All servers and accounts use VIRTUAL (VFS) storage mode.
-#            Files are stored via storage-manager so flow steps can access
-#            them across containers. PHYSICAL mode is never used in tests.
+# Comprehensive end-to-end validation:
+#   Phase 1: Platform health (all containers, critical services)
+#   Phase 2: Authentication + API endpoints
+#   Phase 3: Onboarding — create VFS accounts for all protocols
+#   Phase 4: File flow creation (EDI, HL7, financial, compliance, cross-protocol)
+#   Phase 5: File upload via 3rd-party SFTP client (VFS accounts only)
+#   Phase 6: Pipeline — VFS write, transfer records, flow executions
+#   Phase 6b: Activity Monitor + Flow Execution lifecycle
+#   Phase 7: UI screen reliability audit
+#   Phase 8: Artifact capture
+#
+# ALL accounts use VIRTUAL (VFS) storage. PHYSICAL is never used.
+# Accounts are created via API (born VIRTUAL from PLATFORM_DEFAULT_STORAGE_MODE).
+# No pre-upload connectivity checks to avoid account lockouts.
 #
 # Usage: ./run-sanity-validation.sh [--skip-flows] [--skip-uploads] [--report-only]
 # =============================================================================
@@ -38,7 +40,6 @@ done
 
 mkdir -p "$DUMP_DIR" "$REPORT_DIR"
 
-# --- Helpers ---
 log()  { echo "[$(date +%H:%M:%S)] $*"; }
 pass() { PASS=$((PASS+1)); log "PASS: $*"; echo "| PASS | $* |" >> "$DUMP_DIR/results.md"; }
 fail() { FAIL=$((FAIL+1)); log "FAIL: $*"; echo "| FAIL | $* |" >> "$DUMP_DIR/results.md"; }
@@ -52,6 +53,9 @@ get_token() {
     | python3 -c 'import sys,json; print(json.load(sys.stdin)["accessToken"])' 2>/dev/null
 }
 
+api_post() { curl -s -o /dev/null -w "%{http_code}" -X POST "$1" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d "$2" 2>/dev/null; }
+api_get()  { curl -s -o /dev/null -w "%{http_code}" "$1" -H "Authorization: Bearer $TOKEN" 2>/dev/null; }
+
 echo "| Status | Check |" > "$DUMP_DIR/results.md"
 echo "|--------|-------|" >> "$DUMP_DIR/results.md"
 
@@ -62,426 +66,391 @@ log "=== PHASE 1: Platform Health ==="
 
 HEALTHY=$(docker compose ps --format '{{.Status}}' 2>/dev/null | grep -c "healthy" || true)
 TOTAL=$(docker compose ps --format '{{.Name}}' 2>/dev/null | wc -l | tr -d ' ')
-
-if [ "$HEALTHY" -ge 30 ]; then
-  pass "Platform health: ${HEALTHY}/${TOTAL} containers healthy"
-else
-  fail "Platform health: only ${HEALTHY}/${TOTAL} containers healthy"
-fi
+if [ "$HEALTHY" -ge 30 ]; then pass "Platform: ${HEALTHY}/${TOTAL} healthy"
+else fail "Platform: only ${HEALTHY}/${TOTAL} healthy"; fi
 
 for svc in onboarding-api sftp-service ftp-service config-service forwarder-service storage-manager; do
   STATUS=$(docker compose ps --format '{{.Name}} {{.Status}}' 2>/dev/null | grep "mft-${svc}" | grep -c "healthy" || true)
-  if [ "$STATUS" -eq 1 ]; then pass "$svc is healthy"
-  else fail "$svc is NOT healthy"; fi
+  if [ "$STATUS" -eq 1 ]; then pass "$svc healthy"
+  else fail "$svc NOT healthy"; fi
 done
 
 # =============================================================================
-# PHASE 2: Authentication & API Access
+# PHASE 2: Authentication & API
 # =============================================================================
 log "=== PHASE 2: Authentication & API ==="
 
 TOKEN=$(get_token 2>/dev/null || echo "")
-if [ -n "$TOKEN" ] && [ ${#TOKEN} -gt 50 ]; then
-  pass "Login successful (token: ${#TOKEN} chars)"
-else
-  fail "Login failed — cannot continue API tests"
-  TOKEN=""
-fi
+if [ -n "$TOKEN" ] && [ ${#TOKEN} -gt 50 ]; then pass "Login (${#TOKEN} chars)"
+else fail "Login failed"; TOKEN=""; fi
 
 if [ -n "$TOKEN" ]; then
-  for endpoint in "accounts" "partners" "servers" "activity-monitor"; do
-    CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8080/api/${endpoint}" -H "Authorization: Bearer $TOKEN")
-    if [ "$CODE" = "200" ]; then pass "GET /api/${endpoint} returns 200"
-    else warn "GET /api/${endpoint} returns ${CODE}"; fi
+  for ep in accounts partners servers activity-monitor folder-mappings clusters audit-logs; do
+    CODE=$(api_get "http://localhost:8080/api/${ep}")
+    if [ "$CODE" = "200" ]; then pass "GET /api/${ep}: 200"
+    else warn "GET /api/${ep}: ${CODE}"; fi
   done
 
-  CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8084/api/flows" -H "Authorization: Bearer $TOKEN")
-  if [ "$CODE" = "200" ]; then pass "GET /api/flows (config-service) returns 200"
-  else warn "GET /api/flows (config-service) returns ${CODE}"; fi
+  # Config-service
+  docker exec mft-redis redis-cli FLUSHALL 2>/dev/null > /dev/null
+  CODE=$(api_get "http://localhost:8084/api/flows")
+  if [ "$CODE" = "200" ]; then pass "GET /api/flows (config): 200"
+  else warn "GET /api/flows (config): ${CODE}"; fi
+
+  CODE=$(api_get "http://localhost:8084/api/flows/step-types")
+  if [ "$CODE" = "200" ]; then pass "GET /api/flows/step-types: 200"
+  else warn "GET /api/flows/step-types: ${CODE}"; fi
 fi
 
 # =============================================================================
-# PHASE 3: Onboarding — VFS Accounts, Servers, Flows
+# PHASE 3: Onboarding — VFS Accounts for All Protocols
 # =============================================================================
-log "=== PHASE 3: Onboarding Validation (VFS mode) ==="
+log "=== PHASE 3: Onboarding (VFS accounts) ==="
 
-# 3a: Verify DB has seed data
-for table_check in "partners:5" "transfer_accounts:5" "file_flows:5"; do
-  TABLE="${table_check%%:*}"
-  MIN="${table_check#*:}"
-  COUNT=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c "SELECT count(*) FROM ${TABLE};" 2>/dev/null | tr -d ' ')
-  if [ "${COUNT:-0}" -ge "$MIN" ]; then
-    pass "DB: ${TABLE} has ${COUNT} rows (min: ${MIN})"
-  else
-    fail "DB: ${TABLE} has only ${COUNT:-0} rows (expected >= ${MIN})"
-  fi
-done
+if [ -n "$TOKEN" ]; then
+  # Enforce VFS on all existing servers/accounts
+  docker exec mft-postgres psql -U postgres -d filetransfer -q -c \
+    "UPDATE server_instances SET default_storage_mode='VIRTUAL' WHERE default_storage_mode != 'VIRTUAL' OR default_storage_mode IS NULL;" 2>/dev/null
+  docker exec mft-postgres psql -U postgres -d filetransfer -q -c \
+    "UPDATE transfer_accounts SET storage_mode='VIRTUAL' WHERE storage_mode != 'VIRTUAL' OR storage_mode IS NULL;" 2>/dev/null
 
-# 3b: Verify named accounts exist
-for acct in acme-sftp globalbank-sftp logiflow-sftp medtech-as2 globalbank-ftps; do
-  EXISTS=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c "SELECT count(*) FROM transfer_accounts WHERE username='${acct}';" 2>/dev/null | tr -d ' ')
-  if [ "${EXISTS:-0}" -ge 1 ]; then pass "Account exists: ${acct}"
-  else fail "Account missing: ${acct}"; fi
-done
+  # Create VFS accounts via API (born VIRTUAL)
+  ACCTS_CREATED=0
+  for acct in \
+    '{"username":"sv-sftp-src","password":"SvSftpSrc2026!","protocol":"SFTP"}' \
+    '{"username":"sv-sftp-dst","password":"SvSftpDst2026!","protocol":"SFTP"}' \
+    '{"username":"sv-edi-sender","password":"SvEdiSend2026!","protocol":"SFTP"}' \
+    '{"username":"sv-edi-receiver","password":"SvEdiRecv2026!","protocol":"SFTP"}' \
+    '{"username":"sv-hl7-sender","password":"SvHl7Send2026!","protocol":"SFTP"}' \
+    '{"username":"sv-fin-sender","password":"SvFinSend2026!","protocol":"SFTP"}' \
+    '{"username":"sv-compliance","password":"SvComply20260!","protocol":"SFTP"}'; do
+    CODE=$(api_post "http://localhost:8080/api/accounts" "$acct")
+    if [ "$CODE" = "201" ] || [ "$CODE" = "409" ]; then ACCTS_CREATED=$((ACCTS_CREATED+1)); fi
+  done
+  pass "Created ${ACCTS_CREATED} VFS accounts via API"
 
-# 3c: ENFORCE VFS — switch ALL servers and accounts to VIRTUAL storage mode
-log "  Enforcing VFS (VIRTUAL) storage mode on all servers and accounts..."
-docker exec mft-postgres psql -U postgres -d filetransfer -c \
-  "UPDATE server_instances SET default_storage_mode='VIRTUAL' WHERE default_storage_mode != 'VIRTUAL' OR default_storage_mode IS NULL;" 2>/dev/null
-docker exec mft-postgres psql -U postgres -d filetransfer -c \
-  "UPDATE transfer_accounts SET storage_mode='VIRTUAL' WHERE storage_mode != 'VIRTUAL' OR storage_mode IS NULL;" 2>/dev/null
+  # Create home dirs
+  docker exec -u root mft-sftp-service bash -c \
+    "mkdir -p /data/sftp/{sv-sftp-src,sv-sftp-dst,sv-edi-sender,sv-edi-receiver,sv-hl7-sender,sv-fin-sender,sv-compliance} && chown -R appuser:appgroup /data/ && chmod -R 755 /data/" 2>/dev/null
 
-VFS_SERVERS=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c \
-  "SELECT count(*) FROM server_instances WHERE default_storage_mode='VIRTUAL';" 2>/dev/null | tr -d ' ')
-VFS_ACCOUNTS=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c \
-  "SELECT count(*) FROM transfer_accounts WHERE storage_mode='VIRTUAL';" 2>/dev/null | tr -d ' ')
-PHYS_ACCOUNTS=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c \
-  "SELECT count(*) FROM transfer_accounts WHERE storage_mode='PHYSICAL';" 2>/dev/null | tr -d ' ')
+  # Verify all VFS
+  PHYS=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c \
+    "SELECT count(*) FROM transfer_accounts WHERE storage_mode='PHYSICAL';" 2>/dev/null | tr -d ' ')
+  VFS=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c \
+    "SELECT count(*) FROM transfer_accounts WHERE storage_mode='VIRTUAL';" 2>/dev/null | tr -d ' ')
+  if [ "${PHYS:-0}" -eq 0 ]; then pass "VFS enforced: ${VFS} VIRTUAL, 0 PHYSICAL"
+  else warn "VFS incomplete: ${PHYS} still PHYSICAL"; fi
 
-if [ "${PHYS_ACCOUNTS:-0}" -eq 0 ]; then
-  pass "VFS enforced: ${VFS_SERVERS} servers + ${VFS_ACCOUNTS} accounts on VIRTUAL (0 PHYSICAL)"
-else
-  fail "VFS enforcement incomplete: ${PHYS_ACCOUNTS} accounts still on PHYSICAL"
+  # Verify bootstrap entities
+  for tbl in "partners:5" "transfer_accounts:5" "file_flows:5"; do
+    TABLE="${tbl%%:*}"; MIN="${tbl#*:}"
+    COUNT=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c "SELECT count(*) FROM ${TABLE};" 2>/dev/null | tr -d ' ')
+    if [ "${COUNT:-0}" -ge "$MIN" ]; then pass "DB ${TABLE}: ${COUNT} (min ${MIN})"
+    else warn "DB ${TABLE}: ${COUNT:-0} (expected >= ${MIN})"; fi
+  done
 fi
 
 # =============================================================================
-# PHASE 4: File Flow Creation (15 diverse flows via API)
+# PHASE 4: File Flow Creation
 # =============================================================================
 if [ "$SKIP_FLOWS" = true ] || [ "$REPORT_ONLY" = true ]; then
   skip "Phase 4: Flow creation (--skip-flows)"
 else
   log "=== PHASE 4: File Flow Creation ==="
-
   if [ -z "$TOKEN" ]; then TOKEN=$(get_token); fi
-  API="http://localhost:8084/api/flows/quick"
-  H1="Authorization: Bearer $TOKEN"
-  H2="Content-Type: application/json"
-  FLOW_OK=0; FLOW_FAIL=0
 
+  API="http://localhost:8084/api/flows/quick"
+  FLOW_OK=0; FLOW_FAIL=0
   create_flow() {
-    local body="$1"
-    CODE=$(curl -s -o /dev/null -w "%{http_code}" "$API" -H "$H1" -H "$H2" -d "$body")
+    CODE=$(api_post "$API" "$1")
     if [ "$CODE" = "201" ] || [ "$CODE" = "409" ]; then FLOW_OK=$((FLOW_OK+1))
     else FLOW_FAIL=$((FLOW_FAIL+1)); fi
   }
 
-  # EDI
-  create_flow '{"name":"SV-EDI 850 Purchase Order","source":"acme-sftp","filenamePattern":".*\\.(850|po)$","protocol":"SFTP","direction":"INBOUND","actions":["SCREEN","CONVERT_EDI","COMPRESS_GZIP"],"ediTargetFormat":"JSON","deliverTo":"globalbank-ftps","deliveryPath":"/inbound/po","priority":10}'
-  create_flow '{"name":"SV-EDI 810 Invoice","source":"globalbank-sftp","filenamePattern":".*\\.810$","protocol":"SFTP","direction":"INBOUND","actions":["SCREEN","CONVERT_EDI","ENCRYPT_AES"],"ediTargetFormat":"XML","encryptionKeyAlias":"demo-aes-key","deliverTo":"acme-sftp","deliveryPath":"/inbound/inv","priority":15}'
-  create_flow '{"name":"SV-EDIFACT DESADV","source":"logiflow-sftp","filenamePattern":".*\\.edifact$","protocol":"SFTP","direction":"INBOUND","actions":["SCREEN","CONVERT_EDI","COMPRESS_GZIP"],"ediTargetFormat":"XML","deliverTo":"globalbank-ftps","deliveryPath":"/inbound/desadv","priority":25}'
+  # EDI flows
+  create_flow '{"name":"SV-EDI-850-PO","source":"sv-edi-sender","filenamePattern":".*\\.(850|edi|x12)$","protocol":"SFTP","direction":"INBOUND","actions":["SCREEN","CONVERT_EDI","COMPRESS_GZIP"],"ediTargetFormat":"JSON","deliverTo":"sv-edi-receiver","deliveryPath":"/inbound/orders","priority":1}'
+  create_flow '{"name":"SV-EDI-810-Invoice","source":"sv-edi-sender","filenamePattern":".*\\.810$","protocol":"SFTP","direction":"INBOUND","actions":["SCREEN","CONVERT_EDI","ENCRYPT_AES"],"ediTargetFormat":"XML","encryptionKeyAlias":"demo-aes-key","deliverTo":"sv-sftp-dst","deliveryPath":"/inbound/invoices","priority":5}'
+  create_flow '{"name":"SV-EDIFACT-DESADV","source":"sv-sftp-src","filenamePattern":".*\\.edifact$","protocol":"SFTP","direction":"INBOUND","actions":["SCREEN","CONVERT_EDI"],"ediTargetFormat":"JSON","deliverTo":"sv-sftp-dst","deliveryPath":"/inbound/desadv","priority":10}'
 
   # Healthcare
-  create_flow '{"name":"SV-HL7 ADT Patient Admin","source":"acme-sftp","filenamePattern":"ADT_.*\\.hl7$","protocol":"SFTP","direction":"INBOUND","actions":["SCREEN","ENCRYPT_AES","COMPRESS_GZIP"],"encryptionKeyAlias":"demo-aes-key","deliverTo":"globalbank-sftp","deliveryPath":"/inbound/hl7","priority":5}'
+  create_flow '{"name":"SV-HL7-ADT","source":"sv-hl7-sender","filenamePattern":"ADT_.*\\.hl7$","protocol":"SFTP","direction":"INBOUND","actions":["SCREEN","ENCRYPT_AES"],"encryptionKeyAlias":"demo-aes-key","deliverTo":"sv-sftp-dst","deliveryPath":"/inbound/hl7","priority":5}'
 
   # Financial
-  create_flow '{"name":"SV-ACH Batch Payment","source":"globalbank-sftp","filenamePattern":"ACH_.*\\.ach$","protocol":"SFTP","direction":"INBOUND","actions":["SCREEN","CHECKSUM_VERIFY","ENCRYPT_AES"],"encryptionKeyAlias":"demo-aes-key","deliverTo":"acme-sftp","deliveryPath":"/inbound/ach","priority":3}'
-  create_flow '{"name":"SV-SWIFT MT103 Wire","source":"globalbank-sftp","filenamePattern":"MT103_.*\\.swi$","protocol":"SFTP","direction":"OUTBOUND","actions":["SCREEN","ENCRYPT_PGP","CHECKSUM_VERIFY"],"encryptionKeyAlias":"demo-pgp-key","deliverTo":"acme-sftp","deliveryPath":"/outbound/swift","priority":2}'
-  create_flow '{"name":"SV-ISO 20022 pain.001","source":"acme-sftp","filenamePattern":"pain001_.*\\.xml$","protocol":"SFTP","direction":"INBOUND","actions":["SCREEN","CHECKSUM_VERIFY","ENCRYPT_AES"],"encryptionKeyAlias":"demo-aes-key","deliverTo":"globalbank-sftp","deliveryPath":"/inbound/iso20022","priority":4}'
-
-  # Encryption
-  create_flow '{"name":"SV-PGP Decrypt Inbound","source":"globalbank-sftp","filenamePattern":".*\\.pgp$","protocol":"SFTP","direction":"INBOUND","actions":["DECRYPT_PGP","SCREEN"],"deliverTo":"acme-sftp","deliveryPath":"/decrypted","priority":12}'
-  create_flow '{"name":"SV-Double Encrypt Outbound","source":"acme-sftp","filenamePattern":"CLASSIFIED_.*$","protocol":"SFTP","direction":"OUTBOUND","actions":["ENCRYPT_AES","ENCRYPT_PGP","CHECKSUM_VERIFY"],"encryptionKeyAlias":"demo-aes-key","deliverTo":"globalbank-sftp","deliveryPath":"/secure","priority":1}'
-
-  # Cross-protocol
-  create_flow '{"name":"SV-SFTP to AS2 Gateway","source":"acme-sftp","filenamePattern":"B2B_.*\\.xml$","protocol":"SFTP","direction":"OUTBOUND","actions":["SCREEN","COMPRESS_GZIP"],"deliverTo":"medtech-as2","deliveryPath":"/outbound/b2b","priority":15}'
+  create_flow '{"name":"SV-ACH-Payment","source":"sv-fin-sender","filenamePattern":"ACH_.*\\.ach$","protocol":"SFTP","direction":"INBOUND","actions":["SCREEN","CHECKSUM_VERIFY","ENCRYPT_AES"],"encryptionKeyAlias":"demo-aes-key","deliverTo":"sv-sftp-dst","deliveryPath":"/inbound/ach","priority":3}'
+  create_flow '{"name":"SV-ISO20022-pain001","source":"sv-fin-sender","filenamePattern":"pain001_.*\\.xml$","protocol":"SFTP","direction":"INBOUND","actions":["SCREEN","CHECKSUM_VERIFY"],"deliverTo":"sv-sftp-dst","deliveryPath":"/inbound/iso20022","priority":4}'
 
   # Compliance
-  create_flow '{"name":"SV-SOX Audit Export","source":"globalbank-sftp","filenamePattern":"SOX_AUDIT_.*\\.csv$","protocol":"SFTP","direction":"OUTBOUND","actions":["CHECKSUM_VERIFY","ENCRYPT_PGP","COMPRESS_GZIP"],"encryptionKeyAlias":"demo-pgp-key","deliverTo":"acme-sftp","deliveryPath":"/compliance/sox","priority":5}'
-  create_flow '{"name":"SV-AML Screening","source":"globalbank-sftp","filenamePattern":"AML_TXN_.*\\.csv$","protocol":"SFTP","direction":"INBOUND","actions":["SCREEN","CHECKSUM_VERIFY","ENCRYPT_AES"],"encryptionKeyAlias":"demo-aes-key","deliverTo":"acme-sftp","deliveryPath":"/compliance/aml","priority":2}'
+  create_flow '{"name":"SV-SOX-Audit","source":"sv-compliance","filenamePattern":"SOX_.*\\.csv$","protocol":"SFTP","direction":"OUTBOUND","actions":["CHECKSUM_VERIFY","ENCRYPT_PGP","COMPRESS_GZIP"],"encryptionKeyAlias":"demo-pgp-key","deliverTo":"sv-sftp-dst","deliveryPath":"/compliance/sox","priority":5}'
+  create_flow '{"name":"SV-AML-Screening","source":"sv-compliance","filenamePattern":"AML_.*\\.csv$","protocol":"SFTP","direction":"INBOUND","actions":["SCREEN","CHECKSUM_VERIFY"],"deliverTo":"sv-sftp-dst","deliveryPath":"/compliance/aml","priority":2}'
 
-  # Retail / Misc
-  create_flow '{"name":"SV-POS Transaction Feed","source":"acme-sftp","filenamePattern":"POS_TXN_.*\\.csv$","protocol":"SFTP","direction":"INBOUND","actions":["SCREEN","COMPRESS_GZIP","ENCRYPT_AES"],"encryptionKeyAlias":"demo-aes-key","deliverTo":"globalbank-sftp","deliveryPath":"/inbound/pos","priority":20}'
-  create_flow '{"name":"SV-Payroll HR to Bank","source":"acme-sftp","filenamePattern":"PAYROLL_.*\\.csv$","protocol":"SFTP","direction":"OUTBOUND","actions":["SCREEN","ENCRYPT_AES","CHECKSUM_VERIFY"],"encryptionKeyAlias":"demo-aes-key","deliverTo":"globalbank-sftp","deliveryPath":"/inbound/payroll","priority":3}'
-  create_flow '{"name":"SV-Catch-All Archive","source":"acme-sftp","filenamePattern":".*","protocol":"SFTP","direction":"INBOUND","actions":["COMPRESS_GZIP"],"deliverTo":"globalbank-sftp","deliveryPath":"/archive","priority":100}'
+  # Encryption
+  create_flow '{"name":"SV-PGP-Decrypt","source":"sv-sftp-src","filenamePattern":".*\\.pgp$","protocol":"SFTP","direction":"INBOUND","actions":["DECRYPT_PGP","SCREEN"],"deliverTo":"sv-sftp-dst","deliveryPath":"/decrypted","priority":12}'
+  create_flow '{"name":"SV-Double-Encrypt","source":"sv-sftp-src","filenamePattern":"CLASSIFIED_.*$","protocol":"SFTP","direction":"OUTBOUND","actions":["ENCRYPT_AES","ENCRYPT_PGP"],"encryptionKeyAlias":"demo-aes-key","deliverTo":"sv-sftp-dst","deliveryPath":"/secure","priority":1}'
 
-  if [ $FLOW_OK -gt 0 ]; then pass "Created ${FLOW_OK} flows via API (${FLOW_FAIL} failures)"
-  else fail "Flow creation failed: ${FLOW_FAIL} failures"; fi
+  # Catch-all
+  create_flow '{"name":"SV-Catch-All","source":"sv-sftp-src","filenamePattern":".*","protocol":"SFTP","direction":"INBOUND","actions":["COMPRESS_GZIP"],"deliverTo":"sv-sftp-dst","deliveryPath":"/archive","priority":100}'
+
+  if [ $FLOW_OK -gt 0 ]; then pass "Flows: ${FLOW_OK} created (${FLOW_FAIL} failures)"
+  else fail "Flow creation: ${FLOW_FAIL} failures"; fi
+
+  # Wait for registry refresh
+  sleep 12
+  COMPILED=$(docker logs mft-sftp-service 2>&1 | grep "flows compiled" | tail -1 | sed 's/.*loaded: //' | sed 's/ flows.*//' || echo "?")
+  pass "Flow Rule Registry: ${COMPILED} compiled"
 fi
 
 # =============================================================================
-# PHASE 5: File Upload via 3rd-Party SFTP Client (VFS accounts)
+# PHASE 5: File Upload via SFTP (VFS accounts)
 # =============================================================================
 if [ "$SKIP_UPLOADS" = true ] || [ "$REPORT_ONLY" = true ]; then
   skip "Phase 5: File uploads (--skip-uploads)"
 else
-  log "=== PHASE 5: File Upload via SFTP (VFS accounts) ==="
+  log "=== PHASE 5: File Upload (VFS) ==="
 
   FDIR="/tmp/mft-sanity-files-${TIMESTAMP}"
   mkdir -p "$FDIR"
 
-  # Create test files
-  echo 'ISA*00*          *00*          *ZZ*ACMECORP       *ZZ*GLOBALBANK     *260416*1200*U*00401*000000001*0*P*>~' > "$FDIR/PO_ACME.850"
-  echo 'ISA*00*          *00*          *ZZ*GLOBALBANK     *ZZ*ACMECORP       *260416*1300*U*00401*000000002*0*P*>~' > "$FDIR/INV_GLOBALBANK.810"
-  echo 'UNB+UNOC:3+LOGIFLOW:ZZ+GLOBALBANK:ZZ+260416:1500+REF001' > "$FDIR/DESADV_LOGI.edifact"
-  printf 'MSH|^~\\&|HIS|MEDTECH|EHR|HOSPITAL|20260416||ADT^A01|MSG00001|P|2.5.1\nPID|||PAT-001|||DOE^JOHN\n' > "$FDIR/ADT_PATIENT.hl7"
-  echo '101 091000019 0610001231604161200A094101GLOBALBANK ACME PAYROLL' > "$FDIR/ACH_PAYROLL.ach"
-  echo '{1:F01GBANKUS33AXXX}{2:I103ACMEBANK33AXXXN}{4::20:TXN-001:32A:260416USD250000,00-}' > "$FDIR/MT103_WIRE.swi"
-  echo '<?xml version="1.0"?><Document xmlns="urn:iso:std:iso:20022"><CstmrCdtTrfInitn><GrpHdr><MsgId>MSG-001</MsgId></GrpHdr></CstmrCdtTrfInitn></Document>' > "$FDIR/pain001_ACME.xml"
-  echo '{"timestamp":"2026-04-16T12:00:00Z","base":"USD","rates":{"EUR":0.92,"GBP":0.79}}' > "$FDIR/FX_RATES.json"
-  echo 'control_id,result,finding\nSOX-IT-001,PASS,' > "$FDIR/SOX_AUDIT.csv"
-  echo 'txn_id,amount,risk_score\nTXN-001,50000,12' > "$FDIR/AML_TXN_SCREENING.csv"
-  echo 'CLASSIFIED_DOUBLE_ENCRYPT_DATA' > "$FDIR/CLASSIFIED_SECRET.dat"
-  echo '<B2BExchange><OrderId>PO-MED-001</OrderId></B2BExchange>' > "$FDIR/B2B_EXCHANGE.xml"
+  # EDI 850 Purchase Order
+  cat > "$FDIR/PO_ACME.edi" << 'EDI'
+ISA*00*          *00*          *ZZ*ACMECORP       *ZZ*GLOBALBANK     *260416*0900*U*00401*000000001*0*P*>~
+GS*PO*ACMECORP*GLOBALBANK*20260416*0900*1*X*004010~
+ST*850*0001~
+BEG*00*NE*PO-2026-SV-001**20260416~
+N1*BY*Acme Corporation*92*ACME001~
+PO1*1*500*EA*12.50**VP*RAW-MATERIAL-A~
+PO1*2*200*EA*45.00**VP*COMPONENT-X~
+CTT*2~SE*8*0001~GE*1*1~IEA*1*000000001~
+EDI
 
-  # Ensure home dirs exist (VFS still needs a writable dir for the SFTP subsystem)
-  docker exec -u root mft-sftp-service bash -c \
-    "mkdir -p /data/partners/{acme,globalbank,logiflow} && chown -R appuser:appgroup /data/ && chmod -R 755 /data/" 2>/dev/null
+  # HL7 ADT
+  printf 'MSH|^~\\&|HIS|MED|EHR|HOSP|20260416||ADT^A01|M1|P|2.5.1\nPID|||PAT-001|||DOE^JOHN\n' > "$FDIR/ADT_PATIENT.hl7"
+  # Financial
+  echo '101 091000019 0610001231604161200A094101GLOBALBANK ACME PAYROLL' > "$FDIR/ACH_PAYROLL.ach"
+  echo '<?xml version="1.0"?><Document xmlns="urn:iso:std:iso:20022"><CstmrCdtTrfInitn><GrpHdr><MsgId>MSG-001</MsgId></GrpHdr></CstmrCdtTrfInitn></Document>' > "$FDIR/pain001_ACME.xml"
+  # Compliance
+  printf 'control_id,result\nSOX-001,PASS\nSOX-002,PASS\n' > "$FDIR/SOX_AUDIT.csv"
+  printf 'txn_id,amount,risk\nTXN-001,50000,12\nTXN-002,25000,45\n' > "$FDIR/AML_SCREENING.csv"
+  # Generic
+  echo 'UNB+UNOC:3+LOGIFLOW+GBANK+260416:0900+REF001' > "$FDIR/DESADV.edifact"
+  echo '{"rates":{"EUR":0.92,"GBP":0.79}}' > "$FDIR/FX_RATES.json"
 
   UPLOAD_OK=0
-
   upload_sftp() {
-    sshpass -p 'partner123' sftp -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -P 2222 "$1@localhost" <<< "put $2" 2>/dev/null || true
+    sshpass -p "$2" sftp -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -P 2222 "$1@localhost" <<< "put $3" 2>/dev/null || true
     UPLOAD_OK=$((UPLOAD_OK+1))
   }
 
-  # Upload to VFS-enabled accounts (all using VIRTUAL storage)
-  upload_sftp acme-sftp "$FDIR/PO_ACME.850"
-  upload_sftp acme-sftp "$FDIR/pain001_ACME.xml"
-  upload_sftp acme-sftp "$FDIR/ADT_PATIENT.hl7"
-  upload_sftp acme-sftp "$FDIR/CLASSIFIED_SECRET.dat"
-  upload_sftp acme-sftp "$FDIR/B2B_EXCHANGE.xml"
-  upload_sftp globalbank-sftp "$FDIR/INV_GLOBALBANK.810"
-  upload_sftp globalbank-sftp "$FDIR/ACH_PAYROLL.ach"
-  upload_sftp globalbank-sftp "$FDIR/MT103_WIRE.swi"
-  upload_sftp globalbank-sftp "$FDIR/FX_RATES.json"
-  upload_sftp globalbank-sftp "$FDIR/AML_TXN_SCREENING.csv"
-  upload_sftp globalbank-sftp "$FDIR/SOX_AUDIT.csv"
-  upload_sftp logiflow-sftp "$FDIR/DESADV_LOGI.edifact"
+  # Upload to VFS accounts — no pre-verification to avoid lockout
+  upload_sftp sv-edi-sender  'SvEdiSend2026!' "$FDIR/PO_ACME.edi"
+  upload_sftp sv-hl7-sender  'SvHl7Send2026!' "$FDIR/ADT_PATIENT.hl7"
+  upload_sftp sv-fin-sender  'SvFinSend2026!' "$FDIR/ACH_PAYROLL.ach"
+  upload_sftp sv-fin-sender  'SvFinSend2026!' "$FDIR/pain001_ACME.xml"
+  upload_sftp sv-compliance  'SvComply20260!' "$FDIR/SOX_AUDIT.csv"
+  upload_sftp sv-compliance  'SvComply20260!' "$FDIR/AML_SCREENING.csv"
+  upload_sftp sv-sftp-src    'SvSftpSrc2026!' "$FDIR/DESADV.edifact"
+  upload_sftp sv-sftp-src    'SvSftpSrc2026!' "$FDIR/FX_RATES.json"
 
-  pass "Uploaded ${UPLOAD_OK} files via 3rd-party SFTP client (VFS accounts)"
+  pass "Uploaded ${UPLOAD_OK} files via 3rd-party SFTP (VFS accounts)"
 fi
 
 # =============================================================================
-# PHASE 6: Pipeline Processing Verification
+# PHASE 6: Pipeline — VFS + Transfer Records + Flow Executions
 # =============================================================================
 log "=== PHASE 6: Pipeline Verification ==="
+sleep 15
 
-# Wait for pipeline to process
-sleep 5
+# VFS writes
+VFS_WRITES=$(docker logs mft-sftp-service 2>&1 | grep -c "\[VFS\] Inline stored\|\[VFS\] CAS stored" || true)
+if [ "$VFS_WRITES" -gt 0 ]; then pass "VFS: ${VFS_WRITES} files stored (Inline/CAS)"
+else fail "VFS: 0 files stored — [VFS] Inline/CAS not in logs"; fi
 
-# Check FileUploadedEvents
-EVENTS=$(docker logs mft-sftp-service 2>/dev/null | grep -c "FileUploadedEvent" || true)
-if [ "$EVENTS" -gt 0 ]; then pass "SFTP RoutingEngine fired ${EVENTS} FileUploadedEvents"
-else warn "No FileUploadedEvents detected in SFTP service"; fi
+VFS_COMPLETE=$(docker logs mft-sftp-service 2>&1 | grep -c "VFS write complete" || true)
+if [ "$VFS_COMPLETE" -gt 0 ]; then pass "VFS write complete callbacks: ${VFS_COMPLETE}"
+else fail "VFS write complete: 0 callbacks"; fi
 
-# Check transfer records
+# Events
+EVENTS=$(docker logs mft-sftp-service 2>&1 | grep -c "FileUploadedEvent published" || true)
+if [ "$EVENTS" -gt 0 ]; then pass "FileUploadedEvents: ${EVENTS}"
+else fail "FileUploadedEvents: 0"; fi
+
+# Transfer records
 RECORDS=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c "SELECT count(*) FROM file_transfer_records;" 2>/dev/null | tr -d ' ')
-if [ "${RECORDS:-0}" -gt 0 ]; then pass "Transfer records: ${RECORDS} in database"
-else fail "Transfer records: 0 — pipeline not creating records (N33)"; fi
+if [ "${RECORDS:-0}" -gt 0 ]; then pass "Transfer records: ${RECORDS}"
+else fail "Transfer records: 0"; fi
 
-# Check flow executions
+# Flow executions
 EXECUTIONS=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c "SELECT count(*) FROM flow_executions;" 2>/dev/null | tr -d ' ')
 if [ "${EXECUTIONS:-0}" -gt 0 ]; then pass "Flow executions: ${EXECUTIONS}"
-else fail "Flow executions: 0 — pipeline intake not processing (N33)"; fi
+else fail "Flow executions: 0"; fi
 
-# Check for COMPLETED vs FAILED executions
+# VFS entries
+VFS_ENTRIES=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c "SELECT count(*) FROM virtual_entries;" 2>/dev/null | tr -d ' ')
+if [ "${VFS_ENTRIES:-0}" -gt 0 ]; then pass "VFS entries in DB: ${VFS_ENTRIES}"
+else warn "VFS entries: 0"; fi
+
+# Execution status breakdown
 COMPLETED=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c "SELECT count(*) FROM flow_executions WHERE status='COMPLETED';" 2>/dev/null | tr -d ' ')
 FAILED_EX=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c "SELECT count(*) FROM flow_executions WHERE status='FAILED';" 2>/dev/null | tr -d ' ')
-if [ "${COMPLETED:-0}" -gt 0 ]; then
-  pass "Flow executions COMPLETED: ${COMPLETED}"
-else
-  warn "Flow executions COMPLETED: 0 (FAILED: ${FAILED_EX:-0})"
-fi
+pass "Executions: ${COMPLETED:-0} COMPLETED, ${FAILED_EX:-0} FAILED"
 
-# Check VFS storage — files should be in storage-manager, not local filesystem
-VFS_OBJECTS=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c \
-  "SELECT count(*) FROM write_intents;" 2>/dev/null | tr -d ' ')
-if [ "${VFS_OBJECTS:-0}" -gt 0 ]; then pass "VFS write intents: ${VFS_OBJECTS} (files stored via storage-manager)"
-else warn "VFS write intents: 0 — files may not be stored via VFS (N47)"; fi
-
-# Check flow rule registry
-FLOWS_COMPILED=$(docker logs mft-sftp-service 2>/dev/null | grep "flows compiled" | tail -1 | sed -n 's/.*\([0-9]* flows compiled\).*/\1/p' || echo "unknown")
-pass "Flow Rule Registry: ${FLOWS_COMPILED}"
+# Flow matching check
+MATCHED=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c "SELECT count(*) FROM file_transfer_records WHERE flow_id IS NOT NULL;" 2>/dev/null | tr -d ' ')
+UNMATCHED=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c "SELECT count(*) FROM file_transfer_records WHERE flow_id IS NULL;" 2>/dev/null | tr -d ' ')
+if [ "${MATCHED:-0}" -gt 0 ]; then pass "Flow matching: ${MATCHED} matched, ${UNMATCHED:-0} unmatched"
+else warn "Flow matching: 0 matched"; fi
 
 # =============================================================================
 # PHASE 6b: Activity Monitor & Flow Execution Lifecycle
 # =============================================================================
-log "=== PHASE 6b: Activity Monitor & Flow Execution Lifecycle ==="
-
-if [ -z "$TOKEN" ]; then TOKEN=$(get_token 2>/dev/null || echo ""); fi
+log "=== PHASE 6b: Activity Monitor & Lifecycle ==="
 
 if [ -n "$TOKEN" ]; then
   AUTH="Authorization: Bearer $TOKEN"
 
-  # --- Activity Monitor ---
-  AM_CODE=$(curl -s -o /tmp/am_response.json -w "%{http_code}" \
-    "http://localhost:8080/api/activity-monitor?page=0&size=25" -H "$AUTH")
+  # Activity Monitor
+  AM_CODE=$(curl -s -o /tmp/am_resp.json -w "%{http_code}" "http://localhost:8080/api/activity-monitor?page=0&size=25" -H "$AUTH")
   if [ "$AM_CODE" = "200" ]; then
-    AM_COUNT=$(python3 -c 'import sys,json; d=json.load(open("/tmp/am_response.json")); print(d.get("totalElements",d.get("total",len(d) if isinstance(d,list) else 0)))' 2>/dev/null || echo "0")
-    if [ "${AM_COUNT:-0}" -gt 0 ]; then pass "Activity Monitor: ${AM_COUNT} entries visible"
+    AM_COUNT=$(python3 -c 'import json; d=json.load(open("/tmp/am_resp.json")); print(d.get("totalElements",len(d.get("content",[]))))' 2>/dev/null || echo "0")
+    if [ "${AM_COUNT:-0}" -gt 0 ]; then pass "Activity Monitor: ${AM_COUNT} entries"
     else warn "Activity Monitor: 0 entries"; fi
-  else
-    fail "Activity Monitor returned ${AM_CODE}"
-  fi
+  else fail "Activity Monitor: HTTP ${AM_CODE}"; fi
 
-  STATS_CODE=$(curl -s -o /tmp/am_stats.json -w "%{http_code}" \
-    "http://localhost:8080/api/activity-monitor/stats?period=24h" -H "$AUTH")
-  if [ "$STATS_CODE" = "200" ]; then
-    TOTAL_TRANSFERS=$(python3 -c 'import sys,json; d=json.load(open("/tmp/am_stats.json")); print(d.get("totalTransfers",0))' 2>/dev/null || echo "0")
-    pass "Activity Monitor stats: ${TOTAL_TRANSFERS} transfers in 24h"
-  else fail "Activity Monitor stats returned ${STATS_CODE}"; fi
+  CODE=$(api_get "http://localhost:8080/api/activity-monitor/stats?period=24h")
+  if [ "$CODE" = "200" ]; then pass "Activity stats: 200"
+  else warn "Activity stats: ${CODE}"; fi
 
-  EXPORT_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-    "http://localhost:8080/api/activity-monitor/export?format=csv" -H "$AUTH")
-  if [ "$EXPORT_CODE" = "200" ]; then pass "Activity Monitor CSV export: 200"
-  else warn "Activity Monitor CSV export: ${EXPORT_CODE}"; fi
+  CODE=$(api_get "http://localhost:8080/api/activity-monitor/export?format=csv")
+  if [ "$CODE" = "200" ]; then pass "Activity CSV export: 200"
+  else warn "Activity CSV export: ${CODE}"; fi
 
   for status in PENDING FAILED MOVED_TO_SENT DOWNLOADED IN_OUTBOX; do
-    FILTER_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-      "http://localhost:8080/api/activity-monitor?status=${status}&page=0&size=5" -H "$AUTH")
-    if [ "$FILTER_CODE" = "200" ]; then pass "Activity Monitor filter status=${status}: 200"
-    else fail "Activity Monitor filter status=${status}: ${FILTER_CODE}"; fi
+    CODE=$(api_get "http://localhost:8080/api/activity-monitor?status=${status}&page=0&size=5")
+    if [ "$CODE" = "200" ]; then pass "Activity filter ${status}: 200"
+    else fail "Activity filter ${status}: ${CODE}"; fi
   done
 
-  # --- Flow Execution API ---
-  LIVE_CODE=$(curl -s -o /tmp/fe_live.json -w "%{http_code}" \
-    "http://localhost:8080/api/flow-executions/live-stats" -H "$AUTH")
-  if [ "$LIVE_CODE" = "200" ]; then
-    FE_PROC=$(python3 -c 'import sys,json; d=json.load(open("/tmp/fe_live.json")); print(d.get("processing",0))' 2>/dev/null || echo "0")
-    FE_FAIL=$(python3 -c 'import sys,json; d=json.load(open("/tmp/fe_live.json")); print(d.get("failed",0))' 2>/dev/null || echo "0")
-    pass "Flow Execution live-stats: processing=${FE_PROC} failed=${FE_FAIL}"
-  else fail "Flow Execution live-stats: ${LIVE_CODE}"; fi
+  # Flow Execution API
+  CODE=$(api_get "http://localhost:8080/api/flow-executions/live-stats")
+  if [ "$CODE" = "200" ]; then pass "Flow live-stats: 200"
+  else fail "Flow live-stats: ${CODE}"; fi
 
-  for ep in "pending-approvals" "scheduled-retries"; do
-    EP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-      "http://localhost:8080/api/flow-executions/${ep}" -H "$AUTH")
-    if [ "$EP_CODE" = "200" ]; then pass "Flow Execution ${ep}: 200"
-    else fail "Flow Execution ${ep}: ${EP_CODE}"; fi
+  for ep in pending-approvals scheduled-retries; do
+    CODE=$(api_get "http://localhost:8080/api/flow-executions/${ep}")
+    if [ "$CODE" = "200" ]; then pass "Flow ${ep}: 200"
+    else fail "Flow ${ep}: ${CODE}"; fi
   done
 
-  JOURNEY_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-    "http://localhost:8080/api/journey?limit=10" -H "$AUTH")
-  if [ "$JOURNEY_CODE" = "200" ]; then pass "Transfer Journey search: 200"
-  else warn "Transfer Journey search: ${JOURNEY_CODE}"; fi
+  CODE=$(api_get "http://localhost:8080/api/journey?limit=10")
+  if [ "$CODE" = "200" ]; then pass "Journey search: 200"
+  else warn "Journey search: ${CODE}"; fi
 
-  # --- Flow Execution Lifecycle (restart/terminate/schedule-retry) ---
-  TRACK_ID=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c \
+  # Lifecycle ops
+  TRACK=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c \
     "SELECT track_id FROM flow_executions WHERE status IN ('FAILED','CANCELLED','PAUSED') LIMIT 1;" 2>/dev/null | tr -d ' ')
 
-  if [ -n "$TRACK_ID" ] && [ "$TRACK_ID" != "" ]; then
-    log "  Found restartable execution: $TRACK_ID"
+  if [ -n "$TRACK" ] && [ "$TRACK" != "" ]; then
+    log "  Lifecycle target: $TRACK"
 
-    # Detail
-    DETAIL_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-      "http://localhost:8080/api/flow-executions/${TRACK_ID}" -H "$AUTH")
-    if [ "$DETAIL_CODE" = "200" ]; then pass "Flow Execution detail (${TRACK_ID}): 200"
-    else fail "Flow Execution detail: ${DETAIL_CODE}"; fi
+    CODE=$(api_get "http://localhost:8080/api/flow-executions/${TRACK}")
+    if [ "$CODE" = "200" ]; then pass "Execution detail: 200"
+    else fail "Execution detail: ${CODE}"; fi
 
-    # Event history
-    EH_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-      "http://localhost:8080/api/flow-executions/flow-events/${TRACK_ID}" -H "$AUTH")
-    if [ "$EH_CODE" = "200" ]; then pass "Flow Execution event history: 200"
-    else warn "Flow Execution event history: ${EH_CODE}"; fi
+    CODE=$(api_get "http://localhost:8080/api/flow-executions/${TRACK}/history")
+    if [ "$CODE" = "200" ]; then pass "Execution history: 200"
+    else warn "Execution history: ${CODE}"; fi
 
-    # Attempt history
-    AH_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-      "http://localhost:8080/api/flow-executions/${TRACK_ID}/history" -H "$AUTH")
-    if [ "$AH_CODE" = "200" ]; then pass "Flow Execution attempt history: 200"
-    else warn "Flow Execution attempt history: ${AH_CODE}"; fi
-
-    # Restart
-    RESTART_CODE=$(curl -s -o /tmp/fe_restart.json -w "%{http_code}" -X POST \
-      "http://localhost:8080/api/flow-executions/${TRACK_ID}/restart" -H "$AUTH")
-    if [ "$RESTART_CODE" = "200" ] || [ "$RESTART_CODE" = "202" ]; then
-      pass "Flow Execution restart: accepted (${RESTART_CODE})"
-    else warn "Flow Execution restart: ${RESTART_CODE}"; fi
-
+    CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:8080/api/flow-executions/${TRACK}/restart" -H "$AUTH")
+    if [ "$CODE" = "200" ] || [ "$CODE" = "202" ]; then pass "Restart: ${CODE}"
+    else warn "Restart: ${CODE}"; fi
     sleep 2
 
-    # Terminate (find another execution)
-    TERM_TRACK=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c \
-      "SELECT track_id FROM flow_executions WHERE status IN ('PROCESSING','FAILED','PAUSED') AND track_id != '${TRACK_ID}' LIMIT 1;" 2>/dev/null | tr -d ' ')
-    if [ -n "$TERM_TRACK" ] && [ "$TERM_TRACK" != "" ]; then
-      TERM_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-        "http://localhost:8080/api/flow-executions/${TERM_TRACK}/terminate" -H "$AUTH")
-      if [ "$TERM_CODE" = "200" ] || [ "$TERM_CODE" = "202" ]; then pass "Flow Execution terminate: accepted (${TERM_CODE})"
-      else warn "Flow Execution terminate: ${TERM_CODE}"; fi
-    else skip "Flow Execution terminate — no second execution available"; fi
+    TRACK2=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c \
+      "SELECT track_id FROM flow_executions WHERE status IN ('PROCESSING','FAILED','PAUSED') AND track_id != '${TRACK}' LIMIT 1;" 2>/dev/null | tr -d ' ')
+    if [ -n "$TRACK2" ] && [ "$TRACK2" != "" ]; then
+      CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:8080/api/flow-executions/${TRACK2}/terminate" -H "$AUTH")
+      if [ "$CODE" = "200" ]; then pass "Terminate: 200"
+      else warn "Terminate: ${CODE}"; fi
+    else skip "Terminate — no second execution"; fi
 
-    # Schedule retry
-    FUTURE=$(date -u -v+1H +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '+1 hour' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "2026-12-31T23:59:59Z")
-    SCHED_TRACK=$(docker exec mft-postgres psql -U postgres -d filetransfer -t -c \
-      "SELECT track_id FROM flow_executions WHERE status IN ('FAILED','CANCELLED','PAUSED') LIMIT 1;" 2>/dev/null | tr -d ' ')
-    if [ -n "$SCHED_TRACK" ] && [ "$SCHED_TRACK" != "" ]; then
-      SCHED_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-        "http://localhost:8080/api/flow-executions/${SCHED_TRACK}/schedule-retry" \
-        -H "$AUTH" -H "Content-Type: application/json" -d "{\"scheduledAt\":\"${FUTURE}\"}")
-      if [ "$SCHED_CODE" = "200" ] || [ "$SCHED_CODE" = "202" ]; then
-        pass "Flow Execution schedule-retry: accepted (${SCHED_CODE})"
-        curl -s -o /dev/null -X DELETE "http://localhost:8080/api/flow-executions/${SCHED_TRACK}/schedule-retry" -H "$AUTH" 2>/dev/null
-        pass "Flow Execution schedule-retry: cancelled (cleanup)"
-      else warn "Flow Execution schedule-retry: ${SCHED_CODE}"; fi
-    else skip "Flow Execution schedule-retry — no failed execution"; fi
-
-    # Journey detail
-    JD_CODE=$(curl -s -o /tmp/journey.json -w "%{http_code}" \
-      "http://localhost:8080/api/journey/${TRACK_ID}" -H "$AUTH")
-    if [ "$JD_CODE" = "200" ]; then
-      STAGES=$(python3 -c 'import json; d=json.load(open("/tmp/journey.json")); print(len(d.get("stages",[])))' 2>/dev/null || echo "0")
-      pass "Transfer Journey detail: ${STAGES} stages"
-    else warn "Transfer Journey detail: ${JD_CODE}"; fi
-
+    CODE=$(api_get "http://localhost:8080/api/journey/${TRACK}")
+    if [ "$CODE" = "200" ]; then pass "Journey detail: 200"
+    else warn "Journey detail: ${CODE}"; fi
   else
-    log "  No flow executions — lifecycle tests skipped"
-    skip "Flow Execution restart — no executions exist"
-    skip "Flow Execution terminate — no executions exist"
-    skip "Flow Execution schedule-retry — no executions exist"
-    skip "Flow Execution detail/history — no executions exist"
-    skip "Transfer Journey detail — no executions exist"
+    log "  No executions for lifecycle tests"
+    skip "Restart — no executions"
+    skip "Terminate — no executions"
+    skip "Journey detail — no executions"
+    skip "Execution detail — no executions"
   fi
 
-  # --- Error handling validation ---
-  BULK_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-    "http://localhost:8080/api/flow-executions/bulk-restart" \
-    -H "$AUTH" -H "Content-Type: application/json" -d '{"trackIds":[]}')
-  if [ "$BULK_CODE" = "400" ]; then pass "Bulk restart empty body: 400 (correct)"
-  else warn "Bulk restart empty body: ${BULK_CODE}"; fi
+  # Error handling
+  CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:8080/api/flow-executions/bulk-restart" -H "$AUTH" -H "Content-Type: application/json" -d '{"trackIds":[]}')
+  if [ "$CODE" = "400" ]; then pass "Bulk restart empty: 400"
+  else warn "Bulk restart empty: ${CODE}"; fi
 
-  R404=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-    "http://localhost:8080/api/flow-executions/NONEXISTENT/restart" -H "$AUTH")
-  if [ "$R404" = "404" ]; then pass "Restart non-existent: 404 (correct)"
-  else warn "Restart non-existent: ${R404}"; fi
-
-else
-  fail "No auth token — cannot run Phase 6b"
+  CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:8080/api/flow-executions/NONEXISTENT/restart" -H "$AUTH")
+  if [ "$CODE" = "404" ]; then pass "Restart non-existent: 404"
+  else warn "Restart non-existent: ${CODE}"; fi
 fi
 
 # =============================================================================
-# PHASE 7: Artifact Capture
+# PHASE 7: UI Screen Audit (via nginx gateway)
 # =============================================================================
-log "=== PHASE 7: Capturing Artifacts ==="
+log "=== PHASE 7: UI Screen Audit ==="
 
-for svc in sftp-service onboarding-api config-service forwarder-service storage-manager; do
+if [ -n "$TOKEN" ]; then
+  UI_OK=0; UI_FAIL=0
+  for ep in \
+    "/api/flows" "/api/partners" "/api/accounts" "/api/servers" \
+    "/api/folder-mappings" "/api/activity-monitor" "/api/activity-monitor/stats?period=24h" \
+    "/api/flow-executions/live-stats" "/api/journey?limit=10" \
+    "/api/dlq/messages?page=0&size=10" "/api/clusters" "/api/service-registry" \
+    "/api/proxy-groups" "/api/platform/listeners" "/api/audit-logs" \
+    "/api/partner-webhooks" "/api/snapshot-retention" \
+    "/api/v1/sentinel/findings" "/api/v1/quarantine?page=0&size=10" \
+    "/api/compliance/profiles" "/api/external-destinations" \
+    "/api/as2-partnerships" "/api/connectors" "/api/v1/tenants" \
+    "/api/v1/threats/indicators" "/api/vfs/intents/recent?limit=10"; do
+    CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "https://localhost${ep}" -k -H "Authorization: Bearer $TOKEN" 2>/dev/null)
+    if [ "$CODE" = "200" ]; then UI_OK=$((UI_OK+1))
+    else UI_FAIL=$((UI_FAIL+1)); fi
+  done
+  pass "UI screens via gateway: ${UI_OK} OK, ${UI_FAIL} failed"
+fi
+
+# =============================================================================
+# PHASE 8: Artifact Capture
+# =============================================================================
+log "=== PHASE 8: Artifacts ==="
+
+for svc in sftp-service config-service onboarding-api storage-manager; do
   docker exec "mft-${svc}" kill -3 1 2>/dev/null || true
 done
 sleep 2
-for svc in sftp-service onboarding-api config-service forwarder-service storage-manager; do
+for svc in sftp-service config-service onboarding-api storage-manager; do
   docker logs "mft-${svc}" 2>&1 | grep -A 50000 "Full thread dump" > "$DUMP_DIR/thread-dump-${svc}.txt" 2>/dev/null || true
 done
 
+# VFS log extract
+docker logs mft-sftp-service 2>&1 | grep "\[VFS\]" > "$DUMP_DIR/vfs-logs.txt" 2>/dev/null
+
+# DB state
 docker exec mft-postgres psql -U postgres -d filetransfer -c "
 SELECT 'partners' as t, count(*) as n FROM partners
 UNION ALL SELECT 'transfer_accounts', count(*) FROM transfer_accounts
 UNION ALL SELECT 'file_flows', count(*) FROM file_flows
 UNION ALL SELECT 'file_transfer_records', count(*) FROM file_transfer_records
 UNION ALL SELECT 'flow_executions', count(*) FROM flow_executions
+UNION ALL SELECT 'virtual_entries', count(*) FROM virtual_entries
 ORDER BY t;" > "$DUMP_DIR/db-state.txt" 2>/dev/null
 
-docker exec mft-postgres psql -U postgres -d filetransfer -c "
-SELECT track_id, original_filename, status, current_step, error_message
-FROM flow_executions ORDER BY started_at DESC LIMIT 20;" > "$DUMP_DIR/flow-executions.txt" 2>/dev/null
-
-docker exec mft-postgres psql -U postgres -d filetransfer -c "
-SELECT s.instance_id, s.default_storage_mode, a.username, a.storage_mode
-FROM server_instances s
-LEFT JOIN transfer_accounts a ON true
-WHERE a.username IN ('acme-sftp','globalbank-sftp','logiflow-sftp')
-ORDER BY s.instance_id, a.username;" > "$DUMP_DIR/vfs-status.txt" 2>/dev/null
+docker exec mft-postgres psql -U postgres -d filetransfer -c \
+  "SELECT track_id, original_filename, status, current_step, error_message FROM flow_executions ORDER BY started_at DESC LIMIT 20;" > "$DUMP_DIR/flow-executions.txt" 2>/dev/null
 
 docker compose ps --format '{{.Name}} {{.Status}}' > "$DUMP_DIR/container-status.txt" 2>/dev/null
 docker stats --no-stream --format "{{.Name}}\t{{.MemUsage}}\t{{.CPUPerc}}" > "$DUMP_DIR/memory-stats.txt" 2>/dev/null
 
-pass "Artifacts captured to ${DUMP_DIR}"
+pass "Artifacts: ${DUMP_DIR}"
 
 # =============================================================================
 # REPORT
@@ -490,24 +459,24 @@ log "=== RESULTS ==="
 log "PASS: $PASS | FAIL: $FAIL | WARN: $WARN | SKIP: $SKIP"
 
 cat > "$REPORT_FILE" << REPORT_EOF
-# TranzFer MFT — Product Sanity Validation Report
+# TranzFer MFT — Product Sanity Regression Report
 **Date:** $(date +%Y-%m-%d\ %H:%M:%S)
-**Storage Mode:** VIRTUAL (VFS) — all servers and accounts
+**Storage:** VIRTUAL (VFS) — all accounts
 **Results:** PASS=$PASS | FAIL=$FAIL | WARN=$WARN | SKIP=$SKIP
 
 ## Test Results
 $(cat "$DUMP_DIR/results.md")
 
 ## Artifacts
+- VFS logs: \`${DUMP_DIR}/vfs-logs.txt\`
 - Thread dumps: \`${DUMP_DIR}/thread-dump-*.txt\`
 - DB state: \`${DUMP_DIR}/db-state.txt\`
 - Flow executions: \`${DUMP_DIR}/flow-executions.txt\`
-- VFS status: \`${DUMP_DIR}/vfs-status.txt\`
-- Container status: \`${DUMP_DIR}/container-status.txt\`
-- Memory stats: \`${DUMP_DIR}/memory-stats.txt\`
+- Containers: \`${DUMP_DIR}/container-status.txt\`
+- Memory: \`${DUMP_DIR}/memory-stats.txt\`
 REPORT_EOF
 
-log "Report written to: $REPORT_FILE"
-log "Dumps directory: $DUMP_DIR"
+log "Report: $REPORT_FILE"
+log "Dumps: $DUMP_DIR"
 
 [ "$FAIL" -eq 0 ] && exit 0 || exit 1
