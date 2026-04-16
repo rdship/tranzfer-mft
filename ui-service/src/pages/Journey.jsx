@@ -5,10 +5,9 @@ import { onboardingApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EvidenceReport from '../components/EvidenceReport'
 import DataLineageGraph from '../components/DataLineageGraph'
-import FileDownloadButton from '../components/FileDownloadButton'
+import { LazyFileDownloadButton as FileDownloadButton, LazyConfigInlineEditor as ConfigInlineEditor } from '../components/LazyShared'
 import CopyButton from '../components/CopyButton'
 import ConfigLink from '../components/ConfigLink'
-import ConfigInlineEditor from '../components/ConfigInlineEditor'
 import ConfirmDialog from '../components/ConfirmDialog'
 import {
   MagnifyingGlassIcon,

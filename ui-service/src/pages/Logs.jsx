@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { onboardingApi } from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
-import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer'
+import { LazyExecutionDetailDrawer as ExecutionDetailDrawer } from '../components/LazyShared'
 import { format } from 'date-fns'
 import { MagnifyingGlassIcon, ArrowDownTrayIcon, ChevronLeftIcon, ChevronRightIcon, ArrowTopRightOnSquareIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 

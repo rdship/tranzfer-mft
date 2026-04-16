@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, Link } from 'react-router-dom'
 import * as sentinelApi from '../api/sentinel'
-import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer'
-import FileDownloadButton from '../components/FileDownloadButton'
+import { LazyExecutionDetailDrawer as ExecutionDetailDrawer, LazyFileDownloadButton as FileDownloadButton } from '../components/LazyShared'
 import toast from 'react-hot-toast'
 import {
   ShieldCheckIcon, ExclamationTriangleIcon, ChartBarIcon,
