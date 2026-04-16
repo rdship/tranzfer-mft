@@ -109,6 +109,11 @@ public class RoutingEngine {
     @Nullable
     private com.filetransfer.shared.client.StorageServiceClient storageClient;
 
+    /** Compliance enforcement — checks geo-blocking, file extensions, size, encryption, AI risk. */
+    @Autowired(required = false)
+    @Nullable
+    private com.filetransfer.shared.compliance.ComplianceEnforcementService complianceService;
+
     @org.springframework.beans.factory.annotation.Value("${rabbitmq.exchange:file-transfer.events}")
     private String exchange;
 
@@ -180,9 +185,45 @@ public class RoutingEngine {
         }
         log.info("[{}] File received: account={} file={}", trackId, sourceAccount.getUsername(), filename);
 
-        // Step 1: Build match context and find matching flow
+        // Step 0: Compliance check — geo-blocking, file extensions, size, encryption, AI risk
         long fileSizeBytes = -1;
         try { fileSizeBytes = Files.size(Paths.get(absoluteSourcePath)); } catch (Exception ignored) {}
+
+        // Compliance check — uses the platform's default compliance profile (if configured)
+        // Future: per-partner or per-server compliance profiles via ComplianceProfile assignment
+        if (complianceService != null) {
+            try {
+                var ctx = new com.filetransfer.shared.compliance.ComplianceEnforcementService.ComplianceContext(
+                        trackId, null, null, null,
+                        sourceAccount.getUsername(), filename, fileSizeBytes,
+                        false, false, false,
+                        absoluteSourcePath != null ? java.nio.file.Paths.get(absoluteSourcePath) : null,
+                        sourceIp, null);
+                var result = complianceService.evaluate(ctx);
+                if (result.blocked()) {
+                    log.warn("[{}] COMPLIANCE BLOCKED: {} violation(s) — {}", trackId,
+                            result.violations().size(),
+                            result.violations().stream().map(v -> v.getViolationType()).collect(java.util.stream.Collectors.joining(", ")));
+                    // Record as REJECTED
+                    FileTransferRecord record = FileTransferRecord.builder()
+                            .trackId(trackId)
+                            .sourceAccountId(sourceAccount.getId())
+                            .originalFilename(filename)
+                            .fileSizeBytes(fileSizeBytes)
+                            .status(FileTransferStatus.FAILED)
+                            .errorMessage("Compliance blocked: " + result.violations().stream()
+                                    .map(v -> v.getViolationType()).collect(java.util.stream.Collectors.joining(", ")))
+                            .uploadedAt(java.time.Instant.now())
+                            .build();
+                    recordRepository.save(record);
+                    return;
+                }
+            } catch (Exception e) {
+                log.warn("[{}] Compliance check failed (allowing file): {}", trackId, e.getMessage());
+            }
+        }
+
+        // Step 1: Build match context and find matching flow
 
         // Resolve partner slug for matching — Phase 1: L1+L2 cache (was: DB query per file)
         String partnerSlug = null;
