@@ -14,7 +14,7 @@ import java.util.UUID;
  */
 @Data
 @Builder
-public class FileFlowDto {
+public class FileFlowDto implements java.io.Serializable {
     private UUID id;
     private String name;
     private String description;
