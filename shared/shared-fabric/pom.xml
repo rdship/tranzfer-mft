@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.filetransfer</groupId>
         <artifactId>shared</artifactId>
-        <version>1.0.0-R61</version>
+        <version>1.0.0-R64</version>
     </parent>
 
     <artifactId>shared-fabric</artifactId>
