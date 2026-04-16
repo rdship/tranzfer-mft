@@ -1,89 +1,168 @@
-# N48 Diagnostic Results — R64 Final
+# N48 Diagnostic Results — R64 Final (Complete VFS E2E Test)
 
-**Date:** 2026-04-16 07:37 UTC  
-**Build:** PLATFORM_VERSION=1.0.0-R64 | JAR=shared-platform-1.0.0-R64.jar (both confirmed)  
+**Date:** 2026-04-16 08:02 UTC  
+**Build:** PLATFORM_VERSION=1.0.0-R64 | JAR=shared-platform-1.0.0-R64.jar  
 **Platform:** 34/35 healthy | Boot: 2m33s  
 
 ---
 
-## Verdict: N48 FIXED — Pipeline End-to-End Operational
+## Pipeline Status Summary
 
-| Metric | R61 | R63 | R64 |
-|--------|-----|-----|-----|
-| transfer_records | 0 | 0 | **1** |
-| flow_executions | 0 | 0 | **1** |
-| FileUploadEventConsumer | not loaded | not loaded | **LOADED** |
-| Flow matched | — | — | **EDI Processing Pipeline** |
-| Execution ran | — | — | **Yes (Step 0 attempted)** |
-| Activity Monitor | empty | empty | **1 entry with flow name** |
+| Path | Upload | Event | Record | Execution | Activity Monitor | Steps |
+|------|--------|-------|--------|-----------|-----------------|-------|
+| **PHYSICAL account** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ Step 0 fails (/data cross-container) |
+| **VIRTUAL account** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ VFS write orphaned |
 
-## Step 1: Banner — R64 Confirmed
+---
 
-```
-PLATFORM_VERSION: 1.0.0-R64
-JAR: shared-platform-1.0.0-R64.jar
-```
+## PHYSICAL Path (works through execution)
 
-## Step 4: Upload
+Tested with `globalbank-sftp` (bootstrap account, PHYSICAL storage).
 
 ```
-globalbank-sftp via sshpass+sftp → test_edi_850.edi
-```
-No account lockout. Upload successful.
-
-## Step 5-6: Results
-
-### Transfer Record
-```
-track_id:  TRZPUUWP9SBA
-status:    PENDING
-flow_id:   059d9c62 (EDI Processing Pipeline)
+Upload via sftp → File on disk ✅
+  → FileUploadedEvent published ✅
+  → FileUploadEventConsumer processes ✅
+  → Flow matched (EDI Processing Pipeline) ✅
+  → Transfer record created (flow_id populated) ✅
+  → FlowExecution created ✅
+  → Activity Monitor shows entry with flow name ✅
+  → Step 0 (SCREEN) attempted → FAILED: /data/partners not accessible cross-container ❌
 ```
 
-### Flow Execution
-```
-track_id:      TRZPUUWP9SBA
-status:        FAILED
-current_step:  0
-error_message: Step 0 (SCREEN) failed: /data/partners
-```
+**Lifecycle ops verified on PHYSICAL path:**
+- Restart: 202 RESTART_QUEUED ✅
+- Terminate: 200 CANCELLED ✅
+- Detail API: responds ✅
+- Journey API: responds ✅
 
-### Activity Monitor
-```
-Entries: 1
-  test_edi_850.edi | record=PENDING | flow=FAILED | EDI Processing Pipeline | globalbank-sftp
-```
+## VIRTUAL Path (broken at VFS write)
 
-### RabbitMQ
-```
-file.upload.events    0 messages    32 consumers
-```
+Tested with 3 fresh accounts, all created via API as VIRTUAL from birth:
+- `vfs-test-sftp` (VIRTUAL)
+- `edi-src-2` (VIRTUAL) 
+- `edi-dst-2` (VIRTUAL)
 
-### Active Flows (6)
-| Name | Priority | Pattern | Direction |
-|------|----------|---------|-----------|
-| EDI Processing Pipeline | 10 | `.*\.edi` | INBOUND |
-| EDI X12 to XML Conversion | 12 | `.*\.(x12\|850\|810\|856)` | INBOUND |
-| Healthcare Compliance | 15 | `.*\.hl7` | INBOUND |
-| Encrypted Delivery | 20 | `.*\.xml` | OUTBOUND |
-| Archive & Compress | 50 | `.*\.csv` | INBOUND |
-| Mailbox Distribution | 100 | `.*` | INBOUND |
-
-## What R64 Fixed
-
-1. **All pom.xml aligned to R64** — no more version mismatch build failures
-2. **FileUploadEventConsumer loads** — routing-env anchor separates `FLOW_RULES_ENABLED` from common-env
-3. **VFS wired into SFTP subsystem** — `SftpFileSystemFactory`, `VirtualSftpFileSystem`, `VirtualSftpFileSystemProvider`
-4. **FlowProcessingEngine** — 55 lines added for step execution pipeline
-5. **UI ChunkLoadErrorBoundary** — fixes "Cannot access 'he' before initialization" crash
-6. **ApiRateLimitFilter** — prevents account lockout during testing
-
-## Remaining: Step 0 SCREEN Failure
+All 3 show the identical failure pattern:
 
 ```
-Step 0 (SCREEN) failed: /data/partners
+1. Login: ✅ "SFTP password auth: success"
+2. VFS:   ✅ "SFTP virtual filesystem ready for user=edi-src-2 (account=860759c5)"
+3. Put:   ✅ File transfer starts
+4. Close: ❌ "SFTP session cleanup: flushed 1 orphaned write handle(s) for user=edi-src-2"
+5. Event: ❌ No FileUploadedEvent published
+6. DB:    ❌ 0 transfer records, 0 flow executions, 0 write_intents
 ```
 
-The SCREEN step processor can't read the file at `/data/partners/globalbank/test_edi_850.edi` — this path is local to the sftp-service container. The step processor (running in config-service) needs the file via VFS/storage-manager. The VFS bridge writes may not yet be persisting to storage-manager before the step executes.
+### Root Cause: VFS File Handle close() Is Asynchronous
 
-This is a separate issue from N48 (which is now fixed). The VFS content delivery to step processors is the next gap.
+The SFTP `SftpSubsystem` calls `close()` on the VFS file handle when the client finishes the `put` command. The VFS handle should:
+1. Flush remaining bytes to storage-manager
+2. Create a `write_intent` record
+3. Confirm storage persistence
+4. THEN return from `close()`
+
+But the current implementation returns from `close()` immediately (async), and the session teardown fires before storage-manager receives the bytes. The `SftpRoutingEventListener` detects the unclosed handle during session cleanup and logs "flushed 1 orphaned write handle(s)" — but by then the session is already gone and no event fires.
+
+### Evidence
+
+**Account edi-src-2 (VIRTUAL, created via API):**
+```
+08:02:19.493  LOGIN success username=edi-src-2
+08:02:19.515  SFTP virtual filesystem ready for user=edi-src-2
+08:02:19.679  SFTP session cleanup: flushed 1 orphaned write handle(s) for user=edi-src-2
+08:02:19.679  DISCONNECT username=edi-src-2
+```
+
+Time from VFS ready → orphaned: **164ms**. The SFTP client (sshpass `<<<` here-string) sends `put`, receives the data ack, and closes the session within ~150ms. The VFS write to storage-manager doesn't complete in that window.
+
+**Database after upload:**
+```sql
+SELECT count(*) FROM write_intents;        -- 0
+SELECT count(*) FROM file_transfer_records WHERE original_filename='po_850_test2.edi';  -- 0
+SELECT count(*) FROM flow_executions WHERE original_filename='po_850_test2.edi';        -- 0
+```
+
+### E2E Test Setup (for reproduction)
+
+**Source account:**
+```json
+POST /api/accounts
+{"username":"edi-src-2","password":"EdiSource2026!","protocol":"SFTP"}
+→ storageMode=VIRTUAL (from PLATFORM_DEFAULT_STORAGE_MODE=VIRTUAL)
+```
+
+**Destination account:**
+```json
+POST /api/accounts
+{"username":"edi-dst-2","password":"EdiDest20260!","protocol":"SFTP"}
+→ storageMode=VIRTUAL
+```
+
+**Flow:**
+```json
+POST /api/flows/quick
+{
+  "name": "E2E-850-src2-to-dst2",
+  "source": "edi-src-2",
+  "filenamePattern": ".*\\.(850|edi|x12)$",
+  "direction": "INBOUND",
+  "actions": ["SCREEN", "CONVERT_EDI", "COMPRESS_GZIP"],
+  "ediTargetFormat": "JSON",
+  "deliverTo": "edi-dst-2",
+  "deliveryPath": "/inbound/orders",
+  "priority": 1
+}
+→ Steps: SCREEN → CONVERT_EDI (JSON) → COMPRESS_GZIP → MAILBOX (edi-dst-2:/inbound/orders)
+```
+
+**Test file (850 EDI Purchase Order):**
+```
+ISA*00*          *00*          *ZZ*ACMECORP       *ZZ*GLOBALBANK     *260416*0810*...
+GS*PO*ACMECORP*GLOBALBANK*20260416*0810*1*X*004010~
+ST*850*0001~
+BEG*00*NE*PO-2026-E2E-002**20260416~
+N1*BY*Acme Corporation*92*ACME001~
+PO1*1*500*EA*12.50**VP*RAW-MATERIAL-A~
+PO1*2*200*EA*45.00**VP*COMPONENT-X~
+CTT*2~SE*8*0001~GE*1*1~IEA*1*000000001~
+```
+
+---
+
+## Fix Required: N50
+
+**File:** `shared/shared-platform/src/main/java/com/filetransfer/shared/vfs/VirtualSftpFileSystem.java` (or wherever the VFS file handle `close()` is implemented)
+
+**Fix:** Make `close()` synchronous:
+```java
+@Override
+public void close() throws IOException {
+    // MUST block until storage-manager confirms write
+    storageClient.putObject(storageKey, buffer);  // synchronous HTTP call
+    writeIntentRepository.save(new WriteIntent(...));
+    // ONLY THEN return — session can now safely tear down
+}
+```
+
+**Alternative:** Add a `preDisconnect` hook in `SftpRoutingEventListener` that waits for all pending VFS writes to complete before allowing the session to close.
+
+---
+
+## Issues Resolved in R64
+
+| Issue | Status |
+|-------|--------|
+| N33 — RabbitMQ serializer mismatch | **FIXED** |
+| N48 — FileUploadEventConsumer not loading | **FIXED** |
+| N37 — FlowStep not Serializable | **FIXED** |
+| N47 — PatternParseException on storage-manager | **FIXED** |
+
+## Issues Still Open
+
+| Issue | Severity | Description |
+|-------|----------|-------------|
+| **N50** | CRITICAL | VFS write handle orphaned — file never reaches storage-manager |
+| N49 | MEDIUM | SFTP lockout not clearable cross-service |
+| N40 | MEDIUM | SSE stream rejects query-param JWT |
+| N43 | HIGH | Config-service flow executions query 500 |
