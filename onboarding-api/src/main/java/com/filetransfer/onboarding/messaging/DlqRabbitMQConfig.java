@@ -79,10 +79,11 @@ public class DlqRabbitMQConfig {
 
     @Bean
     public SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(
-            ConnectionFactory connectionFactory) {
+            ConnectionFactory connectionFactory,
+            Jackson2JsonMessageConverter jsonMessageConverter) {
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory);
-        factory.setMessageConverter(new Jackson2JsonMessageConverter());
+        factory.setMessageConverter(jsonMessageConverter);
         factory.setDefaultRequeueRejected(false); // rejected -> DLX
 
         RetryTemplate retryTemplate = new RetryTemplate();

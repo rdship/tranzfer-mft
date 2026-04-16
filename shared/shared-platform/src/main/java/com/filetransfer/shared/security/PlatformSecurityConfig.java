@@ -69,7 +69,8 @@ public class PlatformSecurityConfig {
                         .requestMatchers(ant("/v3/api-docs/**"), ant("/swagger-ui/**"), ant("/swagger-ui.html")).permitAll()
                         // Health endpoints should never require auth — UI probes these to detect
                         // which services are running (ServiceContext.detectServices).
-                        .requestMatchers(ant("/api/**/health"), ant("/health")).permitAll()
+                        // Explicit depth patterns avoid matching unintended paths like /api/users/delete/health.
+                        .requestMatchers(ant("/api/*/health"), ant("/api/v1/*/health"), ant("/health")).permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class);
