@@ -70,6 +70,21 @@ public class ConfigExportController {
     }
 
     /**
+     * Full export — GET returns all entity types (convenience for UI download button).
+     */
+    @GetMapping
+    public ResponseEntity<ConfigBundle> exportAll() {
+        Set<String> fullScope = Set.of(
+                ConfigBundleBuilder.KEY_PARTNERS, ConfigBundleBuilder.KEY_ACCOUNTS,
+                ConfigBundleBuilder.KEY_FLOWS, ConfigBundleBuilder.KEY_FOLDER_MAPPINGS,
+                ConfigBundleBuilder.KEY_SERVER_INSTANCES);
+        ConfigBundle bundle = bundleBuilder.build(fullScope);
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=tranzfer-config-export.json")
+                .body(bundle);
+    }
+
+    /**
      * Build and return a {@link ConfigBundle} for the requested entity types.
      *
      * <p>Request body: {@code { "scope": ["partners", "accounts", "flows"] }}

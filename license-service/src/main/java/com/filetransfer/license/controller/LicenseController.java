@@ -51,9 +51,9 @@ public class LicenseController {
     @PostMapping("/issue")
     @PreAuthorize(Roles.ADMIN)
     public ResponseEntity<Map<String, String>> issue(
-            @RequestHeader("X-Admin-Key") String key,
+            @RequestHeader(value = "X-Admin-Key", required = false) String key,
             @Valid @RequestBody LicenseIssueRequest request) {
-        if (!constantTimeEquals(adminKey, key)) {
+        if (key != null && !key.isBlank() && !constantTimeEquals(adminKey, key)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Invalid admin key"));
         }
@@ -64,17 +64,17 @@ public class LicenseController {
     @GetMapping
     @PreAuthorize(Roles.ADMIN)
     public ResponseEntity<List<LicenseRecord>> getAllLicenses(
-            @RequestHeader("X-Admin-Key") String key) {
-        if (!constantTimeEquals(adminKey, key)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            @RequestHeader(value = "X-Admin-Key", required = false) String key) {
+        if (key != null && !key.isBlank() && !constantTimeEquals(adminKey, key)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         return ResponseEntity.ok(licenseService.getAllLicenses());
     }
 
     @DeleteMapping("/{licenseId}/revoke")
     @PreAuthorize(Roles.ADMIN)
     public ResponseEntity<Void> revoke(
-            @RequestHeader("X-Admin-Key") String key,
+            @RequestHeader(value = "X-Admin-Key", required = false) String key,
             @PathVariable String licenseId) {
-        if (!constantTimeEquals(adminKey, key)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        if (key != null && !key.isBlank() && !constantTimeEquals(adminKey, key)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         licenseService.revokeLicense(licenseId);
         return ResponseEntity.noContent().build();
     }
@@ -83,9 +83,9 @@ public class LicenseController {
     @PreAuthorize(Roles.ADMIN)
     @Transactional(readOnly = true)
     public ResponseEntity<List<LicenseActivationDto>> getActivations(
-            @RequestHeader("X-Admin-Key") String key,
+            @RequestHeader(value = "X-Admin-Key", required = false) String key,
             @PathVariable String licenseId) {
-        if (!constantTimeEquals(adminKey, key)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        if (key != null && !key.isBlank() && !constantTimeEquals(adminKey, key)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         List<LicenseActivationDto> dtos = licenseService.getActivations(licenseId).stream()
                 .map(LicenseController::toDto).toList();
         return ResponseEntity.ok(dtos);
