@@ -1243,7 +1243,7 @@ public class FlowProcessingEngine {
      * CONVERT_EDI step — calls the EDI Converter service to convert the file using map-based conversion.
      * Config: {"targetType": "PURCHASE_ORDER_INH", "targetFormat": "JSON|XML|CSV", "partnerId": "optional"}
      *
-     * <p>If {@code targetType} is set, uses the new map-based endpoint ({@code /api/v1/convert/convert/map})
+     * <p>If {@code targetType} is set, uses the new map-based endpoint ({@code /api/v1/convert/map})
      * which selects the best conversion map for the source→target document type pair.
      * Falls back to the legacy trained endpoint when only {@code targetFormat} is provided.
      */
@@ -1263,12 +1263,12 @@ public class FlowProcessingEngine {
             // Map-based conversion — document-type-aware
             body.put("targetType", targetType);
             if (partnerId != null && !partnerId.isBlank()) body.put("partnerId", partnerId);
-            endpoint = converterUrl + "/api/v1/convert/convert/map";
+            endpoint = converterUrl + "/api/v1/convert/map";
         } else {
             // Legacy format-based conversion
             body.put("targetFormat", targetFormat);
             if (partnerId != null && !partnerId.isBlank()) body.put("partnerId", partnerId);
-            endpoint = converterUrl + "/api/v1/convert/trained";
+            endpoint = converterUrl + "/api/v1/convert/convert";
         }
 
         HttpHeaders headers = new HttpHeaders();
@@ -2152,11 +2152,11 @@ public class FlowProcessingEngine {
         if (targetType != null && !targetType.isBlank()) {
             body.put("targetType", targetType);
             if (partnerId != null && !partnerId.isBlank()) body.put("partnerId", partnerId);
-            endpoint = serviceProps.getEdiConverter().getUrl() + "/api/v1/convert/convert/map";
+            endpoint = serviceProps.getEdiConverter().getUrl() + "/api/v1/convert/map";
         } else {
             body.put("targetFormat", targetFormat);
             if (partnerId != null && !partnerId.isBlank()) body.put("partnerId", partnerId);
-            endpoint = serviceProps.getEdiConverter().getUrl() + "/api/v1/convert/trained";
+            endpoint = serviceProps.getEdiConverter().getUrl() + "/api/v1/convert/convert";
         }
 
         HttpHeaders ediHdr = new HttpHeaders();
