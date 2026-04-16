@@ -121,13 +121,16 @@ public class FlowFabricConsumer {
             if (execOpt.isEmpty()) { log.warn("[{}] Execution not found", trackId); return; }
 
             FlowExecution exec = execOpt.get();
-            FileFlow flow = exec.getFlow();
-            if (flow == null && exec.getFlow() == null) {
-                // Flow may not be eagerly loaded — fetch it
-                String flowIdStr = (String) payload.get("flowId");
-                if (flowIdStr != null) flow = flowRepo.findById(UUID.fromString(flowIdStr)).orElse(null);
-            }
-            if (flow == null) { log.error("[{}] Flow definition not found", trackId); return; }
+
+            // Load flow with steps eagerly — Kafka consumer runs outside Hibernate session,
+            // lazy collections throw LazyInitializationException.
+            UUID flowId = exec.getFlow() != null ? exec.getFlow().getId() : null;
+            String flowIdStr = (String) payload.get("flowId");
+            if (flowId == null && flowIdStr != null) flowId = UUID.fromString(flowIdStr);
+            if (flowId == null) { log.error("[{}] No flow ID available", trackId); return; }
+
+            FileFlow flow = flowRepo.findByIdWithSteps(flowId).orElse(null);
+            if (flow == null) { log.error("[{}] Flow not found: {}", trackId, flowId); return; }
             if (stepIndex >= flow.getSteps().size()) { log.warn("[{}] Step {} out of range", trackId, stepIndex); return; }
 
             // Execute this single step — pass accountId + virtualPath for VFS INLINE fallback

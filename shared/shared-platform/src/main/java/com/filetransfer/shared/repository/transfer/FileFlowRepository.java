@@ -12,6 +12,10 @@ import java.util.UUID;
 
 public interface FileFlowRepository extends JpaRepository<FileFlow, UUID> {
 
+    /** Load a flow with steps eagerly — for Kafka consumers outside Hibernate session. */
+    @Query("SELECT f FROM FileFlow f LEFT JOIN FETCH f.steps WHERE f.id = :id")
+    Optional<FileFlow> findByIdWithSteps(@Param("id") UUID id);
+
     @Query("SELECT f FROM FileFlow f " +
            "LEFT JOIN FETCH f.sourceAccount " +
            "LEFT JOIN FETCH f.destinationAccount " +
