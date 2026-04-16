@@ -159,14 +159,10 @@ public class RoutingEngine {
                         .homeDir(sourceAccount.getHomeDir())
                         .build();
                 rabbitTemplate.convertAndSend(exchange, "file.uploaded", event);
-                log.info("[{}] FileUploadedEvent published to RabbitMQ", trackId);
-
-                // VIRTUAL accounts: consumer on any service handles it (VFS + MinIO are shared).
-                // PHYSICAL accounts: file is on local disk — must process on this service.
-                if ("VIRTUAL".equalsIgnoreCase(sourceAccount.getStorageMode())) {
-                    return; // Consumer handles flow matching + execution via VFS
-                }
-                // PHYSICAL: fall through to synchronous processing below
+                log.info("[{}] FileUploadedEvent published to RabbitMQ (broadcast)", trackId);
+                // Both VIRTUAL and PHYSICAL: process locally on originating service.
+                // RabbitMQ is for broadcast (Activity Monitor, cache eviction, monitoring).
+                // Flow execution runs here — the originating service has full context.
             } catch (Exception e) {
                 log.warn("[{}] RabbitMQ publish failed — falling back to synchronous: {}", trackId, e.getMessage());
             }
