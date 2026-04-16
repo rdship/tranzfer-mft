@@ -269,6 +269,9 @@ public class RoutingEngine {
 
         String processedFilePath = absoluteSourcePath;
         // Zero-I/O matching — pre-compiled rules evaluated in-memory
+        log.info("[{}] Flow matching: filename={} protocol={} direction={} registry.size={} registry.initialized={}",
+                trackId, matchContext.filename(), matchContext.protocol(), matchContext.direction(),
+                flowRuleRegistry.size(), flowRuleRegistry.isInitialized());
         CompiledFlowRule matchedRule = flowRuleRegistry.findMatch(matchContext);
         // Phase 1: use cached flow from registry initializer (was: DB query per matched file)
         FileFlow matchedFlow = null;
@@ -288,6 +291,10 @@ public class RoutingEngine {
             if (flowEventJournal != null) {
                 flowEventJournal.recordFlowMatched(trackId, null, matchedRule.flowName());
             }
+        } else {
+            log.warn("[{}] NO FLOW MATCH: filename={} protocol={} direction={} registrySize={}",
+                    trackId, matchContext.filename(), matchContext.protocol(),
+                    matchContext.direction(), flowRuleRegistry.size());
         }
 
         // ── Phase 1: Defer source checksum to storage-manager response or async task ──
