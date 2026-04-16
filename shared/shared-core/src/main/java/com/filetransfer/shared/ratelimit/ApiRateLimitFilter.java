@@ -5,35 +5,54 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Token-bucket rate limiter for internal REST APIs.
+ * Redis-backed sliding window rate limiter for REST APIs.
  *
- * Limits per IP address and per authenticated user (JWT subject).
+ * <p>Primary: Redis INCR + EXPIRE for distributed rate limiting (works across replicas).
+ * <p>Fallback: in-memory ConcurrentHashMap if Redis is unavailable (single-instance only).
+ *
+ * <p>Limits per IP address and per authenticated user (JWT subject).
  * Returns standard rate-limit headers on every response and a 429
  * with {@code Retry-After} when the budget is exhausted.
  *
- * Configuration via {@link RateLimitProperties}.
+ * <p>Internal services (ROLE_INTERNAL via SPIFFE JWT-SVID) bypass rate limiting.
  */
 @Slf4j
 public class ApiRateLimitFilter extends OncePerRequestFilter {
 
     private final RateLimitProperties properties;
+    private final @Nullable StringRedisTemplate redis;
+
+    // Fallback: in-memory token buckets (used when Redis is unavailable)
     private final Map<String, TokenBucket> ipBuckets = new ConcurrentHashMap<>();
     private final Map<String, TokenBucket> userBuckets = new ConcurrentHashMap<>();
-
     private static final int MAX_TRACKED_KEYS = 50_000;
 
-    public ApiRateLimitFilter(RateLimitProperties properties) {
+    private volatile boolean redisAvailable = true;
+
+    public ApiRateLimitFilter(RateLimitProperties properties, @Nullable StringRedisTemplate redis) {
         this.properties = properties;
+        this.redis = redis;
+        if (redis == null) {
+            log.warn("Rate limiter: Redis not available, using in-memory fallback (single-instance only)");
+        }
+    }
+
+    /** Backward-compatible constructor for services without Redis. */
+    public ApiRateLimitFilter(RateLimitProperties properties) {
+        this(properties, null);
     }
 
     @Override
@@ -45,9 +64,7 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
-        // Bypass rate limiting for authenticated internal services (ROLE_INTERNAL).
-        // This filter runs AFTER PlatformJwtAuthFilter so ROLE_INTERNAL is already set
-        // in the SecurityContext when a valid SPIFFE JWT-SVID was presented.
+        // Bypass rate limiting for SPIFFE-authenticated internal services
         Authentication internalAuth = SecurityContextHolder.getContext().getAuthentication();
         if (internalAuth != null && internalAuth.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_INTERNAL".equals(a.getAuthority()))) {
@@ -59,12 +76,10 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
         int ipLimit = properties.getDefaultLimit();
         long windowSeconds = properties.getDefaultWindowSeconds();
 
-        TokenBucket ipBucket = ipBuckets.computeIfAbsent(ip,
-                k -> new TokenBucket(ipLimit, windowSeconds));
-        evictIfNeeded(ipBuckets);
-
-        if (!ipBucket.tryConsume()) {
-            writeRateLimitResponse(response, ipBucket, windowSeconds);
+        // IP-based rate limiting
+        RateLimitResult ipResult = checkRateLimit("rate:ip:" + ip, ipLimit, windowSeconds);
+        if (!ipResult.allowed) {
+            writeRateLimitResponse(response, ipResult, windowSeconds);
             return;
         }
 
@@ -72,20 +87,63 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.isAuthenticated() && auth.getPrincipal() instanceof String principal) {
             int userLimit = properties.getUserLimit();
-            TokenBucket userBucket = userBuckets.computeIfAbsent(principal,
-                    k -> new TokenBucket(userLimit, windowSeconds));
-            evictIfNeeded(userBuckets);
-
-            if (!userBucket.tryConsume()) {
-                writeRateLimitResponse(response, userBucket, windowSeconds);
+            RateLimitResult userResult = checkRateLimit("rate:user:" + principal, userLimit, windowSeconds);
+            if (!userResult.allowed) {
+                writeRateLimitResponse(response, userResult, windowSeconds);
                 return;
             }
-            addRateLimitHeaders(response, userBucket, userLimit);
+            addRateLimitHeaders(response, userResult, userLimit);
         } else {
-            addRateLimitHeaders(response, ipBucket, ipLimit);
+            addRateLimitHeaders(response, ipResult, ipLimit);
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    // ── Rate Limit Check ────────────────────────────────────────────────
+
+    private RateLimitResult checkRateLimit(String key, int limit, long windowSeconds) {
+        if (redis != null && redisAvailable) {
+            try {
+                return checkRedis(key, limit, windowSeconds);
+            } catch (Exception e) {
+                // Redis failed — fall back to in-memory for this request cycle
+                if (redisAvailable) {
+                    log.warn("Rate limiter: Redis unavailable, falling back to in-memory: {}", e.getMessage());
+                    redisAvailable = false;
+                }
+            }
+        }
+        return checkInMemory(key, limit, windowSeconds);
+    }
+
+    private RateLimitResult checkRedis(String key, int limit, long windowSeconds) {
+        // Sliding window counter: INCR + EXPIRE
+        Long count = redis.opsForValue().increment(key);
+        if (count == null) count = 1L;
+
+        if (count == 1) {
+            // First request in this window — set TTL
+            redis.expire(key, Duration.ofSeconds(windowSeconds));
+        }
+
+        long remaining = Math.max(0, limit - count);
+        Long ttl = redis.getExpire(key);
+        long resetEpoch = System.currentTimeMillis() / 1000 + (ttl != null ? ttl : windowSeconds);
+
+        // Re-enable Redis check on successful operation
+        redisAvailable = true;
+
+        return new RateLimitResult(count <= limit, remaining, resetEpoch);
+    }
+
+    private RateLimitResult checkInMemory(String key, int limit, long windowSeconds) {
+        Map<String, TokenBucket> map = key.startsWith("rate:user:") ? userBuckets : ipBuckets;
+        TokenBucket bucket = map.computeIfAbsent(key, k -> new TokenBucket(limit, windowSeconds));
+        evictIfNeeded(map);
+
+        boolean allowed = bucket.tryConsume();
+        return new RateLimitResult(allowed, bucket.remaining(), bucket.resetEpochSecond());
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────
@@ -98,19 +156,19 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
         return request.getRemoteAddr();
     }
 
-    private void addRateLimitHeaders(HttpServletResponse response, TokenBucket bucket, int limit) {
+    private void addRateLimitHeaders(HttpServletResponse response, RateLimitResult result, int limit) {
         response.setIntHeader("X-RateLimit-Limit", limit);
-        response.setIntHeader("X-RateLimit-Remaining", (int) Math.max(0, bucket.remaining()));
-        response.setHeader("X-RateLimit-Reset", String.valueOf(bucket.resetEpochSecond()));
+        response.setIntHeader("X-RateLimit-Remaining", (int) result.remaining);
+        response.setHeader("X-RateLimit-Reset", String.valueOf(result.resetEpoch));
     }
 
-    private void writeRateLimitResponse(HttpServletResponse response, TokenBucket bucket,
+    private void writeRateLimitResponse(HttpServletResponse response, RateLimitResult result,
                                          long windowSeconds) throws IOException {
-        long retryAfter = Math.max(1, bucket.resetEpochSecond() - (System.currentTimeMillis() / 1000));
+        long retryAfter = Math.max(1, result.resetEpoch - (System.currentTimeMillis() / 1000));
         response.setStatus(429);
         response.setHeader("Retry-After", String.valueOf(retryAfter));
         response.setIntHeader("X-RateLimit-Remaining", 0);
-        response.setHeader("X-RateLimit-Reset", String.valueOf(bucket.resetEpochSecond()));
+        response.setHeader("X-RateLimit-Reset", String.valueOf(result.resetEpoch));
         response.setContentType("application/json");
         response.getWriter().write(
                 "{\"error\":\"Too Many Requests\",\"message\":\"Rate limit exceeded. Retry after "
@@ -125,7 +183,9 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
         }
     }
 
-    // ── Token Bucket ────────────────────────────────────────────────────
+    // ── Data Classes ────────────────────────────────────────────────────
+
+    record RateLimitResult(boolean allowed, long remaining, long resetEpoch) {}
 
     static class TokenBucket {
         private final int maxTokens;
@@ -141,18 +201,13 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
         }
 
         boolean tryConsume() {
-            refill();
-            long val = tokens.decrementAndGet();
-            if (val < 0) {
-                tokens.incrementAndGet();
-                return false;
-            }
-            return true;
+            refillIfNeeded();
+            return tokens.getAndDecrement() > 0;
         }
 
         long remaining() {
-            refill();
-            return tokens.get();
+            refillIfNeeded();
+            return Math.max(0, tokens.get());
         }
 
         long resetEpochSecond() {
@@ -163,7 +218,7 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
             return now - windowStart > windowMs * 2;
         }
 
-        private void refill() {
+        private void refillIfNeeded() {
             long now = System.currentTimeMillis();
             if (now - windowStart >= windowMs) {
                 windowStart = now;
