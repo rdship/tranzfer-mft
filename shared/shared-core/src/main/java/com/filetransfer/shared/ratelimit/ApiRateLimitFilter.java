@@ -64,6 +64,13 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
+        // Bypass rate limiting for health endpoints and actuator (burst of checks on page load)
+        String path = request.getRequestURI();
+        if (path != null && (path.endsWith("/health") || path.startsWith("/actuator"))) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         // Bypass rate limiting for SPIFFE-authenticated internal services
         Authentication internalAuth = SecurityContextHolder.getContext().getAuthentication();
         if (internalAuth != null && internalAuth.getAuthorities().stream()

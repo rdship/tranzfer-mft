@@ -41,13 +41,18 @@ export default class ChunkLoadErrorBoundary extends Component {
       /Loading chunk \d+ failed/.test(msg) ||
       /Failed to fetch dynamically imported module/.test(msg) ||
       /Importing a module script failed/.test(msg)
-    return { hasError: true, error, isChunkError }
+    const isInitError = /before initialization/.test(msg)
+    return { hasError: true, error, isChunkError, isInitError }
   }
 
   componentDidCatch(error, info) {
-    // Log to the browser console so devs see it; no telemetry dependency.
-    // eslint-disable-next-line no-console
     console.error('[ChunkLoadErrorBoundary] caught error:', error, info)
+    // "Cannot access X before initialization" = Vite circular dep.
+    // Auto-reload once — the shared chunk initializes on second load.
+    if (this.state.isInitError && !sessionStorage.getItem('chunk-retry')) {
+      sessionStorage.setItem('chunk-retry', '1')
+      window.location.reload()
+    }
   }
 
   handleRefresh = () => {

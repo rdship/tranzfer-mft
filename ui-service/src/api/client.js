@@ -106,13 +106,13 @@ dmzApi.interceptors.request.use((config) => {
   if (controlKey) config.headers['X-Internal-Key'] = controlKey
   return config
 })
-export const keystoreApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8093' }))
-export const screeningApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8092' }))
-export const storageApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8096' }))
-export const aiApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8091' }))
-export const notificationApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8097' }))
-export const sentinelApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8098' }))
-export const ediApi = withAuth(axios.create({ baseURL: GATEWAY_URL || 'http://localhost:8095' }))
+export const keystoreApi = withAuth(axios.create({ baseURL: GATEWAY_URL || DEFAULT_GATEWAY }))
+export const screeningApi = withAuth(axios.create({ baseURL: GATEWAY_URL || DEFAULT_GATEWAY }))
+export const storageApi = withAuth(axios.create({ baseURL: GATEWAY_URL || DEFAULT_GATEWAY }))
+export const aiApi = withAuth(axios.create({ baseURL: GATEWAY_URL || DEFAULT_GATEWAY }))
+export const notificationApi = withAuth(axios.create({ baseURL: GATEWAY_URL || DEFAULT_GATEWAY }))
+export const sentinelApi = withAuth(axios.create({ baseURL: GATEWAY_URL || DEFAULT_GATEWAY }))
+export const ediApi = withAuth(axios.create({ baseURL: GATEWAY_URL || DEFAULT_GATEWAY }))
 
 const logCorrelationId = (error) => {
   const correlationId = error?.response?.headers?.['x-correlation-id']
