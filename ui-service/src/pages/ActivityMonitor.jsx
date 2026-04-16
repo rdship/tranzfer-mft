@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { onboardingApi, configApi } from '../api/client'
@@ -9,11 +9,14 @@ import useStickyFilters from '../hooks/useStickyFilters'
 import Modal from '../components/Modal'
 import LoadingSpinner from '../components/LoadingSpinner'
 import Skeleton, { useDelayedFlag } from '../components/Skeleton'
-import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer'
-import FileDownloadButton from '../components/FileDownloadButton'
 import ConfigLink from '../components/ConfigLink'
-import ConfigInlineEditor from '../components/ConfigInlineEditor'
 import ConfirmDialog from '../components/ConfirmDialog'
+
+// Lazy-import heavy shared components to break Vite chunk circular dependency.
+// These are only rendered inside drawers/row-actions (not on initial page load).
+const ExecutionDetailDrawer = lazy(() => import('../components/ExecutionDetailDrawer'))
+const FileDownloadButton = lazy(() => import('../components/FileDownloadButton'))
+const ConfigInlineEditor = lazy(() => import('../components/ConfigInlineEditor'))
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import {
@@ -1699,10 +1702,12 @@ export default function ActivityMonitor() {
                           ))}
                           <td className="table-cell w-24" onClick={e => e.stopPropagation()}>
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <FileDownloadButton
-                                trackId={row.trackId}
-                                filename={row.filename}
-                              />
+                              <Suspense fallback={null}>
+                                <FileDownloadButton
+                                  trackId={row.trackId}
+                                  filename={row.filename}
+                                />
+                              </Suspense>
                               {canOperate && (row.status === 'FAILED' || row.status === 'CANCELLED') && (
                                 <button
                                   onClick={() => { if (window.confirm(`Restart transfer ${row.trackId}?`)) restartOneMut.mutate(row.trackId) }}
@@ -1940,22 +1945,26 @@ export default function ActivityMonitor() {
       )}
 
       {/* Execution Detail Drawer — triggered by double-clicking a row */}
-      <ExecutionDetailDrawer
-        trackId={drawerTrackId}
-        open={!!drawerTrackId}
-        onClose={() => setDrawerTrackId(null)}
-        showActions
-      />
+      <Suspense fallback={null}>
+        <ExecutionDetailDrawer
+          trackId={drawerTrackId}
+          open={!!drawerTrackId}
+          onClose={() => setDrawerTrackId(null)}
+          showActions
+        />
+      </Suspense>
 
       {/* Inline Config Editor — triggered by clicking any config link */}
       {editConfig && (
-        <ConfigInlineEditor
-          open={!!editConfig}
-          onClose={() => setEditConfig(null)}
-          configType={editConfig.type}
-          configId={editConfig.id}
-          configName={editConfig.name}
-        />
+        <Suspense fallback={null}>
+          <ConfigInlineEditor
+            open={!!editConfig}
+            onClose={() => setEditConfig(null)}
+            configType={editConfig.type}
+            configId={editConfig.id}
+            configName={editConfig.name}
+          />
+        </Suspense>
       )}
 
       {/* Slide-in animation via inline style tag */}
