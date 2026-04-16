@@ -1281,7 +1281,14 @@ public class FlowProcessingEngine {
                 (Class<Map<String, Object>>) (Class<?>) Map.class);
 
         Map<String, Object> respBody = response.getBody();
-        String output = respBody != null ? (String) respBody.get("output") : "";
+        // The /convert/convert endpoint returns structured JSON (segments, businessData, etc.)
+        // not an "output" string. Fall back to serializing the full response as the output.
+        String output = respBody != null ? (String) respBody.get("output") : null;
+        if (output == null && respBody != null) {
+            try { output = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(respBody); }
+            catch (Exception e) { output = respBody.toString(); }
+        }
+        if (output == null) output = "";
         String mapUsed = respBody != null ? (String) respBody.get("mapUsed") : null;
         Object confidence = respBody != null ? respBody.get("confidence") : null;
 
@@ -2168,7 +2175,12 @@ public class FlowProcessingEngine {
                 (Class<Map<String, Object>>) (Class<?>) Map.class);
 
         Map<String, Object> respBody = resp.getBody();
-        String output     = respBody != null ? (String) respBody.get("output") : "";
+        String output = respBody != null ? (String) respBody.get("output") : null;
+        if (output == null && respBody != null) {
+            try { output = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(respBody); }
+            catch (Exception e) { output = respBody.toString(); }
+        }
+        if (output == null) output = "";
         String mapUsed    = respBody != null ? (String) respBody.get("mapUsed") : null;
         Object confidence = respBody != null ? respBody.get("confidence") : null;
 
