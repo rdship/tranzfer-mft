@@ -169,29 +169,7 @@ public class FlowProcessingEngine {
             flowEventJournal.recordExecutionStarted(trackId, exec.getId(), null, flow.getSteps().size());
         }
 
-        // ── Per-function step pipeline: publish STEP 0 to its function topic ──
-        // No for loop. The queue drives the iteration.
-        // Step 0 executes → publishes step 1 → step 1 executes → publishes step 2 → ...
-        // Only metadata in the queue (~200 bytes). File stays in storage-manager.
-        if (fabricBridge != null && fabricBridge.isFabricActive() && !flow.getSteps().isEmpty()) {
-            try {
-                FileFlow.FlowStep firstStep = flow.getSteps().get(0);
-                String initialKey = exec.getCurrentStorageKey() != null
-                        ? exec.getCurrentStorageKey()
-                        : exec.getInitialStorageKey();
-                if (initialKey != null) {
-                    fabricBridge.publishStep(trackId, 0, firstStep.getType(), initialKey);
-                    log.info("[{}] Flow '{}' → published step 0 ({}) to per-function pipeline",
-                            trackId, flow.getName(), firstStep.getType());
-                    return exec;
-                }
-                // No storage key yet (PHYSICAL mode without checkpoint) — fall through to SEDA
-                log.debug("[{}] No storage key for pipeline — falling back to SEDA/sync", trackId);
-            } catch (Exception e) {
-                log.warn("[{}] Pipeline publish failed, falling back to SEDA: {}", trackId, e.getMessage());
-            }
-        }
-
+        // ── Step execution: SEDA (in-JVM) preferred over Fabric (Kafka) ──
         if (stageManager != null) {
             final FlowExecution sedaExec = exec;
             boolean submitted = stageManager.submit("INTAKE", () -> executeFlowSteps(sedaExec, flow, trackId, filename, inputPath));
@@ -1362,20 +1340,10 @@ public class FlowProcessingEngine {
         }
         exec = executionRepository.save(exec);
 
-        // ── Per-function step pipeline (VIRTUAL mode) ──
-        if (fabricBridge != null && fabricBridge.isFabricActive() && !flow.getSteps().isEmpty()) {
-            try {
-                FileFlow.FlowStep firstStep = flow.getSteps().get(startFromStep);
-                fabricBridge.publishStep(trackId, startFromStep, firstStep.getType(),
-                        ref.storageKey(), ref.accountId(), ref.virtualPath());
-                log.info("[{}] Flow '{}' (VIRTUAL) → step {} ({}) published to per-function pipeline",
-                        trackId, flow.getName(), startFromStep, firstStep.getType());
-                return exec;
-            } catch (Exception e) {
-                log.warn("[{}] Pipeline publish failed (VIRTUAL), falling back to SEDA: {}", trackId, e.getMessage());
-            }
-        }
-
+        // ── Step execution: SEDA (in-JVM) preferred, Fabric (Kafka) for distributed scaling ──
+        // SEDA runs all steps in the same JVM — reliable, no cross-service dependency.
+        // Fabric distributes steps across pods via Kafka — used when explicitly configured
+        // for multi-pod scaling and SEDA is not available.
         if (stageManager != null) {
             final FlowExecution sedaExec = exec;
             boolean submitted = stageManager.submit("INTAKE", () -> executeFlowRefSteps(sedaExec, flow, trackId, filename, ref, startFromStep));
