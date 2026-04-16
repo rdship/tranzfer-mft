@@ -13,6 +13,9 @@ export default defineConfig({
     },
   },
   build: {
+    // Source maps for production — enables debugging TDZ/minification issues.
+    // Shows original variable names in browser DevTools instead of 'he', 'ia', etc.
+    sourcemap: true,
     // Raise the warn threshold — our monolithic 2.2MB bundle was breaching
     // the default 500KB, but with manual vendor splitting below we expect
     // the largest per-page chunk to stay under 350KB.

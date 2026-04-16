@@ -67,7 +67,12 @@ function describeViewFilters(v) {
 }
 
 // ── Column Definitions ──────────────────────────────────────────────────
-const ALL_COLUMNS = [
+// IMPORTANT: getAllColumns() is a function, not a module-level const.
+// Module-level const with JSX referencing imported components (CopyButton)
+// causes TDZ "Cannot access before initialization" when the page chunk
+// loads before the shared-app chunk. Wrapping in a function defers
+// evaluation to render time, when all imports are guaranteed initialized.
+function getAllColumns() { return [
   { key: 'trackId', label: 'Track ID', defaultVisible: true, width: 'w-36', render: (v) => v
       ? <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-blue-600">{v}<CopyButton value={v} label="trackId" size="xs" /></span>
       : <span>--</span> },
@@ -146,9 +151,9 @@ const ALL_COLUMNS = [
       )
     },
   },
-]
+]}
 
-const DEFAULT_VISIBLE_KEYS = ALL_COLUMNS.filter(c => c.defaultVisible).map(c => c.key)
+function getDefaultVisibleKeys() { return getAllColumns().filter(c => c.defaultVisible).map(c => c.key) }
 const STATUS_OPTIONS = ['ALL', 'PENDING', 'IN_OUTBOX', 'DOWNLOADED', 'MOVED_TO_SENT', 'FAILED']
 const PROTOCOL_OPTIONS = ['ALL', 'SFTP', 'FTP', 'FTP_WEB', 'HTTPS', 'AS2', 'AS4']
 const PAGE_SIZES = [10, 25, 50, 100]
@@ -218,7 +223,7 @@ function useColumnPreferences() {
         if (Array.isArray(parsed) && parsed.length > 0) return parsed
       }
     } catch { /* ignore */ }
-    return DEFAULT_VISIBLE_KEYS
+    return getDefaultVisibleKeys()
   })
 
   const setAndPersist = useCallback((keys) => {
@@ -233,11 +238,11 @@ function useColumnPreferences() {
   }, [visibleKeys, setAndPersist])
 
   const resetToDefaults = useCallback(() => {
-    setAndPersist(DEFAULT_VISIBLE_KEYS)
+    setAndPersist(getDefaultVisibleKeys())
   }, [setAndPersist])
 
   const visibleColumns = useMemo(() =>
-    ALL_COLUMNS.filter(c => visibleKeys.includes(c.key)),
+    getAllColumns().filter(c => visibleKeys.includes(c.key)),
     [visibleKeys]
   )
 
@@ -1890,7 +1895,7 @@ export default function ActivityMonitor() {
             <div className="flex items-center justify-between p-5 border-b border-border">
               <div>
                 <h2 className="text-base font-semibold text-primary">Column Settings</h2>
-                <p className="text-xs text-secondary mt-0.5">{visibleKeys.length} of {ALL_COLUMNS.length} columns visible</p>
+                <p className="text-xs text-secondary mt-0.5">{visibleKeys.length} of {getAllColumns().length} columns visible</p>
               </div>
               <button
                 onClick={() => setSettingsOpen(false)}
@@ -1902,7 +1907,7 @@ export default function ActivityMonitor() {
 
             <div className="flex-1 overflow-y-auto p-5">
               <div className="space-y-1">
-                {ALL_COLUMNS.map(col => (
+                {getAllColumns().map(col => (
                   <label
                     key={col.key}
                     className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-canvas cursor-pointer transition-colors"
