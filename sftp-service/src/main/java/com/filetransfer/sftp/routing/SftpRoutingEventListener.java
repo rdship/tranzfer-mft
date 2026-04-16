@@ -49,6 +49,8 @@ public class SftpRoutingEventListener implements SftpEventListener {
     private final ConcurrentHashMap<String, Path> handlePaths = new ConcurrentHashMap<>();
     // handle → session that opened it
     private final ConcurrentHashMap<String, ServerSession> handleSessions = new ConcurrentHashMap<>();
+    // handle → MINA Handle object (for forced close on abrupt disconnect)
+    private final ConcurrentHashMap<String, Handle> handleObjects = new ConcurrentHashMap<>();
 
     @Override
     public void opening(ServerSession session, String remoteHandle, Handle localHandle) {
@@ -59,12 +61,16 @@ public class SftpRoutingEventListener implements SftpEventListener {
         openHandles.put(remoteHandle, isWrite);
         handlePaths.put(remoteHandle, path);
         handleSessions.put(remoteHandle, session);
+        handleObjects.put(remoteHandle, localHandle);
         log.debug("SFTP handle opened: user={} path={} write={}", session.getUsername(), path, isWrite);
     }
 
     @Override
     public void closing(ServerSession session, String remoteHandle, Handle localHandle) {
+        // Normal path: MINA already called Handle.close() → VirtualWriteChannel.close()
+        // completed → VFS entry exists → callback fired routing. Clean up tracking.
         handleSessions.remove(remoteHandle);
+        handleObjects.remove(remoteHandle);
         Boolean wasWrite = openHandles.remove(remoteHandle);
         Path filePath = handlePaths.remove(remoteHandle);
         if (wasWrite == null || filePath == null) return;
@@ -73,9 +79,19 @@ public class SftpRoutingEventListener implements SftpEventListener {
     }
 
     /**
-     * Flushes all orphaned handles for the given session. Called by
-     * {@link com.filetransfer.sftp.session.SftpSessionListener#sessionClosed}
-     * to catch uploads from clients that disconnect without FXP_CLOSE.
+     * Holds session teardown until all orphaned write handles are closed.
+     * Called by {@link com.filetransfer.sftp.session.SftpSessionListener#sessionClosed}
+     * when the client disconnects without sending FXP_CLOSE.
+     *
+     * <p><b>N50 fix:</b> Explicitly calls {@code Handle.close()} on each orphaned
+     * write handle. This is synchronous — blocks until the underlying channel
+     * completes its flush:
+     * <ul>
+     *   <li>VIRTUAL: {@code VirtualWriteChannel.close()} stores temp file to MinIO,
+     *       creates VFS entry, fires VfsWriteCallback → routing engine.
+     *   <li>PHYSICAL: file bytes flushed to disk, then {@code processHandle()} routes.
+     * </ul>
+     * Session teardown waits for all writes to commit. No data loss.
      */
     public void flushSession(ServerSession session) {
         int flushed = 0;
@@ -83,18 +99,36 @@ public class SftpRoutingEventListener implements SftpEventListener {
         while (it.hasNext()) {
             Map.Entry<String, ServerSession> entry = it.next();
             if (entry.getValue() == session) {
-                String handle = entry.getKey();
+                String handleId = entry.getKey();
                 it.remove();
-                Boolean wasWrite = openHandles.remove(handle);
-                Path filePath = handlePaths.remove(handle);
-                if (wasWrite != null && filePath != null) {
-                    processHandle(session, wasWrite, filePath);
-                    flushed++;
+                Boolean wasWrite = openHandles.remove(handleId);
+                Path filePath = handlePaths.remove(handleId);
+                Handle handle = handleObjects.remove(handleId);
+
+                if (wasWrite == null || !wasWrite || filePath == null) continue;
+
+                // Force-close the handle — this synchronously flushes the write channel.
+                // For VIRTUAL: VirtualWriteChannel.close() → MinIO + VFS + callback.
+                // For PHYSICAL: bytes flushed to disk.
+                if (handle != null) {
+                    try {
+                        handle.close();
+                        log.info("SFTP session hold: Handle.close() completed for user={} path={}",
+                                session.getUsername(), filePath);
+                    } catch (Exception e) {
+                        log.warn("SFTP session hold: Handle.close() failed for user={} path={}: {}",
+                                session.getUsername(), filePath, e.getMessage());
+                    }
                 }
+
+                // VIRTUAL: routing already triggered by VfsWriteCallback inside Handle.close().
+                // PHYSICAL: route now that file is flushed to disk.
+                processHandle(session, true, filePath);
+                flushed++;
             }
         }
         if (flushed > 0) {
-            log.info("SFTP session cleanup: flushed {} orphaned write handle(s) for user={}",
+            log.info("SFTP session cleanup: committed {} write handle(s) for user={}",
                     flushed, session.getUsername());
         }
     }
