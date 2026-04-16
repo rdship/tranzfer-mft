@@ -129,3 +129,20 @@ docker exec mft-postgres psql -U postgres -d filetransfer -c "SELECT track_id, s
 docker logs mft-sftp-service 2>&1 | grep "[VFS]" | tail -5
 docker logs mft-config-service 2>&1 | grep "Pipeline step\|FlowProcessing" | tail -5
 ```
+
+---
+
+## Update: Kafka SCREEN Consumer Has Partition But LAG=1
+
+```
+rpk group describe fabric.onboarding-api.flow.step.SCREEN
+  MEMBERS: 8
+  PARTITION 0: assigned to config-service (172.18.0.23)
+  CURRENT-OFFSET: 0
+  LOG-END-OFFSET: 1
+  LAG: 1
+```
+
+The SCREEN partition IS assigned to config-service, but the consumer never polls the message. Offset stays at 0, LAG=1. The consumer poll loop is not advancing.
+
+This is NOT a partition assignment issue — it's a consumer poll/processing issue within config-service.
