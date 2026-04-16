@@ -46,6 +46,7 @@ public class PlatformSecurityConfig {
     private SpiffeWorkloadClient spiffeWorkloadClient;
 
     @Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean(SecurityFilterChain.class)
     public SecurityFilterChain platformSecurityFilterChain(HttpSecurity http,
                                                            JwtUtil jwtUtil,
                                                            PlatformConfig platformConfig) throws Exception {
