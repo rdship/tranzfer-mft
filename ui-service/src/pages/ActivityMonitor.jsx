@@ -704,6 +704,17 @@ export default function ActivityMonitor() {
   const totalElements = (stuckOnly || stepTypeFilter) ? rows.length : (data?.totalElements || 0)
   const totalPages    = (stuckOnly || stepTypeFilter) ? 1 : (data?.totalPages || 0)
 
+  // ── Restart mutation (must be before keyboard shortcuts useEffect) ───
+  const restartOneMut = useMutation({
+    mutationFn: (trackId) =>
+      onboardingApi.post(`/api/flow-executions/${trackId}/restart`).then(r => r.data),
+    onSuccess: () => {
+      toast.success('Transfer restart initiated')
+      qc.invalidateQueries(['activity-monitor'])
+    },
+    onError: err => toast.error(err.response?.data?.message || 'Restart failed')
+  })
+
   // ── Keyboard Shortcuts ────────────────────────────────────────────────
   useEffect(() => {
     const handler = (e) => {
@@ -829,16 +840,6 @@ export default function ActivityMonitor() {
       toast.success(`Retry scheduled for ${new Date(data.scheduledAt).toLocaleString()}`)
     },
     onError: err => toast.error(err.response?.data?.message || 'Failed to schedule retry')
-  })
-
-  const restartOneMut = useMutation({
-    mutationFn: (trackId) =>
-      onboardingApi.post(`/api/flow-executions/${trackId}/restart`).then(r => r.data),
-    onSuccess: () => {
-      toast.success('Transfer restart initiated')
-      qc.invalidateQueries(['activity-monitor'])
-    },
-    onError: err => toast.error(err.response?.data?.message || 'Restart failed')
   })
 
   const terminateOneMut = useMutation({
