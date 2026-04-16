@@ -261,26 +261,40 @@ public class FlowProcessingEngine {
      * their partition, but different transfers execute in parallel. One partner
      * can't block another.
      */
+    /** Original signature — backwards compatible for non-Fabric callers. */
     public void executeSingleStep(FlowExecution exec, FileFlow flow, int stepIndex,
                                    String inputStorageKey, String trackId) {
+        UUID accountId = null;
+        try { if (flow.getSourceAccount() != null) accountId = flow.getSourceAccount().getId(); } catch (Exception ignore) {}
+        String virtualPath = "/" + (exec.getOriginalFilename() != null ? exec.getOriginalFilename() : "unknown");
+        executeSingleStep(exec, flow, stepIndex, inputStorageKey, trackId, accountId, virtualPath);
+    }
+
+    /** Full signature with accountId + virtualPath for VFS INLINE fallback. */
+    public void executeSingleStep(FlowExecution exec, FileFlow flow, int stepIndex,
+                                   String inputStorageKey, String trackId,
+                                   UUID accountId, String virtualPath) {
         String filename = exec.getOriginalFilename();
         FileFlow.FlowStep step = flow.getSteps().get(stepIndex);
         Map<String, String> stepCfg = step.getConfig() != null ? step.getConfig() : Map.of();
+
+        if (virtualPath == null) virtualPath = "/" + (filename != null ? filename : "unknown");
+        if (accountId == null) {
+            try { if (flow.getSourceAccount() != null) accountId = flow.getSourceAccount().getId(); } catch (Exception ignore) {}
+        }
 
         log.info("[{}] Step {}/{} ({}) — executing via pipeline", trackId, stepIndex + 1,
                 flow.getSteps().size(), step.getType());
 
         try {
-            // Build FileRef from storage key
-            UUID accountId = null;
-            try { if (flow.getSourceAccount() != null) accountId = flow.getSourceAccount().getId(); } catch (Exception ignore) {}
-            FileRef ref = new FileRef(inputStorageKey, "/" + (filename != null ? filename : "unknown"),
-                    accountId, -1L, trackId, null, "STANDARD");
+            FileRef ref = new FileRef(inputStorageKey, virtualPath,
+                    accountId, -1L, trackId, null,
+                    inputStorageKey != null ? "STANDARD" : "INLINE");
 
             // Execute this one step — only metadata in the queue, file streamed on consumption
             long start = System.currentTimeMillis();
             StepOutcome outcome = processStepRef(step, inputStorageKey,
-                    "/" + (filename != null ? filename : "unknown"), -1L, ref, trackId, stepIndex);
+                    virtualPath, -1L, ref, trackId, stepIndex);
             long duration = System.currentTimeMillis() - start;
 
             String outputKey = outcome.storageKey();
@@ -1342,14 +1356,11 @@ public class FlowProcessingEngine {
         exec = executionRepository.save(exec);
 
         // ── Per-function step pipeline (VIRTUAL mode) ──
-        // Only use Fabric (Kafka) when the file has a valid CAS key. INLINE files
-        // (storageKey=null) must go through SEDA/synchronous where materializeFromCas()
-        // can fall back to VFS DB reads.
-        if (fabricBridge != null && fabricBridge.isFabricActive()
-                && !flow.getSteps().isEmpty() && ref.storageKey() != null) {
+        if (fabricBridge != null && fabricBridge.isFabricActive() && !flow.getSteps().isEmpty()) {
             try {
                 FileFlow.FlowStep firstStep = flow.getSteps().get(startFromStep);
-                fabricBridge.publishStep(trackId, startFromStep, firstStep.getType(), ref.storageKey());
+                fabricBridge.publishStep(trackId, startFromStep, firstStep.getType(),
+                        ref.storageKey(), ref.accountId(), ref.virtualPath());
                 log.info("[{}] Flow '{}' (VIRTUAL) → step {} ({}) published to per-function pipeline",
                         trackId, flow.getName(), startFromStep, firstStep.getType());
                 return exec;

@@ -110,8 +110,12 @@ public class FlowFabricConsumer {
             String stepType = (String) payload.get("stepType");
             String inputKey = (String) payload.get("inputStorageKey");
 
-            log.info("[{}] Pipeline step {}: {} (input={})", trackId, stepIndex, stepType,
-                    inputKey != null ? inputKey.substring(0, Math.min(12, inputKey.length())) : "null");
+            String accountIdStr = (String) payload.get("accountId");
+            String virtualPath = (String) payload.get("virtualPath");
+
+            log.info("[{}] Pipeline step {}: {} (input={} account={} path={})", trackId, stepIndex, stepType,
+                    inputKey != null ? inputKey.substring(0, Math.min(12, inputKey.length())) : "null",
+                    accountIdStr, virtualPath);
 
             Optional<FlowExecution> execOpt = executionRepo.findByTrackId(trackId);
             if (execOpt.isEmpty()) { log.warn("[{}] Execution not found", trackId); return; }
@@ -126,8 +130,10 @@ public class FlowFabricConsumer {
             if (flow == null) { log.error("[{}] Flow definition not found", trackId); return; }
             if (stepIndex >= flow.getSteps().size()) { log.warn("[{}] Step {} out of range", trackId, stepIndex); return; }
 
-            // Execute this single step
-            flowProcessingEngine.executeSingleStep(exec, flow, stepIndex, inputKey, trackId);
+            // Execute this single step — pass accountId + virtualPath for VFS INLINE fallback
+            UUID accountId = accountIdStr != null ? UUID.fromString(accountIdStr) : null;
+            flowProcessingEngine.executeSingleStep(exec, flow, stepIndex, inputKey, trackId,
+                    accountId, virtualPath);
 
         } catch (Exception e) {
             log.error("Failed to process flow.pipeline message at offset {}: {}", event.getOffset(), e.getMessage(), e);

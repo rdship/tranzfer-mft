@@ -92,13 +92,21 @@ public class FlowFabricBridge {
      * <p>Also publishes to the generic {@code flow.pipeline} topic for
      * cross-cutting consumers (monitoring, audit, observability dashboards).
      */
+    /** Backward-compatible for PHYSICAL mode (no VFS context needed). */
     public void publishStep(String trackId, int stepIndex, String stepType,
                              String inputStorageKey) {
+        publishStep(trackId, stepIndex, stepType, inputStorageKey, null, null);
+    }
+
+    public void publishStep(String trackId, int stepIndex, String stepType,
+                             String inputStorageKey, UUID accountId, String virtualPath) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("trackId", trackId);
         payload.put("stepIndex", stepIndex);
         payload.put("stepType", stepType);
         payload.put("inputStorageKey", inputStorageKey);
+        payload.put("accountId", accountId != null ? accountId.toString() : null);
+        payload.put("virtualPath", virtualPath);
         payload.put("publishedAt", Instant.now().toString());
         payload.put("instance", instanceId);
 
