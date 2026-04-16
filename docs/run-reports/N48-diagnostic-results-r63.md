@@ -65,3 +65,17 @@ The RoutingEngine:
 | VFS entry | ❌ "no VirtualEntry — skipping" |
 | Flow execution | ❌ 0 (skipped due to missing VFS) |
 | AI classification | ❌ File not on shared filesystem |
+
+---
+
+## CORRECTED FINDING (after sftp-service restart with VFS in DB)
+
+After setting `storageMode=VIRTUAL` in DB and **restarting sftp-service**:
+- VFS initialized: `VFS initialized on pod 8ecf7de54957, inline≤65536B, chunk>67108864B` ✅
+- Upload: file still lands at physical path `/data/partners/globalbank/vfs_test.json` ❌
+- RoutingEngine: `VIRTUAL account but no VirtualEntry for path=/vfs_test.json — skipping` ❌
+- Flow execution: 0 ❌
+
+**Root cause confirmed:** The SFTP `SftpSubsystem` writes to physical filesystem. The VFS bridge initializes but is NOT wired to the SFTP file system provider. The `SftpSubsystemFactory` uses Apache MINA SSHD's default `NativeFileSystemFactory` which writes to disk — it needs to use a custom `FileSystemView` that routes writes through the VFS (storage-manager).
+
+**For dev team:** Wire the VFS bridge into `SftpServerConfig.java` → `SftpSubsystemFactory` → custom `FileSystemFactory` that intercepts writes and stores via storage-manager. The VFS bean is loaded (`VirtualFileSystem` initialized) but not connected to the SFTP subsystem.
