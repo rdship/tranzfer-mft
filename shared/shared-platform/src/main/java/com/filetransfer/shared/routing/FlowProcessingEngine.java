@@ -1694,7 +1694,7 @@ public class FlowProcessingEngine {
                                 trackId, step.getType(), stepIndex);
                         // Stream from CAS → temp file (no full byte[] in heap)
                         String filename = VirtualFileSystem.nameOf(virtualPath);
-                        Path tempInput = materializeFromCas(storageKey, filename);
+                        Path tempInput = materializeFromCas(storageKey, filename, origin.accountId(), origin.virtualPath());
                         Path tempDir = tempInput.getParent();
 
                         FlowFunctionContext ctx = new FlowFunctionContext(
@@ -1741,7 +1741,7 @@ public class FlowProcessingEngine {
     private StepOutcome refCompressGzip(String storageKey, String virtualPath,
                                          FileRef origin, String trackId) throws IOException {
         // Phase 4.2: stream from CAS → temp file → read (avoids HTTP client double-buffer)
-        Path tempCas = materializeFromCas(storageKey, VirtualFileSystem.nameOf(virtualPath));
+        Path tempCas = materializeFromCas(storageKey, VirtualFileSystem.nameOf(virtualPath), origin.accountId(), virtualPath);
         byte[] raw = readAndCleanup(tempCas);
         String newPath = virtualPath + ".gz";
         String filename = VirtualFileSystem.nameOf(newPath);
@@ -1771,7 +1771,7 @@ public class FlowProcessingEngine {
      */
     private StepOutcome refDecompressGzip(String storageKey, String virtualPath,
                                            FileRef origin, String trackId) throws IOException {
-        Path tempCas = materializeFromCas(storageKey, VirtualFileSystem.nameOf(virtualPath));
+        Path tempCas = materializeFromCas(storageKey, VirtualFileSystem.nameOf(virtualPath), origin.accountId(), virtualPath);
         byte[] compressed = readAndCleanup(tempCas);
         String newPath = virtualPath.endsWith(".gz")
                 ? virtualPath.substring(0, virtualPath.length() - 3) : virtualPath + ".ungz";
@@ -1800,7 +1800,7 @@ public class FlowProcessingEngine {
     /** COMPRESS_ZIP — zip raw bytes in a virtual thread → pipe to storage-manager. */
     private StepOutcome refCompressZip(String storageKey, String virtualPath,
                                         FileRef origin, String trackId) throws IOException {
-        Path tempCas = materializeFromCas(storageKey, VirtualFileSystem.nameOf(virtualPath));
+        Path tempCas = materializeFromCas(storageKey, VirtualFileSystem.nameOf(virtualPath), origin.accountId(), virtualPath);
         byte[] raw = readAndCleanup(tempCas);
         String entryName = VirtualFileSystem.nameOf(virtualPath);
         String newPath   = virtualPath + ".zip";
@@ -1830,7 +1830,7 @@ public class FlowProcessingEngine {
     /** DECOMPRESS_ZIP — extract first file entry in-memory → store-stream to storage-manager. */
     private StepOutcome refDecompressZip(String storageKey, String virtualPath,
                                           FileRef origin, String trackId) throws IOException {
-        Path tempCas = materializeFromCas(storageKey, VirtualFileSystem.nameOf(virtualPath));
+        Path tempCas = materializeFromCas(storageKey, VirtualFileSystem.nameOf(virtualPath), origin.accountId(), virtualPath);
         byte[] compressed = readAndCleanup(tempCas);
         String newPath = virtualPath.endsWith(".zip")
                 ? virtualPath.substring(0, virtualPath.length() - 4) : virtualPath + ".unzip";
@@ -1973,7 +1973,7 @@ public class FlowProcessingEngine {
         try {
             // Stream from CAS → temp file (no full byte[] in heap)
             final String displayName = VirtualFileSystem.nameOf(virtualPath);
-            screenTemp = materializeFromCas(storageKey, displayName);
+            screenTemp = materializeFromCas(storageKey, displayName, origin.accountId(), virtualPath);
             org.springframework.util.LinkedMultiValueMap<String, Object> body =
                     new org.springframework.util.LinkedMultiValueMap<>();
             body.add("file", new org.springframework.core.io.FileSystemResource(screenTemp.toFile()));
@@ -2126,7 +2126,7 @@ public class FlowProcessingEngine {
         String partnerId    = cfg.get("partnerId");
 
         // Phase 4.3: stream from CAS → temp file → read (avoids HTTP double-buffer)
-        Path tempCas = materializeFromCas(storageKey, VirtualFileSystem.nameOf(virtualPath));
+        Path tempCas = materializeFromCas(storageKey, VirtualFileSystem.nameOf(virtualPath), origin.accountId(), virtualPath);
         byte[] raw = readAndCleanup(tempCas);
         String content = new String(raw, java.nio.charset.StandardCharsets.UTF_8);
 
@@ -2208,39 +2208,54 @@ public class FlowProcessingEngine {
      * Caller MUST delete the returned file when done (use try-finally).
      * Memory: ~64 KB buffer (was: entire file in byte[]).
      */
+    /**
+     * Materialize a CAS or VFS-inline file to a local temp file for step processing.
+     *
+     * <p>Resolution order:
+     * <ol>
+     *   <li>storageKey non-null → stream from storage-manager (STANDARD/CHUNKED path)
+     *   <li>storageKey null + VFS available → read from virtual_entries inline_content (INLINE path)
+     *   <li>Neither → IOException (step fails)
+     * </ol>
+     *
+     * <p>This single method handles all VFS storage tiers. Steps never need to know
+     * whether the file is INLINE, STANDARD, or CHUNKED — they just get a temp file.
+     * Caller MUST delete the returned file when done (use try-finally).
+     */
+    /**
+     * Materialize a CAS or VFS-inline file to a local temp file for step processing.
+     *
+     * <p>Resolution order:
+     * <ol>
+     *   <li>storageKey non-null → stream from storage-manager (STANDARD/CHUNKED)
+     *   <li>storageKey null + VFS available → read from virtual_entries inline_content (INLINE)
+     *   <li>Neither → IOException (step fails)
+     * </ol>
+     *
+     * <p>Handles all VFS storage tiers transparently. Steps never need to know
+     * whether the file is INLINE, STANDARD, or CHUNKED.
+     * Caller MUST delete the returned file when done (use try-finally).
+     */
     private Path materializeFromCas(String storageKey, String filename) throws IOException {
+        return materializeFromCas(storageKey, filename, null, null);
+    }
+
+    private Path materializeFromCas(String storageKey, String filename,
+                                     UUID accountId, String virtualPath) throws IOException {
         Path tempDir = Files.createTempDirectory("flow-cas-");
         Path tempFile = tempDir.resolve(filename);
         if (storageKey != null && storageClient != null) {
+            // STANDARD/CHUNKED: stream from storage-manager (MinIO)
             try (java.io.OutputStream out = Files.newOutputStream(tempFile)) {
                 storageClient.streamToOutput(storageKey, out);
             }
-        } else {
-            throw new IOException("Cannot materialize file: storageKey is null for " + filename);
-        }
-        return tempFile;
-    }
-
-    /**
-     * Materialize a VIRTUAL file to temp — reads from CAS (STANDARD) or VFS (INLINE).
-     * Use this instead of materializeFromCas when the file may be INLINE-stored.
-     */
-    private Path materializeFromRef(FileRef ref) throws IOException {
-        String filename = VirtualFileSystem.nameOf(ref.virtualPath());
-        Path tempDir = Files.createTempDirectory("flow-cas-");
-        Path tempFile = tempDir.resolve(filename);
-
-        if (ref.storageKey() != null && storageClient != null) {
-            // STANDARD/CHUNKED: stream from storage-manager (MinIO)
-            try (java.io.OutputStream out = Files.newOutputStream(tempFile)) {
-                storageClient.streamToOutput(ref.storageKey(), out);
-            }
-        } else if (vfsBridge != null) {
-            // INLINE: read bytes from VFS database entry
-            byte[] data = vfsBridge.getVfs().readFile(ref.accountId(), ref.virtualPath());
+        } else if (vfsBridge != null && accountId != null && virtualPath != null) {
+            // INLINE: read bytes from VFS database entry — no storage-manager needed
+            byte[] data = vfsBridge.getVfs().readFile(accountId, virtualPath);
             Files.write(tempFile, data);
+            log.debug("Materialized INLINE file from VFS: {} ({} bytes)", filename, data.length);
         } else {
-            throw new IOException("Cannot materialize file: no storageKey and no VFS for " + filename);
+            throw new IOException("Cannot materialize file: storageKey is null and no VFS fallback for " + filename);
         }
         return tempFile;
     }

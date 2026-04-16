@@ -160,7 +160,13 @@ public class RoutingEngine {
                         .build();
                 rabbitTemplate.convertAndSend(exchange, "file.uploaded", event);
                 log.info("[{}] FileUploadedEvent published to RabbitMQ", trackId);
-                return; // Consumer handles flow matching + execution
+
+                // VIRTUAL accounts: consumer on any service handles it (VFS + MinIO are shared).
+                // PHYSICAL accounts: file is on local disk — must process on this service.
+                if ("VIRTUAL".equalsIgnoreCase(sourceAccount.getStorageMode())) {
+                    return; // Consumer handles flow matching + execution via VFS
+                }
+                // PHYSICAL: fall through to synchronous processing below
             } catch (Exception e) {
                 log.warn("[{}] RabbitMQ publish failed — falling back to synchronous: {}", trackId, e.getMessage());
             }
@@ -300,7 +306,7 @@ public class RoutingEngine {
 
         String processedFilePath = absoluteSourcePath;
         // Zero-I/O matching — pre-compiled rules evaluated in-memory
-        log.info("[{}] Flow matching: filename={} protocol={} direction={} registry.size={} registry.initialized={}",
+        log.debug("[{}] Flow matching: filename={} protocol={} direction={} registry.size={} registry.initialized={}",
                 trackId, matchContext.filename(), matchContext.protocol(), matchContext.direction(),
                 flowRuleRegistry.size(), flowRuleRegistry.isInitialized());
         CompiledFlowRule matchedRule = flowRuleRegistry.findMatch(matchContext);
