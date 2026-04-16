@@ -1342,7 +1342,11 @@ public class FlowProcessingEngine {
         exec = executionRepository.save(exec);
 
         // ── Per-function step pipeline (VIRTUAL mode) ──
-        if (fabricBridge != null && fabricBridge.isFabricActive() && !flow.getSteps().isEmpty()) {
+        // Only use Fabric (Kafka) when the file has a valid CAS key. INLINE files
+        // (storageKey=null) must go through SEDA/synchronous where materializeFromCas()
+        // can fall back to VFS DB reads.
+        if (fabricBridge != null && fabricBridge.isFabricActive()
+                && !flow.getSteps().isEmpty() && ref.storageKey() != null) {
             try {
                 FileFlow.FlowStep firstStep = flow.getSteps().get(startFromStep);
                 fabricBridge.publishStep(trackId, startFromStep, firstStep.getType(), ref.storageKey());
