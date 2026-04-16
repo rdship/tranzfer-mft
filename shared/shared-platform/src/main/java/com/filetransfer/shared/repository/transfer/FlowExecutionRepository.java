@@ -24,7 +24,7 @@ public interface FlowExecutionRepository extends JpaRepository<FlowExecution, UU
     @Query("SELECT e FROM FlowExecution e WHERE " +
            "(:trackId IS NULL OR e.trackId = :trackId) AND " +
            "(:filename IS NULL OR e.originalFilename LIKE %:filename%) AND " +
-           "(:status IS NULL OR e.status = :status) " +
+           "(CAST(:status AS string) IS NULL OR e.status = :status) " +
            "ORDER BY e.startedAt DESC")
     Page<FlowExecution> search(
             @Param("trackId") String trackId,

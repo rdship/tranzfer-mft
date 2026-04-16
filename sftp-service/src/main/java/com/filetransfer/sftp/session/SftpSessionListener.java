@@ -1,6 +1,7 @@
 package com.filetransfer.sftp.session;
 
 import com.filetransfer.sftp.audit.AuditEventLogger;
+import com.filetransfer.sftp.routing.SftpRoutingEventListener;
 import com.filetransfer.sftp.throttle.BandwidthThrottleManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,7 @@ public class SftpSessionListener implements SessionListener {
     private final ConnectionManager connectionManager;
     private final AuditEventLogger auditEventLogger;
     private final BandwidthThrottleManager bandwidthThrottleManager;
+    private final SftpRoutingEventListener routingEventListener;
 
     /** Tracks session creation time for duration calculation. */
     private final ConcurrentHashMap<String, Instant> sessionStartTimes = new ConcurrentHashMap<>();
@@ -67,7 +69,11 @@ public class SftpSessionListener implements SessionListener {
 
         connectionManager.unregisterSession(sessionId);
 
+        // Flush orphaned SFTP handles — catches uploads from clients that
+        // disconnect without sending FXP_CLOSE (N34 fix)
         if (session instanceof ServerSession serverSession) {
+            routingEventListener.flushSession(serverSession);
+
             String username = serverSession.getUsername();
             String ip = serverSession.getClientAddress() != null
                     ? serverSession.getClientAddress().toString() : "unknown";

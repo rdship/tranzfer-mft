@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 import java.nio.file.CopyOption;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,6 +22,15 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Listens to SFTP file events (open/close) to detect uploads and downloads,
  * then delegates to the shared RoutingEngine.
+ *
+ * <p><b>Session cleanup (N34 fix):</b> When an SFTP client disconnects without
+ * explicitly closing file handles (abrupt disconnect, network failure, script
+ * that exits before FXP_CLOSE), the {@code closing()} callback never fires.
+ * To catch these orphaned uploads, this listener also tracks which session owns
+ * each handle. {@link #flushSession(ServerSession)} iterates over all open
+ * handles for that session and emits events for any that were write handles.
+ * This is called by {@link com.filetransfer.sftp.session.SftpSessionListener}
+ * on session close.
  */
 @Slf4j
 @Component
@@ -37,6 +47,8 @@ public class SftpRoutingEventListener implements SftpEventListener {
     private final ConcurrentHashMap<String, Boolean> openHandles = new ConcurrentHashMap<>();
     // handle → absolute path
     private final ConcurrentHashMap<String, Path> handlePaths = new ConcurrentHashMap<>();
+    // handle → session that opened it
+    private final ConcurrentHashMap<String, ServerSession> handleSessions = new ConcurrentHashMap<>();
 
     @Override
     public void opening(ServerSession session, String remoteHandle, Handle localHandle) {
@@ -46,22 +58,55 @@ public class SftpRoutingEventListener implements SftpEventListener {
                 || fh.getOpenOptions().contains(java.nio.file.StandardOpenOption.CREATE);
         openHandles.put(remoteHandle, isWrite);
         handlePaths.put(remoteHandle, path);
+        handleSessions.put(remoteHandle, session);
         log.debug("SFTP handle opened: user={} path={} write={}", session.getUsername(), path, isWrite);
     }
 
     @Override
     public void closing(ServerSession session, String remoteHandle, Handle localHandle) {
+        handleSessions.remove(remoteHandle);
         Boolean wasWrite = openHandles.remove(remoteHandle);
         Path filePath = handlePaths.remove(remoteHandle);
         if (wasWrite == null || filePath == null) return;
 
+        processHandle(session, wasWrite, filePath);
+    }
+
+    /**
+     * Flushes all orphaned handles for the given session. Called by
+     * {@link com.filetransfer.sftp.session.SftpSessionListener#sessionClosed}
+     * to catch uploads from clients that disconnect without FXP_CLOSE.
+     */
+    public void flushSession(ServerSession session) {
+        int flushed = 0;
+        Iterator<Map.Entry<String, ServerSession>> it = handleSessions.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<String, ServerSession> entry = it.next();
+            if (entry.getValue() == session) {
+                String handle = entry.getKey();
+                it.remove();
+                Boolean wasWrite = openHandles.remove(handle);
+                Path filePath = handlePaths.remove(handle);
+                if (wasWrite != null && filePath != null) {
+                    processHandle(session, wasWrite, filePath);
+                    flushed++;
+                }
+            }
+        }
+        if (flushed > 0) {
+            log.info("SFTP session cleanup: flushed {} orphaned write handle(s) for user={}",
+                    flushed, session.getUsername());
+        }
+    }
+
+    private void processHandle(ServerSession session, boolean wasWrite, Path filePath) {
         String username = session.getUsername();
         Optional<TransferAccount> accountOpt = accountRepository
                 .findByUsernameAndProtocolAndActiveTrue(username, Protocol.SFTP);
 
         if (accountOpt.isEmpty()) {
             log.warn("SFTP upload by user '{}' ignored — no active TransferAccount found for path: {}",
-                    session.getUsername(), filePath.toAbsolutePath());
+                    username, filePath.toAbsolutePath());
             return;
         }
 
@@ -93,6 +138,4 @@ public class SftpRoutingEventListener implements SftpEventListener {
         }
         return absolutePath;
     }
-
-    // SftpEventListener has default no-op implementations; only opening/closing are overridden above.
 }
