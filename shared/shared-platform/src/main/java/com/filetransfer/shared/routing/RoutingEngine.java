@@ -189,6 +189,15 @@ public class RoutingEngine {
         // Step 0: Compliance check — geo-blocking, file extensions, size, encryption, AI risk
         long fileSizeBytes = -1;
         try { fileSizeBytes = Files.size(Paths.get(absoluteSourcePath)); } catch (Exception ignored) {}
+        // VIRTUAL accounts: file isn't on disk — get size from VFS entry
+        if (fileSizeBytes <= 0 && vfsBridge != null && !"PHYSICAL".equalsIgnoreCase(sourceAccount.getStorageMode())) {
+            try {
+                var vfsEntry = vfsBridge.getVfs().stat(sourceAccount.getId(), relativeFilePath);
+                if (vfsEntry.isPresent() && vfsEntry.get().getSizeBytes() > 0) {
+                    fileSizeBytes = vfsEntry.get().getSizeBytes();
+                }
+            } catch (Exception ignored) {}
+        }
 
         // Compliance check — uses the platform's default compliance profile (if configured)
         // Future: per-partner or per-server compliance profiles via ComplianceProfile assignment
