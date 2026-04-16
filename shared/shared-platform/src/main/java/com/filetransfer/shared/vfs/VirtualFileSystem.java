@@ -361,11 +361,11 @@ public class VirtualFileSystem {
             }
             case "CHUNKED" -> readChunked(entry);
             default -> {
-                // STANDARD path — retrieve from CAS
-                if (entry.getTrackId() != null) {
-                    yield storageClient.retrieve(entry.getTrackId());
+                // STANDARD path — retrieve from CAS by SHA-256 key
+                if (entry.getStorageKey() != null) {
+                    yield storageClient.retrieveBySha256(entry.getStorageKey());
                 }
-                throw new NoSuchElementException("File has no storage reference: " + normalized);
+                throw new NoSuchElementException("File has no storage key: " + normalized);
             }
         };
     }
