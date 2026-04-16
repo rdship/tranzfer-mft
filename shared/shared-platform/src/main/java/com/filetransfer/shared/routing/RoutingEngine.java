@@ -276,16 +276,15 @@ public class RoutingEngine {
                 .withTimeNow()
                 .withMetadata(matchMetadata);
 
-        // N48 fix: VIRTUAL accounts — physical path doesn't exist, so EDI detection from disk
-        // fails silently. Read first 128 bytes from VFS for EDI header detection.
+        // VIRTUAL accounts: physical path doesn't exist. Read first 128 bytes
+        // from VFS for EDI header detection — never loads the full file.
         boolean isVirtualAccount = !"PHYSICAL".equalsIgnoreCase(sourceAccount.getStorageMode());
         if (isVirtualAccount && vfsBridge != null && ctxBuilder.needsEdiDetection()) {
             try {
-                byte[] content = vfsBridge.getVfs().readFile(sourceAccount.getId(), relativeFilePath);
-                if (content != null && content.length > 0) {
-                    String header = new String(content, 0, Math.min(content.length, 128));
+                byte[] header = vfsBridge.getVfs().readHeader(sourceAccount.getId(), relativeFilePath, 128);
+                if (header != null && header.length > 0) {
                     com.filetransfer.shared.matching.EdiDetector.EdiInfo info =
-                            com.filetransfer.shared.matching.EdiDetector.detect(header);
+                            com.filetransfer.shared.matching.EdiDetector.detect(new String(header));
                     if (info != null) {
                         ctxBuilder.withEdiStandard(info.standard());
                         ctxBuilder.withEdiType(info.typeCode());

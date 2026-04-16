@@ -370,6 +370,39 @@ public class VirtualFileSystem {
         };
     }
 
+    /**
+     * Read only the first {@code maxBytes} of a file — for header detection (EDI, magic bytes).
+     * INLINE: slices the inline content. STANDARD: streams from CAS with early close.
+     * Never loads the full file into heap.
+     */
+    public byte[] readHeader(UUID accountId, String path, int maxBytes) {
+        String normalized = normalizePath(path);
+        VirtualEntry entry = entryRepository.findByAccountIdAndPathAndDeletedFalse(accountId, normalized)
+                .orElse(null);
+        if (entry == null || entry.isDirectory()) return null;
+
+        String bucket = entry.getStorageBucket() != null ? entry.getStorageBucket() : "STANDARD";
+        try {
+            return switch (bucket) {
+                case "INLINE" -> {
+                    byte[] full = entry.getInlineContent();
+                    if (full == null) yield null;
+                    if (entry.isCompressed()) full = gzipDecompress(full);
+                    yield full.length <= maxBytes ? full : java.util.Arrays.copyOf(full, maxBytes);
+                }
+                default -> {
+                    // STANDARD/CHUNKED: stream from CAS, read only maxBytes
+                    if (entry.getStorageKey() != null && storageClient != null) {
+                        yield storageClient.retrieveHeader(entry.getStorageKey(), maxBytes);
+                    }
+                    yield null;
+                }
+            };
+        } catch (Exception e) {
+            return null; // Best-effort header detection — never block routing
+        }
+    }
+
     private byte[] readChunked(VirtualEntry entry) {
         List<VfsChunk> chunks = chunkRepository.findByEntryIdOrderByChunkIndex(entry.getId());
         if (chunks.isEmpty()) {

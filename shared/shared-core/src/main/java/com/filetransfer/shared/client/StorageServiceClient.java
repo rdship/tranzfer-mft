@@ -226,6 +226,26 @@ public class StorageServiceClient extends ResilientServiceClient {
         }
     }
 
+    /**
+     * Read only the first {@code maxBytes} of a CAS object — for header/magic-byte detection.
+     * Uses HTTP Range header so storage-manager streams only the requested prefix.
+     * Falls back to full retrieve + truncate if Range is not supported.
+     */
+    public byte[] retrieveHeader(String sha256, int maxBytes) {
+        return withResilience("retrieveHeader", () -> {
+            HttpHeaders headers = jsonHeaders();
+            headers.setAccept(List.of(org.springframework.http.MediaType.APPLICATION_OCTET_STREAM));
+            headers.set("Range", "bytes=0-" + (maxBytes - 1));
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+            ResponseEntity<byte[]> response = restTemplate.exchange(
+                    baseUrl() + "/api/v1/storage/stream/" + sha256,
+                    HttpMethod.GET, entity, byte[].class);
+            byte[] body = response.getBody();
+            if (body == null) return null;
+            return body.length <= maxBytes ? body : java.util.Arrays.copyOf(body, maxBytes);
+        });
+    }
+
     @Override
     protected String healthPath() {
         return "/api/v1/storage/health";
