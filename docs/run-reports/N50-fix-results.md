@@ -1,70 +1,52 @@
-# N50 Fix Results — VFS Session Hold
+# N50 Fix Results — VFS Write Channel Not Invoked
 
-**Date:** 2026-04-16 08:22 UTC  
-**Build:** R64 + CTO's SftpRoutingEventListener fix (+44 lines)  
+**Date:** 2026-04-16 08:41 UTC  
+**Build:** R64 + SftpRoutingEventListener fix + VirtualSftpFileSystemProvider fix  
 **Account:** edi-src-2 (VIRTUAL, created via API)  
 
 ---
 
-## Session Hold: FIXED
+## Result: Zero `[VFS]` Log Output
 
 ```
-08:22:02.971  SFTP virtual filesystem ready for user=edi-src-2
-08:22:03.076  SFTP session hold: Handle.close() completed for user=edi-src-2 path=/po_850_test2.edi
-08:22:03.080  SFTP session cleanup: committed 1 write handle(s) for user=edi-src-2
-08:22:03.080  DISCONNECT username=edi-src-2
+=== [VFS] LOGS ===
+(empty)
+
+=== VFS write complete ===
+(empty)
 ```
 
-**"committed" replaces "orphaned"** — the session now waits for Handle.close() before teardown. Time from VFS ready to committed: **105ms** (was 164ms orphaned before fix).
+`VirtualWriteChannel.write()` was **never called**. No `[VFS] CAS stored`, no `[VFS] Inline stored`, no `VFS write complete`.
 
-## VFS Storage: NOT FIRING
+## Session Hold Works
 
-The session hold works but the VFS write to storage-manager never executes:
-
-| Log Pattern | Expected | Found |
-|-------------|----------|-------|
-| `[VFS] CAS stored` | Yes (large file) | **No** |
-| `[VFS] Inline stored` | Yes (small file, <65KB) | **No** |
-| `VFS write complete` | Yes (callback) | **No** |
-| `Handle.close() completed` | Yes | **Yes** ✅ |
-| `committed N write handle(s)` | Yes | **Yes** ✅ |
-| `FileUploadedEvent published` | Yes | **No** |
-
-## Database: Still Empty
-
-```sql
-file_transfer_records WHERE original_filename='po_850_test2.edi':  0
-flow_executions WHERE original_filename='po_850_test2.edi':        0
-virtual_entries:                                                    0
-write_intents:                                                      0
 ```
+08:41:31.052  SFTP virtual filesystem ready for user=edi-src-2 (account=acbbd959)
+08:41:31.212  SFTP session hold: Handle.close() completed for user=edi-src-2 path=/po_850_test2.edi
+08:41:31.215  SFTP session cleanup: committed 1 write handle(s) for user=edi-src-2
+08:41:31.216  DISCONNECT
+```
+
+Handle.close() runs. Session waits. But the VFS write channel inside the handle was never invoked.
 
 ## Diagnosis
 
-The `Handle.close()` completes (session hold works), but the `VirtualWriteChannel.close()` inside it doesn't call `storageClient.putObject()`. Possible causes:
+The `VirtualSftpFileSystemProvider.newOutputStream()` returns an `OutputStream` that should wrap `VirtualWriteChannel`. But the SFTP subsystem's `SftpSubsystem` may be using a different code path to write the file — likely `newByteChannel()` or `newFileChannel()` instead of `newOutputStream()`.
 
-1. **`VirtualWriteChannel.close()` doesn't invoke the storage write** — it may only flush the local buffer and mark the handle as closed, without the actual HTTP POST to storage-manager
-2. **The VFS `FileSystemProvider.newOutputStream()` returns a regular `OutputStream`, not a `VirtualWriteChannel`** — so close() has no VFS logic
-3. **The file size (459 bytes) is below some threshold** and the VFS decides to skip persistence
+Apache MINA SSHD's `SftpSubsystem` calls `Files.newByteChannel(path, options)` for file writes, which delegates to `FileSystemProvider.newByteChannel()`. If `VirtualSftpFileSystemProvider` only overrides `newOutputStream()` but not `newByteChannel()`, the write goes through the default implementation which writes to local disk, bypassing VFS entirely.
 
-The test file is 459 bytes — well under the `inline≤65536B` threshold, so it should trigger `[VFS] Inline stored`.
+**The fix:** Override `newByteChannel()` in `VirtualSftpFileSystemProvider` to return a `VirtualWriteChannel` (which implements `SeekableByteChannel`). That's the method MINA SSHD actually calls for SFTP PUT operations.
 
-## Full Trace
+## Timeline
 
 ```
-08:21:57.337  Account event received: edi-src-2
-08:22:02.837  SFTP password auth attempt: edi-src-2 → success
-08:22:02.971  SFTP virtual filesystem ready (account=f809654f)
-08:22:03.076  SFTP session hold: Handle.close() completed path=/po_850_test2.edi
-08:22:03.080  SFTP session cleanup: committed 1 write handle(s)
-08:22:03.080  DISCONNECT
+08:41:30.895  Auth attempt
+08:41:30.996  Login success
+08:41:31.052  VFS filesystem ready
+08:41:31.212  Handle.close() completed (160ms after VFS ready)
+08:41:31.215  committed 1 handle
+08:41:31.216  DISCONNECT
 ```
 
-No storage-manager interaction. No VFS write log. No event. No record.
-
-## What CTO's Fix Achieved
-
-- ✅ Session holds until Handle.close() completes (no more orphaned handles)
-- ❌ VirtualWriteChannel.close() doesn't trigger storage-manager write
-- ❌ No FileUploadedEvent published after VFS write
-- ❌ 0 transfer records, 0 flow executions
+File size: 459 bytes. Should be inline stored (< 65536B threshold).
+No write_intents, no virtual_entries, no transfer records, no flow executions.
