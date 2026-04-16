@@ -242,9 +242,113 @@ Same serialization pattern as N37 but for `FlowExecutionDto` or its nested types
 
 ---
 
+---
+
+## UI Screen Reliability Audit
+
+Tested every UI-backing API endpoint through the nginx gateway (localhost:80) — the path the browser uses.
+
+### All 30 UI Screens Tested
+
+| Screen | API Endpoint | Gateway (port 80) | Direct | Root Cause |
+|--------|-------------|-------------------|--------|------------|
+| Processing Flows | /api/flows | **OK** | OK (after FLUSHALL) | Cache poisons empty on boot race (N37-PARTIAL) |
+| Partner Management | /api/partners | **OK** | OK | |
+| Transfer Accounts | /api/accounts | **OK** | OK | |
+| Servers | /api/servers | **OK** | OK | |
+| Folder Mappings | /api/folder-mappings | **OK** | OK | |
+| Activity Monitor | /api/activity-monitor | **OK** | OK | Empty — N33 (no records) |
+| Activity Stats | /api/activity-monitor/stats | **OK** | OK | 0 transfers — N33 |
+| Live Activity (SSE) | /api/activity-monitor/stream | **403** | 403 | N40 — JWT via query param rejected |
+| Flow Fabric | /api/flow-executions/live-stats | **OK** | OK | 0 processing — N33 |
+| Transfer Journey | /api/journey | **OK** | OK | Empty — N33 |
+| DLQ Messages | /api/dlq/messages | **OK** | OK | |
+| Clusters | /api/clusters | **OK** | OK | |
+| Service Registry | /api/service-registry | **OK** | OK | |
+| Proxy Groups | /api/proxy-groups | **OK** | OK | |
+| Platform Listeners | /api/platform/listeners | **OK** | OK | |
+| Audit Logs | /api/audit-logs | **OK** | OK | |
+| Webhooks | /api/partner-webhooks | **OK** | OK | |
+| Snapshot Retention | /api/snapshot-retention | **OK** | OK | |
+| Sentinel Findings | /api/v1/sentinel/findings | **OK** | OK | |
+| Quarantine | /api/v1/quarantine | **OK** | OK | |
+| Compliance Profiles | /api/compliance/profiles | **OK** | OK | |
+| External Destinations | /api/external-destinations | **OK** | OK | |
+| AS2 Partnerships | /api/as2-partnerships | **OK** | OK | |
+| Connectors | /api/connectors | **OK** | OK | |
+| Tenants | /api/v1/tenants | **OK** | OK | |
+| DLP Policies | /api/v1/dlp/policies | **OK** | OK | |
+| Threat Indicators | /api/v1/threats/indicators | **OK** | OK | |
+| VFS Intents | /api/vfs/intents/recent | **OK** | OK | |
+| EDI Maps | /api/v1/edi/maps | **404** | 404 | N44 — no gateway route to edi-converter for /api/v1/edi/maps |
+| Licenses | /api/v1/licenses | **400** | 400 | N45 — requires `X-Admin-Key` header, UI doesn't send it |
+| Config Export | /api/v1/config-export | **405** | 405 | N46 — endpoint is POST only, UI may send GET |
+
+**Summary: 27/30 OK | 3 broken (EDI Maps, Licenses, Config Export)**
+
+### Screens That Load But Show Empty/Stale Data (N33 Impact)
+
+These screens return HTTP 200 but show no data because the SEDA pipeline never creates records:
+
+| Screen | What's Missing | Blocked By |
+|--------|---------------|------------|
+| Activity Monitor | 0 transfer entries | N33 |
+| Activity Stats | 0 transfers in all periods | N33 |
+| Live Activity (SSE) | No real-time events stream | N33 + N40 |
+| Flow Fabric dashboard | processing=0, failed=0 | N33 |
+| Transfer Journey | No journeys to display | N33 |
+| Flow Execution detail | No executions to view/restart/terminate | N33 |
+
+### Processing Flows — Cache Race Condition (N37-PARTIAL)
+
+The Processing Flows screen shows "0 flows configured" intermittently despite 21 flows in DB. This happens when:
+1. Boot starts → Sentinel/monitoring probes call `GET /api/flows` early
+2. Early call returns empty list (DB still seeding or Flyway running)
+3. `@Cacheable` stores empty list in Redis under `flows::SimpleKey []`
+4. All subsequent calls return cached empty list
+5. **Fix:** `FLUSHALL` on Redis, or add `unless = "#result.isEmpty()"` to `@Cacheable`
+
+### Platform Sentinel & AI Engine "Offline" on Dashboard
+
+Both containers are healthy and running analysis cycles, but the UI dashboard shows them as offline:
+
+| Service | Docker Status | Internal Activity | UI Status | Root Cause |
+|---------|--------------|-------------------|-----------|------------|
+| Platform Sentinel | healthy | HealthScore=69, SecurityAnalyzer running | "Offline" | Health probe from onboarding-api to sentinel:8098 fails (SPIFFE auth) |
+| AI Engine | healthy | OSINT collection, CVE monitoring active | "Unavailable" | storage-manager returns 403 (SPIFFE), actuator /metrics 404, OSINT feeds 401 |
+
+---
+
+## New Issues (N44-N46)
+
+### N44: EDI Maps Screen — No Gateway Route (404)
+
+**UI path:** `/api/v1/edi/maps`  
+**Root cause:** Nginx gateway has route for `/api/v1/convert/` → edi-converter:8095, but NOT for `/api/v1/edi/` which is where the EDI map CRUD endpoints live. The UI calls `/api/v1/edi/maps` which falls through to the default UI proxy, returning 404.  
+**Fix:** Add to `api-gateway/nginx.conf`:
+```nginx
+location /api/v1/edi/ { set $up edi-converter:8095; proxy_pass http://$up; }
+```
+
+### N45: Licenses Screen — Missing X-Admin-Key Header (400)
+
+**UI path:** `/api/v1/licenses`  
+**Root cause:** `LicenseController` requires `X-Admin-Key` header (`@RequestHeader("X-Admin-Key")`). The UI sends `Authorization: Bearer <JWT>` but not the admin key. Endpoint returns 400 "Required header 'X-Admin-Key' is missing".  
+**Fix:** Either (1) UI sends `X-Admin-Key` header from config, or (2) LicenseController accepts JWT auth as alternative to admin key.
+
+### N46: Config Export — GET Not Supported (405)
+
+**UI path:** `/api/v1/config-export` (GET)  
+**Root cause:** `ConfigExportController` only exposes `@PostMapping`. The UI likely sends GET to load the export page, or the endpoint should support GET for download.  
+**Fix:** Add `@GetMapping` to ConfigExportController for export download, or change UI to POST.
+
+---
+
 ## Next Steps
 
-1. **Dev team resolves N33** — trace `sftp.account.events` consumer → why no `file_transfer_records` created
+1. **Dev team resolves N33** — trace `sftp.account.events` consumer → why no `file_transfer_records` created. This unblocks Activity Monitor, Flow Fabric, Transfer Journey, and all lifecycle operations.
 2. **Add `unless="#result.isEmpty()"` to @Cacheable** — prevents cache poisoning on empty results (N37-PARTIAL)
-3. **Fix SPIFFE auth for Sentinel/AI Engine health probes** — N41/N42 show as offline on UI
-4. **Re-run sanity validation** — 5 skipped lifecycle tests will auto-execute once N33 is fixed
+3. **Fix SPIFFE auth for Sentinel/AI Engine health probes** — N41/N42 show as offline on UI despite healthy containers
+4. **Add nginx route for EDI Maps** — one-line fix in nginx.conf (N44)
+5. **Fix License endpoint auth** — accept JWT as alternative to X-Admin-Key (N45)
+6. **Re-run sanity validation** — 5 skipped lifecycle tests will auto-execute once N33 is fixed
