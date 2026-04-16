@@ -10,8 +10,6 @@ import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuil
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactoryBuilder;
 import org.apache.hc.core5.util.TimeValue;
-import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
-import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.context.annotation.Bean;
@@ -146,15 +144,7 @@ public class SharedConfig {
         return executor;
     }
 
-    /**
-     * Shared JSON message converter for RabbitMQ — ensures all services
-     * serialize/deserialize events as JSON instead of Java serialization.
-     */
-    @Bean
-    @ConditionalOnClass(name = "org.springframework.amqp.rabbit.core.RabbitTemplate")
-    public MessageConverter jacksonMessageConverter() {
-        return new Jackson2JsonMessageConverter();
-    }
+    // RabbitMQ JSON converter removed — centralized in shared-platform RabbitJsonConfig
 
     @Bean
     public WebMvcConfigurer corsConfigurer() {

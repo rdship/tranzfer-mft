@@ -10,7 +10,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -46,10 +45,7 @@ public class AccountEventConsumer {
     @Value("${rabbitmq.queue.sftp-events:sftp.account.events}")
     private String queueName;
 
-    @Bean
-    public MessageConverter jsonMessageConverter() {
-        return new Jackson2JsonMessageConverter(new ObjectMapper());
-    }
+    // RabbitMQ JSON converter removed — centralized in shared-platform RabbitJsonConfig
 
     @Bean
     public Queue sftpEventsQueue() {
