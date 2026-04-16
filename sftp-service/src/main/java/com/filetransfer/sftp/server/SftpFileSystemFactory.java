@@ -7,6 +7,7 @@ import com.filetransfer.shared.entity.core.TransferAccount;
 import com.filetransfer.shared.repository.core.FolderTemplateRepository;
 import com.filetransfer.shared.repository.core.ServerInstanceRepository;
 import com.filetransfer.shared.vfs.VirtualFileSystem;
+import com.filetransfer.shared.routing.RoutingEngine;
 import com.filetransfer.shared.vfs.VirtualSftpFileSystem;
 import com.filetransfer.shared.vfs.VirtualSftpPath;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +45,7 @@ public class SftpFileSystemFactory implements FileSystemFactory {
     private final FolderTemplateRepository folderTemplateRepository;
     private final VirtualFileSystem virtualFileSystem;
     private final StorageServiceClient storageServiceClient;
+    private final RoutingEngine routingEngine;
 
     @Value("${sftp.home-base:/data/sftp}")
     private String homeBase;
@@ -73,13 +75,31 @@ public class SftpFileSystemFactory implements FileSystemFactory {
 
         // ── Virtual mode: Phantom Folder VFS ────────────────────────────
         if (account.isPresent() && isVirtualMode(account.get())) {
-            UUID acctId = account.get().getId();
+            TransferAccount acct = account.get();
+            UUID acctId = acct.getId();
 
             // Safety net: if no virtual entries exist yet, provision from server's folder template
             ensureVirtualFoldersProvisioned(acctId);
 
+            // Extract session IP for the routing callback
+            String sessionIp = null;
+            if (session instanceof org.apache.sshd.server.session.ServerSession ss) {
+                try {
+                    var addr = ss.getClientAddress();
+                    if (addr != null) sessionIp = addr.toString().replace("/", "");
+                } catch (Exception ignored) {}
+            }
+            final String sourceIp = sessionIp;
+
+            // Callback: after VFS write completes, trigger file routing
+            VirtualSftpFileSystem.WriteCompletionCallback onWritten = (virtualPath, sizeBytes, storageKey) -> {
+                log.info("VFS write complete: user={} path={} size={} — triggering routing",
+                        username, virtualPath, sizeBytes);
+                routingEngine.onFileUploaded(acct, virtualPath, acct.getHomeDir() + virtualPath, sourceIp);
+            };
+
             VirtualSftpFileSystem vfs = new VirtualSftpFileSystem(
-                    acctId, virtualFileSystem, storageServiceClient);
+                    acctId, virtualFileSystem, storageServiceClient, onWritten);
             log.info("SFTP virtual filesystem ready for user={} (account={})", username, acctId);
             return vfs;
         }

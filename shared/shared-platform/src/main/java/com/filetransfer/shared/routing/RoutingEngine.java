@@ -159,11 +159,8 @@ public class RoutingEngine {
                         .homeDir(sourceAccount.getHomeDir())
                         .build();
                 rabbitTemplate.convertAndSend(exchange, "file.uploaded", event);
-                log.info("[{}] FileUploadedEvent published to RabbitMQ (broadcast)", trackId);
-                // N48 fix: do NOT return here — process synchronously too.
-                // The consumer may not load (Spring Boot 3.4 @ConditionalOnProperty + RabbitMQ
-                // bean timing issue). RabbitMQ publish is retained for cross-service broadcast
-                // (cache eviction, activity monitoring) but flow execution runs inline.
+                log.info("[{}] FileUploadedEvent published to RabbitMQ", trackId);
+                return; // Consumer handles flow matching + execution
             } catch (Exception e) {
                 log.warn("[{}] RabbitMQ publish failed — falling back to synchronous: {}", trackId, e.getMessage());
             }

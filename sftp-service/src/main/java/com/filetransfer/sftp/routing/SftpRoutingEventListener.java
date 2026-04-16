@@ -118,13 +118,23 @@ public class SftpRoutingEventListener implements SftpEventListener {
         String relativePath = rootedPath;
 
         if (wasWrite) {
+            // VIRTUAL accounts: routing is triggered by VirtualWriteChannel.close()
+            // after the VFS entry is created. Skip here to avoid race condition.
+            if ("VIRTUAL".equalsIgnoreCase(account.getStorageMode())) {
+                log.debug("SFTP upload (VIRTUAL): user={} file={} — routing deferred to VFS close",
+                        username, relativePath);
+                return;
+            }
+
+            // PHYSICAL accounts: file is on disk, route immediately
             String sourceIp = null;
             try {
                 var clientAddr = session.getClientAddress();
                 if (clientAddr != null) sourceIp = clientAddr.toString().replace("/", "");
             } catch (Exception e) { /* ignore */ }
 
-            log.info("SFTP upload detected: user={} relative={} absolute={} ip={}", username, relativePath, realAbsolutePath, sourceIp);
+            log.info("SFTP upload detected (PHYSICAL): user={} relative={} absolute={} ip={}",
+                    username, relativePath, realAbsolutePath, sourceIp);
             routingEngine.onFileUploaded(account, relativePath, realAbsolutePath, sourceIp);
         } else {
             log.info("SFTP download detected: user={} path={}", username, realAbsolutePath);

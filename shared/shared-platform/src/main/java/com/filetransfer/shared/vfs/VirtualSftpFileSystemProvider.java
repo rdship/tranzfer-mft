@@ -360,6 +360,7 @@ public class VirtualSftpFileSystemProvider extends FileSystemProvider {
                 String filename = VirtualFileSystem.nameOf(vpath);
                 String bucket = vfs().determineBucket(fileSize, accountId());
 
+                String storedKey = null;
                 switch (bucket) {
                     case "INLINE" -> {
                         // Small file — read to byte[] (< 64KB, safe in heap)
@@ -381,6 +382,17 @@ public class VirtualSftpFileSystemProvider extends FileSystemProvider {
                         log.info("[VFS] CAS stored {}: {} ({} bytes)",
                                 vpath, sha256 != null ? sha256.substring(0, 8) + "..." : "n/a", fileSize);
                         vfs().writeFile(accountId(), vpath, sha256, fileSize, trackId, null, null);
+                        storedKey = sha256;
+                    }
+                }
+
+                // VFS entry created — notify SFTP server to trigger file routing
+                VirtualSftpFileSystem.WriteCompletionCallback cb = fileSystem.getWriteCallback();
+                if (cb != null) {
+                    try {
+                        cb.onFileWritten(vpath, fileSize, storedKey);
+                    } catch (Exception cbErr) {
+                        log.error("[VFS] Write completion callback failed for {}: {}", vpath, cbErr.getMessage());
                     }
                 }
             } catch (Exception e) {

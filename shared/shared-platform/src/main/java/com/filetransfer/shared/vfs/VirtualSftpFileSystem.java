@@ -13,8 +13,21 @@ import java.util.*;
  * Virtual FileSystem for SFTP sessions.
  * One instance per SFTP session, scoped to a single account.
  * All I/O delegates to VirtualFileSystem (DB) + StorageServiceClient (CAS).
+ *
+ * <p>When a file write completes ({@code VirtualWriteChannel.close()}), the
+ * optional {@link WriteCompletionCallback} fires so the SFTP server can
+ * trigger file routing after the VFS entry is guaranteed to exist.
  */
 public class VirtualSftpFileSystem extends FileSystem {
+
+    /**
+     * Fired after VirtualWriteChannel.close() stores bytes and creates the VFS entry.
+     * The SFTP server uses this to publish FileUploadedEvent to RabbitMQ.
+     */
+    @FunctionalInterface
+    public interface WriteCompletionCallback {
+        void onFileWritten(String virtualPath, long sizeBytes, String storageKey);
+    }
 
     @Getter
     private final VirtualSftpFileSystemProvider provider;
@@ -24,13 +37,23 @@ public class VirtualSftpFileSystem extends FileSystem {
     private final VirtualFileSystem vfs;
     @Getter
     private final StorageServiceClient storageClient;
+    @Getter
+    private final WriteCompletionCallback writeCallback;
     private volatile boolean open = true;
 
-    public VirtualSftpFileSystem(UUID accountId, VirtualFileSystem vfs, StorageServiceClient storageClient) {
+    public VirtualSftpFileSystem(UUID accountId, VirtualFileSystem vfs,
+                                  StorageServiceClient storageClient,
+                                  WriteCompletionCallback writeCallback) {
         this.accountId = accountId;
         this.vfs = vfs;
         this.storageClient = storageClient;
+        this.writeCallback = writeCallback;
         this.provider = new VirtualSftpFileSystemProvider(this);
+    }
+
+    /** Backwards-compatible constructor (no callback — used by getUserHomeDir). */
+    public VirtualSftpFileSystem(UUID accountId, VirtualFileSystem vfs, StorageServiceClient storageClient) {
+        this(accountId, vfs, storageClient, null);
     }
 
     @Override
