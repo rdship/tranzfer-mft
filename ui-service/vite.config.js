@@ -31,8 +31,11 @@ export default defineConfig({
           // chunk imports from index → circular reference →
           // "Cannot access 'be' before initialization" crash.
           if (!id.includes('node_modules')) {
-            if (id.includes('/components/')) return 'shared-components'
-            if (id.includes('/hooks/'))      return 'shared-hooks'
+            // Components + hooks merged into ONE chunk. Hooks may import
+            // components (useStickyFilters, etc.) — separate chunks created
+            // a circular dependency (shared-hooks → shared-components) that
+            // caused TDZ "Cannot access 'he' before initialization" crash.
+            if (id.includes('/components/') || id.includes('/hooks/')) return 'shared-app'
             if (id.includes('/api/'))        return 'shared-api'
             if (id.includes('/context/'))    return 'shared-context'
             return undefined
