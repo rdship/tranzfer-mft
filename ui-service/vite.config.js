@@ -31,13 +31,12 @@ export default defineConfig({
           // chunk imports from index → circular reference →
           // "Cannot access 'be' before initialization" crash.
           if (!id.includes('node_modules')) {
-            // Components + hooks merged into ONE chunk. Hooks may import
-            // components (useStickyFilters, etc.) — separate chunks created
-            // a circular dependency (shared-hooks → shared-components) that
-            // caused TDZ "Cannot access 'he' before initialization" crash.
-            if (id.includes('/components/') || id.includes('/hooks/')) return 'shared-app'
-            if (id.includes('/api/'))        return 'shared-api'
-            if (id.includes('/context/'))    return 'shared-context'
+            // All shared app code (components, hooks, API, context) in a single chunk.
+            // ANY split between these creates circular chunk dependencies that cause
+            // TDZ "Cannot access 'he' before initialization" crashes. The only safe
+            // split is: pages (lazy) vs everything else (shared-app).
+            if (id.includes('/components/') || id.includes('/hooks/')
+                || id.includes('/api/') || id.includes('/context/')) return 'shared-app'
             return undefined
           }
 
