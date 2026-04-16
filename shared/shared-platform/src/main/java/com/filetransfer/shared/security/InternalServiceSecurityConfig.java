@@ -1,11 +1,10 @@
-package com.filetransfer.storage.config;
+package com.filetransfer.shared.security;
 
 import com.filetransfer.shared.config.PlatformConfig;
-import com.filetransfer.shared.security.PlatformJwtAuthFilter;
 import com.filetransfer.shared.util.JwtUtil;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Primary;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -16,23 +15,26 @@ import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 
 /**
- * Storage-manager security config — internal service, not exposed via API gateway.
+ * Security config for internal-only services (storage-manager, screening-service,
+ * encryption-service, edi-converter, external-forwarder-service).
  *
- * <p>All storage API endpoints ({@code /api/v1/storage/**}) are permitted without
- * authentication. Storage-manager is an internal-only service — Docker port 8096
- * is NOT exposed through the API gateway. Only other platform services call it
- * via the Docker network. SPIFFE auth provides defense-in-depth but must not
- * block the pipeline when the SPIRE agent is unavailable.
+ * <p>These services are NOT exposed through the API gateway — only other platform
+ * services call them via the Docker network. All API endpoints are permitted.
+ * SPIFFE JWT-SVID auth is still attempted (defense-in-depth) but not required.
+ *
+ * <p>Activated by {@code PLATFORM_SECURITY_INTERNAL_SERVICE=true} in docker-compose.
+ * This disables the shared {@link PlatformSecurityConfig} via
+ * {@code PLATFORM_SECURITY_SHARED_CONFIG=false}.
  */
 @Configuration
 @EnableWebSecurity
-public class StorageSecurityConfig {
+@ConditionalOnProperty(name = "platform.security.internal-service", havingValue = "true")
+public class InternalServiceSecurityConfig {
 
     @Bean
-    @Primary
-    public SecurityFilterChain storageSecurityFilterChain(HttpSecurity http,
-                                                          JwtUtil jwtUtil,
-                                                          PlatformConfig platformConfig) throws Exception {
+    public SecurityFilterChain internalServiceSecurityFilterChain(HttpSecurity http,
+                                                                    JwtUtil jwtUtil,
+                                                                    PlatformConfig platformConfig) throws Exception {
         PlatformJwtAuthFilter filter = new PlatformJwtAuthFilter(jwtUtil, platformConfig);
 
         return http
@@ -40,8 +42,8 @@ public class StorageSecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(ant("/actuator/**")).permitAll()
-                        .requestMatchers(ant("/api/v1/storage/**")).permitAll()
-                        .requestMatchers(ant("/api/*/health"), ant("/health")).permitAll()
+                        .requestMatchers(ant("/api/**")).permitAll()
+                        .requestMatchers(ant("/health")).permitAll()
                         .requestMatchers(ant("/v3/api-docs/**"), ant("/swagger-ui/**")).permitAll()
                         .anyRequest().authenticated()
                 )
