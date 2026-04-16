@@ -143,6 +143,11 @@ public class MatchContextBuilder {
         return this;
     }
 
+    /** Returns true if EDI detection hasn't populated standard/type yet. */
+    public boolean needsEdiDetection() {
+        return ediStandard == null && ediType == null;
+    }
+
     public MatchContextBuilder withEdiStandard(String ediStandard) {
         this.ediStandard = ediStandard;
         return this;

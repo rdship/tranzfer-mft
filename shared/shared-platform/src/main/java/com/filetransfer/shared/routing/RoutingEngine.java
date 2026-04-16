@@ -18,6 +18,7 @@ import com.filetransfer.shared.matching.CompiledFlowRule;
 import com.filetransfer.shared.matching.FlowRuleRegistry;
 import com.filetransfer.shared.matching.FlowRuleRegistryInitializer;
 import com.filetransfer.shared.matching.MatchContext;
+import com.filetransfer.shared.matching.MatchContextBuilder;
 import com.filetransfer.shared.repository.transfer.FileFlowRepository;
 import com.filetransfer.shared.repository.transfer.FileTransferRecordRepository;
 import com.filetransfer.shared.repository.transfer.FlowExecutionRepository;
@@ -254,7 +255,7 @@ public class RoutingEngine {
         }
         // Protocol services can inject custom metadata via FileUploadedEvent in the future
 
-        MatchContext matchContext = MatchContext.builder()
+        MatchContextBuilder ctxBuilder = MatchContext.builder()
                 .fromUploadEvent(sourceAccount.getProtocol(), sourceAccount.getUsername(),
                         sourceAccount.getId(), sourceAccount.getPartnerId(),
                         relativeFilePath, absoluteSourcePath)
@@ -264,8 +265,30 @@ public class RoutingEngine {
                 .withSourceIp(sourceIp)
                 .withPartnerSlug(partnerSlug)
                 .withTimeNow()
-                .withMetadata(matchMetadata)
-                .build();
+                .withMetadata(matchMetadata);
+
+        // N48 fix: VIRTUAL accounts — physical path doesn't exist, so EDI detection from disk
+        // fails silently. Read first 128 bytes from VFS for EDI header detection.
+        boolean isVirtualAccount = !"PHYSICAL".equalsIgnoreCase(sourceAccount.getStorageMode());
+        if (isVirtualAccount && vfsBridge != null && ctxBuilder.needsEdiDetection()) {
+            try {
+                byte[] content = vfsBridge.getVfs().readFile(sourceAccount.getId(), relativeFilePath);
+                if (content != null && content.length > 0) {
+                    String header = new String(content, 0, Math.min(content.length, 128));
+                    com.filetransfer.shared.matching.EdiDetector.EdiInfo info =
+                            com.filetransfer.shared.matching.EdiDetector.detect(header);
+                    if (info != null) {
+                        ctxBuilder.withEdiStandard(info.standard());
+                        ctxBuilder.withEdiType(info.typeCode());
+                        log.info("[{}] EDI detected from VFS: standard={} type={}", trackId, info.standard(), info.typeCode());
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("[{}] VFS EDI detection skipped: {}", trackId, e.getMessage());
+            }
+        }
+
+        MatchContext matchContext = ctxBuilder.build();
 
         String processedFilePath = absoluteSourcePath;
         // Zero-I/O matching — pre-compiled rules evaluated in-memory
@@ -356,8 +379,7 @@ public class RoutingEngine {
         }
 
         // ── VIRTUAL-mode accounts (default): FileRef-based streaming pipeline ──────────
-        boolean isVirtual = !"PHYSICAL".equalsIgnoreCase(sourceAccount.getStorageMode());
-        if (isVirtual && vfsBridge != null) {
+        if (isVirtualAccount && vfsBridge != null) {
             Optional<com.filetransfer.shared.entity.vfs.VirtualEntry> entryOpt =
                     vfsBridge.getVfs().stat(sourceAccount.getId(), relativeFilePath);
             if (entryOpt.isPresent()) {
