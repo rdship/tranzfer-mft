@@ -183,6 +183,51 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
         }
     }
 
+    // ── Admin operations (N9 fix) ────────────────────────────────────────
+
+    /** Clear rate limit for a specific user (by email/principal). */
+    public void clearUser(String principal) {
+        userBuckets.remove(principal);
+        if (redis != null && redisAvailable) {
+            try { redis.delete("rate:user:" + principal); } catch (Exception ignored) {}
+        }
+    }
+
+    /** Clear rate limit for a specific IP. */
+    public void clearIp(String ip) {
+        ipBuckets.remove(ip);
+        if (redis != null && redisAvailable) {
+            try { redis.delete("rate:ip:" + ip); } catch (Exception ignored) {}
+        }
+    }
+
+    /** Clear all rate limit buckets (in-memory + Redis). */
+    public void clearAll() {
+        ipBuckets.clear();
+        userBuckets.clear();
+        if (redis != null && redisAvailable) {
+            try {
+                var ipKeys = redis.keys("rate:ip:*");
+                var userKeys = redis.keys("rate:user:*");
+                if (ipKeys != null && !ipKeys.isEmpty()) redis.delete(ipKeys);
+                if (userKeys != null && !userKeys.isEmpty()) redis.delete(userKeys);
+            } catch (Exception ignored) {}
+        }
+    }
+
+    /** Return current status: tracked IPs, tracked users, Redis availability. */
+    public Map<String, Object> getStatus() {
+        return Map.of(
+                "enabled", properties.isEnabled(),
+                "redisAvailable", redisAvailable,
+                "trackedIps", ipBuckets.size(),
+                "trackedUsers", userBuckets.size(),
+                "defaultLimit", properties.getDefaultLimit(),
+                "userLimit", properties.getUserLimit(),
+                "windowSeconds", properties.getDefaultWindowSeconds()
+        );
+    }
+
     // ── Data Classes ────────────────────────────────────────────────────
 
     record RateLimitResult(boolean allowed, long remaining, long resetEpoch) {}

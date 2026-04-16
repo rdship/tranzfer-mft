@@ -112,10 +112,19 @@ public class AccountEventConsumer {
 
         // Create home directories from template (carried in event) or defaults
         if ("account.created".equals(eventType) && homeDir != null) {
+            String storageMode = (String) event.getOrDefault("storageMode", "PHYSICAL");
+            if ("VIRTUAL".equalsIgnoreCase(storageMode)) {
+                log.info("VIRTUAL account {} — physical dir creation skipped (VFS-managed)", username);
+                return;
+            }
             try {
+                // Always ensure home dir exists (N36 fix)
+                Files.createDirectories(Paths.get(homeDir));
                 @SuppressWarnings("unchecked")
                 List<String> folderPaths = (List<String>) event.get("folderPaths");
-                if (folderPaths == null || folderPaths.isEmpty()) return;
+                if (folderPaths == null || folderPaths.isEmpty()) {
+                    folderPaths = java.util.List.of("inbox", "outbox", "sent");
+                }
                 for (String folder : folderPaths) {
                     Files.createDirectories(Paths.get(homeDir, folder));
                 }
