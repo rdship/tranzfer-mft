@@ -116,6 +116,7 @@ public class SftpServerConfig {
         }
 
         SftpSubsystemFactory sftpFactory = new SftpSubsystemFactory();
+        sftpFactory.setFileSystemAccessor(new VfsSftpFileSystemAccessor());
         sftpFactory.addSftpEventListener(routingEventListener);
         sftpFactory.addSftpEventListener(auditingEventListener);
 
