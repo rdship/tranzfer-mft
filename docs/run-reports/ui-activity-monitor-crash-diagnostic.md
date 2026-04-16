@@ -187,3 +187,45 @@ No circular imports detected between chunks. But the crash persists.
 1. Build with `vite build --sourcemap` and check Chrome DevTools for the exact line
 2. OR run `npx madge --circular ui-service/src/` to find file-level circular imports
 3. The variable `he` in the error is a minified name — source maps will reveal the real variable
+
+---
+
+## ROOT CAUSE FOUND — Source Code Hook Order Bug
+
+**File:** `ui-service/src/pages/ActivityMonitor.jsx`
+
+**The bug:** `useEffect` at line 667-736 references `restartOneMut` in its dependency array (line 736), but `const restartOneMut = useMutation(...)` is declared at **line 829** — 93 lines later.
+
+**Minified evidence:**
+```
+Position 3977: [$, y, d, he]  ← useEffect deps array, 'he' = restartOneMut
+Position 6426: he=re({mutationFn:t=>L.post('/api/flow-executions/${t}/restart'...)})  ← declaration
+```
+
+Usage at 3977, declaration at 6426 → TDZ error.
+
+**Chrome stack trace confirms:**
+```
+ReferenceError: Cannot access 'he' before initialization
+    at ia (ActivityMonitor-Bn2JVWym.js:9:3977)
+```
+
+**Fix:** Move `const restartOneMut = useMutation(...)` (currently line 829) to BEFORE the `useEffect` block (currently line 667). All `useMutation` hooks should be declared before any `useEffect` that references them.
+
+```jsx
+// BEFORE (broken):
+useEffect(() => {
+  // ... keyboard handler uses restartOneMut ...
+}, [selectedRowIdx, rows, canOperate, restartOneMut])  // line 736
+
+// ... 93 lines of other code ...
+
+const restartOneMut = useMutation({ ... })  // line 829
+
+// AFTER (fixed):
+const restartOneMut = useMutation({ ... })  // MOVE HERE
+
+useEffect(() => {
+  // ... keyboard handler uses restartOneMut ...
+}, [selectedRowIdx, rows, canOperate, restartOneMut])
+```
