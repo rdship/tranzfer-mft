@@ -93,7 +93,7 @@ public class FileFlow extends Auditable {
      * A single step in the processing pipeline.
      */
     @Data @NoArgsConstructor @AllArgsConstructor @Builder
-    public static class FlowStep {
+    public static class FlowStep implements java.io.Serializable {
         /** Step type: ENCRYPT_PGP, DECRYPT_PGP, ENCRYPT_AES, DECRYPT_AES,
          *  COMPRESS_GZIP, DECOMPRESS_GZIP, COMPRESS_ZIP, DECOMPRESS_ZIP,
          *  RENAME, SCREEN, EXECUTE_SCRIPT, MAILBOX, FILE_DELIVERY, ROUTE */
