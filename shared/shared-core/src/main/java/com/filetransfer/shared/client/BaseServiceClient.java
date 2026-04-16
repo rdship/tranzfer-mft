@@ -95,6 +95,10 @@ public abstract class BaseServiceClient {
         if (correlationId != null) {
             headers.set("X-Correlation-ID", correlationId);
         }
+        String trackId = MDC.get("trackId");
+        if (trackId != null) {
+            headers.set("X-Track-ID", trackId);
+        }
         return headers;
     }
 
@@ -106,6 +110,10 @@ public abstract class BaseServiceClient {
         String correlationId = MDC.get("correlationId");
         if (correlationId != null) {
             headers.set("X-Correlation-ID", correlationId);
+        }
+        String trackId = MDC.get("trackId");
+        if (trackId != null) {
+            headers.set("X-Track-ID", trackId);
         }
         return headers;
     }

@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.filetransfer</groupId>
         <artifactId>file-transfer-platform</artifactId>
-        <version>1.0.0-R51</version>
+        <version>1.0.0-R52</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <artifactId>platform-sentinel</artifactId>

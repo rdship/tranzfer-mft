@@ -17,7 +17,7 @@
          =================================================================== -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{traceId:-none}] [${SERVICE_NAME}] %-5level [%thread] %logger{36} - %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{correlationId:-none}] [%X{trackId:-}] [${SERVICE_NAME}] %-5level [%thread] %logger{36} - %msg%n</pattern>
         </encoder>
     </appender>
 
@@ -30,6 +30,7 @@
             <includeMdcKeyName>traceId</includeMdcKeyName>
             <includeMdcKeyName>spanId</includeMdcKeyName>
             <includeMdcKeyName>correlationId</includeMdcKeyName>
+            <includeMdcKeyName>trackId</includeMdcKeyName>
             <includeMdcKeyName>userId</includeMdcKeyName>
             <includeMdcKeyName>partnerId</includeMdcKeyName>
             <customFields>{"service":"${SERVICE_NAME}"}</customFields>

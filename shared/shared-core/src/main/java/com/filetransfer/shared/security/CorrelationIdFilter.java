@@ -30,7 +30,9 @@ import java.util.UUID;
 public class CorrelationIdFilter extends OncePerRequestFilter {
 
     public static final String CORRELATION_ID_HEADER = "X-Correlation-ID";
+    public static final String TRACK_ID_HEADER = "X-Track-ID";
     public static final String CORRELATION_ID_MDC = "correlationId";
+    public static final String TRACK_ID_MDC = "trackId";
     public static final String SERVICE_NAME_MDC = "service";
 
     @Override
@@ -46,6 +48,13 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
             MDC.put(CORRELATION_ID_MDC, correlationId);
             MDC.put(SERVICE_NAME_MDC, resolveServiceName());
             response.setHeader(CORRELATION_ID_HEADER, correlationId);
+
+            // Propagate trackId from upstream (file transfer tracking across services)
+            String trackId = request.getHeader(TRACK_ID_HEADER);
+            if (trackId != null && !trackId.isBlank()) {
+                MDC.put(TRACK_ID_MDC, trackId);
+                response.setHeader(TRACK_ID_HEADER, trackId);
+            }
 
             filterChain.doFilter(request, response);
         } finally {
