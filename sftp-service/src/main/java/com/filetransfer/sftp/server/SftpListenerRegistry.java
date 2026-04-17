@@ -10,8 +10,12 @@ import org.apache.sshd.server.SshServer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.HashSet;
+import java.util.Set;
 
 import java.net.BindException;
 import java.time.Instant;
@@ -134,6 +138,42 @@ public class SftpListenerRegistry {
 
     public Map<UUID, SshServer> snapshot() {
         return Map.copyOf(activeListeners);
+    }
+
+    /**
+     * Reconciliation loop — compares desired (DB active=true) vs actual
+     * (in-memory registry) every 30s and self-heals drift. Catches:
+     * - events lost between onboarding-api and this service
+     * - crashes that left a listener half-bound
+     * - manual DB edits that bypass the API path
+     */
+    @Scheduled(fixedDelayString = "${sftp.listener.reconcile-ms:30000}",
+               initialDelayString = "${sftp.listener.reconcile-initial-ms:30000}")
+    public void reconcile() {
+        List<ServerInstance> desired = serverInstanceRepository.findByProtocolAndActiveTrue(Protocol.SFTP);
+        Set<UUID> desiredIds = new HashSet<>();
+
+        for (ServerInstance si : desired) {
+            if (isPrimary(si)) continue;
+            if (!ownedByThisNode(si)) continue;
+            desiredIds.add(si.getId());
+            SshServer live = activeListeners.get(si.getId());
+            boolean live200 = live != null && live.isStarted();
+            if (!live200) {
+                log.info("Reconcile: drift detected — '{}' desired but not bound, attempting bind",
+                        si.getInstanceId());
+                if (live != null) activeListeners.remove(si.getId());
+                bind(si);
+            }
+        }
+
+        // Any orphans in the map that are no longer desired → unbind
+        Set<UUID> orphans = new HashSet<>(activeListeners.keySet());
+        orphans.removeAll(desiredIds);
+        for (UUID orphanId : orphans) {
+            log.info("Reconcile: orphan listener {} no longer in desired state, unbinding", orphanId);
+            unbind(orphanId);
+        }
     }
 
     /**

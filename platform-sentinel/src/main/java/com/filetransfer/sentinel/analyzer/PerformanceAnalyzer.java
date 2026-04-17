@@ -42,6 +42,11 @@ public class PerformanceAnalyzer {
     @Nullable
     private ConnectionAuditRepository connectionAuditRepo;
 
+    /** Used by listener_bind_failed rule. */
+    @Autowired(required = false)
+    @Nullable
+    private com.filetransfer.shared.repository.core.ServerInstanceRepository serverInstanceRepo;
+
     @Scheduled(fixedDelay = 300000)
     @SchedulerLock(name = "sentinel_performanceAnalyzer", lockAtLeastFor = "PT4M", lockAtMostFor = "PT9M")
     @Transactional
@@ -81,8 +86,34 @@ public class PerformanceAnalyzer {
             case "service_unhealthy" -> checkServiceHealth(rule);
             case "disk_usage_high" -> checkDiskUsage(rule);
             case "connection_saturation" -> checkConnections(rule);
+            case "listener_bind_failed" -> checkListenerBindFailed(rule);
             default -> null;
         };
+    }
+
+    private SentinelFinding checkListenerBindFailed(SentinelRule rule) {
+        if (serverInstanceRepo == null) return null;
+        List<com.filetransfer.shared.entity.core.ServerInstance> failed = serverInstanceRepo
+                .findByActiveTrue().stream()
+                .filter(si -> "BIND_FAILED".equals(si.getBindState()))
+                .toList();
+        if (failed.isEmpty()) return null;
+
+        String first = failed.get(0).getInstanceId();
+        List<String> instanceIds = failed.stream()
+                .map(com.filetransfer.shared.entity.core.ServerInstance::getInstanceId).toList();
+        return SentinelFinding.builder()
+                .analyzer(ANALYZER)
+                .ruleName(rule.getName())
+                .severity(rule.getSeverity())
+                .title(String.format("Listener bind failed: %d listener(s) not serving traffic", failed.size()))
+                .description(String.format("The following listeners are configured active but failed to bind: %s. " +
+                        "Trigger POST /api/servers/{id}/rebind or pick a free port via " +
+                        "GET /api/servers/port-suggestions.", String.join(", ", instanceIds)))
+                .evidence(evidence("failedListeners", instanceIds,
+                        "firstError", failed.get(0).getBindError()))
+                .affectedService(first)
+                .build();
     }
 
     private SentinelFinding checkLatency(SentinelRule rule) {

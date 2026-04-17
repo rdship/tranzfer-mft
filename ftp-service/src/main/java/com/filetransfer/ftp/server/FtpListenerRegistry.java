@@ -10,8 +10,12 @@ import org.apache.ftpserver.FtpServer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.HashSet;
+import java.util.Set;
 
 import java.net.BindException;
 import java.time.Instant;
@@ -112,6 +116,33 @@ public class FtpListenerRegistry {
     }
 
     public Map<UUID, FtpServer> snapshot() { return Map.copyOf(activeListeners); }
+
+    /** Drift reconciliation — every 30s compare DB desired vs live map and self-heal. */
+    @Scheduled(fixedDelayString = "${ftp.listener.reconcile-ms:30000}",
+               initialDelayString = "${ftp.listener.reconcile-initial-ms:30000}")
+    public void reconcile() {
+        List<ServerInstance> desired = repository.findByProtocolAndActiveTrue(Protocol.FTP);
+        Set<UUID> desiredIds = new HashSet<>();
+        for (ServerInstance si : desired) {
+            if (isPrimary(si)) continue;
+            if (!ownedByThisNode(si)) continue;
+            desiredIds.add(si.getId());
+            FtpServer live = activeListeners.get(si.getId());
+            boolean alive = live != null && !live.isStopped();
+            if (!alive) {
+                log.info("Reconcile: drift detected — '{}' desired but not bound, attempting bind",
+                        si.getInstanceId());
+                if (live != null) activeListeners.remove(si.getId());
+                bind(si);
+            }
+        }
+        Set<UUID> orphans = new HashSet<>(activeListeners.keySet());
+        orphans.removeAll(desiredIds);
+        for (UUID orphanId : orphans) {
+            log.info("Reconcile: orphan listener {} no longer desired, unbinding", orphanId);
+            unbind(orphanId);
+        }
+    }
 
     private boolean isPrimary(ServerInstance si) {
         if (primaryInstanceId != null && primaryInstanceId.equals(si.getInstanceId())) return true;
