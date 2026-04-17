@@ -204,16 +204,48 @@ public class FtpServerConfig {
             try {
                 ftpServer.start();
                 log.info("FTP server started on port {}", ftpPort);
+                reportPrimaryBindState("BOUND", null);
             } catch (Exception e) {
                 Throwable root = e;
                 while (root.getCause() != null && root != root.getCause()) root = root.getCause();
                 if (root instanceof java.net.BindException) {
                     log.error("FTP primary listener FAILED to bind port {} — port already in use. "
                             + "Dynamic listeners may still work on other ports.", ftpPort);
+                    reportPrimaryBindState("BIND_FAILED", "Port " + ftpPort + " already in use");
                 } else {
                     log.error("FTP primary listener FAILED to start on port {}: {}", ftpPort, e.getMessage());
+                    reportPrimaryBindState("BIND_FAILED", e.getMessage());
                 }
             }
         };
+    }
+
+    /**
+     * Pin the primary listener's bind state into the matching ServerInstance
+     * row (by instanceId OR internal port). Without this, the row stays at
+     * bind_state=UNKNOWN because the dynamic-listener registry deliberately
+     * skips primary rows.
+     */
+    private void reportPrimaryBindState(String state, String error) {
+        if (serverInstanceRepository == null) return;
+        try {
+            com.filetransfer.shared.entity.core.ServerInstance row = null;
+            if (instanceId != null) {
+                row = serverInstanceRepository.findByInstanceId(instanceId).orElse(null);
+            }
+            if (row == null) {
+                row = serverInstanceRepository.findByInternalHostAndInternalPortAndActiveTrue(
+                        java.net.InetAddress.getLocalHost().getHostName(), ftpPort).orElse(null);
+            }
+            if (row == null) return;
+            row.setBindState(state);
+            row.setBindError(error);
+            row.setLastBindAttemptAt(java.time.Instant.now());
+            row.setBoundNode(java.net.InetAddress.getLocalHost().getHostName());
+            serverInstanceRepository.save(row);
+            log.info("FTP primary listener bind state reported: {} (instance={})", state, row.getInstanceId());
+        } catch (Exception e) {
+            log.debug("FTP primary bind state report failed (non-fatal): {}", e.getMessage());
+        }
     }
 }

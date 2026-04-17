@@ -81,7 +81,8 @@ public class ServerInstanceService {
                 .proxyPort(request.getProxyPort())
                 .maxConnections(request.getMaxConnections() != null ? request.getMaxConnections() : 500)
                 .folderTemplate(resolveTemplate(request.getFolderTemplateId()))
-                .defaultStorageMode(request.getDefaultStorageMode() != null ? request.getDefaultStorageMode() : "PHYSICAL")
+                .defaultStorageMode(request.getDefaultStorageMode() != null ? request.getDefaultStorageMode() : "VIRTUAL")
+                .active(request.getActive() == null || request.getActive())
                 .build();
 
         // Persist proxy QoS policy

@@ -40,7 +40,16 @@ public class CreateServerInstanceRequest {
 
     private UUID folderTemplateId;
 
-    private String defaultStorageMode = "PHYSICAL";
+    /**
+     * VIRTUAL (default) routes uploads through the VFS / storage-manager /
+     * content-addressed storage. PHYSICAL writes directly to the service's
+     * local filesystem (legacy; requires the container to have the configured
+     * path mounted).
+     */
+    private String defaultStorageMode = "VIRTUAL";
+
+    /** Create the listener in a disabled-draft state (active=false). */
+    private Boolean active;
 
     /** Proxy QoS policy — applied when useProxy=true */
     private ProxyQoSConfig proxyQos;

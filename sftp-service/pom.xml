@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.filetransfer</groupId>
         <artifactId>file-transfer-platform</artifactId>
-        <version>1.0.0-R72</version>
+        <version>1.0.0-R73</version>
     </parent>
 
     <artifactId>sftp-service</artifactId>

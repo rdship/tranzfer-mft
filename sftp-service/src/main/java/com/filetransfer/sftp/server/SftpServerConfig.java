@@ -163,13 +163,49 @@ public class SftpServerConfig {
             try {
                 sshServer.start();
                 log.info("SFTP server started on port {}", sftpPort);
+                reportPrimaryBindState("BOUND", null);
             } catch (java.net.BindException e) {
                 log.error("SFTP primary listener FAILED to bind port {} — port already in use. "
                         + "Dynamic listeners may still work on other ports.", sftpPort);
+                reportPrimaryBindState("BIND_FAILED", "Port " + sftpPort + " already in use");
             } catch (Exception e) {
                 log.error("SFTP primary listener FAILED to start on port {}: {}", sftpPort, e.getMessage());
+                reportPrimaryBindState("BIND_FAILED", e.getMessage());
             }
         };
+    }
+
+    /**
+     * Write the primary listener's bind state to the ServerInstance row that
+     * represents it (matched by instanceId OR by internal port). Without this,
+     * the row is stuck at bind_state=UNKNOWN — the dynamic-listener registry
+     * skips primary rows, so nobody else updates them. Best-effort: failure to
+     * find the row or save just logs a debug line.
+     */
+    private void reportPrimaryBindState(String state, String error) {
+        if (serverInstanceRepository == null) return;
+        try {
+            com.filetransfer.shared.entity.core.ServerInstance row = null;
+            if (instanceId != null) {
+                row = serverInstanceRepository.findByInstanceId(instanceId).orElse(null);
+            }
+            if (row == null) {
+                row = serverInstanceRepository.findByInternalHostAndInternalPortAndActiveTrue(
+                        java.net.InetAddress.getLocalHost().getHostName(), sftpPort).orElse(null);
+            }
+            if (row == null) {
+                log.debug("No ServerInstance row found for primary listener port {} — bind state not reported", sftpPort);
+                return;
+            }
+            row.setBindState(state);
+            row.setBindError(error);
+            row.setLastBindAttemptAt(java.time.Instant.now());
+            row.setBoundNode(java.net.InetAddress.getLocalHost().getHostName());
+            serverInstanceRepository.save(row);
+            log.info("Primary listener bind state reported: {} (instance={})", state, row.getInstanceId());
+        } catch (Exception e) {
+            log.debug("Primary bind state report failed (non-fatal): {}", e.getMessage());
+        }
     }
 
     /**
