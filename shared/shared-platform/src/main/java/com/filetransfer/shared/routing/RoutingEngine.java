@@ -29,6 +29,7 @@ import com.filetransfer.shared.vfs.FileRef;
 import com.filetransfer.shared.vfs.VfsFlowBridge;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.lang.Nullable;
@@ -74,7 +75,12 @@ public class RoutingEngine {
     private VfsFlowBridge vfsBridge;
     private final AuditService auditService;
     private final AiClassificationClient aiClassifier;
-    private final ConnectorDispatcher connectorDispatcher;
+    /**
+     * ConnectorDispatcher is @ConditionalOnProperty(platform.connectors.enabled,
+     * matchIfMissing=false). Absent in minimal-profile Spring contexts (db-migrate).
+     * ObjectProvider lets RoutingEngine wire both ways; call sites use ifAvailable.
+     */
+    private final ObjectProvider<ConnectorDispatcher> connectorDispatcher;
     private final PlatformConfig platformConfig;
     private final FlowRuleRegistry flowRuleRegistry;
     private final FlowExecutionRepository executionRepository;
@@ -465,11 +471,12 @@ public class RoutingEngine {
                 if (exec.getStatus() == FlowExecution.FlowStatus.COMPLETED) {
                     log.info("[{}] Flow '{}' completed. Output: {}", trackId, matchedFlow.getName(),
                             exec.getCurrentFilePath());
-                    connectorDispatcher.dispatch(ConnectorDispatcher.MftEvent.builder()
+                    final String flowName = matchedFlow.getName();
+                    connectorDispatcher.ifAvailable(d -> d.dispatch(ConnectorDispatcher.MftEvent.builder()
                             .eventType("FLOW_COMPLETED").severity("INFO").trackId(trackId)
                             .filename(filename).account(sourceAccount.getUsername())
-                            .summary("Flow '" + matchedFlow.getName() + "' completed successfully")
-                            .details(matchedFlow.getName()).service("routing-engine").build());
+                            .summary("Flow '" + flowName + "' completed successfully")
+                            .details(flowName).service("routing-engine").build()));
                 } else {
                     log.error("[{}] Flow '{}' failed: {}", trackId, matchedFlow.getName(),
                             exec.getErrorMessage());
@@ -491,11 +498,11 @@ public class RoutingEngine {
             log.error("[{}] BLOCKED by AI classification: {}", trackId, classification.blockReason());
             auditService.logFailure(sourceAccount, trackId, "AI_BLOCKED",
                     processedFilePath, classification.blockReason());
-            connectorDispatcher.dispatch(ConnectorDispatcher.MftEvent.builder()
+            connectorDispatcher.ifAvailable(d -> d.dispatch(ConnectorDispatcher.MftEvent.builder()
                     .eventType("AI_BLOCKED").severity("CRITICAL").trackId(trackId)
                     .filename(filename).account(sourceAccount.getUsername())
                     .summary("Transfer blocked: sensitive data detected without encryption")
-                    .details(classification.blockReason()).service("routing-engine").build());
+                    .details(classification.blockReason()).service("routing-engine").build()));
             return;
         }
 
@@ -587,11 +594,11 @@ public class RoutingEngine {
                         sentPath.toString(), record.getOriginalFilename(), sentPath, null, null);
             }
             // ── Lifecycle event: transfer completed ──
-            connectorDispatcher.dispatch(ConnectorDispatcher.MftEvent.builder()
+            connectorDispatcher.ifAvailable(d -> d.dispatch(ConnectorDispatcher.MftEvent.builder()
                     .eventType("TRANSFER_COMPLETED").severity("INFO").trackId(record.getTrackId())
                     .filename(record.getOriginalFilename()).account(destAccount.getUsername())
                     .summary("File " + record.getOriginalFilename() + " delivered successfully")
-                    .details(sentPath.toString()).service("routing-engine").build());
+                    .details(sentPath.toString()).service("routing-engine").build()));
         } catch (IOException e) {
             log.error("Failed to move file to sent: record={}", record.getId(), e);
             markFailed(record, e.getMessage());
@@ -744,11 +751,11 @@ public class RoutingEngine {
         record.setErrorMessage(error);
         recordRepository.save(record);
         // Dispatch to external connectors (ServiceNow, Slack, etc.)
-        connectorDispatcher.dispatch(ConnectorDispatcher.MftEvent.builder()
+        connectorDispatcher.ifAvailable(d -> d.dispatch(ConnectorDispatcher.MftEvent.builder()
                 .eventType("TRANSFER_FAILED").severity("HIGH").trackId(record.getTrackId())
                 .filename(record.getOriginalFilename())
                 .summary("File transfer failed: " + record.getOriginalFilename())
-                .details(error).service("routing-engine").build());
+                .details(error).service("routing-engine").build()));
     }
 
     /**

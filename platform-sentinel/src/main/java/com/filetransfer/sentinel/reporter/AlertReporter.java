@@ -5,6 +5,7 @@ import com.filetransfer.shared.connector.ConnectorDispatcher;
 import com.filetransfer.shared.connector.ConnectorDispatcher.MftEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -12,14 +13,15 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class AlertReporter {
 
-    private final ConnectorDispatcher connectorDispatcher;
+    /** Optional — absent when platform.connectors.enabled=false. */
+    private final ObjectProvider<ConnectorDispatcher> connectorDispatcher;
     private final GitHubReporter gitHubReporter;
 
     public void report(SentinelFinding finding) {
         // Dispatch to Slack/PagerDuty/etc for HIGH and CRITICAL
         if ("HIGH".equals(finding.getSeverity()) || "CRITICAL".equals(finding.getSeverity())) {
             try {
-                connectorDispatcher.dispatch(MftEvent.builder()
+                connectorDispatcher.ifAvailable(d -> d.dispatch(MftEvent.builder()
                         .eventType("SENTINEL_" + finding.getAnalyzer() + "_" + finding.getRuleName())
                         .severity(finding.getSeverity())
                         .summary(finding.getTitle())
@@ -27,7 +29,7 @@ public class AlertReporter {
                         .service("platform-sentinel")
                         .account(finding.getAffectedAccount())
                         .trackId(finding.getTrackId())
-                        .build());
+                        .build()));
                 log.info("AlertReporter: dispatched alert for '{}' ({})", finding.getRuleName(), finding.getSeverity());
             } catch (Exception e) {
                 log.warn("AlertReporter: ConnectorDispatcher failed: {}", e.getMessage());

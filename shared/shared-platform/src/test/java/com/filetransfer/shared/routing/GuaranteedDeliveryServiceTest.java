@@ -5,8 +5,10 @@ import com.filetransfer.shared.connector.ConnectorDispatcher;
 import com.filetransfer.shared.repository.transfer.FileTransferRecordRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 class GuaranteedDeliveryServiceTest {
@@ -14,14 +16,23 @@ class GuaranteedDeliveryServiceTest {
     private FileTransferRecordRepository recordRepository;
     private AuditService auditService;
     private ConnectorDispatcher connectorDispatcher;
+    private ObjectProvider<ConnectorDispatcher> connectorDispatcherProvider;
     private GuaranteedDeliveryService service;
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void setUp() {
         recordRepository = mock(FileTransferRecordRepository.class);
         auditService = mock(AuditService.class);
         connectorDispatcher = mock(ConnectorDispatcher.class);
-        service = new GuaranteedDeliveryService(recordRepository, auditService, connectorDispatcher);
+        connectorDispatcherProvider = mock(ObjectProvider.class);
+        // ifAvailable runs the consumer with the mock dispatcher — mirrors prod behavior.
+        doAnswer(inv -> {
+            java.util.function.Consumer<ConnectorDispatcher> c = inv.getArgument(0);
+            c.accept(connectorDispatcher);
+            return null;
+        }).when(connectorDispatcherProvider).ifAvailable(any());
+        service = new GuaranteedDeliveryService(recordRepository, auditService, connectorDispatcherProvider);
     }
 
     // --- classifyFailure tests ---

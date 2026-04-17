@@ -71,14 +71,18 @@ public class ServerAccountAssignment {
     private Boolean canMkdir;
 
     // ── Per-server QoS overrides (null = use account-level QoS) ──────────────
+    // V44 migration truncated these column names to _sec; Hibernate would otherwise
+    // derive _per_second from the field name and emit a column that doesn't exist.
 
     /** Max concurrent sessions on this server (null = account.qosMaxConcurrentSessions). */
     private Integer maxConcurrentSessions;
 
     /** Upload speed cap in bytes/second (null = account.qosUploadBytesPerSecond). */
+    @Column(name = "max_upload_bytes_per_sec")
     private Long maxUploadBytesPerSecond;
 
     /** Download speed cap in bytes/second (null = account.qosDownloadBytesPerSecond). */
+    @Column(name = "max_download_bytes_per_sec")
     private Long maxDownloadBytesPerSecond;
 
     // ── State ─────────────────────────────────────────────────────────────────

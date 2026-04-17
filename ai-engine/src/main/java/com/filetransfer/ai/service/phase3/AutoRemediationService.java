@@ -8,6 +8,7 @@ import com.filetransfer.shared.repository.transfer.FileTransferRecordRepository;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -32,7 +33,8 @@ public class AutoRemediationService {
 
     private final FileTransferRecordRepository recordRepository;
     private final SmartRetryService smartRetryService;
-    private final ConnectorDispatcher connectorDispatcher;
+    /** Optional — absent when platform.connectors.enabled=false. */
+    private final ObjectProvider<ConnectorDispatcher> connectorDispatcher;
 
     private final List<RemediationAction> recentActions = Collections.synchronizedList(new ArrayList<>());
 
@@ -60,13 +62,13 @@ public class AutoRemediationService {
                             decision.getReason()));
                 }
                 case "ALERT_NO_RETRY" -> {
-                    connectorDispatcher.dispatch(ConnectorDispatcher.MftEvent.builder()
+                    connectorDispatcher.ifAvailable(d -> d.dispatch(ConnectorDispatcher.MftEvent.builder()
                             .eventType("TRANSFER_FAILED").severity("HIGH")
                             .trackId(record.getTrackId()).filename(record.getOriginalFilename())
                             .summary("Auto-remediation: " + decision.getReason())
                             .details("Failure category: " + decision.getFailureCategory()
                                     + "\nError: " + record.getErrorMessage())
-                            .service("auto-remediation").build());
+                            .service("auto-remediation").build()));
                     newActions.add(action(record.getTrackId(), "ALERT_SENT",
                             "Non-retryable error — alert dispatched", decision.getReason()));
                 }

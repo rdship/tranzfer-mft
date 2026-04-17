@@ -45,6 +45,7 @@ class RoutingEngineTest {
     private AuditService auditService;
     private AiClassificationClient aiClassifier;
     private ConnectorDispatcher connectorDispatcher;
+    private org.springframework.beans.factory.ObjectProvider<ConnectorDispatcher> connectorDispatcherProvider;
     private PlatformConfig platformConfig;
     private FlowRuleRegistry flowRuleRegistry;
     private FlowExecutionRepository executionRepository;
@@ -55,6 +56,7 @@ class RoutingEngineTest {
     Path tempDir;
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void setUp() {
         evaluator = mock(RoutingEvaluator.class);
         recordRepository = mock(FileTransferRecordRepository.class);
@@ -66,6 +68,12 @@ class RoutingEngineTest {
         auditService = mock(AuditService.class);
         aiClassifier = mock(AiClassificationClient.class);
         connectorDispatcher = mock(ConnectorDispatcher.class);
+        connectorDispatcherProvider = mock(org.springframework.beans.factory.ObjectProvider.class);
+        doAnswer(inv -> {
+            java.util.function.Consumer<ConnectorDispatcher> c = inv.getArgument(0);
+            c.accept(connectorDispatcher);
+            return null;
+        }).when(connectorDispatcherProvider).ifAvailable(any());
         platformConfig = new PlatformConfig();
         flowRuleRegistry = mock(FlowRuleRegistry.class);
         executionRepository = mock(FlowExecutionRepository.class);
@@ -74,7 +82,7 @@ class RoutingEngineTest {
         routingEngine = new RoutingEngine(
                 evaluator, recordRepository, clusterService, restTemplate,
                 trackIdGenerator, flowEngine, flowRepository, auditService,
-                aiClassifier, connectorDispatcher, platformConfig,
+                aiClassifier, connectorDispatcherProvider, platformConfig,
                 flowRuleRegistry, executionRepository, partnerRepository
         );
     }

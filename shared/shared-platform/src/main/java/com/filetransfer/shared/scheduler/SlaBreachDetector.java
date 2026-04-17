@@ -8,6 +8,7 @@ import com.filetransfer.shared.repository.integration.PartnerAgreementRepository
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -21,7 +22,8 @@ public class SlaBreachDetector {
 
     private final PartnerAgreementRepository agreementRepository;
     private final FileTransferRecordRepository recordRepository;
-    private final ConnectorDispatcher connectorDispatcher;
+    /** Optional — absent when platform.connectors.enabled=false (minimal deploys). */
+    private final ObjectProvider<ConnectorDispatcher> connectorDispatcher;
 
     private final List<SlaBreachEvent> activeBreaches = Collections.synchronizedList(new ArrayList<>());
 
@@ -75,13 +77,14 @@ public class SlaBreachDetector {
                 agreementRepository.save(sla);
 
                 // Dispatch to connectors
-                connectorDispatcher.dispatch(ConnectorDispatcher.MftEvent.builder()
+                final long receivedCount = filesReceived;
+                connectorDispatcher.ifAvailable(d -> d.dispatch(ConnectorDispatcher.MftEvent.builder()
                         .eventType("SLA_BREACH").severity(breach.severity)
                         .account(username).trackId(null)
                         .summary(String.format("SLA breach: %s expected %d files by %02d:00 UTC, received %d",
-                                sla.getName(), sla.getMinFilesPerWindow(), deadlineHour, filesReceived))
+                                sla.getName(), sla.getMinFilesPerWindow(), deadlineHour, receivedCount))
                         .details("Agreement: " + sla.getName() + "\nPartner: " + username)
-                        .service("sla-monitor").build());
+                        .service("sla-monitor").build()));
 
                 log.warn("SLA BREACH: {} — {} expected {} files by {}:00, got {}",
                         sla.getName(), username, sla.getMinFilesPerWindow(), deadlineHour, filesReceived);

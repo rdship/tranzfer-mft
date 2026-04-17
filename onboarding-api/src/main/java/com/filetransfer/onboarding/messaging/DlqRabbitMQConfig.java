@@ -33,6 +33,8 @@ public class DlqRabbitMQConfig {
     public static final String SFTP_DLQ = "sftp.account.events.dlq";
     public static final String FTP_DLQ = "ftp.account.events.dlq";
     public static final String FTPWEB_DLQ = "ftpweb.account.events.dlq";
+    public static final String KEYSTORE_ROTATION_DLQ = "keystore.rotation.dlq";
+    public static final String SERVER_INSTANCE_DLQ  = "server.instance.dlq";
 
     // ── Dead Letter Exchange ───────────────────────────────────────────
 
@@ -58,6 +60,18 @@ public class DlqRabbitMQConfig {
         return QueueBuilder.durable(FTPWEB_DLQ).build();
     }
 
+    /** Collects rejected keystore-rotation events so poison messages don't vanish silently. */
+    @Bean
+    public Queue keystoreRotationDlq() {
+        return QueueBuilder.durable(KEYSTORE_ROTATION_DLQ).build();
+    }
+
+    /** Collects rejected server-instance lifecycle events (CREATED/UPDATED/DELETED etc.). */
+    @Bean
+    public Queue serverInstanceDlq() {
+        return QueueBuilder.durable(SERVER_INSTANCE_DLQ).build();
+    }
+
     // ── Bindings ───────────────────────────────────────────────────────
 
     @Bean
@@ -73,6 +87,17 @@ public class DlqRabbitMQConfig {
     @Bean
     public Binding ftpWebDlqBinding(Queue ftpWebDlq, TopicExchange deadLetterExchange) {
         return BindingBuilder.bind(ftpWebDlq).to(deadLetterExchange).with("ftpweb.account.events");
+    }
+
+    @Bean
+    public Binding keystoreRotationDlqBinding(Queue keystoreRotationDlq, TopicExchange deadLetterExchange) {
+        // Wildcard: covers keystore.key.rotated and any future keystore.key.* events.
+        return BindingBuilder.bind(keystoreRotationDlq).to(deadLetterExchange).with("keystore.key.#");
+    }
+
+    @Bean
+    public Binding serverInstanceDlqBinding(Queue serverInstanceDlq, TopicExchange deadLetterExchange) {
+        return BindingBuilder.bind(serverInstanceDlq).to(deadLetterExchange).with("server.instance.#");
     }
 
     // ── Listener container with retry + DLQ routing ────────────────────
