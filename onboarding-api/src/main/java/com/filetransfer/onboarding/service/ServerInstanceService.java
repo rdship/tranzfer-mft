@@ -180,6 +180,9 @@ public class ServerInstanceService {
         instance.setActive(false);
         repository.save(instance);
         publishChange(instance, ServerInstanceChangeEvent.ChangeType.DELETED);
+        // Tear down DMZ proxy mapping too — otherwise mapping leaks and DMZ keeps
+        // routing traffic to a port nobody is listening on.
+        syncProxyMapping(instance);
     }
 
     /**
@@ -308,14 +311,23 @@ public class ServerInstanceService {
     }
 
     /**
-     * Auto-create/update the DMZ proxy mapping when a server instance uses the proxy.
-     * Best-effort: logs warning on failure but does not block instance creation.
+     * Reconcile the DMZ proxy mapping with the desired state of a ServerInstance.
+     * Full lifecycle — not just create:
+     *   useProxy=true  + active=true  → createMapping (idempotent; ignore "already exists")
+     *   useProxy=false OR active=false → deleteMapping (idempotent; ignore "not found")
+     *
+     * <p>DMZ proxy is deliberately isolated from the rest of the platform (no
+     * shared module, no AMQP, no DB). REST sync from here is the ONLY channel
+     * that keeps the proxy's runtime mappings aligned with ServerInstance state,
+     * so we retry with exponential backoff before surfacing the failure.</p>
      */
     private void syncProxyMapping(ServerInstance instance) {
-        if (!instance.isUseProxy() || instance.getProxyHost() == null || instance.getProxyPort() == null) {
-            return;
-        }
-        try {
+        boolean proxyDesired = instance.isUseProxy()
+                && instance.isActive()
+                && instance.getProxyHost() != null
+                && instance.getProxyPort() != null;
+
+        if (proxyDesired) {
             Map<String, Object> qosPolicy = new LinkedHashMap<>();
             qosPolicy.put("enabled", instance.isProxyQosEnabled());
             if (instance.getProxyQosMaxBytesPerSecond() != null) {
@@ -335,13 +347,45 @@ public class ServerInstanceService {
             mapping.put("active", true);
             mapping.put("qosPolicy", qosPolicy);
 
-            dmzProxyClient.createMapping(mapping);
-            log.info("Proxy mapping synced for instance={} listenPort={} qosEnabled={}",
-                    instance.getInstanceId(), instance.getProxyPort(), instance.isProxyQosEnabled());
-        } catch (Exception e) {
-            log.warn("Failed to sync proxy mapping for instance={}: {}",
-                    instance.getInstanceId(), e.getMessage());
+            callWithRetry("createMapping", () -> dmzProxyClient.createMapping(mapping),
+                    "Proxy mapping CREATE synced for " + instance.getInstanceId()
+                            + " listenPort=" + instance.getProxyPort());
+        } else {
+            // Listener no longer uses proxy (or was deleted/deactivated) — tear down any existing mapping.
+            callWithRetry("deleteMapping", () -> { dmzProxyClient.deleteMapping(instance.getInstanceId()); return null; },
+                    "Proxy mapping DELETE synced for " + instance.getInstanceId());
         }
+    }
+
+    /**
+     * Three attempts with 500ms → 1s → 2s backoff. Idempotent-exception
+     * patterns ("already exists" on create, "not found" on delete) are
+     * tolerated on first try and NOT retried. Terminal failure logs ERROR.
+     */
+    private <T> void callWithRetry(String op, java.util.function.Supplier<T> call, String successMsg) {
+        Exception last = null;
+        long backoffMs = 500L;
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            try {
+                call.get();
+                log.info(successMsg + " (attempt=" + attempt + ")");
+                return;
+            } catch (Exception e) {
+                String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+                if (msg.contains("already exists") || msg.contains("not found") || msg.contains("404")) {
+                    log.debug("Proxy {} idempotent no-op: {}", op, e.getMessage());
+                    return;
+                }
+                last = e;
+                log.warn("Proxy {} attempt {} failed: {}", op, attempt, e.getMessage());
+                if (attempt < 3) {
+                    try { Thread.sleep(backoffMs); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); return; }
+                    backoffMs *= 2;
+                }
+            }
+        }
+        log.error("Proxy {} FAILED after 3 attempts — DMZ proxy is out of sync with ServerInstance state. Last error: {}",
+                op, last != null ? last.getMessage() : "unknown");
     }
 
     private FolderTemplate resolveTemplate(UUID templateId) {
