@@ -2,11 +2,14 @@ package com.filetransfer.keystore.service;
 
 import com.filetransfer.keystore.entity.ManagedKey;
 import com.filetransfer.keystore.repository.ManagedKeyRepository;
+import com.filetransfer.shared.dto.KeystoreKeyRotatedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.openpgp.*;
 import org.bouncycastle.openpgp.operator.PGPDigestCalculator;
 import org.bouncycastle.openpgp.operator.jcajce.*;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -23,6 +26,13 @@ import java.util.*;
 public class KeyManagementService {
 
     private final ManagedKeyRepository keyRepository;
+
+    @Autowired(required = false)
+    @org.springframework.lang.Nullable
+    private RabbitTemplate rabbitTemplate;
+
+    @Value("${rabbitmq.exchange:file-transfer.events}")
+    private String exchange;
 
     @Value("${keystore.master-password:change-this-master-password}")
     private String masterPassword;
@@ -291,6 +301,22 @@ public class KeyManagementService {
         keyRepository.save(oldKey);
 
         log.info("Key rotated: {} -> {}", oldAlias, newAlias);
+
+        // Publish rotation event so protocol services (SFTP/FTP/AS2) can hot
+        // reload affected listeners. Best-effort — failure to publish is logged
+        // but doesn't fail the rotation itself.
+        if (rabbitTemplate != null) {
+            try {
+                KeystoreKeyRotatedEvent event = new KeystoreKeyRotatedEvent(
+                        oldAlias, newAlias, newKey.getKeyType(),
+                        newKey.getOwnerService(), Instant.now());
+                rabbitTemplate.convertAndSend(exchange,
+                        KeystoreKeyRotatedEvent.ROUTING_KEY, event);
+                log.debug("Published keystore.key.rotated for alias {}", newAlias);
+            } catch (Exception e) {
+                log.warn("Failed to publish keystore rotation event: {}", e.getMessage());
+            }
+        }
         return newKey;
     }
 
