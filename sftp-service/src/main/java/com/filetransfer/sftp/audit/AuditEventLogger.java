@@ -48,86 +48,119 @@ public class AuditEventLogger {
         this.objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     }
 
-    /**
-     * Logs a successful login event.
-     */
-    public void logLogin(String username, String ipAddress, String authMethod) {
+    // ── Preferred entry points: pass the arriving Session so audit records the
+    //    correct listener (primary OR dynamic). Old overloads delegate here
+    //    with null, falling back to the env-var primary for backward compat. ──
+
+    public void logLogin(String username, String ipAddress, String authMethod,
+                         org.apache.sshd.common.session.Session session) {
         loginSuccessCount.incrementAndGet();
         logEvent("LOGIN", username, ipAddress, null, 0, 0, true,
-                Map.of("authMethod", authMethod));
+                Map.of("authMethod", authMethod), resolveListenerInstance(session));
     }
 
-    /**
-     * Logs a failed login event.
-     */
-    public void logLoginFailed(String username, String ipAddress, String reason) {
+    public void logLogin(String username, String ipAddress, String authMethod) {
+        logLogin(username, ipAddress, authMethod, null);
+    }
+
+    public void logLoginFailed(String username, String ipAddress, String reason,
+                                org.apache.sshd.common.session.Session session) {
         loginFailureCount.incrementAndGet();
         logEvent("LOGIN_FAILED", username, ipAddress, null, 0, 0, false,
-                Map.of("reason", reason));
+                Map.of("reason", reason), resolveListenerInstance(session));
     }
 
-    /**
-     * Logs a file upload event.
-     */
-    public void logUpload(String username, String ipAddress, String filename, long bytes, long durationMs) {
+    public void logLoginFailed(String username, String ipAddress, String reason) {
+        logLoginFailed(username, ipAddress, reason, null);
+    }
+
+    public void logUpload(String username, String ipAddress, String filename, long bytes, long durationMs,
+                          org.apache.sshd.common.session.Session session) {
         uploadCount.incrementAndGet();
         totalBytesUploaded.addAndGet(bytes);
-        logEvent("UPLOAD", username, ipAddress, filename, bytes, durationMs, true, null);
+        logEvent("UPLOAD", username, ipAddress, filename, bytes, durationMs, true, null,
+                resolveListenerInstance(session));
     }
 
-    /**
-     * Logs a file download event.
-     */
-    public void logDownload(String username, String ipAddress, String filename, long bytes, long durationMs) {
+    public void logUpload(String username, String ipAddress, String filename, long bytes, long durationMs) {
+        logUpload(username, ipAddress, filename, bytes, durationMs, null);
+    }
+
+    public void logDownload(String username, String ipAddress, String filename, long bytes, long durationMs,
+                             org.apache.sshd.common.session.Session session) {
         downloadCount.incrementAndGet();
         totalBytesDownloaded.addAndGet(bytes);
-        logEvent("DOWNLOAD", username, ipAddress, filename, bytes, durationMs, true, null);
+        logEvent("DOWNLOAD", username, ipAddress, filename, bytes, durationMs, true, null,
+                resolveListenerInstance(session));
     }
 
-    /**
-     * Logs a file delete event.
-     */
-    public void logDelete(String username, String ipAddress, String filename) {
+    public void logDownload(String username, String ipAddress, String filename, long bytes, long durationMs) {
+        logDownload(username, ipAddress, filename, bytes, durationMs, null);
+    }
+
+    public void logDelete(String username, String ipAddress, String filename,
+                          org.apache.sshd.common.session.Session session) {
         deleteCount.incrementAndGet();
-        logEvent("DELETE", username, ipAddress, filename, 0, 0, true, null);
+        logEvent("DELETE", username, ipAddress, filename, 0, 0, true, null,
+                resolveListenerInstance(session));
     }
 
-    /**
-     * Logs a directory creation event.
-     */
+    public void logDelete(String username, String ipAddress, String filename) {
+        logDelete(username, ipAddress, filename, null);
+    }
+
+    public void logMkdir(String username, String ipAddress, String path,
+                         org.apache.sshd.common.session.Session session) {
+        logEvent("MKDIR", username, ipAddress, path, 0, 0, true, null,
+                resolveListenerInstance(session));
+    }
+
     public void logMkdir(String username, String ipAddress, String path) {
-        logEvent("MKDIR", username, ipAddress, path, 0, 0, true, null);
+        logMkdir(username, ipAddress, path, null);
     }
 
-    /**
-     * Logs a file or directory rename event.
-     */
-    public void logRename(String username, String ipAddress, String oldPath, String newPath) {
+    public void logRename(String username, String ipAddress, String oldPath, String newPath,
+                          org.apache.sshd.common.session.Session session) {
         logEvent("RENAME", username, ipAddress, oldPath, 0, 0, true,
-                Map.of("newPath", newPath));
+                Map.of("newPath", newPath), resolveListenerInstance(session));
     }
 
-    /**
-     * Logs a session disconnect event.
-     */
+    public void logRename(String username, String ipAddress, String oldPath, String newPath) {
+        logRename(username, ipAddress, oldPath, newPath, null);
+    }
+
+    public void logDisconnect(String username, String ipAddress, long sessionDurationMs,
+                              org.apache.sshd.common.session.Session session) {
+        logEvent("DISCONNECT", username, ipAddress, null, 0, sessionDurationMs, true, null,
+                resolveListenerInstance(session));
+    }
+
     public void logDisconnect(String username, String ipAddress, long sessionDurationMs) {
-        logEvent("DISCONNECT", username, ipAddress, null, 0, sessionDurationMs, true, null);
+        logDisconnect(username, ipAddress, sessionDurationMs, null);
     }
 
-    /**
-     * Logs a connection rejected event (limit exceeded, IP blocked, etc.).
-     */
-    public void logConnectionRejected(String username, String ipAddress, String reason) {
+    public void logConnectionRejected(String username, String ipAddress, String reason,
+                                       org.apache.sshd.common.session.Session session) {
         logEvent("CONNECTION_REJECTED", username, ipAddress, null, 0, 0, false,
-                Map.of("reason", reason));
+                Map.of("reason", reason), resolveListenerInstance(session));
     }
 
-    /**
-     * Logs a lockout event.
-     */
+    public void logConnectionRejected(String username, String ipAddress, String reason) {
+        logConnectionRejected(username, ipAddress, reason, null);
+    }
+
     public void logAccountLocked(String username, String ipAddress, int failureCount) {
         logEvent("ACCOUNT_LOCKED", username, ipAddress, null, 0, 0, false,
-                Map.of("failureCount", failureCount));
+                Map.of("failureCount", failureCount), null);
+    }
+
+    /**
+     * Use ListenerContext attribute if the session was tagged (per-listener);
+     * otherwise fall back to the env-var primary for backward compat.
+     */
+    private String resolveListenerInstance(org.apache.sshd.common.session.Session session) {
+        String tagged = com.filetransfer.sftp.server.ListenerContext.instanceId(session);
+        return tagged != null ? tagged : instanceId;
     }
 
     /**
@@ -147,7 +180,8 @@ public class AuditEventLogger {
 
     private void logEvent(String event, String username, String ipAddress,
                           String filename, long bytes, long durationMs,
-                          boolean success, Map<String, Object> extra) {
+                          boolean success, Map<String, Object> extra,
+                          String resolvedInstanceId) {
         try {
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("timestamp", Instant.now().toString());
@@ -158,7 +192,8 @@ public class AuditEventLogger {
             if (filename != null) entry.put("filename", filename);
             if (bytes > 0) entry.put("bytes", bytes);
             if (durationMs > 0) entry.put("durationMs", durationMs);
-            if (instanceId != null) entry.put("instanceId", instanceId);
+            String effectiveInstance = resolvedInstanceId != null ? resolvedInstanceId : instanceId;
+            if (effectiveInstance != null) entry.put("instanceId", effectiveInstance);
             if (extra != null) entry.putAll(extra);
 
             String json = objectMapper.writeValueAsString(entry);

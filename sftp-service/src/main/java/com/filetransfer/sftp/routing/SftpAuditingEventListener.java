@@ -121,10 +121,10 @@ public class SftpAuditingEventListener implements SftpEventListener {
                 // would require wrapping the OutputStream which MINA does not expose easily.
             }
 
-            auditEventLogger.logUpload(username, ip, filePath.toString(), bytes, durationMs);
+            auditEventLogger.logUpload(username, ip, filePath.toString(), bytes, durationMs, session);
         } else {
             long bytes = bytesRead != null ? bytesRead : 0;
-            auditEventLogger.logDownload(username, ip, filePath.toString(), bytes, durationMs);
+            auditEventLogger.logDownload(username, ip, filePath.toString(), bytes, durationMs, session);
         }
     }
 
@@ -132,20 +132,20 @@ public class SftpAuditingEventListener implements SftpEventListener {
     public void removing(ServerSession session, Path path, boolean isDirectory) {
         String username = session.getUsername();
         String ip = session.getClientAddress() != null ? session.getClientAddress().toString() : "unknown";
-        auditEventLogger.logDelete(username, ip, path.toString());
+        auditEventLogger.logDelete(username, ip, path.toString(), session);
     }
 
     @Override
     public void creating(ServerSession session, Path path, Map<String, ?> attrs) {
         String username = session.getUsername();
         String ip = session.getClientAddress() != null ? session.getClientAddress().toString() : "unknown";
-        auditEventLogger.logMkdir(username, ip, path.toString());
+        auditEventLogger.logMkdir(username, ip, path.toString(), session);
     }
 
     @Override
     public void moving(ServerSession session, Path srcPath, Path dstPath, Collection<CopyOption> opts) {
         String username = session.getUsername();
         String ip = session.getClientAddress() != null ? session.getClientAddress().toString() : "unknown";
-        auditEventLogger.logRename(username, ip, srcPath.toString(), dstPath.toString());
+        auditEventLogger.logRename(username, ip, srcPath.toString(), dstPath.toString(), session);
     }
 }

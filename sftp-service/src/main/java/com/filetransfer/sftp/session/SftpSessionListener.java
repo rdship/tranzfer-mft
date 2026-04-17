@@ -50,7 +50,7 @@ public class SftpSessionListener implements SessionListener {
 
             boolean registered = connectionManager.tryRegisterSession(sessionId, username, ip);
             if (!registered) {
-                auditEventLogger.logConnectionRejected(username, ip, "connection limit exceeded");
+                auditEventLogger.logConnectionRejected(username, ip, "connection limit exceeded", session);
                 log.warn("Closing session: connection limit exceeded for user={} ip={}", username, ip);
                 try {
                     serverSession.disconnect(11, "Connection limit exceeded");
@@ -78,7 +78,7 @@ public class SftpSessionListener implements SessionListener {
             String ip = serverSession.getClientAddress() != null
                     ? serverSession.getClientAddress().toString() : "unknown";
             if (username != null) {
-                auditEventLogger.logDisconnect(username, ip, durationMs);
+                auditEventLogger.logDisconnect(username, ip, durationMs, session);
                 bandwidthThrottleManager.unregisterUser(username);
                 connectionManager.unregisterQosSessionLimit(username);
             }

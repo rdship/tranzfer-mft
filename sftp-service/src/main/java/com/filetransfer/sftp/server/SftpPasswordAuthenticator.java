@@ -42,14 +42,14 @@ public class SftpPasswordAuthenticator implements PasswordAuthenticator {
 
         // Check IP access control
         if (!ipAccessControl.isAllowed(ip)) {
-            auditEventLogger.logLoginFailed(username, ip, "ip_denied");
+            auditEventLogger.logLoginFailed(username, ip, "ip_denied", session);
             return false;
         }
 
         // Check account lockout
         if (loginAttemptTracker.isLocked(username)) {
             log.warn("SFTP auth rejected: account locked username={} ip={}", username, ip);
-            auditEventLogger.logLoginFailed(username, ip, "account_locked");
+            auditEventLogger.logLoginFailed(username, ip, "account_locked", session);
             return false;
         }
 
@@ -57,7 +57,7 @@ public class SftpPasswordAuthenticator implements PasswordAuthenticator {
 
         if (authenticated) {
             loginAttemptTracker.recordSuccess(username);
-            auditEventLogger.logLogin(username, ip, "password");
+            auditEventLogger.logLogin(username, ip, "password", session);
             // Register per-user QoS: bandwidth limits + session limit
             credentialService.findAccount(username, listenerInstanceId).ifPresent(account -> {
                 bandwidthThrottleManager.registerUserLimits(username,
@@ -69,7 +69,7 @@ public class SftpPasswordAuthenticator implements PasswordAuthenticator {
             });
         } else {
             loginAttemptTracker.recordFailure(username);
-            auditEventLogger.logLoginFailed(username, ip, "invalid_credentials");
+            auditEventLogger.logLoginFailed(username, ip, "invalid_credentials", session);
         }
 
         return authenticated;

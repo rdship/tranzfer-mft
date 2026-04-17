@@ -434,11 +434,15 @@ public class RoutingEngine {
                             log.info("[{}] Flow '{}' completed (VIRTUAL). Final key={}",
                                     trackId, matchedFlow.getName(), exec.getCurrentStorageKey());
                         } else {
-                            log.error("[{}] Flow '{}' failed: {}", trackId,
-                                    matchedFlow.getName(), exec.getErrorMessage());
+                            log.error("[{}] Flow '{}' status={}: {}", trackId,
+                                    matchedFlow.getName(),
+                                    exec.getStatus(),
+                                    java.util.Objects.requireNonNullElse(exec.getErrorMessage(), "<no error message>"));
                         }
                     } catch (Exception e) {
-                        log.error("[{}] Flow execution error (VIRTUAL): {}", trackId, e.getMessage());
+                        log.error("[{}] Flow execution error (VIRTUAL): {}: {}", trackId,
+                                e.getClass().getSimpleName(),
+                                java.util.Objects.requireNonNullElse(e.getMessage(), "<no message>"));
                     }
                 } else {
                     log.warn("[{}] UNMATCHED file (VIRTUAL): account={} file={}",
@@ -478,11 +482,14 @@ public class RoutingEngine {
                             .summary("Flow '" + flowName + "' completed successfully")
                             .details(flowName).service("routing-engine").build()));
                 } else {
-                    log.error("[{}] Flow '{}' failed: {}", trackId, matchedFlow.getName(),
-                            exec.getErrorMessage());
+                    log.error("[{}] Flow '{}' status={}: {}", trackId, matchedFlow.getName(),
+                            exec.getStatus(),
+                            java.util.Objects.requireNonNullElse(exec.getErrorMessage(), "<no error message>"));
                 }
             } catch (Exception e) {
-                log.error("[{}] Flow execution error: {}", trackId, e.getMessage());
+                log.error("[{}] Flow execution error: {}: {}", trackId,
+                        e.getClass().getSimpleName(),
+                        java.util.Objects.requireNonNullElse(e.getMessage(), "<no message>"));
             }
             // Flow handled everything — skip legacy folder mapping routing
             return;

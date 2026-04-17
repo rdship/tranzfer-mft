@@ -42,14 +42,14 @@ public class SftpPublicKeyAuthenticator implements PublickeyAuthenticator {
 
         // Check IP access control
         if (!ipAccessControl.isAllowed(ip)) {
-            auditEventLogger.logLoginFailed(username, ip, "ip_denied");
+            auditEventLogger.logLoginFailed(username, ip, "ip_denied", session);
             return false;
         }
 
         // Check account lockout
         if (loginAttemptTracker.isLocked(username)) {
             log.warn("SFTP pubkey auth rejected: account locked username={} ip={}", username, ip);
-            auditEventLogger.logLoginFailed(username, ip, "account_locked");
+            auditEventLogger.logLoginFailed(username, ip, "account_locked", session);
             return false;
         }
 
@@ -64,7 +64,7 @@ public class SftpPublicKeyAuthenticator implements PublickeyAuthenticator {
                     if (stored != null && stored.equals(key)) {
                         log.info("SFTP publickey auth success: username={}", username);
                         loginAttemptTracker.recordSuccess(username);
-                        auditEventLogger.logLogin(username, ip, "publickey");
+                        auditEventLogger.logLogin(username, ip, "publickey", session);
                         // Register per-user QoS: bandwidth limits + session limit
                         bandwidthThrottleManager.registerUserLimits(username,
                             account.getQosUploadBytesPerSecond(),
@@ -80,7 +80,7 @@ public class SftpPublicKeyAuthenticator implements PublickeyAuthenticator {
             }
             log.warn("SFTP publickey auth failed: username={} ip={}", username, ip);
             loginAttemptTracker.recordFailure(username);
-            auditEventLogger.logLoginFailed(username, ip, "key_mismatch");
+            auditEventLogger.logLoginFailed(username, ip, "key_mismatch", session);
             return false;
         }).orElse(false);
     }
