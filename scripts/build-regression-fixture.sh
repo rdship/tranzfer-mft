@@ -263,9 +263,9 @@ if [ -n "$F7_EXISTING_ID" ] && [ "$F7_EXISTING_ID" != "null" ]; then
   pass "cleared existing f7 (id=${F7_EXISTING_ID:0:8}) so it can be re-created"
 fi
 create_flow "regtest-f7-script-mailbox" INBOUND ".*\\.dat" \
-  '[{"type":"EXECUTE_SCRIPT","order":0,"config":{"command":"sh /opt/scripts/uppercase-header.sh ${file}","timeoutSeconds":"60"}},
+  '[{"type":"EXECUTE_SCRIPT","order":0,"config":{"command":"sh /opt/scripts/uppercase-header.sh ${file} ${workdir}/transformed.dat","timeoutSeconds":"60","outputFile":"${workdir}/transformed.dat"}},
     {"type":"MAILBOX","order":1,"config":{"destinationUsername":"regtest-sftp-1"}}]' \
-  "Run uppercase-header.sh on .dat then mailbox (requires PHYSICAL mode at runtime)"
+  "Uppercase-header.sh on .dat → capture outputFile → mailbox (full byte-transform path)"
 
 # F8: outbound gzip+fwd (OUTBOUND direction coverage)
 create_flow "regtest-f8-gzip-out-fwd" OUTBOUND ".*\\.log" \
