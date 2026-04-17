@@ -300,6 +300,18 @@ class ServerInstanceServiceFtpTest {
         assertThat(resp.getFtpImplicitTls()).isTrue();
     }
 
+    @Test
+    void getByIdThrowsNoSuchElementWhenMissing() {
+        UUID missing = UUID.randomUUID();
+        when(repository.findById(missing)).thenReturn(Optional.empty());
+
+        // Service throws NoSuchElementException; controller's @ExceptionHandler
+        // maps that to 404 (tester R86 sanity sweep regression — was 500).
+        assertThatThrownBy(() -> service.getById(missing))
+                .isInstanceOf(java.util.NoSuchElementException.class)
+                .hasMessageContaining(missing.toString());
+    }
+
     private CreateServerInstanceRequest baseFtpRequest() {
         CreateServerInstanceRequest req = new CreateServerInstanceRequest();
         req.setInstanceId("ftp-valid-test");

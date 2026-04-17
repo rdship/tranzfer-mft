@@ -141,6 +141,17 @@ public class ServerInstanceController {
     }
 
     /**
+     * 404 for "not found" lookups. Without this mapping Spring treats
+     * {@link java.util.NoSuchElementException} as an unhandled RuntimeException
+     * and returns 500 (tester R86 sanity sweep caught this — P2).
+     */
+    @ExceptionHandler(java.util.NoSuchElementException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public Map<String, String> handleNotFound(java.util.NoSuchElementException ex) {
+        return Map.of("error", ex.getMessage() != null ? ex.getMessage() : "Not found");
+    }
+
+    /**
      * Fallback: if the service-level pre-check missed it (race between two
      * simultaneous creates), the DB unique index catches it. Still return 409,
      * but without port suggestions since we don't have the request context here.
