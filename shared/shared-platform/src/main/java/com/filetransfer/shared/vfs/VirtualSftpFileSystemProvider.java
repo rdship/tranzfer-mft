@@ -242,7 +242,44 @@ public class VirtualSftpFileSystemProvider extends FileSystemProvider {
     @Override
     @SuppressWarnings("unchecked")
     public <V extends FileAttributeView> V getFileAttributeView(Path path, Class<V> type, LinkOption... options) {
-        return null; // Not needed for SFTP
+        // MINA SSHD's SFTP subsystem calls Files.getOwner(path) and
+        // Files.getAttribute(path, "posix:...") while building SSH_FXP_NAME
+        // responses. When getFileAttributeView returns null, Files.getOwner
+        // throws UnsupportedOperationException → SSH_FX_OP_UNSUPPORTED →
+        // "Couldn't read directory: Operation unsupported" on the client.
+        // Return a minimal view for Basic / Posix / FileOwner that delegates
+        // to readAttributes and accepts but discards mutations.
+        if (type == BasicFileAttributeView.class
+                || type == PosixFileAttributeView.class
+                || type == FileOwnerAttributeView.class) {
+            return (V) new VirtualFileAttributeView(path);
+        }
+        return null;
+    }
+
+    /**
+     * Minimal read-only attribute view for VIRTUAL paths. Mutation methods
+     * (setTimes, setOwner, setPermissions, etc.) are silently accepted and
+     * discarded — VFS has no per-entry permission/ownership concept, so SFTP
+     * chmod/chown from clients is a no-op rather than a hard error.
+     */
+    private class VirtualFileAttributeView implements PosixFileAttributeView {
+        private final Path path;
+        VirtualFileAttributeView(Path path) { this.path = path; }
+
+        @Override public String name() { return "posix"; }
+
+        @Override
+        public VirtualSftpFileAttributes readAttributes() throws IOException {
+            return (VirtualSftpFileAttributes) VirtualSftpFileSystemProvider.this
+                    .readAttributes(path, BasicFileAttributes.class);
+        }
+
+        @Override public UserPrincipal getOwner() throws IOException { return readAttributes().owner(); }
+        @Override public void setOwner(UserPrincipal owner) { /* no-op */ }
+        @Override public void setPermissions(java.util.Set<PosixFilePermission> perms) { /* no-op */ }
+        @Override public void setGroup(GroupPrincipal group) { /* no-op */ }
+        @Override public void setTimes(FileTime lastModifiedTime, FileTime lastAccessTime, FileTime createTime) { /* no-op */ }
     }
 
     @Override

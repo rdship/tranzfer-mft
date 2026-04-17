@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.filetransfer</groupId>
         <artifactId>file-transfer-platform</artifactId>
-        <version>1.0.0-R84</version>
+        <version>1.0.0-R85</version>
     </parent>
     <artifactId>gateway-service</artifactId>
 

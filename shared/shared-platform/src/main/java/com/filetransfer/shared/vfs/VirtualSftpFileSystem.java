@@ -72,13 +72,14 @@ public class VirtualSftpFileSystem extends FileSystem {
 
     @Override
     public Set<String> supportedFileAttributeViews() {
-        // Only "basic" — VirtualSftpFileAttributes implements BasicFileAttributes,
-        // NOT PosixFileAttributes. Claiming "posix" caused MINA SSHD's readdir to
-        // request posix:* attributes on every entry, fail the cast to
-        // PosixFileAttributes, and abort the listing with "Couldn't read directory".
-        // Clients that want owner/group/mode fall back to SFTP v3 default bits
-        // from VirtualSftpFileAttributes.
-        return Set.of("basic");
+        // R84+ safely advertises both "basic" AND "posix" because:
+        //  - VirtualSftpFileAttributes now implements PosixFileAttributes as
+        //    well as BasicFileAttributes (so readAttributes(path, Class) cast
+        //    succeeds for both types), AND
+        //  - VirtualSftpFileSystemProvider.getFileAttributeView now returns a
+        //    minimal PosixFileAttributeView (so Files.getOwner / Files.getAttribute
+        //    don't UOE inside MINA's SFTP readdir path).
+        return Set.of("basic", "posix");
     }
 
     @Override

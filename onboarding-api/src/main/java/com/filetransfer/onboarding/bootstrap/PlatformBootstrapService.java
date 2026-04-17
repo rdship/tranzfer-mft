@@ -85,6 +85,12 @@ public class PlatformBootstrapService {
     @Transactional
     public void onApplicationReady() {
         try {
+            // Always emit the security posture line before any gating so
+            // ops can `docker logs mft-onboarding-api | grep BOOTSTRAP-SECURITY`
+            // and get a deterministic answer regardless of whether the
+            // seed path actually runs this boot.
+            emitBootstrapSecurityStatus();
+
             if (userRepository.count() > 0) {
                 log.info("[Bootstrap] Users table is not empty — skipping seed data");
                 return;
@@ -135,6 +141,25 @@ public class PlatformBootstrapService {
 
         } catch (Exception e) {
             log.error("[Bootstrap] Failed to seed platform data — app will continue without demo data", e);
+        }
+    }
+
+    /**
+     * Always-emitted bootstrap-security status line. Ops needs a
+     * deterministic, greppable posture signal on every boot — not just
+     * the first-install seeder run. ERROR level in PROD-ish environments
+     * so log-aggregator filters don't drop it; WARN in DEV to avoid noise.
+     */
+    private void emitBootstrapSecurityStatus() {
+        boolean usingDefault = "superadmin".equals(adminPassword);
+        String env = platformEnvironment != null ? platformEnvironment.toUpperCase() : "DEV";
+        boolean isProdish = "PROD".equals(env) || "STAGING".equals(env) || "CERT".equals(env);
+        if (usingDefault) {
+            String msg = "[BOOTSTRAP-SECURITY] status=DEFAULT_PASSWORD_IN_USE env=" + env
+                    + " — set PLATFORM_BOOTSTRAP_ADMIN_PASSWORD or rotate via POST /api/users/me/password";
+            if (isProdish) log.error(msg); else log.warn(msg);
+        } else {
+            log.info("[BOOTSTRAP-SECURITY] status=CUSTOM_PASSWORD_SET env={}", env);
         }
     }
 
