@@ -28,6 +28,7 @@ public class FileUploadEventConsumer {
 
     private final RoutingEngine routingEngine;
     private final TransferAccountRepository accountRepository;
+    private final OriginPodId originPodId;
 
     @RabbitListener(
             queues = "#{@fileUploadQueue.name}",
@@ -36,9 +37,23 @@ public class FileUploadEventConsumer {
     )
     public void onFileUploaded(FileUploadedEvent event,
                                @org.springframework.messaging.handler.annotation.Header(
-                                       name = "x-death", required = false) java.util.List<?> xDeath) {
+                                       name = "x-death", required = false) java.util.List<?> xDeath,
+                               @org.springframework.messaging.handler.annotation.Header(
+                                       name = OriginPodId.HEADER, required = false) String originPod) {
         MDC.put("trackId", event.getTrackId());
         try {
+            // Origin-pod skip: RoutingEngine publishes the event and ALSO processes
+            // it locally on the same pod. RabbitMQ then fanouts the message back
+            // to us. Without this guard, the same trackId runs through
+            // onFileUploadedInternal twice — once from the local path, once here
+            // — racing for the trackId-idempotency record and occasionally
+            // logging a spurious "Flow X failed: null" alongside the real
+            // COMPLETED line. Broadcast for OTHER pods (Activity Monitor, cache
+            // eviction, etc.) still works normally.
+            if (originPod != null && originPod.equals(originPodId.getId())) {
+                log.debug("[{}] Skipping self-broadcast event (origin={})", event.getTrackId(), originPod);
+                return;
+            }
             // Phase 7.4: Poison message detection — route to DLQ after 3 redeliveries
             if (xDeath != null && xDeath.size() >= 3) {
                 log.error("[{}] Poison message detected: {} redeliveries — dropping (will land in DLQ)",

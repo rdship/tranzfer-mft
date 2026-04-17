@@ -111,6 +111,11 @@ public class RoutingEngine {
     @Nullable
     private org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate;
 
+    /** Identifies this pod in published events so the same pod's consumer can skip self-broadcasts. */
+    @Autowired(required = false)
+    @Nullable
+    private OriginPodId originPodId;
+
     /** Storage-manager client for persisting uploaded files (enables download button). */
     @Autowired(required = false)
     @Nullable
@@ -164,7 +169,18 @@ public class RoutingEngine {
                         .partnerId(sourceAccount.getPartnerId())
                         .homeDir(sourceAccount.getHomeDir())
                         .build();
-                rabbitTemplate.convertAndSend(exchange, "file.uploaded", event);
+                // Stamp the event with our pod ID so FileUploadEventConsumer can
+                // skip the message when it fanouts back to us — prevents the
+                // duplicate local+consumer execution that produced spurious
+                // "Flow X failed: null" log pairs alongside real COMPLETED lines.
+                final String podId = originPodId != null ? originPodId.getId() : null;
+                rabbitTemplate.convertAndSend(exchange, "file.uploaded", event,
+                        msg -> {
+                            if (podId != null) {
+                                msg.getMessageProperties().setHeader(OriginPodId.HEADER, podId);
+                            }
+                            return msg;
+                        });
                 log.info("[{}] FileUploadedEvent published to RabbitMQ (broadcast)", trackId);
                 // Both VIRTUAL and PHYSICAL: process locally on originating service.
                 // RabbitMQ is for broadcast (Activity Monitor, cache eviction, monitoring).
