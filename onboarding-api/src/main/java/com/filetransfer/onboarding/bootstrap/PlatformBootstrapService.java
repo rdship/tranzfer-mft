@@ -170,7 +170,29 @@ public class PlatformBootstrapService {
                 "ftp-web-service-2", 8183, "localhost", 8183,
                 "Secondary web transfer portal for load balancing"));
 
-        List<ServerInstance> saved = serverInstanceRepository.saveAll(servers);
+        // Idempotent: skip any ServerInstance whose instanceId OR (host,port)
+        // tuple already exists — protects against re-seed on container restart
+        // and against the dynamic-listener registry having already written the
+        // row via bindState updates.
+        List<ServerInstance> toInsert = new ArrayList<>();
+        for (ServerInstance s : servers) {
+            if (serverInstanceRepository.existsByInstanceId(s.getInstanceId())) {
+                log.debug("[Bootstrap] Skipping existing server instance '{}'", s.getInstanceId());
+                continue;
+            }
+            if (serverInstanceRepository.findByInternalHostAndInternalPortAndActiveTrue(
+                    s.getInternalHost(), s.getInternalPort()).isPresent()) {
+                log.debug("[Bootstrap] Skipping '{}' — port {}:{} already claimed",
+                        s.getInstanceId(), s.getInternalHost(), s.getInternalPort());
+                continue;
+            }
+            toInsert.add(s);
+        }
+        if (toInsert.isEmpty()) {
+            log.info("[Bootstrap] All server instances already seeded — skipping");
+            return serverInstanceRepository.findAll();
+        }
+        List<ServerInstance> saved = serverInstanceRepository.saveAll(toInsert);
         saved.forEach(s -> log.info("[Bootstrap] Created server instance: {} ({}:{}, protocol={})",
                 s.getName(), s.getInternalHost(), s.getInternalPort(), s.getProtocol()));
         return saved;

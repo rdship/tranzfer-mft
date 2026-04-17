@@ -160,8 +160,15 @@ public class SftpServerConfig {
     @Bean
     public ApplicationRunner sftpServerRunner(SshServer sshServer) {
         return args -> {
-            sshServer.start();
-            log.info("SFTP server started on port {}", sftpPort);
+            try {
+                sshServer.start();
+                log.info("SFTP server started on port {}", sftpPort);
+            } catch (java.net.BindException e) {
+                log.error("SFTP primary listener FAILED to bind port {} — port already in use. "
+                        + "Dynamic listeners may still work on other ports.", sftpPort);
+            } catch (Exception e) {
+                log.error("SFTP primary listener FAILED to start on port {}: {}", sftpPort, e.getMessage());
+            }
         };
     }
 

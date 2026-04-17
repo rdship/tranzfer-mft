@@ -3,12 +3,13 @@ package com.filetransfer.ftp.server;
 import com.filetransfer.shared.entity.core.ServerInstance;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.repository.core.ServerInstanceRepository;
-import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ftpserver.FtpServer;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,14 +40,21 @@ public class FtpListenerRegistry {
     @Value("${ftp.instance-id:#{null}}")
     private String primaryInstanceId;
 
+    @Value("${ftp.port:21}")
+    private int primaryPort;
+
     @Value("${ftp.host-match:#{null}}")
     private String hostMatch;
 
-    @PostConstruct
+    /** Bind dynamic listeners AFTER primary is up to avoid port race. */
+    @EventListener(ApplicationReadyEvent.class)
     public void bootstrap() {
         List<ServerInstance> candidates = repository.findByProtocolAndActiveTrue(Protocol.FTP);
         for (ServerInstance si : candidates) {
-            if (isPrimary(si)) continue;
+            if (isPrimary(si)) {
+                log.info("Skipping primary FTP listener '{}' — already bound by env-var bean", si.getInstanceId());
+                continue;
+            }
             if (!ownedByThisNode(si)) continue;
             bind(si);
         }
@@ -106,7 +114,8 @@ public class FtpListenerRegistry {
     public Map<UUID, FtpServer> snapshot() { return Map.copyOf(activeListeners); }
 
     private boolean isPrimary(ServerInstance si) {
-        return primaryInstanceId != null && primaryInstanceId.equals(si.getInstanceId());
+        if (primaryInstanceId != null && primaryInstanceId.equals(si.getInstanceId())) return true;
+        return si.getInternalPort() == primaryPort;
     }
 
     private boolean ownedByThisNode(ServerInstance si) {

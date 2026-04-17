@@ -201,8 +201,19 @@ public class FtpServerConfig {
     @Bean
     public ApplicationRunner ftpServerRunner(FtpServer ftpServer) {
         return args -> {
-            ftpServer.start();
-            log.info("FTP server started on port {}", ftpPort);
+            try {
+                ftpServer.start();
+                log.info("FTP server started on port {}", ftpPort);
+            } catch (Exception e) {
+                Throwable root = e;
+                while (root.getCause() != null && root != root.getCause()) root = root.getCause();
+                if (root instanceof java.net.BindException) {
+                    log.error("FTP primary listener FAILED to bind port {} — port already in use. "
+                            + "Dynamic listeners may still work on other ports.", ftpPort);
+                } else {
+                    log.error("FTP primary listener FAILED to start on port {}: {}", ftpPort, e.getMessage());
+                }
+            }
         };
     }
 }

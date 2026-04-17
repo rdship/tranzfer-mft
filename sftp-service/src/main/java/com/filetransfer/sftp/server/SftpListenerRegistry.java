@@ -3,12 +3,13 @@ package com.filetransfer.sftp.server;
 import com.filetransfer.shared.entity.core.ServerInstance;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.repository.core.ServerInstanceRepository;
-import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.sshd.server.SshServer;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,14 +49,20 @@ public class SftpListenerRegistry {
     @Value("${sftp.instance-id:#{null}}")
     private String primaryInstanceId;
 
+    @Value("${sftp.port:2222}")
+    private int primaryPort;
+
     @Value("${sftp.host-match:#{null}}")
     private String hostMatch;
 
     /**
-     * On boot, bind every active SFTP ServerInstance that this node owns,
-     * EXCEPT the one representing the primary env-var listener (already up).
+     * Bind dynamic listeners AFTER the context is fully ready — guarantees the
+     * primary env-var-driven SshServer bean has already bound its port, so we
+     * can safely skip any ServerInstance row that matches the primary port.
+     * Using @PostConstruct here races the primary runner and causes
+     * BindExceptions on cold boot.
      */
-    @PostConstruct
+    @EventListener(ApplicationReadyEvent.class)
     public void bootstrap() {
         List<ServerInstance> candidates = serverInstanceRepository.findByProtocolAndActiveTrue(Protocol.SFTP);
         for (ServerInstance si : candidates) {
@@ -129,9 +136,15 @@ public class SftpListenerRegistry {
         return Map.copyOf(activeListeners);
     }
 
-    /** True if the ServerInstance is the one already bound by the env-var bean. */
+    /**
+     * True if this ServerInstance represents the listener already bound by the
+     * env-var-driven bean. Matches either by instanceId (explicit) OR by port
+     * (defensive — catches cases where instanceId wasn't set but the port
+     * already belongs to the primary).
+     */
     private boolean isPrimary(ServerInstance si) {
-        return primaryInstanceId != null && primaryInstanceId.equals(si.getInstanceId());
+        if (primaryInstanceId != null && primaryInstanceId.equals(si.getInstanceId())) return true;
+        return si.getInternalPort() == primaryPort;
     }
 
     /**

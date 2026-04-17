@@ -57,6 +57,15 @@ public class ServerInstanceService {
         if (repository.existsByInstanceId(request.getInstanceId())) {
             throw new IllegalArgumentException("Instance ID already exists: " + request.getInstanceId());
         }
+        // Pre-check port collision so we can return clean 409 + suggestions instead
+        // of relying on the DB constraint → DataIntegrityViolationException.
+        repository.findByInternalHostAndInternalPortAndActiveTrue(request.getInternalHost(), request.getInternalPort())
+                .ifPresent(conflict -> {
+                    throw new com.filetransfer.onboarding.exception.PortConflictException(
+                            request.getInternalHost(),
+                            request.getInternalPort(),
+                            suggestAlternativePorts(request.getInternalHost(), request.getInternalPort(), 5));
+                });
 
         ServerInstance instance = ServerInstance.builder()
                 .instanceId(request.getInstanceId())
@@ -90,6 +99,22 @@ public class ServerInstanceService {
     @Transactional
     public ServerInstanceResponse update(UUID id, UpdateServerInstanceRequest request) {
         ServerInstance instance = findById(id);
+
+        // Port conflict pre-check on update (skip if unchanged).
+        if (request.getInternalPort() != null || request.getInternalHost() != null) {
+            String newHost = request.getInternalHost() != null ? request.getInternalHost() : instance.getInternalHost();
+            int newPort = request.getInternalPort() != null ? request.getInternalPort() : instance.getInternalPort();
+            boolean moved = !newHost.equals(instance.getInternalHost()) || newPort != instance.getInternalPort();
+            if (moved) {
+                repository.findByInternalHostAndInternalPortAndActiveTrue(newHost, newPort)
+                        .filter(conflict -> !conflict.getId().equals(id))
+                        .ifPresent(conflict -> {
+                            throw new com.filetransfer.onboarding.exception.PortConflictException(
+                                    newHost, newPort,
+                                    suggestAlternativePorts(newHost, newPort, 5));
+                        });
+            }
+        }
 
         if (request.getProtocol() != null) instance.setProtocol(request.getProtocol());
         if (request.getName() != null) instance.setName(request.getName());
@@ -189,6 +214,26 @@ public class ServerInstanceService {
     private ServerInstance findById(UUID id) {
         return repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Server instance not found: " + id));
+    }
+
+    /**
+     * Return up to {@code count} free ports near the requested port (searching
+     * requested+1..requested+20 then requested-1..requested-5). Keeps results
+     * inside the 1024-65535 unprivileged range.
+     */
+    public List<Integer> suggestAlternativePorts(String host, int requestedPort, int count) {
+        int low = Math.max(1024, requestedPort - 5);
+        int high = Math.min(65535, requestedPort + 20);
+        Set<Integer> used = new HashSet<>(repository.findUsedPortsInRange(host, low, high));
+        List<Integer> suggestions = new ArrayList<>();
+        // Prefer ports AFTER the requested one (more intuitive for admins).
+        for (int p = requestedPort + 1; p <= high && suggestions.size() < count; p++) {
+            if (!used.contains(p)) suggestions.add(p);
+        }
+        for (int p = requestedPort - 1; p >= low && suggestions.size() < count; p--) {
+            if (!used.contains(p)) suggestions.add(p);
+        }
+        return suggestions;
     }
 
     private ServerInstanceResponse toResponse(ServerInstance i) {

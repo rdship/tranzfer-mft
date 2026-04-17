@@ -86,6 +86,20 @@ public class ServerInstanceController {
         service.delete(id);
     }
 
+    @GetMapping("/port-suggestions")
+    @Operation(summary = "List free ports near the requested one, for a given host",
+            description = "Helper for the UI port picker. Returns up to N free ports in the range " +
+                    "[requested-5, requested+20], preferring ports after the requested value.")
+    public Map<String, Object> portSuggestions(@RequestParam String host,
+                                                @RequestParam int port,
+                                                @RequestParam(defaultValue = "5") int count) {
+        return Map.of(
+                "host", host,
+                "requestedPort", port,
+                "suggestedPorts", service.suggestAlternativePorts(host, port, count)
+        );
+    }
+
     @PostMapping("/{id}/rebind")
     @Operation(summary = "Retry binding a listener that is BIND_FAILED or drifted",
             description = "Publishes a synthetic UPDATED event; the owning protocol service unbinds then binds again. " +
@@ -100,12 +114,29 @@ public class ServerInstanceController {
     }
 
     // ── Error mapping ────────────────────────────────────────────────────────
-    // Unique index on (internal_host, internal_port) WHERE active=true throws
-    // DataIntegrityViolationException on port collision. Translate to 409 so
-    // the UI can show a clean "port already in use" message.
+    /**
+     * Port collision pre-detected by the service — includes suggestions the UI
+     * can show directly ("port N is in use; try: [N+1, N+2, N+3]").
+     */
+    @ExceptionHandler(com.filetransfer.onboarding.exception.PortConflictException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public Map<String, Object> handlePortConflict(com.filetransfer.onboarding.exception.PortConflictException ex) {
+        return Map.of(
+                "error", "Port " + ex.getRequestedPort() + " already in use on host " + ex.getHost(),
+                "host", ex.getHost(),
+                "requestedPort", ex.getRequestedPort(),
+                "suggestedPorts", ex.getSuggestedPorts()
+        );
+    }
+
+    /**
+     * Fallback: if the service-level pre-check missed it (race between two
+     * simultaneous creates), the DB unique index catches it. Still return 409,
+     * but without port suggestions since we don't have the request context here.
+     */
     @ExceptionHandler(DataIntegrityViolationException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
-    public Map<String, String> handlePortConflict(DataIntegrityViolationException ex) {
+    public Map<String, String> handleDbConstraint(DataIntegrityViolationException ex) {
         String msg = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
         String friendly = (msg != null && msg.contains("uk_server_instance_host_port_active"))
                 ? "Port already assigned on this host"

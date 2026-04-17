@@ -327,16 +327,46 @@ export default function ServerInstances() {
     return map
   }, [allAccounts])
 
+  // Shared 409 handler — surfaces "port in use" with clickable suggestions
+  // that auto-fill the form. Falls back to friendlyError for other failures.
+  const handlePortConflict = (err, applyPort) => {
+    const data = err.response?.data
+    if (err.response?.status === 409 && Array.isArray(data?.suggestedPorts) && data.suggestedPorts.length > 0) {
+      toast.custom((t) => (
+        <div className={`bg-red-50 border border-red-200 rounded-lg p-3 shadow-lg max-w-md ${t.visible ? 'animate-fade-in' : 'animate-fade-out'}`}>
+          <div className="font-semibold text-red-800 text-sm">{data.error || 'Port already in use'}</div>
+          <div className="text-xs text-red-700 mt-1">Try one of these free ports on {data.host}:</div>
+          <div className="flex gap-1 mt-2 flex-wrap">
+            {data.suggestedPorts.map(p => (
+              <button key={p} onClick={() => { applyPort(p); toast.dismiss(t.id) }}
+                      className="px-2 py-0.5 rounded bg-white border border-red-300 text-red-700 text-xs font-mono hover:bg-red-100">
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+      ), { duration: 10000 })
+      return true
+    }
+    return false
+  }
+
   const createMut = useMutation({
     mutationFn: createServerInstance,
     onSuccess: () => { qc.invalidateQueries(['server-instances']); setShowCreate(false); setForm(emptyForm); toast.success('Server instance created') },
-    onError: err => toast.error(friendlyError(err))
+    onError: err => {
+      if (handlePortConflict(err, p => setForm(f => ({ ...f, internalPort: p, externalPort: p })))) return
+      toast.error(friendlyError(err))
+    }
   })
 
   const updateMut = useMutation({
     mutationFn: ({ id, data }) => updateServerInstance(id, data),
     onSuccess: () => { qc.invalidateQueries(['server-instances']); setEditServer(null); toast.success('Server updated') },
-    onError: err => toast.error(friendlyError(err))
+    onError: err => {
+      if (handlePortConflict(err, p => setForm(f => ({ ...f, internalPort: p })))) return
+      toast.error(friendlyError(err))
+    }
   })
 
   const deleteMut = useMutation({
