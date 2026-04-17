@@ -4,9 +4,11 @@ import com.filetransfer.onboarding.dto.request.CreateServerInstanceRequest;
 import com.filetransfer.onboarding.dto.request.UpdateServerInstanceRequest;
 import com.filetransfer.onboarding.dto.response.ServerInstanceResponse;
 import com.filetransfer.shared.client.DmzProxyClient;
+import com.filetransfer.shared.dto.ServerInstanceChangeEvent;
 import com.filetransfer.shared.entity.core.FolderTemplate;
 import com.filetransfer.shared.entity.core.ServerInstance;
 import com.filetransfer.shared.enums.Protocol;
+import com.filetransfer.shared.outbox.OutboxWriter;
 import com.filetransfer.shared.repository.core.FolderTemplateRepository;
 import com.filetransfer.shared.repository.core.ServerInstanceRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,7 @@ public class ServerInstanceService {
     private final ServerInstanceRepository repository;
     private final FolderTemplateRepository folderTemplateRepository;
     private final DmzProxyClient dmzProxyClient;
+    private final OutboxWriter outboxWriter;
 
     public List<ServerInstanceResponse> listAll() {
         return repository.findAll().stream().map(this::toResponse).toList();
@@ -76,6 +79,7 @@ public class ServerInstanceService {
         applyProxyQoS(instance, request.getProxyQos());
 
         repository.save(instance);
+        publishChange(instance, ServerInstanceChangeEvent.ChangeType.CREATED);
 
         // Auto-create proxy mapping when proxy is configured
         syncProxyMapping(instance);
@@ -124,7 +128,19 @@ public class ServerInstanceService {
         if (request.getMaintenanceMode()         != null) instance.setMaintenanceMode(request.getMaintenanceMode());
         if (request.getMaintenanceMessage()      != null) instance.setMaintenanceMessage(request.getMaintenanceMessage());
 
+        boolean activeChanged = request.getActive() != null && request.getActive() != instance.isActive();
         repository.save(instance);
+
+        // Choose event type: ACTIVATED/DEACTIVATED is more specific than UPDATED for bind/unbind intent.
+        ServerInstanceChangeEvent.ChangeType type;
+        if (activeChanged) {
+            type = instance.isActive()
+                    ? ServerInstanceChangeEvent.ChangeType.ACTIVATED
+                    : ServerInstanceChangeEvent.ChangeType.DEACTIVATED;
+        } else {
+            type = ServerInstanceChangeEvent.ChangeType.UPDATED;
+        }
+        publishChange(instance, type);
 
         // Sync proxy mapping if proxy config changed
         syncProxyMapping(instance);
@@ -137,6 +153,24 @@ public class ServerInstanceService {
         ServerInstance instance = findById(id);
         instance.setActive(false);
         repository.save(instance);
+        publishChange(instance, ServerInstanceChangeEvent.ChangeType.DELETED);
+    }
+
+    private void publishChange(ServerInstance instance, ServerInstanceChangeEvent.ChangeType type) {
+        ServerInstanceChangeEvent event = new ServerInstanceChangeEvent(
+                instance.getId(),
+                instance.getInstanceId(),
+                instance.getProtocol(),
+                instance.getInternalHost(),
+                instance.getInternalPort(),
+                instance.isActive(),
+                type);
+        outboxWriter.write(
+                "server_instance",
+                instance.getId().toString(),
+                type.name(),
+                event.routingKey(),
+                event);
     }
 
     private ServerInstance findById(UUID id) {
@@ -186,6 +220,11 @@ public class ServerInstanceService {
                 .maintenanceMode(i.isMaintenanceMode())
                 .maintenanceMessage(i.getMaintenanceMessage())
                 .assignedAccountCount(0L)  // populated by controller when needed
+                // Runtime bind state (V64)
+                .bindState(i.getBindState())
+                .bindError(i.getBindError())
+                .lastBindAttemptAt(i.getLastBindAttemptAt())
+                .boundNode(i.getBoundNode())
                 .build();
     }
 

@@ -56,4 +56,11 @@ public class ServerInstanceResponse {
 
     /** Number of accounts currently assigned and enabled on this server. */
     private long assignedAccountCount;
+
+    // ── Runtime bind state (V64) ─────────────────────────────────────────────
+    /** BOUND | UNBOUND | BIND_FAILED | UNKNOWN — written by the protocol service. */
+    private String  bindState;
+    private String  bindError;
+    private Instant lastBindAttemptAt;
+    private String  boundNode;
 }

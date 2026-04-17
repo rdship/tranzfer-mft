@@ -166,6 +166,23 @@ public class ServerInstance {
     @Builder.Default
     private boolean active = true;
 
+    // ── Runtime bind state (V64) ─────────────────────────────────────────────
+    // Written by the protocol service (sftp/ftp/as2) when binding its listener.
+    // UI + Sentinel read these to flag drift between desired and actual state.
+
+    @Column(name = "bind_state", length = 20)
+    @Builder.Default
+    private String bindState = "UNKNOWN";
+
+    @Column(name = "bind_error", columnDefinition = "TEXT")
+    private String bindError;
+
+    @Column(name = "last_bind_attempt_at")
+    private Instant lastBindAttemptAt;
+
+    @Column(name = "bound_node", length = 128)
+    private String boundNode;
+
     @Column(nullable = false, updatable = false)
     @Builder.Default
     private Instant createdAt = Instant.now();

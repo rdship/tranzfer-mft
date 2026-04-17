@@ -95,6 +95,14 @@ jwt:
 rabbitmq:
   exchange: file-transfer.events
 
+# Outbox poller — onboarding-api owns the config_event_outbox drain.
+# Guarantees DB commit + RabbitMQ publish cannot diverge (crashes are retried).
+outbox:
+  poller:
+    enabled: ${OUTBOX_POLLER_ENABLED:true}
+    delay-ms: ${OUTBOX_POLLER_DELAY_MS:500}
+    cleanup-ms: ${OUTBOX_POLLER_CLEANUP_MS:3600000}
+
 sftp-control:
   url: ${SFTP_CONTROL_URL:http://localhost:8081}
 
@@ -195,7 +203,7 @@ platform:
 
   readiness:
     schema-file: db/schema/onboarding-api.sql
-    required-tables: users,tenants,partners,partner_contacts,server_instances,folder_templates,transfer_accounts,external_destinations,file_flows,folder_mappings,file_transfer_records,flow_executions,audit_logs,login_attempts,totp_configs,permissions,role_permissions,user_permissions,dead_letter_messages,blockchain_anchors,cluster_nodes,client_presence,transfer_tickets,auto_onboard_sessions,partner_agreements,scheduled_tasks,virtual_entries
+    required-tables: users,tenants,partners,partner_contacts,server_instances,folder_templates,transfer_accounts,external_destinations,file_flows,folder_mappings,file_transfer_records,flow_executions,audit_logs,login_attempts,totp_configs,permissions,role_permissions,user_permissions,dead_letter_messages,blockchain_anchors,cluster_nodes,client_presence,transfer_tickets,auto_onboard_sessions,partner_agreements,scheduled_tasks,virtual_entries,config_event_outbox
 
 springdoc:
   api-docs:

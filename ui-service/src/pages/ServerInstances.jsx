@@ -650,6 +650,17 @@ export default function ServerInstances() {
                               <WrenchScrewdriverIcon className="w-3 h-3" /> MAINT
                             </span>
                           )}
+                          {s.bindState && s.bindState !== 'UNKNOWN' && (
+                            <span
+                              title={s.bindError || `Last bind attempt: ${s.lastBindAttemptAt || 'never'}`}
+                              className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                s.bindState === 'BOUND' ? 'bg-emerald-100 text-emerald-700'
+                                : s.bindState === 'BIND_FAILED' ? 'bg-red-100 text-red-700'
+                                : 'bg-gray-100 text-gray-700'
+                              }`}>
+                              {s.bindState}
+                            </span>
+                          )}
                         </div>
                       </td>
                     )}
