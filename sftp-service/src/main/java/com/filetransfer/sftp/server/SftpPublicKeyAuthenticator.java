@@ -38,6 +38,7 @@ public class SftpPublicKeyAuthenticator implements PublickeyAuthenticator {
         String ip = session.getClientAddress() != null
                 ? session.getClientAddress().toString()
                 : "unknown";
+        String listenerInstanceId = ListenerContext.instanceId(session);
 
         // Check IP access control
         if (!ipAccessControl.isAllowed(ip)) {
@@ -52,7 +53,7 @@ public class SftpPublicKeyAuthenticator implements PublickeyAuthenticator {
             return false;
         }
 
-        return credentialService.findAccount(username).map(account -> {
+        return credentialService.findAccount(username, listenerInstanceId).map(account -> {
             if (account.getPublicKey() == null) return false;
             try {
                 // Parse the stored authorized_keys line and compare

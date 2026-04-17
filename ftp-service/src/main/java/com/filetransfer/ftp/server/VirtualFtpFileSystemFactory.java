@@ -38,7 +38,7 @@ public class VirtualFtpFileSystemFactory implements FileSystemFactory {
         String username = user.getName();
 
         Optional<TransferAccount> accountOpt = accountRepository.findByUsername(username);
-        if (accountOpt.isPresent() && "VIRTUAL".equalsIgnoreCase(accountOpt.get().getStorageMode())) {
+        if (accountOpt.isPresent() && isVirtualMode(accountOpt.get())) {
             TransferAccount acct = accountOpt.get();
             log.info("FTP virtual filesystem for user={} (account={})", username, acct.getId());
 
@@ -54,5 +54,20 @@ public class VirtualFtpFileSystemFactory implements FileSystemFactory {
         // Legacy: use default native filesystem backed by homeDirectory
         log.debug("FTP physical filesystem for user={} at {}", username, user.getHomeDirectory());
         return new NativeFileSystemView(user, false);
+    }
+
+    /**
+     * Decide VIRTUAL vs PHYSICAL with a listener-aware fallback. Priority:
+     *   1) account.storageMode (if set)
+     *   2) arriving listener's defaultStorageMode (via FtpListenerContext ThreadLocal)
+     *   3) PHYSICAL
+     */
+    private boolean isVirtualMode(TransferAccount account) {
+        String accountMode = account.getStorageMode();
+        if (accountMode != null && !accountMode.isBlank()) {
+            return "VIRTUAL".equalsIgnoreCase(accountMode);
+        }
+        String listenerMode = FtpListenerContext.storageMode();
+        return "VIRTUAL".equalsIgnoreCase(listenerMode);
     }
 }

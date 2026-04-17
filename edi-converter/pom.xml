@@ -2,7 +2,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <parent><groupId>com.filetransfer</groupId><artifactId>file-transfer-platform</artifactId><version>1.0.0-R77</version></parent>
+    <parent><groupId>com.filetransfer</groupId><artifactId>file-transfer-platform</artifactId><version>1.0.0-R78</version></parent>
     <artifactId>edi-converter</artifactId>
     <name>EDI Converter Service</name>
     <description>Universal EDI conversion: X12, EDIFACT, TRADACOMS, SWIFT, HL7, NACHA, BAI2, ISO20022, FIX</description>

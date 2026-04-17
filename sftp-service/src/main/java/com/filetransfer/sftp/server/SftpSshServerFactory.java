@@ -68,6 +68,10 @@ public class SftpSshServerFactory {
         sshd.setSubsystemFactories(Collections.singletonList(sftpFactory));
         sshd.setFileSystemFactory(fileSystemFactory);
         sshd.addSessionListener(sessionListener);
+        // Tag every session with THIS listener's identity so shared auth and
+        // filesystem callbacks can resolve the right ServerInstance.
+        sshd.addSessionListener(new ListenerContext.Tagger(
+                si.getInstanceId(), si.getDefaultStorageMode()));
 
         if (si.getIdleTimeoutSeconds() > 0) {
             CoreModuleProperties.IDLE_TIMEOUT.set(sshd, Duration.ofSeconds(si.getIdleTimeoutSeconds()));

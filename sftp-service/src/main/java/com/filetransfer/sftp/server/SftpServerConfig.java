@@ -130,6 +130,11 @@ public class SftpServerConfig {
 
         // Register session listener for connection management and audit
         sshd.addSessionListener(sessionListener);
+        // Tag every session on the primary listener with the env-var instanceId
+        // + a default storage mode, so authenticator + filesystem factory can
+        // resolve the arriving listener identically to dynamic listeners.
+        String primaryStorageMode = System.getenv().getOrDefault("SFTP_DEFAULT_STORAGE_MODE", "VIRTUAL");
+        sshd.addSessionListener(new ListenerContext.Tagger(instanceId, primaryStorageMode));
 
         // Configure idle timeout
         if (idleTimeoutSeconds > 0) {

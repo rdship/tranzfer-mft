@@ -34,7 +34,11 @@ public class SftpPasswordAuthenticator implements PasswordAuthenticator {
         String ip = session.getClientAddress() != null
                 ? session.getClientAddress().toString()
                 : "unknown";
-        log.info("SFTP password auth attempt: username={} ip={}", username, ip);
+        // Listener this session arrived on — null for legacy/untagged sessions;
+        // CredentialService falls back to the env-var primary in that case.
+        String listenerInstanceId = ListenerContext.instanceId(session);
+        log.info("SFTP password auth attempt: username={} ip={} listener={}",
+                username, ip, listenerInstanceId != null ? listenerInstanceId : "<primary>");
 
         // Check IP access control
         if (!ipAccessControl.isAllowed(ip)) {
@@ -49,13 +53,13 @@ public class SftpPasswordAuthenticator implements PasswordAuthenticator {
             return false;
         }
 
-        boolean authenticated = credentialService.authenticatePassword(username, password, ip);
+        boolean authenticated = credentialService.authenticatePassword(username, password, ip, listenerInstanceId);
 
         if (authenticated) {
             loginAttemptTracker.recordSuccess(username);
             auditEventLogger.logLogin(username, ip, "password");
             // Register per-user QoS: bandwidth limits + session limit
-            credentialService.findAccount(username).ifPresent(account -> {
+            credentialService.findAccount(username, listenerInstanceId).ifPresent(account -> {
                 bandwidthThrottleManager.registerUserLimits(username,
                     account.getQosUploadBytesPerSecond(),
                     account.getQosDownloadBytesPerSecond(),

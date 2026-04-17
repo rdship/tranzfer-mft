@@ -127,8 +127,12 @@ public class FtpServerConfig {
         connConfig.setAnonymousLoginEnabled(anonymousEnabled);
         serverFactory.setConnectionConfig(connConfig.createConnectionConfig());
 
-        // Register Ftplets (order matters -- security filters first, then routing)
+        // Register Ftplets (order matters -- listener context first so downstream
+        // FtpUserManager + filesystem factory see the primary instanceId; then
+        // security filters; then routing).
+        String primaryStorageMode = System.getenv().getOrDefault("FTP_DEFAULT_STORAGE_MODE", "VIRTUAL");
         Map<String, Ftplet> ftplets = new LinkedHashMap<>();
+        ftplets.put("listenerContext", new FtpListenerContext.Ftplet(instanceId, primaryStorageMode));
         ftplets.put("bounceFilter", ftpBounceFilter);
         ftplets.put("fileOperationFilter", fileOperationFilter);
         ftplets.put("routingFtplet", ftpletRoutingAdapter);

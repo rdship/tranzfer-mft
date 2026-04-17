@@ -55,6 +55,10 @@ public class FtpServerBuilder {
         serverFactory.setConnectionConfig(connConfig.createConnectionConfig());
 
         Map<String, Ftplet> ftplets = new LinkedHashMap<>();
+        // listenerContext MUST be first — sets the per-listener ThreadLocal that
+        // FtpUserManager and VirtualFtpFileSystemFactory read downstream.
+        ftplets.put("listenerContext",
+                new FtpListenerContext.Ftplet(si.getInstanceId(), si.getDefaultStorageMode()));
         ftplets.put("bounceFilter", ftpBounceFilter);
         ftplets.put("fileOperationFilter", fileOperationFilter);
         ftplets.put("routingFtplet", ftpletRoutingAdapter);

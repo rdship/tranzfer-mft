@@ -26,9 +26,10 @@ public class CredentialService {
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Value("${ftp.instance-id:#{null}}")
-    private String instanceId;
+    private String defaultInstanceId;
 
-    // H7 fix: TTL-based cache — stale entries auto-expire after 60s (same as SFTP service)
+    // TTL cache keyed by username|instanceId so overlapping accounts on
+    // different listeners don't collide.
     private static final long CACHE_TTL_MS = 60_000;
     private final ConcurrentHashMap<String, CacheEntry> cache = new ConcurrentHashMap<>();
 
@@ -37,6 +38,8 @@ public class CredentialService {
     }
 
     public boolean authenticate(String username, String password, String ipAddress) {
+        // Resolve the arriving listener via FtpListenerContext ThreadLocal
+        // (set by per-listener Ftplet). Null → fall through to env-var primary.
         Optional<TransferAccount> opt = findAccount(username);
         if (opt.isEmpty()) {
             log.warn("FTP login failed - user not found: {}", username);
@@ -54,27 +57,31 @@ public class CredentialService {
     }
 
     public Optional<TransferAccount> findAccount(String username) {
-        CacheEntry entry = cache.get(username);
+        String listenerInstanceId = com.filetransfer.ftp.server.FtpListenerContext.instanceId();
+        String resolved = listenerInstanceId != null ? listenerInstanceId : defaultInstanceId;
+        String cacheKey = username + "|" + (resolved != null ? resolved : "*");
+
+        CacheEntry entry = cache.get(cacheKey);
         if (entry != null && !entry.isExpired()) {
             return Optional.of(entry.account());
         }
-        if (entry != null) cache.remove(username);
+        if (entry != null) cache.remove(cacheKey);
 
         Optional<TransferAccount> dbAccount;
-        if (instanceId != null) {
+        if (resolved != null) {
             dbAccount = accountRepository.findByUsernameAndProtocolAndInstance(
-                    username, Protocol.FTP, instanceId);
+                    username, Protocol.FTP, resolved);
         } else {
             dbAccount = accountRepository.findByUsernameAndProtocolAndActiveTrue(username, Protocol.FTP);
         }
-        dbAccount.ifPresent(a -> cache.put(username,
+        dbAccount.ifPresent(a -> cache.put(cacheKey,
                 new CacheEntry(a, System.currentTimeMillis() + CACHE_TTL_MS)));
         return dbAccount;
     }
 
     public void evictFromCache(String username) {
         log.info("Evicting FTP credential cache for username={}", username);
-        cache.remove(username);
+        cache.keySet().removeIf(k -> k.startsWith(username + "|"));
     }
 
     private void logAudit(TransferAccount account, String action, String path,

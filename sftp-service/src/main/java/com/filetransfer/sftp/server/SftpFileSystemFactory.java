@@ -57,10 +57,11 @@ public class SftpFileSystemFactory implements FileSystemFactory {
     @Override
     public Path getUserHomeDir(SessionContext session) throws IOException {
         String username = session.getUsername();
-        Optional<TransferAccount> account = credentialService.findAccount(username);
+        String listenerInstanceId = listenerInstanceIdFrom(session);
+        Optional<TransferAccount> account = credentialService.findAccount(username, listenerInstanceId);
 
         // Virtual mode: return a virtual root path
-        if (account.isPresent() && isVirtualMode(account.get())) {
+        if (account.isPresent() && isVirtualMode(account.get(), session)) {
             VirtualSftpFileSystem vfs = new VirtualSftpFileSystem(
                     account.get().getId(), virtualFileSystem, storageServiceClient);
             return new VirtualSftpPath(vfs, "/");
@@ -72,10 +73,11 @@ public class SftpFileSystemFactory implements FileSystemFactory {
     @Override
     public FileSystem createFileSystem(SessionContext session) throws IOException {
         String username = session.getUsername();
-        Optional<TransferAccount> account = credentialService.findAccount(username);
+        String listenerInstanceId = listenerInstanceIdFrom(session);
+        Optional<TransferAccount> account = credentialService.findAccount(username, listenerInstanceId);
 
         // ── Virtual mode: Phantom Folder VFS ────────────────────────────
-        if (account.isPresent() && isVirtualMode(account.get())) {
+        if (account.isPresent() && isVirtualMode(account.get(), session)) {
             TransferAccount acct = account.get();
             UUID acctId = acct.getId();
 
@@ -116,8 +118,37 @@ public class SftpFileSystemFactory implements FileSystemFactory {
         return new RootedFileSystemProvider().newFileSystem(homeDir, Collections.emptyMap());
     }
 
-    private boolean isVirtualMode(TransferAccount account) {
-        return "VIRTUAL".equalsIgnoreCase(account.getStorageMode());
+    /**
+     * Decide VIRTUAL vs PHYSICAL for this session. Priority:
+     *   1) account.storageMode (if explicitly set)
+     *   2) arriving listener's defaultStorageMode (from ListenerContext)
+     *   3) PHYSICAL (last resort — preserves pre-listener-aware behavior)
+     *
+     * Without step 2, an account with storageMode=null on a VIRTUAL listener
+     * would fall through to PHYSICAL and hit AccessDeniedException on missing
+     * physical mount points.
+     */
+    private boolean isVirtualMode(TransferAccount account, SessionContext session) {
+        String accountMode = account.getStorageMode();
+        if (accountMode != null && !accountMode.isBlank()) {
+            return "VIRTUAL".equalsIgnoreCase(accountMode);
+        }
+        String listenerMode = listenerStorageModeFrom(session);
+        return "VIRTUAL".equalsIgnoreCase(listenerMode);
+    }
+
+    private static String listenerInstanceIdFrom(SessionContext session) {
+        if (session instanceof org.apache.sshd.common.session.Session s) {
+            return ListenerContext.instanceId(s);
+        }
+        return null;
+    }
+
+    private static String listenerStorageModeFrom(SessionContext session) {
+        if (session instanceof org.apache.sshd.common.session.Session s) {
+            return ListenerContext.storageMode(s);
+        }
+        return null;
     }
 
     private Path resolvePhysicalHomeDir(String username, TransferAccount account) {
