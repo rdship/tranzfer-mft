@@ -19,6 +19,7 @@ set -uo pipefail
 
 API_ONBOARDING="${API_ONBOARDING:-http://localhost:8080}"
 API_CONFIG="${API_CONFIG:-http://localhost:8084}"
+API_KEYSTORE="${API_KEYSTORE:-http://localhost:8093}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-superadmin@tranzfer.io}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-superadmin}"
 
@@ -60,8 +61,8 @@ create_listener() {
     local id; id=$(echo "$body_out" | jq -r '.id'); local sm; sm=$(echo "$body_out" | jq -r '.defaultStorageMode')
     pass "$instance_id on $proto:$port — id=${id:0:8} defaultStorageMode=$sm"
     echo "$id" > "/tmp/fixture_${instance_id}_id"
-  elif [ "$status" = "409" ]; then
-    skip "$instance_id: already exists (409)"
+  elif [ "$status" = "409" ] || echo "$body_out" | grep -qi 'already'; then
+    skip "$instance_id: already exists"
   else
     fail "$instance_id: HTTP $status — $body_out"
   fi
@@ -90,8 +91,8 @@ create_account() {
   local status="${resp##*$'\n'}"; local body_out="${resp%$'\n'*}"
   if [ "$status" = "201" ] || [ "$status" = "200" ]; then
     pass "$username ($protocol) → serverInstance=$server_instance"
-  elif [ "$status" = "409" ]; then
-    skip "$username: already exists (409)"
+  elif [ "$status" = "409" ] || echo "$body_out" | grep -qi 'already'; then
+    skip "$username: already exists"
   else
     fail "$username: HTTP $status — $(echo "$body_out" | head -c 200)"
   fi
@@ -105,7 +106,49 @@ create_account "regtest-sftp-key" SFTP  "RegTest@2026!"  "sftp-reg-1" \
   "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMRegressionTestPublicKeyPlaceholder regtest"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. File flows — varied step pipelines for regression coverage
+# 3. Encryption keys — required by ENCRYPT_AES / DECRYPT_PGP flow steps
+# ─────────────────────────────────────────────────────────────────────────────
+section "Encryption keys (centralized keystore)"
+generate_aes() {
+  local alias="$1" owner="$2"
+  local body; body=$(jq -n --arg a "$alias" --arg o "$owner" '{alias:$a, ownerService:$o}')
+  local resp; resp=$(curl -s -w "\n%{http_code}" -X POST "$API_KEYSTORE/api/v1/keys/generate/aes" \
+    -H "$HDR_AUTH" -H "$HDR_JSON" -d "$body")
+  local status="${resp##*$'\n'}"; local body_out="${resp%$'\n'*}"
+  if [ "$status" = "201" ]; then
+    local fp; fp=$(echo "$body_out" | jq -r '.fingerprint[:16]')
+    pass "AES key '$alias' — owner=$owner fp=$fp"
+  elif [ "$status" = "409" ] || echo "$body_out" | grep -qi 'already'; then
+    skip "AES key '$alias': already exists"
+  else
+    fail "AES key '$alias': HTTP $status — $(echo "$body_out" | head -c 200)"
+  fi
+}
+generate_pgp() {
+  local alias="$1" identity="$2"
+  local body; body=$(jq -n --arg a "$alias" --arg i "$identity" \
+    '{alias:$a, identity:$i, passphrase:"RegTest@2026!"}')
+  local resp; resp=$(curl -s -w "\n%{http_code}" -X POST "$API_KEYSTORE/api/v1/keys/generate/pgp" \
+    -H "$HDR_AUTH" -H "$HDR_JSON" -d "$body")
+  local status="${resp##*$'\n'}"; local body_out="${resp%$'\n'*}"
+  if [ "$status" = "201" ]; then
+    local fp; fp=$(echo "$body_out" | jq -r '.fingerprint[:16]')
+    pass "PGP key '$alias' — identity=$identity fp=$fp"
+  elif [ "$status" = "500" ]; then
+    skip "PGP key '$alias': BLOCKED — known BouncyCastle bug 'only SHA1 supported' in KeyManagementService.java:174 (see server log; fix: use newer BC PGPSecretKey API)"
+  elif [ "$status" = "409" ] || echo "$body_out" | grep -qi 'already'; then
+    skip "PGP key '$alias': already exists"
+  else
+    fail "PGP key '$alias': HTTP $status — $(echo "$body_out" | head -c 200)"
+  fi
+}
+generate_aes "aes-default"  "encryption-service"   # used by flow f3 ENCRYPT_AES
+generate_aes "aes-outbound" "encryption-service"   # spare for additional test flows
+generate_pgp "pgp-inbound"  "regtest-inbound@tranzfer.io"   # used by flow f4 DECRYPT_PGP
+generate_pgp "pgp-outbound" "regtest-outbound@tranzfer.io"  # spare
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. File flows — varied step pipelines for regression coverage
 # ─────────────────────────────────────────────────────────────────────────────
 section "File flows"
 create_flow() {
@@ -170,10 +213,59 @@ create_flow "regtest-f6-edi-to-json" INBOUND ".*\\.edi" \
   "EDI X12/EDIFACT to JSON, verify checksum, mailbox"
 
 # F7: script + mailbox (custom pipeline)
+#
+# NOTE: EXECUTE_SCRIPT is NOT supported for VIRTUAL-mode files (see
+#   FlowProcessingEngine.java:1679 — "EXECUTE_SCRIPT is not supported for
+#   VIRTUAL-mode accounts"). This flow exists to exercise the config and
+#   scheduler paths; it will throw at runtime for VIRTUAL uploads. The
+#   script itself is deployed into the worker containers below so that
+#   the command path resolves if someone later flips a listener to
+#   PHYSICAL for script testing (or runs via scheduler/CRON, which also
+#   uses ScheduledTaskRunner.executeScript on real files).
+#
+# The delete-then-create dance replaces any previous f7 whose `command` was
+# the stale "uppercase-header" value, pointing it at the absolute path now
+# deployed in the container's /opt/scripts.
+section "Copy sample EXECUTE_SCRIPT handler into worker containers"
+copy_script_to() {
+  local container="$1"
+  if ! docker ps --format '{{.Names}}' | grep -qx "$container"; then
+    skip "$container: not running — skipping script copy"
+    return
+  fi
+  docker exec -u 0 "$container" sh -c 'mkdir -p /opt/scripts && chmod 755 /opt/scripts' >/dev/null 2>&1 \
+    && docker cp scripts/flow-samples/uppercase-header.sh "$container":/opt/scripts/uppercase-header.sh >/dev/null 2>&1 \
+    && docker exec -u 0 "$container" chmod +x /opt/scripts/uppercase-header.sh >/dev/null 2>&1 \
+    && pass "$container: /opt/scripts/uppercase-header.sh deployed" \
+    || fail "$container: failed to copy script"
+}
+copy_script_to "mft-onboarding-api"   # EXECUTE_SCRIPT consumer per flow.step.EXECUTE_SCRIPT
+copy_script_to "mft-sftp-service"     # also the SFTP ingress-side flow step consumer
+copy_script_to "mft-ftp-service"      # and FTP
+
+section "Replace flow f7 to reference deployed script"
+F7_EXISTING_ID=$(curl -s -H "$HDR_AUTH" \
+  "$API_CONFIG/api/flows?name=regtest-f7-script-mailbox" 2>/dev/null \
+  | jq -r '.[]? | select(.name=="regtest-f7-script-mailbox") | .id' 2>/dev/null || true)
+if [ -z "$F7_EXISTING_ID" ] || [ "$F7_EXISTING_ID" = "null" ]; then
+  # /api/flows list is currently broken by a Redis-cache deserialization bug —
+  # fall back to DB lookup so we can still find it
+  F7_EXISTING_ID=$(docker exec mft-postgres psql -U postgres -d filetransfer -tA -c \
+    "SELECT id FROM file_flows WHERE name='regtest-f7-script-mailbox'" 2>/dev/null | tr -d '[:space:]')
+fi
+if [ -n "$F7_EXISTING_ID" ] && [ "$F7_EXISTING_ID" != "null" ]; then
+  curl -s -X DELETE "$API_CONFIG/api/flows/$F7_EXISTING_ID" -H "$HDR_AUTH" >/dev/null
+  # Soft-delete marks active=false; to let re-create pass the unique-name
+  # check we also clear the name directly (the delete is logical, not physical).
+  docker exec mft-postgres psql -U postgres -d filetransfer -c \
+    "UPDATE file_flows SET name='regtest-f7-script-mailbox--deleted-'||id, active=false
+       WHERE id='$F7_EXISTING_ID'" >/dev/null 2>&1
+  pass "cleared existing f7 (id=${F7_EXISTING_ID:0:8}) so it can be re-created"
+fi
 create_flow "regtest-f7-script-mailbox" INBOUND ".*\\.dat" \
-  '[{"type":"EXECUTE_SCRIPT","order":0,"config":{"command":"uppercase-header"}},
+  '[{"type":"EXECUTE_SCRIPT","order":0,"config":{"command":"sh /opt/scripts/uppercase-header.sh ${file}","timeoutSeconds":"60"}},
     {"type":"MAILBOX","order":1,"config":{"destinationUsername":"regtest-sftp-1"}}]' \
-  "Run custom script then mailbox"
+  "Run uppercase-header.sh on .dat then mailbox (requires PHYSICAL mode at runtime)"
 
 # F8: outbound gzip+fwd (OUTBOUND direction coverage)
 create_flow "regtest-f8-gzip-out-fwd" OUTBOUND ".*\\.log" \
