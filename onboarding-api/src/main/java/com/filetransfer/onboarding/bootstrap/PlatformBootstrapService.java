@@ -152,18 +152,25 @@ public class PlatformBootstrapService {
                 .build();
         admin = userRepository.save(admin);
         log.info("[Bootstrap] Created super-admin user: superadmin@tranzfer.io (role=ADMIN)");
-        // Make the break-glass password visible at every cold boot. In PROD/STAGING
-        // environments this is a red-alert message so ops notices before shipping.
+        // Make the break-glass password visible at every cold boot. Every line is
+        // tagged [BOOTSTRAP-SECURITY] so ops can grep it out of otherwise noisy
+        // startup logs: `docker logs mft-onboarding-api | grep BOOTSTRAP-SECURITY`.
         if (isDefault) {
             String env = platformEnvironment != null ? platformEnvironment.toUpperCase() : "DEV";
-            String severity = ("PROD".equals(env) || "STAGING".equals(env) || "CERT".equals(env))
-                    ? "!! CRITICAL !!" : "(dev default)";
-            log.warn("═══════════════════════════════════════════════════════════════");
-            log.warn("  {} SUPER-ADMIN USING DEFAULT PASSWORD 'superadmin'", severity);
-            log.warn("  Bootstrap seed bypasses the password policy validator.");
-            log.warn("  Set PLATFORM_BOOTSTRAP_ADMIN_PASSWORD at first boot, OR rotate");
-            log.warn("  immediately via POST /api/users/me/password after login.");
-            log.warn("═══════════════════════════════════════════════════════════════");
+            boolean isProdish = "PROD".equals(env) || "STAGING".equals(env) || "CERT".equals(env);
+            String severity = isProdish ? "!! CRITICAL !!" : "(dev default)";
+            // ERROR level in prod-ish environments so it cannot be filtered out by
+            // WARN-and-above log aggregators; WARN level in DEV to avoid spooking
+            // local devs. Either way every line carries the [BOOTSTRAP-SECURITY] tag.
+            java.util.function.Consumer<String> emit = isProdish ? log::error : log::warn;
+            emit.accept("═══════════════════════════════════════════════════════════════");
+            emit.accept(String.format("[BOOTSTRAP-SECURITY] %s SUPER-ADMIN USING DEFAULT PASSWORD 'superadmin'", severity));
+            emit.accept("[BOOTSTRAP-SECURITY] Bootstrap seed bypasses the password policy validator.");
+            emit.accept("[BOOTSTRAP-SECURITY] Set PLATFORM_BOOTSTRAP_ADMIN_PASSWORD at first boot, OR rotate");
+            emit.accept("[BOOTSTRAP-SECURITY] immediately via POST /api/users/me/password after login.");
+            emit.accept("═══════════════════════════════════════════════════════════════");
+        } else {
+            log.info("[BOOTSTRAP-SECURITY] Super-admin password set via PLATFORM_BOOTSTRAP_ADMIN_PASSWORD — OK.");
         }
         return admin;
     }
@@ -793,6 +800,13 @@ public class PlatformBootstrapService {
                 .build());
 
         // Flow 4: Mailbox Distribution
+        // Priority 1 (lowest) — this is a catch-all with pattern ".*" that matches
+        // every inbound filename. At the original priority 100 it preempted every
+        // fixture/user-defined flow in the test rig (and would do the same in a
+        // real multi-partner install). Lowering it to 1 keeps the default
+        // fan-everything-into-RetailMax-mailbox behavior for the demo scenario
+        // while letting any more-specific flow (regtest-f7 at 10, user custom at
+        // 50, etc.) win on their pattern match.
         flows.add(FileFlow.builder()
                 .name("Mailbox Distribution")
                 .description("All files arriving at RetailMax are screened, renamed with timestamp, " +
@@ -804,7 +818,7 @@ public class PlatformBootstrapService {
                 .destinationPath("/outbox")
                 .partnerId(partners.get(3).getId())
                 .direction("INBOUND")
-                .priority(100)
+                .priority(1)
                 .steps(List.of(
                         FileFlow.FlowStep.builder()
                                 .type("SCREEN")

@@ -161,26 +161,27 @@ public class KeyManagementService {
 
         PGPKeyPair pgpKeyPair = new JcaPGPKeyPair(PGPPublicKey.RSA_GENERAL, kp, new Date());
 
-        // Two distinct digest calculators are needed:
-        //  1. SHA-1 for the S2K (String-to-Key) used by JcePBESecretKeyEncryptorBuilder —
-        //     BouncyCastle's current release still ONLY accepts SHA-1 for the secret-key
-        //     encryption checksum (throws "only SHA1 supported" for anything else).
-        //     This is a quirk of the PGP S2K standard — the SHA-1 here is used solely
-        //     for key-derivation, NOT for signing or encryption of payloads.
-        //  2. SHA-256 for the self-certification signature and the PGPSecretKey
-        //     constructor's checksum — these are the actual security-relevant digests.
+        // BouncyCastle's OpenPGP secret-key packet format (RFC 4880 §5.5.3) ONLY
+        // permits SHA-1 for the s2k-usage checksum AND for the S2K
+        // key-derivation. Anything else fails with
+        // "only SHA1 supported for key checksum calculations".
+        // The SHA-1 here is a PGP format requirement for the key packet itself;
+        // it is NOT used for signing or encryption of payloads. The RSA
+        // self-certification signature below uses RSA+SHA-256 via the content
+        // signer builder — that IS the security-relevant digest and is modern.
         org.bouncycastle.openpgp.operator.PGPDigestCalculatorProvider digestProvider =
                 new JcaPGPDigestCalculatorProviderBuilder().build();
-        PGPDigestCalculator sha1Calc   = digestProvider.get(org.bouncycastle.bcpg.HashAlgorithmTags.SHA1);
-        PGPDigestCalculator sha256Calc = digestProvider.get(org.bouncycastle.bcpg.HashAlgorithmTags.SHA256);
+        PGPDigestCalculator sha1Calc = digestProvider.get(org.bouncycastle.bcpg.HashAlgorithmTags.SHA1);
 
         PGPSecretKey secretKey = new PGPSecretKey(
-                PGPSignature.DEFAULT_CERTIFICATION, pgpKeyPair, identity, sha256Calc,
+                PGPSignature.DEFAULT_CERTIFICATION, pgpKeyPair, identity,
+                sha1Calc, // checksum calc for the secret-key packet — must be SHA-1
                 null, null,
                 new JcaPGPContentSignerBuilder(pgpKeyPair.getPublicKey().getAlgorithm(),
-                        org.bouncycastle.bcpg.HashAlgorithmTags.SHA256),
+                        org.bouncycastle.bcpg.HashAlgorithmTags.SHA256), // RSA-SHA256 self-cert
                 new JcePBESecretKeyEncryptorBuilder(
-                        org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags.AES_256, sha1Calc)
+                        org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags.AES_256,
+                        sha1Calc) // S2K calc — must be SHA-1 too
                         .setProvider("BC").build(passphrase.toCharArray()));
 
         // Export armored public key

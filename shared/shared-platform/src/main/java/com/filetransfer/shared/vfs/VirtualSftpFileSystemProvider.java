@@ -215,6 +215,28 @@ public class VirtualSftpFileSystemProvider extends FileSystemProvider {
         }
     }
 
+    /**
+     * Fixes SFTP {@code ls} on VFS-backed sessions.
+     *
+     * <p>Apache MINA SSHD 2.12's {@code DefaultSftpFileSystemAccessor.resolveLinkTarget}
+     * unconditionally calls {@code Files.readSymbolicLink(entry)} during
+     * directory iteration. The default {@link FileSystemProvider#readSymbolicLink}
+     * throws {@link UnsupportedOperationException}, which the SFTP subsystem
+     * converts to {@code SSH_FX_OP_UNSUPPORTED} — rendered by the OpenSSH
+     * client as "Couldn't read directory: Operation unsupported".</p>
+     *
+     * <p>Throwing {@link NotLinkException} (an {@link IOException} subclass)
+     * instead is caught by MINA as "this entry is simply not a symlink,"
+     * and the listing proceeds normally. VFS has no symbolic-link concept,
+     * so this is semantically correct — every entry is a regular file or
+     * directory, never a link.</p>
+     */
+    @Override
+    public Path readSymbolicLink(Path link) throws IOException {
+        throw new java.nio.file.NotLinkException(pathString(link),
+                null, "virtual filesystem has no symbolic links");
+    }
+
     // ── Attributes ──────────────────────────────────────────────────────
 
     @Override
