@@ -866,9 +866,16 @@ public class FlowProcessingEngine {
         String cmdTemplate = cfg.getOrDefault("command", "echo ${file}");
         int timeout = Integer.parseInt(cfg.getOrDefault("timeoutSeconds", "300"));
 
+        // Unified output contract with VIRTUAL path: scripts may write to
+        // ${outdir} (preferred) or set cfg.outputFile; runner locates via
+        // locateScriptOutput(). Script with no output = pass-through.
+        Path outDir = workDir.resolve("out");
+        Files.createDirectories(outDir);
+
         // Validate the command template itself — strip known placeholders, then check remainder
         String templateCheck = cmdTemplate
-                .replace("${file}", "").replace("${trackid}", "").replace("${workdir}", "");
+                .replace("${file}", "").replace("${trackid}", "")
+                .replace("${workdir}", "").replace("${outdir}", "");
         if (TEMPLATE_INJECTION.matcher(templateCheck).find()) {
             throw new SecurityException("[" + trackId + "] Script template contains disallowed shell operators");
         }
@@ -881,9 +888,10 @@ public class FlowProcessingEngine {
 
         // Shell-escape all interpolated values to prevent command injection
         String cmd = cmdTemplate
-                .replace("${file}", shellEscape(input.toAbsolutePath().toString()))
+                .replace("${file}",    shellEscape(input.toAbsolutePath().toString()))
                 .replace("${trackid}", shellEscape(trackId))
-                .replace("${workdir}", shellEscape(workDir.toAbsolutePath().toString()));
+                .replace("${workdir}", shellEscape(workDir.toAbsolutePath().toString()))
+                .replace("${outdir}",  shellEscape(outDir.toAbsolutePath().toString()));
 
         log.info("[{}] Executing script: {}", trackId, cmd);
         ProcessBuilder pb = new ProcessBuilder("sh", "-c", cmd);
@@ -901,13 +909,8 @@ public class FlowProcessingEngine {
         if (proc.exitValue() != 0) throw new RuntimeException("Script exit code " + proc.exitValue() + ": " + output);
 
         log.info("[{}] Script completed (exit 0)", trackId);
-        // If script produced an output file, use it; otherwise pass through
-        String outputFile = cfg.get("outputFile");
-        if (outputFile != null) {
-            Path out = Paths.get(outputFile.replace("${workdir}", workDir.toAbsolutePath().toString()));
-            if (Files.exists(out)) return out.toString();
-        }
-        return input.toString();
+        Path located = locateScriptOutput(cfg.get("outputFile"), workDir, outDir, input.getFileName().toString());
+        return located != null ? located.toString() : input.toString();
     }
 
     /**
@@ -1676,8 +1679,7 @@ public class FlowProcessingEngine {
             case "MAILBOX"         -> refMailbox(storageKey, virtualPath, sizeBytes, origin, trackId, cfg);
             case "FILE_DELIVERY"   -> refFileDelivery(storageKey, virtualPath, sizeBytes, origin, trackId, cfg);
             case "CONVERT_EDI"     -> refConvertEdi(storageKey, virtualPath, origin, trackId, cfg);
-            case "EXECUTE_SCRIPT"  -> throw new UnsupportedOperationException(
-                    "EXECUTE_SCRIPT is not supported for VIRTUAL-mode accounts");
+            case "EXECUTE_SCRIPT"  -> refExecuteScript(storageKey, virtualPath, origin, trackId, cfg);
             case "ROUTE"           -> new StepOutcome(storageKey, virtualPath, sizeBytes);
             case "APPROVE"         -> new StepOutcome(storageKey, virtualPath, sizeBytes); // handled above loop; pass-through if reached
             default -> {
@@ -2115,6 +2117,136 @@ public class FlowProcessingEngine {
      * <p>Supports new map-based conversion via {@code targetType} config, with fallback to
      * legacy format-based conversion when only {@code targetFormat} is provided.
      */
+    /**
+     * EXECUTE_SCRIPT for VIRTUAL-mode accounts.
+     *
+     * <p>Mirrors the FlowFunction plugin pattern at {@code processStepRef}:
+     * materialize the input from CAS → run the script with {@code ${file}}
+     * pointing at the temp path → store the output back into storage-manager
+     * and register a new VFS ref. The input CAS blob is NOT modified.</p>
+     *
+     * <h3>Script output contract</h3>
+     * <p>The script MUST place its output at one of:
+     * <ol>
+     *   <li>{@code cfg.outputFile} (absolute path, or {@code ${workdir}/...})</li>
+     *   <li>{@code ${workdir}/out/<inputFilename>} (default convention)</li>
+     * </ol>
+     * If neither exists after the script exits with code 0, the step is a
+     * pass-through: the input ref is yielded unchanged (idempotent no-op —
+     * useful for "read-only" scripts that just validate).</p>
+     *
+     * <p>All security validators from the PHYSICAL-mode executeScript apply:
+     * SAFE_SHELL_ARG on the script path, TEMPLATE_INJECTION on the template
+     * after stripping placeholders, shellEscape on interpolated values.</p>
+     */
+    private StepOutcome refExecuteScript(String storageKey, String virtualPath,
+                                          FileRef origin, String trackId,
+                                          Map<String, String> cfg) throws Exception {
+        String filename = VirtualFileSystem.nameOf(virtualPath);
+        Path tempInput = materializeFromCas(storageKey, filename, origin.accountId(), virtualPath);
+        Path workDir = tempInput.getParent();
+        Path outDir = workDir.resolve("out");
+        Files.createDirectories(outDir);
+
+        String cmdTemplate = cfg.getOrDefault("command", "echo ${file}");
+
+        // Validate template — strip placeholders, check remainder for shell operators
+        String templateCheck = cmdTemplate
+                .replace("${file}", "")
+                .replace("${trackid}", "")
+                .replace("${workdir}", "")
+                .replace("${outdir}", "");
+        if (TEMPLATE_INJECTION.matcher(templateCheck).find()) {
+            throw new SecurityException("[" + trackId + "] EXECUTE_SCRIPT template contains disallowed shell operators");
+        }
+
+        String scriptPath = cmdTemplate.split("\\s+")[0];
+        if (!SAFE_SHELL_ARG.matcher(scriptPath).matches()) {
+            throw new SecurityException("[" + trackId + "] EXECUTE_SCRIPT path contains disallowed characters: " + scriptPath);
+        }
+
+        int timeout = Integer.parseInt(cfg.getOrDefault("timeoutSeconds", "300"));
+        String cmd = cmdTemplate
+                .replace("${file}",    shellEscape(tempInput.toAbsolutePath().toString()))
+                .replace("${trackid}", shellEscape(trackId))
+                .replace("${workdir}", shellEscape(workDir.toAbsolutePath().toString()))
+                .replace("${outdir}",  shellEscape(outDir.toAbsolutePath().toString()));
+
+        log.info("[{}] EXECUTE_SCRIPT (VIRTUAL): {}", trackId, cmd);
+        ProcessBuilder pb = new ProcessBuilder("sh", "-c", cmd);
+        pb.redirectErrorStream(true);
+        pb.directory(workDir.toFile());
+        Process proc = pb.start();
+
+        String output;
+        try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(proc.getInputStream()))) {
+            output = r.lines().collect(java.util.stream.Collectors.joining("\n"));
+        }
+        boolean finished = proc.waitFor(timeout, java.util.concurrent.TimeUnit.SECONDS);
+        if (!finished) { proc.destroyForcibly(); throw new RuntimeException("Script timed out after " + timeout + "s"); }
+        if (proc.exitValue() != 0) throw new RuntimeException("Script exit code " + proc.exitValue() + ": " + output);
+
+        // Locate output file per contract
+        Path outputPath = locateScriptOutput(cfg.get("outputFile"), workDir, outDir, filename);
+        if (outputPath == null) {
+            // No output produced — treat as idempotent pass-through (validation script pattern)
+            try { Files.deleteIfExists(tempInput); Files.deleteIfExists(outDir); } catch (IOException ignored) {}
+            log.info("[{}] EXECUTE_SCRIPT completed without output file — passing input through", trackId);
+            return new StepOutcome(storageKey, virtualPath, origin.sizeBytes());
+        }
+
+        byte[] outputBytes = Files.readAllBytes(outputPath);
+        String newFilename = outputPath.getFileName().toString();
+        String dir = virtualPath.substring(0, virtualPath.lastIndexOf('/') + 1);
+        String newVirtualPath = dir + newFilename;
+
+        Map<String, Object> stored = storageClient.storeStream(
+                new ByteArrayInputStream(outputBytes), outputBytes.length,
+                newFilename, origin.accountId().toString(), trackId);
+        String newKey  = (String) stored.get("sha256");
+        long   newSize = ((Number) stored.get("sizeBytes")).longValue();
+        vfsBridge.registerRef(origin.accountId(), newVirtualPath,
+                newKey, newSize, trackId, origin.contentType());
+
+        try {
+            Files.deleteIfExists(outputPath);
+            Files.deleteIfExists(tempInput);
+            Files.deleteIfExists(outDir);
+        } catch (IOException ignored) {}
+
+        log.info("[{}] EXECUTE_SCRIPT (VIRTUAL) completed — {} bytes stored at {}", trackId, newSize, newVirtualPath);
+        return new StepOutcome(newKey, newVirtualPath, newSize);
+    }
+
+    /**
+     * Resolve the script's output file per the output contract:
+     * 1) cfg.outputFile (literal path; placeholders resolved), else
+     * 2) workdir/out/inputFilename, else
+     * 3) any single file in workdir/out (fallback for scripts that rename).
+     * Returns null if no output exists — signals pass-through.
+     */
+    private Path locateScriptOutput(String configured, Path workDir, Path outDir, String inputFilename) throws IOException {
+        if (configured != null && !configured.isBlank()) {
+            Path p = Paths.get(configured
+                    .replace("${workdir}", workDir.toAbsolutePath().toString())
+                    .replace("${outdir}", outDir.toAbsolutePath().toString()));
+            return Files.exists(p) ? p : null;
+        }
+        Path conventional = outDir.resolve(inputFilename);
+        if (Files.exists(conventional)) return conventional;
+        if (Files.isDirectory(outDir)) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(outDir)) {
+                Path single = null;
+                int count = 0;
+                for (Path p : stream) {
+                    if (Files.isRegularFile(p)) { single = p; count++; if (count > 1) break; }
+                }
+                if (count == 1) return single;
+            }
+        }
+        return null;
+    }
+
     private StepOutcome refConvertEdi(String storageKey, String virtualPath, FileRef origin,
                                        String trackId, Map<String, String> cfg) throws Exception {
         String targetType   = cfg.get("targetType");
