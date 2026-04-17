@@ -13,6 +13,15 @@ import java.util.Map;
 public class DmzProperties {
     private List<PortMapping> mappings;
 
+    /**
+     * The reverse-proxy's externally-visible host (IPv4 literal or DNS name
+     * resolvable by external clients). Used to rewrite FTP PASV replies when
+     * a mapping has an {@link PortMapping.FtpDataChannelPolicy} but no
+     * per-mapping {@code externalHost} override. Null or blank disables
+     * PASV rewriting (fail-open, with a WARN at mapping creation).
+     */
+    private String externalHost;
+
     /** AI-powered security configuration */
     private Security security = new Security();
 

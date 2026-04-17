@@ -206,6 +206,77 @@ class ServerInstanceServiceFtpTest {
     }
 
     @Test
+    void syncProxyMappingIncludesFtpDataChannelPolicyOnFtp() {
+        lenient().when(repository.existsByInstanceId(anyString())).thenReturn(false);
+        lenient().when(repository.findByInternalHostAndInternalPortAndActiveTrue(anyString(), anyInt()))
+                .thenReturn(Optional.empty());
+        lenient().when(repository.save(any(ServerInstance.class)))
+                .thenAnswer(inv -> {
+                    ServerInstance saved = inv.getArgument(0);
+                    saved.setId(UUID.randomUUID());
+                    return saved;
+                });
+
+        CreateServerInstanceRequest req = new CreateServerInstanceRequest();
+        req.setInstanceId("ftp-proxy-1");
+        req.setProtocol(Protocol.FTP);
+        req.setName("FTP with proxy");
+        req.setInternalHost("ftp-service");
+        req.setInternalPort(21);
+        req.setExternalHost("203.0.113.7");
+        req.setUseProxy(true);
+        req.setProxyHost("dmz-proxy");
+        req.setProxyPort(32121);
+        req.setFtpPassivePortFrom(31000);
+        req.setFtpPassivePortTo(31010);
+
+        service.create(req);
+
+        org.mockito.ArgumentCaptor<java.util.Map<String, Object>> captor =
+                org.mockito.ArgumentCaptor.forClass(java.util.Map.class);
+        org.mockito.Mockito.verify(dmzProxyClient).createMapping(captor.capture());
+        java.util.Map<String, Object> mapping = captor.getValue();
+
+        assertThat(mapping).containsKey("ftpDataChannelPolicy");
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> policy = (java.util.Map<String, Object>) mapping.get("ftpDataChannelPolicy");
+        assertThat(policy).containsEntry("passivePortFrom", 31000);
+        assertThat(policy).containsEntry("passivePortTo", 31010);
+        assertThat(policy).containsEntry("externalHost", "203.0.113.7");
+        assertThat(policy).containsEntry("rewritePasvResponse", true);
+    }
+
+    @Test
+    void syncProxyMappingOmitsFtpPolicyOnSftp() {
+        lenient().when(repository.existsByInstanceId(anyString())).thenReturn(false);
+        lenient().when(repository.findByInternalHostAndInternalPortAndActiveTrue(anyString(), anyInt()))
+                .thenReturn(Optional.empty());
+        lenient().when(repository.save(any(ServerInstance.class)))
+                .thenAnswer(inv -> {
+                    ServerInstance saved = inv.getArgument(0);
+                    saved.setId(UUID.randomUUID());
+                    return saved;
+                });
+
+        CreateServerInstanceRequest req = new CreateServerInstanceRequest();
+        req.setInstanceId("sftp-proxy-1");
+        req.setProtocol(Protocol.SFTP);
+        req.setName("SFTP with proxy");
+        req.setInternalHost("sftp-service");
+        req.setInternalPort(2222);
+        req.setUseProxy(true);
+        req.setProxyHost("dmz-proxy");
+        req.setProxyPort(32222);
+
+        service.create(req);
+
+        org.mockito.ArgumentCaptor<java.util.Map<String, Object>> captor =
+                org.mockito.ArgumentCaptor.forClass(java.util.Map.class);
+        org.mockito.Mockito.verify(dmzProxyClient).createMapping(captor.capture());
+        assertThat(captor.getValue()).doesNotContainKey("ftpDataChannelPolicy");
+    }
+
+    @Test
     void getByIdReturnsFtpFields() {
         UUID id = UUID.randomUUID();
         ServerInstance si = ServerInstance.builder()

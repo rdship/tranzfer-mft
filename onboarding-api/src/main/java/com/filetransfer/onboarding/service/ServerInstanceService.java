@@ -440,6 +440,25 @@ public class ServerInstanceService {
             mapping.put("active", true);
             mapping.put("qosPolicy", qosPolicy);
 
+            // FTP-specific: DMZ is a reverse proxy, so the PASV reply must advertise
+            // DMZ's external address, and DMZ must listen on the passive port range
+            // to forward data connections. Only send the policy when protocol=FTP and
+            // a passive range is configured — so non-FTP mappings stay unchanged.
+            if (instance.getProtocol() == Protocol.FTP
+                    && instance.getFtpPassivePortFrom() != null
+                    && instance.getFtpPassivePortTo() != null) {
+                Map<String, Object> ftpPolicy = new LinkedHashMap<>();
+                ftpPolicy.put("passivePortFrom", instance.getFtpPassivePortFrom());
+                ftpPolicy.put("passivePortTo", instance.getFtpPassivePortTo());
+                // externalHost is optional — when null, DMZ falls back to its
+                // service-wide dmz.external-host (env DMZ_EXTERNAL_HOST).
+                if (instance.getExternalHost() != null && !instance.getExternalHost().isBlank()) {
+                    ftpPolicy.put("externalHost", instance.getExternalHost());
+                }
+                ftpPolicy.put("rewritePasvResponse", true);
+                mapping.put("ftpDataChannelPolicy", ftpPolicy);
+            }
+
             callWithRetry("createMapping", () -> dmzProxyClient.createMapping(mapping),
                     "Proxy mapping CREATE synced for " + instance.getInstanceId()
                             + " listenPort=" + instance.getProxyPort());

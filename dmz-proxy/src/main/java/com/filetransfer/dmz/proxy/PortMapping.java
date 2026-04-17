@@ -31,6 +31,17 @@ public class PortMapping {
     private InspectionPolicy inspectionPolicy;
     private QoSPolicy qosPolicy;
     private HealthCheckPolicy healthCheckPolicy;
+    /**
+     * When non-null, the mapping is treated as an FTP control-channel listener
+     * and DMZ:
+     *   1. Intercepts {@code 227 Entering Passive Mode} replies from the backend
+     *      and rewrites the advertised IP to {@code externalHost} (reverse-proxy
+     *      semantics — clients must see DMZ, not the internal service).
+     *   2. Spawns sibling TCP forwarders for every port in
+     *      {@code passivePortFrom..passivePortTo} so the data connection traverses
+     *      DMZ too. Same port number on both sides → no port translation needed.
+     */
+    private FtpDataChannelPolicy ftpDataChannelPolicy;
     @Builder.Default private boolean proxyProtocolEnabled = false;
     @Builder.Default private boolean auditEnabled = true;
 
@@ -145,6 +156,36 @@ public class PortMapping {
         @Builder.Default private long perConnectionMaxBytesPerSecond = 0;
         @Builder.Default private int priority = 5;                     // 1=highest, 10=lowest
         @Builder.Default private int burstAllowancePercent = 20;
+    }
+
+    /**
+     * FTP data-channel support for reverse-proxy topology.
+     *
+     * <p>FTP is uniquely nasty for a reverse proxy: PASV replies embed the
+     * server's IP/port in the control-channel payload. Without rewriting,
+     * clients receive the internal container IP and passive transfers fail or
+     * leak topology. With rewriting + sibling port forwarders, the client
+     * sees only DMZ's external address and a range of DMZ-side passive ports
+     * that each forward 1:1 to the backend's same-numbered port.
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FtpDataChannelPolicy {
+        /** Lower bound of the passive-port range DMZ will listen on + forward. */
+        private Integer passivePortFrom;
+        /** Upper bound (inclusive). */
+        private Integer passivePortTo;
+        /**
+         * Externally-visible host advertised in rewritten PASV replies. Must be
+         * the address clients reach DMZ at, not the internal container name.
+         * When null, falls back to the service-wide {@code dmz.external-host}
+         * property (env {@code DMZ_EXTERNAL_HOST}).
+         */
+        private String externalHost;
+        /** When false, DMZ forwards PASV replies untouched. Defaults to true. */
+        @Builder.Default private boolean rewritePasvResponse = true;
     }
 
     /** Backend health checking configuration. */

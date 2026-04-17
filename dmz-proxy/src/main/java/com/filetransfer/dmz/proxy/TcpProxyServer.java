@@ -232,6 +232,11 @@ public class TcpProxyServer {
                                     streamCh.pipeline().addLast("ssh-banner-rewrite",
                                         new SshBannerRewriteHandler(manager.getSshBanner()));
                                 }
+                                final String tunnelPasvHost = resolvePasvExternalHost();
+                                if (tunnelPasvHost != null) {
+                                    streamCh.pipeline().addLast("pasv-rewrite",
+                                        new PasvResponseRewriter(mapping.getName(), tunnelPasvHost));
+                                }
                                 streamCh.pipeline().addLast(new RelayHandler(clientCh, bytesForwarded,
                                     null, null, null, 0, null, false,
                                     null, null, 0));
@@ -278,6 +283,7 @@ public class TcpProxyServer {
 
                         if (!useTunnel) {
                             // ── Direct path: Bootstrap.connect() (default / fallback) ──
+                            final String pasvExternalHost = resolvePasvExternalHost();
                             Bootstrap backendBootstrap = new Bootstrap()
                                     .group(clientCh.eventLoop())
                                     .channel(NioSocketChannel.class)
@@ -292,6 +298,12 @@ public class TcpProxyServer {
                                             if (manager != null && manager.isSshBannerRewriteEnabled()) {
                                                 backendCh.pipeline().addLast("ssh-banner-rewrite",
                                                     new SshBannerRewriteHandler(manager.getSshBanner()));
+                                            }
+                                            // FTP PASV rewriter on backend→client only. Must sit BEFORE
+                                            // RelayHandler so the rewritten bytes are what get forwarded.
+                                            if (pasvExternalHost != null) {
+                                                backendCh.pipeline().addLast("pasv-rewrite",
+                                                    new PasvResponseRewriter(mapping.getName(), pasvExternalHost));
                                             }
                                             backendCh.pipeline().addLast(new RelayHandler(clientCh, bytesForwarded,
                                                 null, null, null, 0, null, false,
@@ -365,6 +377,30 @@ public class TcpProxyServer {
      */
     public void updateSecurityFilter(ManualSecurityFilter filter) {
         this.manualFilter = filter;
+    }
+
+    /**
+     * Resolve the externally-visible host for FTP PASV rewriting, honoring
+     * precedence: per-mapping {@code ftpDataChannelPolicy.externalHost} >
+     * service-wide {@code dmz.external-host} > null (= no rewriting).
+     *
+     * <p>Returns null when this mapping has no FTP data-channel policy or PASV
+     * rewriting is disabled on it — the pipeline won't install the rewriter.
+     */
+    private String resolvePasvExternalHost() {
+        PortMapping.FtpDataChannelPolicy fdc = mapping.getFtpDataChannelPolicy();
+        if (fdc == null || !fdc.isRewritePasvResponse()) return null;
+        if (fdc.getExternalHost() != null && !fdc.getExternalHost().isBlank()) {
+            return fdc.getExternalHost();
+        }
+        if (manager != null) {
+            String svc = manager.getProperties().getExternalHost();
+            if (svc != null && !svc.isBlank()) return svc;
+        }
+        log.warn("[{}] FTP data-channel policy present but no externalHost resolvable " +
+                "(neither per-mapping nor dmz.external-host). PASV replies will NOT be rewritten " +
+                "— clients may fail passive mode.", mapping.getName());
+        return null;
     }
 
     /**

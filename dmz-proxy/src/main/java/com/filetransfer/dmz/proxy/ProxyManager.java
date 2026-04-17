@@ -55,6 +55,8 @@ public class ProxyManager {
 
     private final ConcurrentHashMap<String, TcpProxyServer> servers = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, PortMapping> mappings = new ConcurrentHashMap<>();
+    // FTP passive-port forwarders per mapping (one FtpPassivePortForwarders owns the whole range).
+    private final ConcurrentHashMap<String, FtpPassivePortForwarders> ftpPassiveForwarders = new ConcurrentHashMap<>();
 
     // ── Core security components ──
     @Getter private ConnectionTracker connectionTracker;
@@ -459,9 +461,32 @@ public class ProxyManager {
             server.start();
             servers.put(mapping.getName(), server);
             mappings.put(mapping.getName(), mapping);
+            // FTP passive-port forwarders are siblings of the control-port listener —
+            // started/stopped alongside the main server so lifecycle stays coherent.
+            startPassiveForwarders(mapping);
         } catch (Exception e) {
             throw new RuntimeException("Failed to start proxy for " + mapping.getName(), e);
         }
+    }
+
+    /**
+     * Spawn sibling TCP forwarders covering the FTP passive port range, each
+     * listening on the DMZ side and forwarding to the same port number on the
+     * backend. No-op when the mapping has no FTP data-channel policy or the
+     * range is unset.
+     */
+    private void startPassiveForwarders(PortMapping mapping) {
+        PortMapping.FtpDataChannelPolicy fdc = mapping.getFtpDataChannelPolicy();
+        if (fdc == null || fdc.getPassivePortFrom() == null || fdc.getPassivePortTo() == null) {
+            return;
+        }
+        FtpPassivePortForwarders forwarders = new FtpPassivePortForwarders(
+                mapping.getName(),
+                mapping.getTargetHost(),
+                fdc.getPassivePortFrom(),
+                fdc.getPassivePortTo());
+        forwarders.start();
+        ftpPassiveForwarders.put(mapping.getName(), forwarders);
     }
 
     /**
@@ -511,6 +536,8 @@ public class ProxyManager {
             }
             server.stop();
         }
+        FtpPassivePortForwarders forwarders = ftpPassiveForwarders.remove(name);
+        if (forwarders != null) forwarders.stop();
         if (healthChecker != null) healthChecker.removeBackend(name);
     }
 
