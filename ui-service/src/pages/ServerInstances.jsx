@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
-import { getServerInstances, getAccounts, createServerInstance, updateServerInstance, deleteServerInstance } from '../api/accounts'
+import { getServerInstances, getAccounts, createServerInstance, updateServerInstance, deleteServerInstance, rebindServerInstance } from '../api/accounts'
 import {
   getServerAccounts, revokeServerAccess,
   updateServerAssignment, toggleMaintenance,
@@ -359,6 +359,12 @@ export default function ServerInstances() {
     onError: () => toast.error('Failed to toggle maintenance mode'),
   })
 
+  const rebindMut = useMutation({
+    mutationFn: (id) => rebindServerInstance(id),
+    onSuccess: () => { qc.invalidateQueries(['server-instances']); toast.success('Rebind queued — listener will re-attempt to bind') },
+    onError: (err) => toast.error(err.response?.data?.error || 'Rebind failed'),
+  })
+
   const openEdit = (s) => {
     setEditServer(s)
     setForm({
@@ -651,15 +657,24 @@ export default function ServerInstances() {
                             </span>
                           )}
                           {s.bindState && s.bindState !== 'UNKNOWN' && (
-                            <span
-                              title={s.bindError || `Last bind attempt: ${s.lastBindAttemptAt || 'never'}`}
-                              className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                s.bindState === 'BOUND' ? 'bg-emerald-100 text-emerald-700'
-                                : s.bindState === 'BIND_FAILED' ? 'bg-red-100 text-red-700'
-                                : 'bg-gray-100 text-gray-700'
-                              }`}>
-                              {s.bindState}
-                            </span>
+                            s.bindState === 'BIND_FAILED' ? (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); rebindMut.mutate(s.id) }}
+                                disabled={rebindMut.isPending}
+                                title={s.bindError || 'Click to retry bind'}
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-50">
+                                <ArrowPathIcon className="w-3 h-3" /> BIND_FAILED
+                              </button>
+                            ) : (
+                              <span
+                                title={s.bindError || `Last bind attempt: ${s.lastBindAttemptAt || 'never'}`}
+                                className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                  s.bindState === 'BOUND' ? 'bg-emerald-100 text-emerald-700'
+                                  : 'bg-gray-100 text-gray-700'
+                                }`}>
+                                {s.bindState}
+                              </span>
+                            )
                           )}
                         </div>
                       </td>

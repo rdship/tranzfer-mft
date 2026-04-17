@@ -21,3 +21,4 @@ export const getServerInstancesActiveByProtocol = (protocol) => onboardingApi.ge
 export const createServerInstance = (data) => onboardingApi.post('/api/servers', data).then(r => r.data)
 export const updateServerInstance = (id, data) => onboardingApi.patch(`/api/servers/${id}`, data).then(r => r.data)
 export const deleteServerInstance = (id) => onboardingApi.delete(`/api/servers/${id}`)
+export const rebindServerInstance = (id) => onboardingApi.post(`/api/servers/${id}/rebind`).then(r => r.data)

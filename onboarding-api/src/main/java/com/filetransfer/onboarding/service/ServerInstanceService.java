@@ -156,6 +156,19 @@ public class ServerInstanceService {
         publishChange(instance, ServerInstanceChangeEvent.ChangeType.DELETED);
     }
 
+    /**
+     * Admin-triggered rebind — republishes an UPDATED event so the owning
+     * protocol service will unbind + bind. Used to recover from BIND_FAILED
+     * without toggling active off/on. Idempotent on BOUND listeners.
+     */
+    @Transactional
+    public ServerInstanceResponse requestRebind(UUID id) {
+        ServerInstance instance = findById(id);
+        publishChange(instance, ServerInstanceChangeEvent.ChangeType.UPDATED);
+        log.info("Rebind requested for server instance {} ({})", instance.getInstanceId(), id);
+        return toResponse(instance);
+    }
+
     private void publishChange(ServerInstance instance, ServerInstanceChangeEvent.ChangeType type) {
         ServerInstanceChangeEvent event = new ServerInstanceChangeEvent(
                 instance.getId(),
