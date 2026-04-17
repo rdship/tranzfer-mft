@@ -2,7 +2,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <parent><groupId>com.filetransfer</groupId><artifactId>file-transfer-platform</artifactId><version>1.0.0-R80</version></parent>
+    <parent><groupId>com.filetransfer</groupId><artifactId>file-transfer-platform</artifactId><version>1.0.0-R81</version></parent>
     <artifactId>keystore-manager</artifactId>
     <name>Keystore Manager</name>
     <description>Centralized key, certificate, and keystore management for all services</description>

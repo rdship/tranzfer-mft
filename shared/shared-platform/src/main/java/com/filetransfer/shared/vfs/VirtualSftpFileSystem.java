@@ -72,7 +72,13 @@ public class VirtualSftpFileSystem extends FileSystem {
 
     @Override
     public Set<String> supportedFileAttributeViews() {
-        return Set.of("basic", "posix");
+        // Only "basic" — VirtualSftpFileAttributes implements BasicFileAttributes,
+        // NOT PosixFileAttributes. Claiming "posix" caused MINA SSHD's readdir to
+        // request posix:* attributes on every entry, fail the cast to
+        // PosixFileAttributes, and abort the listing with "Couldn't read directory".
+        // Clients that want owner/group/mode fall back to SFTP v3 default bits
+        // from VirtualSftpFileAttributes.
+        return Set.of("basic");
     }
 
     @Override

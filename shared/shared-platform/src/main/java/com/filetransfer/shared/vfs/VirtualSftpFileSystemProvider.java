@@ -255,6 +255,20 @@ public class VirtualSftpFileSystemProvider extends FileSystemProvider {
         map.put("lastAccessTime", attrs.lastAccessTime());
         map.put("creationTime", attrs.creationTime());
         map.put("fileKey", attrs.fileKey());
+        // Best-effort POSIX defaults when the caller asks for "posix:*" — Apache
+        // MINA SSHD's SFTP subsystem reads these via Files.readAttributes(p,
+        // "posix:*") when building directory listing responses. Returning real
+        // values here keeps SFTP readdir compatible with strict clients even
+        // though we don't track per-file ownership.
+        String view = attributes != null ? attributes.split(":", 2)[0] : "basic";
+        if ("posix".equalsIgnoreCase(view) || "*".equals(view)) {
+            map.put("owner", (java.nio.file.attribute.UserPrincipal) () -> "vfs");
+            map.put("group", (java.nio.file.attribute.GroupPrincipal) () -> "vfs");
+            map.put("permissions",
+                    attrs.isDirectory()
+                            ? java.nio.file.attribute.PosixFilePermissions.fromString("rwxr-xr-x")
+                            : java.nio.file.attribute.PosixFilePermissions.fromString("rw-r--r--"));
+        }
         return map;
     }
 
