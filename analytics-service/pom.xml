@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.filetransfer</groupId>
         <artifactId>file-transfer-platform</artifactId>
-        <version>1.0.0-R71</version>
+        <version>1.0.0-R72</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <artifactId>analytics-service</artifactId>

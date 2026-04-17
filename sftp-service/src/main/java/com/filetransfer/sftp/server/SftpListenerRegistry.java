@@ -181,8 +181,12 @@ public class SftpListenerRegistry {
      * env-var-driven bean. Matches either by instanceId (explicit) OR by port
      * (defensive — catches cases where instanceId wasn't set but the port
      * already belongs to the primary).
+     *
+     * <p>Consumers must use this check to skip rebind/bind/unbind calls on the
+     * primary — those operations are managed by {@link SftpServerConfig},
+     * not by this registry. Acting on the primary row causes BindException.</p>
      */
-    private boolean isPrimary(ServerInstance si) {
+    public boolean isPrimary(ServerInstance si) {
         if (primaryInstanceId != null && primaryInstanceId.equals(si.getInstanceId())) return true;
         return si.getInternalPort() == primaryPort;
     }

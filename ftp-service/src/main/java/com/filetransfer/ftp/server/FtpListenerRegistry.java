@@ -144,7 +144,13 @@ public class FtpListenerRegistry {
         }
     }
 
-    private boolean isPrimary(ServerInstance si) {
+    /**
+     * True if this row matches the primary listener bound by the env-var bean.
+     * Consumers MUST check this before calling bind/rebind — the primary is
+     * owned by {@link FtpServerConfig}, and runtime bind attempts on its port
+     * will BindException and flip the DB to BIND_FAILED.
+     */
+    public boolean isPrimary(ServerInstance si) {
         if (primaryInstanceId != null && primaryInstanceId.equals(si.getInstanceId())) return true;
         return si.getInternalPort() == primaryPort;
     }

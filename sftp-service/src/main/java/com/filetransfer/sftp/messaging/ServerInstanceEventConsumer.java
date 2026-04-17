@@ -68,12 +68,25 @@ public class ServerInstanceEventConsumer {
                     ServerInstance si = repository.findById(event.id()).orElse(null);
                     if (si == null) { log.warn("ServerInstance {} not found in DB for {}", event.id(), event.changeType()); return; }
                     if (!si.isActive()) return;
+                    if (registry.isPrimary(si)) {
+                        log.info("Skipping bind for primary listener '{}' — managed by env-var bean, not registry", si.getInstanceId());
+                        return;
+                    }
                     registry.bind(si);
                 }
                 case UPDATED -> {
                     ServerInstance si = repository.findById(event.id()).orElse(null);
                     if (si == null) return;
                     if (!si.isActive()) { registry.unbind(event.id()); return; }
+                    // Primary is bound by the env-var-driven bean at boot — a runtime
+                    // rebind via the registry would try to bind its port a second
+                    // time (BindException → BIND_FAILED in DB). Admin must restart
+                    // the container to pick up primary config changes.
+                    if (registry.isPrimary(si)) {
+                        log.info("Skipping rebind for primary listener '{}' — restart the container to apply primary config changes",
+                                si.getInstanceId());
+                        return;
+                    }
                     // Port or key/algorithm settings may have changed — safest is rebind.
                     registry.rebind(si);
                 }

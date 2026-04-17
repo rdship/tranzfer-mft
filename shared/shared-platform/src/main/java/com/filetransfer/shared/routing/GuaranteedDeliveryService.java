@@ -8,6 +8,7 @@ import com.filetransfer.shared.repository.transfer.FileTransferRecordRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -46,7 +47,13 @@ public class GuaranteedDeliveryService {
 
     private final FileTransferRecordRepository recordRepository;
     private final AuditService auditService;
-    private final ConnectorDispatcher connectorDispatcher;
+    /**
+     * ConnectorDispatcher is {@code @ConditionalOnProperty(platform.connectors.enabled,
+     * matchIfMissing=false)} — absent in minimal-profile deployments like the
+     * db-migrate one-shot container. ObjectProvider lets GuaranteedDeliveryService
+     * wire up either way; callers use {@code ifAvailable} to no-op when off.
+     */
+    private final ObjectProvider<ConnectorDispatcher> connectorDispatcher;
 
     /**
      * Scan for FAILED records and retry them with exponential backoff.
@@ -207,7 +214,7 @@ public class GuaranteedDeliveryService {
      * Alert admin for non-retryable failures (auth, encryption key issues).
      */
     private void alertAdmin(FileTransferRecord record) {
-        connectorDispatcher.dispatch(ConnectorDispatcher.MftEvent.builder()
+        connectorDispatcher.ifAvailable(d -> d.dispatch(ConnectorDispatcher.MftEvent.builder()
                 .eventType("NON_RETRYABLE_FAILURE").severity("HIGH")
                 .trackId(record.getTrackId())
                 .filename(record.getOriginalFilename())
@@ -215,7 +222,7 @@ public class GuaranteedDeliveryService {
                 .details("Error: " + record.getErrorMessage()
                         + "\nCategory: " + classifyCategory(record.getErrorMessage())
                         + "\nManual intervention required.")
-                .service("guaranteed-delivery").build());
+                .service("guaranteed-delivery").build()));
     }
 
     /**
@@ -251,14 +258,14 @@ public class GuaranteedDeliveryService {
                     quarantine.toString(), "Quarantined: " + classifyCategory(record.getErrorMessage())
                             + ". File preserved for manual recovery.");
 
-            connectorDispatcher.dispatch(ConnectorDispatcher.MftEvent.builder()
+            connectorDispatcher.ifAvailable(d -> d.dispatch(ConnectorDispatcher.MftEvent.builder()
                     .eventType("QUARANTINE").severity("CRITICAL").trackId(record.getTrackId())
                     .filename(record.getOriginalFilename())
                     .summary("File quarantined: " + classifyCategory(record.getErrorMessage()))
                     .details("File preserved at " + quarantine + ". Category: "
                             + classifyCategory(record.getErrorMessage())
                             + ". Manual intervention required.")
-                    .service("guaranteed-delivery").build());
+                    .service("guaranteed-delivery").build()));
 
         } catch (Exception e) {
             log.error("[{}] Quarantine failed: {}", record.getTrackId(), e.getMessage());

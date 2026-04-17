@@ -62,12 +62,21 @@ public class ServerInstanceEventConsumer {
                 case CREATED, ACTIVATED -> {
                     ServerInstance si = repository.findById(event.id()).orElse(null);
                     if (si == null || !si.isActive()) return;
+                    if (registry.isPrimary(si)) {
+                        log.info("Skipping bind for primary FTP listener '{}' — managed by env-var bean", si.getInstanceId());
+                        return;
+                    }
                     registry.bind(si);
                 }
                 case UPDATED -> {
                     ServerInstance si = repository.findById(event.id()).orElse(null);
                     if (si == null) return;
                     if (!si.isActive()) { registry.unbind(event.id()); return; }
+                    if (registry.isPrimary(si)) {
+                        log.info("Skipping rebind for primary FTP listener '{}' — restart the container to apply primary config changes",
+                                si.getInstanceId());
+                        return;
+                    }
                     registry.rebind(si);
                 }
                 case DEACTIVATED, DELETED -> registry.unbind(event.id());
