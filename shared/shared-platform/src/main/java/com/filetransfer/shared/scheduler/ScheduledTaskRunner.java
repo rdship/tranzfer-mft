@@ -7,7 +7,12 @@ import com.filetransfer.shared.routing.FlowProcessingEngine;
 import com.filetransfer.shared.util.TrackIdGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+
+import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -22,6 +27,24 @@ public class ScheduledTaskRunner {
     private final FileFlowRepository flowRepository;
     private final FlowProcessingEngine flowEngine;
     private final TrackIdGenerator trackIdGenerator;
+
+    /**
+     * Comma-separated allowlist of script command names. When empty, only the
+     * built-in no-op stubs below may run. Admins must opt scripts in explicitly
+     * to prevent the classic "scheduled task references a binary that doesn't
+     * exist → alarm spam every cron tick" failure mode.
+     */
+    @Value("${scheduler.script-allowlist:}")
+    private String scriptAllowlistCsv;
+
+    /**
+     * Built-in stub scripts always permitted. These log-and-exit-0 so tasks
+     * referencing them never fail, even when the real tooling isn't deployed.
+     * Admins swap them for real binaries by adding to script-allowlist.
+     */
+    private static final Set<String> BUILTIN_STUBS = Set.of("noop", "check-pgp-expiry",
+            "refresh-sanctions-lists", "check-cert-expiry", "license-usage-audit",
+            "dmz-health-probe", "transform-nightly");
 
     public void execute(ScheduledTask task) throws Exception {
         Map<String, String> cfg = task.getConfig() != null ? task.getConfig() : Map.of();
@@ -90,6 +113,19 @@ public class ScheduledTaskRunner {
             throw new SecurityException("Script command contains disallowed shell operators: " + scriptCmd);
         }
 
+        // Check allowlist. Built-in stubs always run (as no-ops) so missing
+        // binaries don't alarm every cron tick; admin-declared scripts require
+        // explicit scheduler.script-allowlist membership.
+        if (BUILTIN_STUBS.contains(scriptCmd)) {
+            log.info("Executing built-in stub: {} (no-op; no binary invoked)", scriptCmd);
+            return;
+        }
+        if (!isAllowed(scriptCmd)) {
+            log.warn("ScheduledTask script '{}' is NOT in scheduler.script-allowlist — skipped. "
+                    + "Add it to the allowlist env var to enable.", scriptCmd);
+            return;
+        }
+
         log.info("Executing script: {}", script);
         // Use array form to avoid shell interpretation — prevents injection entirely
         String[] parts = script.split("\\s+");
@@ -106,6 +142,13 @@ public class ScheduledTaskRunner {
         if (!finished) { proc.destroyForcibly(); throw new RuntimeException("Script timed out after " + timeout + "s"); }
         if (proc.exitValue() != 0) throw new RuntimeException("Script exited with code " + proc.exitValue() + ": " + output);
         log.info("Script completed: {}", output.length() > 200 ? output.substring(0, 200) + "..." : output);
+    }
+
+    private boolean isAllowed(String scriptCmd) {
+        if (scriptAllowlistCsv == null || scriptAllowlistCsv.isBlank()) return false;
+        Set<String> allowlist = Arrays.stream(scriptAllowlistCsv.split(","))
+                .map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toSet());
+        return allowlist.contains(scriptCmd);
     }
 
     private static final java.util.List<String> ALLOWED_CLEANUP_ROOTS = java.util.List.of(
