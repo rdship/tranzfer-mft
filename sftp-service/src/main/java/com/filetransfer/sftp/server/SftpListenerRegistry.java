@@ -207,6 +207,16 @@ public class SftpListenerRegistry {
         si.setBindState(bound ? "BOUND" : (error != null ? "BIND_FAILED" : "UNBOUND"));
         si.setBindError(error);
         si.setLastBindAttemptAt(Instant.now());
+        // Stamp the node that owns this binding. Pair with the primary
+        // self-reporter (R73) so every row — primary or dynamic — has the
+        // container hostname recorded. Matches bound_node shape reported by
+        // /internal/listeners/live and Sentinel's listener_bind_failed rule.
+        si.setBoundNode(bound ? hostname() : null);
         serverInstanceRepository.save(si);
+    }
+
+    private static String hostname() {
+        try { return java.net.InetAddress.getLocalHost().getHostName(); }
+        catch (java.net.UnknownHostException e) { return null; }
     }
 }

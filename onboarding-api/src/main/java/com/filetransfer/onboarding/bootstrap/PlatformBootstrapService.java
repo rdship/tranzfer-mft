@@ -66,6 +66,20 @@ public class PlatformBootstrapService {
     @Value("${platform.bootstrap.seed-demo-data:true}")
     private boolean seedDemoData;
 
+    /**
+     * Initial super-admin password. Env var overrides the dev-insecure default.
+     * When the default ("superadmin") is used, {@link #seedSuperAdmin} logs a
+     * loud WARN at startup telling operators to rotate it via the API. This
+     * avoids forcing every dev/CI run to generate a strong password (the
+     * PasswordPolicy validator would reject "superadmin") while still making
+     * production misuse visible at every container start.
+     */
+    @Value("${platform.bootstrap.admin-password:superadmin}")
+    private String adminPassword;
+
+    @Value("${platform.environment:DEV}")
+    private String platformEnvironment;
+
     @EventListener(ApplicationReadyEvent.class)
     @Order(Ordered.LOWEST_PRECEDENCE)
     @Transactional
@@ -129,13 +143,28 @@ public class PlatformBootstrapService {
     // ──────────────────────────────────────────────────────────────────────────
 
     private User seedSuperAdmin() {
+        String effectivePassword = adminPassword;
+        boolean isDefault = "superadmin".equals(effectivePassword);
         User admin = User.builder()
                 .email("superadmin@tranzfer.io")
-                .passwordHash(passwordEncoder.encode("superadmin"))
+                .passwordHash(passwordEncoder.encode(effectivePassword))
                 .role(UserRole.ADMIN)
                 .build();
         admin = userRepository.save(admin);
         log.info("[Bootstrap] Created super-admin user: superadmin@tranzfer.io (role=ADMIN)");
+        // Make the break-glass password visible at every cold boot. In PROD/STAGING
+        // environments this is a red-alert message so ops notices before shipping.
+        if (isDefault) {
+            String env = platformEnvironment != null ? platformEnvironment.toUpperCase() : "DEV";
+            String severity = ("PROD".equals(env) || "STAGING".equals(env) || "CERT".equals(env))
+                    ? "!! CRITICAL !!" : "(dev default)";
+            log.warn("═══════════════════════════════════════════════════════════════");
+            log.warn("  {} SUPER-ADMIN USING DEFAULT PASSWORD 'superadmin'", severity);
+            log.warn("  Bootstrap seed bypasses the password policy validator.");
+            log.warn("  Set PLATFORM_BOOTSTRAP_ADMIN_PASSWORD at first boot, OR rotate");
+            log.warn("  immediately via POST /api/users/me/password after login.");
+            log.warn("═══════════════════════════════════════════════════════════════");
+        }
         return admin;
     }
 

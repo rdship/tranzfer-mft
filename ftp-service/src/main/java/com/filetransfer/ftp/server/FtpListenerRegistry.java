@@ -165,6 +165,12 @@ public class FtpListenerRegistry {
         si.setBindState(bound ? "BOUND" : (error != null ? "BIND_FAILED" : "UNBOUND"));
         si.setBindError(error);
         si.setLastBindAttemptAt(Instant.now());
+        si.setBoundNode(bound ? hostname() : null);
         repository.save(si);
+    }
+
+    private static String hostname() {
+        try { return java.net.InetAddress.getLocalHost().getHostName(); }
+        catch (java.net.UnknownHostException e) { return null; }
     }
 }

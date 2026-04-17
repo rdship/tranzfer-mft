@@ -161,16 +161,26 @@ public class KeyManagementService {
 
         PGPKeyPair pgpKeyPair = new JcaPGPKeyPair(PGPPublicKey.RSA_GENERAL, kp, new Date());
 
-        // Build secret key — SHA-256 for digest (SHA-1 is cryptographically weak)
-        PGPDigestCalculator sha256Calc = new JcaPGPDigestCalculatorProviderBuilder().build()
-                .get(org.bouncycastle.bcpg.HashAlgorithmTags.SHA256);
+        // Two distinct digest calculators are needed:
+        //  1. SHA-1 for the S2K (String-to-Key) used by JcePBESecretKeyEncryptorBuilder —
+        //     BouncyCastle's current release still ONLY accepts SHA-1 for the secret-key
+        //     encryption checksum (throws "only SHA1 supported" for anything else).
+        //     This is a quirk of the PGP S2K standard — the SHA-1 here is used solely
+        //     for key-derivation, NOT for signing or encryption of payloads.
+        //  2. SHA-256 for the self-certification signature and the PGPSecretKey
+        //     constructor's checksum — these are the actual security-relevant digests.
+        org.bouncycastle.openpgp.operator.PGPDigestCalculatorProvider digestProvider =
+                new JcaPGPDigestCalculatorProviderBuilder().build();
+        PGPDigestCalculator sha1Calc   = digestProvider.get(org.bouncycastle.bcpg.HashAlgorithmTags.SHA1);
+        PGPDigestCalculator sha256Calc = digestProvider.get(org.bouncycastle.bcpg.HashAlgorithmTags.SHA256);
+
         PGPSecretKey secretKey = new PGPSecretKey(
                 PGPSignature.DEFAULT_CERTIFICATION, pgpKeyPair, identity, sha256Calc,
                 null, null,
                 new JcaPGPContentSignerBuilder(pgpKeyPair.getPublicKey().getAlgorithm(),
                         org.bouncycastle.bcpg.HashAlgorithmTags.SHA256),
                 new JcePBESecretKeyEncryptorBuilder(
-                        org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags.AES_256, sha256Calc)
+                        org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags.AES_256, sha1Calc)
                         .setProvider("BC").build(passphrase.toCharArray()));
 
         // Export armored public key
