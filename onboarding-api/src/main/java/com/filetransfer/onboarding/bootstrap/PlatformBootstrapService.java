@@ -825,13 +825,10 @@ public class PlatformBootstrapService {
                 .build());
 
         // Flow 4: Mailbox Distribution
-        // Priority 1 (lowest) — this is a catch-all with pattern ".*" that matches
-        // every inbound filename. At the original priority 100 it preempted every
-        // fixture/user-defined flow in the test rig (and would do the same in a
-        // real multi-partner install). Lowering it to 1 keeps the default
-        // fan-everything-into-RetailMax-mailbox behavior for the demo scenario
-        // while letting any more-specific flow (regtest-f7 at 10, user custom at
-        // 50, etc.) win on their pattern match.
+        // Priority 999 — true last-resort catch-all. RoutingEngine matches active
+        // flows in priority ASC order and takes the first pattern hit. Placing
+        // this at 999 pushes it behind every specific-pattern flow so the
+        // catch-all fires ONLY when nothing else matched.
         flows.add(FileFlow.builder()
                 .name("Mailbox Distribution")
                 .description("All files arriving at RetailMax are screened, renamed with timestamp, " +
@@ -843,7 +840,7 @@ public class PlatformBootstrapService {
                 .destinationPath("/outbox")
                 .partnerId(partners.get(3).getId())
                 .direction("INBOUND")
-                .priority(1)
+                .priority(999)
                 .steps(List.of(
                         FileFlow.FlowStep.builder()
                                 .type("SCREEN")
