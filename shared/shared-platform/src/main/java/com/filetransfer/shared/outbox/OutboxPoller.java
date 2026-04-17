@@ -4,6 +4,7 @@ import com.filetransfer.shared.entity.core.ConfigEventOutbox;
 import com.filetransfer.shared.repository.core.ConfigEventOutboxRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -39,6 +40,7 @@ public class OutboxPoller {
     private String exchange;
 
     @Scheduled(fixedDelayString = "${outbox.poller.delay-ms:500}")
+    @SchedulerLock(name = "outbox_drain", lockAtLeastFor = "PT0.4S", lockAtMostFor = "PT10S")
     @Transactional
     public void drain() {
         List<ConfigEventOutbox> batch = repository.findUnpublished(PageRequest.of(0, BATCH_SIZE));
@@ -67,6 +69,7 @@ public class OutboxPoller {
 
     /** Clean up successfully-published rows older than 24h. */
     @Scheduled(fixedDelayString = "${outbox.poller.cleanup-ms:3600000}")
+    @SchedulerLock(name = "outbox_cleanup", lockAtLeastFor = "PT55M", lockAtMostFor = "PT59M")
     @Transactional
     public void cleanup() {
         Instant cutoff = Instant.now().minus(24, ChronoUnit.HOURS);
