@@ -19,6 +19,12 @@ This document explains how TranzFer's 20 microservices fit together, how data fl
 11. [Platform Maturity Infrastructure](#platform-maturity-infrastructure)
 12. [AI Engine: Cybersecurity Intelligence](#ai-engine-cybersecurity-intelligence)
 13. [Network Diagram](#network-diagram)
+14. [AI-Powered EDI Map Training System](#ai-powered-edi-map-training-system)
+15. [Per-Service Integration Reference](#per-service-integration-reference)
+16. [Standalone Deployment Patterns](#standalone-deployment-patterns)
+17. [Common Integration Recipes](#common-integration-recipes)
+18. [Inter-Service Communication Safety Matrix](#inter-service-communication-safety-matrix)
+19. [Authoring New Inter-Service Calls](#authoring-new-inter-service-calls)
 
 ---
 
@@ -1424,3 +1430,578 @@ Examples:
 | POST | `/convert/trained` | Convert using trained map (highest accuracy) |
 | GET | `/convert/trained/check` | Check if trained map exists |
 | POST | `/mapping/smart` | Auto-selects trained map or falls back to sample-based |
+
+---
+
+## Per-Service Integration Reference
+
+This section is the authoritative contract reference for every service in the platform: what it listens on, what it calls, what it publishes, how its request/response envelopes are shaped, and how it can be deployed standalone or composed into a third-party product. Use it when:
+
+- You are integrating TranzFer components into a non-MFT application (e.g., reusing `encryption-service` as a generic crypto microservice).
+- You are designing a new inter-service call path and need to know which services are safe to call synchronously vs. only via RabbitMQ.
+- You are on-call and need to trace a failure back to the service that owns a given endpoint.
+
+### Standard request/response envelopes
+
+Every TranzFer REST endpoint follows the same contract unless otherwise noted.
+
+**Success (2xx):**
+```json
+{
+  "<domain-object-field>": "...",
+  "..." : "..."
+}
+```
+Either a single JSON object or a JSON array, directly at the top level. No wrapper.
+
+**Validation error (400):**
+```json
+{
+  "timestamp": "2026-04-17T12:34:56Z",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "<specific validation message>",
+  "path": "/api/..."
+}
+```
+
+**Auth failure (401):** Empty body, `WWW-Authenticate` header present.
+**Forbidden (403):** Same shape as 400 with `status=403`.
+**Not found (404):** Same shape as 400 with `status=404`.
+**Conflict (409):** Domain-specific body — e.g., port-conflict returns `{error, host, requestedPort, suggestedPorts}` (see §server-instances).
+**Server error (500):** Same shape as 400 with `status=500`; stack traces in logs, not body.
+
+**Auth modes:**
+- **JWT** — user-facing endpoints. `Authorization: Bearer <jwt>` from `POST /api/auth/login`. 15-min TTL; refresh via `POST /api/auth/refresh`.
+- **SPIFFE JWT-SVID** — inter-service calls. Services obtain SVIDs from the SPIRE agent and present them as `Authorization: Bearer <svid>`. `/internal/*` endpoints require SPIFFE.
+- **`permitAll`** — health checks, metrics, and public auth endpoints.
+
+---
+
+### 1. onboarding-api (`:8080`)
+
+**Purpose:** Tenant + user + account + server-instance lifecycle. The single write-side for users, transfer accounts, server instances, folder mappings, and partner agreements. Runs the bootstrap seeder, outbox poller, and JWT issuer.
+
+**REST surface (abbreviated — 40+ endpoints):**
+
+| Method | Path | Purpose | Auth |
+|---|---|---|---|
+| POST | `/api/auth/login` | Email/password → JWT | permitAll |
+| POST | `/api/auth/register` | Sign up | permitAll |
+| POST | `/api/auth/refresh` | Rotate tokens | permitAll |
+| POST | `/api/auth/admin/unlock/{email}` | Admin unlock | JWT+ADMIN |
+| GET | `/api/users` | List users | JWT+ADMIN |
+| PATCH | `/api/users/{id}` | Update role/status | JWT+ADMIN |
+| GET | `/api/accounts` | List transfer accounts | JWT+OPERATOR |
+| POST | `/api/accounts` | Create account | JWT+OPERATOR |
+| GET | `/api/servers` | List server instances | JWT+OPERATOR |
+| POST | `/api/servers` | Create listener | JWT+OPERATOR |
+| PATCH | `/api/servers/{id}` | Update listener (port/ciphers/etc.) | JWT+OPERATOR |
+| POST | `/api/servers/{id}/rebind` | Retry BIND_FAILED | JWT+OPERATOR |
+| GET | `/api/servers/port-suggestions?host=X&port=Y` | Free-port picker | JWT+OPERATOR |
+| GET | `/api/partners` | List partners | JWT+OPERATOR |
+| GET | `/api/activity-monitor` | Live transfer stream | JWT+VIEWER |
+
+**Inter-service calls OUT:**
+- `storage-manager` — `POST /api/v1/storage/store-stream` when seeding fixture files.
+- `license-service` — `POST /api/v1/licenses/validate` at boot to confirm entitlements.
+- `dmz-proxy` — `POST /api/proxy/mappings` via `DmzProxyClient` on listener create/update, `DELETE` on delete. Retries 3× with exponential backoff.
+
+**Inter-service calls IN:**
+- Every service with UI-facing features forwards through onboarding-api for JWT validation.
+- `gateway-service` queries `GET /api/servers` to resolve routing tables.
+- `ui-service` (React SPA) calls virtually every endpoint.
+- `cli` (mft-client) calls `/api/auth/login` + resource endpoints.
+
+**RabbitMQ:**
+- **Publishes (via outbox):** `server.instance.created|updated|activated|deactivated|deleted`, `account.*`, `flow.execution.*`
+- **Consumes:** `activity.stream.*` (monitoring feed), DLQ drain
+
+**Standalone use case:** a headless multi-tenant account store. An external product wanting TranzFer's user/tenant model but not its transfer engine runs onboarding-api alone with postgres + RabbitMQ, talks directly via its REST API. Ignores all protocol services.
+
+**Integration recipe:** `POST /api/v1/tenants/signup` → `POST /api/auth/login` → issue JWTs to your own application layer. Use `GET /api/users` as your user directory. Use `POST /api/servers` + consumers for dynamic listener lifecycle even if you replace the protocol servers with your own.
+
+---
+
+### 2. sftp-service (`:8081` REST, `:2222` SSH)
+
+**Purpose:** SSH/SFTP server. Listens on a primary port (env-var driven) + any dynamic listeners added via `POST /api/servers`. Every session is tagged with its arriving listener's identity (R78) for account routing and storage-mode resolution.
+
+**REST surface:**
+
+| Method | Path | Purpose | Auth |
+|---|---|---|---|
+| POST | `/internal/files/receive` | Receive forwarded file from a peer service | SPIFFE |
+| POST | `/internal/files/receive-stream` | Stream upload | SPIFFE |
+| GET | `/internal/listeners/live` | In-process registry snapshot | SPIFFE |
+| GET | `/actuator/health` | Liveness | permitAll |
+
+**SSH/SFTP:** Port 2222 (primary) + dynamic ports. SSH host keys from `keystore-manager`; VFS or physical-disk home dirs per account storage mode.
+
+**Inter-service calls OUT:**
+- `storage-manager` — `POST /api/v1/storage/store-stream` on every SFTP upload completion; `GET /api/v1/storage/retrieve/{trackId}` on download.
+- `config-service` — `GET /api/servers` at boot (cached in registry).
+- `encryption-service` — encrypt/decrypt passes from flow steps.
+
+**Inter-service calls IN:**
+- `gateway-service` — TCP relay of port 2222/dynamic ports.
+- `external-forwarder-service` — `POST /internal/files/receive-stream` to deliver inbound via a fake-SFTP path.
+
+**RabbitMQ:**
+- **Publishes:** `file.uploaded.*` (tagged with `X-Origin-Pod` header for dedup — R82), `account.session.*`
+- **Consumes:** `server.instance.*` (bind/unbind/rebind via `ServerInstanceEventConsumer`), `keystore.key.rotated` (hot-reload via `KeystoreRotationConsumer`), `account.event.*`
+
+**Standalone use case:** a drop-in SFTP server for any product that needs VFS-backed storage. Run sftp-service + postgres + MinIO + onboarding-api (for account auth) and you have a self-hosted SFTP endpoint with content-addressable storage, flow routing, and audit trail.
+
+**Integration recipe:** your product creates users via `onboarding-api POST /api/auth/register` + `POST /api/accounts` (VIRTUAL storage mode). Partners SFTP-upload to `sftp-service:2222`. Your app reads files from `storage-manager GET /api/v1/storage/retrieve-by-key/{sha256}` using CAS keys emitted on `file.uploaded.*`.
+
+---
+
+### 3. ftp-service (`:8082` REST, `:21`/`:990` FTP/FTPS, `:21000-21010` passive)
+
+**Purpose:** FTP and FTPS server (Apache FtpServer). Shares listener lifecycle + storage-mode semantics with sftp-service. FTPS cert from `keystore-manager`. Passive port range pre-negotiated per listener.
+
+Same shape as `sftp-service` except for protocol specifics:
+
+**REST surface:** mirrors sftp-service (`/internal/files/*`, `/internal/listeners/live`, `/actuator/*`).
+
+**FTP/FTPS:** port 21 (primary plain FTP) + 990 (implicit FTPS) + dynamic ports. `FtpListenerContext` Ftplet threads arriving listener identity through Apache FtpServer (which has no native session-attribute concept) to `CredentialService` and `VirtualFtpFileSystemFactory`.
+
+**Inter-service calls, RabbitMQ, standalone use case:** identical shape to sftp-service. Substitute FTP/FTPS for SFTP.
+
+---
+
+### 4. ftp-web-service (`:8083`)
+
+**Purpose:** Browser-facing HTTP upload/download portal. Chunked multipart upload; resumable via `Content-Range`. Backed by the same VFS + storage-manager pipeline.
+
+**REST surface:**
+
+| Method | Path | Purpose | Auth |
+|---|---|---|---|
+| POST | `/api/upload/chunked` | Multipart chunk upload | JWT |
+| POST | `/api/upload/chunked/complete` | Commit chunks | JWT |
+| GET | `/files/{id}` | Download by ID | JWT |
+| GET | `/health` | Liveness | permitAll |
+
+**Inter-service calls OUT:** `storage-manager` (identical to sftp-service).
+
+**Inter-service calls IN:** `ui-service` proxies `/api/upload/*` and `/files/*` from the React SPA.
+
+**RabbitMQ:** same event schema as sftp-service (`file.uploaded.*`).
+
+**Standalone use case:** a partner-facing web portal for file drop-off and mailbox pickup, without requiring an SFTP or FTP client. Partners log in with JWT, drag-drop files, browse mailbox.
+
+---
+
+### 5. config-service (`:8084`)
+
+**Purpose:** Configuration authority — flows, rules, security profiles, compliance profiles, external destinations, legacy server fallbacks, scheduled tasks, SLAs, listener security policies. Read-mostly from protocol services; writes via admin UI.
+
+**REST surface (condensed — 30+ endpoints):**
+
+| Method | Path | Purpose | Auth |
+|---|---|---|---|
+| GET | `/api/flows` | List flows (Redis-cached, 10-min TTL) | JWT+OPERATOR |
+| POST | `/api/flows` | Create flow | JWT+OPERATOR |
+| PATCH | `/api/flows/{id}` | Update flow | JWT+OPERATOR |
+| DELETE | `/api/flows/{id}` | Delete flow | JWT+OPERATOR |
+| GET | `/api/scheduler` | List scheduled tasks | JWT+OPERATOR |
+| POST | `/api/scheduler` | Create task (validates `config.command` for EXECUTE_SCRIPT) | JWT+OPERATOR |
+| GET | `/api/legacy-servers` | Fallback routing for unknown users | JWT+OPERATOR |
+| POST | `/api/v1/security/profiles` | Security tier policies | JWT+ADMIN |
+| POST | `/api/v1/compliance/profiles` | FIPS/HIPAA/etc. profiles | JWT+ADMIN |
+
+**Request example — create flow:**
+```json
+POST /api/flows
+{
+  "name": "acme-edi-pipeline",
+  "filenamePattern": ".*\\.edi",
+  "priority": 50,
+  "active": true,
+  "sourceAccount": {"id": "..."},
+  "steps": [
+    {"type": "SCREEN", "config": {}, "order": 0},
+    {"type": "CONVERT_EDI", "config": {"targetFormat": "JSON"}, "order": 1},
+    {"type": "MAILBOX", "config": {"destinationUsername": "acme-pickup"}, "order": 2}
+  ]
+}
+```
+
+**Inter-service calls OUT:** none (read-only configuration).
+
+**Inter-service calls IN:** every service that does flow matching loads flows via `FlowRuleRegistryInitializer` → `FileFlowRepository` (shared DB); updates come through RabbitMQ.
+
+**RabbitMQ:**
+- **Publishes:** `flow.rule.updated` (hot-reload signal), `config.changed.*`, `server.config.created|updated|deleted` (legacy, orphan — see [ServerConfig memory](../../.claude/memory/feedback_map_consumers_before_retire.md))
+- **Consumes:** none
+
+**Standalone use case:** a flow-rule engine for any file-processing pipeline. External apps pull flows via REST, compile them into their own matchers, subscribe to `flow.rule.updated` for hot reload.
+
+---
+
+### 6. gateway-service (`:8085` REST, `:2220` SSH gateway, `:2121` FTP gateway)
+
+**Purpose:** Protocol-aware TCP relay that routes by username to the right backend pod (sftp-service instance A or B). Legacy-server fallback for unknown users. Essential for multi-instance HA.
+
+**REST surface:**
+
+| Method | Path | Purpose | Auth |
+|---|---|---|---|
+| GET | `/internal/gateway/status` | Pod status | SPIFFE |
+| GET | `/internal/gateway/routes` | Full route table | SPIFFE |
+| GET | `/internal/gateway/stats` | Connection counters | SPIFFE |
+
+**Inter-service calls OUT:** TCP relay to sftp-service/ftp-service/ftp-web-service by user lookup; fallback to legacy-server configs from config-service.
+
+**Inter-service calls IN:** external clients hit port 2220 (SSH) or 2121 (FTP) as the stable entry point.
+
+**RabbitMQ:**
+- **Publishes:** `connection.event.*`
+- **Consumes:** `server.instance.*` to refresh its routing table
+
+**Standalone use case:** a protocol gateway for any existing SFTP/FTP farm — replace the backend pool with your own, keep TranzFer's user-aware routing.
+
+---
+
+### 7. encryption-service (`:8086`)
+
+**Purpose:** Central crypto primitives. Every flow step that needs encrypt/decrypt (`ENCRYPT_AES`, `DECRYPT_PGP`, etc.) calls this service. Keys sourced from `keystore-manager`. Master key from Vault KMS.
+
+**REST surface:**
+
+| Method | Path | Purpose | Auth |
+|---|---|---|---|
+| POST | `/api/encrypt` | Encrypt file with keyId | JWT |
+| POST | `/api/decrypt` | Decrypt file with keyId | JWT |
+| POST | `/api/encrypt/base64` | Small-payload encrypt | JWT |
+| POST | `/api/credential/encrypt` | Wrap a credential | JWT |
+| GET | `/api/encrypt/status` | Stats | permitAll |
+
+**Request example:**
+```
+POST /api/encrypt
+Content-Type: multipart/form-data
+  file=<binary>
+  keyId=aes-outbound
+  algorithm=AES-256-GCM
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "encryptedSize": 1024,
+  "algorithm": "AES-256-GCM",
+  "keyAlias": "aes-outbound",
+  "encryptedContent": "<base64-or-multipart-part>"
+}
+```
+
+**Inter-service calls OUT:** `keystore-manager GET /api/v1/keys/{alias}` + Vault KMS.
+
+**Inter-service calls IN:** `onboarding-api`, `sftp-service`, `ftp-service`, `storage-manager`, `external-forwarder-service`, `as2-service`, flow engine `ENCRYPT_*` steps.
+
+**RabbitMQ:** publishes `encryption.audit.*`.
+
+**Standalone use case:** generic crypto-as-a-service microservice. Plug into any app via REST; keys managed via keystore-manager or bring-your-own.
+
+---
+
+### 8. external-forwarder-service (`:8087`)
+
+**Purpose:** Outbound delivery to external destinations — SFTP/FTP pushes, HTTPS webhooks, Kafka, AS2. Called by the `FILE_DELIVERY` flow step. Also hot-adds DMZ proxy port mappings for dynamically-created listeners.
+
+**REST surface:**
+
+| Method | Path | Purpose | Auth |
+|---|---|---|---|
+| POST | `/api/forward/{destinationId}` | Forward file to configured destination | JWT+OPERATOR |
+| POST | `/api/forward/test-connection` | Pre-flight connectivity test | JWT+OPERATOR |
+| POST | `/api/forward/deliver/{endpointId}` | Deliver via endpoint config | JWT+OPERATOR |
+| GET | `/api/forward/transfers/active` | Live deliveries | JWT+OPERATOR |
+
+**Inter-service calls OUT:** DMZ proxy (hot-mapping), external SFTP/FTP/HTTP/Kafka/AS2 endpoints, `as2-service` for AS2 partner sends.
+
+**RabbitMQ:** publishes `delivery.event.*`; consumes `delivery.request.*`.
+
+**Standalone use case:** a generic outbound-delivery worker. Any product with files to push to 3rd-party endpoints configures destinations here and triggers via REST.
+
+---
+
+### 9. dmz-proxy (`:8088`, no DB)
+
+**Purpose:** Stateless Netty-based TCP proxy in the DMZ tier. All external SFTP/FTP/HTTPS traffic terminates here first. AI-driven threat verdicts, rate limiting, protocol detection. Intentionally isolated — no shared-module/DB/AMQP dependency; state comes only via REST from onboarding-api.
+
+**REST surface (all SPIFFE-gated):**
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/proxy/mappings` | List active port mappings |
+| POST | `/api/proxy/mappings` | Hot-add mapping (listen port → backend) |
+| DELETE | `/api/proxy/mappings/{name}` | Remove mapping |
+| PUT | `/api/proxy/mappings/{name}/security-policy` | Update security tier |
+| GET | `/api/proxy/security/stats` | Full metrics |
+| GET | `/api/proxy/backends/health` | Backend health pool |
+| GET | `/api/proxy/metrics` | Prometheus scrape (permitAll) |
+
+**Inter-service calls OUT:** `ai-engine POST /api/v1/ai/threat-score` for per-connection verdicts (optional — falls back to rule-only).
+
+**Inter-service calls IN:** `onboarding-api ServerInstanceService.syncProxyMapping` on every listener lifecycle event (R79 made it full create/delete, not just create).
+
+**RabbitMQ:** none (deliberate — preserves DMZ isolation).
+
+**Standalone use case:** a drop-in DMZ proxy for any backend service pool. Hot-add/remove mappings via REST; AI threat scoring is opt-in.
+
+---
+
+### 10. license-service (`:8089`)
+
+**Purpose:** License issuance + validation. Services check entitlements at boot (graceful degradation: 24h cache if license-service unreachable).
+
+**REST surface:**
+
+| Method | Path | Purpose | Auth |
+|---|---|---|---|
+| POST | `/api/v1/licenses/validate` | Validate key | JWT |
+| POST | `/api/v1/licenses/trial` | Activate trial | JWT |
+| POST | `/api/v1/licenses/issue` | Issue new (admin) | JWT+ADMIN |
+| GET | `/api/v1/licenses/catalog/components` | List components | permitAll |
+| GET | `/api/v1/licenses/catalog/tiers` | Product tiers | permitAll |
+
+**Inter-service calls OUT:** Vault KMS for license signing keys.
+**Inter-service calls IN:** every service at boot.
+
+**Standalone use case:** license-server for any SaaS product. Issue, validate, revoke; per-component entitlements.
+
+---
+
+### 11. analytics-service (`:8090`)
+
+**Purpose:** Metrics aggregation, SLA forecasts, dedup savings.
+
+**REST surface:** `/api/v1/analytics/{dashboard, predictions, timeseries, alerts, dedup-stats}`.
+
+**Inter-service calls OUT:** pulls `/actuator/metrics` from every service; `platform-sentinel` findings.
+
+**RabbitMQ:** publishes `metrics.aggregated.*`; consumes `metrics.raw.*`.
+
+**Standalone use case:** a time-series + alerting service. Your app emits metrics over HTTP/RabbitMQ, analytics-service aggregates and forecasts.
+
+---
+
+### 12. ai-engine (`:8091`)
+
+**Purpose:** All ML operations — data classification, anomaly detection, NLP command orchestration, risk scoring, threat scoring, auto-remediation, recommendations, self-driving autonomy.
+
+**REST surface (25+ endpoints):** `/api/v1/ai/{classify, anomalies, nlp/command, risk-score, smart-retry, threat-score, partners, sla/forecasts, remediation/actions, ask, recommendations, self-driving/*, intelligence/*}`.
+
+**Standalone use case:** cybersecurity/ML-ops microservice. Drop into any app that needs file classification, anomaly scoring, or NLP workflow generation.
+
+---
+
+### 13. screening-service (`:8092`)
+
+**Purpose:** Sanctions + antivirus + DLP file scanning. ClamAV + external sanctions feeds. SCREEN flow step calls here.
+
+**REST surface:** `/api/v1/screening/{scan, scan/sanctions, scan/text, results, hits, lists/refresh}`.
+
+**Standalone use case:** compliance scanning for any content pipeline.
+
+---
+
+### 14. keystore-manager (`:8093`)
+
+**Purpose:** Central key authority. Every SSH host key, TLS cert, AES key, HMAC secret, PGP keypair lives here. Generation via BouncyCastle, storage encrypted with Vault master key.
+
+**REST surface:**
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/keys/generate/ssh-host` | Gen SSH host key |
+| POST | `/api/v1/keys/generate/tls` | Gen TLS cert |
+| POST | `/api/v1/keys/generate/aes` | Gen AES key |
+| POST | `/api/v1/keys/generate/pgp` | Gen PGP keypair (R85+ uses SHA-1 S2K + RSA-SHA256 self-cert) |
+| POST | `/api/v1/keys/{alias}/rotate` | Rotate + publish `keystore.key.rotated` |
+| GET | `/api/v1/keys/expiring` | Keys within 30-day expiry |
+
+**RabbitMQ:** publishes `keystore.rotated.*` on rotate; consumers in `sftp-service`/`ftp-service` hot-reload affected listeners (R70).
+
+**Standalone use case:** dedicated KMS microservice. Apps request keys via REST; automatic rotation + expiry monitoring; Vault-backed at rest.
+
+---
+
+### 15. as2-service (`:8094`)
+
+**Purpose:** RFC 4130 AS2 + OASIS AS4 inbound + outbound messaging for EDI trading partners. Partner certs + MDN signing.
+
+**REST surface:**
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/as2/receive` | Inbound AS2 message | permitAll (AS2 protocol) |
+| POST | `/as4/receive` | Inbound AS4 message | permitAll (AS4 protocol) |
+| POST | `/as2/receive-mdn` | MDN async callback | permitAll |
+| GET | `/health` | Liveness | permitAll |
+
+**Standalone use case:** a headless AS2/AS4 receiver for any EDI pipeline. Partners POST messages, as2-service routes to your flows.
+
+---
+
+### 16. edi-converter (`:8095`, no DB)
+
+**Purpose:** Stateless EDI conversion + AI-powered format detection, mapping, healing. No DB — all mappings are either trained maps (fetched from ai-engine) or inline config.
+
+**REST surface (40+ endpoints):** `/api/v1/convert/{detect, parse, convert, validate, explain, heal, diff, compliance, canonical, stream, partners, mapping/*, convert/trained, maps, create, ...}`.
+
+**Standalone use case:** an EDI format converter as a library-grade microservice. Any product that handles EDIFACT/X12/HL7 can POST content and get JSON/XML/CSV back.
+
+---
+
+### 17. storage-manager (`:8096`)
+
+**Purpose:** Content-addressable storage (SHA-256 → blob), VFS catalog backend. Every file upload transits this service; every download originates here. MinIO/S3 behind it.
+
+**REST surface:**
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/storage/store` | Store from multipart | JWT+OPERATOR |
+| POST | `/api/v1/storage/store-stream` | Store from raw octet-stream | JWT+OPERATOR |
+| GET | `/api/v1/storage/retrieve/{trackId}` | By transfer record | JWT+OPERATOR |
+| GET | `/api/v1/storage/retrieve-by-key/{sha256}` | By content hash (CAS) | JWT+OPERATOR |
+| GET | `/api/v1/storage/stream/{sha256}` | Zero-copy streaming | JWT+OPERATOR |
+| GET | `/api/v1/storage/ref-count/{sha256}` | Reference count for dedup | JWT+OPERATOR |
+| POST | `/api/v1/storage/lifecycle/tier` | Hot → cold → archive | JWT+OPERATOR |
+
+**Standalone use case:** a content-addressable storage backend for any deduplicated content platform. Talk to it directly via S3-style REST.
+
+---
+
+### 18. notification-service (`:8097`)
+
+**Purpose:** Template-driven notifications: email (SMTP), Slack, Teams, webhooks. Rule-based matching against events.
+
+**REST surface:** `/api/notifications/{templates, rules, logs, test}`.
+
+**RabbitMQ:** consumes `notification.event.*`, `transfer.complete.*`.
+
+**Standalone use case:** a generic notification router for any event-driven app.
+
+---
+
+### 19. platform-sentinel (`:8098`)
+
+**Purpose:** Cross-service anomaly / drift / security analyzer. Collects metrics + health + audit data; emits findings. The `listener_bind_failed` rule (R68/R76) is wired here.
+
+**REST surface:** `/api/v1/sentinel/{health-score, findings, correlations, rules, dashboard, analyze, circuit-breakers}`.
+
+**Inter-service calls OUT:** periodic pull of `/actuator/*` from every service.
+**RabbitMQ:** publishes `finding.created.*`; consumes `metrics.raw.*`.
+
+**Standalone use case:** an observability-plus-detection microservice for any microservice fleet.
+
+---
+
+## Standalone Deployment Patterns
+
+Every TranzFer service is designed to run in isolation. Here are the four most useful reduced topologies.
+
+### A. SFTP-only appliance
+
+**Services:** `onboarding-api`, `sftp-service`, `storage-manager`, `postgres`, `rabbitmq`, `minio`.
+
+**Use when:** the only requirement is "partners upload files via SFTP to content-addressable storage; admins manage accounts via REST."
+
+**Size:** 5 containers + DB + MinIO; ~8 GB RAM total; boots in ~60s.
+
+### B. EDI conversion microservice
+
+**Services:** `edi-converter` alone (stateless, no DB).
+
+**Use when:** any external app needs `X12 → JSON` / `EDIFACT → XML` / `HL7 → FHIR` conversion as a library-grade microservice.
+
+**Size:** 1 container, ~512 MB RAM, boots in ~15s.
+
+### C. DMZ proxy + backend pool
+
+**Services:** `dmz-proxy` + any pool of TCP backends (your own or TranzFer's sftp/ftp/ftp-web).
+
+**Use when:** you need an AI-aware security proxy in front of an existing protocol server farm without adopting the whole platform.
+
+**Size:** 1 DMZ container + your backends; no DB needed for dmz-proxy itself.
+
+### D. Full platform
+
+**Services:** all 19 backend services + `api-gateway` + `ui-service` + `postgres` + `rabbitmq` + `minio` + `redis` + `vault` + `redpanda` + `spire-server` + `spire-agent` + observability stack (`prometheus`, `grafana`, `loki`, `promtail`, `alertmanager`).
+
+**Use when:** you want the complete MFT platform with all tiers, HA, DMZ security, AI, compliance, analytics.
+
+**Size:** ~36 containers + 22 volumes + 5 networks; ~18 GB RAM; cold boot 90-180s.
+
+---
+
+## Common Integration Recipes
+
+### Recipe 1: embed TranzFer SFTP into an existing app
+
+1. Deploy onboarding-api + sftp-service + storage-manager + postgres + rabbitmq + minio (Pattern A above).
+2. Your app creates accounts via `POST /api/accounts` with `storageMode=VIRTUAL`.
+3. Partners SFTP-upload to `sftp-service:2222`.
+4. Your app subscribes to RabbitMQ `file.uploaded.*` → looks up CAS key → `GET /api/v1/storage/retrieve-by-key/{sha256}` to fetch bytes.
+5. Own the flow orchestration in your app; ignore TranzFer's flow engine.
+
+### Recipe 2: use encryption-service + keystore-manager as a generic KMS
+
+1. Deploy `encryption-service` + `keystore-manager` + `vault` + `postgres`.
+2. `POST /api/v1/keys/generate/aes` → save alias.
+3. Your app calls `POST /api/encrypt` with `keyId=<alias>` + payload → stores ciphertext.
+4. Decrypt via `POST /api/decrypt` with same alias.
+5. Enable automatic key rotation: `POST /api/v1/keys/{alias}/rotate` on schedule; subscribe to `keystore.key.rotated` to re-encrypt existing data.
+
+### Recipe 3: EDI ingestion + conversion as-a-service
+
+1. Deploy `edi-converter` + `as2-service` (+ `keystore-manager` for AS2 certs).
+2. Configure trading partners via `POST /api/v1/convert/partners` (edi-converter).
+3. Partner sends AS2 message → `as2-service` receives → routes raw bytes to your app via webhook or direct REST.
+4. Your app calls `POST /api/v1/convert/convert` (edi-converter) with EDI body + target format.
+5. No platform database dependency for the conversion path itself.
+
+### Recipe 4: the whole platform
+
+Deploy everything via `docker compose up -d`. Ship.
+
+---
+
+## Inter-Service Communication Safety Matrix
+
+| From → To | Transport | Synchronous? | Circuit-breaker |
+|---|---|---|---|
+| onboarding-api → dmz-proxy | REST | yes | yes (3× retry, exponential) |
+| onboarding-api → storage-manager | REST | yes | yes (ResilientServiceClient) |
+| sftp/ftp/ftp-web → storage-manager | REST | yes | yes |
+| any → keystore-manager | REST | yes | yes (24h local cache fallback) |
+| any → license-service | REST | yes | yes (24h cache) |
+| any → encryption-service | REST | yes | yes |
+| any → analytics-service | async (RabbitMQ) | no | n/a |
+| any → notification-service | async (RabbitMQ) | no | n/a |
+| any → platform-sentinel | async (RabbitMQ) | no | n/a |
+| any → ai-engine | REST | yes | graceful degradation (allow-if-unreachable) |
+
+**Rule of thumb:** synchronous REST only when the caller genuinely needs the response to proceed. Anything observational (metrics, audit, notifications, findings) goes via RabbitMQ. This is the pattern that keeps tier 2/3 services independently deployable — they degrade gracefully when higher-tier services are down.
+
+---
+
+## Authoring New Inter-Service Calls
+
+When you add a new call path, use this checklist:
+
+1. **Owner of the target data?** If service X writes a table, only X has the CRUD API. Other services read via events or REST.
+2. **Synchronous or async?** If the caller can't proceed without the response, REST. Otherwise RabbitMQ.
+3. **SPIFFE-authenticated?** All inter-service calls carry JWT-SVID via `BaseServiceClient`.
+4. **Circuit-breaker?** Add via `ResilientServiceClient` if the downstream service can be temporarily unavailable.
+5. **Cached fallback?** For license, keystore, and any "source of truth" service, cache the last-known-good response locally (24h typical).
+6. **Event consumer for the same change on other pods?** If a pod mutates state that other pods need to learn about, publish to RabbitMQ AND let the originating pod's consumer skip via `X-Origin-Pod` header (see R82 origin-pod dedup).
+
+When in doubt: read [feedback_distributed_modularity.md](../../.claude/memory/feedback_distributed_modularity.md) — the ownership discipline is the difference between a platform you can scale and one you can't.
