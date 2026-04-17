@@ -187,6 +187,23 @@ public class ServerInstance {
     @Column(name = "ftp_implicit_tls")
     private Boolean ftpImplicitTls;
 
+    // ── FTP_WEB per-listener advanced config (V88) ───────────────────────────
+    // Null = inherit service-wide ftpweb.* application property.
+
+    @Column(name = "ftpweb_session_timeout_seconds")
+    private Integer ftpWebSessionTimeoutSeconds;
+
+    @Column(name = "ftpweb_max_upload_bytes")
+    private Long ftpWebMaxUploadBytes;
+
+    /** Keystore Manager alias for HTTPS cert. Null = service keystore. */
+    @Column(name = "ftpweb_tls_cert_alias", length = 128)
+    private String ftpWebTlsCertAlias;
+
+    /** Branded portal title shown in the UI header. */
+    @Column(name = "ftpweb_portal_title", length = 255)
+    private String ftpWebPortalTitle;
+
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;

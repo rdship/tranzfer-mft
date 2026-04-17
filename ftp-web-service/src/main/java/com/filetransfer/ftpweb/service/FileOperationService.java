@@ -1,5 +1,7 @@
 package com.filetransfer.ftpweb.service;
 
+import com.filetransfer.ftpweb.audit.FtpWebAuditLogger;
+import com.filetransfer.ftpweb.listener.FtpWebListenerContext;
 import com.filetransfer.shared.client.StorageServiceClient;
 import com.filetransfer.shared.dto.FolderDefinition;
 import com.filetransfer.shared.entity.core.TransferAccount;
@@ -13,6 +15,7 @@ import com.filetransfer.shared.vfs.VirtualFileSystem;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
@@ -38,9 +41,38 @@ public class FileOperationService {
     private final FolderTemplateRepository folderTemplateRepository;
     private final VirtualFileSystem virtualFileSystem;
     private final StorageServiceClient storageServiceClient;
+    /** Request-scoped; ObjectProvider so it can be lazily resolved per-call. */
+    private final ObjectProvider<FtpWebListenerContext> listenerContextProvider;
+    private final FtpWebAuditLogger auditLogger;
 
     @Value("${ftpweb.instance-id:#{null}}")
-    private String instanceId;
+    private String fallbackInstanceId;
+
+    /**
+     * Resolve the listener id for the current request, falling back to the
+     * service-wide env var when no request is active (e.g. RabbitMQ consumer
+     * paths). Null means "no listener context" — downstream code treats that
+     * the same as the legacy env-var-only behavior.
+     */
+    private String currentInstanceId() {
+        try {
+            FtpWebListenerContext ctx = listenerContextProvider.getIfAvailable();
+            if (ctx != null && ctx.getInstanceId() != null) return ctx.getInstanceId();
+        } catch (Exception ignore) {
+            // No active request scope — fall through.
+        }
+        return fallbackInstanceId;
+    }
+
+    private String currentSourceIp() {
+        try {
+            FtpWebListenerContext ctx = listenerContextProvider.getIfAvailable();
+            if (ctx != null && ctx.getSourceIp() != null) return ctx.getSourceIp();
+        } catch (Exception ignore) {
+            // No active request scope.
+        }
+        return null;
+    }
 
     /** Blocked file extensions — executable or server-side script types that could be weaponized */
     private static final Set<String> BLOCKED_EXTENSIONS = Set.of(
@@ -53,6 +85,7 @@ public class FileOperationService {
 
     public List<FileEntry> list(String username, String relativePath) throws IOException {
         TransferAccount account = findAccount(username);
+        auditLogger.logList(username, currentInstanceId(), currentSourceIp(), relativePath);
         if (isVirtualMode(account)) {
             String vpath = VirtualFileSystem.normalizePath("/" + relativePath);
             return virtualFileSystem.list(account.getId(), vpath).stream()
@@ -141,8 +174,12 @@ public class FileOperationService {
                             username, vpath, sha256 != null ? sha256.substring(0, 8) + "..." : "n/a");
                 }
             }
-            // VFS entry created — trigger routing for VIRTUAL upload
-            routingEngine.onFileUploaded(account, vpath, account.getHomeDir() + vpath);
+            // VFS entry created — trigger routing for VIRTUAL upload.
+            // Passing sourceIp lets the RoutingEngine attribute events to the real
+            // client (not the ftp-web container) in audit + X-Origin-Pod dedup.
+            String srcIp = currentSourceIp();
+            routingEngine.onFileUploaded(account, vpath, account.getHomeDir() + vpath, srcIp);
+            auditLogger.logUpload(username, currentInstanceId(), srcIp, vpath, file.getSize(), "VIRTUAL");
             return;
         }
 
@@ -153,12 +190,15 @@ public class FileOperationService {
         file.transferTo(dest);
 
         String relativeFilePath = relativeDirPath + "/" + file.getOriginalFilename();
-        routingEngine.onFileUploaded(account, relativeFilePath, dest.toAbsolutePath().toString());
+        String srcIp = currentSourceIp();
+        routingEngine.onFileUploaded(account, relativeFilePath, dest.toAbsolutePath().toString(), srcIp);
+        auditLogger.logUpload(username, currentInstanceId(), srcIp, relativeFilePath, file.getSize(), "PHYSICAL");
         log.info("FTP-Web upload: user={} path={}", username, dest);
     }
 
     public Resource download(String username, String relativeFilePath) throws MalformedURLException {
         TransferAccount account = findAccount(username);
+        auditLogger.logDownload(username, currentInstanceId(), currentSourceIp(), relativeFilePath);
 
         if (isVirtualMode(account)) {
             String vpath = VirtualFileSystem.normalizePath("/" + relativeFilePath);
@@ -179,6 +219,7 @@ public class FileOperationService {
 
     public void mkdir(String username, String relativeDirPath) throws IOException {
         TransferAccount account = findAccount(username);
+        auditLogger.logMkdir(username, currentInstanceId(), currentSourceIp(), relativeDirPath);
         if (isVirtualMode(account)) {
             virtualFileSystem.mkdirs(account.getId(), VirtualFileSystem.normalizePath("/" + relativeDirPath));
             return;
@@ -189,6 +230,7 @@ public class FileOperationService {
 
     public void delete(String username, String relativeFilePath) throws IOException {
         TransferAccount account = findAccount(username);
+        auditLogger.logDelete(username, currentInstanceId(), currentSourceIp(), relativeFilePath);
         if (isVirtualMode(account)) {
             virtualFileSystem.delete(account.getId(), VirtualFileSystem.normalizePath("/" + relativeFilePath));
             return;
@@ -203,6 +245,7 @@ public class FileOperationService {
 
     public void rename(String username, String fromPath, String toPath) throws IOException {
         TransferAccount account = findAccount(username);
+        auditLogger.logRename(username, currentInstanceId(), currentSourceIp(), fromPath, toPath);
         if (isVirtualMode(account)) {
             virtualFileSystem.move(account.getId(),
                     VirtualFileSystem.normalizePath("/" + fromPath),
@@ -229,10 +272,11 @@ public class FileOperationService {
     }
 
     private TransferAccount findAccount(String username) {
+        String iid = currentInstanceId();
         Optional<TransferAccount> account;
-        if (instanceId != null) {
+        if (iid != null) {
             account = accountRepository.findByUsernameAndProtocolAndInstance(
-                    username, Protocol.FTP_WEB, instanceId);
+                    username, Protocol.FTP_WEB, iid);
         } else {
             account = accountRepository.findByUsernameAndProtocolAndActiveTrue(username, Protocol.FTP_WEB);
         }
@@ -255,8 +299,9 @@ public class FileOperationService {
 
     private List<String> resolveFolderPaths() {
         try {
-            if (instanceId != null) {
-                return serverInstanceRepository.findByInstanceId(instanceId)
+            String iid = currentInstanceId();
+            if (iid != null) {
+                return serverInstanceRepository.findByInstanceId(iid)
                         .filter(si -> si.getFolderTemplate() != null)
                         .map(si -> si.getFolderTemplate().getFolders().stream()
                                 .map(FolderDefinition::getPath).toList())

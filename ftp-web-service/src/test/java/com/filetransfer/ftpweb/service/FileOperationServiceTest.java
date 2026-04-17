@@ -41,6 +41,11 @@ class FileOperationServiceTest {
     @Mock private FolderTemplateRepository folderTemplateRepository;
     @Mock private com.filetransfer.shared.vfs.VirtualFileSystem virtualFileSystem;
     @Mock private com.filetransfer.shared.client.StorageServiceClient storageServiceClient;
+    @Mock private org.springframework.beans.factory.ObjectProvider<com.filetransfer.ftpweb.listener.FtpWebListenerContext> listenerContextProvider;
+
+    /** Non-mock so audit log lines don't require stubbing every call. */
+    private final com.filetransfer.ftpweb.audit.FtpWebAuditLogger auditLogger =
+            new com.filetransfer.ftpweb.audit.FtpWebAuditLogger();
 
     private FileOperationService service;
 
@@ -51,10 +56,17 @@ class FileOperationServiceTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        service = new FileOperationService(accountRepository, routingEngine, serverInstanceRepository, folderTemplateRepository, virtualFileSystem, storageServiceClient);
+        // No active request scope in unit test — provider returns null so the
+        // service falls back to the @Value fallback instance id (set null below).
+        lenient().when(listenerContextProvider.getIfAvailable()).thenReturn(null);
+
+        service = new FileOperationService(accountRepository, routingEngine,
+                serverInstanceRepository, folderTemplateRepository,
+                virtualFileSystem, storageServiceClient,
+                listenerContextProvider, auditLogger);
 
         // Set @Value field via reflection
-        Field instanceIdField = FileOperationService.class.getDeclaredField("instanceId");
+        Field instanceIdField = FileOperationService.class.getDeclaredField("fallbackInstanceId");
         instanceIdField.setAccessible(true);
         instanceIdField.set(service, null);
 
@@ -122,7 +134,7 @@ class FileOperationServiceTest {
         service.upload("testuser", "/", file);
 
         verify(file).transferTo(tempDir.resolve("report.pdf"));
-        verify(routingEngine).onFileUploaded(eq(testAccount), eq("//report.pdf"), anyString());
+        verify(routingEngine).onFileUploaded(eq(testAccount), eq("//report.pdf"), anyString(), any());
     }
 
     @Test
@@ -134,7 +146,7 @@ class FileOperationServiceTest {
 
         Path expectedDir = tempDir.resolve("inbox");
         verify(file).transferTo(expectedDir.resolve("data.csv"));
-        verify(routingEngine).onFileUploaded(eq(testAccount), eq("inbox/data.csv"), anyString());
+        verify(routingEngine).onFileUploaded(eq(testAccount), eq("inbox/data.csv"), anyString(), any());
     }
 
     // ── resolveAndValidate: path traversal prevention ───────────────────
@@ -280,8 +292,10 @@ class FileOperationServiceTest {
 
     @Test
     void findAccount_withInstanceId_usesInstanceLookup() throws Exception {
-        // Set instanceId via reflection
-        Field instanceIdField = FileOperationService.class.getDeclaredField("instanceId");
+        // Set fallbackInstanceId via reflection (renamed from instanceId when
+        // the request-scoped FtpWebListenerContext was introduced — the fallback
+        // path is what unit tests exercise since there's no active request scope).
+        Field instanceIdField = FileOperationService.class.getDeclaredField("fallbackInstanceId");
         instanceIdField.setAccessible(true);
         instanceIdField.set(service, "node-1");
 

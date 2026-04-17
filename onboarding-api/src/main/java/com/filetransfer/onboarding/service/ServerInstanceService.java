@@ -88,10 +88,15 @@ public class ServerInstanceService {
                 .ftpProtRequired(normalizeProt(request.getFtpProtRequired()))
                 .ftpBannerMessage(request.getFtpBannerMessage())
                 .ftpImplicitTls(request.getFtpImplicitTls())
+                .ftpWebSessionTimeoutSeconds(request.getFtpWebSessionTimeoutSeconds())
+                .ftpWebMaxUploadBytes(request.getFtpWebMaxUploadBytes())
+                .ftpWebTlsCertAlias(request.getFtpWebTlsCertAlias())
+                .ftpWebPortalTitle(request.getFtpWebPortalTitle())
                 .active(request.getActive() == null || request.getActive())
                 .build();
 
         validateFtpFields(instance);
+        validateFtpWebFields(instance);
 
         // Persist proxy QoS policy
         applyProxyQoS(instance, request.getProxyQos());
@@ -170,7 +175,14 @@ public class ServerInstanceService {
         if (request.getFtpBannerMessage()        != null) instance.setFtpBannerMessage(request.getFtpBannerMessage());
         if (request.getFtpImplicitTls()          != null) instance.setFtpImplicitTls(request.getFtpImplicitTls());
 
+        // FTP_WEB advanced (V88)
+        if (request.getFtpWebSessionTimeoutSeconds() != null) instance.setFtpWebSessionTimeoutSeconds(request.getFtpWebSessionTimeoutSeconds());
+        if (request.getFtpWebMaxUploadBytes()        != null) instance.setFtpWebMaxUploadBytes(request.getFtpWebMaxUploadBytes());
+        if (request.getFtpWebTlsCertAlias()          != null) instance.setFtpWebTlsCertAlias(request.getFtpWebTlsCertAlias());
+        if (request.getFtpWebPortalTitle()           != null) instance.setFtpWebPortalTitle(request.getFtpWebPortalTitle());
+
         validateFtpFields(instance);
+        validateFtpWebFields(instance);
 
         boolean activeChanged = request.getActive() != null && request.getActive() != instance.isActive();
         repository.save(instance);
@@ -348,6 +360,11 @@ public class ServerInstanceService {
                 .ftpProtRequired(i.getFtpProtRequired())
                 .ftpBannerMessage(i.getFtpBannerMessage())
                 .ftpImplicitTls(i.getFtpImplicitTls())
+                // FTP_WEB advanced (V88)
+                .ftpWebSessionTimeoutSeconds(i.getFtpWebSessionTimeoutSeconds())
+                .ftpWebMaxUploadBytes(i.getFtpWebMaxUploadBytes())
+                .ftpWebTlsCertAlias(i.getFtpWebTlsCertAlias())
+                .ftpWebPortalTitle(i.getFtpWebPortalTitle())
                 .build();
     }
 
@@ -380,6 +397,18 @@ public class ServerInstanceService {
         String prot = si.getFtpProtRequired();
         if (prot != null && !prot.equals("NONE") && !prot.equals("C") && !prot.equals("P")) {
             throw new IllegalArgumentException("ftpProtRequired must be one of NONE, C, P");
+        }
+    }
+
+    /** Mirrors the V88 CHECK constraints at the service layer so 400 is returned. */
+    private static void validateFtpWebFields(ServerInstance si) {
+        Integer timeout = si.getFtpWebSessionTimeoutSeconds();
+        if (timeout != null && timeout < 0) {
+            throw new IllegalArgumentException("ftpWebSessionTimeoutSeconds must be >= 0");
+        }
+        Long maxBytes = si.getFtpWebMaxUploadBytes();
+        if (maxBytes != null && maxBytes < 0) {
+            throw new IllegalArgumentException("ftpWebMaxUploadBytes must be >= 0 (0 = unlimited)");
         }
     }
 

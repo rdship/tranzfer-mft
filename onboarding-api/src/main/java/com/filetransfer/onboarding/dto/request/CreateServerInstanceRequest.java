@@ -70,6 +70,16 @@ public class CreateServerInstanceRequest {
     /** True = implicit FTPS (TLS on 990). Null = service-wide default. */
     private Boolean ftpImplicitTls;
 
+    // ── FTP_WEB per-listener advanced config (V88) ───────────────────────────
+    /** HTTP idle session timeout. */
+    private Integer ftpWebSessionTimeoutSeconds;
+    /** Per-request body size cap in bytes (0 = unlimited). */
+    private Long ftpWebMaxUploadBytes;
+    /** Keystore Manager alias for HTTPS certificate. */
+    private String ftpWebTlsCertAlias;
+    /** Branded title shown in partner portal header. */
+    private String ftpWebPortalTitle;
+
     @Data
     public static class ProxyQoSConfig {
         private boolean enabled = true;

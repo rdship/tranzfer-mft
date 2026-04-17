@@ -301,6 +301,75 @@ class ServerInstanceServiceFtpTest {
     }
 
     @Test
+    void createRoundtripsFtpWebFields() {
+        lenient().when(repository.existsByInstanceId(anyString())).thenReturn(false);
+        lenient().when(repository.findByInternalHostAndInternalPortAndActiveTrue(anyString(), anyInt()))
+                .thenReturn(Optional.empty());
+        lenient().when(repository.save(any(ServerInstance.class)))
+                .thenAnswer(inv -> {
+                    ServerInstance saved = inv.getArgument(0);
+                    saved.setId(UUID.randomUUID());
+                    return saved;
+                });
+
+        CreateServerInstanceRequest req = new CreateServerInstanceRequest();
+        req.setInstanceId("ftpweb-eu-1");
+        req.setProtocol(Protocol.FTP_WEB);
+        req.setName("FTP_WEB EU");
+        req.setInternalHost("ftp-web-service");
+        req.setInternalPort(8083);
+        req.setFtpWebSessionTimeoutSeconds(1800);
+        req.setFtpWebMaxUploadBytes(2_147_483_648L);
+        req.setFtpWebTlsCertAlias("ftpweb-eu-cert");
+        req.setFtpWebPortalTitle("EU Partner Portal");
+
+        ServerInstanceResponse resp = service.create(req);
+
+        assertThat(resp.getFtpWebSessionTimeoutSeconds()).isEqualTo(1800);
+        assertThat(resp.getFtpWebMaxUploadBytes()).isEqualTo(2_147_483_648L);
+        assertThat(resp.getFtpWebTlsCertAlias()).isEqualTo("ftpweb-eu-cert");
+        assertThat(resp.getFtpWebPortalTitle()).isEqualTo("EU Partner Portal");
+    }
+
+    @Test
+    void rejectsNegativeFtpWebSessionTimeout() {
+        lenient().when(repository.existsByInstanceId(anyString())).thenReturn(false);
+        lenient().when(repository.findByInternalHostAndInternalPortAndActiveTrue(anyString(), anyInt()))
+                .thenReturn(Optional.empty());
+
+        CreateServerInstanceRequest req = new CreateServerInstanceRequest();
+        req.setInstanceId("ftpweb-bad-1");
+        req.setProtocol(Protocol.FTP_WEB);
+        req.setName("bad");
+        req.setInternalHost("ftp-web-service");
+        req.setInternalPort(8083);
+        req.setFtpWebSessionTimeoutSeconds(-1);
+
+        assertThatThrownBy(() -> service.create(req))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("ftpWebSessionTimeoutSeconds");
+    }
+
+    @Test
+    void rejectsNegativeFtpWebMaxUpload() {
+        lenient().when(repository.existsByInstanceId(anyString())).thenReturn(false);
+        lenient().when(repository.findByInternalHostAndInternalPortAndActiveTrue(anyString(), anyInt()))
+                .thenReturn(Optional.empty());
+
+        CreateServerInstanceRequest req = new CreateServerInstanceRequest();
+        req.setInstanceId("ftpweb-bad-2");
+        req.setProtocol(Protocol.FTP_WEB);
+        req.setName("bad");
+        req.setInternalHost("ftp-web-service");
+        req.setInternalPort(8083);
+        req.setFtpWebMaxUploadBytes(-100L);
+
+        assertThatThrownBy(() -> service.create(req))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("ftpWebMaxUploadBytes");
+    }
+
+    @Test
     void getByIdThrowsNoSuchElementWhenMissing() {
         UUID missing = UUID.randomUUID();
         when(repository.findById(missing)).thenReturn(Optional.empty());

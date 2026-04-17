@@ -111,6 +111,11 @@ const emptyForm = {
   ftpProtRequired: '',
   ftpBannerMessage: '',
   ftpImplicitTls: false,
+  // FTP_WEB advanced (V88)
+  ftpWebSessionTimeoutSeconds: '',
+  ftpWebMaxUploadBytes: '',
+  ftpWebTlsCertAlias: '',
+  ftpWebPortalTitle: '',
   active: true,
 }
 
@@ -368,6 +373,10 @@ export default function ServerInstances() {
     clearIfEmpty('ftpTlsCertAlias')
     clearIfEmpty('ftpProtRequired')
     clearIfEmpty('ftpBannerMessage')
+    clearIfEmpty('ftpWebSessionTimeoutSeconds')
+    clearIfEmpty('ftpWebMaxUploadBytes')
+    clearIfEmpty('ftpWebTlsCertAlias')
+    clearIfEmpty('ftpWebPortalTitle')
     return out
   }
 
@@ -455,6 +464,11 @@ export default function ServerInstances() {
       ftpProtRequired: s.ftpProtRequired || '',
       ftpBannerMessage: s.ftpBannerMessage || '',
       ftpImplicitTls: s.ftpImplicitTls ?? false,
+      // FTP_WEB advanced (V88)
+      ftpWebSessionTimeoutSeconds: s.ftpWebSessionTimeoutSeconds ?? '',
+      ftpWebMaxUploadBytes: s.ftpWebMaxUploadBytes ?? '',
+      ftpWebTlsCertAlias: s.ftpWebTlsCertAlias || '',
+      ftpWebPortalTitle: s.ftpWebPortalTitle || '',
       active: s.active ?? true,
     })
   }
@@ -1125,6 +1139,52 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
           <p className="text-xs text-muted">
             Implicit FTPS uses direct TLS (typically on port 990). Explicit (AUTH TLS) is the default.
           </p>
+        </FormSection>
+      )}
+
+      {/* ═══════ Section 3c: FTP_WEB Advanced (FTP_WEB protocol only) ═══════ */}
+      {form.protocol === 'FTP_WEB' && (
+        <FormSection title="FTP_WEB Advanced" subtitle="Portal branding, session timeout, upload cap, and HTTPS cert">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="si-ftpweb-timeout">Session Timeout (seconds)</label>
+              <input id="si-ftpweb-timeout" type="number" min={0} value={form.ftpWebSessionTimeoutSeconds || ''}
+                onChange={e => setForm(prev => ({ ...prev, ftpWebSessionTimeoutSeconds: e.target.value ? Number(e.target.value) : '' }))}
+                placeholder="1800" />
+              <p className="text-xs text-muted mt-1">HTTP idle timeout. Leave blank to inherit service default.</p>
+            </div>
+            <div>
+              <label htmlFor="si-ftpweb-maxupload">Max Upload Bytes</label>
+              <input id="si-ftpweb-maxupload" type="number" min={0} value={form.ftpWebMaxUploadBytes || ''}
+                onChange={e => setForm(prev => ({ ...prev, ftpWebMaxUploadBytes: e.target.value ? Number(e.target.value) : '' }))}
+                placeholder="2147483648" />
+              <p className="text-xs text-muted mt-1">Per-request body size cap. 0 = unlimited. Blank = service default.</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="si-ftpweb-cert">HTTPS Cert Alias</label>
+              <input id="si-ftpweb-cert" value={form.ftpWebTlsCertAlias || ''}
+                onChange={e => setForm(prev => ({ ...prev, ftpWebTlsCertAlias: e.target.value }))}
+                placeholder="ftpweb-default" />
+              <p className="text-xs text-muted mt-1">Keystore Manager alias. Blank = service keystore.</p>
+            </div>
+            <div>
+              <label htmlFor="si-ftpweb-title">Portal Title</label>
+              <input id="si-ftpweb-title" value={form.ftpWebPortalTitle || ''}
+                onChange={e => setForm(prev => ({ ...prev, ftpWebPortalTitle: e.target.value }))}
+                placeholder="Partner File Transfer" />
+              <p className="text-xs text-muted mt-1">Branded title shown in the portal header.</p>
+            </div>
+          </div>
+
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-800">
+            <span className="font-medium">Note:</span> ftp-web-service is currently a single-Tomcat listener. Per-listener
+            multi-Tomcat routing (distinct HTTPS ports per ServerInstance) requires an upstream HTTP reverse proxy
+            and is tracked separately. Non-primary FTP_WEB rows remain <code className="bg-white px-1 rounded">UNBOUND</code>
+            until that lands — the fields above are data-model ready so no migration is needed later.
+          </div>
         </FormSection>
       )}
 

@@ -60,4 +60,10 @@ public class UpdateServerInstanceRequest {
     private String  ftpBannerMessage;
     /** True = implicit FTPS (direct TLS on 990). */
     private Boolean ftpImplicitTls;
+
+    // ── FTP_WEB per-listener advanced config (V88) ───────────────────────────
+    private Integer ftpWebSessionTimeoutSeconds;
+    private Long    ftpWebMaxUploadBytes;
+    private String  ftpWebTlsCertAlias;
+    private String  ftpWebPortalTitle;
 }

@@ -71,4 +71,10 @@ public class ServerInstanceResponse {
     private String  ftpProtRequired;
     private String  ftpBannerMessage;
     private Boolean ftpImplicitTls;
+
+    // ── FTP_WEB per-listener advanced config (V88) ───────────────────────────
+    private Integer ftpWebSessionTimeoutSeconds;
+    private Long    ftpWebMaxUploadBytes;
+    private String  ftpWebTlsCertAlias;
+    private String  ftpWebPortalTitle;
 }
