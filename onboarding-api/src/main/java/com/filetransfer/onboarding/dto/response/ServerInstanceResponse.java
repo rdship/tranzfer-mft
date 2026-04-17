@@ -63,4 +63,12 @@ public class ServerInstanceResponse {
     private String  bindError;
     private Instant lastBindAttemptAt;
     private String  boundNode;
+
+    // ── FTP per-listener advanced config (V87) ───────────────────────────────
+    private Integer ftpPassivePortFrom;
+    private Integer ftpPassivePortTo;
+    private String  ftpTlsCertAlias;
+    private String  ftpProtRequired;
+    private String  ftpBannerMessage;
+    private Boolean ftpImplicitTls;
 }

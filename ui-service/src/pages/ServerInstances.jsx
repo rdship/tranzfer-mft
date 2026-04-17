@@ -104,6 +104,13 @@ const emptyForm = {
   // Maintenance
   maintenanceMode: false,
   maintenanceMessage: '',
+  // FTP advanced (V87)
+  ftpPassivePortFrom: '',
+  ftpPassivePortTo: '',
+  ftpTlsCertAlias: '',
+  ftpProtRequired: '',
+  ftpBannerMessage: '',
+  ftpImplicitTls: false,
   active: true,
 }
 
@@ -351,8 +358,21 @@ export default function ServerInstances() {
     return false
   }
 
+  // Strip empty strings on FTP-advanced Integer fields so Jackson doesn't choke
+  // on "" → Integer. Nulls are the intended "inherit service default" signal.
+  const normalizePayload = (raw) => {
+    const out = { ...raw }
+    const clearIfEmpty = (k) => { if (out[k] === '' || out[k] === undefined) out[k] = null }
+    clearIfEmpty('ftpPassivePortFrom')
+    clearIfEmpty('ftpPassivePortTo')
+    clearIfEmpty('ftpTlsCertAlias')
+    clearIfEmpty('ftpProtRequired')
+    clearIfEmpty('ftpBannerMessage')
+    return out
+  }
+
   const createMut = useMutation({
-    mutationFn: createServerInstance,
+    mutationFn: (raw) => createServerInstance(normalizePayload(raw)),
     onSuccess: () => { qc.invalidateQueries(['server-instances']); setShowCreate(false); setForm(emptyForm); toast.success('Server instance created') },
     onError: err => {
       if (handlePortConflict(err, p => setForm(f => ({ ...f, internalPort: p, externalPort: p })))) return
@@ -361,7 +381,7 @@ export default function ServerInstances() {
   })
 
   const updateMut = useMutation({
-    mutationFn: ({ id, data }) => updateServerInstance(id, data),
+    mutationFn: ({ id, data }) => updateServerInstance(id, normalizePayload(data)),
     onSuccess: () => { qc.invalidateQueries(['server-instances']); setEditServer(null); toast.success('Server updated') },
     onError: err => {
       if (handlePortConflict(err, p => setForm(f => ({ ...f, internalPort: p })))) return
@@ -428,6 +448,13 @@ export default function ServerInstances() {
       // Maintenance
       maintenanceMode: s.maintenanceMode || false,
       maintenanceMessage: s.maintenanceMessage || '',
+      // FTP advanced (V87)
+      ftpPassivePortFrom: s.ftpPassivePortFrom ?? '',
+      ftpPassivePortTo: s.ftpPassivePortTo ?? '',
+      ftpTlsCertAlias: s.ftpTlsCertAlias || '',
+      ftpProtRequired: s.ftpProtRequired || '',
+      ftpBannerMessage: s.ftpBannerMessage || '',
+      ftpImplicitTls: s.ftpImplicitTls ?? false,
       active: s.active ?? true,
     })
   }
@@ -1040,6 +1067,66 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
           </>
         )}
       </FormSection>
+
+      {/* ═══════ Section 3b: FTP Advanced (FTP protocol only) ═══════ */}
+      {form.protocol === 'FTP' && (
+        <FormSection title="FTP Advanced" subtitle="Per-listener passive port range, FTPS mode, cert alias, and PROT level">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="si-ftp-pasv-from">Passive Port From</label>
+              <input id="si-ftp-pasv-from" type="number" min={1024} max={65535} value={form.ftpPassivePortFrom || ''}
+                onChange={e => setForm(prev => ({ ...prev, ftpPassivePortFrom: e.target.value ? Number(e.target.value) : '' }))}
+                placeholder="21000" />
+              <p className="text-xs text-muted mt-1">Lower bound of PASV range (leave blank to inherit service default)</p>
+            </div>
+            <div>
+              <label htmlFor="si-ftp-pasv-to">Passive Port To</label>
+              <input id="si-ftp-pasv-to" type="number" min={1024} max={65535} value={form.ftpPassivePortTo || ''}
+                onChange={e => setForm(prev => ({ ...prev, ftpPassivePortTo: e.target.value ? Number(e.target.value) : '' }))}
+                placeholder="21010" />
+              <p className="text-xs text-muted mt-1">Upper bound. Must be set together with From.</p>
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="si-ftp-banner">FTP Welcome Banner</label>
+            <textarea id="si-ftp-banner" rows={2} value={form.ftpBannerMessage || ''}
+              placeholder="220 TranzFer MFT FTP Service Ready"
+              onChange={e => setForm(prev => ({ ...prev, ftpBannerMessage: e.target.value }))} />
+            <p className="text-xs text-muted mt-1">Shown on connect. Null/blank = service default.</p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label htmlFor="si-ftp-cert">FTPS Cert Alias</label>
+              <input id="si-ftp-cert" value={form.ftpTlsCertAlias || ''}
+                onChange={e => setForm(prev => ({ ...prev, ftpTlsCertAlias: e.target.value }))}
+                placeholder="default-tls" />
+              <p className="text-xs text-muted mt-1">Keystore Manager alias (type=TLS). Blank = default keystore.</p>
+            </div>
+            <div>
+              <label htmlFor="si-ftp-prot">PROT Level</label>
+              <select id="si-ftp-prot" value={form.ftpProtRequired || ''}
+                onChange={e => setForm(prev => ({ ...prev, ftpProtRequired: e.target.value }))}>
+                <option value="">— Service default —</option>
+                <option value="NONE">NONE (no TLS)</option>
+                <option value="C">C (control only)</option>
+                <option value="P">P (control + data)</option>
+              </select>
+              <p className="text-xs text-muted mt-1">Data channel encryption enforcement.</p>
+            </div>
+            <div className="flex items-center gap-2 pt-6">
+              <input type="checkbox" id="si-ftp-implicit" checked={!!form.ftpImplicitTls}
+                onChange={e => setForm(prev => ({ ...prev, ftpImplicitTls: e.target.checked }))}
+                className="w-4 h-4 text-blue-600 rounded border-gray-300" />
+              <label htmlFor="si-ftp-implicit" className="text-sm font-medium text-primary mb-0">Implicit FTPS</label>
+            </div>
+          </div>
+          <p className="text-xs text-muted">
+            Implicit FTPS uses direct TLS (typically on port 990). Explicit (AUTH TLS) is the default.
+          </p>
+        </FormSection>
+      )}
 
       {/* ═══════ Section 4: Session & Limits ═══════ */}
       <FormSection title="Session & Limits" subtitle="Connection limits, timeouts, and storage mode">

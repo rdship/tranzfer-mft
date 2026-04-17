@@ -54,6 +54,22 @@ public class CreateServerInstanceRequest {
     /** Proxy QoS policy — applied when useProxy=true */
     private ProxyQoSConfig proxyQos;
 
+    // ── FTP per-listener advanced config (V87) ───────────────────────────────
+    // All optional. Null = inherit service-wide ftp.* application property.
+
+    /** PASV port range lower bound. Both bounds must be set together. */
+    private Integer ftpPassivePortFrom;
+    /** PASV port range upper bound. */
+    private Integer ftpPassivePortTo;
+    /** Keystore Manager alias for the per-listener TLS certificate. */
+    private String  ftpTlsCertAlias;
+    /** PROT level: NONE | C | P. Null = service-wide default. */
+    private String  ftpProtRequired;
+    /** Welcome banner on FTP connect. */
+    private String  ftpBannerMessage;
+    /** True = implicit FTPS (TLS on 990). Null = service-wide default. */
+    private Boolean ftpImplicitTls;
+
     @Data
     public static class ProxyQoSConfig {
         private boolean enabled = true;

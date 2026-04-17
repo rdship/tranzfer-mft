@@ -1,6 +1,7 @@
 package com.filetransfer.ftp.server;
 
 import com.filetransfer.ftp.keystore.KeystoreManagerClient;
+import com.filetransfer.shared.entity.core.ServerInstance;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ftpserver.ssl.SslConfiguration;
 import org.apache.ftpserver.ssl.SslConfigurationFactory;
@@ -10,6 +11,8 @@ import org.springframework.stereotype.Component;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
@@ -156,6 +159,81 @@ public class FtpsConfig {
      *
      * @return the SSL configuration, or {@code null} if FTPS is disabled
      */
+    /**
+     * Per-listener SSL configuration. When the ServerInstance specifies a
+     * {@code ftpTlsCertAlias}, this pulls that cert from Keystore Manager and
+     * materializes a dedicated keystore at {@code ./ftp-keystore-<alias>.jks}
+     * so multiple FTPS listeners can run side-by-side with different
+     * certificates. Falls back to {@link #buildSslConfig()} when the alias is
+     * null or Keystore Manager is unavailable.
+     */
+    public SslConfiguration buildSslConfigFor(ServerInstance si) {
+        if (!enabled) return null;
+        String alias = si != null ? si.getFtpTlsCertAlias() : null;
+        if (alias == null || alias.isBlank()) {
+            return buildSslConfig();
+        }
+        if (!keystoreManagerClient.isEnabled()) {
+            log.warn("FTP listener '{}' requested cert alias '{}' but Keystore Manager is disabled — falling back to default keystore",
+                    si.getInstanceId(), alias);
+            return buildSslConfig();
+        }
+
+        Path perListenerKs = Path.of("./ftp-keystore-" + sanitizeAlias(alias) + ".jks");
+        if (!Files.exists(perListenerKs)) {
+            String certMaterial = keystoreManagerClient.getTlsCertificate(alias);
+            if (certMaterial == null) {
+                log.warn("Keystore Manager has no TLS cert for alias '{}' — falling back to default for listener '{}'",
+                        alias, si.getInstanceId());
+                return buildSslConfig();
+            }
+            generateSelfSignedKeystoreWithAlias(perListenerKs.toFile(), alias);
+            if (!Files.exists(perListenerKs)) {
+                log.warn("Could not materialize per-listener keystore '{}'; falling back to default", perListenerKs);
+                return buildSslConfig();
+            }
+        }
+
+        try {
+            SslConfigurationFactory sslFactory = new SslConfigurationFactory();
+            sslFactory.setKeystoreFile(perListenerKs.toFile());
+            sslFactory.setKeystorePassword(keystorePassword);
+            sslFactory.setKeystoreType(keystoreType);
+            sslFactory.setSslProtocol(protocol);
+            sslFactory.setClientAuthentication(getClientAuthMode());
+            log.info("FTP listener '{}' using per-listener cert alias '{}' keystore={}",
+                    si.getInstanceId(), alias, perListenerKs);
+            return sslFactory.createSslConfiguration();
+        } catch (Exception e) {
+            log.error("Per-listener FTPS configuration failed for alias '{}': {}", alias, e.getMessage());
+            return buildSslConfig();
+        }
+    }
+
+    private static String sanitizeAlias(String alias) {
+        return alias.replaceAll("[^A-Za-z0-9._-]", "_");
+    }
+
+    private void generateSelfSignedKeystoreWithAlias(File ksFile, String alias) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("keytool",
+                    "-genkeypair", "-alias", alias,
+                    "-keyalg", "RSA", "-keysize", "2048",
+                    "-validity", "365",
+                    "-keystore", ksFile.getAbsolutePath(),
+                    "-storetype", keystoreType,
+                    "-storepass", keystorePassword,
+                    "-dname", "CN=TranzFer FTPS " + alias + ",O=TranzFer MFT,C=US",
+                    "-keypass", keystorePassword);
+            pb.inheritIO();
+            Process p = pb.start();
+            p.waitFor();
+            log.info("Generated per-listener FTPS keystore at {} (alias={})", ksFile.getAbsolutePath(), alias);
+        } catch (Exception e) {
+            log.error("Could not generate per-listener keystore for alias {}: {}", alias, e.getMessage());
+        }
+    }
+
     public SslConfiguration buildSslConfig() {
         if (!enabled) {
             log.info("FTPS disabled. To enable: set ftp.ftps.enabled=true and provide keystore");

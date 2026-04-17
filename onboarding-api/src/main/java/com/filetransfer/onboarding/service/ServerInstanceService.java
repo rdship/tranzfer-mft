@@ -82,8 +82,16 @@ public class ServerInstanceService {
                 .maxConnections(request.getMaxConnections() != null ? request.getMaxConnections() : 500)
                 .folderTemplate(resolveTemplate(request.getFolderTemplateId()))
                 .defaultStorageMode(request.getDefaultStorageMode() != null ? request.getDefaultStorageMode() : "VIRTUAL")
+                .ftpPassivePortFrom(request.getFtpPassivePortFrom())
+                .ftpPassivePortTo(request.getFtpPassivePortTo())
+                .ftpTlsCertAlias(request.getFtpTlsCertAlias())
+                .ftpProtRequired(normalizeProt(request.getFtpProtRequired()))
+                .ftpBannerMessage(request.getFtpBannerMessage())
+                .ftpImplicitTls(request.getFtpImplicitTls())
                 .active(request.getActive() == null || request.getActive())
                 .build();
+
+        validateFtpFields(instance);
 
         // Persist proxy QoS policy
         applyProxyQoS(instance, request.getProxyQos());
@@ -153,6 +161,16 @@ public class ServerInstanceService {
         if (request.getAllowedKex()              != null) instance.setAllowedKex(request.getAllowedKex());
         if (request.getMaintenanceMode()         != null) instance.setMaintenanceMode(request.getMaintenanceMode());
         if (request.getMaintenanceMessage()      != null) instance.setMaintenanceMessage(request.getMaintenanceMessage());
+
+        // FTP advanced (V87) — null means "leave unchanged"
+        if (request.getFtpPassivePortFrom()      != null) instance.setFtpPassivePortFrom(request.getFtpPassivePortFrom());
+        if (request.getFtpPassivePortTo()        != null) instance.setFtpPassivePortTo(request.getFtpPassivePortTo());
+        if (request.getFtpTlsCertAlias()         != null) instance.setFtpTlsCertAlias(request.getFtpTlsCertAlias());
+        if (request.getFtpProtRequired()         != null) instance.setFtpProtRequired(normalizeProt(request.getFtpProtRequired()));
+        if (request.getFtpBannerMessage()        != null) instance.setFtpBannerMessage(request.getFtpBannerMessage());
+        if (request.getFtpImplicitTls()          != null) instance.setFtpImplicitTls(request.getFtpImplicitTls());
+
+        validateFtpFields(instance);
 
         boolean activeChanged = request.getActive() != null && request.getActive() != instance.isActive();
         repository.save(instance);
@@ -226,18 +244,54 @@ public class ServerInstanceService {
      * inside the 1024-65535 unprivileged range.
      */
     public List<Integer> suggestAlternativePorts(String host, int requestedPort, int count) {
+        return suggestAlternativePorts(host, requestedPort, count, null);
+    }
+
+    /**
+     * Protocol-aware variant: when {@code protocol} is non-null, well-known
+     * ports of OTHER protocols are suppressed from the suggestions so an admin
+     * doesn't accidentally pick 2222 for an FTP listener or 21 for an SFTP one.
+     */
+    public List<Integer> suggestAlternativePorts(String host, int requestedPort, int count, Protocol protocol) {
         int low = Math.max(1024, requestedPort - 5);
         int high = Math.min(65535, requestedPort + 20);
         Set<Integer> used = new HashSet<>(repository.findUsedPortsInRange(host, low, high));
+        Set<Integer> blocked = wellKnownPortsOfOtherProtocols(protocol);
         List<Integer> suggestions = new ArrayList<>();
         // Prefer ports AFTER the requested one (more intuitive for admins).
         for (int p = requestedPort + 1; p <= high && suggestions.size() < count; p++) {
-            if (!used.contains(p)) suggestions.add(p);
+            if (!used.contains(p) && !blocked.contains(p)) suggestions.add(p);
         }
         for (int p = requestedPort - 1; p >= low && suggestions.size() < count; p--) {
-            if (!used.contains(p)) suggestions.add(p);
+            if (!used.contains(p) && !blocked.contains(p)) suggestions.add(p);
         }
         return suggestions;
+    }
+
+    /**
+     * Well-known ports reserved for protocols OTHER than {@code protocol}.
+     * Null/unknown → empty set (no filtering).
+     */
+    private static Set<Integer> wellKnownPortsOfOtherProtocols(Protocol protocol) {
+        if (protocol == null) return Set.of();
+        Set<Integer> sftp  = Set.of(22, 2222);
+        Set<Integer> ftp   = Set.of(21, 990);
+        Set<Integer> https = Set.of(443, 8443);
+        Set<Integer> as2   = Set.of(10080, 10443);
+        return switch (protocol) {
+            case SFTP    -> union(ftp, https, as2);
+            case FTP     -> union(sftp, https, as2);
+            case FTP_WEB -> union(sftp, ftp, as2);
+            case HTTPS   -> union(sftp, ftp, as2);
+            case AS2, AS4 -> union(sftp, ftp, https);
+        };
+    }
+
+    @SafeVarargs
+    private static Set<Integer> union(Set<Integer>... sets) {
+        Set<Integer> out = new HashSet<>();
+        for (Set<Integer> s : sets) out.addAll(s);
+        return out;
     }
 
     private ServerInstanceResponse toResponse(ServerInstance i) {
@@ -287,7 +341,46 @@ public class ServerInstanceService {
                 .bindError(i.getBindError())
                 .lastBindAttemptAt(i.getLastBindAttemptAt())
                 .boundNode(i.getBoundNode())
+                // FTP advanced (V87)
+                .ftpPassivePortFrom(i.getFtpPassivePortFrom())
+                .ftpPassivePortTo(i.getFtpPassivePortTo())
+                .ftpTlsCertAlias(i.getFtpTlsCertAlias())
+                .ftpProtRequired(i.getFtpProtRequired())
+                .ftpBannerMessage(i.getFtpBannerMessage())
+                .ftpImplicitTls(i.getFtpImplicitTls())
                 .build();
+    }
+
+    /** Upper-cases PROT to canonical form; accepts null/blank. */
+    private static String normalizeProt(String raw) {
+        if (raw == null) return null;
+        String t = raw.trim();
+        if (t.isEmpty()) return null;
+        return t.toUpperCase();
+    }
+
+    /**
+     * Enforce FTP advanced field invariants at the service layer so validation
+     * surfaces a clean 400 instead of a DB constraint violation. Mirrors the
+     * CHECK constraints added by V87.
+     */
+    private static void validateFtpFields(ServerInstance si) {
+        Integer from = si.getFtpPassivePortFrom();
+        Integer to   = si.getFtpPassivePortTo();
+        if ((from == null) != (to == null)) {
+            throw new IllegalArgumentException(
+                "ftpPassivePortFrom and ftpPassivePortTo must both be set or both null");
+        }
+        if (from != null) {
+            if (from < 1024 || to > 65535 || from > to) {
+                throw new IllegalArgumentException(
+                    "FTP passive port range must satisfy 1024 <= from <= to <= 65535");
+            }
+        }
+        String prot = si.getFtpProtRequired();
+        if (prot != null && !prot.equals("NONE") && !prot.equals("C") && !prot.equals("P")) {
+            throw new IllegalArgumentException("ftpProtRequired must be one of NONE, C, P");
+        }
     }
 
     /**

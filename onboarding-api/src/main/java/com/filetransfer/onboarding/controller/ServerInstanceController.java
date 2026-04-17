@@ -89,14 +89,18 @@ public class ServerInstanceController {
     @GetMapping("/port-suggestions")
     @Operation(summary = "List free ports near the requested one, for a given host",
             description = "Helper for the UI port picker. Returns up to N free ports in the range " +
-                    "[requested-5, requested+20], preferring ports after the requested value.")
+                    "[requested-5, requested+20], preferring ports after the requested value. " +
+                    "When protocol is provided, suggestions avoid the well-known ports of OTHER protocols " +
+                    "(e.g. protocol=FTP suppresses 22/2222; protocol=SFTP suppresses 21/990).")
     public Map<String, Object> portSuggestions(@RequestParam String host,
                                                 @RequestParam int port,
-                                                @RequestParam(defaultValue = "5") int count) {
+                                                @RequestParam(defaultValue = "5") int count,
+                                                @RequestParam(required = false) Protocol protocol) {
         return Map.of(
                 "host", host,
                 "requestedPort", port,
-                "suggestedPorts", service.suggestAlternativePorts(host, port, count)
+                "protocol", protocol != null ? protocol.name() : "ANY",
+                "suggestedPorts", service.suggestAlternativePorts(host, port, count, protocol)
         );
     }
 
@@ -127,6 +131,13 @@ public class ServerInstanceController {
                 "requestedPort", ex.getRequestedPort(),
                 "suggestedPorts", ex.getSuggestedPorts()
         );
+    }
+
+    /** 400 for validation errors thrown by the service (e.g. bad FTP config). */
+    @ExceptionHandler(IllegalArgumentException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, String> handleBadRequest(IllegalArgumentException ex) {
+        return Map.of("error", ex.getMessage() != null ? ex.getMessage() : "Bad request");
     }
 
     /**

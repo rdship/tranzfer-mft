@@ -162,6 +162,31 @@ public class ServerInstance {
     @Column(name = "maintenance_message", columnDefinition = "TEXT")
     private String maintenanceMessage;
 
+    // ── FTP per-listener advanced config (V87) ───────────────────────────────
+    // Null = inherit service-wide ftp.* application property.
+
+    @Column(name = "ftp_passive_port_from")
+    private Integer ftpPassivePortFrom;
+
+    @Column(name = "ftp_passive_port_to")
+    private Integer ftpPassivePortTo;
+
+    /** Alias of the TLS key in Keystore Manager. Null = keystore-manager default. */
+    @Column(name = "ftp_tls_cert_alias", length = 128)
+    private String ftpTlsCertAlias;
+
+    /** PROT level: NONE | C | P. Null = service-wide ftp.ftps.require-data-tls. */
+    @Column(name = "ftp_prot_required", length = 8)
+    private String ftpProtRequired;
+
+    /** Welcome banner shown on FTP connect. Null = no banner. */
+    @Column(name = "ftp_banner_message", columnDefinition = "TEXT")
+    private String ftpBannerMessage;
+
+    /** True = implicit FTPS (direct TLS on 990). Null = service-wide ftp.ftps.implicit. */
+    @Column(name = "ftp_implicit_tls")
+    private Boolean ftpImplicitTls;
+
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;

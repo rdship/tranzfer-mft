@@ -74,19 +74,39 @@ public class FtpServerBuilder {
         dataConnConfig.setPassiveExternalAddress(
                 si.getExternalHost() != null && !si.getExternalHost().isBlank()
                         ? si.getExternalHost() : defaultPublicHost);
-        dataConnConfig.setPassivePorts(defaultPassivePorts);
+        // Per-listener PASV range wins over the service-wide default.
+        String passiveRange = resolvePassivePorts(si);
+        dataConnConfig.setPassivePorts(passiveRange);
+        log.info("FTP listener '{}' passive ports = {}", si.getInstanceId(), passiveRange);
         dataConnConfig.setIdleTime(defaultDataTimeoutSeconds);
         dataConnConfig.setActiveEnabled(true);
         dataConnConfig.setActiveIpCheck(true);
         listenerFactory.setDataConnectionConfiguration(dataConnConfig.createDataConnectionConfiguration());
 
-        org.apache.ftpserver.ssl.SslConfiguration sslConfig = ftpsConfig.buildSslConfig();
+        // Per-listener FTPS: listener-specific cert alias + implicit mode override.
+        org.apache.ftpserver.ssl.SslConfiguration sslConfig = ftpsConfig.buildSslConfigFor(si);
         if (sslConfig != null) {
             listenerFactory.setSslConfiguration(sslConfig);
-            listenerFactory.setImplicitSsl(ftpsConfig.isImplicit());
+            boolean implicit = si.getFtpImplicitTls() != null
+                    ? si.getFtpImplicitTls() : ftpsConfig.isImplicit();
+            listenerFactory.setImplicitSsl(implicit);
         }
 
         serverFactory.addListener("default", listenerFactory.createListener());
         return serverFactory.createServer();
+    }
+
+    /**
+     * Per-listener passive port range, formatted as Apache FtpServer expects
+     * ("from-to"). Falls back to the service-wide ftp.passive-ports default
+     * when the ServerInstance doesn't override it.
+     */
+    private String resolvePassivePorts(ServerInstance si) {
+        Integer from = si.getFtpPassivePortFrom();
+        Integer to   = si.getFtpPassivePortTo();
+        if (from != null && to != null) {
+            return from + "-" + to;
+        }
+        return defaultPassivePorts;
     }
 }

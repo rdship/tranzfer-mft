@@ -108,9 +108,17 @@ public class FtpServerConfig {
                     idleTimeoutSeconds = si.getIdleTimeoutSeconds();
                     log.info("FTP idle timeout loaded from DB: {}s", idleTimeoutSeconds);
                 }
-                if (si.getSshBannerMessage() != null && !si.getSshBannerMessage().isBlank()) {
+                // V87: ftp_banner_message overrides legacy ssh_banner_message reuse.
+                if (si.getFtpBannerMessage() != null && !si.getFtpBannerMessage().isBlank()) {
+                    bannerMessage = si.getFtpBannerMessage();
+                    log.info("FTP banner loaded from DB (ftp_banner_message)");
+                } else if (si.getSshBannerMessage() != null && !si.getSshBannerMessage().isBlank()) {
                     bannerMessage = si.getSshBannerMessage();
-                    log.info("FTP banner loaded from DB");
+                    log.info("FTP banner loaded from DB (ssh_banner_message fallback)");
+                }
+                if (si.getFtpPassivePortFrom() != null && si.getFtpPassivePortTo() != null) {
+                    passivePorts = si.getFtpPassivePortFrom() + "-" + si.getFtpPassivePortTo();
+                    log.info("FTP passive ports loaded from DB: {}", passivePorts);
                 }
                 log.info("FTP instance '{}' config loaded from database", instanceId);
             });

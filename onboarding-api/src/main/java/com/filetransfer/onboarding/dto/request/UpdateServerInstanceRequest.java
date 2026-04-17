@@ -46,4 +46,18 @@ public class UpdateServerInstanceRequest {
     /** Toggle maintenance mode — new connections rejected gracefully. */
     private Boolean maintenanceMode;
     private String  maintenanceMessage;
+
+    // ── FTP per-listener advanced config (V87) ───────────────────────────────
+    /** PASV port range lower bound. */
+    private Integer ftpPassivePortFrom;
+    /** PASV port range upper bound. */
+    private Integer ftpPassivePortTo;
+    /** Keystore Manager alias for the per-listener TLS certificate. */
+    private String  ftpTlsCertAlias;
+    /** PROT level: NONE | C | P. */
+    private String  ftpProtRequired;
+    /** Welcome banner on FTP connect. */
+    private String  ftpBannerMessage;
+    /** True = implicit FTPS (direct TLS on 990). */
+    private Boolean ftpImplicitTls;
 }
