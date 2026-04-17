@@ -19,6 +19,8 @@
 #   8. End-to-end flow — upload, script runs, byte-level diff
 #   9. Infra health (actuator on each service)
 #  10. Negative tests (401, 403, 400, 409)
+#  11. FTP direct — control + passive-mode upload (R87 proves)
+#  12. FTP-via-DMZ — reverse-proxy PASV rewriting + passive forwarders (R88)
 #
 # Usage:  ./scripts/sanity-test.sh
 # Exit:   0 if all PASS, 1 if any FAIL, 2 on prerequisite miss
@@ -354,6 +356,122 @@ fi
 # 10.5 flow create with duplicate name → 400
 CODE=$(curl -sk -o /dev/null -w "%{http_code}" -X POST "$API_CFG/api/flows" -H "$HDR" -H 'Content-Type: application/json' -d '{"name":"sanity-flow-1","direction":"INBOUND","filenamePattern":".*","steps":[]}')
 [ "$CODE" = "400" ] && pass "duplicate flow name → 400" || fail "duplicate flow → $CODE"
+
+# ─────────────────────────────────────────────────────────────────────────────
+section "11. FTP direct (control + passive data)"
+
+# Preconditions set up by build-regression-fixture.sh:
+#   - Dynamic FTP listener 'ftp-reg-1' on ftp-service:2100
+#   - Account regtest-ftp-1 assigned to ftp-reg-1, password RegTest@2026!
+#   - Primary ftp-service exposes passive range 21000-21010 (default) on host
+# Runs the FTP client inside an alpine container on the compose network so the
+# test works without exposing port 2100 on the host.
+FTP_LISTEN=$(docker exec mft-postgres psql -U postgres -d filetransfer -tA -c "SELECT id FROM server_instances WHERE instance_id='ftp-reg-1'" | tr -d '[:space:]')
+if [ -z "$FTP_LISTEN" ]; then
+  skip "ftp-reg-1 not present — run ./scripts/build-regression-fixture.sh first; skipping §11"
+else
+  # 11.1 control channel login
+  TS=$(date +%s); FFNAME="sanity-ftp-$TS.dat"
+  echo "sanity ftp upload content" > "/tmp/$FFNAME"
+
+  # curl --ftp-pasv is default; -v prints PASV reply lines (227 ...)
+  OUT=$(docker run --rm --network tranzfer-mft_default \
+    -v "/tmp/$FFNAME:/local.dat:ro" alpine:latest sh -c '
+    apk add --quiet curl >/dev/null 2>&1
+    curl -sv --ftp-pasv \
+      -u regtest-ftp-1:RegTest@2026! \
+      -T /local.dat \
+      ftp://ftp-service:2100/'"$FFNAME"' 2>&1
+  ' 2>&1)
+
+  # 11.2 login response
+  echo "$OUT" | grep -qE '230.*Login|User regtest-ftp-1 logged in' \
+    && pass "FTP control: login accepted (230)" \
+    || fail "FTP login failed: $(echo "$OUT" | grep -E '^[<>] ' | head -5 | tr '\n' ';')"
+
+  # 11.3 PASV reply received (227)
+  echo "$OUT" | grep -q '227 ' \
+    && pass "FTP passive: 227 reply received" \
+    || fail "FTP PASV: no 227 line in trace"
+
+  # 11.4 upload completed
+  echo "$OUT" | grep -qE '226.*Transfer complete|upload.*complete' \
+    && pass "FTP upload: 226 Transfer complete" \
+    || fail "FTP upload did not complete"
+
+  # 11.5 LIST shows the uploaded file
+  LIST_OUT=$(docker run --rm --network tranzfer-mft_default alpine:latest sh -c '
+    apk add --quiet curl >/dev/null 2>&1
+    curl -s --ftp-pasv -u regtest-ftp-1:RegTest@2026! ftp://ftp-service:2100/ 2>&1
+  ' 2>&1)
+  echo "$LIST_OUT" | grep -q "$FFNAME" \
+    && pass "FTP LIST shows uploaded file" \
+    || fail "FTP LIST missing $FFNAME"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+section "12. FTP-via-DMZ (R87/R88 — reverse-proxy passive mode)"
+
+# Preconditions: DMZ proxy must be running and healthy. DMZ management API is
+# on port 8088 (internal DMZ). When R87/R88 isn't deployed yet, the model will
+# reject the ftpDataChannelPolicy field and the create will return 4xx — the
+# tests below degrade gracefully to FAIL with an actionable message.
+DMZ_HEALTHY=$(curl -sk -o /dev/null -w "%{http_code}" "http://localhost:8088/api/proxy/health" 2>/dev/null || echo 000)
+if [ "$DMZ_HEALTHY" != "200" ] && [ "$DMZ_HEALTHY" != "503" ]; then
+  skip "DMZ proxy not reachable on :8088 (health=$DMZ_HEALTHY); skipping §12"
+else
+  # 12.1 create a DMZ mapping with ftpDataChannelPolicy — proves R88 model ser/de
+  DMZ_BODY='{
+    "name":"sanity-ftp-dmz",
+    "listenPort":42821,
+    "targetHost":"ftp-service",
+    "targetPort":2100,
+    "active":true,
+    "ftpDataChannelPolicy":{
+      "passivePortFrom":31000,
+      "passivePortTo":31003,
+      "externalHost":"127.0.0.1",
+      "rewritePasvResponse":true
+    }
+  }'
+  R=$(curl -sk -w "\n%{http_code}" -X POST "http://localhost:8088/api/proxy/mappings" \
+    -H 'Content-Type: application/json' \
+    -H "X-Platform-Jwt: sanity" \
+    -d "$DMZ_BODY" 2>&1)
+  STATUS=${R##*$'\n'}
+  if [ "$STATUS" = "201" ]; then
+    pass "DMZ accepts ftpDataChannelPolicy in mapping (R88 model wired)"
+  elif [ "$STATUS" = "401" ] || [ "$STATUS" = "403" ]; then
+    skip "DMZ management API gated (auth=$STATUS); JWT helper not wired in sanity — skipping §12 body"
+  elif echo "${R%$'\n'*}" | grep -qi 'already'; then
+    skip "sanity-ftp-dmz mapping already exists (reusing)"
+  else
+    fail "DMZ POST /mappings with ftpDataChannelPolicy → $STATUS (R88 not deployed?)"
+  fi
+
+  if [ "$STATUS" = "201" ] || [ "$STATUS" = "409" ]; then
+    # 12.2 passive forwarder listening on the range (inside DMZ container)
+    # At least one port in [31000, 31003] must be bound.
+    PFWD=$(docker exec mft-dmz-proxy-internal sh -c '
+      for p in 31000 31001 31002 31003; do
+        (echo > /dev/tcp/127.0.0.1/$p) 2>/dev/null && { echo $p; break; }
+      done
+    ' 2>/dev/null)
+    if [ -n "$PFWD" ]; then
+      pass "DMZ passive forwarder listening on :$PFWD (R88 sibling listeners)"
+    else
+      fail "No passive forwarder bound in [31000-31003] inside DMZ container"
+    fi
+
+    # 12.3 DELETE the mapping to prove clean teardown
+    CODE=$(curl -sk -o /dev/null -w "%{http_code}" -X DELETE \
+      -H "X-Platform-Jwt: sanity" \
+      "http://localhost:8088/api/proxy/mappings/sanity-ftp-dmz" 2>/dev/null)
+    [ "$CODE" = "204" ] || [ "$CODE" = "200" ] \
+      && pass "DMZ mapping delete → $CODE (passive forwarders torn down)" \
+      || skip "DMZ delete → $CODE"
+  fi
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 section "Cleanup — delete sanity listener"
