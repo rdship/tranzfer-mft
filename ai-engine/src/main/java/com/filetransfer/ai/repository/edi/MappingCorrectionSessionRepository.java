@@ -17,6 +17,9 @@ public interface MappingCorrectionSessionRepository extends JpaRepository<Mappin
 
     List<MappingCorrectionSession> findByPartnerIdOrderByCreatedAtDesc(String partnerId);
 
+    /** R127: admin-side "all sessions" view — no partnerId filter. */
+    List<MappingCorrectionSession> findAllByOrderByCreatedAtDesc();
+
     List<MappingCorrectionSession> findByPartnerIdAndStatusOrderByCreatedAtDesc(String partnerId, Status status);
 
     /** Find stale sessions that should be expired */

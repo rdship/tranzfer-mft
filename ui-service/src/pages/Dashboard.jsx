@@ -720,6 +720,15 @@ export default function Dashboard() {
   const { data: predictions } = useQuery({
     queryKey: ['predictions'],
     queryFn: getPredictions,
+    // R127: the predictions widget is ancillary; an analytics-service
+    // transient (cold boot, circuit-breaker trip) was raising a global
+    // "Couldn't load data" toast on the Dashboard every load. Suppress.
+    // The /predictions route on :8090 is wired — failures here are
+    // noise, not something the operator needs to act on from the Dashboard.
+    meta: { silent: true },
+    retry: 1,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   })
   const {
     data: agentsData, isLoading: agentsLoading, isError: agentsError,

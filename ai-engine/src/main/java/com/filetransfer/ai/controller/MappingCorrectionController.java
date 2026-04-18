@@ -50,12 +50,13 @@ public class MappingCorrectionController {
         return correctionService.getSession(sessionId, partnerId);
     }
 
-    /** List all sessions for a partner */
+    /**
+     * List correction sessions. When a {@code partnerId} is supplied, scopes
+     * to that partner. Admin-side callers (Activity Monitor operational view)
+     * can omit the param to list every session across partners.
+     */
     @GetMapping("/sessions")
-    public List<SessionSummary> listSessions(@RequestParam String partnerId) {
-        if (partnerId == null || partnerId.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "partnerId is required");
-        }
+    public List<SessionSummary> listSessions(@RequestParam(required = false) String partnerId) {
         return correctionService.listSessions(partnerId);
     }
 

@@ -106,4 +106,42 @@ public class PartnerManagementController {
     public List<DeliveryEndpoint> listEndpoints(@PathVariable UUID id) {
         return partnerService.getPartnerEndpoints(id);
     }
+
+    /**
+     * R127: admin-side "test connection" for a partner — mirrors the
+     * partner-portal GET /api/partner/test-connection (which requires a
+     * PARTNER JWT). The R124 audit flagged 404 on the partner-portal route
+     * because the audit uses an ADMIN token; this route is what the admin UI
+     * calls to verify a partner's SFTP/FTP endpoint without impersonating
+     * the partner. Returns connectivity metadata for each of the partner's
+     * accounts.
+     */
+    @GetMapping("/{id}/test-connection")
+    @Transactional(readOnly = true)
+    public Map<String, Object> testConnection(@PathVariable UUID id) {
+        List<TransferAccount> accounts = partnerService.getPartnerAccounts(id);
+        if (accounts == null || accounts.isEmpty()) {
+            return Map.of(
+                    "partnerId", id.toString(),
+                    "status", "NO_ACCOUNTS",
+                    "message", "Partner has no transfer accounts to test");
+        }
+        List<Map<String, Object>> results = accounts.stream().map(acct -> {
+            java.util.LinkedHashMap<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("username", acct.getUsername());
+            m.put("protocol", acct.getProtocol() != null ? acct.getProtocol().name() : null);
+            m.put("active", acct.isActive());
+            m.put("homeDir", acct.getHomeDir());
+            m.put("serverPort", acct.getProtocol() == com.filetransfer.shared.enums.Protocol.SFTP ? 2222 : 21);
+            m.put("instructions", acct.getProtocol() == com.filetransfer.shared.enums.Protocol.SFTP
+                    ? "sftp -P 2222 " + acct.getUsername() + "@<server_host>"
+                    : "ftp <server_host>");
+            return (Map<String, Object>) m;
+        }).toList();
+        return Map.of(
+                "partnerId", id.toString(),
+                "status", "OK",
+                "accountCount", accounts.size(),
+                "accounts", results);
+    }
 }

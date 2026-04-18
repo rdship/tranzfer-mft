@@ -1178,7 +1178,9 @@ export default function ActivityMonitor() {
               <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
             )}
           </div>
-          <p className="text-secondary text-sm mt-0.5">Monitor all file transfers across the platform</p>
+          {/* R127: subtitle "Monitor all file transfers across the platform"
+              removed per tester's UX review — boilerplate that consumed a
+              full line of chrome on the default viewport. */}
         </div>
         <div className="flex items-center gap-2">
           {/* Auto-refresh toggle */}
@@ -1520,10 +1522,9 @@ export default function ActivityMonitor() {
       {/* ── Filter Bar ───────────────────────────────────────────── */}
       {activeTab === 'transfers' && <div className="card !p-4">
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5 text-muted">
-            <FunnelIcon className="w-4 h-4" />
-            <span className="text-xs font-medium uppercase tracking-wide">Filters</span>
-          </div>
+          {/* R127: "FILTERS" label + funnel icon removed per tester's UX
+              review — the inputs are self-evident, the label ate horizontal
+              space that would otherwise fit another filter. */}
 
           {/* Filename */}
           <div className="relative">
@@ -1672,7 +1673,9 @@ export default function ActivityMonitor() {
           </div>
         ) : (
           <>
-            <p className="text-xs text-muted mb-2">Tip: Double-click any row to open detailed view</p>
+            {/* R127: tip banner "Tip: Double-click any row to open detailed view"
+                removed per tester's UX review. Discoverability lives in row-
+                hover affordance, not a persistent banner. */}
             {/* Scrollable table container */}
             <div className="overflow-x-auto">
               <table className="w-full">

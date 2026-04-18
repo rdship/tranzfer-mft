@@ -336,7 +336,14 @@ public class MappingCorrectionService {
     }
 
     public List<SessionSummary> listSessions(String partnerId) {
-        return sessionRepo.findByPartnerIdOrderByCreatedAtDesc(partnerId).stream()
+        // R127: admin GETs /api/v1/edi/correction/sessions without partnerId
+        // were 400 in the R124 audit. Allow the no-partner case to return
+        // every session (admin operational view); partner scoping still
+        // applies when the param is supplied.
+        List<MappingCorrectionSession> sessions = (partnerId == null || partnerId.isBlank())
+                ? sessionRepo.findAllByOrderByCreatedAtDesc()
+                : sessionRepo.findByPartnerIdOrderByCreatedAtDesc(partnerId);
+        return sessions.stream()
                 .map(s -> SessionSummary.builder()
                         .sessionId(s.getId())
                         .mapKey(s.getMapKey())

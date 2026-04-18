@@ -1,7 +1,10 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 
 const defaults = {
-  companyName: 'TranzFer Command Center',
+  // R127: the default was "TranzFer Command Center" which clipped in the
+  // sidebar at 1280×720 (tester's UX review flagged it as a polish bug).
+  // Shortened to match the top-nav "TranzFer MFT" — one brand, not two.
+  companyName: 'TranzFer MFT',
   logoUrl: '',
   primaryColor: '#3b82f6',
   accentColor: '#2563eb',

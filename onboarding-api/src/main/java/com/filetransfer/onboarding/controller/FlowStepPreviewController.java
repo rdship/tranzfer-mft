@@ -64,7 +64,7 @@ public class FlowStepPreviewController {
      * @param direction {@code input} (file entering the step) or {@code output} (file leaving)
      */
     @GetMapping("/{trackId}/{stepIndex}/{direction}/content")
-    public ResponseEntity<StreamingResponseBody> previewContent(
+    public ResponseEntity<byte[]> previewContent(
             @PathVariable String trackId,
             @PathVariable int stepIndex,
             @PathVariable String direction) {
@@ -88,22 +88,41 @@ public class FlowStepPreviewController {
                 ? virtualPath.substring(virtualPath.lastIndexOf('/') + 1)
                 : "file-step" + stepIndex + "-" + direction;
 
-        log.debug("[{}] Streaming step {} {} → key={}", trackId, stepIndex, direction, storageKey);
+        log.debug("[{}] Reading step {} {} → key={}", trackId, stepIndex, direction, storageKey);
 
-        StreamingResponseBody body = out -> {
-            try {
-                storageClient.streamToOutput(storageKey, out);
-            } catch (Exception e) {
-                log.warn("[{}] Failed to stream step {} {}: {}", trackId, stepIndex, direction, e.getMessage());
-                throw new RuntimeException(e);
-            }
-        };
+        // R127: was StreamingResponseBody → storageClient.streamToOutput.
+        // Problem: when storage-manager returned 4xx (e.g. a 403 from SPIFFE
+        // auth race, or 404 for a missing backend object), RestTemplate threw
+        // HttpStatusCodeException from inside the async body lambda. Spring
+        // had already committed 200+headers, so the error came out as either
+        // a 500 generic or a bare 403 body, leaving the Activity Monitor with
+        // no usable per-step preview.
+        // Fix: read synchronously into heap and return ResponseEntity<byte[]>.
+        // Flow-step preview files are per-step snapshots (KB-to-MB range, not
+        // GB payloads), so heap buffering is fine, and downstream status codes
+        // propagate cleanly via ResponseStatusException.
+        byte[] bytes;
+        try {
+            bytes = storageClient.retrieveBySha256(storageKey);
+        } catch (org.springframework.web.client.HttpStatusCodeException httpEx) {
+            log.warn("[{}] storage-manager returned {} for step {} {} (key={})",
+                    trackId, httpEx.getStatusCode(), stepIndex, direction, storageKey);
+            throw new ResponseStatusException(
+                    httpEx.getStatusCode().is4xxClientError() ? HttpStatus.NOT_FOUND
+                            : HttpStatus.BAD_GATEWAY,
+                    "Storage fetch failed for key=" + storageKey + ": " + httpEx.getStatusCode());
+        } catch (Exception e) {
+            log.warn("[{}] Failed to read step {} {}: {}", trackId, stepIndex, direction, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                    "Storage fetch failed for key=" + storageKey);
+        }
 
         return ResponseEntity.ok()
                 .header("Content-Disposition", "inline; filename=\"" + filename + "\"")
                 .header("X-Storage-Key", storageKey)
                 .header("X-Step-Index", String.valueOf(stepIndex))
                 .header("X-Direction", direction)
-                .body(body);
+                .contentLength(bytes.length)
+                .body(bytes);
     }
 }

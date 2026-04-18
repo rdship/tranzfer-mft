@@ -216,7 +216,11 @@ public class PeerTransferController {
             return ticketRepository.findBySenderAccountUsernameOrReceiverAccountUsernameOrderByCreatedAtDesc(
                     username, username);
         }
-        return ticketRepository.findAll();
+        // R127: was findAll(), which returned entities whose senderAccount /
+        // receiverAccount lazy proxies blew up during Jackson serialization
+        // (open-in-view=false). Use the JOIN FETCH variant so both relations
+        // are initialised before the transaction closes.
+        return ticketRepository.findAllWithAccounts();
     }
 
     // --- DTOs ---
