@@ -523,6 +523,8 @@ services:
   onboarding-api:
     build: ./onboarding-api
     container_name: mft-onboarding-api
+    labels:
+      com.filetransfer.spiffe: onboarding-api
     <<: *healthcheck
     ports:
       - "127.0.0.1:8080:8080"
@@ -553,6 +555,8 @@ services:
   sftp-service:
     build: ./sftp-service
     container_name: mft-sftp-service
+    labels:
+      com.filetransfer.spiffe: sftp-service
     <<: *healthcheck
     ports:
       - "127.0.0.1:2222:2222"
@@ -587,6 +591,8 @@ services:
     profiles: ["replicas"]
     build: ./sftp-service
     container_name: mft-sftp-service-2
+    labels:
+      com.filetransfer.spiffe: sftp-service
     <<: *healthcheck
     ports:
       - "127.0.0.1:2223:2222"
@@ -611,6 +617,8 @@ services:
   ftp-service:
     build: ./ftp-service
     container_name: mft-ftp-service
+    labels:
+      com.filetransfer.spiffe: ftp-service
     <<: *healthcheck
     ports:
       - "127.0.0.1:21:21"
@@ -649,6 +657,8 @@ services:
     profiles: ["replicas"]
     build: ./ftp-service
     container_name: mft-ftp-service-2
+    labels:
+      com.filetransfer.spiffe: ftp-service
     <<: *healthcheck
     ports:
       - "127.0.0.1:1020:21"
@@ -678,6 +688,8 @@ services:
     profiles: ["replicas"]
     build: ./sftp-service
     container_name: mft-sftp-service-3
+    labels:
+      com.filetransfer.spiffe: sftp-service
     <<: *healthcheck
     ports:
       - "127.0.0.1:12222:2222"
@@ -705,6 +717,8 @@ services:
     profiles: ["replicas"]
     build: ./ftp-service
     container_name: mft-ftp-service-3
+    labels:
+      com.filetransfer.spiffe: ftp-service
     <<: *healthcheck
     ports:
       - "127.0.0.1:1021:21"
@@ -733,6 +747,8 @@ services:
   ftp-web-service:
     build: ./ftp-web-service
     container_name: mft-ftp-web-service
+    labels:
+      com.filetransfer.spiffe: ftp-web-service
     <<: *healthcheck
     ports:
       - "127.0.0.1:8083:8083"
@@ -762,6 +778,8 @@ services:
     profiles: ["replicas"]
     build: ./ftp-web-service
     container_name: mft-ftp-web-service-2
+    labels:
+      com.filetransfer.spiffe: ftp-web-service
     <<: *healthcheck
     ports:
       - "127.0.0.1:8183:8083"
@@ -784,6 +802,8 @@ services:
   config-service:
     build: ./config-service
     container_name: mft-config-service
+    labels:
+      com.filetransfer.spiffe: config-service
     <<: *healthcheck
     ports:
       - "127.0.0.1:8084:8084"
@@ -812,6 +832,8 @@ services:
   gateway-service:
     build: ./gateway-service
     container_name: mft-gateway-service
+    labels:
+      com.filetransfer.spiffe: gateway-service
     <<: *healthcheck
     ports:
       - "127.0.0.1:2220:2220"
@@ -854,6 +876,8 @@ services:
   encryption-service:
     build: ./encryption-service
     container_name: mft-encryption-service
+    labels:
+      com.filetransfer.spiffe: encryption-service
     <<: *healthcheck
     ports:
       - "127.0.0.1:8086:8086"
@@ -878,6 +902,8 @@ services:
   external-forwarder-service:
     build: ./external-forwarder-service
     container_name: mft-forwarder-service
+    labels:
+      com.filetransfer.spiffe: external-forwarder-service
     <<: *healthcheck
     ports:
       - "127.0.0.1:8087:8087"
@@ -908,6 +934,8 @@ services:
   dmz-proxy:
     build: ./dmz-proxy
     container_name: mft-dmz-proxy-internal
+    labels:
+      com.filetransfer.spiffe: dmz-proxy
     ports:
       - "127.0.0.1:8088:8088"       # Management REST API
       - "127.0.0.1:32222:2222"      # SFTP (internal network clients)
@@ -969,6 +997,8 @@ services:
   dmz-proxy-external:
     build: ./dmz-proxy
     container_name: mft-dmz-proxy-external
+    labels:
+      com.filetransfer.spiffe: dmz-proxy
     profiles:
       - external-proxy     # start with: docker compose --profile external-proxy up
     ports:
@@ -1023,6 +1053,8 @@ services:
   as2-service:
     build: ./as2-service
     container_name: mft-as2-service
+    labels:
+      com.filetransfer.spiffe: as2-service
     # Align start_period with other Spring services (was 30s — too tight for
     # Flyway + Hibernate + Kafka cold boot which takes ~100s). 600s matches
     # the shared x-service-healthcheck anchor.
@@ -1061,6 +1093,8 @@ services:
   license-service:
     build: ./license-service
     container_name: mft-license-service
+    labels:
+      com.filetransfer.spiffe: license-service
     <<: *healthcheck
     ports:
       - "127.0.0.1:8089:8089"
@@ -1083,6 +1117,8 @@ services:
   analytics-service:
     build: ./analytics-service
     container_name: mft-analytics-service
+    labels:
+      com.filetransfer.spiffe: analytics-service
     <<: *healthcheck
     ports:
       - "127.0.0.1:8090:8090"
@@ -1107,6 +1143,8 @@ services:
   ai-engine:
     build: ./ai-engine
     container_name: mft-ai-engine
+    labels:
+      com.filetransfer.spiffe: ai-engine
     <<: *healthcheck
     ports:
       - "127.0.0.1:8091:8091"
@@ -1131,6 +1169,8 @@ services:
     profiles: ["replicas"]
     build: ./ai-engine
     container_name: mft-ai-engine-2
+    labels:
+      com.filetransfer.spiffe: ai-engine
     <<: *healthcheck
     ports:
       - "127.0.0.1:18091:8091"
@@ -1153,6 +1193,8 @@ services:
   keystore-manager:
     build: ./keystore-manager
     container_name: mft-keystore-manager
+    labels:
+      com.filetransfer.spiffe: keystore-manager
     <<: *healthcheck
     ports:
       - "127.0.0.1:8093:8093"
@@ -1192,6 +1234,8 @@ services:
   storage-manager:
     build: ./storage-manager
     container_name: mft-storage-manager
+    labels:
+      com.filetransfer.spiffe: storage-manager
     <<: *healthcheck
     ports:
       - "127.0.0.1:8096:8096"
@@ -1285,6 +1329,8 @@ services:
   edi-converter:
     build: ./edi-converter
     container_name: mft-edi-converter
+    labels:
+      com.filetransfer.spiffe: edi-converter
     <<: *healthcheck
     ports:
       - "127.0.0.1:8095:8095"
@@ -1324,6 +1370,8 @@ services:
   screening-service:
     build: ./screening-service
     container_name: mft-screening-service
+    labels:
+      com.filetransfer.spiffe: screening-service
     <<: *healthcheck
     ports:
       - "127.0.0.1:8092:8092"
@@ -1351,6 +1399,8 @@ services:
   notification-service:
     build: ./notification-service
     container_name: mft-notification-service
+    labels:
+      com.filetransfer.spiffe: notification-service
     <<: *healthcheck
     ports:
       - "127.0.0.1:8097:8097"
@@ -1378,6 +1428,8 @@ services:
   platform-sentinel:
     build: ./platform-sentinel
     container_name: mft-platform-sentinel
+    labels:
+      com.filetransfer.spiffe: platform-sentinel
     <<: *healthcheck
     ports:
       - "127.0.0.1:8098:8098"
@@ -1540,6 +1592,8 @@ services:
         VITE_PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-PROD}
     restart: unless-stopped
     container_name: mft-ui-service
+    labels:
+      com.filetransfer.spiffe: ui-service
     # Container port is 8080 (non-root nginx) — host URL stays http://localhost:3000
     ports:
       - "127.0.0.1:3000:8080"
@@ -1605,6 +1659,8 @@ services:
     build: ./api-gateway
     restart: unless-stopped
     container_name: mft-api-gateway
+    labels:
+      com.filetransfer.spiffe: api-gateway
     ports:
       - "127.0.0.1:80:8080"
       - "127.0.0.1:443:8443"
