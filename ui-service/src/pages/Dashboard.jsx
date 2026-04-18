@@ -97,6 +97,45 @@ function getGreeting() {
 // now so it can import from recharts in the lazy chunk instead of the main
 // bundle. Don't re-add it here.
 
+/* R127: inline stat — compact "label: value" pair with optional deep-link.
+   Replaces the card-style KpiTile on the Dashboard hero row. Kept KpiTile
+   below for any other page that still uses tiles. */
+function DashboardInlineStat({ label, value, valueColor, sub, to, navigate }) {
+  const clickable = Boolean(to && navigate)
+  return (
+    <button
+      type="button"
+      onClick={clickable ? () => navigate(to) : undefined}
+      className="inline-flex items-baseline gap-2 transition-colors"
+      style={{
+        background: 'transparent',
+        border: 'none',
+        cursor: clickable ? 'pointer' : 'default',
+        padding: 0,
+      }}
+      aria-label={`${label}: ${value}${sub ? ` (${sub})` : ''}`}
+    >
+      <span style={{ color: 'rgb(var(--tx-secondary))', fontSize: '0.75rem' }}>{label}</span>
+      <span
+        className="id-mono"
+        style={{
+          color: valueColor || 'rgb(var(--tx-primary))',
+          fontSize: '0.9375rem',
+          fontWeight: 600,
+          letterSpacing: '-0.01em',
+        }}
+      >
+        {value}
+      </span>
+      {sub && (
+        <span style={{ color: 'rgb(var(--tx-muted))', fontSize: '0.6875rem' }}>
+          {sub}
+        </span>
+      )}
+    </button>
+  )
+}
+
 /* KPI tile — supports optional `to` prop for clickable navigation */
 function KpiTile({ label, value, icon: Icon, color, sub, to, navigate }) {
   const handleClick = () => { if (to && navigate) navigate(to) }
@@ -797,50 +836,46 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── KPI Row ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <KpiTile
-          label="Transfers Today"
-          value={(dashboard?.totalTransfersToday || 0).toLocaleString()}
-          icon={ArrowUpTrayIcon}
-          color="#8b5cf6"
-          to="/activity-monitor"
-          navigate={navigate}
-        />
-        <KpiTile
-          label="Success Rate"
-          value={`${successRate}%`}
-          icon={CheckCircleIcon}
-          color="#22c55e"
-          sub={dashboard?.totalTransfersToday ? `${Math.round(dashboard.totalTransfersToday * (dashboard.successRateToday || 1))} succeeded` : undefined}
-          to="/activity-monitor?status=FAILED"
-          navigate={navigate}
-        />
-        <KpiTile
-          label="Data Moved"
-          value={`${(dashboard?.totalGbToday || 0).toFixed(2)} GB`}
-          icon={ServerIcon}
-          color="#22d3ee"
-          to="/activity-monitor"
-          navigate={navigate}
-        />
-        <KpiTile
-          label="Last Hour"
-          value={(dashboard?.totalTransfersLastHour || 0).toLocaleString()}
-          icon={ChartBarIcon}
-          color="#fbbf24"
-          to="/activity-monitor"
-          navigate={navigate}
-        />
-        <KpiTile
-          label="Protocols Active"
-          value={protocolData.length || 0}
-          icon={BoltIcon}
-          color="#f87171"
-          sub={protocolData.map(p => p.name).join(' · ') || 'None yet'}
-          to="/flows"
-          navigate={navigate}
-        />
+      {/* R127: collapsed from 5 tile-cards into a compact inline-stat row
+          per the UX review. "9 KPI cards on one page is over-indexed on
+          numbers" — the Dashboard's job is "what do I need to look at?"
+          not "here are N numbers." The chart gets the vertical space the
+          cards freed up; deep-links are preserved on each stat. */}
+      <div className="card !py-3 !px-5">
+        <div className="flex items-center gap-6 flex-wrap text-sm">
+          <DashboardInlineStat
+            label="Transfers today"
+            value={(dashboard?.totalTransfersToday || 0).toLocaleString()}
+            to="/activity-monitor"
+            navigate={navigate}
+          />
+          <DashboardInlineStat
+            label="Success"
+            value={`${successRate}%`}
+            valueColor={parseFloat(successRate) >= 95 ? 'rgb(var(--success))' : 'rgb(var(--warning))'}
+            to="/activity-monitor?status=FAILED"
+            navigate={navigate}
+          />
+          <DashboardInlineStat
+            label="Data moved"
+            value={`${(dashboard?.totalGbToday || 0).toFixed(2)} GB`}
+            to="/activity-monitor"
+            navigate={navigate}
+          />
+          <DashboardInlineStat
+            label="Last hour"
+            value={(dashboard?.totalTransfersLastHour || 0).toLocaleString()}
+            to="/activity-monitor"
+            navigate={navigate}
+          />
+          <DashboardInlineStat
+            label="Protocols"
+            value={protocolData.length || 0}
+            sub={protocolData.map(p => p.name).join(' · ') || 'none yet'}
+            to="/flows"
+            navigate={navigate}
+          />
+        </div>
       </div>
 
       {/* ── Live Activity Strip ── */}
@@ -890,73 +925,35 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── Main Grid: Chart + Quick Actions ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-        {/* Transfer Volume Chart */}
-        <div className="card lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <p className="section-title">Transfer Volume</p>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
-                style={{ background: 'rgb(var(--accent) / 0.12)', color: 'rgb(var(--accent))' }}>
-                Last 24 hours
-              </span>
-              <NavLink to="/activity-monitor" className="text-[10px] font-medium hover:underline" style={{ color: 'rgb(var(--accent))' }}>
-                View All
-              </NavLink>
-            </div>
-          </div>
-
-          {transferData.length > 0 ? (
-            <Suspense fallback={<ChartFallback height={220} />}>
-              <DashboardVolumeChart data={transferData} />
-            </Suspense>
-          ) : (
-            <div className="h-52 flex flex-col items-center justify-center gap-2">
-              <ChartBarIcon className="w-8 h-8" style={{ color: 'rgb(var(--tx-muted))' }} />
-              <p className="text-sm" style={{ color: 'rgb(var(--tx-muted))' }}>No data yet</p>
-              <p className="text-xs" style={{ color: 'rgb(var(--tx-muted))' }}>Transfers will appear after the first hour</p>
-            </div>
-          )}
-        </div>
-
-        {/* Quick Actions */}
-        <div className="card">
-          <p className="section-title mb-4">Quick Access</p>
-          <div className="grid grid-cols-2 gap-2">
-            {quickActions.map(action => (
-              <NavLink
-                key={action.to}
-                to={action.to}
-                className="flex flex-col items-center gap-2 p-3 rounded-xl text-center transition-all duration-150 group"
-                style={{ background: 'rgb(var(--hover))', border: '1px solid transparent' }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = `${action.color}14`
-                  e.currentTarget.style.borderColor = `${action.color}40`
-                  const icon = e.currentTarget.querySelector('.__icon')
-                  if (icon) icon.style.transform = 'scale(1.15)'
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = 'rgb(var(--hover))'
-                  e.currentTarget.style.borderColor = 'transparent'
-                  const icon = e.currentTarget.querySelector('.__icon')
-                  if (icon) icon.style.transform = 'scale(1)'
-                }}
-              >
-                <div
-                  className="__icon p-2 rounded-lg transition-transform duration-150"
-                  style={{ background: `${action.color}20` }}
-                >
-                  <action.icon className="w-4 h-4" style={{ color: action.color }} />
-                </div>
-                <span className="text-[11px] font-medium leading-tight" style={{ color: 'rgb(var(--tx-secondary))' }}>
-                  {action.label}
-                </span>
-              </NavLink>
-            ))}
+      {/* R127: Quick Access grid removed per tester UX review — it
+          duplicates the sidebar, which is the primary nav. Transfer Volume
+          chart now gets the full width, which is what the Dashboard is
+          actually for. */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <p className="section-title">Transfer Volume</p>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+              style={{ background: 'rgb(var(--accent) / 0.12)', color: 'rgb(var(--accent))' }}>
+              Last 24 hours
+            </span>
+            <NavLink to="/activity-monitor" className="text-[10px] font-medium hover:underline" style={{ color: 'rgb(var(--accent))' }}>
+              View All
+            </NavLink>
           </div>
         </div>
+
+        {transferData.length > 0 ? (
+          <Suspense fallback={<ChartFallback height={280} />}>
+            <DashboardVolumeChart data={transferData} />
+          </Suspense>
+        ) : (
+          <div className="h-52 flex flex-col items-center justify-center gap-2">
+            <ChartBarIcon className="w-8 h-8" style={{ color: 'rgb(var(--tx-muted))' }} />
+            <p className="text-sm" style={{ color: 'rgb(var(--tx-muted))' }}>No data yet</p>
+            <p className="text-xs" style={{ color: 'rgb(var(--tx-muted))' }}>Transfers will appear after the first hour</p>
+          </div>
+        )}
       </div>
 
       {/* ── Panels B + E: Sentinel Findings + Recent Activity ── */}

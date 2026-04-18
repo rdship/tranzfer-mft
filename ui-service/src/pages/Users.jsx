@@ -8,6 +8,7 @@ import useGentleValidation from '../hooks/useGentleValidation'
 import useEnterAdvances from '../hooks/useEnterAdvances'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
+import RowActionMenu from '../components/RowActionMenu'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import {
@@ -180,54 +181,50 @@ export default function Users() {
         </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="card !p-4 flex items-center gap-4">
-          <div className="w-10 h-10 bg-accent-soft rounded-xl flex items-center justify-center">
-            <UserCircleIcon className="w-5 h-5 text-accent" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-primary">{users.length}</p>
-            <p className="text-xs text-secondary">Total Users</p>
-          </div>
-        </div>
-        <div className="card !p-4 flex items-center gap-4">
-          <div className="w-10 h-10 bg-[rgb(20,60,40)] rounded-xl flex items-center justify-center">
-            <ShieldCheckIcon className="w-5 h-5 text-[rgb(120,220,160)]" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-primary">{activeCount}</p>
-            <p className="text-xs text-secondary">Active</p>
-          </div>
-        </div>
-        <div className="card !p-4 flex items-center gap-4">
-          <div className="w-10 h-10 bg-[rgb(60,20,20)] rounded-xl flex items-center justify-center">
-            <ExclamationTriangleIcon className="w-5 h-5 text-[rgb(240,120,120)]" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-primary">{adminCount}</p>
-            <p className="text-xs text-secondary">Admins</p>
-          </div>
-        </div>
-        <div className="card !p-4 flex items-center gap-4">
-          <div className="w-10 h-10 bg-hover rounded-xl flex items-center justify-center">
-            <XMarkIcon className="w-5 h-5 text-secondary" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-primary">{disabledCount}</p>
-            <p className="text-xs text-secondary">Disabled</p>
-          </div>
-        </div>
+      {/* R127: 4-card KPI strip collapsed into filter pills per the UX
+          review. Each pill doubles as a status filter — click it to
+          narrow the list to that group. Saves 150 px of chrome. */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {[
+          { label: 'All', value: '', count: users.length },
+          { label: 'Active', value: 'active', count: activeCount },
+          { label: 'Admins', value: 'admins', count: adminCount },
+          { label: 'Disabled', value: 'disabled', count: disabledCount },
+        ].map(tab => {
+          const active = (tab.value === 'admins' ? roleFilter === 'ADMIN'
+            : statusFilter === tab.value && roleFilter === '')
+          return (
+            <button
+              key={tab.label}
+              onClick={() => {
+                if (tab.value === 'admins') { setRoleFilter('ADMIN'); setStatusFilter('') }
+                else if (tab.value === '') { setRoleFilter(''); setStatusFilter('') }
+                else { setStatusFilter(tab.value); setRoleFilter('') }
+              }}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                active
+                  ? 'bg-accent text-white'
+                  : 'text-secondary hover:text-primary'
+              }`}
+              style={!active ? {
+                background: 'rgb(var(--bg-raised))',
+                border: '1px solid rgb(var(--border-subtle) / 0.08)',
+              } : undefined}
+            >
+              <span>{tab.label}</span>
+              <span className={`id-mono ${active ? 'text-white/80' : ''}`} style={!active ? { color: 'rgb(var(--tx-muted))' } : undefined}>
+                {tab.count}
+              </span>
+            </button>
+          )
+        })}
       </div>
 
-      {/* Search and Filters */}
+      {/* Search + advanced filters */}
       <div className="card !p-4">
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5 text-muted">
-            <FunnelIcon className="w-4 h-4" />
-            <span className="text-xs font-medium uppercase tracking-wide">Filters</span>
-          </div>
-
+          {/* R127: dropped "FILTERS" uppercase label — the inputs are
+              self-evident. Role/status filters moved into secondary row. */}
           <div className="relative">
             <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted pointer-events-none" />
             <input
@@ -260,7 +257,8 @@ export default function Users() {
           {hasFilters && (
             <button
               onClick={() => { setSearch(''); setRoleFilter(''); setStatusFilter('') }}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-[rgb(240,120,120)] hover:text-[rgb(240,120,120)] hover:bg-[rgb(60,20,20)] rounded-lg transition-colors"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium transition-colors"
+              style={{ color: 'rgb(var(--danger))' }}
             >
               <XMarkIcon className="w-3.5 h-3.5" /> Clear
             </button>
@@ -340,32 +338,20 @@ export default function Users() {
                       {u.createdAt ? format(new Date(u.createdAt), 'MMM d, yyyy') : '--'}
                     </td>
                     <td className="table-cell">
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setDetailUser(u) }}
-                          className="p-1.5 rounded hover:bg-accent-soft text-accent hover:text-accent transition-colors"
-                          title="View details"
-                          aria-label="View details"
-                        >
-                          <EyeIcon className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setResetPasswordUser(u); setNewPassword('') }}
-                          className="p-1.5 rounded hover:bg-[rgb(60,50,20)] text-[rgb(240,200,100)] hover:text-[rgb(255,220,120)] transition-colors"
-                          title="Reset password"
-                          aria-label="Reset password"
-                        >
-                          <KeyIcon className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setDeleteConfirm(u) }}
-                          className="p-1.5 rounded hover:bg-[rgb(60,20,20)] text-[rgb(240,120,120)] hover:text-[rgb(255,140,140)] transition-colors"
-                          title="Delete user"
-                          aria-label="Delete user"
-                        >
-                          <TrashIcon className="w-4 h-4" />
-                        </button>
-                      </div>
+                      {/* R127: 3 inline icons (view/key/trash) consolidated
+                          into an overflow menu per the UX review. Delete
+                          is now behind a divider with --danger styling
+                          (no more delete-by-accident next to view). */}
+                      <RowActionMenu
+                        items={[
+                          { label: 'View details', icon: EyeIcon, onClick: () => setDetailUser(u) },
+                          { label: 'Reset password', icon: KeyIcon, onClick: () => { setResetPasswordUser(u); setNewPassword('') } },
+                          { label: u.enabled !== false ? 'Disable user' : 'Enable user', icon: XMarkIcon,
+                            onClick: () => updateMut.mutate({ id: u.id, data: { enabled: !u.enabled } }) },
+                          { divider: true },
+                          { label: 'Delete user', icon: TrashIcon, destructive: true, onClick: () => setDeleteConfirm(u) },
+                        ]}
+                      />
                     </td>
                   </tr>
                 ))}

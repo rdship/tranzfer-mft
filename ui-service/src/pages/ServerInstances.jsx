@@ -16,6 +16,7 @@ import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
 import ColumnSettingsButton from '../components/ColumnSettingsButton'
+import RowActionMenu from '../components/RowActionMenu'
 import useColumnPrefs from '../hooks/useColumnPrefs'
 import { friendlyError } from '../components/FormField'
 import toast from 'react-hot-toast'
@@ -659,10 +660,28 @@ export default function ServerInstances() {
                       </td>
                     )}
                     {isVisible('name') && (
-                      <td className="table-cell">
-                        <div>
-                          <p className="font-medium text-primary">{s.name}</p>
-                          {s.description && <p className="text-xs text-muted">{s.description}</p>}
+                      /* R127: NAME + DESCRIPTION were wrapping to 3 lines each,
+                         blowing row height to 120 px and cutting density to
+                         3 rows on 900 px tall viewport. Now truncate both
+                         with ellipsis; full text reads in the tooltip on
+                         hover. Tester UX review priority: "triple density
+                         on Servers with one change." */
+                      <td className="table-cell" style={{ maxWidth: '260px' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <p
+                            className="font-medium text-primary whitespace-nowrap overflow-hidden text-ellipsis"
+                            title={s.name}
+                          >
+                            {s.name}
+                          </p>
+                          {s.description && (
+                            <p
+                              className="text-xs text-muted whitespace-nowrap overflow-hidden text-ellipsis"
+                              title={s.description}
+                            >
+                              {s.description}
+                            </p>
+                          )}
                         </div>
                       </td>
                     )}
@@ -752,35 +771,41 @@ export default function ServerInstances() {
                     )}
                     {isVisible('actions') && (
                     <td className="table-cell">
-                      <div className="flex gap-1">
-                        {/* Accounts button */}
+                      {/* R127: 4 inline icons collapsed into Edit inline +
+                          overflow menu for the rest. Tester UX review:
+                          "delete is right next to edit — delete-by-accident
+                          waiting to happen." Destructive action is now behind
+                          a confirmation modal inside the ⋯ menu with
+                          divider + --danger styling. Same mutation calls,
+                          same onClick payloads — pure presentation. */}
+                      <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                         <button
-                          onClick={(e) => { e.stopPropagation(); setAccountsServer(s) }}
-                          title="Manage accounts on this server"
-                          aria-label="Manage accounts on this server"
-                          className="p-1.5 rounded hover:bg-purple-50 text-purple-400 hover:text-purple-600 transition-colors relative">
-                          <UsersIcon className="w-4 h-4" />
-                          {s.assignedAccountCount > 0 && (
-                            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-purple-500 text-white text-[9px] font-bold flex items-center justify-center">
-                              {s.assignedAccountCount > 9 ? '9+' : s.assignedAccountCount}
-                            </span>
-                          )}
-                        </button>
-                        {/* Maintenance toggle */}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); maintenanceMut.mutate({ id: s.id, enable: !s.maintenanceMode }) }}
-                          title={s.maintenanceMode ? 'Disable maintenance mode' : 'Enable maintenance mode'}
-                          aria-label={s.maintenanceMode ? 'Disable maintenance mode' : 'Enable maintenance mode'}
-                          className={`p-1.5 rounded transition-colors ${s.maintenanceMode ? 'text-yellow-500 hover:bg-yellow-50' : 'text-gray-300 hover:bg-yellow-50 hover:text-yellow-500'}`}>
-                          <WrenchScrewdriverIcon className="w-4 h-4" />
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); openEdit(s) }} title="Edit server" aria-label="Edit server" className="p-1.5 rounded hover:bg-blue-50 text-blue-500">
+                          onClick={(e) => { e.stopPropagation(); openEdit(s) }}
+                          title="Edit server"
+                          aria-label="Edit server"
+                          className="p-1.5 rounded transition-colors"
+                          style={{ color: 'rgb(var(--tx-secondary))' }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.color = 'rgb(var(--accent))'
+                            e.currentTarget.style.background = 'rgb(var(--bg-elevated))'
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.color = 'rgb(var(--tx-secondary))'
+                            e.currentTarget.style.background = 'transparent'
+                          }}
+                        >
                           <PencilIcon className="w-4 h-4" />
                         </button>
-                        <button onClick={(e) => { e.stopPropagation(); setConfirmDeactivate(s) }} title="Deactivate server" aria-label="Deactivate server"
-                          className="p-1.5 rounded hover:bg-red-50 text-red-500">
-                          <TrashIcon className="w-4 h-4" />
-                        </button>
+                        <RowActionMenu
+                          items={[
+                            { label: `Manage accounts${s.assignedAccountCount > 0 ? ` (${s.assignedAccountCount})` : ''}`,
+                              icon: UsersIcon, onClick: () => setAccountsServer(s) },
+                            { label: s.maintenanceMode ? 'Disable maintenance' : 'Enable maintenance',
+                              icon: WrenchScrewdriverIcon, onClick: () => maintenanceMut.mutate({ id: s.id, enable: !s.maintenanceMode }) },
+                            { divider: true },
+                            { label: 'Deactivate server', icon: TrashIcon, destructive: true, onClick: () => setConfirmDeactivate(s) },
+                          ]}
+                        />
                       </div>
                     </td>
                     )}

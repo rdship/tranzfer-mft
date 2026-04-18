@@ -378,61 +378,36 @@ export default function Partners() {
         </button>
       </div>
 
-      {/* Stats Bar */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="card !p-4 flex items-center gap-4">
-          <div className="w-10 h-10 bg-accent-soft rounded-xl flex items-center justify-center">
-            <BuildingOfficeIcon className="w-5 h-5 text-accent" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-primary">{totalPartners}</p>
-            <p className="text-xs text-secondary">Total Partners</p>
-          </div>
-        </div>
-        <div className="card !p-4 flex items-center gap-4">
-          <div className="w-10 h-10 bg-[rgb(20,60,40)] rounded-xl flex items-center justify-center">
-            <CheckCircleIcon className="w-5 h-5 text-[rgb(120,220,160)]" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-primary">{stats.ACTIVE || 0}</p>
-            <p className="text-xs text-secondary">Active</p>
-          </div>
-        </div>
-        <div className="card !p-4 flex items-center gap-4">
-          <div className="w-10 h-10 bg-[rgb(60,50,20)] rounded-xl flex items-center justify-center">
-            <ClockIcon className="w-5 h-5 text-[rgb(240,200,100)]" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-primary">{stats.PENDING || 0}</p>
-            <p className="text-xs text-secondary">Pending Setup</p>
-          </div>
-        </div>
-        <div className="card !p-4 flex items-center gap-4">
-          <div className="w-10 h-10 bg-[rgb(60,20,20)] rounded-xl flex items-center justify-center">
-            <ExclamationTriangleIcon className="w-5 h-5 text-[rgb(240,120,120)]" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-primary">{stats.SUSPENDED || 0}</p>
-            <p className="text-xs text-secondary">Suspended</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-2">
-        {STATUS_TABS.map(tab => (
-          <button
-            key={tab.value}
-            onClick={() => setStatusFilter(tab.value)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              statusFilter === tab.value
-                ? 'bg-accent text-white'
-                : 'bg-surface text-secondary hover:bg-hover'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* R127: per the UX review, the prior 4-card KPI strip was duplicated
+          by the filter tabs right below it (both said "Active 5, Pending 0,
+          …"). Merged into one row of filter pills with counts inline. Saves
+          150 px of vertical space and the user sees the breakdown AND can
+          filter in a single gesture. */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {STATUS_TABS.map(tab => {
+          const count = tab.value === '' ? totalPartners : (stats[tab.value] || 0)
+          const active = statusFilter === tab.value
+          return (
+            <button
+              key={tab.value}
+              onClick={() => setStatusFilter(tab.value)}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                active
+                  ? 'bg-accent text-white'
+                  : 'text-secondary hover:text-primary'
+              }`}
+              style={!active ? {
+                background: 'rgb(var(--bg-raised))',
+                border: '1px solid rgb(var(--border-subtle) / 0.08)',
+              } : undefined}
+            >
+              <span>{tab.label}</span>
+              <span className={`id-mono ${active ? 'text-white/80' : ''}`} style={!active ? { color: 'rgb(var(--tx-muted))' } : undefined}>
+                {count}
+              </span>
+            </button>
+          )
+        })}
       </div>
 
       {/* Search + Column settings */}

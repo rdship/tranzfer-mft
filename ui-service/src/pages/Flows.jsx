@@ -1283,20 +1283,43 @@ export default function Flows() {
 
       {/* ─── Filter bar (flows tab only) ─── */}
       {activeTab === 'flows' && (
-      <div className="flex items-center gap-2 flex-wrap">
-        <FunnelIcon className="w-4 h-4 text-muted" />
+      <div
+        className="flex items-center gap-4 flex-wrap"
+        style={{ borderBottom: '1px solid rgb(var(--border-subtle) / 0.08)' }}
+      >
+        {/* R127: tabs were styled as rounded-full pills, which the UX
+            review called out as "unclear they're tabs." Underlined tabs
+            signal primary view-switch; pill styling is kept for filter
+            chips elsewhere so the distinction is clean. */}
         {[
-          { key: 'all', label: `All (${flows.length})` },
-          { key: 'active', label: `Active (${activeCount})` },
-          { key: 'inactive', label: `Inactive (${inactiveCount})` },
-        ].map(f => (
-          <button key={f.key} onClick={() => setFilter(f.key)}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-              filter === f.key ? 'bg-blue-100 text-blue-700' : 'bg-hover text-secondary hover:bg-gray-200'
-            }`}>
-            {f.label}
-          </button>
-        ))}
+          { key: 'all', label: 'All', count: flows.length },
+          { key: 'active', label: 'Active', count: activeCount },
+          { key: 'inactive', label: 'Inactive', count: inactiveCount },
+        ].map(f => {
+          const isActive = filter === f.key
+          return (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className="inline-flex items-center gap-2 py-2 text-sm font-medium transition-colors"
+              style={{
+                color: isActive ? 'rgb(var(--tx-primary))' : 'rgb(var(--tx-secondary))',
+                borderBottom: isActive ? '2px solid rgb(var(--accent))' : '2px solid transparent',
+                marginBottom: '-1px',
+              }}
+            >
+              <span>{f.label}</span>
+              <span
+                className="id-mono"
+                style={{
+                  color: isActive ? 'rgb(var(--tx-secondary))' : 'rgb(var(--tx-muted))',
+                }}
+              >
+                {f.count}
+              </span>
+            </button>
+          )
+        })}
         {/* Phase 2 — active cross-link chip. Transparency: user sees why the list is
             restricted and can clear it in one click (Resilience). */}
         {partnerIdFilter && (

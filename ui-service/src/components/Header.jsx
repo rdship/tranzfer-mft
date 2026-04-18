@@ -14,12 +14,16 @@ import { useQuery } from '@tanstack/react-query'
 import { getDashboard } from '../api/analytics'
 import { onboardingApi } from '../api/client'
 
+/* R127: PROD chip was loud red and visible on every page — useful in
+   production (safety signal) but distracting in dev/test. Lowered the
+   visual weight of the non-prod chips; kept PROD saturated because that
+   one MUST be noticed. */
 const ENV_BADGE = {
-  DEV:     { bg: '#1e3a5f', text: '#60a5fa', label: 'DEV' },
-  TEST:    { bg: '#3b2f00', text: '#fbbf24', label: 'TEST' },
-  CERT:    { bg: '#3b1f00', text: '#fb923c', label: 'CERT' },
-  STAGING: { bg: '#2e1065', text: '#c084fc', label: 'STAGING' },
-  PROD:    { bg: '#3b0a0a', text: '#f87171', label: 'PROD' },
+  DEV:     { bg: 'transparent', text: 'rgb(var(--tx-muted))',       label: 'DEV',     border: '1px solid rgb(var(--border-subtle) / 0.08)' },
+  TEST:    { bg: 'transparent', text: 'rgb(var(--tx-muted))',       label: 'TEST',    border: '1px solid rgb(var(--border-subtle) / 0.08)' },
+  CERT:    { bg: 'rgb(var(--warning) / 0.12)', text: 'rgb(var(--warning))', label: 'CERT' },
+  STAGING: { bg: 'rgb(var(--info) / 0.12)',    text: 'rgb(var(--info))',    label: 'STAGING' },
+  PROD:    { bg: 'rgb(var(--danger) / 0.15)',  text: 'rgb(var(--danger))',  label: 'PROD' },
 }
 
 // Human-readable page titles
@@ -178,7 +182,7 @@ export default function Header() {
         {/* Env badge */}
         <span
           className="px-2 py-0.5 rounded-md text-[10px] font-bold tracking-widest uppercase"
-          style={{ background: envStyle.bg, color: envStyle.text }}
+          style={{ background: envStyle.bg, color: envStyle.text, border: envStyle.border || 'none' }}
         >
           {envStyle.label}
         </span>

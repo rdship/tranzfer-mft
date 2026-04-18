@@ -180,26 +180,78 @@ function formatBytes(bytes) {
   return (bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1) + ' ' + units[i]
 }
 
+/* R127: status rendered as a compact glyph + short label in the
+   semantic colour, not a saturated pill. One colour per meaning — two
+   "this-is-done" states collapse onto --success, eyes stop sorting by
+   shade. Glyph scan reads ●/◐/◑/✕/❚❚ as filled-active/in-progress/
+   pending/failed/paused at a glance. */
 function statusBadge(status) {
-  const map = {
-    PENDING: 'badge-yellow',
-    IN_OUTBOX: 'badge-blue',
-    DOWNLOADED: 'badge-purple',
-    COMPLETED: 'badge-green',
-    MOVED_TO_SENT: 'badge-green',
-    FAILED: 'badge-red',
-  }
   if (!status) return <span className="text-muted">--</span>
-  return <span className={`badge ${map[status] || 'badge-gray'}`}>{status.replace(/_/g, ' ')}</span>
+  const meta = STATUS_META[status] || STATUS_META.DEFAULT
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 text-xs font-medium"
+      style={{ color: `rgb(var(--${meta.token}))` }}
+    >
+      <span aria-hidden="true" className="text-[0.9em] leading-none">{meta.glyph}</span>
+      <span>{meta.label || status.replace(/_/g, ' ')}</span>
+    </span>
+  )
 }
 
+const STATUS_META = {
+  PENDING:        { glyph: '◑', token: 'warning', label: 'PENDING' },
+  AWAITING:       { glyph: '◑', token: 'warning', label: 'AWAITING' },
+  STUCK:          { glyph: '⚠', token: 'warning', label: 'STUCK' },
+  IN_OUTBOX:      { glyph: '◐', token: 'info',    label: 'IN OUTBOX' },
+  IN_PROGRESS:    { glyph: '◐', token: 'info',    label: 'IN PROGRESS' },
+  PROCESSING:     { glyph: '◐', token: 'info',    label: 'PROCESSING' },
+  DOWNLOADED:     { glyph: '●', token: 'success', label: 'DOWNLOADED' },
+  COMPLETED:      { glyph: '●', token: 'success', label: 'COMPLETED' },
+  MOVED_TO_SENT:  { glyph: '●', token: 'success', label: 'DELIVERED' },
+  FAILED:         { glyph: '✕', token: 'danger',  label: 'FAILED' },
+  CANCELLED:      { glyph: '✕', token: 'danger',  label: 'CANCELLED' },
+  REJECTED:       { glyph: '✕', token: 'danger',  label: 'REJECTED' },
+  PAUSED:         { glyph: '‖', token: 'neutral-bright', label: 'PAUSED' },
+  DEFAULT:        { glyph: '○', token: 'neutral-bright', label: null },
+}
+
+/* R127: relative-time ("12 min ago") with a title tooltip carrying the
+   full timestamp. Tester's AM spec wanted this — scannable at row-glance
+   without losing precision. */
 function formatTimestamp(ts) {
   if (!ts) return <span className="text-muted">--</span>
   try {
-    return <span className="text-xs text-secondary font-mono">{format(new Date(ts), 'MMM dd, yyyy HH:mm:ss')}</span>
+    const date = new Date(ts)
+    if (Number.isNaN(date.getTime())) return <span className="text-muted">--</span>
+    const rel = relativeTime(date)
+    const full = format(date, 'MMM dd, yyyy HH:mm:ss')
+    return (
+      <span
+        className="id-mono"
+        style={{ color: 'rgb(var(--tx-secondary))' }}
+        title={full}
+      >
+        {rel}
+      </span>
+    )
   } catch {
     return <span className="text-muted">--</span>
   }
+}
+
+function relativeTime(date) {
+  const diffMs = Date.now() - date.getTime()
+  const diffSec = Math.round(diffMs / 1000)
+  if (Math.abs(diffSec) < 5)   return 'just now'
+  if (diffSec < 60)            return `${diffSec}s ago`
+  const diffMin = Math.round(diffSec / 60)
+  if (diffMin < 60)            return `${diffMin}m ago`
+  const diffHr  = Math.round(diffMin / 60)
+  if (diffHr  < 24)            return `${diffHr}h ago`
+  const diffDay = Math.round(diffHr / 24)
+  if (diffDay < 7)             return `${diffDay}d ago`
+  return format(date, 'MMM d')
 }
 
 // ── Config-reference column keys mapped to ConfigLink props ────────────
@@ -1691,17 +1743,25 @@ export default function ActivityMonitor() {
                     {visibleColumns.map(col => (
                       <th
                         key={col.key}
-                        className={`table-header cursor-pointer select-none hover:text-primary transition-colors whitespace-nowrap ${col.width}`}
+                        className={`table-header cursor-pointer select-none hover:text-primary transition-colors whitespace-nowrap group ${col.width}`}
                         onClick={() => handleSort(col.key)}
+                        aria-sort={sortBy === col.key ? (sortDir === 'ASC' ? 'ascending' : 'descending') : 'none'}
                       >
                         <div className="flex items-center gap-1">
                           {col.label}
+                          {/* R127: sort indicator always reserves space so
+                              the header row doesn't jitter between sortable
+                              states. Active sort uses the accent token
+                              (was text-blue-600 — clashed with semantic
+                              palette). Inactive state shows a faint chevron
+                              only on hover so the affordance is discoverable
+                              without being visual noise at rest. */}
                           {sortBy === col.key ? (
                             sortDir === 'ASC'
-                              ? <ChevronUpIcon className="w-3 h-3 text-blue-600" />
-                              : <ChevronDownIcon className="w-3 h-3 text-blue-600" />
+                              ? <ChevronUpIcon className="w-3 h-3" style={{ color: 'rgb(var(--accent))' }} />
+                              : <ChevronDownIcon className="w-3 h-3" style={{ color: 'rgb(var(--accent))' }} />
                           ) : (
-                            <div className="w-3 h-3" /> /* spacer for alignment */
+                            <ChevronDownIcon className="w-3 h-3 opacity-0 group-hover:opacity-40 transition-opacity" />
                           )}
                         </div>
                       </th>
