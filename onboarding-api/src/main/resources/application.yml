@@ -80,6 +80,13 @@ spring:
     placeholder-replacement: false
     locations: classpath:db/migration
     validate-on-migrate: false
+    # R125: the central db-migrate runner is built from onboarding-api. When we
+    # back-fill service-local migrations (V51 screening hits, V65-V67 EDI,
+    # V68 write_intents, V200-V202 sentinel) into shared-platform for the
+    # first time, those versions land out of order on the tester's already-
+    # migrated DB. out-of-order=true lets Flyway apply them retroactively
+    # instead of aborting with "Detected resolved migration not applied".
+    out-of-order: true
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}

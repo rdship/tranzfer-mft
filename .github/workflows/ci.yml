@@ -156,6 +156,29 @@ jobs:
           done
           echo "✓ YAML validation complete"
 
+      - name: Migrations live in the central dir
+        # R125: this mistake has been made three times now (V70 refresh_tokens
+        # R109, V51 screening, V65-V67 EDI, V68 write_intents, V200-V202
+        # sentinel R125). The db-migrate container is built from onboarding-api
+        # and only sees migrations reachable on that jar's classpath —
+        # shared/shared-platform and onboarding-api itself. A migration
+        # dropped into any other service's db/migration/ silently never
+        # applies, and the tester finds the broken relation at runtime.
+        run: |
+          echo "Checking for stray Flyway migrations outside the central dir..."
+          STRAY=$(find . -path "*/src/main/resources/db/migration/V*.sql" \
+              -not -path "*/target/*" \
+              -not -path "./shared/shared-platform/src/main/resources/db/migration/*" \
+              -not -path "./onboarding-api/src/main/resources/db/migration/*")
+          if [ -n "$STRAY" ]; then
+            echo "ERROR: Flyway migrations must live in shared/shared-platform/src/main/resources/db/migration/"
+            echo "(onboarding-api/ is also OK because db-migrate is built from it.)"
+            echo "Stray migrations:"
+            echo "$STRAY"
+            exit 1
+          fi
+          echo "✓ No stray service-local migrations"
+
   docker:
     name: Docker Build
     runs-on: ubuntu-latest

@@ -9,10 +9,13 @@
 -- could never land the tables and every EDI list endpoint crashed.
 --
 -- Numbered V65 so it runs BEFORE V66/V67 on a fresh install (V65 < V66 <
--- V67). On the tester's DB (schema=92), this is out of order — requires
--- spring.flyway.out-of-order=true in ai-engine's application.yml, which
--- R125 adds. The tables already exist there so this becomes a no-op via
--- IF NOT EXISTS.
+-- V67). Lives in shared-platform/db/migration (the only path mft-db-migrate
+-- scans) so it actually applies at boot — the R109 V70 lesson (moved
+-- refresh_tokens to shared-platform as V92) extended here to EDI tables.
+-- On an existing DB where V66/V67 already ran this is an out-of-order
+-- retroactive apply; shared-platform has validate-on-migrate=false so
+-- Flyway accepts it, and the CREATE TABLE IF NOT EXISTS / CREATE INDEX IF
+-- NOT EXISTS statements no-op in that case.
 
 CREATE TABLE IF NOT EXISTS edi_training_samples (
     id                UUID           PRIMARY KEY,

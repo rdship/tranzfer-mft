@@ -133,7 +133,13 @@ public class StorageController {
     /** Retrieve a file by trackId via streaming — no heap load. */
     @GetMapping("/retrieve/{trackId}")
     public void retrieve(@PathVariable String trackId, HttpServletResponse response) throws Exception {
-        StorageObject obj = objectRepo.findByTrackIdAndDeletedFalse(trackId)
+        // R125: a completed flow has multiple storage objects for the same
+        // trackId (input snapshot + per-step outputs). Resolve to the newest
+        // one — that is what the UI "Download current" button expects. The
+        // old unique-expecting finder threw IncorrectResultSizeDataAccessException
+        // on any 2+ rows match, which the platform exception handler mapped
+        // to a 500 "An unexpected error occurred".
+        StorageObject obj = objectRepo.findFirstByTrackIdAndDeletedFalseOrderByCreatedAtDesc(trackId)
                 .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
                         HttpStatus.NOT_FOUND, "No storage object for trackId=" + trackId));
 
@@ -432,8 +438,9 @@ public class StorageController {
             @RequestParam String filename,
             @RequestParam(required = false) String account,
             @RequestParam(required = false, defaultValue = "0") long sizeBytes) {
-        // Check if already registered
-        if (objectRepo.findByTrackIdAndDeletedFalse(trackId).isPresent()) {
+        // Check if already registered — use the ordered finder since a
+        // multi-step flow may have stored several objects for this trackId.
+        if (objectRepo.findFirstByTrackIdAndDeletedFalseOrderByCreatedAtDesc(trackId).isPresent()) {
             return ResponseEntity.ok(Map.of("status", "ALREADY_REGISTERED", "trackId", trackId));
         }
         StorageObject obj = StorageObject.builder()
