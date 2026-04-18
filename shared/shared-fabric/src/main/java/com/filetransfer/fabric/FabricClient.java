@@ -1,5 +1,7 @@
 package com.filetransfer.fabric;
 
+import java.util.Collection;
+
 /**
  * Core Fabric API — the only thing services interact with directly.
  *
@@ -28,6 +30,21 @@ public interface FabricClient {
      * @param handler  called once per message
      */
     void subscribe(String topic, String groupId, MessageHandler handler);
+
+    /**
+     * Pre-create a batch of topics on the broker in a single round-trip.
+     * Optional optimization — callers that know up-front which topics they
+     * will subscribe to can invoke this once before looping subscribe() calls
+     * to amortize cluster-metadata cost. Implementations that don't need
+     * pre-creation (e.g. in-memory) can no-op. Idempotent.
+     *
+     * <p>Added in R94 for boot-time optimization (FlowFabricConsumer subscribes
+     * to 20 step-type topics).
+     */
+    default void ensureTopics(Collection<String> topics) {
+        // Default: no-op. InMemoryFabricClient auto-creates on first use;
+        // KafkaFabricClient overrides to batch createTopics().
+    }
 
     /**
      * Check if the underlying broker is reachable.

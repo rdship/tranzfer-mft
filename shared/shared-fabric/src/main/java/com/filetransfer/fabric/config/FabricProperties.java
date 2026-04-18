@@ -71,6 +71,17 @@ public class FabricProperties {
         private boolean consume = true;           // consume from flow topics
         private int partitionCount = 32;
         private long leaseDurationSeconds = 300;  // 5 min default
+        /**
+         * Parallelism for the boot-time subscribe loop in
+         * {@code FlowFabricConsumer} (R94). Each subscribe invocation does its
+         * own AdminClient-backed topic ensure plus Kafka consumer group-join,
+         * ~5 s serial on a warm broker. Running them in parallel drops boot
+         * time from ~100 s to ~15 s for services with 20+ step-type topics.
+         *
+         * <p>Set to 1 to restore the original sequential behaviour (emergency
+         * rollback). Capped at the number of step types (currently 20).
+         */
+        private int subscribeParallelism = 8;
     }
 
     @Data

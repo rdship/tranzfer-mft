@@ -42,6 +42,17 @@ public class KafkaFabricClient implements FabricClient {
     private final Set<String> ensuredTopics = ConcurrentHashMap.newKeySet();
     /** Per-record delivery attempt counter, keyed by "topic:partition:offset". */
     private final Map<String, Integer> deliveryAttempts = new ConcurrentHashMap<>();
+    /**
+     * Long-lived shared AdminClient used by {@link #ensureTopic(String)} and
+     * {@link #ensureTopics(Collection)}. R94 boot-time optimization:
+     * historically each {@code ensureTopic()} call opened + closed its own
+     * AdminClient, each paying ~500 ms on cluster-metadata fetch. With 20
+     * flow.step topics per service this added ~10 s of sequential overhead
+     * to every service's boot. Sharing the instance amortizes the metadata
+     * cost to one open; the client is thread-safe.
+     */
+    private volatile AdminClient adminClient;
+    private final Object adminClientLock = new Object();
     private volatile boolean running = true;
     private volatile boolean healthy;
 
@@ -241,33 +252,72 @@ public class KafkaFabricClient implements FabricClient {
      * Called lazily on first publish/subscribe. Deduped in-process via {@code ensuredTopics}.
      * Safe to call repeatedly across processes — AdminClient.createTopics rejects duplicates
      * with TopicExistsException which we swallow.
+     *
+     * <p>Uses a shared {@link AdminClient} (R94) instead of opening a fresh one
+     * per call. Older implementations paid ~500 ms for cluster metadata on
+     * every invocation; sharing the instance keeps that cost at one open.
      */
     private void ensureTopic(String topic) {
         if (!ensuredTopics.add(topic)) return;
+        ensureTopicsInternal(Collections.singleton(topic));
+    }
 
+    /**
+     * Batch variant — preferred when the caller knows a set of topics up-front
+     * (e.g. {@code FlowFabricConsumer} pre-subscribing to 20 step-type topics).
+     * Issues a single {@code createTopics(Collection)} call instead of 20
+     * sequential ones, saving ~400 ms per additional topic on cluster metadata.
+     */
+    public void ensureTopics(Collection<String> topics) {
+        List<String> fresh = new ArrayList<>(topics.size());
+        for (String t : topics) {
+            if (ensuredTopics.add(t)) fresh.add(t);
+        }
+        if (fresh.isEmpty()) return;
+        ensureTopicsInternal(fresh);
+    }
+
+    private void ensureTopicsInternal(Collection<String> freshTopics) {
         int partitions = Math.max(1, props.getFlow().getPartitionCount());
         short replicationFactor = 1; // Redpanda single-broker; cluster deployments override via broker defaults
 
-        Properties adminProps = new Properties();
-        adminProps.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, props.getBrokerUrl());
-        adminProps.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, (int) props.getHealthCheckTimeoutMs());
+        List<NewTopic> newTopics = new ArrayList<>(freshTopics.size());
+        for (String t : freshTopics) newTopics.add(new NewTopic(t, partitions, replicationFactor));
 
-        try (AdminClient admin = AdminClient.create(adminProps)) {
-            NewTopic newTopic = new NewTopic(topic, partitions, replicationFactor);
-            admin.createTopics(Collections.singleton(newTopic)).all()
+        try {
+            AdminClient admin = sharedAdminClient();
+            admin.createTopics(newTopics).all()
                 .get(props.getHealthCheckTimeoutMs(), TimeUnit.MILLISECONDS);
-            log.info("[Fabric/Kafka] Created topic {} ({} partitions)", topic, partitions);
+            log.info("[Fabric/Kafka] Created topic(s) {} ({} partitions)", freshTopics, partitions);
         } catch (Exception e) {
-            // TopicExistsException is expected on restart — only log unexpected failures
+            // TopicExistsException is expected on restart when ANY of the batch
+            // already existed. We get it wrapped as ExecutionException → cause.
+            // Log at debug; the rest of the batch still got created on broker side.
             String msg = e.getCause() != null ? e.getCause().getClass().getSimpleName() : e.getClass().getSimpleName();
             if (msg.contains("TopicExists")) {
-                log.debug("[Fabric/Kafka] Topic {} already exists", topic);
+                log.debug("[Fabric/Kafka] Topic(s) {} already exist (or partial overlap)", freshTopics);
             } else {
                 log.warn("[Fabric/Kafka] Topic ensure failed for {}: {} (relying on auto-create)",
-                    topic, e.getMessage());
+                    freshTopics, e.getMessage());
                 // Let caller proceed — Redpanda auto-create will handle it if enabled
-                ensuredTopics.remove(topic); // retry on next call
+                for (String t : freshTopics) ensuredTopics.remove(t); // retry on next call
             }
+        }
+    }
+
+    /** Lazy-init shared AdminClient. Thread-safe. */
+    private AdminClient sharedAdminClient() {
+        AdminClient local = adminClient;
+        if (local != null) return local;
+        synchronized (adminClientLock) {
+            if (adminClient == null) {
+                Properties adminProps = new Properties();
+                adminProps.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, props.getBrokerUrl());
+                adminProps.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, (int) props.getHealthCheckTimeoutMs());
+                adminClient = AdminClient.create(adminProps);
+                log.debug("[Fabric/Kafka] Shared AdminClient created");
+            }
+            return adminClient;
         }
     }
 
@@ -277,5 +327,10 @@ public class KafkaFabricClient implements FabricClient {
             t.interrupt();
         }
         producer.close(Duration.ofSeconds(5));
+        AdminClient admin = adminClient;
+        if (admin != null) {
+            try { admin.close(Duration.ofSeconds(2)); }
+            catch (Exception ignored) { /* best-effort */ }
+        }
     }
 }

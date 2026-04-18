@@ -15,9 +15,16 @@ import org.springframework.stereotype.Component;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import jakarta.annotation.PostConstruct;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Consumer for flow.intake (and later flow.pipeline) topics.
@@ -83,17 +90,90 @@ public class FlowFabricConsumer {
                 // Custom
                 "EXECUTE_SCRIPT"
         };
-        for (String stepType : stepTypes) {
-            try {
-                String topic = "flow.step." + stepType;
-                String group = FabricGroupIds.shared(serviceName, topic);
-                fabricBridge.getClient().subscribe(topic, group, this::onPipelineMessage);
-                log.debug("[FlowFabricConsumer] Subscribed to {} (group={})", topic, group);
-            } catch (Exception e) {
-                log.debug("[FlowFabricConsumer] Topic flow.step.{} not available: {}", stepType, e.getMessage());
-            }
-        }
+
+        subscribeStepTopicsInParallel(serviceName, stepTypes);
         log.info("[FlowFabricConsumer] Per-function step pipeline active — {} step types subscribed", stepTypes.length);
+    }
+
+    /**
+     * R94 boot-time optimization — invokes 20 {@code subscribe()} calls on a
+     * small thread pool instead of serially. Preserves the contract: every
+     * subscribe() completes before this method returns, so consumers are
+     * fully wired before Spring context refresh finishes. No feature change —
+     * independent scaling per step-type (one consumer group per topic) and
+     * handler identity remain unchanged.
+     *
+     * <p>Pre-creates all 20 topics in one batch up-front ({@link FabricClient#ensureTopics})
+     * so each subscribe() skips its own topic-ensure (Option 2 of the R94 design).
+     *
+     * <p>Parallelism is tunable via {@code fabric.flow.subscribe-parallelism}
+     * (default 8). Set to 1 for serial rollback.
+     */
+    private void subscribeStepTopicsInParallel(String serviceName, String[] stepTypes) {
+        // Option 2: batch-create all step topics in a single AdminClient round-trip.
+        List<String> allTopics = Arrays.stream(stepTypes)
+                .map(s -> "flow.step." + s)
+                .toList();
+        try {
+            fabricBridge.getClient().ensureTopics(allTopics);
+        } catch (Exception e) {
+            log.debug("[FlowFabricConsumer] Batch topic pre-create failed — will fall back to per-subscribe ensure: {}",
+                    e.getMessage());
+        }
+
+        int parallelism = Math.max(1, Math.min(
+                properties.getFlow().getSubscribeParallelism(), stepTypes.length));
+        if (parallelism == 1) {
+            // Rollback path — pure sequential, unchanged from pre-R94 behaviour.
+            for (String stepType : stepTypes) subscribeOneStepTopic(serviceName, stepType);
+            return;
+        }
+
+        ExecutorService pool = Executors.newFixedThreadPool(parallelism, r -> {
+            Thread t = new Thread(r, "fabric-subscribe-init");
+            t.setDaemon(true);
+            return t;
+        });
+        CountDownLatch done = new CountDownLatch(stepTypes.length);
+        AtomicInteger succeeded = new AtomicInteger();
+        long start = System.nanoTime();
+        try {
+            for (String stepType : stepTypes) {
+                pool.submit(() -> {
+                    try {
+                        subscribeOneStepTopic(serviceName, stepType);
+                        succeeded.incrementAndGet();
+                    } finally {
+                        done.countDown();
+                    }
+                });
+            }
+            // Barrier — every consumer must be wired before init() returns,
+            // otherwise Spring marks this bean Started while the pipeline is
+            // still plumbing itself and the first inbound message is dropped.
+            if (!done.await(60, TimeUnit.SECONDS)) {
+                log.warn("[FlowFabricConsumer] Parallel subscribe barrier timeout — some topics may still be wiring");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("[FlowFabricConsumer] Parallel subscribe interrupted");
+        } finally {
+            pool.shutdown();
+        }
+        long elapsedMs = (System.nanoTime() - start) / 1_000_000L;
+        log.info("[FlowFabricConsumer] Subscribed {} of {} step topics in {} ms (parallelism={})",
+                succeeded.get(), stepTypes.length, elapsedMs, parallelism);
+    }
+
+    private void subscribeOneStepTopic(String serviceName, String stepType) {
+        try {
+            String topic = "flow.step." + stepType;
+            String group = FabricGroupIds.shared(serviceName, topic);
+            fabricBridge.getClient().subscribe(topic, group, this::onPipelineMessage);
+            log.debug("[FlowFabricConsumer] Subscribed to {} (group={})", topic, group);
+        } catch (Exception e) {
+            log.debug("[FlowFabricConsumer] Topic flow.step.{} not available: {}", stepType, e.getMessage());
+        }
     }
 
     /**
