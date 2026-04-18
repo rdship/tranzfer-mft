@@ -2,15 +2,17 @@
 --
 -- Problem observed in the R124 audit: every /api/v1/edi/training/** endpoint
 -- returned 500 because the backing JPA queries targeted tables that were
--- never created by any Flyway migration. V66/V67 here were ALTER-only on
--- edi_conversion_maps, assuming an earlier CREATE that never existed in the
--- current codebase. On any DB that did not happen to carry the tables from
--- a prior hibernate auto-ddl cycle, the listSamples / health / listMaps /
--- listSessions queries all crash at runtime.
+-- never created by any Flyway migration. V66 and V67 are ALTER-only on
+-- edi_conversion_maps; they assume an earlier CREATE that does not exist in
+-- the current codebase. The tables had historically been created by
+-- Hibernate ddl-auto=update, but ddl-auto is now "none", so a fresh install
+-- could never land the tables and every EDI list endpoint crashed.
 --
--- This migration is purely additive and idempotent — IF NOT EXISTS on every
--- table and index. A DB that already has the tables from legacy state runs
--- this as a no-op. A DB that does not get a clean, JPA-compatible schema.
+-- Numbered V65 so it runs BEFORE V66/V67 on a fresh install (V65 < V66 <
+-- V67). On the tester's DB (schema=92), this is out of order — requires
+-- spring.flyway.out-of-order=true in ai-engine's application.yml, which
+-- R125 adds. The tables already exist there so this becomes a no-op via
+-- IF NOT EXISTS.
 
 CREATE TABLE IF NOT EXISTS edi_training_samples (
     id                UUID           PRIMARY KEY,

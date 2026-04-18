@@ -35,7 +35,12 @@ import java.util.stream.Collectors;
  * @see ThreatLevel
  */
 @Entity
-@Table(name = "intel_threat_indicators", indexes = {
+// R125: entity table name was "intel_threat_indicators" but V15 migration
+// creates "threat_indicators" and the ai-engine readiness schema expects the
+// same. Any live read attempt on this entity against a V15-provisioned DB
+// failed with "relation intel_threat_indicators does not exist". Aligned with
+// the migration + readiness contract.
+@Table(name = "threat_indicators", indexes = {
         @Index(name = "idx_iti_type_value", columnList = "type,value", unique = true),
         @Index(name = "idx_iti_threat_level", columnList = "threatLevel"),
         @Index(name = "idx_iti_last_seen", columnList = "lastSeen"),

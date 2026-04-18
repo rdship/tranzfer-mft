@@ -74,6 +74,11 @@ spring:
     placeholder-replacement: false
     locations: classpath:db/migration
     validate-on-migrate: false
+    # R125: allow out-of-order migrations so V65__create_edi_training_tables
+    # (added after V66/V67 already shipped) can apply on the tester's existing
+    # DB without a schema-history rebuild. On a fresh install V65 naturally
+    # runs in its numerical slot, which is what unblocks V66/V67 ALTERs.
+    out-of-order: true
 
 edi:
   training:
