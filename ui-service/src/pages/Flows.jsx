@@ -707,9 +707,16 @@ export default function Flows() {
   }, [importName, importRuntime, importEndpoint, importDesc, loadCatalog])
 
   // ─── Queries ───
+  // R127: tester UX review reported three "Couldn't load data" toasts
+  // stacked on Flows page load (flows + external-destinations +
+  // function-queues). The page itself shows skeleton / empty states for
+  // each section — the global toast was duplicate noise, not actionable.
+  // meta: { silent: true } suppresses the toast; errors still bubble to
+  // isError and the in-page empty-state handles them.
   const { data: flowsData, isLoading } = useQuery({
     queryKey: ['flows'],
-    queryFn: () => configApi.get('/api/flows').then(r => r.data)
+    queryFn: () => configApi.get('/api/flows').then(r => r.data),
+    meta: { silent: true }
   })
   const flows = flowsData || []
   // Skeleton only on first fetch; 100ms flash guard (Stability).
@@ -844,7 +851,8 @@ export default function Flows() {
   const { data: externalDests = [] } = useQuery({
     queryKey: ['ext-dests-for-flows'],
     queryFn: () => configApi.get('/api/external-destinations').then(r => r.data),
-    staleTime: 60000
+    staleTime: 60000,
+    meta: { silent: true }
   })
 
   const { data: servers = [] } = useQuery({
@@ -862,7 +870,8 @@ export default function Flows() {
   const { data: functionQueues = [] } = useQuery({
     queryKey: ['function-queues-for-flows'],
     queryFn: () => configApi.get('/api/function-queues').then(r => r.data),
-    staleTime: 60000
+    staleTime: 60000,
+    meta: { silent: true }
   })
 
   // ─── Cascading protocol filters ───

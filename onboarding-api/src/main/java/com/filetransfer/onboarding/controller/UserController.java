@@ -71,7 +71,14 @@ public class UserController {
         dto.put("id", u.getId());
         dto.put("email", u.getEmail());
         dto.put("role", u.getRole());
-        dto.put("createdAt", u.getCreatedAt());
+        // R127: the Users page was rendering "Created: Jan 21, 1970" for every
+        // row (UX review). Root cause: the Instant was serialised as Jackson's
+        // untyped object {nano, epochSecond} on the wire, and new Date(obj)
+        // in the UI coerced that to NaN/epoch. Explicitly serialise as an
+        // ISO-8601 string so the UI's format(new Date(...), ...) path works
+        // uniformly, and return null when the audit field really is unset
+        // (rather than a bogus 1970-01-21).
+        dto.put("createdAt", u.getCreatedAt() == null ? null : u.getCreatedAt().toString());
         return dto;
     }
 }
