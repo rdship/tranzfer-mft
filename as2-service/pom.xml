@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.filetransfer</groupId>
         <artifactId>file-transfer-platform</artifactId>
-        <version>1.0.0-R122</version>
+        <version>1.0.0-R123</version>
     </parent>
 
     <artifactId>as2-service</artifactId>
