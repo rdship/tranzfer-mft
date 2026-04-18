@@ -20,8 +20,9 @@ import {
   FunnelIcon, TableCellsIcon, CheckCircleIcon, XCircleIcon, ClockIcon,
   DocumentTextIcon, ShieldCheckIcon, TruckIcon, ArrowRightIcon,
   BookmarkIcon, TrashIcon, LightBulbIcon, PlusIcon, CheckIcon,
-  StopIcon, PlayIcon,
+  StopIcon, PlayIcon, PauseIcon, SparklesIcon,
 } from '@heroicons/react/24/outline'
+import AICopilotDrawer from '../components/AICopilotDrawer'
 
 // ── Saved Views (localStorage) ─────────────────────────────────────────
 // User-defined Activity Monitor filter presets. Persisted per-browser under
@@ -608,6 +609,9 @@ export default function ActivityMonitor() {
   // Execution detail drawer state (double-click)
   const [drawerTrackId, setDrawerTrackId] = useState(null)
 
+  // R108: AI Copilot drawer state
+  const [aiDrawerTrackId, setAiDrawerTrackId] = useState(null)
+
   // Keyboard navigation state
   const [selectedRowIdx, setSelectedRowIdx] = useState(-1)
   const filenameInputRef = useRef(null)
@@ -852,6 +856,27 @@ export default function ActivityMonitor() {
       qc.invalidateQueries(['activity-monitor'])
     },
     onError: err => toast.error(err.response?.data?.message || 'Terminate failed')
+  })
+
+  // R106 pause / resume — engine polls between steps and preserves currentStep
+  const pauseOneMut = useMutation({
+    mutationFn: (trackId) =>
+      onboardingApi.post(`/api/flow-executions/${trackId}/pause`, {}).then(r => r.data),
+    onSuccess: () => {
+      toast.success('Pause requested — will take effect after current step')
+      qc.invalidateQueries(['activity-monitor'])
+    },
+    onError: err => toast.error(err.response?.data?.message || 'Pause failed')
+  })
+
+  const resumeOneMut = useMutation({
+    mutationFn: (trackId) =>
+      onboardingApi.post(`/api/flow-executions/${trackId}/resume`).then(r => r.data),
+    onSuccess: () => {
+      toast.success('Resume queued')
+      qc.invalidateQueries(['activity-monitor'])
+    },
+    onError: err => toast.error(err.response?.data?.message || 'Resume failed')
   })
 
   const cancelScheduleMut = useMutation({
@@ -1731,6 +1756,28 @@ export default function ActivityMonitor() {
                                   Stop
                                 </button>
                               )}
+                              {canOperate && (row.status === 'PROCESSING' || row.status === 'IN_PROGRESS') && row.flowStatus !== 'PAUSED' && (
+                                <button
+                                  onClick={() => { if (window.confirm(`Pause transfer ${row.trackId}? It will finish the current step then halt.`)) pauseOneMut.mutate(row.trackId) }}
+                                  disabled={pauseOneMut.isPending}
+                                  className="text-[10px] text-muted hover:text-amber-600 px-1.5 py-0.5 rounded hover:bg-amber-50 transition-colors whitespace-nowrap"
+                                  title="Pause after current step (preserves position)"
+                                >
+                                  <PauseIcon className="w-3.5 h-3.5 inline mr-0.5" />
+                                  Pause
+                                </button>
+                              )}
+                              {canOperate && row.flowStatus === 'PAUSED' && (
+                                <button
+                                  onClick={() => resumeOneMut.mutate(row.trackId)}
+                                  disabled={resumeOneMut.isPending}
+                                  className="text-[10px] text-muted hover:text-indigo-600 px-1.5 py-0.5 rounded hover:bg-indigo-50 transition-colors whitespace-nowrap"
+                                  title="Resume from saved step"
+                                >
+                                  <PlayIcon className="w-3.5 h-3.5 inline mr-0.5" />
+                                  Resume
+                                </button>
+                              )}
                               {canOperate && row.status === 'FAILED' && (
                                 <button
                                   onClick={() => { setScheduleModal({ trackId: row.trackId, filename: row.filename }); setScheduleInput('') }}
@@ -1741,6 +1788,14 @@ export default function ActivityMonitor() {
                                   Schedule
                                 </button>
                               )}
+                              <button
+                                onClick={() => setAiDrawerTrackId(row.trackId)}
+                                className="text-[10px] text-muted hover:text-indigo-600 px-1.5 py-0.5 rounded hover:bg-indigo-50 transition-colors whitespace-nowrap"
+                                title="Ask the AI copilot about this transfer"
+                              >
+                                <SparklesIcon className="w-3.5 h-3.5 inline mr-0.5" />
+                                AI
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -1951,6 +2006,14 @@ export default function ActivityMonitor() {
         open={!!drawerTrackId}
         onClose={() => setDrawerTrackId(null)}
         showActions
+      />
+
+      {/* R108 AI Copilot Drawer — triggered by clicking the AI button on a row */}
+      <AICopilotDrawer
+        trackId={aiDrawerTrackId}
+        open={!!aiDrawerTrackId}
+        onClose={() => setAiDrawerTrackId(null)}
+        onActionCompleted={() => qc.invalidateQueries(['activity-monitor'])}
       />
 
       {/* Inline Config Editor — triggered by clicking any config link */}

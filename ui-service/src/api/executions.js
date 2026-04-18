@@ -47,3 +47,11 @@ export const skipStep = (trackId, step) =>
 
 export const terminateExecution = (trackId) =>
   onboardingApi.post(`/api/flow-executions/${trackId}/terminate`).then(r => r.data)
+
+// ── R106 Pause / Resume ─────────────────────────────────────────────────
+export const pauseExecution = (trackId, reason) =>
+  onboardingApi.post(`/api/flow-executions/${trackId}/pause`, reason ? { reason } : {})
+    .then(r => r.data)
+
+export const resumeExecution = (trackId) =>
+  onboardingApi.post(`/api/flow-executions/${trackId}/resume`).then(r => r.data)

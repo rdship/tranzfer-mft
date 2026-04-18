@@ -286,11 +286,9 @@ function FlowStepsPanel({ trackId }) {
           </div>
 
           {steps.map(snap => (
-            <div
-              key={snap.stepIndex}
-              className={`grid grid-cols-[2rem_1fr_4rem_5rem_1fr_2rem_1fr] gap-2 items-center px-2 py-2 rounded-lg text-sm
-                ${snap.stepStatus === 'FAILED' ? 'bg-red-50 border border-red-100' : 'bg-canvas border border-border'}`}
-            >
+            <div key={snap.stepIndex} className={`rounded-lg
+                ${snap.stepStatus === 'FAILED' ? 'bg-red-50 border border-red-100' : 'bg-canvas border border-border'}`}>
+            <div className={`grid grid-cols-[2rem_1fr_4rem_5rem_1fr_2rem_1fr] gap-2 items-center px-2 py-2 text-sm`}>
               {/* Step number */}
               <span className="text-xs font-mono text-muted font-bold">
                 {snap.stepIndex + 1}
@@ -380,12 +378,60 @@ function FlowStepsPanel({ trackId }) {
                 )}
               </span>
             </div>
+            <StepDetailsRow snap={snap} />
+            </div>
           ))}
 
           <p className="text-xs text-muted px-2 pt-1">
             Click any file name to open/preview directly from storage — no download required.
           </p>
         </div>
+      )}
+    </div>
+  )
+}
+
+// ── R105b: semantic detail row under each step ──────────────────────────────
+// Parses stepDetailsJson + shows processingInstance / attemptCount / rows.
+// Gracefully no-ops when the step emitted no detail (pre-R105 snapshots).
+function StepDetailsRow({ snap }) {
+  let parsed = null
+  if (snap.stepDetailsJson) {
+    try { parsed = JSON.parse(snap.stepDetailsJson) } catch { /* ignore malformed */ }
+  }
+  const chips = []
+  if (parsed) {
+    // Curated ordering — most informative first, max 6 chips
+    const priority = [
+      'sourceFormat', 'targetFormat', 'algorithm', 'operation', 'action',
+      'destinationUsername', 'destinationProtocol', 'hitsFound', 'rows',
+      'ratio', 'expansion', 'exitCode', 'mapUsed', 'confidence', 'keyId',
+      'zeroCopy', 'passthrough', 'stdoutLines',
+    ]
+    for (const k of priority) {
+      if (parsed[k] != null && chips.length < 6) {
+        chips.push([k, String(parsed[k])])
+      }
+    }
+  }
+  if (snap.rowsProcessed != null && !chips.some(([k]) => k === 'rows')) {
+    chips.push(['rows', String(snap.rowsProcessed)])
+  }
+  const footerBits = []
+  if (snap.processingInstance) footerBits.push(`on ${snap.processingInstance}`)
+  if (snap.attemptCount != null && snap.attemptCount > 1) footerBits.push(`attempt ${snap.attemptCount}`)
+  if (chips.length === 0 && footerBits.length === 0) return null
+  return (
+    <div className="px-3 pb-2 pt-0 text-xs flex flex-wrap items-center gap-1.5 border-t border-border/40">
+      {chips.map(([k, v]) => (
+        <span key={k} className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 font-mono text-[10px]">
+          <span className="text-indigo-500">{k}:</span> {v}
+        </span>
+      ))}
+      {footerBits.length > 0 && (
+        <span className="text-[10px] text-muted ml-auto">
+          {footerBits.join(' · ')}
+        </span>
       )}
     </div>
   )

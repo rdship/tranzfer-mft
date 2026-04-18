@@ -10,6 +10,8 @@ export default defineConfig({
       '/api/config':     { target: 'http://localhost:8084', rewrite: (p) => p.replace(/^\/api\/config/,     '') },
       '/api/analytics':  { target: 'http://localhost:8090', rewrite: (p) => p.replace(/^\/api\/analytics/,  '') },
       '/api/license':    { target: 'http://localhost:8089', rewrite: (p) => p.replace(/^\/api\/license/,    '') },
+      // R107 Activity Copilot — routes /api/v1/ai/activity/* to ai-engine
+      '/api/v1/ai':      { target: 'http://localhost:8091' },
     },
   },
   build: {
