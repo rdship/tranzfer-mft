@@ -126,12 +126,22 @@ class FlowFabricConsumerParallelSubscribeTest {
         props.getFlow().setSubscribeParallelism(parallelism);
 
         FlowFabricBridge bridge = new FlowFabricBridge(client, props, null, new ObjectMapper());
-        return new FlowFabricConsumer(
+        // R119: fabricBridge is now optional field injection (@Autowired(required=false))
+        // rather than constructor-injected, so Lombok's @RequiredArgsConstructor no longer
+        // includes it. Set it via reflection post-construct to preserve this test's behaviour.
+        FlowFabricConsumer consumer = new FlowFabricConsumer(
                 props,
-                bridge,
                 new ObjectMapper(),
                 (FlowExecutionRepository) null,
                 (FileFlowRepository) null);
+        try {
+            java.lang.reflect.Field f = FlowFabricConsumer.class.getDeclaredField("fabricBridge");
+            f.setAccessible(true);
+            f.set(consumer, bridge);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to inject fabricBridge via reflection", e);
+        }
+        return consumer;
     }
 
     /** Reflectively invoke the private {@code subscribeStepTopicsInParallel}. */

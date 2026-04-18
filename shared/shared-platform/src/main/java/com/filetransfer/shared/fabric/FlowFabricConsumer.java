@@ -52,10 +52,24 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class FlowFabricConsumer {
 
     private final FabricProperties properties;
-    private final FlowFabricBridge fabricBridge;
     private final ObjectMapper objectMapper;
     private final FlowExecutionRepository executionRepo;
     private final FileFlowRepository flowRepo;
+
+    /**
+     * R119 P0 fix: {@link FlowFabricBridge} is still class-level
+     * {@code @ConditionalOnProperty(flow.rules.enabled)}, so if AOT or any
+     * profile omits that property the bridge bean is absent. R117 made THIS
+     * class unconditional — constructor-injection on a conditional dep then
+     * cascades to a context-refresh crash. Switched to optional field
+     * injection so absence is tolerated (we null-check at {@link #init}).
+     * Matches the dev-team consolidated-report pattern: every consumer of a
+     * @ConditionalOnProperty(matchIfMissing=false) bean must declare the
+     * reference as optional ({@code @Autowired(required=false)} /
+     * {@code Optional<T>} / {@code ObjectProvider<T>}).
+     */
+    @Autowired(required = false)
+    private FlowFabricBridge fabricBridge;
 
     /** Lazy reference to FlowProcessingEngine — avoids circular injection at startup. */
     @Autowired
@@ -70,6 +84,14 @@ public class FlowFabricConsumer {
     void init() {
         if (!flowRulesEnabled) {
             log.info("[FlowFabricConsumer] flow.rules.enabled=false — not subscribing");
+            return;
+        }
+        if (fabricBridge == null) {
+            // R119: FlowFabricBridge is still @ConditionalOnProperty-gated,
+            // so it can be absent even when flow.rules.enabled=true if the
+            // AOT build evaluated it without the property. Fail soft — log
+            // and return instead of crashing context refresh.
+            log.warn("[FlowFabricConsumer] FlowFabricBridge not in context (likely AOT build without flow.rules.enabled). Fabric consumption disabled.");
             return;
         }
         if (!properties.isEnabled() || !properties.getFlow().isConsume()) {

@@ -107,6 +107,57 @@ if (spiffeClient != null && spiffeClient.isEnabled()) {
 
 ---
 
+## 🚨 Retrofit pitfall — the dependency-chain trap (R118 incident)
+
+**R119 P0 lesson learned the hard way:** when you convert a bean from
+`@ConditionalOnProperty` to unconditional, its constructor-injected dependencies
+must ALSO be either unconditional or tolerated as optional. Otherwise:
+
+- AOT build omits the still-conditional dependency.
+- The newly-unconditional consumer is in the bean graph, its constructor runs,
+  and it needs a bean that doesn't exist → `UnsatisfiedDependencyException`
+  → context refresh fails → permanent restart loop on every cold boot.
+
+R118 tested a retrofit where `FlowFabricConsumer` was made unconditional but its
+constructor-injected `FlowFabricBridge` was still `@ConditionalOnProperty`.
+Result: 12 Java services in restart loops at every cold boot. **No Medal.**
+
+### The rule
+
+Before changing a bean from `@ConditionalOnProperty` to unconditional:
+
+1. `grep` every `final`-field / constructor parameter of that bean. List the
+   types.
+2. For each dependency type, check if it is itself `@ConditionalOnProperty`
+   (matchIfMissing=false) or otherwise conditionally registered.
+3. For every conditional dependency, choose ONE of:
+   - **Retrofit the dependency** to unconditional + runtime-gated (same pattern).
+     Only do this if the dependency has NO conditional deps of its own — chain
+     must terminate at unconditional beans.
+   - **Change the injection site to optional**:
+     - `@Autowired(required = false) private FooBean foo;` (field injection, not final)
+     - `private final ObjectProvider<FooBean> fooProvider;` (constructor-safe)
+     - `private final Optional<FooBean> foo;` (Spring-aware Optional)
+   - **Revert** the outer retrofit if (a) and (b) are both too invasive.
+
+### Consumer hot-path must null-check
+
+```java
+@Autowired(required = false)
+private FlowFabricBridge fabricBridge;
+
+@PostConstruct
+void init() {
+    if (fabricBridge == null) {
+        log.warn("[FlowFabricConsumer] FlowFabricBridge not in context — fabric disabled");
+        return;
+    }
+    // normal path
+}
+```
+
+---
+
 ## Retrofit log (2026-04-18)
 
 | Release | Bean(s) fixed | From | To |
@@ -114,6 +165,7 @@ if (spiffeClient != null && spiffeClient.isEnabled()) {
 | R112 (`fbbe32b`) | `SpiffeWorkloadClient` | class-level `@ConditionalOnProperty(spiffe.enabled)` | unconditional + constructor gate on `props.isEnabled()` |
 | R117 | `SpiffeX509Manager`, `SpiffeMtlsAuthFilter` | bean-level `@ConditionalOnProperty(spiffe.mtls-enabled)` | unconditional + constructor gate + filter body no-op |
 | R117 | `FlowFabricConsumer`, `InstanceHeartbeatJob` | class-level `@ConditionalOnProperty(flow.rules.enabled)` | unconditional + `@Value` field + early-return at hot-path entry |
+| R119 | `FlowFabricConsumer` (hot-fix) | constructor-injected `FlowFabricBridge` (still conditional) → cascade crash | `@Autowired(required=false)` field + null-check at init(). The dependency-chain trap. |
 
 ## Remaining `@ConditionalOnProperty` — audited safe
 
