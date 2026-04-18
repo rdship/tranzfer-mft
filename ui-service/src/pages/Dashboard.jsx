@@ -43,6 +43,14 @@ import {
 import { format } from 'date-fns'
 import { NavLink } from 'react-router-dom'
 
+// R128 follow-up: tester's vite warning "Duplicate key meta in object
+// literal" on ~10 useQuery calls. The R127 polish passes had added a
+// trailing `meta: { silent: true }` comment line without noticing the
+// same key was already on the line above. Consolidating to one shared
+// constant removes the footgun — future silencing just references
+// SILENT_META rather than re-typing the object literal.
+const SILENT_META = Object.freeze({ silent: true })
+
 /* Neon chart palette — pops on dark backgrounds */
 const NEON = ['#8b5cf6', '#22d3ee', '#34d399', '#f87171', '#fbbf24']
 
@@ -306,37 +314,39 @@ function FlowFabricStrip() {
   // The fabric strip is a cosmetic snapshot — if the analytics service
   // isn't ready yet (fast page load during boot), these queries shouldn't
   // toast. meta.silent opts them out of the global onError handler.
+  // R128 follow-up: was duplicating `meta: { silent: true }` twice in each
+  // literal (vite warned). Consolidated via SILENT_META below.
   const queuesQ = useQuery({
     queryKey: ['dash-fabric-queues'],
     queryFn: getFabricQueues,
-    meta: { silent: true }, refetchInterval: 10_000,
+    refetchInterval: 10_000,
     retry: 0,
     staleTime: 8_000,
-    meta: { silent: true },
+    meta: SILENT_META,
   })
   const instancesQ = useQuery({
     queryKey: ['dash-fabric-instances'],
     queryFn: getFabricInstances,
-    meta: { silent: true }, refetchInterval: 10_000,
+    refetchInterval: 10_000,
     retry: 0,
     staleTime: 8_000,
-    meta: { silent: true },
+    meta: SILENT_META,
   })
   const stuckQ = useQuery({
     queryKey: ['dash-fabric-stuck'],
     queryFn: () => getFabricStuck({ page: 0, size: 1 }),
-    meta: { silent: true }, refetchInterval: 10_000,
+    refetchInterval: 10_000,
     retry: 0,
     staleTime: 8_000,
-    meta: { silent: true },
+    meta: SILENT_META,
   })
   const latencyQ = useQuery({
     queryKey: ['dash-fabric-latency'],
     queryFn: () => getFabricLatency({ hours: 1, sample: 2000 }),
-    meta: { silent: true }, refetchInterval: 10_000,
+    refetchInterval: 10_000,
     retry: 0,
     staleTime: 8_000,
-    meta: { silent: true },
+    meta: SILENT_META,
   })
 
   const inProgress = (() => {
@@ -676,12 +686,12 @@ function RecentActivityStrip() {
     queryFn: () => onboardingApi
       .get('/api/activity-monitor', { params: { page: 0, size: 5, sortBy: 'uploadedAt', sortDir: 'DESC' } })
       .then(r => r.data),
-    meta: { silent: true }, refetchInterval: 5_000,
+    refetchInterval: 5_000,
     retry: 0,
     staleTime: 4_000,
     // Cosmetic strip — the page itself handles isError via an inline
     // message, so the global toast handler is redundant noise.
-    meta: { silent: true },
+    meta: SILENT_META,
   })
 
   const rows = Array.isArray(data?.content) ? data.content
