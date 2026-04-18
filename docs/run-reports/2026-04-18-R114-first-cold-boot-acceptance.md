@@ -228,3 +228,73 @@ Outstanding items:
 
 **Git SHA:** `9a22f536` (R114 tip) + pending `docs/run-reports/2026-04-18-R114-*.md` and broadened
 `tests/playwright/tests/regression-pins.spec.js`.
+
+---
+
+## 🏅 Release Rating — R114
+
+> **Dev team**: the tester now assigns a medal on every acceptance report. The full
+> rubric lives at [`docs/RELEASE-RATING-RUBRIC.md`](../RELEASE-RATING-RUBRIC.md).
+> TL;DR — 🥇 Gold = ship-it, 🥈 Silver = production-viable with caveats, 🥉 Bronze
+> = works but primary feature axis degraded (internal/dev only), 🚫 No Medal =
+> P0 blocker present.
+
+### R114 = 🥉 Bronze
+
+**Justification — dimension by dimension:**
+
+| Axis | Assessment | Notes |
+|---|---|---|
+| **Works** | ❌ Degraded | S2S 403 blocks flow engine end-to-end. Flows start but fail at EXECUTE_SCRIPT / INLINE promotion. Primary product function (file transfer through flows) does not complete. |
+| **Safe** | ⚠️ Partial | Auth works, RBAC holds, but SPIFFE/JWT-SVID stack cannot attest on this env. Platform falls back to no-auth header on S2S, rejected by downstream services. |
+| **Efficient** | ⚠️ Regressed | Metaspace OOM on onboarding-api after ~21 min of sustained load. `MaxMetaspaceSize=150m` too tight. 120 s boot mandate: 1/18 met. |
+| **Reliable** | ✅ Improved | R100 mailbox-status mirror genuinely works on FAILED branch (was a no-op for 14 releases). Clean cold boot; no crash loops. |
+
+**Bronze because:** Flow engine can't complete a transfer end-to-end (Works axis
+red) and a new stability issue landed (Efficient axis). The R100 win on the
+Reliable axis is real and meaningful — it's why this isn't No Medal — but it
+doesn't close the primary-feature gap.
+
+**Why not No Medal:** platform is up, 34/34 healthy, login works, R100 fix is
+progress. There's no P0 in the "would a customer notice their fleet is down"
+sense; customers would notice their files aren't being transformed, which is
+Bronze-grade. Also worth noting: the SPIRE issue appears to be **env-specific**
+(Apple Silicon LinuxKit), so AMD64 CI/prod may well hit Silver on identical
+artefacts. The rating is for this test run on this hardware.
+
+**Why not Silver:** Silver requires primary feature axes functional. Flow engine
+is not functional end-to-end on this env.
+
+### Trajectory (R95 → R114)
+
+| Release | Medal | One-line why |
+|---|---|---|
+| R95 | 🚫 No Medal | 5 services crashing with AOT blocker |
+| R97 | 🚫 No Medal | Same blocker |
+| R100 | 🥈 Silver | First clean boot; R103+R104 pending |
+| R103-R104 | 🥈 Silver | First fully-clean boot; SPIFFE genuinely on |
+| R105-R109 | 🚫 No Medal | `refresh_tokens` P0, login 500 |
+| R110 | 🥉 Bronze | P0 closed; new S2S 403 regression |
+| R111 | 🥉 Bronze | Fix didn't land; bean null |
+| R112 | 🥉 Bronze | Bean wired; java-spiffe ARM64 gap |
+| R113 | 🥉 Bronze | Native bindings fixed; SPIRE attestation fails |
+| **R114** | 🥉 **Bronze** | R100 mirror landed; SPIRE still fails; new Metaspace OOM |
+
+**Trajectory read**: five consecutive Bronze releases, but each one closes a
+specific layer of the SPIFFE/data-plane onion. R114 is Bronze because the
+product still can't deliver a file end-to-end on this env — but it cleared one
+of the oldest open bugs in the arc (R100). Next release with working SPIFFE on
+LinuxKit should flip to Silver.
+
+### What would earn Silver on R115
+
+- SPIRE Unix workload attestor wired → JWT-SVIDs issue → S2S 403 clears.
+- Byte-level E2E completes (flow reaches COMPLETED, R86 pin passes).
+- R100 COMPLETED-branch pin verifies the mirror.
+- MaxMetaspaceSize bumped (no OOM under `test:regression` load).
+
+### What would earn Gold on R115+
+
+All Silver criteria **plus**: 120 s boot mandate met on ≥15 of 18 Java services;
+zero new tester findings; perf budgets green.
+
