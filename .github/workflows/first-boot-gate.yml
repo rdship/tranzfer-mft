@@ -1,0 +1,91 @@
+name: first-boot-healthy-gate
+
+# Zero-tolerance restart gate. Any Java service that restarts even ONCE during
+# cold boot fails the build. Catches the R117→R118→R119 class of regression
+# where a bean's constructor dep (still @ConditionalOnProperty) can't be
+# satisfied in services with narrow @EnableJpaRepositories scope → service
+# crash-loops until something else eagerly wires the missing bean.
+#
+# Existing aot-parity.yml only asserts "eventually healthy" — a restart-loop
+# that happens to recover after N attempts would pass it. This gate closes
+# that loop. Runs on every PR that touches shared code, service sources,
+# or docker-compose. ~20 min wall time.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '**/src/main/java/**'
+      - '**/src/main/resources/application*.yml'
+      - 'docker-compose.yml'
+      - 'shared/**/pom.xml'
+      - 'spire/**'
+      - 'scripts/first-boot-healthy-gate.sh'
+      - '.github/workflows/first-boot-gate.yml'
+  push:
+    branches: [main]
+
+jobs:
+  first-boot-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build Java services
+        run: mvn -q -B -DskipTests package
+        env:
+          MAVEN_OPTS: '-Xmx3g'
+
+      - name: Pre-pull infra images
+        run: |
+          docker pull postgres:16-alpine
+          docker pull rabbitmq:3.13-management-alpine
+          docker pull redis:7-alpine
+          docker pull nginx:alpine
+
+      - name: First-boot-healthy gate (AOT on)
+        run: ./scripts/first-boot-healthy-gate.sh
+        env:
+          DOCKER_BUILDKIT: 1
+          FIRST_BOOT_TIMEOUT: '600'
+          FIRST_BOOT_AOT: 'true'
+
+      - name: Capture container logs on failure
+        if: failure()
+        run: |
+          mkdir -p /tmp/first-boot-logs
+          for c in $(docker ps -aq); do
+            name=$(docker inspect --format '{{.Name}}' "$c" | tr -d '/')
+            docker logs "$c" > "/tmp/first-boot-logs/$name.log" 2>&1 || true
+          done
+          docker ps -a > /tmp/first-boot-logs/_ps.txt
+          # restart-count snapshot — the key signal for this gate
+          for c in $(docker ps -aq); do
+            name=$(docker inspect --format '{{.Name}}' "$c" | tr -d '/')
+            rc=$(docker inspect --format '{{.RestartCount}}' "$c")
+            echo "$name restarts=$rc"
+          done > /tmp/first-boot-logs/_restart-counts.txt
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: first-boot-gate-logs
+          path: /tmp/first-boot-logs/
+          retention-days: 14
+
+      - name: Teardown
+        if: always()
+        run: docker compose down -v --remove-orphans || true
