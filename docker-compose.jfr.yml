@@ -1,0 +1,30 @@
+version: "3.9"
+# JFR overlay — boot-time profile for the 4 services that represent the
+# 150-200s boot cluster. Activated by:
+#   docker compose -f docker-compose.yml -f docker-compose.jfr.yml up -d \
+#     onboarding-api config-service ai-engine forwarder-service
+# After ~200 s the .jfr files land in each container's /tmp/boot.jfr.
+# Use docker cp mft-<svc>:/tmp/boot.jfr ./<svc>-boot.jfr to collect.
+#
+# Duration=180s chosen to cover the slowest boot in the cluster (ai-engine
+# was 206 s on the R128 sweep). settings=profile is the "profile" preset
+# — sample-every-10-ms method profiles + GC + allocation + JDK events;
+# per dev's hot-frame analysis need. disk=true so the recording survives
+# the JVM if the recorder is stopped early.
+
+services:
+  onboarding-api:
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:StartFlightRecording=duration=200s,filename=/tmp/boot.jfr,settings=profile,disk=true,name=boot"
+
+  config-service:
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:StartFlightRecording=duration=200s,filename=/tmp/boot.jfr,settings=profile,disk=true,name=boot"
+
+  ai-engine:
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:StartFlightRecording=duration=200s,filename=/tmp/boot.jfr,settings=profile,disk=true,name=boot"
+
+  external-forwarder-service:
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:StartFlightRecording=duration=200s,filename=/tmp/boot.jfr,settings=profile,disk=true,name=boot"
