@@ -48,23 +48,27 @@ KEEP=false
 TIMEOUT="${FIRST_BOOT_TIMEOUT:-600}"
 AOT="${FIRST_BOOT_AOT:-true}"
 
-# The Java services we expect to reach healthy WITHOUT restarting.
-# Container names match docker-compose.yml `container_name:` entries.
-# Replicas are intentionally listed — a restart of any replica is still a fail.
+# The Java services we expect to reach healthy WITHOUT restarting on the
+# DEFAULT docker-compose profile (no --profile flags). Replicas and
+# external-proxy are opt-in via profiles: ["replicas"] / ["external-proxy"]
+# so listing them here produced false positives against phantom containers
+# that were never started. Keep this list narrow; a separate profile-aware
+# gate can cover the replica set when we start shipping that scale-out
+# topology in CI.
 EXPECT_CONTAINERS=(
   mft-onboarding-api
   mft-config-service mft-gateway-service
   mft-encryption-service mft-forwarder-service
   mft-license-service mft-analytics-service
-  mft-ai-engine mft-ai-engine-2
+  mft-ai-engine
   mft-screening-service mft-keystore-manager
   mft-as2-service mft-edi-converter
   mft-storage-manager mft-notification-service
   mft-platform-sentinel
-  mft-sftp-service mft-sftp-service-2 mft-sftp-service-3
-  mft-ftp-service mft-ftp-service-2 mft-ftp-service-3
-  mft-ftp-web-service mft-ftp-web-service-2
-  mft-dmz-proxy-internal mft-dmz-proxy-external
+  mft-sftp-service
+  mft-ftp-service
+  mft-ftp-web-service
+  mft-dmz-proxy-internal
 )
 
 say "=============================================="
@@ -98,8 +102,10 @@ while [[ $(date +%s) -lt $DEADLINE ]]; do
   restart_list=()
 
   for svc in "${EXPECT_CONTAINERS[@]}"; do
-    state=$(docker inspect "$svc" --format '{{.State.Health.Status}}' 2>/dev/null || echo "MISSING")
-    rc=$(docker inspect "$svc"   --format '{{.RestartCount}}'       2>/dev/null || echo "0")
+    state=$(docker inspect "$svc" --format '{{.State.Health.Status}}' 2>/dev/null | tr -d '\n\r ' || echo "MISSING")
+    [[ -z "$state" ]] && state="MISSING"
+    rc=$(docker inspect "$svc"   --format '{{.RestartCount}}'       2>/dev/null | tr -d '\n\r ' || echo "0")
+    [[ -z "$rc" ]] && rc="0"
 
     if [[ "$rc" != "0" ]]; then
       any_restarted=true
@@ -147,7 +153,8 @@ if [[ "$FIRST_RESTART_SEEN" == true ]]; then
   err "FIRST-BOOT GATE FAILED — services restarted on first boot attempt"
   err "  services with restarts:"
   for svc in "${EXPECT_CONTAINERS[@]}"; do
-    rc=$(docker inspect "$svc" --format '{{.RestartCount}}' 2>/dev/null || echo "0")
+    rc=$(docker inspect "$svc" --format '{{.RestartCount}}' 2>/dev/null | tr -d '\n\r ' || echo "0")
+    [[ -z "$rc" ]] && rc="0"
     if [[ "$rc" != "0" ]]; then
       # Print last 15 log lines to surface the crash signature
       printf '\n    %s✗ %s (restarts=%s)%s\n' "$RED" "$svc" "$rc" "$RST" >&2
