@@ -83,8 +83,12 @@ function describeViewFilters(v) {
 // loads before the shared-app chunk. Wrapping in a function defers
 // evaluation to render time, when all imports are guaranteed initialized.
 function getAllColumns() { return [
+  // R127: Track ID no longer styled as a link. It's an identifier (not
+  // navigable), so the prior purple/blue underline-styled treatment was
+  // misleading. Uses .id-mono — monospace, tabular nums, primary text —
+  // and keeps the copy button on the right so users can still grab it.
   { key: 'trackId', label: 'Track ID', defaultVisible: true, width: 'w-36', render: (v) => v
-      ? <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-blue-600">{v}<CopyButton value={v} label="trackId" size="xs" /></span>
+      ? <span className="inline-flex items-center gap-1 id-mono">{v}<CopyButton value={v} label="trackId" size="xs" /></span>
       : <span>--</span> },
   { key: 'filename', label: 'Filename', defaultVisible: true, width: 'min-w-[180px] max-w-[280px]', render: (v) => <span className="truncate block" title={v}>{v || '--'}</span> },
   { key: 'status', label: 'Status', defaultVisible: true, width: 'w-36', render: (v) => statusBadge(v) },

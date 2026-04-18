@@ -12,6 +12,13 @@
    ═══════════════════════════════════════════════════════════ */
 
 /* ── SCANDINAVIAN DARK — default theme for all pages ── */
+/* R127 modernization pass: tester UX review flagged the dark mode as
+   "one flat black surface" with no spatial hierarchy. Added four surface
+   tiers (base / raised / overlay / elevated) + five semantic colour
+   tokens (success / info / warning / danger / neutral-bright) so the
+   eye gets clear cues between sidebar → content → cards → modals.
+   Kept --surface / --canvas as aliases so existing components that
+   reference them keep rendering until they're migrated. */
 :root,
 [data-theme="dark"],
 [data-theme="elevated"],
@@ -19,39 +26,72 @@
 [data-theme="compliance"],
 [data-theme="infra"],
 [data-theme="developer"] {
-  --surface:         23  23  28;   /* warm charcoal cards    */
-  --canvas:          15  15  19;   /* deep warm black bg     */
-  --border:          40  40  48;   /* subtle warm border     */
-  --hover:           35  35  42;   /* gentle hover           */
-  --tx-primary:     230 232 236;   /* soft white text        */
-  --tx-secondary:   160 165 175;   /* muted gray text        */
-  --tx-muted:       110 115 125;   /* very muted             */
-  --accent:         100 140 255;   /* soft Nordic blue       */
-  --accent-soft:     25  30  50;   /* deep blue tint         */
-  --chart-1:        100 140 255;   /* soft blue              */
-  --chart-2:         72 199 174;   /* muted teal             */
-  --chart-3:        240 180  80;   /* warm amber             */
-  --chart-4:        220 100 100;   /* soft red               */
+  /* Four-tier surface palette */
+  --bg-base:          11  13  18;   /* app background — deeper than the body */
+  --bg-raised:        20  23  31;   /* sidebar, top nav, cards                */
+  --bg-overlay:       28  32  43;   /* modals, drawers, menus, dropdowns      */
+  --bg-elevated:      38  43  56;   /* row / button / menu-item hover + active */
+
+  --border-subtle:   255 255 255;   /* used with /8 alpha — visible but quiet */
+  --border-strong:   255 255 255;   /* used with /14 alpha — focus + emphasis */
+
+  --tx-primary:     243 245 249;   /* soft white text                        */
+  --tx-secondary:   170 177 191;   /* subtext, descriptions, timestamps      */
+  --tx-muted:       116 125 141;   /* placeholders, disabled                 */
+
+  --accent:         127 109 245;   /* brand purple — CTAs, active tab, selection */
+  --accent-soft:     35  30  60;   /* deep purple tint                       */
+
+  /* Semantic palette — one token per meaning, not per state name */
+  --success:         34 197  94;   /* COMPLETED, DOWNLOADED, ACTIVE          */
+  --info:            59 130 246;   /* PROCESSING, MOVED_TO_SENT, QUEUED      */
+  --warning:        245 158  11;   /* PAUSED, AWAITING, PENDING, STUCK       */
+  --danger:         239  68  68;   /* FAILED, CANCELLED, REJECTED            */
+  --neutral-bright: 148 163 184;   /* PROTOCOL badges, PAUSED, STANDARD tier */
+
+  /* Legacy aliases — keep components rendering while they migrate */
+  --surface:         20  23  31;   /* was 23 23 28 — aligned to bg-raised    */
+  --canvas:          11  13  18;   /* was 15 15 19 — aligned to bg-base      */
+  --border:          40  44  54;   /* slightly lifted for visibility on base */
+  --hover:           38  43  56;   /* aligned to bg-elevated                 */
+  --chart-1:        127 109 245;
+  --chart-2:         34 197 174;
+  --chart-3:        245 158  11;
+  --chart-4:        239  68  68;
 }
 
-/* ── LIGHT — R20 addition for the theme toggle in the sidebar footer.
-   Mirrors the dark palette with high-contrast light tokens so every
-   page styled via the CSS vars flips cleanly. Charts stay rich-color
-   because they need to be legible on both backgrounds. ── */
+/* ── LIGHT — mirrors the dark palette with high-contrast light tokens so
+   every page styled via the CSS vars flips cleanly. ── */
 [data-theme="light"] {
-  --surface:        255 255 255;   /* pure white cards       */
-  --canvas:         246 248 251;   /* cool mist bg           */
-  --border:         226 232 240;   /* gentle slate border    */
-  --hover:          241 245 249;   /* slate-100 hover        */
-  --tx-primary:      15  23  42;   /* slate-900              */
-  --tx-secondary:    71  85 105;   /* slate-600              */
-  --tx-muted:       148 163 184;   /* slate-400              */
-  --accent:          79  70 229;   /* indigo-600             */
-  --accent-soft:    224 231 255;   /* indigo-100             */
-  --chart-1:         79  70 229;   /* indigo                 */
-  --chart-2:         16 185 129;   /* emerald                */
-  --chart-3:        234 179   8;   /* amber                  */
-  --chart-4:        239  68  68;   /* red                    */
+  --bg-base:        246 248 251;   /* cool mist bg                           */
+  --bg-raised:      255 255 255;   /* sidebar, top nav, cards                */
+  --bg-overlay:     255 255 255;   /* modals (with shadow for lift)          */
+  --bg-elevated:    241 245 249;   /* hover row                              */
+
+  --border-subtle:    0   0   0;   /* /8 alpha                               */
+  --border-strong:    0   0   0;   /* /14 alpha                              */
+
+  --tx-primary:      15  23  42;   /* slate-900                              */
+  --tx-secondary:    71  85 105;   /* slate-600                              */
+  --tx-muted:       148 163 184;   /* slate-400                              */
+
+  --accent:         127 109 245;   /* brand — same in both themes            */
+  --accent-soft:    238 234 255;   /* pale purple tint                       */
+
+  --success:         22 163  74;
+  --info:            37  99 235;
+  --warning:        217 119   6;
+  --danger:         220  38  38;
+  --neutral-bright: 100 116 139;
+
+  --surface:        255 255 255;
+  --canvas:         246 248 251;
+  --border:         226 232 240;
+  --hover:          241 245 249;
+  --chart-1:        127 109 245;
+  --chart-2:         16 185 129;
+  --chart-3:        234 179   8;
+  --chart-4:        239  68  68;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -76,12 +116,21 @@
 *, *::before, *::after { box-sizing: border-box; }
 
 body {
-  background: rgb(var(--canvas, 248 250 252));
-  color: rgb(var(--tx-primary, 15 23 42));
+  background: rgb(var(--bg-base));
+  color: rgb(var(--tx-primary));
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.25s ease;
+}
+
+/* R127: global focus ring — replaces OS-native. Applied to all interactive
+   elements so the keyboard affordance is consistent across platforms.
+   Uses the accent token at 50% so it reads in both dark and light modes. */
+*:focus-visible {
+  outline: 2px solid rgb(var(--accent) / 0.55);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /* ── Scrollbar ── */
@@ -100,7 +149,7 @@ body {
    ═══════════════════════════════════════════════════════════ */
 
 .page-canvas {
-  background: rgb(var(--canvas));
+  background: rgb(var(--bg-base));
   min-height: 100%;
 }
 
@@ -108,30 +157,45 @@ body {
    CARDS
    ═══════════════════════════════════════════════════════════ */
 
+/* R127: cards sit on --bg-raised with a subtle white-alpha border instead
+   of a solid --border token. Tester's UX review called the prior combo
+   (#13151C card over #0F0F13 body, 4-luma delta) "perceptually
+   indistinguishable" — the raised/base contrast here is ~9 luma, visible
+   without being harsh. Shadows removed in dark mode because they vanish
+   on black anyway; spatial lift is surface-colour driven. */
 .card {
-  background: rgb(var(--surface));
-  border: 1px solid rgb(var(--border));
+  background: rgb(var(--bg-raised));
+  border: 1px solid rgb(var(--border-subtle) / 0.08);
   border-radius: 1rem;
   padding: 1.5rem;
-  transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 
 .card-hover:hover {
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.25), 0 2px 8px -2px rgb(0 0 0 / 0.15);
-  border-color: rgb(var(--accent) / 0.20);
+  background: rgb(var(--bg-elevated));
+  border-color: rgb(var(--border-strong) / 0.14);
   transform: translateY(-1px);
 }
 
 .card-sm {
-  background: rgb(var(--surface));
-  border: 1px solid rgb(var(--border));
+  background: rgb(var(--bg-raised));
+  border: 1px solid rgb(var(--border-subtle) / 0.08);
   border-radius: 0.75rem;
   padding: 1rem;
 }
 
+/* Overlay — modals, drawers, dropdowns. One tier up from cards so the
+   user sees it is floating above table surfaces. */
+.card-overlay {
+  background: rgb(var(--bg-overlay));
+  border: 1px solid rgb(var(--border-strong) / 0.14);
+  border-radius: 1rem;
+  padding: 1.5rem;
+}
+
 .card-ghost {
-  background: rgb(var(--surface) / 0.5);
-  border: 1px solid rgb(var(--border) / 0.6);
+  background: rgb(var(--bg-raised) / 0.5);
+  border: 1px solid rgb(var(--border-subtle) / 0.08);
   border-radius: 1rem;
   padding: 1.5rem;
   backdrop-filter: blur(8px);
@@ -155,12 +219,15 @@ body {
   color: rgb(var(--tx-primary));
 }
 
+/* R127: dropped uppercase + wide letter-spacing (2015 admin-panel look)
+   per tester's UX review. Sentence-case, medium weight reads like
+   GitHub / Linear / Vercel dashboards. */
 .section-label {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: rgb(var(--tx-muted));
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: rgb(var(--tx-secondary));
 }
 
 .stat-number {
@@ -304,6 +371,11 @@ body {
    BADGES
    ═══════════════════════════════════════════════════════════ */
 
+/* R127: one semantic colour per meaning, not per state name. Each pill
+   uses a 15% alpha fill of the semantic token with full-saturation text,
+   Linear/Vercel style. Swapped from dark-solid-fill to tone-on-tone so
+   two states that share a meaning (COMPLETED + DOWNLOADED → both success)
+   read identically at a glance. */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -312,45 +384,58 @@ body {
   border-radius: 999px;
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   white-space: nowrap;
+  line-height: 1.2;
 }
 
-/* Muted Scandinavian badges — dark bg with soft text */
-.badge-green  { background: rgb(20 60 40);  color: rgb(120 220 160); }
-.badge-red    { background: rgb(60 20 20);  color: rgb(240 120 120); }
-.badge-yellow { background: rgb(60 50 20);  color: rgb(240 200 100); }
-.badge-blue   { background: rgb(20 30 60);  color: rgb(120 170 255); }
-.badge-gray   { background: rgb(var(--hover)); color: rgb(var(--tx-secondary)); border: 1px solid rgb(var(--border)); }
-.badge-purple { background: rgb(40 20 60);  color: rgb(190 140 255); }
-.badge-teal   { background: rgb(15 45 40);  color: rgb(100 210 190); }
-.badge-orange { background: rgb(60 35 15);  color: rgb(240 170 100); }
+.badge-green,
+.badge-success { background: rgb(var(--success) / 0.15);        color: rgb(var(--success)); }
+.badge-red,
+.badge-danger  { background: rgb(var(--danger) / 0.15);         color: rgb(var(--danger)); }
+.badge-yellow,
+.badge-warning { background: rgb(var(--warning) / 0.15);        color: rgb(var(--warning)); }
+.badge-blue,
+.badge-info    { background: rgb(var(--info) / 0.15);           color: rgb(var(--info)); }
+.badge-gray,
+.badge-neutral { background: rgb(var(--neutral-bright) / 0.12); color: rgb(var(--neutral-bright)); }
+.badge-purple,
+.badge-primary { background: rgb(var(--accent) / 0.15);         color: rgb(var(--accent)); }
+/* Tone-on-tone aliases retained so existing callers do not re-map */
+.badge-teal    { background: rgb(var(--info) / 0.15);           color: rgb(var(--info)); }
+.badge-orange  { background: rgb(var(--warning) / 0.15);        color: rgb(var(--warning)); }
 
 /* ═══════════════════════════════════════════════════════════
    TABLES
    ═══════════════════════════════════════════════════════════ */
 
+/* R127: table headers out of the uppercase-slate-2015 look. Sentence-case
+   labels, weight 500, secondary colour. Row height compact per UX review
+   density target. Track-ID monospace is applied per-column in the table
+   markup via font-mono + tabular-nums. */
 .table-header {
   text-align: left;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: rgb(var(--tx-muted));
-  padding: 0.75rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: rgb(var(--tx-secondary));
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid rgb(var(--border-subtle) / 0.08);
 }
 .table-cell {
-  padding: 0.875rem 1rem;
-  font-size: 0.875rem;
+  padding: 0.625rem 1rem;
+  font-size: 0.8125rem;
   color: rgb(var(--tx-primary));
   vertical-align: middle;
+  font-variant-numeric: tabular-nums;
 }
 .table-row {
-  border-bottom: 1px solid rgb(var(--border));
-  transition: background-color 0.1s ease;
+  border-bottom: 1px solid rgb(var(--border-subtle) / 0.06);
+  transition: background-color 0.15s ease-out;
 }
 .table-row:hover {
-  background: rgb(var(--hover));
+  background: rgb(var(--bg-elevated));
 }
 .table-row:last-child { border-bottom: none; }
 
@@ -454,6 +539,28 @@ label {
    ═══════════════════════════════════════════════════════════ */
 
 .transition-smooth { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+
+/* R127: use for Track IDs, SHA256 keys, and other scan-identifiers.
+   Monospace reads as "not a word" and columnises in tables cleanly. */
+.id-mono {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: rgb(var(--tx-primary));
+}
+
+/* R127: top-nav glassmorphism — mirrors the login page aesthetic so the
+   app feels like a sibling of the login, not a stranger. Uses
+   bg-raised at 70% + backdrop-blur to let the page hint through
+   without blurring the content underneath. */
+.top-nav-glass {
+  background: rgb(var(--bg-raised) / 0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgb(var(--border-subtle) / 0.08);
+}
 
 .text-gradient-accent {
   background: linear-gradient(135deg, rgb(var(--accent)), rgb(var(--chart-2)));

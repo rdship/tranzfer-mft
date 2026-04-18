@@ -270,11 +270,18 @@ export default function Sidebar() {
 
   return (
     <aside
+      // R127: sidebar on --bg-raised, not the body's --bg-base. Tester's UX
+      // review called out that the prior sidebar shared the body colour and
+      // there was no perceivable seam between nav and content. The raised
+      // tier is one luma step up; the border below reinforces the seam.
       className="w-56 flex flex-col overflow-hidden flex-shrink-0"
-      style={{ background: 'rgb(var(--canvas))' }}
+      style={{
+        background: 'rgb(var(--bg-raised))',
+        borderRight: '1px solid rgb(var(--border-subtle) / 0.08)',
+      }}
     >
       {/* Brand */}
-      <div className="px-4 py-4 flex items-center gap-2.5" style={{ borderBottom: '1px solid rgb(var(--border))' }}>
+      <div className="px-4 py-4 flex items-center gap-2.5" style={{ borderBottom: '1px solid rgb(var(--border-subtle) / 0.08)' }}>
         {branding.logoUrl ? (
           <img src={branding.logoUrl} alt={branding.companyName} className="h-7 object-contain" />
         ) : (

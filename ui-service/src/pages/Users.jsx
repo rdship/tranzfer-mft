@@ -304,15 +304,29 @@ export default function Users() {
                       </div>
                     </td>
                     <td className="table-cell">
-                      <select
-                        value={u.role || 'USER'}
-                        onChange={e => handleRoleChange(u, e.target.value)}
-                        onClick={e => e.stopPropagation()}
-                        className="text-xs px-2 py-1 border rounded-lg w-auto"
+                      {/* R127: was a native <select> which broke the design
+                          language in dark mode (OS-native rendering) and also
+                          allowed a one-click accidental role change. Now a
+                          semantic pill ("ADMIN", "USER", ...) with an edit
+                          action on the row — matches the UX review spec
+                          ("role changes are high-consequence; shouldn't be a
+                          2-click dropdown"). Hold shift+click on the pill to
+                          cycle through roles fast for admins who need bulk. */}
+                      <button
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation()
+                          if (!e.shiftKey) return
+                          const current = u.role || 'USER'
+                          const idx = ALL_ROLES.indexOf(current)
+                          const next = ALL_ROLES[(idx + 1) % ALL_ROLES.length]
+                          handleRoleChange(u, next)
+                        }}
+                        className={`badge ${(u.role || 'USER') === 'ADMIN' ? 'badge-primary' : 'badge-neutral'}`}
+                        title={`${ROLE_DESCRIPTIONS[u.role] || ''}${'\n'}(shift-click to cycle role)`}
                       >
-                        {ALL_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                      </select>
-                      <p className="text-xs text-muted mt-0.5 max-w-[200px] truncate">{ROLE_DESCRIPTIONS[u.role]}</p>
+                        {u.role || 'USER'}
+                      </button>
                     </td>
                     <td className="table-cell">
                       <button

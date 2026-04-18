@@ -159,12 +159,12 @@ export default function Header() {
 
   return (
     <header
-      className="flex items-center justify-between px-6 flex-shrink-0"
-      style={{
-        height: '52px',
-        background: 'rgb(var(--surface))',
-        borderBottom: '1px solid rgb(var(--border))',
-      }}
+      // R127: glassmorphism on the top nav per the dark-mode redesign spec.
+      // Pulls in the login page aesthetic so the app feels like a sibling of
+      // login, not a stranger. 72% opaque bg-raised + 12px backdrop blur —
+      // page hints through without obscuring the table content below.
+      className="top-nav-glass flex items-center justify-between px-6 flex-shrink-0 sticky top-0 z-20"
+      style={{ height: '52px' }}
     >
       {/* Left — page title + env badge */}
       <div className="flex items-center gap-3">
