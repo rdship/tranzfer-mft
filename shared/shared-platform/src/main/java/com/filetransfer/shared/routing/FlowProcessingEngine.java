@@ -285,11 +285,13 @@ public class FlowProcessingEngine {
             exec.setCurrentStorageKey(outputKey);
             executionRepository.save(exec);
 
-            // FlowStepEvent for audit snapshot
+            // FlowStepEvent for audit snapshot (R105b: carries step-detail JSON + attribution)
             eventPublisher.publishEvent(new com.filetransfer.shared.event.FlowStepEvent(
                     trackId, exec.getId(), stepIndex, step.getType(), "OK",
                     inputStorageKey, outputKey, null, outcome.virtualPath(),
-                    0L, outcome.sizeBytes(), duration, null));
+                    0L, outcome.sizeBytes(), duration, null,
+                    jsonifyDetails(outcome.details()), outcome.rowsProcessed(),
+                    processingInstance(), 1, jsonifyConfig(step.getConfig())));
 
             log.info("[{}] Step {}/{} ({}) completed in {}ms — output={}",
                     trackId, stepIndex + 1, flow.getSteps().size(), step.getType(),
@@ -1560,7 +1562,9 @@ public class FlowProcessingEngine {
                             snapInKey, currentKey,
                             snapInPath, currentPath,
                             snapInSize, currentSize,
-                            duration, null));
+                            duration, null,
+                            jsonifyDetails(outcome.details()), outcome.rowsProcessed(),
+                            processingInstance(), attempt + 1, jsonifyConfig(stepCfg)));
                     log.info("[{}] Step {}/{} ({}) completed in {}ms — key={}",
                             trackId, i + 1, flow.getSteps().size(), step.getType(),
                             duration, abbrev(currentKey));
@@ -1590,13 +1594,15 @@ public class FlowProcessingEngine {
                             .stepIndex(i).stepType(step.getType()).status("FAILED")
                             .inputFile(currentPath).durationMs(duration)
                             .error(e.getMessage()).build());
-                    // ── fire-and-forget failure snapshot ──────────────────────────
+                    // ── fire-and-forget failure snapshot (R105b: step attribution) ──
                     eventPublisher.publishEvent(new FlowStepEvent(
                             trackId, exec.getId(), i, step.getType(), "FAILED",
                             currentKey, null,
                             currentPath, null,
                             currentSize, 0L,
-                            duration, e.getMessage()));
+                            duration, e.getMessage(),
+                            null, null,
+                            processingInstance(), attempt + 1, jsonifyConfig(stepCfg)));
                     if (flowEventJournal != null) {
                         flowEventJournal.recordStepFailed(trackId, exec.getId(), i, step.getType(), e.getMessage(), attempt + 1);
                         flowEventJournal.recordExecutionFailed(trackId, exec.getId(), exec.getErrorMessage());
@@ -1709,8 +1715,50 @@ public class FlowProcessingEngine {
         }
     }
 
-    /** Carries the new storage key + virtual path after a VIRTUAL-mode step completes. */
-    private record StepOutcome(String storageKey, String virtualPath, long sizeBytes) {}
+    /**
+     * Carries the new storage key + virtual path after a VIRTUAL-mode step completes.
+     *
+     * <p>R105b: optional {@code details} + {@code rowsProcessed} enable per-step
+     * semantic enrichment (e.g. CONVERT_EDI emits source/target format + row count).
+     * The details map is serialized to JSON and stored on {@link FlowStepSnapshot#getStepDetailsJson()}.
+     * Null / empty map → no detail recorded (backward-compat with pre-R105 steps).
+     */
+    private record StepOutcome(String storageKey, String virtualPath, long sizeBytes,
+                                Map<String, Object> details, Long rowsProcessed) {
+        /** Pre-R105 backward-compatible constructor — no semantic detail. */
+        StepOutcome(String storageKey, String virtualPath, long sizeBytes) {
+            this(storageKey, virtualPath, sizeBytes, null, null);
+        }
+    }
+
+    /** R105b: shared Jackson mapper for step-detail JSON serialization (thread-safe). */
+    private static final com.fasterxml.jackson.databind.ObjectMapper STEP_DETAILS_JSON
+            = new com.fasterxml.jackson.databind.ObjectMapper();
+
+    /** R105b: serialize a step-detail map to JSON; null/empty maps yield null. */
+    private static String jsonifyDetails(Map<String, Object> details) {
+        if (details == null || details.isEmpty()) return null;
+        try { return STEP_DETAILS_JSON.writeValueAsString(details); }
+        catch (Exception e) { return null; }
+    }
+
+    /** R105b: serialize a step-config map to JSON; null/empty maps yield null. */
+    private static String jsonifyConfig(Map<String, String> cfg) {
+        if (cfg == null || cfg.isEmpty()) return null;
+        try { return STEP_DETAILS_JSON.writeValueAsString(cfg); }
+        catch (Exception e) { return null; }
+    }
+
+    /** R105b: best-effort per-replica identity for step attribution ({@code HOSTNAME} or cluster id). */
+    private String processingInstance() {
+        try {
+            if (clusterService != null && clusterService.getServiceInstanceId() != null) {
+                return clusterService.getServiceInstanceId();
+            }
+        } catch (Exception ignore) { /* cluster may be null in tests */ }
+        String host = System.getenv("HOSTNAME");
+        return host != null ? host : "unknown";
+    }
 
     private StepOutcome processStepRef(FileFlow.FlowStep step, String storageKey,
                                         String virtualPath, long sizeBytes, FileRef origin,
@@ -1813,7 +1861,12 @@ public class FlowProcessingEngine {
         String newKey  = (String) result.get("sha256");
         long   newSize = ((Number) result.get("sizeBytes")).longValue();
         vfsBridge.registerRef(origin.accountId(), newPath, newKey, newSize, trackId, "application/gzip");
-        return new StepOutcome(newKey, newPath, newSize);
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("algorithm", "gzip");
+        details.put("originalBytes", (long) raw.length);
+        details.put("compressedBytes", newSize);
+        if (newSize > 0) details.put("ratio", String.format("%.2fx", (double) raw.length / newSize));
+        return new StepOutcome(newKey, newPath, newSize, details, null);
     }
 
     /**
@@ -1845,7 +1898,12 @@ public class FlowProcessingEngine {
         String newKey  = (String) result.get("sha256");
         long   newSize = ((Number) result.get("sizeBytes")).longValue();
         vfsBridge.registerRef(origin.accountId(), newPath, newKey, newSize, trackId, origin.contentType());
-        return new StepOutcome(newKey, newPath, newSize);
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("algorithm", "gunzip");
+        details.put("compressedBytes", (long) compressed.length);
+        details.put("decompressedBytes", newSize);
+        if (compressed.length > 0) details.put("expansion", String.format("%.2fx", (double) newSize / compressed.length));
+        return new StepOutcome(newKey, newPath, newSize, details, null);
     }
 
     /** COMPRESS_ZIP — zip raw bytes in a virtual thread → pipe to storage-manager. */
@@ -1875,7 +1933,13 @@ public class FlowProcessingEngine {
         String newKey  = (String) result.get("sha256");
         long   newSize = ((Number) result.get("sizeBytes")).longValue();
         vfsBridge.registerRef(origin.accountId(), newPath, newKey, newSize, trackId, "application/zip");
-        return new StepOutcome(newKey, newPath, newSize);
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("algorithm", "zip");
+        details.put("entryName", entryName);
+        details.put("originalBytes", (long) raw.length);
+        details.put("compressedBytes", newSize);
+        if (newSize > 0) details.put("ratio", String.format("%.2fx", (double) raw.length / newSize));
+        return new StepOutcome(newKey, newPath, newSize, details, null);
     }
 
     /** DECOMPRESS_ZIP — extract first file entry in-memory → store-stream to storage-manager. */
@@ -1915,7 +1979,12 @@ public class FlowProcessingEngine {
         String newKey  = (String) result.get("sha256");
         long   newSize = ((Number) result.get("sizeBytes")).longValue();
         vfsBridge.registerRef(origin.accountId(), newPath, newKey, newSize, trackId, origin.contentType());
-        return new StepOutcome(newKey, newPath, newSize);
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("algorithm", "unzip");
+        details.put("compressedBytes", (long) compressed.length);
+        details.put("decompressedBytes", newSize);
+        if (compressed.length > 0) details.put("expansion", String.format("%.2fx", (double) newSize / compressed.length));
+        return new StepOutcome(newKey, newPath, newSize, details, null);
     }
 
     /**
@@ -1982,7 +2051,14 @@ public class FlowProcessingEngine {
             long   newSize = ((Number) stored.get("sizeBytes")).longValue();
             String ct      = "encrypt".equals(operation) ? "application/octet-stream" : origin.contentType();
             vfsBridge.registerRef(origin.accountId(), newPath, newKey, newSize, trackId, ct);
-            return new StepOutcome(newKey, newPath, newSize);
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("operation", operation);
+            details.put("algorithm", stepType.toUpperCase().contains("PGP") ? "PGP" : "AES-256-GCM");
+            details.put("keyId", keyId);
+            details.put("keySource", "keystore-manager");
+            details.put("inputBytes", (long) resultBytes.length);
+            details.put("outputBytes", newSize);
+            return new StepOutcome(newKey, newPath, newSize, details, null);
         } finally {
             // Clean up temp file — bytes are in CAS now
             try { Files.deleteIfExists(tempInput); } catch (Exception ignored) {}
@@ -2021,6 +2097,9 @@ public class FlowProcessingEngine {
                                    Map<String, String> cfg) throws Exception {
         log.info("[{}] SCREEN (VIRTUAL) key={}", trackId, abbrev(storageKey));
         Path screenTemp = null;
+        String screenAction = "PASS";
+        int    screenHits   = 0;
+        String screenEngine = "screening-service";
         try {
             // Stream from CAS → temp file (no full byte[] in heap)
             final String displayName = VirtualFileSystem.nameOf(virtualPath);
@@ -2039,11 +2118,11 @@ public class FlowProcessingEngine {
                     url, new HttpEntity<>(body, screenHdr),
                     (Class<Map<String, Object>>) (Class<?>) Map.class);
             if (resp.getBody() != null) {
-                String action = (String) resp.getBody().get("actionTaken");
-                int hits = resp.getBody().get("hitsFound") instanceof Number n ? n.intValue() : 0;
-                log.info("[{}] SCREEN result: {} hits={}", trackId, action, hits);
-                if ("BLOCKED".equals(action))
-                    throw new SecurityException("SANCTIONS HIT: " + hits + " match(es) found.");
+                screenAction = (String) resp.getBody().get("actionTaken");
+                screenHits = resp.getBody().get("hitsFound") instanceof Number n ? n.intValue() : 0;
+                log.info("[{}] SCREEN result: {} hits={}", trackId, screenAction, screenHits);
+                if ("BLOCKED".equals(screenAction))
+                    throw new SecurityException("SANCTIONS HIT: " + screenHits + " match(es) found.");
             }
         } catch (SecurityException se) {
             throw se;
@@ -2051,6 +2130,7 @@ public class FlowProcessingEngine {
             if ("BLOCK".equals(cfg.getOrDefault("onFailure", "PASS")))
                 throw new Exception("Screening unreachable — blocking as configured: " + e.getMessage());
             log.warn("[{}] SCREEN unreachable: {} — allowing (graceful degradation)", trackId, e.getMessage());
+            screenAction = "BYPASSED";
             // ── Audit: screening bypass under graceful degradation (VIRTUAL) ──
             if (auditService != null) {
                 auditService.logAction("system", "SCREENING_BYPASSED", true, null,
@@ -2063,7 +2143,13 @@ public class FlowProcessingEngine {
                 try { Files.deleteIfExists(screenTemp.getParent()); } catch (Exception ignored) {}
             }
         }
-        return new StepOutcome(storageKey, virtualPath, sizeBytes);
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("action", screenAction);
+        details.put("hitsFound", screenHits);
+        details.put("engine", screenEngine);
+        if (cfg.containsKey("columns")) details.put("columns", cfg.get("columns"));
+        if (cfg.containsKey("onFailure")) details.put("onFailure", cfg.get("onFailure"));
+        return new StepOutcome(storageKey, virtualPath, sizeBytes, details, (long) screenHits);
     }
 
     /**
@@ -2090,7 +2176,13 @@ public class FlowProcessingEngine {
                 sizeBytes, trackId, origin.contentType(), "STANDARD");
         vfsBridge.linkToAccount(src, dest.getId(), destPath, trackId);
         log.info("[{}] MAILBOX (VIRTUAL): zero-copy → account={} path={}", trackId, destUsername, destPath);
-        return new StepOutcome(storageKey, virtualPath, sizeBytes);
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("destinationUsername", destUsername);
+        details.put("destinationProtocol", resolvedProtocol.name());
+        details.put("destinationPath", destPath);
+        details.put("destinationAccountId", dest.getId().toString());
+        details.put("zeroCopy", true);
+        return new StepOutcome(storageKey, virtualPath, sizeBytes, details, null);
     }
 
     /**
@@ -2241,11 +2333,18 @@ public class FlowProcessingEngine {
 
         // Locate output file per contract
         Path outputPath = locateScriptOutput(cfg.get("outputFile"), workDir, outDir, filename);
+        int outputLineCount = output.isEmpty() ? 0 : (int) output.lines().count();
         if (outputPath == null) {
             // No output produced — treat as idempotent pass-through (validation script pattern)
             try { Files.deleteIfExists(tempInput); Files.deleteIfExists(outDir); } catch (IOException ignored) {}
             log.info("[{}] EXECUTE_SCRIPT completed without output file — passing input through", trackId);
-            return new StepOutcome(storageKey, virtualPath, origin.sizeBytes());
+            Map<String, Object> passDetails = new LinkedHashMap<>();
+            passDetails.put("command", cmdTemplate);
+            passDetails.put("exitCode", 0);
+            passDetails.put("timeoutSeconds", timeout);
+            passDetails.put("stdoutLines", outputLineCount);
+            passDetails.put("passthrough", true);
+            return new StepOutcome(storageKey, virtualPath, origin.sizeBytes(), passDetails, null);
         }
 
         byte[] outputBytes = Files.readAllBytes(outputPath);
@@ -2268,7 +2367,14 @@ public class FlowProcessingEngine {
         } catch (IOException ignored) {}
 
         log.info("[{}] EXECUTE_SCRIPT (VIRTUAL) completed — {} bytes stored at {}", trackId, newSize, newVirtualPath);
-        return new StepOutcome(newKey, newVirtualPath, newSize);
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("command", cmdTemplate);
+        details.put("exitCode", 0);
+        details.put("timeoutSeconds", timeout);
+        details.put("stdoutLines", outputLineCount);
+        details.put("outputFile", outputPath.getFileName().toString());
+        details.put("outputBytes", newSize);
+        return new StepOutcome(newKey, newVirtualPath, newSize, details, null);
     }
 
     /**
@@ -2366,7 +2472,51 @@ public class FlowProcessingEngine {
         vfsBridge.registerRef(origin.accountId(), newPath, newKey, newSize, trackId, ct);
         log.info("[{}] CONVERT_EDI (VIRTUAL): {} -> {} (targetType={}, format={}, mapUsed={}, confidence={})",
                 trackId, virtualPath, newPath, targetType, targetFormat, mapUsed, confidence);
-        return new StepOutcome(newKey, newPath, newSize);
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("sourceFormat", sniffEdiFormat(content));
+        details.put("targetFormat", targetFormat);
+        if (targetType != null) details.put("targetType", targetType);
+        if (mapUsed != null) details.put("mapUsed", mapUsed);
+        if (confidence != null) details.put("confidence", confidence);
+        if (partnerId != null) details.put("partnerId", partnerId);
+        details.put("inputBytes", (long) raw.length);
+        details.put("outputBytes", newSize);
+        // Best-effort row count from EDI segments or output newlines
+        Long rows = estimateRows(content, output, targetFormat);
+        if (rows != null) details.put("rows", rows);
+        return new StepOutcome(newKey, newPath, newSize, details, rows);
+    }
+
+    /**
+     * Best-effort EDI format sniff for step-detail display. Checks first bytes
+     * for ISA (X12), UNA/UNB (EDIFACT), or XML. Returns "UNKNOWN" when unclassifiable.
+     */
+    private static String sniffEdiFormat(String content) {
+        if (content == null || content.length() < 3) return "UNKNOWN";
+        String head = content.stripLeading();
+        if (head.startsWith("ISA")) return "X12";
+        if (head.startsWith("UNA") || head.startsWith("UNB")) return "EDIFACT";
+        if (head.startsWith("<?xml") || head.startsWith("<")) return "XML";
+        if (head.startsWith("{") || head.startsWith("[")) return "JSON";
+        return "UNKNOWN";
+    }
+
+    /** Rough row count: EDI segment count for X12/EDIFACT, or output line count otherwise. */
+    private static Long estimateRows(String source, String target, String targetFormat) {
+        if (source == null) return null;
+        String head = source.stripLeading();
+        if (head.startsWith("ISA") || head.startsWith("UNA") || head.startsWith("UNB")) {
+            int segs = 0;
+            for (int i = 0; i < source.length(); i++) {
+                char c = source.charAt(i);
+                if (c == '~' || c == '\'' || c == '\n') segs++;
+            }
+            return (long) segs;
+        }
+        if ("CSV".equalsIgnoreCase(targetFormat) && target != null) {
+            return target.isEmpty() ? 0L : (long) target.lines().count();
+        }
+        return null;
     }
 
     /**

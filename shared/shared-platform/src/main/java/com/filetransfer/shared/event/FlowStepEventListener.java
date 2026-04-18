@@ -49,6 +49,11 @@ public class FlowStepEventListener {
                     .outputSizeBytes(event.outputSizeBytes())
                     .durationMs(event.durationMs())
                     .errorMessage(event.errorMessage())
+                    .stepDetailsJson(event.stepDetailsJson())
+                    .rowsProcessed(event.rowsProcessed())
+                    .processingInstance(event.processingInstance())
+                    .attemptCount(event.attemptCount())
+                    .stepConfigJson(event.stepConfigJson())
                     .build();
             // Phase 5.3: use batch writer when available (200ms flush cycle)
             if (batchWriter != null) {

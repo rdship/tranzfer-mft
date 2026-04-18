@@ -32,5 +32,28 @@ public record FlowStepEvent(
         long    inputSizeBytes,
         long    outputSizeBytes,    // 0 on failure
         long    durationMs,
-        String  errorMessage        // null on success
-) {}
+        String  errorMessage,       // null on success
+
+        /** R105b: rich per-step semantic detail as JSON. Null when step type emits none. */
+        String  stepDetailsJson,
+        /** R105b: rows processed (data steps only). Null when not applicable. */
+        Long    rowsProcessed,
+        /** R105b: replica that executed this step. */
+        String  processingInstance,
+        /** R105b: 1-based attempt number that produced this snapshot. */
+        Integer attemptCount,
+        /** R105b: step config used (JSON). Null when config is empty. */
+        String  stepConfigJson
+) {
+    /** Convenience constructor for pre-R105 call sites — populates R105b fields with nulls. */
+    public FlowStepEvent(String trackId, UUID flowExecutionId, int stepIndex, String stepType,
+                          String stepStatus, String inputStorageKey, String outputStorageKey,
+                          String inputVirtualPath, String outputVirtualPath,
+                          long inputSizeBytes, long outputSizeBytes, long durationMs,
+                          String errorMessage) {
+        this(trackId, flowExecutionId, stepIndex, stepType, stepStatus,
+                inputStorageKey, outputStorageKey, inputVirtualPath, outputVirtualPath,
+                inputSizeBytes, outputSizeBytes, durationMs, errorMessage,
+                null, null, null, null, null);
+    }
+}
