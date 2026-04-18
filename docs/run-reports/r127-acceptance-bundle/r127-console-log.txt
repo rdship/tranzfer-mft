@@ -1,0 +1,75 @@
+[HTTP 403] https://localhost/api/pipeline/health
+[error] Failed to load resource: the server responded with a status of 403 ()
+[debug] [API] GET /api/pipeline/health → 403 [c72b7330] 
+[HTTP 403] https://localhost/api/v1/analytics/dashboard
+[error] Failed to load resource: the server responded with a status of 403 ()
+[debug] [API] GET /api/v1/analytics/dashboard → 403 [475dad04] 
+[HTTP 403] https://localhost/api/servers?size=1
+[error] Failed to load resource: the server responded with a status of 403 ()
+[debug] [API] GET /api/servers?size=1 → 403 [7d1555e0] 
+[HTTP 403] https://localhost/api/v1/licenses/health
+[error] Failed to load resource: the server responded with a status of 403 ()
+[debug] [API] GET /api/v1/licenses/health → 403 [202d30b2] ACCESS_DENIED
+[HTTP 403] https://localhost/api/v1/screening/health
+[error] Failed to load resource: the server responded with a status of 403 ()
+[debug] [API] GET /api/v1/screening/health → 403 [0d31dc20] ACCESS_DENIED
+[HTTP 403] https://localhost/api/v1/keys/health
+[error] Failed to load resource: the server responded with a status of 403 ()
+[debug] [API] GET /api/v1/keys/health → 403 [0ebf7684] ACCESS_DENIED
+[HTTP 403] https://localhost/api/encrypt/status
+[error] Failed to load resource: the server responded with a status of 403 ()
+[debug] [API] GET /api/encrypt/status → 403 [83fb2b98] 
+[HTTP 403] https://localhost/api/pipeline/health
+[error] Failed to load resource: the server responded with a status of 403 ()
+[debug] [API] GET /api/pipeline/health → 403 [90868af6] 
+[HTTP 403] https://localhost/api/gateway/status
+[error] Failed to load resource: the server responded with a status of 403 ()
+[debug] [API] GET /api/gateway/status → 403 [081fc5f4] 
+[HTTP 403] https://localhost/api/pipeline/health
+[error] Failed to load resource: the server responded with a status of 403 ()
+[debug] [API] GET /api/pipeline/health → 403 [55bb990c] 
+[HTTP 403] https://localhost/api/pipeline/health
+[error] Failed to load resource: the server responded with a status of 403 ()
+[debug] [API] GET /api/pipeline/health → 403 [a6811c8e] 
+[HTTP 403] https://localhost/api/v1/storage/health
+[error] Failed to load resource: the server responded with a status of 403 ()
+[debug] [API] GET /api/v1/storage/health → 403 [e50b04f2] ACCESS_DENIED
+[HTTP 403] https://localhost/api/notifications/health
+[error] Failed to load resource: the server responded with a status of 403 ()
+[debug] [API] GET /api/notifications/health → 403 [0b6c0c0a] ACCESS_DENIED
+[error] Access to XMLHttpRequest at 'http://localhost:8091/api/v1/threats/dashboard' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+[error] Failed to load resource: net::ERR_FAILED
+[brand] sidebar text first 80: "TranzFer MFT
+
+MFT Platform
+
+RECENTLY VIEWED
+
+Dashboard
+
+OPERATIONS
+
+Dashboard
+Fl"
+[AM chrome] subtitle_present=false tipBanner_present=false FILTERS_label_present=false
+[HTTP 404] https://localhost/api/gateway/status
+[error] Failed to load resource: the server responded with a status of 404 ()
+[debug] [API] GET /api/gateway/status → 404 [cb8a5e9e] ENTITY_NOT_FOUND
+[HTTP 404] https://localhost/api/gateway/status
+[error] Failed to load resource: the server responded with a status of 404 ()
+[debug] [API] GET /api/gateway/status → 404 [55d35ffa] ENTITY_NOT_FOUND
+[users] 1970_bug_present=true
+[error] Access to XMLHttpRequest at 'http://localhost:8091/api/v1/threats/dashboard' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+[error] Failed to load resource: net::ERR_FAILED
+[HTTP 404] https://localhost/api/gateway/status
+[error] Failed to load resource: the server responded with a status of 404 ()
+[debug] [API] GET /api/gateway/status → 404 [5b740bcb] ENTITY_NOT_FOUND
+[HTTP 404] https://localhost/api/gateway/status
+[error] Failed to load resource: the server responded with a status of 404 ()
+[debug] [API] GET /api/gateway/status → 404 [737e4b01] ENTITY_NOT_FOUND
+[error] Access to XMLHttpRequest at 'http://localhost:8091/api/v1/threats/dashboard' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+[error] Failed to load resource: net::ERR_FAILED
+[HTTP 404] https://localhost/api/gateway/status
+[error] Failed to load resource: the server responded with a status of 404 ()
+[debug] [API] GET /api/gateway/status → 404 [b2743cde] ENTITY_NOT_FOUND
+[dashboard] visible_toasts=0
