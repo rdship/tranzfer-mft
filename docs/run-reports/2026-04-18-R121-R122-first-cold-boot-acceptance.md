@@ -116,12 +116,9 @@ Not a regression per se — platform boots clean and flow engine works, which is
 
 **Silver because:** Primary feature axes all functional (auth + flow engine + CRUD). Prior tester asks largely addressed. Minor issues remaining are known (3 FTP-direct sanity failures, 120 s mandate not fully met).
 
-**Why not Gold:**
-- Sanity is 56/60, not 60/60. 3 pre-existing FTP-direct failures (§11 PASV/LIST).
-- 120 s boot mandate: 1/18 services meet. Needs 15+/18 for Gold.
-- Neither blocks production-viability, but both fail Gold's "all mandates met" criterion.
+**Why not Gold:** Gold is reserved for releases that **deliver the full product vision** (see [`docs/RELEASE-RATING-RUBRIC.md`](../RELEASE-RATING-RUBRIC.md)). R122 meets **3 of the ~24 Gold criteria** (flow engine functional, SPIFFE Phase 1 live, regression pins green). The other 21 — 18/18 boot mandate, sanity 60/60, Phase-2 mTLS, chaos resilience, throughput scale, adaptability under runtime change, soak stability — are all still untested or not yet passing. Gold is at least 3–5 disciplined releases away, not one hot-fix cycle. The full list is in the "What would earn Gold" section below.
 
-**Why not higher than Silver:** Silver is already a big step up from 10 consecutive Bronze/No-Medal. Gold needs to earn itself across two dimensions (perf + sanity completeness) — neither of which is structurally within R122's scope.
+**Why not higher than Silver:** Silver is what the rubric reserves for "production-viable with monitoring." R122 is that — a customer could run it with observation. Anything beyond Silver requires the platform to deliver every axis of the design vision, which takes deliberate work we haven't done yet.
 
 ### Trajectory (R95 → R122)
 
@@ -138,12 +135,55 @@ Not a regression per se — platform boots clean and flow engine works, which is
 
 ### What would earn Gold on R123+
 
-1. Close the remaining **3 §11 FTP-direct** sanity failures (PASV + LIST — pre-existing since before R95).
-2. Meet the **120 s boot mandate on ≥15/18 services**. Today 1/18. Two avenues:
-   - Investigate R121/R122 proactive-gate boot overhead; move off the critical path.
-   - Re-examine @EntityScan narrowing (design-doc Option 5, still unshipped).
-3. Keep the **Playwright release-gate 23/23 green** across two consecutive releases to confirm durability.
-4. **30-min sustained load test** without Metaspace OOM (ready to run now that flow engine works).
+> **Gold is not a trophy for tests-pass.** It's the assertion that the release
+> delivers TranzFer MFT as it was designed — secure, adaptable, deeply
+> integrated, resilient. The full rubric lives at
+> [`docs/RELEASE-RATING-RUBRIC.md`](../RELEASE-RATING-RUBRIC.md). Summary of the
+> gap from R122 Silver to Gold:
+
+**Absolute mandates — all must hold (no averages):**
+1. **120 s boot on every single Java service (18/18)**. Today: 1/18. Gap is 17 services, mostly 165–220 s. Investigate R121/R122 proactive-gate overhead + land @EntityScan narrowing (Option 5, still unshipped).
+2. **Sanity 60/60**. Today 56/60 — 3 pre-existing FTP-direct PASV/LIST + 1 skip. No excused failures allowed for Gold.
+3. **Playwright release-gate 23/23 across TWO consecutive releases**. Today R122 is 13/13 on regression-pins; still need SSE + perf + e2e-workflows green on R122 AND the successor release.
+4. **Two consecutive Silver releases preceding Gold.** R122 is the first Silver after 8 Bronze + 2 No Medal. Gold can't follow Silver-zero.
+
+**Feature integration depth — every claimed feature verified end-to-end:**
+5. AS2 upload + decrypt + MDN; EDI → JSON conversion; PGP decrypt; AES encrypt + forward. Not just unit-tested; driven through regtest flows (f3, f4, f6, f8).
+6. Partner-pickup notify actually fires and delivers when a partner pulls a mailbox file. Wired in R109, never behaviorally verified because flow engine was blocked.
+7. Activity-monitor per-step semantic detail (R105b) for every step type verified in UI.
+8. Pause/resume (R106) exercised under sustained load, not just in isolation.
+
+**Adaptability under runtime change (not exercised yet):**
+9. Kill SPIRE agent mid-flow → platform self-heals without auth interruption (JWT-SVID cache holds).
+10. Rebind listener mid-flow → R92 bind_state writeback holds; flow completes.
+11. Config change via API propagates without service restart.
+12. Service restart during in-flight flow → flow resumes or quarantines; **no silent loss**.
+
+**Multi-layer safety (Phase 2 mTLS untested):**
+13. **Phase-2 mTLS X.509-SVID** — designed in R26, never verified behaviorally. Enable `spiffe.mtls-enabled=true` + `https://` inter-service URLs; prove the whole data plane works over mTLS.
+14. Role boundary matrix (ADMIN/USER/READ_ONLY) holds under 100 concurrent burst.
+15. Brute-force lockout fires on 100 concurrent wrong-password attempts to one account.
+
+**Reliability under chaos (not exercised yet):**
+16. Kill storage-manager mid-flow → flow quarantined cleanly, no data loss.
+17. Redis + RabbitMQ partition scenarios → graceful degradation.
+18. **30-min sustained load + 1-hour soak** — no Metaspace OOM, no heap leak, no restart. R115 infrastructure ready; flow engine now works; the test hasn't been run.
+
+**Performance depth (throughput, not just latency):**
+19. 100 concurrent flows complete without queue backup.
+20. 1000-file batch upload in bounded time.
+21. 1 GB file transfer without memory pressure.
+22. Boot + API + flow-engine perf budgets all green.
+
+**Zero surprise:**
+23. Release surfaces no new findings.
+24. Every prior-3-reports ask closed or explicitly deferred with CTO sign-off.
+
+### Communication protocol with dev team
+
+The rubric is the **open expectation**. Dev team should treat this 24-item list as the actual to-do list between now and Gold — not a stretch goal. Each one represents something the platform **claims to do**. If any one of these can't be verified, R122 is not yet shipping what customers will expect.
+
+Estimated distance to Gold: 3–5 releases of deliberate work, not a single hot-fix cycle. That's by design.
 
 ---
 

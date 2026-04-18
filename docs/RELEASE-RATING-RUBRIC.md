@@ -4,88 +4,178 @@ Every acceptance report ends with a **medal**. This doc is the canonical rubric
 the tester uses to assign it. Dev team is expected to read this once and know
 what Bronze / Silver / Gold mean going forward.
 
+**Gold is not a trophy for passing tests.** It is the assertion that the release
+*delivers the platform as it was designed to be* — a secure, adaptable, deeply-
+integrated, resilient MFT. Anything less is Silver or below. The bar is
+intentionally high.
+
 ---
 
 ## The four tiers
 
-### 🥇 Gold — Ship-it
+### 🥇 Gold — platform delivers its full design vision
 
-Release-gate all green. No new regressions. Every prior tester ask addressed or
-explicitly deferred with rationale. **Every** of the following holds:
+Gold requires **all** of the following simultaneously, with no averages or
+pre-existing excuses. This is a meaningful event, not a checkbox.
 
-- Clean cold boot, 34/34 containers healthy, zero restarts.
-- Sanity sweep: 60/60 (or the prior-release baseline passes, no new fails).
-- Byte-level E2E: upload → flow match → transform → delivery → status=COMPLETED.
-- Playwright regression-pins: all green (including both R100 branches).
-- Playwright SSE + perf budgets: green (perf within budget).
-- 120 s boot mandate: met on every Java service (or an explicit mandate waiver
-  from CTO has been filed).
-- No new ERROR spam in logs under sustained load.
-- Every prior acceptance-report "ask" resolved.
+**Absolute mandates (binary — all or fail):**
 
-### 🥈 Silver — Acceptable with caveats
+- **120 s boot time on every single Java service.** Not "most," not "average,"
+  not "15/18." All 18. The CTO mandate from the R92 arc does not permit exceptions.
+- **Zero P0 / P1 open findings** across the last 3 acceptance reports.
+- **Sanity: 60/60.** No pre-existing excused failures. If it's failing it's
+  failing.
+- **Playwright release-gate 23/23 green across TWO consecutive releases.**
+  One green run is luck. Two is durability.
+- **At least 2 consecutive Silver releases preceding.** Gold does not follow
+  Bronze; prove the platform is stable enough to earn it.
 
-Production-viable with monitoring. Minor issues or env-specific residuals. One
-of the Gold criteria is missed, but no *primary feature axis* is broken.
+**Feature integration depth** — every feature the product claims must work
+end-to-end as an integrated system, not individually:
 
-- Clean cold boot.
-- Sanity: no new flow-engine or auth failures (existing pre-existing fails OK).
-- Byte-level E2E: works end-to-end.
-- Primary feature axes (auth + flow engine + CRUD) all functional.
-- At least one new tester ask addressed since prior release.
-- Residual issues are either: (a) env-specific (e.g. Apple Silicon-only), or
-  (b) monitoring/observability (dashboards, log hygiene), or (c) performance
-  within 2× budget.
+- SFTP + FTP + FTP-web + AS2 + DMZ reverse proxy all serve real uploads.
+- EDI conversion + PGP + AES + screening + forwarding + mailbox all verified
+  on sample payloads.
+- Activity monitor shows per-step semantic detail for every flow.
+- Pause/resume exercised under load, not just in isolation.
+- Opt-in partner-pickup notify fires when a partner pulls a mailbox file.
+- SPIFFE identities per-service; X-Internal-Key has never appeared on any
+  inter-service call in a 30-min load run.
 
-### 🥉 Bronze — Works but degraded
+**Adaptability under runtime change:**
 
-Boots clean but the product isn't doing its primary job end-to-end. Internal /
-dev-only. Not production-viable.
+- SPIRE agent restart — platform self-heals without losing in-flight auth.
+- Listener rebind mid-flow — flow recovers cleanly (R92 bind_state).
+- Config change via API propagates without service restart.
+- Service restart during active flow — flow resumes or quarantines; never
+  silently lost.
 
-- Clean cold boot (no crash loops).
-- Login works.
-- **At least one primary feature axis broken**: e.g. flow engine can't complete
-  flows, S2S auth failing, SPIFFE non-functional, data plane partially blocked.
-- Some prior tester asks addressed, but material ones still outstanding.
-- Or: a new regression detected that degrades behaviour without fully blocking.
+**Multi-layer safety (end-to-end):**
 
-### 🚫 No Medal — Does not ship
+- Phase-1 JWT-SVID working **and** Phase-2 mTLS X.509-SVID working.
+- Role boundary matrix (ADMIN/USER/READ_ONLY) holds under concurrent burst.
+- Brute-force lockout fires on 100 concurrent wrong-password attempts.
+- No default secrets in non-DEV env; no silent security regressions.
 
-A P0 is present. Rating withheld until it clears.
+**Reliability under chaos:**
 
-- Platform-down: crash loops, OOM on boot, db-migrate failing migrations.
-- Auth completely broken (login returns 500, tokens not validated).
-- Data plane fundamentally broken (uploads rejected, DB schema invalid).
-- Zero-confidence release. Tester files the report with **🚫 No Medal —
-  blocker: &lt;one-line reason&gt;**, and dev team treats as P0.
+- Kill storage-manager mid-flow → flow recovers via resilience
+  (circuit breaker + retry + quarantine); no data loss.
+- Redis partition → graceful degradation.
+- RabbitMQ partition → event bus degrades or quarantines; no data-plane
+  failure.
+- **30-min sustained load + 1-hour soak** with no Metaspace OOM, no heap
+  leak, no restart.
+
+**Performance depth (not just API p95):**
+
+- Throughput: 100 concurrent flows complete without queue backup.
+- Throughput: 1000-file batch upload completes in a bounded time.
+- Scale: 1 GB file transfer without memory pressure.
+- Boot + API + flow-engine perf budgets all green.
+
+**Zero surprise:**
+
+- Release surfaces no new findings that weren't already documented / filed.
+- Every prior-3-reports ask closed or explicitly deferred with CTO sign-off.
+
+### 🥈 Silver — production-viable with caveats
+
+Primary feature axes all functional. Most but not all Gold criteria met. Minor
+known-env residuals acceptable.
+
+- Clean cold boot, 34/34 healthy.
+- Login + CRUD + RBAC + flow engine all work end-to-end.
+- Playwright regression-pins all green on this release.
+- Sanity: may have <3 pre-existing known failures (flagged in prior reports).
+- Boot mandate: on track (improving) but not yet all-under-120 s.
+- Chaos / soak / throughput: not all exercised, but no evidence of breakage
+  in the paths that are tested.
+- At least one primary tester ask closed since prior release.
+
+**Silver is "production-viable with monitoring." You could ship to a customer
+and keep an eye on the known residuals.**
+
+### 🥉 Bronze — works but degraded
+
+Platform boots clean, login works, but a **primary feature axis is broken**.
+Internal / dev-only.
+
+- Clean cold boot OR stable partial (platform reaches healthy even if slowly).
+- Auth works; but flow engine cannot complete end-to-end, OR S2S auth is
+  broken, OR a key platform surface is non-functional.
+- Some prior tester asks addressed; material ones still outstanding.
+- New regression detected but platform isn't fully down.
+
+### 🚫 No Medal — does not ship
+
+P0 present.
+
+- Platform-down: crash loops, OOM on boot, db-migrate failing.
+- Auth completely broken.
+- Data plane fundamentally broken.
+- Zero-confidence release. Withheld until P0 clears.
 
 ---
 
-## Rating dimensions
+## Why the bar for Gold is this high
 
-The four axes that justify any tier. Medal must move ≥2 forward vs prior
-release for Silver, ≥3 for Gold. Bronze can degrade on one axis.
+The product claims: **secure, scalable, adaptable, deeply integrated MFT with
+zero-file-loss guarantee.** Every Gold criterion above maps directly to one of
+those claims. If we can't honestly say the release delivers the product as
+advertised, we don't give Gold.
 
-| Axis | What it measures |
-|---|---|
-| **Works** | Feature-functional: upload → flow → delivery, CRUD, auth, RBAC |
-| **Safe** | SPIFFE/JWT/mTLS working; no unauthenticated paths; role boundaries hold |
-| **Efficient** | Boot time, p95 latency, memory/metaspace budgets, no leaks under load |
-| **Reliable** | No crash loops, no ERROR spam, no silent failures, no data loss |
+Historically in this arc (R95 → R122), 22 releases of incremental fix work
+have gotten us to Silver. The gap to Gold is real work: closing FTP-direct,
+meeting 120 s on every service (not just edi-converter), exercising chaos and
+soak under load, and verifying Phase-2 mTLS that has been designed but not
+yet tested end-to-end. **A rush-to-Gold release is almost certainly a
+missed-criterion release.**
+
+---
+
+## Rating dimensions — what each axis measures
+
+| Axis | What it measures | Where it shows up in Gold |
+|---|---|---|
+| **Works** | Feature-functional end-to-end: uploads, flows, CRUD, auth, RBAC | Feature integration depth |
+| **Safe** | SPIFFE/JWT/mTLS; no unauth paths; boundaries hold under load | Multi-layer safety |
+| **Efficient** | 120 s boot, p95 latency, throughput, no leaks | Absolute mandates + perf depth |
+| **Reliable** | No crash loops, no silent fails, no data loss under chaos | Adaptability + chaos |
+
+Medal must move ≥2 dimensions forward for Silver, ≥3 for Gold (vs prior
+release). Bronze can hold on one axis while others regress.
 
 ---
 
 ## Medal trajectory is the real signal
 
-One release's medal is a snapshot. A trajectory across 3–5 releases tells the
-product story:
+One release's medal is a snapshot; a 3–5 release trajectory tells the product
+story.
 
-- **Bronze → Bronze → Silver**: fixes landing but with sweep still incomplete.
-  Probably good — dev team is working through a stack of issues.
-- **Silver → Bronze**: new regression. Review the latest acceptance report's
-  top finding; likely a primary-axis break that needs immediate attention.
-- **Silver → Silver → Silver → Gold**: polish phase. Long tail of minor fixes.
-- **No Medal → Silver in one cycle**: P0 cleared + other fixes landed together.
+- **Bronze → Bronze → Silver** — fixes landing but gaps remain. Good; dev
+  team is shipping.
+- **Silver → Bronze** — regression. Read the latest report's top finding.
+- **Silver → Silver → Silver → Gold** — polish phase. Long tail of
+  minor work closing the Gold mandates. This is what we want.
+- **Bronze → Gold in one cycle** — tester is being too lenient; revisit with
+  the depth criteria above.
+- **No Medal → Silver** — P0 cleared and multiple fixes landed. Big step.
 
-Every acceptance report cites the prior 2–3 medals in a trailing trajectory,
-so the product arc is visible without reading all the history.
+Every report cites prior 2–3 medals in a trailing trajectory.
+
+---
+
+## Communication protocol with dev team
+
+The rubric is the open expectation between tester and dev team:
+
+- **Tester**: assigns medal honestly per this rubric; calls out every Gold
+  criterion the release misses, with evidence.
+- **Dev team**: reads the rubric; treats the missed criteria as the actual
+  to-do list for the next release. Doesn't argue the medal; argues the
+  criteria if one seems wrong.
+- **CTO**: sees the medal trajectory at a glance; trusts the rubric to
+  reflect what "production-ready" actually means for this platform.
+
+Gold is rare. When it lands, it means something.
