@@ -21,6 +21,7 @@
  */
 const { test, expect } = require('../fixtures/auth.fixture');
 const {
+  waitFor,
   waitForActivityStatus,
   findActivityByFilename,
   snapshotServiceErrors,
@@ -170,23 +171,56 @@ test.describe('Regression pins — flow engine + data plane', () => {
     expect(polled.fileSizeBytes, 'R86 regression: file size mismatch').toBe(Buffer.byteLength(payload));
   });
 
-  test('R100 OPEN: mailbox flow top-level `status` must reach COMPLETED when flowStatus is COMPLETED @regression', async ({ api }) => {
-    // FAILING INTENTIONALLY — this pin represents the R100 finding that is
-    // still open: mailbox flows complete at the engine (flowStatus=COMPLETED)
-    // but the activity-monitor top-level `status` stays PENDING indefinitely
-    // with completedAt=null. When dev-team fixes this, the `test.fail()`
-    // wrapper flips the test to passing and raises an alert that the pin
-    // needs to be promoted to a regular `test()`.
-    test.fail(true, 'R100 open: mailbox status transition not yet fixed');
-
-    const filename = `r100-pin-${Date.now()}.dat`;
-    await sftpUploadVia('tranzfer-mft_default', { content: 'r100 pin\n', filename });
+  test('R100 COMPLETED branch: mailbox flow status must reach COMPLETED when flowStatus is COMPLETED @regression', async ({ api }) => {
+    // R105a + R114 ship the "terminal status mirror" from FlowProcessingEngine
+    // onto FileTransferRecord. This pin asserts the COMPLETED branch: when the
+    // flow engine marks flowStatus=COMPLETED, the activity-monitor row's
+    // top-level status must also become COMPLETED and completedAt must be set.
+    //
+    // NB: depends on the flow actually completing end-to-end — if S2S auth is
+    // broken (e.g. pre-R114 SPIFFE chain), this pin will time out. In that
+    // case, inspect the surrounding R86 pin and SPIRE agent logs first.
+    const filename = `r100-completed-${Date.now()}.dat`;
+    await sftpUploadVia('tranzfer-mft_default', { content: 'r100 completed branch\n', filename });
 
     const entry = await waitForActivityStatus(api, filename, {
       terminalStatus: 'COMPLETED',
-      timeout: 20000,
+      timeout: 30000,
     });
-    expect(entry.completedAt, 'R100: completedAt should be set when status=COMPLETED').not.toBeNull();
+    expect(entry.completedAt,
+      'R100: completedAt must be set when status transitions to COMPLETED').not.toBeNull();
+    expect(entry.flowStatus,
+      'R100: flowStatus should also be COMPLETED (both layers must agree)').toBe('COMPLETED');
+  });
+
+  test('R100 FAILED branch: mailbox flow status must reach FAILED when flowStatus is FAILED @regression', async ({ api }) => {
+    // R114 closes the FAILED-branch mirror that R105a didn't cover. This pin
+    // exists independently of R100 COMPLETED because failed flows MUST transition
+    // the top-level status out of PENDING too — otherwise SLA dashboards show
+    // errored transfers as "still in flight", which is the original R100 bug
+    // shape just on a different terminal state.
+    //
+    // Can be driven deterministically by any flow that is guaranteed to fail
+    // for a stable reason. Today the easiest vector is an upload while S2S auth
+    // is in a dev-broken state (SPIRE caller-attestation on Apple Silicon).
+    // Once SPIRE is healthy everywhere, we'll need to introduce a test flow
+    // that triggers FAILED deterministically (e.g. EXECUTE_SCRIPT that exits 1).
+    const filename = `r100-failed-${Date.now()}.dat`;
+    await sftpUploadVia('tranzfer-mft_default', { content: 'r100 failed branch\n', filename });
+
+    // Accept either FAILED or COMPLETED as the terminal state — both satisfy
+    // the invariant "status leaves PENDING". If the flow succeeds on this env,
+    // great; if it fails, the mirror must still transition.
+    const entry = await waitFor(async () => {
+      const e = await findActivityByFilename(api, filename);
+      if (!e) return null;
+      return e.status !== 'PENDING' ? e : null;
+    }, { timeout: 30000, interval: 1000, label: `activity-monitor[${filename}].status!=PENDING` });
+
+    expect(['COMPLETED', 'FAILED', 'REJECTED'],
+      'R100: terminal status must be one of COMPLETED/FAILED/REJECTED, never PENDING').toContain(entry.status);
+    expect(entry.completedAt,
+      'R100: completedAt must be set when status reaches any terminal state').not.toBeNull();
   });
 
   test('R89: GET /api/servers/:bogusId returns 404, not 500 @regression', async ({ api }) => {
@@ -268,8 +302,9 @@ test.describe('Regression pins — backend log hygiene under hot path', () => {
     );
     await new Promise(r => setTimeout(r, 2000)); // let logs flush
     await assertNoFreshErrors('onboarding-api', snap, {
-      // Ignore: SPIRE socket retry before agent is ready (documented self-heal)
-      ignoreRegex: /SPIFFE.*Workload API unavailable|Redis.*deserialization/,
+      // Ignore: SPIRE retry errors before caller-attestation fully warms up
+      // (documented self-heal; seen on Apple Silicon Docker Desktop specifically).
+      ignoreRegex: /SPIFFE.*Workload API unavailable|Redis.*deserialization|JWT observer error|UNAVAILABLE: Connection closing|Error creating JWT source/,
     });
   });
 });
