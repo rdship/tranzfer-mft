@@ -2,6 +2,7 @@ package com.filetransfer.sftp.server;
 
 import com.filetransfer.shared.entity.core.ServerInstance;
 import com.filetransfer.shared.enums.Protocol;
+import com.filetransfer.shared.listener.BindStateWriter;
 import com.filetransfer.shared.repository.core.ServerInstanceRepository;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -12,13 +13,11 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.Set;
 
 import java.net.BindException;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -49,6 +48,12 @@ public class SftpListenerRegistry {
 
     private final SftpSshServerFactory serverFactory;
     private final ServerInstanceRepository serverInstanceRepository;
+    /**
+     * Writes bind_state via a separate @Component so each write runs in its
+     * own REQUIRES_NEW transaction and reloads the entity by id — avoids the
+     * self-invocation / detached-entity pitfalls that surfaced on R87-R89.
+     */
+    private final BindStateWriter bindStateWriter;
 
     @Value("${sftp.instance-id:#{null}}")
     private String primaryInstanceId;
@@ -82,8 +87,14 @@ public class SftpListenerRegistry {
     /**
      * Attempt to bind a new listener. Idempotent — if already bound, noop.
      * On BindException, marks state BIND_FAILED and returns false.
+     *
+     * <p>Intentionally NOT @Transactional here. Bind-state persistence runs
+     * through {@link BindStateWriter} (own REQUIRES_NEW tx) so an admin-
+     * initiated bind that's called via self-invocation from bootstrap() or
+     * reconcile() still writes through correctly. Prior @Transactional on
+     * this method was a no-op on self-invocation paths anyway — a worse
+     * guarantee than routing every write through BindStateWriter.
      */
-    @Transactional
     public boolean bind(ServerInstance si) {
         if (activeListeners.containsKey(si.getId())) {
             log.debug("Listener '{}' already bound — skipping", si.getInstanceId());
@@ -93,23 +104,23 @@ public class SftpListenerRegistry {
             SshServer sshd = serverFactory.build(si);
             sshd.start();
             activeListeners.put(si.getId(), sshd);
-            markBound(si, true, null);
+            bindStateWriter.markBound(si.getId());
             log.info("SFTP listener '{}' BOUND on port {}", si.getInstanceId(), si.getInternalPort());
             return true;
         } catch (BindException e) {
-            markBound(si, false, "Port " + si.getInternalPort() + " already in use");
+            bindStateWriter.markBindFailed(si.getId(),
+                    "Port " + si.getInternalPort() + " already in use");
             log.error("SFTP listener '{}' BIND_FAILED on port {}: port in use",
                     si.getInstanceId(), si.getInternalPort());
             return false;
         } catch (Exception e) {
-            markBound(si, false, e.getMessage());
+            bindStateWriter.markBindFailed(si.getId(), e.getMessage());
             log.error("SFTP listener '{}' BIND_FAILED: {}", si.getInstanceId(), e.getMessage());
             return false;
         }
     }
 
     /** Unbind and remove. Safe to call even if not bound. */
-    @Transactional
     public void unbind(UUID serverInstanceId) {
         SshServer sshd = activeListeners.remove(serverInstanceId);
         if (sshd == null) return;
@@ -119,7 +130,7 @@ public class SftpListenerRegistry {
         } catch (Exception e) {
             log.warn("Error stopping listener {}: {}", serverInstanceId, e.getMessage());
         }
-        serverInstanceRepository.findById(serverInstanceId).ifPresent(si -> markBound(si, false, null));
+        bindStateWriter.markUnbound(serverInstanceId);
     }
 
     /** Unbind then bind — used when port/keys/algorithms change. */
@@ -203,20 +214,4 @@ public class SftpListenerRegistry {
         return h == null || h.isBlank() || h.equals("0.0.0.0") || h.equals("*") || h.equals(hostMatch);
     }
 
-    private void markBound(ServerInstance si, boolean bound, String error) {
-        si.setBindState(bound ? "BOUND" : (error != null ? "BIND_FAILED" : "UNBOUND"));
-        si.setBindError(error);
-        si.setLastBindAttemptAt(Instant.now());
-        // Stamp the node that owns this binding. Pair with the primary
-        // self-reporter (R73) so every row — primary or dynamic — has the
-        // container hostname recorded. Matches bound_node shape reported by
-        // /internal/listeners/live and Sentinel's listener_bind_failed rule.
-        si.setBoundNode(bound ? hostname() : null);
-        serverInstanceRepository.save(si);
-    }
-
-    private static String hostname() {
-        try { return java.net.InetAddress.getLocalHost().getHostName(); }
-        catch (java.net.UnknownHostException e) { return null; }
-    }
 }

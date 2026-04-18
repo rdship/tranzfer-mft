@@ -2,6 +2,7 @@ package com.filetransfer.ftp.server;
 
 import com.filetransfer.shared.entity.core.ServerInstance;
 import com.filetransfer.shared.enums.Protocol;
+import com.filetransfer.shared.listener.BindStateWriter;
 import com.filetransfer.shared.repository.core.ServerInstanceRepository;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -12,13 +13,11 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.Set;
 
 import java.net.BindException;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -40,6 +39,8 @@ public class FtpListenerRegistry {
 
     private final FtpServerBuilder serverBuilder;
     private final ServerInstanceRepository repository;
+    /** Cross-class writer → proxy tx applies, reload-by-id avoids detached-entity surprises. */
+    private final BindStateWriter bindStateWriter;
 
     @Value("${ftp.instance-id:#{null}}")
     private String primaryInstanceId;
@@ -64,32 +65,31 @@ public class FtpListenerRegistry {
         }
     }
 
-    @Transactional
     public boolean bind(ServerInstance si) {
         if (activeListeners.containsKey(si.getId())) return true;
         try {
             FtpServer ftpd = serverBuilder.build(si);
             ftpd.start();
             activeListeners.put(si.getId(), ftpd);
-            markBound(si, true, null);
+            bindStateWriter.markBound(si.getId());
             log.info("FTP listener '{}' BOUND on port {}", si.getInstanceId(), si.getInternalPort());
             return true;
         } catch (Exception e) {
             Throwable root = e;
             while (root.getCause() != null && root != root.getCause()) root = root.getCause();
             if (root instanceof BindException) {
-                markBound(si, false, "Port " + si.getInternalPort() + " already in use");
+                bindStateWriter.markBindFailed(si.getId(),
+                        "Port " + si.getInternalPort() + " already in use");
                 log.error("FTP listener '{}' BIND_FAILED on port {}: port in use",
                         si.getInstanceId(), si.getInternalPort());
             } else {
-                markBound(si, false, e.getMessage());
+                bindStateWriter.markBindFailed(si.getId(), e.getMessage());
                 log.error("FTP listener '{}' BIND_FAILED: {}", si.getInstanceId(), e.getMessage());
             }
             return false;
         }
     }
 
-    @Transactional
     public void unbind(UUID serverInstanceId) {
         FtpServer ftpd = activeListeners.remove(serverInstanceId);
         if (ftpd == null) return;
@@ -99,7 +99,7 @@ public class FtpListenerRegistry {
         } catch (Exception e) {
             log.warn("Error stopping listener {}: {}", serverInstanceId, e.getMessage());
         }
-        repository.findById(serverInstanceId).ifPresent(si -> markBound(si, false, null));
+        bindStateWriter.markUnbound(serverInstanceId);
     }
 
     public void rebind(ServerInstance si) {
@@ -161,16 +161,4 @@ public class FtpListenerRegistry {
         return h == null || h.isBlank() || h.equals("0.0.0.0") || h.equals("*") || h.equals(hostMatch);
     }
 
-    private void markBound(ServerInstance si, boolean bound, String error) {
-        si.setBindState(bound ? "BOUND" : (error != null ? "BIND_FAILED" : "UNBOUND"));
-        si.setBindError(error);
-        si.setLastBindAttemptAt(Instant.now());
-        si.setBoundNode(bound ? hostname() : null);
-        repository.save(si);
-    }
-
-    private static String hostname() {
-        try { return java.net.InetAddress.getLocalHost().getHostName(); }
-        catch (java.net.UnknownHostException e) { return null; }
-    }
 }

@@ -2,6 +2,7 @@ package com.filetransfer.ftpweb.listener;
 
 import com.filetransfer.shared.entity.core.ServerInstance;
 import com.filetransfer.shared.enums.Protocol;
+import com.filetransfer.shared.listener.BindStateWriter;
 import com.filetransfer.shared.repository.core.ServerInstanceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,11 +11,6 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.time.Instant;
 
 /**
  * Maintains the {@code bind_state} / {@code bound_node} columns on the
@@ -44,19 +40,19 @@ import java.time.Instant;
 public class FtpWebListenerRegistry {
 
     private final ServerInstanceRepository repository;
+    private final BindStateWriter bindStateWriter;
 
     @Value("${ftpweb.instance-id:#{null}}")
     private String primaryInstanceId;
 
     @EventListener(ApplicationReadyEvent.class)
-    @Transactional
     public void bootstrap() {
         if (primaryInstanceId == null || primaryInstanceId.isBlank()) {
             log.warn("FTP_WEB ListenerRegistry: no ftpweb.instance-id configured — skipping bind-state seed");
             return;
         }
         repository.findByInstanceId(primaryInstanceId).ifPresentOrElse(
-                this::markBound,
+                si -> bindStateWriter.markBound(si.getId()),
                 () -> log.warn("FTP_WEB primary instanceId '{}' has no ServerInstance row — " +
                                 "create it via onboarding-api so UI/Sentinel can track its state",
                         primaryInstanceId));
@@ -76,22 +72,9 @@ public class FtpWebListenerRegistry {
     /** Heartbeat BOUND state every 30s so the reconciler can detect a dead pod. */
     @Scheduled(fixedDelayString = "${ftpweb.listener.reconcile-ms:30000}",
                initialDelayString = "${ftpweb.listener.reconcile-initial-ms:30000}")
-    @Transactional
     public void reconcile() {
         if (primaryInstanceId == null) return;
-        repository.findByInstanceId(primaryInstanceId).ifPresent(this::markBound);
-    }
-
-    private void markBound(ServerInstance si) {
-        si.setBindState("BOUND");
-        si.setBindError(null);
-        si.setLastBindAttemptAt(Instant.now());
-        si.setBoundNode(hostname());
-        repository.save(si);
-    }
-
-    private static String hostname() {
-        try { return InetAddress.getLocalHost().getHostName(); }
-        catch (UnknownHostException e) { return null; }
+        repository.findByInstanceId(primaryInstanceId)
+                .ifPresent(si -> bindStateWriter.markBound(si.getId()));
     }
 }

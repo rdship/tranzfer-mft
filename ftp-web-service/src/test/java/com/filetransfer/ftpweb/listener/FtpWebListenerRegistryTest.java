@@ -2,11 +2,11 @@ package com.filetransfer.ftpweb.listener;
 
 import com.filetransfer.shared.entity.core.ServerInstance;
 import com.filetransfer.shared.enums.Protocol;
+import com.filetransfer.shared.listener.BindStateWriter;
 import com.filetransfer.shared.repository.core.ServerInstanceRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -37,32 +36,27 @@ import static org.mockito.Mockito.when;
 class FtpWebListenerRegistryTest {
 
     @Mock private ServerInstanceRepository repository;
+    @Mock private BindStateWriter bindStateWriter;
 
     private FtpWebListenerRegistry registry;
 
     @BeforeEach
     void setUp() throws Exception {
-        registry = new FtpWebListenerRegistry(repository);
+        registry = new FtpWebListenerRegistry(repository, bindStateWriter);
         setPrimary("ftpweb-primary");
     }
 
     @Test
     void bootstrapMarksPrimaryBound() {
-        ServerInstance primary = ServerInstance.builder()
-                .instanceId("ftpweb-primary").protocol(Protocol.FTP_WEB).name("primary")
-                .internalHost("ftp-web-service").internalPort(8083)
-                .build();
-        primary.setId(UUID.randomUUID());
+        ServerInstance primary = ftpWebInstance("ftpweb-primary");
         when(repository.findByInstanceId("ftpweb-primary")).thenReturn(Optional.of(primary));
         when(repository.findByProtocolAndActiveTrue(Protocol.FTP_WEB)).thenReturn(List.of(primary));
 
         registry.bootstrap();
 
-        ArgumentCaptor<ServerInstance> saved = ArgumentCaptor.forClass(ServerInstance.class);
-        verify(repository).save(saved.capture());
-        assertThat(saved.getValue().getBindState()).isEqualTo("BOUND");
-        assertThat(saved.getValue().getBoundNode()).isNotNull();
-        assertThat(saved.getValue().getLastBindAttemptAt()).isNotNull();
+        // Writes route through BindStateWriter (own REQUIRES_NEW tx) so
+        // self-invocation paths still persist correctly.
+        verify(bindStateWriter).markBound(primary.getId());
     }
 
     @Test
@@ -75,9 +69,9 @@ class FtpWebListenerRegistryTest {
 
         registry.bootstrap();
 
-        // Only the primary row is saved — we don't lie about non-primary BOUND.
-        verify(repository).save(primary);
-        verify(repository, never()).save(other);
+        // Only the primary row is written — we don't lie about non-primary BOUND.
+        verify(bindStateWriter).markBound(primary.getId());
+        verify(bindStateWriter, never()).markBound(other.getId());
     }
 
     @Test
@@ -87,8 +81,7 @@ class FtpWebListenerRegistryTest {
 
         registry.reconcile();
 
-        verify(repository).save(any(ServerInstance.class));
-        assertThat(primary.getBindState()).isEqualTo("BOUND");
+        verify(bindStateWriter).markBound(primary.getId());
     }
 
     @Test
@@ -98,7 +91,7 @@ class FtpWebListenerRegistryTest {
         registry.bootstrap();
         registry.reconcile();
 
-        verify(repository, never()).save(any(ServerInstance.class));
+        verify(bindStateWriter, never()).markBound(any(UUID.class));
     }
 
     @Test
@@ -108,7 +101,7 @@ class FtpWebListenerRegistryTest {
 
         // Must not throw — missing row is a config drift, logged as a warning.
         registry.bootstrap();
-        verify(repository, never()).save(any(ServerInstance.class));
+        verify(bindStateWriter, never()).markBound(any(UUID.class));
     }
 
     private static ServerInstance ftpWebInstance(String id) {
