@@ -622,6 +622,28 @@ public class RoutingEngine {
                     .filename(record.getOriginalFilename()).account(destAccount.getUsername())
                     .summary("File " + record.getOriginalFilename() + " delivered successfully")
                     .details(sentPath.toString()).service("routing-engine").build()));
+
+            // ── R109 F4: opt-in partner-pickup notification to sender ──
+            // When the folder-mapping opts in, fire a dedicated PARTNER_PICKUP
+            // event addressed to the SOURCE account. notification-service
+            // consumes these and emails the sender that their counterpart
+            // has downloaded the file. Separate event type (not TRANSFER_COMPLETED)
+            // so existing consumers aren't spammed with opt-in semantics.
+            FolderMapping mapping = record.getFolderMapping();
+            if (mapping != null && mapping.isNotifyOnPickup()
+                    && mapping.getSourceAccount() != null) {
+                TransferAccount sourceAccount = mapping.getSourceAccount();
+                connectorDispatcher.ifAvailable(d -> d.dispatch(ConnectorDispatcher.MftEvent.builder()
+                        .eventType("PARTNER_PICKUP").severity("INFO").trackId(record.getTrackId())
+                        .filename(record.getOriginalFilename()).account(sourceAccount.getUsername())
+                        .summary("Partner " + destAccount.getUsername() + " picked up "
+                                + record.getOriginalFilename())
+                        .details("Partner " + destAccount.getUsername() + " downloaded the file at "
+                                + Instant.now() + ". File: " + record.getOriginalFilename())
+                        .service("routing-engine").build()));
+                log.info("[{}] PARTNER_PICKUP notification fired for sender={}",
+                        record.getTrackId(), sourceAccount.getUsername());
+            }
         } catch (IOException e) {
             log.error("Failed to move file to sent: record={}", record.getId(), e);
             markFailed(record, e.getMessage());

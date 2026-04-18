@@ -202,8 +202,8 @@ printf '\n%sJVM state deltas (t0 → tEnd):%s\n' "$BOLD" "$RST"
 printf '  %-28s %8s %8s %8s %8s %10s %8s\n' "service" "heapMB" "Δheap" "threads" "Δthreads" "httpReqΔ" "http5xxΔ"
 while IFS=$'\t' read -r s h0 nh0 t0 ha0 hm0 hp0 ham0 gc0 hr0 h50; do
   [ "$s" = "service" ] && continue
-  # find matching tEnd row
-  match=$(grep -P "^$s\t" "$OUT/metrics/tEnd.tsv" | head -1)
+  # find matching tEnd row (awk, not `grep -P` — macOS grep lacks PCRE by default)
+  match=$(awk -v s="$s" 'BEGIN{FS="\t"} $1 == s {print; exit}' "$OUT/metrics/tEnd.tsv")
   [ -z "$match" ] && continue
   IFS=$'\t' read -r _ hE nhE tE haE hmE hpE hamE gcE hrE h5E <<< "$match"
   dh=$(awk "BEGIN{printf \"%+.1f\", $hE - $h0}")

@@ -74,4 +74,15 @@ public class FolderMapping extends Auditable {
     @Builder.Default
     private boolean active = true;
 
+    /**
+     * R109 (F4): opt-in sender notification when the partner picks up a file
+     * routed by this mapping. When TRUE, RoutingEngine fires a
+     * {@code PARTNER_PICKUP} lifecycle event on pickup; notification-service
+     * consumes it and emails / webhooks the source account owner. Default
+     * FALSE preserves pre-R109 behaviour — admins opt in per relationship.
+     */
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean notifyOnPickup = false;
+
 }

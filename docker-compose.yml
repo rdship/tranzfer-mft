@@ -26,18 +26,24 @@ x-common-env: &common-env
   SPIFFE_ENABLED: ${SPIFFE_ENABLED:-true}
   SPIFFE_TRUST_DOMAIN: ${SPIFFE_TRUST_DOMAIN:-filetransfer.io}
   SPIFFE_SOCKET: unix:/run/spire/sockets/agent.sock
-  # R98 reverted -Dspring.aot.enabled=true (previously added in R95). On a
-  # cold boot against a fresh build, AOT's eager bean pre-registration
-  # exposed a latent @EnableJpaRepositories vs @ComponentScan gap on 5
-  # services (encryption, keystore, license, storage-manager, ai-engine):
-  # they @ComponentScan shared.* which defines PermissionService /
-  # PermissionAspect beans, but their @EnableJpaRepositories does not
-  # include shared.repository.security, so RolePermissionRepository is
-  # unsatisfied. Reflection-mode tolerated this (beans stayed lazy);
-  # AOT-mode fast-fails at context refresh → 5 services in restart loop.
-  # Re-enable blocked on: (a) fix the 5 services' @EnableJpaRepositories
-  # (tracked as R99), and (b) CI gate that boots every service with AOT
-  # on and off. See docs/run-reports/2026-04-18-R95-first-cold-boot-acceptance.md
+  # R108 (2026-04-18): Spring AOT re-enabled by default.
+  #
+  # Timeline:
+  #   R95   — enabled (first attempt) — crashed 5 services (RolePermissionRepository).
+  #   R98   — reverted to unblock platform.
+  #   R99   — fixed @EnableJpaRepositories / @EntityScan on encryption, keystore,
+  #           license, storage-manager (ai-engine already had it).
+  #   R102  — added @EnableAsync(proxyTargetClass=true) for AgentRegistrar @Async
+  #           @EventListener JDK-proxy issue surfaced in R97 AOT attempt.
+  #   R100  — CI gate (aot-parity-check.sh) boots every service with AOT on and
+  #           off; regression fails the pipeline before merge.
+  #   R104  — java-spiffe-provider classpath gap closed (was blocking all SPIFFE
+  #           services from starting regardless of AOT state).
+  #
+  # All five blockers the tester flagged are now closed; re-enabling reclaims
+  # the ~20-30 s/service cold-boot savings R97 measured. Override at runtime
+  # with AOT_ENABLED=false if a specific incident needs the reflection-mode
+  # fallback without a rebuild.
   JAVA_TOOL_OPTIONS: >-
     -Xmx384m -Xms192m
     -XX:+UseG1GC -XX:MaxGCPauseMillis=100
@@ -45,7 +51,7 @@ x-common-env: &common-env
     -XX:MaxMetaspaceSize=150m
     -Dnet.bytebuddy.experimental=true
     -Dspring.jmx.enabled=false
-    -Dspring.aot.enabled=${AOT_ENABLED:-false}
+    -Dspring.aot.enabled=${AOT_ENABLED:-true}
     -Dserver.tomcat.accept-count=200
     -Dserver.tomcat.threads.max=300
     -Dspring.jpa.hibernate.ddl-auto=none

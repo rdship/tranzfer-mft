@@ -102,15 +102,36 @@ public class SpiffeWorkloadClient {
 
     public SpiffeWorkloadClient(SpiffeProperties props) {
         this.props = props;
+        // R109 (F5): boot-time optimization — always kick off the SPIRE workload-API
+        // connect on a virtual thread so the synchronous gRPC dial never blocks
+        // Spring context refresh. Before: every service waited up to initTimeoutMs
+        // (typically 5 s) for the workload socket on cold boot where SPIRE agent
+        // comes up in parallel. After: each service becomes HTTP-ready immediately
+        // and self-heals to SPIFFE-enabled the moment the agent answers.
+        //
+        // Downstream code already handles isAvailable()=false gracefully (proxy
+        // auth falls back to platform JWT, rate limiter uses in-memory fallback).
+        Thread.ofVirtual().name("spiffe-init-" + (props.getServiceName() != null ? props.getServiceName() : "svc"))
+                .start(this::initialConnectWithRetry);
+    }
+
+    /**
+     * R109 (F5): unified initial-connect + retry loop. Runs on a virtual thread
+     * started from the constructor, so boot is never blocked on SPIRE dial.
+     * Exits as soon as the connection succeeds; if destroyed before success,
+     * the interrupt cleanly halts the loop.
+     */
+    private void initialConnectWithRetry() {
         if (tryConnect()) {
             log.info("[SPIFFE] Workload API connected — socket={} identity={}",
                     props.getSocket(), props.selfSpiffeId());
-        } else {
-            log.warn("[SPIFFE] Workload API unavailable ({}). " +
-                    "Will retry every 15s — run `bash spire/bootstrap.sh` if this is a fresh install.",
-                    props.getSocket());
-            reconnectThread = Thread.ofVirtual().name("spiffe-reconnect").start(this::reconnectLoop);
+            return;
         }
+        log.warn("[SPIFFE] Workload API unavailable ({}). " +
+                "Retrying every 15s — run `bash spire/bootstrap.sh` if this is a fresh install.",
+                props.getSocket());
+        reconnectThread = Thread.currentThread();
+        reconnectLoop();
     }
 
     /** Attempt a single connection to the SPIRE Workload API. Returns true on success. */
