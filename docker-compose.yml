@@ -48,7 +48,9 @@ x-common-env: &common-env
     -Xmx384m -Xms192m
     -XX:+UseG1GC -XX:MaxGCPauseMillis=100
     -XX:ActiveProcessorCount=2
-    -XX:MaxMetaspaceSize=150m
+    -XX:MaxMetaspaceSize=384m
+    -XX:+HeapDumpOnOutOfMemoryError
+    -XX:HeapDumpPath=/tmp/heapdump-%p.hprof
     -Dnet.bytebuddy.experimental=true
     -Dspring.jmx.enabled=false
     -Dspring.aot.enabled=${AOT_ENABLED:-true}
@@ -221,6 +223,14 @@ services:
       context: ./spire
       dockerfile: Dockerfile.agent
     container_name: mft-spire-agent
+    # R115: pid:host lets the Docker WorkloadAttestor resolve connecting
+    # container PIDs correctly on Docker Desktop's LinuxKit VM. Without it,
+    # the agent sees PIDs from SO_PEERCRED that belong to the host namespace
+    # but can't `/proc/<pid>/cgroup` them (different PID namespace) — SPIRE
+    # logs "could not resolve caller information" and closes the Workload
+    # API connection with UNAVAILABLE. This is also the SPIRE-documented
+    # standard deployment shape for Docker hosts.
+    pid: "host"
     depends_on:
       spire-server:
         condition: service_healthy
@@ -1284,7 +1294,9 @@ services:
         -Xmx256m -Xms128m
         -XX:+UseG1GC -XX:MaxGCPauseMillis=100
         -XX:ActiveProcessorCount=1
-        -XX:MaxMetaspaceSize=64m
+        -XX:MaxMetaspaceSize=192m
+        -XX:+HeapDumpOnOutOfMemoryError
+        -XX:HeapDumpPath=/tmp/heapdump-%p.hprof
         -Dnet.bytebuddy.experimental=true
         -Dspring.jmx.enabled=false
       SERVER_PORT: 8095
