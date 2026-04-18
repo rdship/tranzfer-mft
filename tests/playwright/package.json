@@ -1,7 +1,7 @@
 {
   "name": "tranzfer-mft-e2e-tests",
-  "version": "2.0.0",
-  "description": "Enterprise-grade Playwright test suite for TranzFer MFT Platform",
+  "version": "2.1.0",
+  "description": "Enterprise-grade Playwright test suite for TranzFer MFT Platform (CTA-matured: regression pins, SSE, perf budgets, multi-role fixtures)",
   "scripts": {
     "test": "npx playwright test",
     "test:ui": "npx playwright test --ui",
@@ -22,7 +22,12 @@
     "test:portals": "npx playwright test tests/partner-portal.spec.js tests/file-portal.spec.js",
     "test:servers": "npx playwright test tests/servers-and-mappings.spec.js",
     "test:full": "npx playwright test",
-    "test:api-only": "npx playwright test tests/auth.spec.js tests/api-validation.spec.js tests/activity-monitor.spec.js"
+    "test:api-only": "npx playwright test tests/auth.spec.js tests/api-validation.spec.js tests/activity-monitor.spec.js",
+    "test:regression": "npx playwright test tests/regression-pins.spec.js",
+    "test:sse": "npx playwright test tests/sse-activity-stream.spec.js",
+    "test:perf": "npx playwright test tests/performance-budgets.spec.js",
+    "test:release-gate": "npx playwright test tests/smoke.spec.js tests/regression-pins.spec.js tests/sse-activity-stream.spec.js tests/performance-budgets.spec.js tests/e2e-workflows.spec.js",
+    "test:release-gate:api-only": "npx playwright test tests/smoke.spec.js tests/regression-pins.spec.js --grep '@regression|@api|@perf'"
   },
   "devDependencies": {
     "@playwright/test": "^1.45.0"
