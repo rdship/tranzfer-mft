@@ -287,6 +287,36 @@ test.describe('Regression pins — AOT readiness', () => {
   });
 });
 
+test.describe('Regression pins — schema / ORM mapping', () => {
+  // R128: tester's R127 acceptance graded us Bronze because /api/p2p/tickets
+  // was still 500 after R127 claimed to fix it. The LEFT JOIN FETCH fix was
+  // correct in shape but never ran because Hibernate's naming strategy
+  // mapped `sha256Checksum` to DB column `sha256checksum` (no underscore),
+  // while the actual DB column is `sha256_checksum`. Fixed in R128 with an
+  // explicit @Column(name="sha256_checksum"). Pin asserts the endpoint
+  // answers; a 42703 column-does-not-exist will 500 again and fail here.
+  test('R128: /api/p2p/tickets returns 200 (sha256_checksum column mapping) @regression', async ({ api }) => {
+    const resp = await api.get('/api/p2p/tickets');
+    expect(resp.status(), 'GET /api/p2p/tickets should not 500 on column name mismatch')
+      .toBe(200);
+    const body = await resp.json();
+    expect(Array.isArray(body), '/api/p2p/tickets should return a JSON array').toBe(true);
+  });
+
+  // R128: path-ordering bug — `/api/function-queues/{id}` used to catch the
+  // literal `dashboard-stats` and 400 with MethodArgumentTypeMismatch on UUID
+  // parsing. R128 moved the literal mapping above the path variable so the
+  // dashboard widget endpoint actually resolves.
+  test('R128: /api/function-queues/dashboard-stats resolves (not shadowed by {id}) @regression', async ({ api }) => {
+    const resp = await api.get('/api/function-queues/dashboard-stats');
+    expect(resp.status(), '/dashboard-stats must route to its handler, not the UUID {id} one')
+      .toBe(200);
+    const body = await resp.json();
+    expect(body).toHaveProperty('totalQueues');
+    expect(body).toHaveProperty('byCategory');
+  });
+});
+
 test.describe('Regression pins — backend log hygiene under hot path', () => {
   test('no fresh ERROR-level logs on onboarding-api during a burst of authenticated GETs @regression', async ({ api }) => {
     // Catch-all regression: historical bugs often showed up as ERROR spam that

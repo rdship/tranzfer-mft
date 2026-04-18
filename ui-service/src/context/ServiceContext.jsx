@@ -53,11 +53,14 @@ const PAGE_SERVICE_MAP = {
   '/operations/live':     ['core'],
   '/operations/journey':  ['core'],
 
-  // Legacy flat routes — preserved as redirect targets, visible by default
+  // Legacy flat routes — preserved as redirect targets, visible by default.
+  // R128: removed duplicate '/monitoring' key here — it is defined once
+  // below with the load-bearing comment. Having both entries produced the
+  // "duplicate key '/monitoring'" warning vite printed on every build
+  // (tester flagged it in the R127 FULL acceptance report).
   '/dashboard': ['core'],
   '/accounts': ['core'],
   '/users': ['core'],
-  '/monitoring': ['core'],
   '/terminal': ['core'],
   '/license': ['core'],
   '/settings': ['core'],
