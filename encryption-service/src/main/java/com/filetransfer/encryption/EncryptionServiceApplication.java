@@ -26,8 +26,21 @@ import java.security.Security;
         pattern = "com\\.filetransfer\\.shared\\.(routing|vfs|compliance|scheduler|event)\\..*"
     )
 )
-@EntityScan(basePackages = "com.filetransfer.shared.entity.core")
-@EnableJpaRepositories(basePackages = "com.filetransfer.shared.repository.core")
+// R99: added shared.entity.security + shared.repository.security so
+// PermissionService (component-scanned from shared-platform via the
+// broad shared.* include above) can autowire RolePermissionRepository +
+// UserPermissionRepository. Without these, AOT's eager bean
+// pre-registration fails at startup (RolePermissionRepository bean
+// missing). Reflection-mode was tolerating the gap because nothing
+// directly autowired PermissionService, so Spring left it dormant.
+@EntityScan(basePackages = {
+    "com.filetransfer.shared.entity.core",
+    "com.filetransfer.shared.entity.security"
+})
+@EnableJpaRepositories(basePackages = {
+    "com.filetransfer.shared.repository.core",
+    "com.filetransfer.shared.repository.security"
+})
 public class EncryptionServiceApplication {
     public static void main(String[] args) {
         Security.addProvider(new BouncyCastleProvider());
