@@ -533,6 +533,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: onboarding-api
       SPIFFE_SERVICE_NAME: onboarding-api
+      SPRING_APPLICATION_NAME: onboarding-api
       SERVER_PORT: 8080
       FLOW_RULES_ENABLED: "true"
       PIPELINE_CACHE_PARTNER_ENABLED: "true"
@@ -566,6 +567,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: sftp-service
       SPIFFE_SERVICE_NAME: sftp-service
+      SPRING_APPLICATION_NAME: sftp-service
       SERVER_PORT: 8081
       FLOW_RULES_ENABLED: "true"
       PIPELINE_CACHE_PARTNER_ENABLED: "true"
@@ -603,6 +605,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: sftp-service-2
       SPIFFE_SERVICE_NAME: sftp-service
+      SPRING_APPLICATION_NAME: sftp-service
       SERVER_PORT: 8081
       SFTP_PORT: 2222
       SFTP_HOME_BASE: /data/sftp
@@ -631,6 +634,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: ftp-service
       SPIFFE_SERVICE_NAME: ftp-service
+      SPRING_APPLICATION_NAME: ftp-service
       SERVER_PORT: 8082
       FLOW_RULES_ENABLED: "true"
       PIPELINE_CACHE_PARTNER_ENABLED: "true"
@@ -672,6 +676,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: ftp-service-2
       SPIFFE_SERVICE_NAME: ftp-service
+      SPRING_APPLICATION_NAME: ftp-service
       SERVER_PORT: 8082
       FTP_PORT: 21
       FTP_PASSIVE_PORTS: 21000-21008
@@ -703,6 +708,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: sftp-service-3
       SPIFFE_SERVICE_NAME: sftp-service
+      SPRING_APPLICATION_NAME: sftp-service
       SERVER_PORT: 8081
       SFTP_PORT: 2222
       SFTP_HOME_BASE: /data/sftp
@@ -734,6 +740,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: ftp-service-3
       SPIFFE_SERVICE_NAME: ftp-service
+      SPRING_APPLICATION_NAME: ftp-service
       SERVER_PORT: 8082
       FTP_PORT: 21
       FTP_PASSIVE_PORTS: 21000-21010
@@ -763,6 +770,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: ftp-web-service
       SPIFFE_SERVICE_NAME: ftp-web-service
+      SPRING_APPLICATION_NAME: ftp-web-service
       SERVER_PORT: 8083
       FLOW_RULES_ENABLED: "true"
       PIPELINE_CACHE_PARTNER_ENABLED: "true"
@@ -795,6 +803,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: ftp-web-service-2
       SPIFFE_SERVICE_NAME: ftp-web-service
+      SPRING_APPLICATION_NAME: ftp-web-service
       SERVER_PORT: 8083
       FTPWEB_HOME_BASE: /data/ftpweb
       FTPWEB_INSTANCE_ID: ftpweb-2
@@ -821,6 +830,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: config-service
       SPIFFE_SERVICE_NAME: config-service
+      SPRING_APPLICATION_NAME: config-service
       SERVER_PORT: 8084
       FLOW_RULES_ENABLED: "true"
       PIPELINE_CACHE_PARTNER_ENABLED: "true"
@@ -854,6 +864,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: gateway-service
       SPIFFE_SERVICE_NAME: gateway-service
+      SPRING_APPLICATION_NAME: gateway-service
       SERVER_PORT: 8085
       FLOW_RULES_ENABLED: "true"
       PIPELINE_CACHE_PARTNER_ENABLED: "true"
@@ -897,6 +908,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: encryption-service
       SPIFFE_SERVICE_NAME: encryption-service
+      SPRING_APPLICATION_NAME: encryption-service
       SERVER_PORT: 8086
       PLATFORM_PERMISSIONS_ENABLED: "false"
       PLATFORM_SECURITY_SHARED_CONFIG: "false"
@@ -924,6 +936,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: forwarder-service
       SPIFFE_SERVICE_NAME: external-forwarder-service
+      SPRING_APPLICATION_NAME: external-forwarder-service
       SERVER_PORT: 8087
       FLOW_RULES_ENABLED: "true"
       PLATFORM_SECURITY_SHARED_CONFIG: "false"
@@ -965,6 +978,7 @@ services:
       # CRUD load.
       <<: *spiffe-env
       SPIFFE_SERVICE_NAME: dmz-proxy
+      SPRING_APPLICATION_NAME: dmz-proxy
       PLATFORM_SECURITY_JWT_SECRET: ${JWT_SECRET:-change_me_in_production_256bit_secret_key!!}
       SERVER_PORT: 8088
       PROXY_GROUP_NAME: internal
@@ -1028,6 +1042,7 @@ services:
       # explicitly or SpiffeProxyAuth stays disabled and S2S calls 401.
       <<: *spiffe-env
       SPIFFE_SERVICE_NAME: dmz-proxy
+      SPRING_APPLICATION_NAME: dmz-proxy
       PLATFORM_SECURITY_JWT_SECRET: ${JWT_SECRET:-change_me_in_production_256bit_secret_key!!}
       SERVER_PORT: 8088
       PROXY_GROUP_NAME: external
@@ -1086,6 +1101,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: as2-service
       SPIFFE_SERVICE_NAME: as2-service
+      SPRING_APPLICATION_NAME: as2-service
       SERVER_PORT: 8094
       FLOW_RULES_ENABLED: "true"
       PIPELINE_CACHE_PARTNER_ENABLED: "true"
@@ -1119,6 +1135,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: license-service
       SPIFFE_SERVICE_NAME: license-service
+      SPRING_APPLICATION_NAME: license-service
       LICENSE_ADMIN_KEY: ${LICENSE_ADMIN_KEY:-license_admin_secret_key}
       SERVER_PORT: 8089
       PLATFORM_PERMISSIONS_ENABLED: "false"
@@ -1143,6 +1160,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: analytics-service
       SPIFFE_SERVICE_NAME: analytics-service
+      SPRING_APPLICATION_NAME: analytics-service
       SERVER_PORT: 8090
       PLATFORM_PERMISSIONS_ENABLED: "false"
     depends_on:
@@ -1171,6 +1189,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: ai-engine
       SPIFFE_SERVICE_NAME: ai-engine
+      SPRING_APPLICATION_NAME: ai-engine
       SERVER_PORT: 8091
       PLATFORM_CONNECTORS_ENABLED: "true"
       CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
@@ -1197,6 +1216,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: ai-engine-2
       SPIFFE_SERVICE_NAME: ai-engine
+      SPRING_APPLICATION_NAME: ai-engine
       SERVER_PORT: 8091
       CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
       CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-sonnet-4-20250514}
@@ -1222,6 +1242,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: keystore-manager
       SPIFFE_SERVICE_NAME: keystore-manager
+      SPRING_APPLICATION_NAME: keystore-manager
       SERVER_PORT: 8093
       PLATFORM_PERMISSIONS_ENABLED: "false"
       KEYSTORE_MASTER_PASSWORD: ${KEYSTORE_MASTER_PASSWORD:-change-this-master-password}
@@ -1265,6 +1286,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: storage-manager
       SPIFFE_SERVICE_NAME: storage-manager
+      SPRING_APPLICATION_NAME: storage-manager
       SERVER_PORT: 8096
       PLATFORM_PERMISSIONS_ENABLED: "false"
       PLATFORM_SECURITY_SHARED_CONFIG: "false"
@@ -1375,6 +1397,7 @@ services:
       # wide enablement).
       <<: *spiffe-env
       SPIFFE_SERVICE_NAME: edi-converter
+      SPRING_APPLICATION_NAME: edi-converter
       AI_ENGINE_URL: http://ai-engine:8091
       PLATFORM_SECURITY_SHARED_CONFIG: "false"
       PLATFORM_SECURITY_INTERNAL_SERVICE: "true"
@@ -1402,6 +1425,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: screening-service
       SPIFFE_SERVICE_NAME: screening-service
+      SPRING_APPLICATION_NAME: screening-service
       SERVER_PORT: 8092
       PLATFORM_SECURITY_SHARED_CONFIG: "false"
       PLATFORM_SECURITY_INTERNAL_SERVICE: "true"
@@ -1433,6 +1457,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: notification-service
       SPIFFE_SERVICE_NAME: notification-service
+      SPRING_APPLICATION_NAME: notification-service
       SERVER_PORT: 8097
       MAIL_HOST: ${MAIL_HOST:-localhost}
       MAIL_PORT: ${MAIL_PORT:-587}
@@ -1463,6 +1488,7 @@ services:
       <<: *common-env
       CLUSTER_HOST: platform-sentinel
       SPIFFE_SERVICE_NAME: platform-sentinel
+      SPRING_APPLICATION_NAME: platform-sentinel
       SERVER_PORT: 8098
       PLATFORM_CONNECTORS_ENABLED: "true"
       SENTINEL_GITHUB_ENABLED: ${SENTINEL_GITHUB_ENABLED:-false}
