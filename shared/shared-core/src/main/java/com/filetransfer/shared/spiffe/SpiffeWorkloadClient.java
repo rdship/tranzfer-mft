@@ -11,6 +11,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
@@ -93,6 +94,15 @@ public class SpiffeWorkloadClient {
     private final AtomicBoolean available = new AtomicBoolean(false);
 
     /**
+     * R111: released the moment {@code available} first flips true. Hot-path
+     * outbound callers block on this for a bounded interval so the first few
+     * S2S calls after boot don't race the async init and go out header-less
+     * to a SPIFFE-gated peer (→ 403). Once released, future
+     * {@link #awaitAvailable(Duration)} calls return immediately.
+     */
+    private final CountDownLatch availableLatch = new CountDownLatch(1);
+
+    /**
      * Background reconnect thread — runs only when the initial connection fails.
      * Retries every 15 seconds until SPIRE agent is available (e.g., after
      * {@code bash spire/bootstrap.sh} is run on a fresh install). Once connected,
@@ -143,9 +153,14 @@ public class SpiffeWorkloadClient {
                     .build();
             this.jwtSource = DefaultJwtSource.newSource(options);
             this.available.set(true);
+            this.availableLatch.countDown();
             return true;
         } catch (Exception ex) {
-            log.debug("[SPIFFE] Connection attempt failed: {}", ex.getMessage());
+            // R111: promoted from DEBUG → WARN. Previous silent-debug log level
+            // hid R110's S2S 403 regression — failures now always visible in
+            // docker logs so ops can diagnose SPIRE socket / agent issues without
+            // enabling debug logging.
+            log.warn("[SPIFFE] Workload API connection attempt failed: {}", ex.getMessage());
             return false;
         }
     }
@@ -170,6 +185,28 @@ public class SpiffeWorkloadClient {
     /** True iff the SPIRE agent socket is reachable. */
     public boolean isAvailable() {
         return available.get() && jwtSource != null;
+    }
+
+    /**
+     * R111: block up to {@code timeout} for the async init to succeed. Returns
+     * immediately once available. If the timeout elapses without availability,
+     * returns false and the caller decides how to proceed (skip header, fail
+     * the request, or fall back to another auth method).
+     *
+     * <p>Hot-path S2S callers use this to close the R109→R110 silent-fallback
+     * gap: outbound calls made during the ~1–5 s window between Spring context
+     * refresh and SPIRE agent handshake previously went out header-less and
+     * got 403 from SPIFFE-gated peers. A 3–5 s bounded wait absorbs the race.
+     */
+    public boolean awaitAvailable(Duration timeout) {
+        if (isAvailable()) return true;
+        try {
+            return availableLatch.await(timeout.toMillis(), TimeUnit.MILLISECONDS)
+                    && isAvailable();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
     }
 
     /** This service's full SPIFFE ID, e.g. {@code spiffe://filetransfer.io/gateway-service}. */

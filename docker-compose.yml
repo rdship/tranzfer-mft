@@ -431,6 +431,22 @@ services:
       DB_PASSWORD: postgres
       SPRING_FLYWAY_ENABLED: "true"
       SPRING_MAIN_WEB_APPLICATION_TYPE: none
+      # R111: exclude servlet-web autoconfigs so AOT's frozen bean graph does not
+      # try to wire Security / MVC / Servlet context beans on this non-web run.
+      # Pre-R111 symptoms: exit-1 on ListenerInfoController (R110 fixed); then
+      # WebSecurityConfiguration "No ServletContext set" (R110 acceptance).
+      # Durable fix: name the web autoconfigs explicitly so db-migrate's context
+      # never tries to stand them up. Flyway path is unaffected.
+      SPRING_AUTOCONFIGURE_EXCLUDE: >-
+        org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration,
+        org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration,
+        org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration,
+        org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration,
+        org.springframework.boot.autoconfigure.web.servlet.DispatcherServletAutoConfiguration,
+        org.springframework.boot.autoconfigure.web.servlet.ServletWebServerFactoryAutoConfiguration,
+        org.springframework.boot.autoconfigure.web.servlet.HttpEncodingAutoConfiguration,
+        org.springframework.boot.autoconfigure.web.servlet.error.ErrorMvcAutoConfiguration,
+        org.springframework.boot.actuate.autoconfigure.web.servlet.ServletManagementContextAutoConfiguration
     command: ["java", "-Dspring.main.web-application-type=none", "-Dspring.flyway.enabled=true",
               "-Dspring.jpa.hibernate.ddl-auto=none",
               "-Dspring.rabbitmq.host=localhost", "-Dserver.port=0",

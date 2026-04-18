@@ -18,6 +18,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.net.URI;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Map;
 
 /**
@@ -138,12 +139,32 @@ public abstract class BaseServiceClient {
                 && baseUrl().startsWith("https://")) {
             return;
         }
-        // Phase 1: JWT-SVID (cached, proactive refresh — no per-request SPIRE call on hot path)
-        if (spiffeWorkloadClient != null && spiffeWorkloadClient.isAvailable()) {
-            String target = deriveTargetServiceName();
-            String jwtSvid = spiffeWorkloadClient.getJwtSvidFor(target);
-            if (jwtSvid != null) {
-                headers.setBearerAuth(jwtSvid);
+        // Phase 1: JWT-SVID (cached, proactive refresh — no per-request SPIRE call on hot path).
+        //
+        // R111: bounded wait closes R110's S2S 403 regression. R109 F5 made
+        // SPIRE init asynchronous (context refresh never blocks on the ~5 s
+        // handshake), but the old fallback silently dropped the Authorization
+        // header when isAvailable()=false. SPIFFE-gated peers (storage-manager,
+        // keystore-manager) 403'd those header-less calls. A 5 s wait on the
+        // first S2S request absorbs the boot-time race without regressing
+        // the R109 boot-time win (subsequent calls hot-path through the
+        // already-warmed cache).
+        if (spiffeWorkloadClient != null) {
+            if (!spiffeWorkloadClient.isAvailable()) {
+                spiffeWorkloadClient.awaitAvailable(Duration.ofSeconds(5));
+            }
+            if (spiffeWorkloadClient.isAvailable()) {
+                String target = deriveTargetServiceName();
+                String jwtSvid = spiffeWorkloadClient.getJwtSvidFor(target);
+                if (jwtSvid != null) {
+                    headers.setBearerAuth(jwtSvid);
+                } else {
+                    log.warn("SPIFFE JWT-SVID returned null for target '{}'; outbound call will be unauthenticated",
+                            deriveTargetServiceName());
+                }
+            } else {
+                log.warn("SPIFFE workload API unavailable after 5 s wait; outbound call to '{}' will be unauthenticated",
+                        deriveTargetServiceName());
             }
         }
     }
