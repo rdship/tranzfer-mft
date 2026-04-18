@@ -118,6 +118,42 @@ P0 present.
 
 ---
 
+---
+
+## Two-layer Gold bar — this is the public layer
+
+The criteria enumerated above are the **public layer**. There are 24 items,
+grouped into 7 blocks (absolute mandates, feature integration, adaptability,
+multi-layer safety, chaos reliability, performance depth, zero surprise).
+
+**This public list will evolve as the platform matures.** What counts as
+"absolute mandate" or "feature integration depth" in R122 may be stricter in
+R150 — more features in the catalogue, higher throughput targets, new
+resilience scenarios. Every rubric update is a documented commit with a
+rationale, so the bar's motion is legible.
+
+Beyond the public 24, the tester and CTO hold a **private layer of
+approximately 18 additional criteria** that weigh into the final Gold
+decision. These cover things like business continuity posture, regulatory
+audit readiness, partner-facing UX depth, disaster-recovery demonstrability,
+cross-release regression stability, and product-roadmap alignment — aspects
+that aren't always expressible as a green/red test but matter for calling a
+release "the platform as designed." The private layer is reviewed by tester
+and CTO together before any Gold medal is issued.
+
+**What this means for the dev team:**
+- Meeting every public criterion is **necessary** for Gold, not sufficient.
+  A release could score 24/24 on the public list and still not receive Gold
+  if the private review surfaces a concern.
+- Dev team doesn't need to optimise to the private list — the tester will
+  surface concerns as specific asks when relevant, and will never hold Gold
+  for a private-layer item that wasn't raised ahead of time.
+- The public layer is the practical to-do list between releases. The private
+  layer is the judgement overlay that keeps Gold meaningful even when the
+  public list is perfectly met.
+
+---
+
 ## Why the bar for Gold is this high
 
 The product claims: **secure, scalable, adaptable, deeply integrated MFT with
