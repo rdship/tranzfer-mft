@@ -196,6 +196,29 @@ public class PlatformExceptionHandler {
                         reason, request.getRequestURI()));
     }
 
+    /**
+     * R125: missing endpoint/resource should return 404, not the generic 500.
+     * Spring 6.1+ raises NoResourceFoundException for unmapped static paths and
+     * NoHandlerFoundException for unmapped request handlers (when the
+     * DispatcherServlet is configured to throw on no-handler, which it is by
+     * default in Spring Boot 3.x). Without these handlers the generic
+     * Exception.class handler below turned every typo'd URL into a scary 500
+     * with "An unexpected error occurred" — masking the real cause in the
+     * tester's endpoint audits (e.g. POST /api/flow-executions/:id/retry
+     * reported as 500 when the real answer is "no such endpoint").
+     */
+    @ExceptionHandler({
+            org.springframework.web.servlet.NoHandlerFoundException.class,
+            org.springframework.web.servlet.resource.NoResourceFoundException.class
+    })
+    public ResponseEntity<ApiError> handleNoHandler(Exception ex, HttpServletRequest request) {
+        log.warn("No handler for {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                ApiError.of(404, "Not Found", ErrorCode.ENTITY_NOT_FOUND.getCode(),
+                        "No endpoint " + request.getMethod() + " " + request.getRequestURI(),
+                        request.getRequestURI()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleGeneric(Exception ex, HttpServletRequest request) {
         log.error("Unhandled exception at {}: {}", request.getRequestURI(), ex.getMessage(), ex);

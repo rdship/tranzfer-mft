@@ -24,6 +24,14 @@ import {
 } from '@heroicons/react/24/outline'
 import AICopilotDrawer from '../components/AICopilotDrawer'
 
+// Statuses on which the Restart button is actionable. Mirrors
+// FlowRestartService.loadRestartable (server-side): PROCESSING and COMPLETED
+// are rejected with 409, everything else runs restartFromBeginning.
+// R125: tester/CTO flagged that the button was invisible for every state
+// except FAILED/CANCELLED — an operator hitting an UNMATCHED or stuck
+// PENDING row had no visible action even though the backend supported it.
+const RESTARTABLE_STATUSES = new Set(['FAILED', 'CANCELLED', 'UNMATCHED', 'PAUSED', 'PENDING'])
+
 // ── Saved Views (localStorage) ─────────────────────────────────────────
 // User-defined Activity Monitor filter presets. Persisted per-browser under
 // `tranzfer.activityViews`. Capped at 20 entries (oldest dropped on overflow).
@@ -737,7 +745,7 @@ export default function ActivityMonitor() {
       if (e.key === 'r') {
         if (selectedRowIdx >= 0 && rows[selectedRowIdx]) {
           const row = rows[selectedRowIdx]
-          if ((row.status === 'FAILED' || row.status === 'CANCELLED') && canOperate) {
+          if (RESTARTABLE_STATUSES.has(row.status) && canOperate) {
             if (window.confirm(`Restart transfer ${row.trackId}?`)) restartOneMut.mutate(row.trackId)
           }
         }
@@ -1734,7 +1742,7 @@ export default function ActivityMonitor() {
                                 trackId={row.trackId}
                                 filename={row.filename}
                               />
-                              {canOperate && (row.status === 'FAILED' || row.status === 'CANCELLED') && (
+                              {canOperate && RESTARTABLE_STATUSES.has(row.status) && (
                                 <button
                                   onClick={() => { if (window.confirm(`Restart transfer ${row.trackId}?`)) restartOneMut.mutate(row.trackId) }}
                                   disabled={restartOneMut.isPending}

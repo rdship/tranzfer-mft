@@ -132,16 +132,24 @@ public class StorageController {
 
     /** Retrieve a file by trackId via streaming — no heap load. */
     @GetMapping("/retrieve/{trackId}")
-    public void retrieve(@PathVariable String trackId, HttpServletResponse response) throws Exception {
+    public void retrieve(@PathVariable String trackId, HttpServletResponse response) throws IOException {
         StorageObject obj = objectRepo.findByTrackIdAndDeletedFalse(trackId)
-                .orElseThrow(() -> new RuntimeException("File not found: " + trackId));
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "No storage object for trackId=" + trackId));
 
         obj.setAccessCount(obj.getAccessCount() + 1);
         obj.setLastAccessedAt(Instant.now());
         objectRepo.save(obj);
 
         String storageKey = obj.getSha256() != null ? obj.getSha256() : obj.getPhysicalPath();
+        if (storageKey == null || storageKey.isBlank()) {
+            throw new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "Storage object " + trackId + " has no backing key (sha256/physicalPath both null)");
+        }
 
+        // Set headers before opening the backend stream so a subsequent
+        // readTo() failure is still mapped to a proper HTTP error by the
+        // PlatformExceptionHandler (we have not written any body yet).
         response.setContentType(obj.getContentType() != null
                 ? obj.getContentType() : MediaType.APPLICATION_OCTET_STREAM_VALUE);
         if (obj.getSizeBytes() > 0) response.setContentLengthLong(obj.getSizeBytes());
@@ -151,7 +159,15 @@ public class StorageController {
         response.setHeader("X-SHA256", obj.getSha256() != null ? obj.getSha256() : "");
         response.setHeader("X-Storage-Backend", storageBackend.type());
 
-        storageBackend.readTo(storageKey, response.getOutputStream());
+        try {
+            storageBackend.readTo(storageKey, response.getOutputStream());
+        } catch (java.nio.file.NoSuchFileException nsf) {
+            // DB row exists but the backing object was evicted / never written.
+            // Common in virtual-testing mode when flow completed but MinIO was skipped.
+            log.warn("[retrieve] storage row present but backing object missing: trackId={} key={}", trackId, storageKey);
+            throw new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "File content not available in storage backend (key=" + storageKey + ")");
+        }
     }
 
     /** List files by account or tier */
@@ -252,7 +268,8 @@ public class StorageController {
 
         // ── Backend streaming read (works for both local and S3) ──────────────
         StorageObject obj = objectRepo.findBySha256AndDeletedFalse(sha256)
-                .orElseThrow(() -> new RuntimeException("File not found for key: " + sha256));
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "No storage object for sha256=" + sha256));
 
         obj.setAccessCount(obj.getAccessCount() + 1);
         obj.setLastAccessedAt(Instant.now());
@@ -265,7 +282,13 @@ public class StorageController {
         response.setHeader("X-SHA256", obj.getSha256() != null ? obj.getSha256() : "");
         response.setHeader("X-Storage-Backend", storageBackend.type());
 
-        storageBackend.readTo(sha256, response.getOutputStream());
+        try {
+            storageBackend.readTo(sha256, response.getOutputStream());
+        } catch (java.nio.file.NoSuchFileException nsf) {
+            log.warn("[retrieve-by-key] storage row present but backing object missing: sha256={}", sha256);
+            throw new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "File content not available in storage backend (key=" + sha256 + ")");
+        }
     }
 
     /** Get reference count for a storage key (CAS garbage collection). */
@@ -300,9 +323,10 @@ public class StorageController {
      * backend's internal transfer buffer (e.g. kernel sendfile for local, 256 KB for S3).
      */
     @GetMapping("/stream/{sha256}")
-    public void stream(@PathVariable String sha256, HttpServletResponse response) throws Exception {
+    public void stream(@PathVariable String sha256, HttpServletResponse response) throws IOException {
         StorageObject obj = objectRepo.findBySha256AndDeletedFalse(sha256)
-                .orElseThrow(() -> new RuntimeException("File not found for key: " + sha256));
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "No storage object for sha256=" + sha256));
 
         obj.setAccessCount(obj.getAccessCount() + 1);
         obj.setLastAccessedAt(Instant.now());
@@ -321,7 +345,13 @@ public class StorageController {
 
         // Stream directly from backend to response — no heap buffering
         String storageKey = obj.getSha256() != null ? obj.getSha256() : obj.getPhysicalPath();
-        storageBackend.readTo(storageKey, response.getOutputStream());
+        try {
+            storageBackend.readTo(storageKey, response.getOutputStream());
+        } catch (java.nio.file.NoSuchFileException nsf) {
+            log.warn("[stream] storage row present but backing object missing: sha256={}", sha256);
+            throw new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "File content not available in storage backend (key=" + storageKey + ")");
+        }
         response.flushBuffer();
     }
 

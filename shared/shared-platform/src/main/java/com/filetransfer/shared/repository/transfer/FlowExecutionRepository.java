@@ -21,11 +21,19 @@ public interface FlowExecutionRepository extends JpaRepository<FlowExecution, UU
     @Query("SELECT e FROM FlowExecution e LEFT JOIN FETCH e.flow WHERE e.trackId IN :trackIds")
     List<FlowExecution> findByTrackIdIn(@Param("trackIds") List<String> trackIds);
 
+    /**
+     * R125: fixed "could not determine data type of parameter $1" on Postgres —
+     * when trackId and filename are null, the un-cast bind parameters reached
+     * the driver as untyped NULLs and Postgres refused to plan the query. The
+     * status parameter already had a CAST-to-text guard; we now apply the same
+     * guard to the two String parameters. Also dropped the in-query ORDER BY
+     * (Spring Data appends the Pageable's Sort, and the duplicate made the
+     * generated SQL read {@code ORDER BY started_at DESC, started_at DESC}).
+     */
     @Query("SELECT e FROM FlowExecution e WHERE " +
-           "(:trackId IS NULL OR e.trackId = :trackId) AND " +
-           "(:filename IS NULL OR e.originalFilename LIKE %:filename%) AND " +
-           "(CAST(:status AS string) IS NULL OR e.status = :status) " +
-           "ORDER BY e.startedAt DESC")
+           "(CAST(:trackId AS string) IS NULL OR e.trackId = :trackId) AND " +
+           "(CAST(:filename AS string) IS NULL OR e.originalFilename LIKE %:filename%) AND " +
+           "(CAST(:status AS string) IS NULL OR e.status = :status)")
     Page<FlowExecution> search(
             @Param("trackId") String trackId,
             @Param("filename") String filename,
