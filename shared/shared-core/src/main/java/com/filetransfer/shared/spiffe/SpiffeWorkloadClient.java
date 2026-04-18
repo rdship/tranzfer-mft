@@ -112,15 +112,23 @@ public class SpiffeWorkloadClient {
 
     public SpiffeWorkloadClient(SpiffeProperties props) {
         this.props = props;
+        // R112: runtime gate. The bean is now always registered (AOT can't evaluate
+        // @ConditionalOnProperty correctly at build time — see SpiffeAutoConfiguration
+        // class doc). When spiffe.enabled=false we skip the workload-API dial and
+        // release the latch so any awaitAvailable callers return false immediately
+        // rather than waiting out the 5 s default.
+        if (!props.isEnabled()) {
+            log.info("[SPIFFE] spiffe.enabled=false — client created in disabled state "
+                    + "(no workload-API dial; outbound S2S calls proceed without a JWT-SVID)");
+            availableLatch.countDown();
+            return;
+        }
         // R109 (F5): boot-time optimization — always kick off the SPIRE workload-API
         // connect on a virtual thread so the synchronous gRPC dial never blocks
         // Spring context refresh. Before: every service waited up to initTimeoutMs
         // (typically 5 s) for the workload socket on cold boot where SPIRE agent
         // comes up in parallel. After: each service becomes HTTP-ready immediately
         // and self-heals to SPIFFE-enabled the moment the agent answers.
-        //
-        // Downstream code already handles isAvailable()=false gracefully (proxy
-        // auth falls back to platform JWT, rate limiter uses in-memory fallback).
         Thread.ofVirtual().name("spiffe-init-" + (props.getServiceName() != null ? props.getServiceName() : "svc"))
                 .start(this::initialConnectWithRetry);
     }
@@ -185,6 +193,16 @@ public class SpiffeWorkloadClient {
     /** True iff the SPIRE agent socket is reachable. */
     public boolean isAvailable() {
         return available.get() && jwtSource != null;
+    }
+
+    /**
+     * R112: runtime feature-flag query. True when {@code spiffe.enabled=true}
+     * was set in the service's runtime environment. Callers use this to
+     * distinguish "SPIFFE intentionally off" (silent no-op expected) from
+     * "SPIFFE on but not yet connected" (worth logging, may retry).
+     */
+    public boolean isEnabled() {
+        return props != null && props.isEnabled();
     }
 
     /**

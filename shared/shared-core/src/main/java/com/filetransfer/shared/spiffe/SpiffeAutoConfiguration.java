@@ -14,14 +14,22 @@ import org.springframework.util.StringUtils;
 /**
  * Spring Boot auto-configuration for SPIFFE/SPIRE workload identity.
  *
- * <p>Activated only when {@code spiffe.enabled=true} in application properties.
- * When disabled, nothing is created — outbound calls proceed without a workload
- * identity token and inbound SPIFFE validation is skipped.
+ * <p>R112: {@code @ConditionalOnProperty(spiffe.enabled)} removed from the
+ * class level because Spring Boot's AOT processor evaluates conditions at
+ * <em>build time</em>, not runtime. R111 failed when the AOT build was done
+ * without {@code spiffe.enabled=true} in the processor's environment — the
+ * frozen bean graph simply omitted {@link SpiffeWorkloadClient}, making the
+ * runtime {@code SPIFFE_ENABLED=true} env var a no-op and regressing S2S
+ * auth silently. The bean is now always registered; its constructor
+ * no-ops itself at runtime when {@code spiffe.enabled=false} (skipping the
+ * workload-API dial), preserving the "disabled-is-zero-cost" guarantee
+ * without fighting AOT.
  *
  * <p>Registers:
  * <ul>
  *   <li>{@link SpiffeWorkloadClient} — JWT-SVID outbound auth (Phase 1: cached, proactive refresh).
  *       Auto-wired (optional) into {@code BaseServiceClient} and {@code PlatformJwtAuthFilter}.
+ *       Always present at runtime; self-disables when {@code spiffe.enabled=false}.
  *   <li>{@link SpiffeX509Manager} — X.509-SVID mTLS transport (Phase 2). Activated only when
  *       {@code spiffe.mtls-enabled=true}. Auto-wired (optional) into {@code SharedConfig}
  *       to build an mTLS-capable RestTemplate, and into {@code BaseServiceClient} to skip the
@@ -34,7 +42,6 @@ import org.springframework.util.StringUtils;
  */
 @Slf4j
 @AutoConfiguration
-@ConditionalOnProperty(name = "spiffe.enabled", havingValue = "true")
 @EnableConfigurationProperties(SpiffeProperties.class)
 public class SpiffeAutoConfiguration {
 

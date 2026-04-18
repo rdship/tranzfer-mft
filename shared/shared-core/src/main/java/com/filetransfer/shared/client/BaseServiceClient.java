@@ -149,7 +149,10 @@ public abstract class BaseServiceClient {
         // first S2S request absorbs the boot-time race without regressing
         // the R109 boot-time win (subsequent calls hot-path through the
         // already-warmed cache).
-        if (spiffeWorkloadClient != null) {
+        //
+        // R112: gate on isEnabled() so deployments that intentionally run
+        // SPIFFE-off (dev profiles, legacy envs) neither wait nor log warnings.
+        if (spiffeWorkloadClient != null && spiffeWorkloadClient.isEnabled()) {
             if (!spiffeWorkloadClient.isAvailable()) {
                 spiffeWorkloadClient.awaitAvailable(Duration.ofSeconds(5));
             }
