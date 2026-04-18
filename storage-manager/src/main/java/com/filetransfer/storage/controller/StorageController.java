@@ -132,7 +132,7 @@ public class StorageController {
 
     /** Retrieve a file by trackId via streaming — no heap load. */
     @GetMapping("/retrieve/{trackId}")
-    public void retrieve(@PathVariable String trackId, HttpServletResponse response) throws IOException {
+    public void retrieve(@PathVariable String trackId, HttpServletResponse response) throws Exception {
         StorageObject obj = objectRepo.findByTrackIdAndDeletedFalse(trackId)
                 .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
                         HttpStatus.NOT_FOUND, "No storage object for trackId=" + trackId));
@@ -323,7 +323,7 @@ public class StorageController {
      * backend's internal transfer buffer (e.g. kernel sendfile for local, 256 KB for S3).
      */
     @GetMapping("/stream/{sha256}")
-    public void stream(@PathVariable String sha256, HttpServletResponse response) throws IOException {
+    public void stream(@PathVariable String sha256, HttpServletResponse response) throws Exception {
         StorageObject obj = objectRepo.findBySha256AndDeletedFalse(sha256)
                 .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
                         HttpStatus.NOT_FOUND, "No storage object for sha256=" + sha256));
