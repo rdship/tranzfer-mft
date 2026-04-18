@@ -8,6 +8,7 @@ import com.filetransfer.shared.repository.transfer.FabricInstanceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,13 +26,15 @@ import java.util.UUID;
  *
  * This is intentionally per-instance - no ShedLock. Every pod heartbeats itself.
  *
- * <p>R117 (AOT safety): class-level {@code @ConditionalOnProperty(flow.rules.enabled)}
- * removed — evaluated at AOT build time, so a build without the property set
- * would silently exclude this bean regardless of runtime env vars. Now
- * unconditionally registered; {@link #heartbeat()} checks {@code flowRulesEnabled}
- * at each tick and early-returns when disabled. See {@code docs/AOT-SAFETY.md}.
+ * <p>R120 (restored from R117 over-reach): class-level
+ * {@code @ConditionalOnProperty(flow.rules.enabled)} re-applied. The annotation
+ * was serving a load-bearing scope gate (keeping this bean out of lightweight
+ * services per the docker-compose {@code x-routing-env} design), not just a
+ * feature toggle. {@link #flowRulesEnabled} and the {@code heartbeat()}
+ * early-return stay as runtime safety nets. See {@code docs/AOT-SAFETY.md}.
  */
 @Component
+@ConditionalOnProperty(name = "flow.rules.enabled", havingValue = "true", matchIfMissing = false)
 @RequiredArgsConstructor
 @Slf4j
 public class InstanceHeartbeatJob {

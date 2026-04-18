@@ -36,7 +36,29 @@ runtime gate inside the bean's constructor (see R112 commit `fbbe32b`).
 | Shape | AOT-safe? | Example |
 |---|---|---|
 | `matchIfMissing=true`, property used to **disable** | ✅ YES | `platform.permissions.enabled` (default on) |
-| `matchIfMissing=false`, property used to **enable** | ❌ NO | `spiffe.enabled`, `flow.rules.enabled`, `spiffe.mtls-enabled` |
+| `matchIfMissing=false`, property used to **enable** | ⚠️ DEPENDS | see decision tree below |
+
+### Decision tree: is a `matchIfMissing=false` gate the right fix to remove?
+
+Before removing a class-level `@ConditionalOnProperty(matchIfMissing=false)` in
+the name of AOT-safety, verify it is NOT serving a second purpose:
+
+1. **Is it a "feature toggle" where the bean would be harmless when present in
+   a service that has the flag off?** → safe to remove + move to runtime gate.
+2. **Is it a "scope gate" where the bean MUST NOT be created in some services
+   because they lack the repo/entity scan scope the bean's constructor
+   requires?** → KEEP the annotation. It's load-bearing.
+
+R117 failed step 2 for `FlowFabricConsumer` and `InstanceHeartbeatJob`: the
+`flow.rules.enabled` property was also the switch that kept routing beans out
+of lightweight services (encryption / keystore / license / storage / screening
+/ notification) per the docker-compose `x-routing-env` design. Those services
+deliberately have narrow `@EnableJpaRepositories` scope and don't include
+`com.filetransfer.shared.repository.transfer`. Removing the gate made the
+consumer unconditional → its `FlowExecutionRepository` constructor param
+couldn't be satisfied in those 6 services → `UnsatisfiedDependencyException`
+→ restart loop. R118 and R119 were both No Medal releases because of this.
+R120 restored the class-level annotation.
 
 **Why `matchIfMissing=true` works:** the AOT build sees "property missing → condition
 true → register the bean". The bean ends up in the frozen graph. Setting the property
@@ -164,8 +186,9 @@ void init() {
 |---|---|---|---|
 | R112 (`fbbe32b`) | `SpiffeWorkloadClient` | class-level `@ConditionalOnProperty(spiffe.enabled)` | unconditional + constructor gate on `props.isEnabled()` |
 | R117 | `SpiffeX509Manager`, `SpiffeMtlsAuthFilter` | bean-level `@ConditionalOnProperty(spiffe.mtls-enabled)` | unconditional + constructor gate + filter body no-op |
-| R117 | `FlowFabricConsumer`, `InstanceHeartbeatJob` | class-level `@ConditionalOnProperty(flow.rules.enabled)` | unconditional + `@Value` field + early-return at hot-path entry |
+| R117 | `FlowFabricConsumer`, `InstanceHeartbeatJob` | class-level `@ConditionalOnProperty(flow.rules.enabled)` | unconditional + `@Value` field + early-return at hot-path entry — **REVERTED IN R120** |
 | R119 | `FlowFabricConsumer` (hot-fix) | constructor-injected `FlowFabricBridge` (still conditional) → cascade crash | `@Autowired(required=false)` field + null-check at init(). The dependency-chain trap. |
+| R120 | `FlowFabricConsumer`, `InstanceHeartbeatJob` (revert) | reverted R117 — class-level `@ConditionalOnProperty(flow.rules.enabled)` restored | The annotation was load-bearing scope gate, not just a feature toggle. Kept R119's `@Autowired(required=false)` on fabricBridge + runtime flowRulesEnabled check as belt-and-braces. |
 
 ## Remaining `@ConditionalOnProperty` — audited safe
 

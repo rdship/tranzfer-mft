@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
@@ -37,16 +38,24 @@ import java.util.concurrent.atomic.AtomicInteger;
  * automatic load balancing. If fabric is disabled or shared-fabric not on classpath,
  * this bean is still created but does nothing in {@link #init()}.
  *
- * <p>R117 (AOT safety): class-level {@code @ConditionalOnProperty(flow.rules.enabled)}
- * removed. Spring Boot AOT evaluates conditions at build time — if the AOT
- * processor's environment didn't have that property set, the bean would be
- * permanently excluded from the frozen graph and runtime env vars couldn't
- * resurrect it (this was the root cause of R110→R112's 3-release S2S 403 saga
- * with SpiffeWorkloadClient). The bean is now unconditionally registered and
- * {@link #init()} gates its own behaviour on {@code flow.rules.enabled} at
- * runtime instead. See {@code docs/AOT-SAFETY.md}.
+ * <p>R120 (restored from R117 over-reach): class-level
+ * {@code @ConditionalOnProperty(flow.rules.enabled)} re-applied. It wasn't
+ * just a feature toggle — per the docker-compose {@code x-routing-env}
+ * design, lightweight services (encryption, license, keystore, storage,
+ * screening, notification) deliberately do NOT set {@code FLOW_RULES_ENABLED}
+ * so routing beans never load there — narrower @EnableJpaRepositories
+ * scope works, fewer entities scanned, faster boot. R117's removal made
+ * the consumer unconditional and crashed 6 services that don't declare
+ * {@link com.filetransfer.shared.repository.transfer.FlowExecutionRepository}
+ * in their JPA scope (R118→R119 No Medal).
+ *
+ * <p>The R119 {@code @Autowired(required=false)} on {@link #fabricBridge}
+ * is kept as belt-and-braces for AOT builds. {@link #flowRulesEnabled} and
+ * init()'s bridge null-check are both kept as runtime safety nets. See
+ * {@code docs/AOT-SAFETY.md} for the full retrofit-vs-revert decision tree.
  */
 @Component
+@ConditionalOnProperty(name = "flow.rules.enabled", havingValue = "true", matchIfMissing = false)
 @RequiredArgsConstructor
 @Slf4j
 public class FlowFabricConsumer {
