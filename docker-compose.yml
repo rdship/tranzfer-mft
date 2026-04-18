@@ -13,6 +13,19 @@ x-spiffe-volume: &spiffe-volume
   - spire-socket:/run/spire/sockets:ro
 
 x-common-env: &common-env
+  # R101: SPIFFE env vars live here (not on the standalone &spiffe-env
+  # anchor) so every service that merges <<: *common-env automatically
+  # picks them up. Before R101 the &spiffe-env anchor was defined but
+  # only applied to edi-converter — SPIFFE was effectively off on 17
+  # of 18 Java services, contrary to the CLAUDE.md spec ("SPIFFE is
+  # REQUIRED. Default ON"). Symptom the tester measured: onboarding-api
+  # → DMZ proxy DELETE calls returned 401 because BaseServiceClient had
+  # no SpiffeWorkloadClient bean to attach a JWT-SVID with. Fixed by
+  # moving SPIFFE into common-env so the default-on semantics actually
+  # reach every service.
+  SPIFFE_ENABLED: ${SPIFFE_ENABLED:-true}
+  SPIFFE_TRUST_DOMAIN: ${SPIFFE_TRUST_DOMAIN:-filetransfer.io}
+  SPIFFE_SOCKET: unix:/run/spire/sockets/agent.sock
   # R98 reverted -Dspring.aot.enabled=true (previously added in R95). On a
   # cold boot against a fresh build, AOT's eager bean pre-registration
   # exposed a latent @EnableJpaRepositories vs @ComponentScan gap on 5
@@ -75,7 +88,7 @@ x-common-env: &common-env
   CLUSTER_ID: ${CLUSTER_ID:-cluster-1}
   CLUSTER_COMM_MODE: ${CLUSTER_COMM_MODE:-WITHIN_CLUSTER}
   TRACK_ID_PREFIX: ${TRACK_ID_PREFIX:-TRZ}
-  PLATFORM_VERSION: "1.0.0-R100"
+  PLATFORM_VERSION: "1.0.0-R101"
   PLATFORM_BUILD_TIMESTAMP: "2026-04-18T02:00:00Z"
   PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-DEV}
   PROXY_ENABLED: ${PROXY_ENABLED:-false}
@@ -871,6 +884,13 @@ services:
       - "127.0.0.1:4443:443"        # FTP-Web (internal HTTPS)
       - "127.0.0.1:9443:9443"       # Tunnel port (gateway-service connects inbound)
     environment:
+      # R101: dmz-proxy doesn't merge &common-env (it's the "no shared-
+      # platform, no DB" service), so SPIFFE has to come in explicitly.
+      # Without this, SpiffeProxyAuth.enabled stays false and the proxy's
+      # /api/proxy/* management API rejects every inbound S2S call with
+      # 401 — exactly the R79 symptom the tester measured under listener-
+      # CRUD load.
+      <<: *spiffe-env
       PLATFORM_SECURITY_JWT_SECRET: ${JWT_SECRET:-change_me_in_production_256bit_secret_key!!}
       SERVER_PORT: 8088
       PROXY_GROUP_NAME: internal
@@ -890,7 +910,7 @@ services:
       DMZ_QOS_ENABLED: "true"
       DMZ_TUNNEL_ENABLED: ${DMZ_TUNNEL_ENABLED:-false}
       DMZ_TUNNEL_PORT: "9443"
-      PLATFORM_VERSION: "1.0.0-R100"
+      PLATFORM_VERSION: "1.0.0-R101"
       PLATFORM_BUILD_TIMESTAMP: "2026-04-18T02:00:00Z"
       CLUSTER_SERVICE_TYPE: DMZ_PROXY
     healthcheck:
@@ -927,6 +947,10 @@ services:
       - "127.0.0.1:8443:443"         # FTP-Web HTTPS (external)
       - "127.0.0.1:9444:9443"        # Tunnel port (separate tunnel for external proxy)
     environment:
+      # R101: same rationale as the internal dmz-proxy above — this
+      # service doesn't merge &common-env, so SPIFFE has to come in
+      # explicitly or SpiffeProxyAuth stays disabled and S2S calls 401.
+      <<: *spiffe-env
       PLATFORM_SECURITY_JWT_SECRET: ${JWT_SECRET:-change_me_in_production_256bit_secret_key!!}
       SERVER_PORT: 8088
       PROXY_GROUP_NAME: external
@@ -1242,11 +1266,16 @@ services:
         -Dnet.bytebuddy.experimental=true
         -Dspring.jmx.enabled=false
       SERVER_PORT: 8095
+      # edi-converter deliberately does NOT merge <<: *common-env (it has
+      # no DB / Redis / RabbitMQ and runs with a smaller heap), so keep
+      # the explicit *spiffe-env merge here — without it, SPIFFE stays
+      # off on this service alone (regression against R101's platform-
+      # wide enablement).
       <<: *spiffe-env
       AI_ENGINE_URL: http://ai-engine:8091
       PLATFORM_SECURITY_SHARED_CONFIG: "false"
       PLATFORM_SECURITY_INTERNAL_SERVICE: "true"
-      PLATFORM_VERSION: "1.0.0-R100"
+      PLATFORM_VERSION: "1.0.0-R101"
       PLATFORM_BUILD_TIMESTAMP: "2026-04-18T02:00:00Z"
       PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-DEV}
       CLUSTER_SERVICE_TYPE: EDI_CONVERTER
