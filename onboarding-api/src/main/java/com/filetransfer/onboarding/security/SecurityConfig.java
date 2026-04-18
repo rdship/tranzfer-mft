@@ -57,7 +57,14 @@ public class SecurityConfig {
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         if (apiRateLimitFilter != null) {
-            http.addFilterBefore(apiRateLimitFilter, JwtAuthFilter.class);
+            // Run the rate limiter AFTER JwtAuthFilter so the per-user bucket
+            // uses the authenticated principal (200/min) and the ROLE_INTERNAL
+            // bypass sees the Authentication that SPIFFE / JWT-SVID set.
+            // R93: used to be addFilterBefore(..., JwtAuthFilter.class) — that
+            // meant onboarding-api only ever applied the 100/min IP bucket
+            // regardless of who was calling, and S2S SPIFFE calls were treated
+            // as external. Matches PlatformSecurityConfig (config-service etc).
+            http.addFilterAfter(apiRateLimitFilter, JwtAuthFilter.class);
         }
 
         return http.build();

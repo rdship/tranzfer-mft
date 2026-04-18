@@ -11,12 +11,12 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,prometheus,info,circuit-breakers
+        include: health,prometheus,info,circuit-breakers,metrics,threaddump,heapdump
   endpoint:
     health:
       show-details: when_authorized
     heapdump:
-      enabled: false
+      enabled: true
     env:
       enabled: false
     configprops:

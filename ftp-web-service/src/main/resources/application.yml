@@ -9,7 +9,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,metrics,prometheus,info,circuit-breakers
+        include: health,metrics,prometheus,info,circuit-breakers,threaddump,heapdump
 
 spring:
   main:

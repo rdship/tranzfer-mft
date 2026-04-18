@@ -8,7 +8,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,metrics,prometheus,info,circuit-breakers
+        include: health,metrics,prometheus,info,circuit-breakers,threaddump,heapdump
 
 control-api:
   key: ${CONTROL_API_KEY:internal_control_secret}

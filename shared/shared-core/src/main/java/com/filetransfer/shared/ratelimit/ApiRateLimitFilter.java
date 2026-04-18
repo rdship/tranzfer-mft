@@ -1,5 +1,6 @@
 package com.filetransfer.shared.ratelimit;
 
+import com.filetransfer.shared.spiffe.SpiffeWorkloadClient;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -9,10 +10,12 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -34,6 +37,16 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
 
     private final RateLimitProperties properties;
     private final @Nullable StringRedisTemplate redis;
+    /**
+     * Optional SPIFFE workload client. When present, Bearer tokens carrying a
+     * {@code spiffe://} subject are validated inline and bypass rate limiting —
+     * belt-and-suspenders for the {@code ROLE_INTERNAL} SecurityContext bypass
+     * below, which only works when an upstream auth filter has already run.
+     * Without this, services that place {@link ApiRateLimitFilter} before
+     * their auth filter (historical mistake on {@code onboarding-api}) would
+     * rate-limit internal platform traffic as if it were external.
+     */
+    private final @Nullable SpiffeWorkloadClient spiffeWorkloadClient;
 
     // Fallback: in-memory token buckets (used when Redis is unavailable)
     private final Map<String, TokenBucket> ipBuckets = new ConcurrentHashMap<>();
@@ -42,17 +55,25 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
 
     private volatile boolean redisAvailable = true;
 
-    public ApiRateLimitFilter(RateLimitProperties properties, @Nullable StringRedisTemplate redis) {
+    public ApiRateLimitFilter(RateLimitProperties properties,
+                              @Nullable StringRedisTemplate redis,
+                              @Nullable SpiffeWorkloadClient spiffeWorkloadClient) {
         this.properties = properties;
         this.redis = redis;
+        this.spiffeWorkloadClient = spiffeWorkloadClient;
         if (redis == null) {
             log.warn("Rate limiter: Redis not available, using in-memory fallback (single-instance only)");
         }
     }
 
+    /** Backward-compatible — kept for call sites without a SPIFFE client (e.g. tests). */
+    public ApiRateLimitFilter(RateLimitProperties properties, @Nullable StringRedisTemplate redis) {
+        this(properties, redis, null);
+    }
+
     /** Backward-compatible constructor for services without Redis. */
     public ApiRateLimitFilter(RateLimitProperties properties) {
-        this(properties, null);
+        this(properties, null, null);
     }
 
     @Override
@@ -71,10 +92,22 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
-        // Bypass rate limiting for SPIFFE-authenticated internal services
+        // Bypass rate limiting for SPIFFE-authenticated internal services.
+        // Two paths — either is sufficient:
+        //  (a) An upstream auth filter already put ROLE_INTERNAL in the
+        //      SecurityContext (PlatformSecurityConfig / PlatformJwtAuthFilter).
+        //  (b) We haven't been given a chance to see the SecurityContext yet
+        //      (this filter runs BEFORE auth) but the request carries a
+        //      SPIFFE JWT-SVID. Validate inline and exempt. This guards
+        //      against filter-ordering regressions like the one the R87-R89
+        //      perf run surfaced on config-service + onboarding-api.
         Authentication internalAuth = SecurityContextHolder.getContext().getAuthentication();
         if (internalAuth != null && internalAuth.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_INTERNAL".equals(a.getAuthority()))) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+        if (hasValidSpiffeToken(request)) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -154,6 +187,56 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────
+
+    /**
+     * Returns true iff the request carries a Bearer token that cryptographically
+     * validates as a SPIFFE JWT-SVID for this service. Peeks at the JWT payload
+     * to decide whether a validation attempt is even warranted (avoid calling
+     * the SPIRE Workload API for every admin/user JWT).
+     *
+     * <p>Security note: we deliberately validate via {@link SpiffeWorkloadClient}
+     * rather than trusting the {@code sub} claim alone. A forged JWT with
+     * {@code sub=spiffe://...} but no valid signature from SPIRE will not be
+     * accepted — the bypass is gated on real signature + audience verification.
+     */
+    private boolean hasValidSpiffeToken(HttpServletRequest request) {
+        // Cheap token-shape checks first — avoid touching SpiffeWorkloadClient
+        // (which would hit the SPIRE workload API) for the majority of requests
+        // that carry a normal platform JWT or no auth at all.
+        String header = request.getHeader("Authorization");
+        if (!StringUtils.hasText(header) || !header.startsWith("Bearer ")) {
+            return false;
+        }
+        String token = header.substring(7);
+        if (!token.startsWith("eyJ") || !looksLikeSpiffeToken(token)) {
+            return false;
+        }
+        if (spiffeWorkloadClient == null || !spiffeWorkloadClient.isAvailable()) {
+            return false;
+        }
+        try {
+            String selfId = spiffeWorkloadClient.getSelfSpiffeId();
+            return StringUtils.hasText(selfId) && spiffeWorkloadClient.validate(token, selfId);
+        } catch (Exception e) {
+            log.debug("SPIFFE token validation failed, treating as non-internal: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /** Cheap pre-check: does the JWT payload mention a spiffe:// subject? */
+    private static boolean looksLikeSpiffeToken(String token) {
+        try {
+            String[] parts = token.split("\\.");
+            if (parts.length < 2) return false;
+            String p = parts[1];
+            // Base64url may omit padding; re-pad to multiple of 4.
+            String padded = p + "=".repeat((4 - p.length() % 4) % 4);
+            String payload = new String(Base64.getUrlDecoder().decode(padded));
+            return payload.contains("\"spiffe://");
+        } catch (Exception e) {
+            return false;
+        }
+    }
 
     private String resolveClientIp(HttpServletRequest request) {
         String xff = request.getHeader("X-Forwarded-For");
