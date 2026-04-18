@@ -47,9 +47,10 @@ function persistSavedViews(views) {
 const BUILT_IN_VIEWS = [
   { id: 'builtin-all',       name: 'All transfers',      description: 'Clear all filters', filters: {} },
   { id: 'builtin-stuck',     name: 'Stuck only',         description: 'Files past their lease', filters: { stuckOnly: true } },
-  { id: 'builtin-failed',    name: 'Failed last 24h',    description: 'Status = FAILED', filters: { statusFilter: 'FAILED' } },
-  { id: 'builtin-inflight',  name: 'In-flight',          description: 'Status = DOWNLOADED', filters: { statusFilter: 'DOWNLOADED' } },
-  { id: 'builtin-completed', name: 'Completed today',    description: 'Status = MOVED_TO_SENT', filters: { statusFilter: 'MOVED_TO_SENT' } },
+  { id: 'builtin-failed',     name: 'Failed last 24h',      description: 'Status = FAILED',               filters: { statusFilter: 'FAILED' } },
+  { id: 'builtin-inflight',   name: 'In-flight',            description: 'Status = DOWNLOADED',           filters: { statusFilter: 'DOWNLOADED' } },
+  { id: 'builtin-completed',  name: 'Completed',            description: 'Flow-terminal success',         filters: { statusFilter: 'COMPLETED' } },
+  { id: 'builtin-delivered',  name: 'Delivered (archived)', description: 'Status = MOVED_TO_SENT',        filters: { statusFilter: 'MOVED_TO_SENT' } },
 ]
 
 // Short human label of what a saved view actually filters on.
@@ -154,7 +155,7 @@ function getAllColumns() { return [
 ]}
 
 function getDefaultVisibleKeys() { return getAllColumns().filter(c => c.defaultVisible).map(c => c.key) }
-const STATUS_OPTIONS = ['ALL', 'PENDING', 'IN_OUTBOX', 'DOWNLOADED', 'MOVED_TO_SENT', 'FAILED']
+const STATUS_OPTIONS = ['ALL', 'PENDING', 'IN_OUTBOX', 'DOWNLOADED', 'COMPLETED', 'MOVED_TO_SENT', 'FAILED']
 const PROTOCOL_OPTIONS = ['ALL', 'SFTP', 'FTP', 'FTP_WEB', 'HTTPS', 'AS2', 'AS4']
 const PAGE_SIZES = [10, 25, 50, 100]
 
@@ -171,6 +172,7 @@ function statusBadge(status) {
     PENDING: 'badge-yellow',
     IN_OUTBOX: 'badge-blue',
     DOWNLOADED: 'badge-purple',
+    COMPLETED: 'badge-green',
     MOVED_TO_SENT: 'badge-green',
     FAILED: 'badge-red',
   }

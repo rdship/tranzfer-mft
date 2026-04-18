@@ -835,7 +835,7 @@ function AccountTransfers({ username, navigate, onTrackClick }) {
             <tr key={t.trackId || i} className="table-row hover:bg-[rgba(100,140,255,0.06)]">
               <td className="table-cell text-xs truncate max-w-[160px]" title={t.filename}>{t.filename || '--'}</td>
               <td className="table-cell">
-                <span className={`badge ${t.status === 'MOVED_TO_SENT' ? 'badge-green' : t.status === 'FAILED' ? 'badge-red' : t.status === 'PENDING' ? 'badge-yellow' : 'badge-blue'}`}>
+                <span className={`badge ${t.status === 'COMPLETED' || t.status === 'MOVED_TO_SENT' ? 'badge-green' : t.status === 'FAILED' ? 'badge-red' : t.status === 'PENDING' ? 'badge-yellow' : 'badge-blue'}`}>
                   {t.status?.replace(/_/g, ' ') || '--'}
                 </span>
               </td>

@@ -53,7 +53,9 @@ public class MetricsAggregationService {
 
             long total = svcRecords.size();
             long success = svcRecords.stream()
-                    .filter(r -> r.getStatus() == FileTransferStatus.DOWNLOADED || r.getStatus() == FileTransferStatus.MOVED_TO_SENT).count();
+                    .filter(r -> r.getStatus() == FileTransferStatus.DOWNLOADED
+                            || r.getStatus() == FileTransferStatus.MOVED_TO_SENT
+                            || r.getStatus() == FileTransferStatus.COMPLETED).count();
             long failed = svcRecords.stream()
                     .filter(r -> r.getStatus() == FileTransferStatus.FAILED).count();
 

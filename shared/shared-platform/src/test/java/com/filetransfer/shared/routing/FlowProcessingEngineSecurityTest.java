@@ -153,6 +153,6 @@ class FlowProcessingEngineSecurityTest {
 
     private FlowProcessingEngine createEngine() {
         // Create with null dependencies — only testing static/private utility methods
-        return new FlowProcessingEngine(null, null, null, null, null, null, null, null, null, null, null, null);
+        return new FlowProcessingEngine(null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 }

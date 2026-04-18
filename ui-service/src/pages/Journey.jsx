@@ -707,7 +707,7 @@ export default function Journey() {
                   </td>
                   <td className="table-cell text-sm">{r.filename}</td>
                   <td className="table-cell">
-                    <span className={`badge ${r.status === 'FAILED' ? 'badge-red' : r.status === 'IN_OUTBOX' || r.status === 'MOVED_TO_SENT' ? 'badge-green' : 'badge-yellow'}`}>
+                    <span className={`badge ${r.status === 'FAILED' ? 'badge-red' : r.status === 'COMPLETED' || r.status === 'IN_OUTBOX' || r.status === 'MOVED_TO_SENT' ? 'badge-green' : 'badge-yellow'}`}>
                       {r.status}
                     </span>
                   </td>

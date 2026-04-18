@@ -26,8 +26,10 @@ import com.filetransfer.shared.entity.integration.*;
 import com.filetransfer.shared.repository.transfer.DeliveryEndpointRepository;
 import com.filetransfer.shared.repository.core.TransferAccountRepository;
 import com.filetransfer.shared.repository.transfer.FileFlowRepository;
+import com.filetransfer.shared.repository.transfer.FileTransferRecordRepository;
 import com.filetransfer.shared.repository.transfer.FlowApprovalRepository;
 import com.filetransfer.shared.repository.transfer.FlowExecutionRepository;
+import com.filetransfer.shared.enums.FileTransferStatus;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.enums.ServiceType;
 import com.filetransfer.shared.spiffe.SpiffeWorkloadClient;
@@ -61,6 +63,7 @@ public class FlowProcessingEngine {
     private final FileFlowRepository flowRepository;
     private final FlowExecutionRepository executionRepository;
     private final FlowApprovalRepository approvalRepository;
+    private final FileTransferRecordRepository fileTransferRecordRepository;
     private final TrackIdGenerator trackIdGenerator;
     private final TransferAccountRepository accountRepository;
     private final DeliveryEndpointRepository deliveryEndpointRepository;
@@ -304,6 +307,7 @@ public class FlowProcessingEngine {
                 exec.setStatus(FlowExecution.FlowStatus.COMPLETED);
                 exec.setCompletedAt(Instant.now());
                 executionRepository.save(exec);
+                mirrorTerminalStatusToTransferRecord(exec, FileTransferStatus.COMPLETED, null);
                 dispatchFlowEvent("FLOW_COMPLETED", exec, flow);
                 log.info("[{}] Flow '{}' COMPLETED via pipeline ({} steps)", trackId, flow.getName(), flow.getSteps().size());
             }
@@ -315,6 +319,7 @@ public class FlowProcessingEngine {
             exec.setErrorMessage("Step " + stepIndex + " (" + step.getType() + "): " + e.getMessage());
             exec.setCompletedAt(Instant.now());
             executionRepository.save(exec);
+            mirrorTerminalStatusToTransferRecord(exec, FileTransferStatus.FAILED, exec.getErrorMessage());
             dispatchFlowEvent("FLOW_FAILED", exec, flow);
         }
     }
@@ -532,6 +537,7 @@ public class FlowProcessingEngine {
                     exec.setStepResults(results);
                     exec.setCompletedAt(Instant.now());
                     executionRepository.save(exec);
+                    mirrorTerminalStatusToTransferRecord(exec, FileTransferStatus.FAILED, exec.getErrorMessage());
                     if (flowEventJournal != null) {
                         flowEventJournal.recordStepFailed(trackId, exec.getId(), i, step.getType(), e.getMessage(), attempt + 1);
                         flowEventJournal.recordExecutionFailed(trackId, exec.getId(), exec.getErrorMessage());
@@ -550,6 +556,7 @@ public class FlowProcessingEngine {
                 exec.setStepResults(results);
                 exec.setCompletedAt(Instant.now());
                 executionRepository.save(exec);
+                mirrorTerminalStatusToTransferRecord(exec, FileTransferStatus.FAILED, exec.getErrorMessage());
                 log.info("[{}] Flow CANCELLED by {} after step {}", trackId, fresh.getTerminatedBy(), i);
                 return;
             }
@@ -559,6 +566,7 @@ public class FlowProcessingEngine {
                 exec.setStepResults(results);
                 exec.setCompletedAt(Instant.now());
                 executionRepository.save(exec);
+                mirrorTerminalStatusToTransferRecord(exec, FileTransferStatus.FAILED, exec.getErrorMessage());
                 dispatchFlowEvent("FLOW_FAILED", exec, flow);
                 return;
             }
@@ -568,6 +576,7 @@ public class FlowProcessingEngine {
         exec.setStepResults(results);
         exec.setCompletedAt(Instant.now());
         executionRepository.save(exec);
+        mirrorTerminalStatusToTransferRecord(exec, FileTransferStatus.COMPLETED, null);
         if (flowEventJournal != null) {
             long totalDuration = exec.getStartedAt() != null
                     ? Instant.now().toEpochMilli() - exec.getStartedAt().toEpochMilli() : 0;
@@ -587,11 +596,50 @@ public class FlowProcessingEngine {
             exec.setErrorMessage("Unhandled error: " + e.getMessage());
             exec.setCompletedAt(Instant.now());
             executionRepository.save(exec);
+            mirrorTerminalStatusToTransferRecord(exec, FileTransferStatus.FAILED, exec.getErrorMessage());
             dispatchFlowEvent("FLOW_FAILED", exec, flow);
         } catch (Exception inner) {
             log.error("[{}] Failed to persist FAILED status: {}", trackId, inner.getMessage());
         }
       }
+    }
+
+    /**
+     * Mirror a flow's terminal status onto the associated FileTransferRecord.
+     * Closes R100 bug where mailbox flows completed but the record stayed at
+     * status=PENDING, completedAt=null — breaking dashboards and SLA alerts.
+     *
+     * <p>Null-safe (ad-hoc API flows have no linked record). Never regresses a
+     * record that has already advanced to DOWNLOADED or MOVED_TO_SENT — those
+     * are partner-pickup transitions that run independently of flow completion
+     * and must be preserved.
+     */
+    private void mirrorTerminalStatusToTransferRecord(FlowExecution exec,
+                                                       FileTransferStatus terminalStatus,
+                                                       String errorMessage) {
+        if (exec == null || exec.getTransferRecord() == null) return;
+        try {
+            UUID recordId = exec.getTransferRecord().getId();
+            fileTransferRecordRepository.findById(recordId).ifPresent(record -> {
+                FileTransferStatus current = record.getStatus();
+                if (current == FileTransferStatus.DOWNLOADED
+                        || current == FileTransferStatus.MOVED_TO_SENT) {
+                    return;
+                }
+                record.setStatus(terminalStatus);
+                if (record.getCompletedAt() == null) {
+                    record.setCompletedAt(Instant.now());
+                }
+                if (terminalStatus == FileTransferStatus.FAILED && errorMessage != null
+                        && (record.getErrorMessage() == null || record.getErrorMessage().isBlank())) {
+                    record.setErrorMessage(errorMessage);
+                }
+                fileTransferRecordRepository.save(record);
+            });
+        } catch (Exception e) {
+            log.warn("[{}] Failed to mirror terminal status {} to transfer record: {}",
+                    exec.getTrackId(), terminalStatus, e.getMessage());
+        }
     }
 
     /**
@@ -1564,6 +1612,7 @@ public class FlowProcessingEngine {
                     exec.setStepResults(results);
                     exec.setCompletedAt(Instant.now());
                     executionRepository.save(exec);
+                    mirrorTerminalStatusToTransferRecord(exec, FileTransferStatus.FAILED, exec.getErrorMessage());
                     log.error("[{}] Step {}/{} ({}) FAILED: {}",
                             trackId, i + 1, flow.getSteps().size(), step.getType(), e.getMessage());
                     return;
@@ -1577,6 +1626,7 @@ public class FlowProcessingEngine {
                 exec.setStepResults(results);
                 exec.setCompletedAt(Instant.now());
                 executionRepository.save(exec);
+                mirrorTerminalStatusToTransferRecord(exec, FileTransferStatus.FAILED, exec.getErrorMessage());
                 log.info("[{}] Flow CANCELLED by {} after step {}", trackId, fresh.getTerminatedBy(), i);
                 return;
             }
@@ -1586,6 +1636,7 @@ public class FlowProcessingEngine {
                 exec.setStepResults(results);
                 exec.setCompletedAt(Instant.now());
                 executionRepository.save(exec);
+                mirrorTerminalStatusToTransferRecord(exec, FileTransferStatus.FAILED, exec.getErrorMessage());
                 dispatchFlowEvent("FLOW_FAILED", exec, flow);
                 return;
             }
@@ -1596,6 +1647,7 @@ public class FlowProcessingEngine {
         exec.setStepResults(results);
         exec.setCompletedAt(Instant.now());
         executionRepository.save(exec);
+        mirrorTerminalStatusToTransferRecord(exec, FileTransferStatus.COMPLETED, null);
         if (flowEventJournal != null) {
             long totalDuration = exec.getStartedAt() != null
                     ? Instant.now().toEpochMilli() - exec.getStartedAt().toEpochMilli() : 0;
@@ -1615,6 +1667,7 @@ public class FlowProcessingEngine {
             exec.setErrorMessage("Unhandled error: " + e.getMessage());
             exec.setCompletedAt(Instant.now());
             executionRepository.save(exec);
+            mirrorTerminalStatusToTransferRecord(exec, FileTransferStatus.FAILED, exec.getErrorMessage());
             dispatchFlowEvent("FLOW_FAILED", exec, flow);
         } catch (Exception inner) {
             log.error("[{}] Failed to persist FAILED status: {}", trackId, inner.getMessage());
