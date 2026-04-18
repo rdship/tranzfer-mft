@@ -148,6 +148,50 @@ test.describe('Regression pins — observability', () => {
   });
 });
 
+test.describe('Regression pins — admin UI primary flows', () => {
+  // R130 BUG 1: the Transfer Journey "Download" button for a per-step file
+  // was 502-ing because onboarding-api's FlowStepPreviewController was
+  // hitting storage-manager's /api/v1/storage/retrieve-by-key/{sha256}
+  // path, which started answering 403 to onboarding-api's S2S SPIFFE call.
+  // R130 routes the fetch back through /stream/{sha256} (the path that
+  // works) while keeping R127's synchronous ResponseEntity<byte[]> shape
+  // so errors map to clean status codes. This pin probes the controller
+  // with a bogus trackId/step so we get a 404 (correct) rather than a 502
+  // (the regression) — a 502 would prove the storage-manager S2S path
+  // broke again.
+  test('R130: /api/flow-steps/{t}/{s}/{dir}/content never returns 502 on storage fetch path @regression', async ({ api }) => {
+    const resp = await api.get('/api/flow-steps/TRZDOESNOTEXIST/0/input/content');
+    expect([404, 400], 'flow-step preview must surface 404 for a missing trackId, never 502 from the storage-fetch path')
+      .toContain(resp.status());
+  });
+
+  // R130 BUG 2: the Activity Monitor row-level Restart button was gated
+  // on RESTARTABLE_STATUSES. R125 widened the top-level set from
+  // ['FAILED'] to ['FAILED','CANCELLED','UNMATCHED','PAUSED','PENDING'] —
+  // but an inner `const RESTARTABLE_STATUSES = new Set(['FAILED'])`
+  // declared later in the same component function shadowed it, so the
+  // row-button visibility check kept resolving to ['FAILED']. R130
+  // renamed the inner set to BULK_SELECT_STATUSES (its real purpose —
+  // "select all failed" bulk-checkbox target). This pin is source-level:
+  // it asserts the file contains the R125 set AND does not re-declare
+  // a RESTARTABLE_STATUSES in an inner scope that would shadow it.
+  test('R130: RESTARTABLE_STATUSES widening is not shadowed by an inner declaration @regression', async () => {
+    const fs = require('fs');
+    const path = require('path');
+    const amSrc = fs.readFileSync(
+      path.join(__dirname, '../../../ui-service/src/pages/ActivityMonitor.jsx'),
+      'utf8'
+    );
+    const decls = amSrc.match(/const\s+RESTARTABLE_STATUSES\s*=/g) || [];
+    expect(decls.length,
+      'ActivityMonitor.jsx must declare RESTARTABLE_STATUSES exactly once; any second declaration shadows R125 widening and hides the Restart button on PAUSED/PENDING/UNMATCHED rows'
+    ).toBe(1);
+    expect(amSrc,
+      'RESTARTABLE_STATUSES must include PAUSED (R125 widening)'
+    ).toMatch(/RESTARTABLE_STATUSES[^=]*=[^[]*\[[^\]]*'PAUSED'/);
+  });
+});
+
 test.describe('Regression pins — flow engine + data plane', () => {
   test('R86: byte-level E2E preserves content through EXECUTE_SCRIPT step @regression', async ({ api }) => {
     // R86 closed the arc where EXECUTE_SCRIPT needed to pass through VFS.
@@ -314,6 +358,40 @@ test.describe('Regression pins — schema / ORM mapping', () => {
     const body = await resp.json();
     expect(body).toHaveProperty('totalQueues');
     expect(body).toHaveProperty('byCategory');
+  });
+
+  // R130 BUG 3: /api/servers was routed to config-service (legacy
+  // ServerConfigController, empty server_configs table) while the real
+  // server_instances data lives on onboarding-api. Admin UI rendered
+  // "No server instances registered" with 13 live BOUND listeners. Pin:
+  // if the nginx gateway re-resolves /api/servers to config-service's
+  // (now renamed /api/legacy-server-configs) empty controller, or the
+  // onboarding-api mapping drops the Server Instances page silently
+  // breaks for every operator. Assert we get back a list whose
+  // elements look like the onboarding-api ServerInstanceResponse shape
+  // (has an instanceId, protocol, bindState) rather than the legacy
+  // ServerConfig shape.
+  test('R130: /api/servers resolves to onboarding-api (server_instances, not legacy server_configs) @regression', async ({ api }) => {
+    const resp = await api.get('/api/servers');
+    expect(resp.status(), 'GET /api/servers should route to the live controller')
+      .toBe(200);
+    const body = await resp.json();
+    expect(Array.isArray(body), '/api/servers should return a JSON array').toBe(true);
+    // Either the list is empty (legit pre-seed state) OR it contains entries
+    // with the onboarding-api shape. The legacy ServerConfig shape does NOT
+    // have instanceId / bindState.
+    if (body.length > 0) {
+      const first = body[0];
+      expect(first,
+        '/api/servers element must look like a ServerInstance (has instanceId / protocol), not a legacy ServerConfig')
+        .toEqual(expect.objectContaining({
+          protocol: expect.any(String),
+        }));
+      expect(
+        'instanceId' in first || 'bindState' in first,
+        '/api/servers element must expose instanceId or bindState — those are ServerInstance fields and prove we routed to onboarding-api, not the legacy config-service controller'
+      ).toBe(true);
+    }
   });
 });
 

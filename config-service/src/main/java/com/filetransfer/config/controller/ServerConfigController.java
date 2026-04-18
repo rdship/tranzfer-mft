@@ -16,21 +16,28 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Server Configuration API — lets admins dynamically configure service instances.
+ * Legacy Server Configuration API — backed by the {@code server_configs}
+ * table, which R130's acceptance found carrying 0 rows on a running stack.
+ * The authoritative "server instances" surface is
+ * {@code onboarding-api}'s {@code ServerInstanceController} at
+ * {@code /api/servers}, which reads {@code server_instances} (13 active
+ * rows on the tester's stack).
  *
- * GET    /api/servers                     list all active servers
- * GET    /api/servers?type=SFTP           filter by service type
- * GET    /api/servers/{id}               get one
- * POST   /api/servers                    create new server config
- * PUT    /api/servers/{id}               update full config
- * PATCH  /api/servers/{id}/active        enable / disable
- * DELETE /api/servers/{id}               delete
+ * <p>R130 renamed this legacy controller's request mapping from
+ * {@code /api/servers} → {@code /api/legacy-server-configs} so the gateway
+ * route to {@code /api/servers} resolves unambiguously to the live
+ * onboarding-api controller instead of this dead legacy one. The Server
+ * Instances admin page was rendering "No servers registered" because the
+ * gateway was proxying to this controller's empty list.
+ *
+ * <p>Code kept in place rather than deleted so any script or CLI that
+ * still references the legacy shape can be migrated with a precise grep.
  */
 @RestController
-@RequestMapping("/api/servers")
+@RequestMapping("/api/legacy-server-configs")
 @RequiredArgsConstructor
 @PreAuthorize(Roles.OPERATOR)
-@Tag(name = "Server Configuration", description = "Dynamic configuration of SFTP/FTP/AS2 service instances")
+@Tag(name = "Legacy Server Configuration", description = "Deprecated — use /api/servers on onboarding-api")
 public class ServerConfigController {
 
     private final ServerConfigService serverConfigService;

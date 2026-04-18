@@ -955,8 +955,18 @@ export default function ActivityMonitor() {
   })
 
   // ── Checkbox helpers ───────────────────────────────────────────────────
-  const RESTARTABLE_STATUSES = new Set(['FAILED'])
-  const isRowSelectable = (row) => RESTARTABLE_STATUSES.has(row.status)
+  // R130: was `const RESTARTABLE_STATUSES = new Set(['FAILED'])` which
+  // shadowed the file-level RESTARTABLE_STATUSES (5 states, added R125).
+  // The inner set was intentionally narrower — the bulk-select checkbox
+  // target is FAILED only ("Select all failed") — but the same name as
+  // the outer constant meant every downstream `RESTARTABLE_STATUSES.has(...)`
+  // reference resolved to the inner set, including the per-row Restart
+  // button visibility check. Result: Restart button never appeared on
+  // PAUSED/PENDING/UNMATCHED/CANCELLED rows despite R125's fix. Renamed to
+  // BULK_SELECT_STATUSES so scope is unambiguous and the outer R125 set
+  // is reachable by the per-row button logic again.
+  const BULK_SELECT_STATUSES = new Set(['FAILED'])
+  const isRowSelectable = (row) => BULK_SELECT_STATUSES.has(row.status)
 
   const toggleRow = useCallback((trackId) => {
     setSelectedTrackIds(prev => {

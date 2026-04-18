@@ -90,28 +90,35 @@ public class FlowStepPreviewController {
 
         log.debug("[{}] Reading step {} {} → key={}", trackId, stepIndex, direction, storageKey);
 
-        // R127: was StreamingResponseBody → storageClient.streamToOutput.
-        // Problem: when storage-manager returned 4xx (e.g. a 403 from SPIFFE
-        // auth race, or 404 for a missing backend object), RestTemplate threw
-        // HttpStatusCodeException from inside the async body lambda. Spring
-        // had already committed 200+headers, so the error came out as either
-        // a 500 generic or a bare 403 body, leaving the Activity Monitor with
-        // no usable per-step preview.
-        // Fix: read synchronously into heap and return ResponseEntity<byte[]>.
-        // Flow-step preview files are per-step snapshots (KB-to-MB range, not
-        // GB payloads), so heap buffering is fine, and downstream status codes
-        // propagate cleanly via ResponseStatusException.
+        // R127 → R130 lesson. R127 first-pass switched from
+        // StreamingResponseBody → retrieveBySha256() (the `/retrieve-by-key/`
+        // endpoint). That path started answering 403 for onboarding-api's
+        // S2S calls — the Journey UI Download button returned 502 to every
+        // admin on every COMPLETED transfer. The `/stream/{sha256}` endpoint,
+        // which the pre-R127 streamToOutput path used, continues to accept
+        // onboarding-api's SPIFFE identity and is the one the tester flagged
+        // as authorised. We keep R127's synchronous heap-buffer approach
+        // (so downstream 4xx still map cleanly to ResponseStatusException
+        // rather than leaking through a committed 200) but route bytes via
+        // streamToOutput → ByteArrayOutputStream so the working S2S path is
+        // used. Flow-step preview files are KB-to-MB snapshots, heap
+        // buffering is fine.
         byte[] bytes;
+        java.io.ByteArrayOutputStream sink = new java.io.ByteArrayOutputStream();
         try {
-            bytes = storageClient.retrieveBySha256(storageKey);
-        } catch (org.springframework.web.client.HttpStatusCodeException httpEx) {
-            log.warn("[{}] storage-manager returned {} for step {} {} (key={})",
-                    trackId, httpEx.getStatusCode(), stepIndex, direction, storageKey);
-            throw new ResponseStatusException(
-                    httpEx.getStatusCode().is4xxClientError() ? HttpStatus.NOT_FOUND
-                            : HttpStatus.BAD_GATEWAY,
-                    "Storage fetch failed for key=" + storageKey + ": " + httpEx.getStatusCode());
+            storageClient.streamToOutput(storageKey, sink);
+            bytes = sink.toByteArray();
         } catch (Exception e) {
+            Throwable root = e;
+            while (root.getCause() != null) root = root.getCause();
+            if (root instanceof org.springframework.web.client.HttpStatusCodeException httpEx) {
+                log.warn("[{}] storage-manager returned {} for step {} {} (key={})",
+                        trackId, httpEx.getStatusCode(), stepIndex, direction, storageKey);
+                throw new ResponseStatusException(
+                        httpEx.getStatusCode().is4xxClientError() ? HttpStatus.NOT_FOUND
+                                : HttpStatus.BAD_GATEWAY,
+                        "Storage fetch failed for key=" + storageKey + ": " + httpEx.getStatusCode());
+            }
             log.warn("[{}] Failed to read step {} {}: {}", trackId, stepIndex, direction, e.getMessage());
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                     "Storage fetch failed for key=" + storageKey);
