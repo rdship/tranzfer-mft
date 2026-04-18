@@ -1,13 +1,14 @@
 package com.filetransfer.shared.config;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.catalina.connector.Connector;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.embedded.tomcat.TomcatWebServer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.Nullable;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -25,15 +26,24 @@ import java.util.*;
  *   <li>POST /api/internal/listeners/{port}/pause — pause a connector (stop accepting new connections)
  *   <li>POST /api/internal/listeners/{port}/resume — resume a paused connector
  * </ul>
+ *
+ * <p>R110: {@code ServletWebServerApplicationContext} is injected as an
+ * optional field (rather than a {@code final} constructor param) so that the
+ * central {@code db-migrate} container — a Spring Boot non-web app built
+ * from onboarding-api under AOT — does not fail context refresh when this
+ * controller is eagerly pre-registered. {@code @ConditionalOnWebApplication}
+ * remains as the primary guard for non-AOT deployments; the nullable
+ * injection is the belt-and-suspenders fallback for AOT's frozen bean graph.
  */
 @Slf4j
 @RestController
 @RequestMapping("/api/internal/listeners")
 @ConditionalOnWebApplication
-@RequiredArgsConstructor
 public class ListenerInfoController {
 
-    private final ServletWebServerApplicationContext webServerContext;
+    @Autowired(required = false)
+    @Nullable
+    private ServletWebServerApplicationContext webServerContext;
 
     @Value("${cluster.service-type:UNKNOWN}")
     private String serviceType;
@@ -51,6 +61,7 @@ public class ListenerInfoController {
     public List<Map<String, Object>> getListeners() {
         List<Map<String, Object>> listeners = new ArrayList<>();
 
+        if (webServerContext == null) return listeners;
         if (webServerContext.getWebServer() instanceof TomcatWebServer tomcat) {
             for (Connector connector : tomcat.getTomcat().getService().findConnectors()) {
                 Map<String, Object> info = new LinkedHashMap<>();
@@ -96,7 +107,8 @@ public class ListenerInfoController {
     }
 
     private ResponseEntity<Map<String, String>> controlConnector(int port, boolean pause) {
-        if (!(webServerContext.getWebServer() instanceof TomcatWebServer tomcat)) {
+        if (webServerContext == null
+                || !(webServerContext.getWebServer() instanceof TomcatWebServer tomcat)) {
             return ResponseEntity.status(501).body(Map.of("error", "Not a Tomcat server"));
         }
 
