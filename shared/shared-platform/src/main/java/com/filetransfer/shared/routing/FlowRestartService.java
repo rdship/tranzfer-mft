@@ -246,6 +246,71 @@ public class FlowRestartService {
                 Map.of("trackId", trackId, "previousStatus", exec.getStatus().name(), "by", requestedBy));
     }
 
+    // ── Pause / Resume (R106) ─────────────────────────────────────────────────
+
+    /**
+     * Request a graceful pause of a PROCESSING execution. The engine polls
+     * {@code pauseRequested} between steps and exits the run loop with status
+     * PAUSED — {@code currentStep} and {@code currentStorageKey} are preserved,
+     * so resume() can pick up without loss.
+     *
+     * <p>Non-PROCESSING executions are flipped directly to PAUSED when they
+     * are in a state that can be resumed (FAILED / CANCELLED / PAUSED is fine).
+     * COMPLETED executions cannot be paused — there is nothing to resume.
+     */
+    @Transactional
+    public void pause(String trackId, String requestedBy, String reason) {
+        FlowExecution exec = executionRepo.findByTrackId(trackId)
+                .orElseThrow(() -> new IllegalArgumentException("Execution not found: " + trackId));
+        if (exec.getStatus() == FlowExecution.FlowStatus.COMPLETED) {
+            throw new IllegalStateException("Cannot pause a COMPLETED execution");
+        }
+        if (exec.getStatus() == FlowExecution.FlowStatus.PAUSED) {
+            throw new IllegalStateException("Execution is already PAUSED");
+        }
+        exec.setPauseRequested(true);
+        exec.setPausedBy(requestedBy);
+        exec.setPausedAt(Instant.now());
+        if (reason != null && !reason.isBlank()) {
+            exec.setPauseReason(reason.length() > 500 ? reason.substring(0, 500) : reason);
+        }
+        if (exec.getStatus() != FlowExecution.FlowStatus.PROCESSING) {
+            // Already idle — flip straight to PAUSED without waiting for the engine poll
+            exec.setStatus(FlowExecution.FlowStatus.PAUSED);
+        }
+        executionRepo.save(exec);
+        log.info("[{}] PAUSE requested by {} (reason={}), status={}",
+                trackId, requestedBy, reason, exec.getStatus());
+        auditService.logAction(requestedBy, "FLOW_PAUSE", true, null,
+                Map.of("trackId", trackId, "previousStatus", exec.getStatus().name(),
+                        "reason", reason == null ? "" : reason));
+    }
+
+    /**
+     * Resume a PAUSED execution from its saved {@code currentStep}. Clears the
+     * pause flag and submits a restart-from-step async. If the execution is not
+     * PAUSED (e.g. FAILED after pause), the caller should use restartFromStep
+     * directly — we only accept PAUSED here to avoid surprising behaviour.
+     */
+    @Transactional
+    public void resume(String trackId, String requestedBy) {
+        FlowExecution exec = executionRepo.findByTrackId(trackId)
+                .orElseThrow(() -> new IllegalArgumentException("Execution not found: " + trackId));
+        if (exec.getStatus() != FlowExecution.FlowStatus.PAUSED) {
+            throw new IllegalStateException("Only PAUSED executions can be resumed; current status is "
+                    + exec.getStatus());
+        }
+        int resumeStep = Math.max(0, exec.getCurrentStep());
+        exec.setPauseRequested(false);
+        exec.setResumedBy(requestedBy);
+        exec.setResumedAt(Instant.now());
+        executionRepo.save(exec);
+        log.info("[{}] RESUME from step {} requested by {}", trackId, resumeStep, requestedBy);
+        auditService.logAction(requestedBy, "FLOW_RESUME", true, null,
+                Map.of("trackId", trackId, "fromStep", resumeStep));
+        restartFromStep(trackId, resumeStep, requestedBy);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private FlowExecution loadRestartable(String trackId) {

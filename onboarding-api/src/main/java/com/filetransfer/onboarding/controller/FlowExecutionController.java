@@ -237,6 +237,76 @@ public class FlowExecutionController {
                         : "Execution cancelled."));
     }
 
+    // ── Pause / Resume (R106) ────────────────────────────────────────────────
+
+    /**
+     * Request a graceful pause of a PROCESSING execution.
+     * Body (optional): {@code { "reason": "Partner outage — hold deliveries" }}
+     *
+     * <p>Unlike terminate(), pause preserves {@code currentStep} and the storage
+     * key so resume() picks up exactly where it left off. Use pause for
+     * ops-initiated holds; use terminate for "abandon this transfer".
+     */
+    @PostMapping("/{trackId}/pause")
+    @PreAuthorize(Roles.OPERATOR)
+    public ResponseEntity<Map<String, Object>> pause(
+            @PathVariable String trackId,
+            @org.springframework.web.bind.annotation.RequestBody(required = false) Map<String, Object> body,
+            @AuthenticationPrincipal UserDetails user) {
+
+        String principal = user != null ? user.getUsername() : "api";
+        String reason = body != null ? (String) body.getOrDefault("reason", "") : "";
+        log.info("[{}] PAUSE requested by {} (reason={})", trackId, principal, reason);
+
+        try {
+            restartService.pause(trackId, principal, reason);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (IllegalStateException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
+        }
+
+        FlowExecution exec = executionRepo.findByTrackId(trackId).orElseThrow();
+        return ResponseEntity.accepted().body(Map.of(
+                "status", exec.getStatus().name(),
+                "trackId", trackId,
+                "pausedBy", principal,
+                "pauseReason", reason == null ? "" : reason,
+                "message", exec.getStatus() == FlowExecution.FlowStatus.PROCESSING
+                        ? "Pause requested. Agent will exit after current step with status=PAUSED."
+                        : "Execution marked PAUSED."));
+    }
+
+    /**
+     * Resume a PAUSED execution from its saved {@code currentStep}. Submits an
+     * async restart; poll GET /{trackId} for progress.
+     */
+    @PostMapping("/{trackId}/resume")
+    @PreAuthorize(Roles.OPERATOR)
+    public ResponseEntity<Map<String, Object>> resume(
+            @PathVariable String trackId,
+            @AuthenticationPrincipal UserDetails user) {
+
+        String principal = user != null ? user.getUsername() : "api";
+        log.info("[{}] RESUME requested by {}", trackId, principal);
+
+        try {
+            restartService.resume(trackId, principal);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (IllegalStateException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
+        }
+
+        FlowExecution exec = executionRepo.findByTrackId(trackId).orElseThrow();
+        return ResponseEntity.accepted().body(Map.of(
+                "status", "RESUME_QUEUED",
+                "trackId", trackId,
+                "fromStep", exec.getCurrentStep(),
+                "resumedBy", principal,
+                "message", "Resume queued from step " + exec.getCurrentStep() + "."));
+    }
+
     // ── Approval gates ────────────────────────────────────────────────────────
 
     /**

@@ -76,6 +76,22 @@ public class FlowExecution {
     @Builder.Default
     private boolean terminationRequested = false;
 
+    /**
+     * R106: set to true by pause API. The running agent polls this between steps
+     * and exits with status PAUSED (distinct from CANCELLED — file is preserved
+     * and currentStep stays put so resume() can pick up from the same position).
+     */
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean pauseRequested = false;
+
+    private String pausedBy;
+    private Instant pausedAt;
+    @Column(length = 500)
+    private String pauseReason;
+    private String resumedBy;
+    private Instant resumedAt;
+
     private String restartedBy;
     private Instant restartedAt;
     private String terminatedBy;

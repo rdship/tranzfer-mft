@@ -550,7 +550,7 @@ public class FlowProcessingEngine {
                     return;
                 }
             }
-            // ── Termination check between steps (PHYSICAL mode) ──
+            // ── Termination / pause check between steps (PHYSICAL mode) ──
             FlowExecution fresh = executionRepository.findById(exec.getId()).orElse(null);
             if (fresh != null && fresh.isTerminationRequested()) {
                 exec.setStatus(FlowExecution.FlowStatus.CANCELLED);
@@ -560,6 +560,20 @@ public class FlowProcessingEngine {
                 executionRepository.save(exec);
                 mirrorTerminalStatusToTransferRecord(exec, FileTransferStatus.FAILED, exec.getErrorMessage());
                 log.info("[{}] Flow CANCELLED by {} after step {}", trackId, fresh.getTerminatedBy(), i);
+                return;
+            }
+            if (fresh != null && fresh.isPauseRequested()) {
+                exec.setStatus(FlowExecution.FlowStatus.PAUSED);
+                exec.setCurrentStep(i + 1);
+                exec.setStepResults(results);
+                executionRepository.save(exec);
+                if (flowEventJournal != null) {
+                    flowEventJournal.recordExecutionPaused(trackId, exec.getId(), i + 1,
+                            "admin pause by " + fresh.getPausedBy()
+                                    + (fresh.getPauseReason() != null ? " — " + fresh.getPauseReason() : ""));
+                }
+                log.info("[{}] Flow PAUSED by {} after step {} — resume picks up at step {}",
+                        trackId, fresh.getPausedBy(), i, i + 1);
                 return;
             }
             if (!stepSucceeded) {
@@ -1624,7 +1638,7 @@ public class FlowProcessingEngine {
                     return;
                 }
             }
-            // ── termination check between steps (non-blocking poll) ───────────
+            // ── termination / pause check between steps (non-blocking poll, VIRTUAL) ──
             FlowExecution fresh = executionRepository.findById(exec.getId()).orElse(null);
             if (fresh != null && fresh.isTerminationRequested()) {
                 exec.setStatus(FlowExecution.FlowStatus.CANCELLED);
@@ -1634,6 +1648,21 @@ public class FlowProcessingEngine {
                 executionRepository.save(exec);
                 mirrorTerminalStatusToTransferRecord(exec, FileTransferStatus.FAILED, exec.getErrorMessage());
                 log.info("[{}] Flow CANCELLED by {} after step {}", trackId, fresh.getTerminatedBy(), i);
+                return;
+            }
+            if (fresh != null && fresh.isPauseRequested()) {
+                exec.setStatus(FlowExecution.FlowStatus.PAUSED);
+                exec.setCurrentStep(i + 1);
+                exec.setCurrentStorageKey(currentKey);
+                exec.setStepResults(results);
+                executionRepository.save(exec);
+                if (flowEventJournal != null) {
+                    flowEventJournal.recordExecutionPaused(trackId, exec.getId(), i + 1,
+                            "admin pause by " + fresh.getPausedBy()
+                                    + (fresh.getPauseReason() != null ? " — " + fresh.getPauseReason() : ""));
+                }
+                log.info("[{}] Flow PAUSED by {} after step {} (VIRTUAL) — resume key={}",
+                        trackId, fresh.getPausedBy(), i, abbrev(currentKey));
                 return;
             }
             if (!stepSucceeded) {
