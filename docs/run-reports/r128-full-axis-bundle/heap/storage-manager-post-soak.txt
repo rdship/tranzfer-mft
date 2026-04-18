@@ -1,0 +1,26 @@
+java PID: 1
+--- /proc/1/status ---
+State:	S (sleeping)
+VmPeak:	 5687172 kB
+VmSize:	 5687172 kB
+VmLck:	       0 kB
+VmPin:	       0 kB
+VmHWM:	  781928 kB
+VmRSS:	  781928 kB
+VmData:	  942568 kB
+VmStk:	     132 kB
+VmExe:	       4 kB
+VmLib:	   23344 kB
+VmPTE:	    2168 kB
+VmSwap:	       0 kB
+Threads:	64
+
+--- /proc/1/smaps heap size ---
+Size:                204 kB
+
+--- allocation via jstat-style: GC counters from jni ---
+boot-phase-dumps
+hsperfdata_appuser
+hsperfdata_root
+tomcat.8096.7103332009149197356
+tomcat-docbase.8096.2543677020552383134
