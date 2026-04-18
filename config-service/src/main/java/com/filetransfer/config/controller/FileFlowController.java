@@ -52,7 +52,14 @@ public class FileFlowController {
     // --- Flow CRUD ---
 
     @GetMapping
-    @Cacheable(value = "flows", unless = "#result.isEmpty()")
+    // R128: removed @Cacheable — GenericJackson2JsonRedisSerializer was
+    // injecting an ambiguous "@class" type-id for the nested
+    // List<Map<String,Object>> steps field on FileFlowDto, so readback
+    // blew up with a type-id error on every list request. The R127
+    // acceptance + fixture script both flagged /api/flows as unusable
+    // via cache. Correctness > microseconds here; the list is small
+    // (dozens of rows, not thousands) and gated by @Transactional
+    // readOnly so it's cheap.
     @Transactional(readOnly = true)
     public List<FileFlowDto> getAllFlows() {
         List<FileFlow> flows = flowRepository.findByActiveTrueOrderByPriorityAsc();

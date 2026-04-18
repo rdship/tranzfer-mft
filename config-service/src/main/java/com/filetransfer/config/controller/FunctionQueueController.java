@@ -52,6 +52,30 @@ public class FunctionQueueController {
         return queues;
     }
 
+    /**
+     * R128: summary counts used by the Dashboard "Function queues" widget.
+     * Declared BEFORE {@link #get(UUID)} so Spring dispatches exact-match
+     * literal paths first. Previously hitting `/dashboard-stats` fell into
+     * `/{id}` which tried to parse the literal as a UUID and 400-ed with
+     * a MethodArgumentTypeMismatchException (R127 acceptance finding).
+     */
+    @GetMapping("/dashboard-stats")
+    public Map<String, Object> dashboardStats() {
+        List<FunctionQueue> queues = queueRepo.findAll();
+        Map<String, Long> byCategory = new java.util.LinkedHashMap<>();
+        long activeFlowsUsingQueues = 0;
+        for (FunctionQueue q : queues) {
+            String cat = q.getCategory() == null ? "UNCATEGORIZED" : q.getCategory();
+            byCategory.merge(cat, 1L, Long::sum);
+            activeFlowsUsingQueues += countFlowsUsingFunction(q.getFunctionType());
+        }
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("totalQueues", queues.size());
+        out.put("byCategory", byCategory);
+        out.put("activeFlowsUsingQueues", activeFlowsUsingQueues);
+        return out;
+    }
+
     /** Get single queue by ID */
     @GetMapping("/{id}")
     public FunctionQueue get(@PathVariable UUID id) {

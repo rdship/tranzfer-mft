@@ -50,8 +50,15 @@ public class TransferTicket {
     /** File size in bytes */
     private Long fileSizeBytes;
 
-    /** SHA-256 of the file (set by sender at ticket creation) */
-    @Column(length = 64)
+    /** SHA-256 of the file (set by sender at ticket creation). */
+    // R128: SpringPhysicalNamingStrategy converts sha256Checksum to
+    // "sha256checksum" (no underscore between the digit and letter), but
+    // the DB migration created the column as "sha256_checksum". Every
+    // SELECT on /api/p2p/tickets therefore crashed with 42703 column does
+    // not exist. The R127 LEFT JOIN FETCH was the right idea but never
+    // reached runtime; this explicit @Column(name) is what makes the
+    // endpoint actually return.
+    @Column(name = "sha256_checksum", length = 64)
     private String sha256Checksum;
 
     /** Receiver's registered host:port for direct connection */
