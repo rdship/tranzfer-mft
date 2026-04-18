@@ -51,6 +51,7 @@ x-common-env: &common-env
     -XX:MaxMetaspaceSize=384m
     -XX:+HeapDumpOnOutOfMemoryError
     -XX:HeapDumpPath=/tmp/heapdump-%p.hprof
+    -XX:StartFlightRecording=duration=300s,filename=/tmp/boot-jfr.jfr,settings=profile,dumponexit=true
     -Dnet.bytebuddy.experimental=true
     -Dspring.jmx.enabled=false
     -Dspring.aot.enabled=${AOT_ENABLED:-true}
@@ -1387,6 +1388,7 @@ services:
         -XX:MaxMetaspaceSize=192m
         -XX:+HeapDumpOnOutOfMemoryError
         -XX:HeapDumpPath=/tmp/heapdump-%p.hprof
+        -XX:StartFlightRecording=duration=300s,filename=/tmp/boot-jfr.jfr,settings=profile,dumponexit=true
         -Dnet.bytebuddy.experimental=true
         -Dspring.jmx.enabled=false
       SERVER_PORT: 8095
