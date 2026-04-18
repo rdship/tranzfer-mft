@@ -16,7 +16,10 @@ import java.util.*;
  * Designed to be compatible with any external system — standard REST + PEM output.
  */
 @RestController @RequestMapping("/api/v1/keys") @RequiredArgsConstructor
-@PreAuthorize(Roles.OPERATOR)
+// R122: accept ROLE_INTERNAL alongside ADMIN/OPERATOR — encryption-service
+// and other flow-engine callers need to fetch keys via S2S with their
+// SPIFFE identity. See StorageController R122 note + Roles.INTERNAL_OR_OPERATOR.
+@PreAuthorize(Roles.INTERNAL_OR_OPERATOR)
 public class KeystoreController {
 
     private final KeyManagementService keyService;

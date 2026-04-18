@@ -1,0 +1,148 @@
+name: e2e-smoke
+
+# R122 proactive gate: runs the tester's own sanity sweep + byte-E2E on every
+# PR touching the stack. We see what the tester sees, before they do.
+#
+# Exists because the R111→R116 SPIFFE arc took 6 releases to peel — each
+# release the tester ran `build-regression-fixture.sh` + `sanity-test.sh` +
+# noticed the byte-E2E step failed. Running those same scripts in CI
+# compresses the diagnostic loop from 6 releases to 1. Would have caught
+# every layer of the SPIFFE onion on the PR that introduced it.
+#
+# Distinct from first-boot-gate:
+#   - first-boot-gate: "did every service reach healthy without restarting?"
+#   - e2e-smoke:       "can we actually move a byte through the platform?"
+# Different signals; both required for Gold.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '**/src/main/java/**'
+      - '**/src/main/resources/application*.yml'
+      - 'docker-compose.yml'
+      - 'shared/**/pom.xml'
+      - 'spire/**'
+      - 'scripts/sanity-test.sh'
+      - 'scripts/build-regression-fixture.sh'
+      - '.github/workflows/e2e-smoke.yml'
+  push:
+    branches: [main]
+
+jobs:
+  e2e-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Install jq + curl
+        run: sudo apt-get update && sudo apt-get install -y jq curl
+
+      - name: Build Java services
+        run: mvn -q -B -DskipTests package
+        env:
+          MAVEN_OPTS: '-Xmx3g'
+
+      - name: Pre-pull infra images
+        run: |
+          docker pull postgres:16-alpine
+          docker pull rabbitmq:3.13-management-alpine
+          docker pull redis:7-alpine
+          docker pull nginx:alpine
+
+      - name: Cold boot full stack
+        run: |
+          docker compose up -d
+          echo "Waiting up to 10 min for platform to reach clean-healthy..."
+          deadline=$(( $(date +%s) + 600 ))
+          while [ $(date +%s) -lt $deadline ]; do
+            unhealthy=$(docker ps --filter 'health=unhealthy' -q | wc -l)
+            starting=$(docker ps --filter 'health=starting' -q | wc -l)
+            if [ "$unhealthy" -eq 0 ] && [ "$starting" -eq 0 ]; then
+              echo "✓ all containers reported healthy"
+              break
+            fi
+            sleep 10
+          done
+
+      - name: Build regression fixture (regtest users + flows)
+        run: ./scripts/build-regression-fixture.sh
+
+      - name: Run sanity sweep
+        run: ./scripts/sanity-test.sh
+
+      - name: Capture container logs on failure
+        if: failure()
+        run: |
+          mkdir -p /tmp/e2e-logs
+          for c in $(docker ps -aq); do
+            name=$(docker inspect --format '{{.Name}}' "$c" | tr -d '/')
+            docker logs "$c" > "/tmp/e2e-logs/$name.log" 2>&1 || true
+          done
+          docker ps -a > /tmp/e2e-logs/_ps.txt
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-smoke-logs
+          path: /tmp/e2e-logs/
+          retention-days: 14
+
+      - name: Teardown
+        if: always()
+        run: docker compose down -v --remove-orphans || true
+
+  # R122 informational job — lints for silent-catch patterns and reports the
+  # current count as a job summary. Not a hard gate yet (14 pre-existing
+  # violations would block every PR). Trend the count toward 0 over the
+  # next few releases, then flip this to a hard gate in a follow-up.
+  silent-catch-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run silent-catch lint (informational)
+        id: lint
+        continue-on-error: true
+        run: |
+          if ./scripts/lint-silent-catch.sh --verbose > /tmp/lint.out 2>&1; then
+            echo "status=clean" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=violations" >> "$GITHUB_OUTPUT"
+          fi
+          cat /tmp/lint.out
+
+      - name: Write summary
+        if: always()
+        run: |
+          echo '## Silent-catch lint' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.lint.outputs.status }}" = "clean" ]; then
+            echo '✅ No silent `catch (...) { log.debug(...) }` patterns detected.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            count=$(grep -c 'silent log.debug' /tmp/lint.out || echo 0)
+            echo "ℹ️  **$count** silent-catch pattern(s) detected (informational, not blocking)." >> "$GITHUB_STEP_SUMMARY"
+            echo '' >> "$GITHUB_STEP_SUMMARY"
+            echo 'Silent `log.debug` in a catch block is how R111/R112 hid SpiffeWorkloadClient' >> "$GITHUB_STEP_SUMMARY"
+            echo 'connection failures for 3 releases. See [docs/AOT-SAFETY.md](../blob/main/docs/AOT-SAFETY.md)' >> "$GITHUB_STEP_SUMMARY"
+            echo 'and `scripts/lint-silent-catch.sh` for remediation.' >> "$GITHUB_STEP_SUMMARY"
+            echo '' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            grep 'silent log.debug' /tmp/lint.out | head -25 >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi

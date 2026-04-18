@@ -37,7 +37,13 @@ import java.util.*;
  */
 @Slf4j
 @RestController @RequestMapping("/api/v1/storage") @RequiredArgsConstructor
-@PreAuthorize(Roles.OPERATOR)
+// R122: accept ROLE_INTERNAL (SPIFFE JWT-SVID from S2S callers) in addition
+// to ADMIN/OPERATOR. Flow-engine services (sftp / ftp / ftp-web / forwarder
+// / onboarding-api) call store-stream, retrieve, etc. with their SPIFFE
+// identity; PlatformJwtAuthFilter Path 1 maps that to ROLE_INTERNAL.
+// Without this, R120's verified SPIFFE auth cleared the authentication
+// layer but hit 403 AccessDenied at the authorization layer.
+@PreAuthorize(Roles.INTERNAL_OR_OPERATOR)
 public class StorageController {
 
     /** Injected implementation is selected by storage.backend property. */

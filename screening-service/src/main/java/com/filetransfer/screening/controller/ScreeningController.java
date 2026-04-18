@@ -20,7 +20,10 @@ import java.util.*;
 @RestController
 @RequestMapping("/api/v1/screening")
 @RequiredArgsConstructor
-@PreAuthorize(Roles.OPERATOR)
+// R122: accept ROLE_INTERNAL alongside ADMIN/OPERATOR — flow-engine calls
+// SCREEN step via S2S with its SPIFFE identity. See StorageController R122
+// note + Roles.INTERNAL_OR_OPERATOR.
+@PreAuthorize(Roles.INTERNAL_OR_OPERATOR)
 public class ScreeningController {
 
     private final ScreeningEngine screeningEngine;
