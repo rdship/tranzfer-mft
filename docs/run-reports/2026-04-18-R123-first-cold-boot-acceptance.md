@@ -5,7 +5,7 @@
 **Changes under test:**
 - R123 — version bump + gate-script fixes + `spring.application.name` added to services (tester-visible release).
 **Mandate:** ≤120 s boot per service, every feature preserved.
-**Outcome:** ✅ **Silver holds. Second consecutive Silver after R122.** Platform still delivers flow engine end-to-end; 34/34 healthy at t=183 s (31 s faster than R122's 214 s). Sanity unchanged at 56/60. No regressions on Playwright regression-pins (13/13 green). API perf budgets all green. The trajectory toward Gold is now Silver → Silver — the durability signal the rubric requires.
+**Outcome (CORRECTED):** 🥉 **Bronze (not Silver as originally graded).** CTO UI walk-through on 2026-04-18 surfaced primary-axis gaps I missed by grading on API evidence alone: (a) Activity Monitor file download endpoint returns 500/403, so clicking the download button does nothing visible to the user; (b) flow restart button is gated to FAILED/CANCELLED rows only, invisible for COMPLETED/PROCESSING/PENDING, so there's no UI path to re-process a flow. Platform still holds clean boot, working API, 34/34 healthy, flow engine completes via API — but for a real user the primary user-facing features aren't functional. See the "Release Rating" section for the correction detail and the new durable rule: every Silver+ requires a UI walk-through, not just API + pins.
 
 ---
 
@@ -70,24 +70,53 @@ These are my to-do items, not dev-team blockers. Tracked in the test files as `t
 
 > Rubric at [`docs/RELEASE-RATING-RUBRIC.md`](../RELEASE-RATING-RUBRIC.md). Gold has two layers: 24 public criteria (evolving) + ~18 private (tester+CTO only).
 
-### R123 = 🥈 Silver (2nd consecutive)
+### R123 — CORRECTION: 🥉 Bronze, not Silver (downgraded after UI walk-through)
+
+**Original grade was Silver based on API + regression-pin evidence. CTO
+walk-through of the UI on 2026-04-18 surfaced primary-axis gaps I missed
+by not clicking through the UI myself. Downgraded below per the rubric
+("Silver requires primary feature axes functional") and per the new
+durable rule: every Silver+ must include a UI walk-through.**
+
+**What I missed:**
+
+1. **Activity Monitor file download is broken.** The `FileDownloadButton`
+   renders on every row but the backing endpoint `GET /api/v1/storage/
+   retrieve/<trackId>` returns **500**, and the alternate
+   `GET /api/flow-steps/<trackId>/<step>/<direction>/content` returns
+   **403** (SPIFFE chain still rejecting some read paths). Clicking the
+   button just shows a toast error. CTO feedback was "not able to
+   download file on UI of activity monitor" — confirmed.
+2. **Flow restart UI is gated to FAILED/CANCELLED only.** The restart
+   button is `{canOperate && (status === 'FAILED' || 'CANCELLED')}` —
+   invisible for COMPLETED, PROCESSING, PENDING. CTO said "cannot find
+   button to restart file flows" — confirmed as a UX gap. There is no
+   UI path to re-process a completed flow or retry a stuck one.
+3. **I graded on API-only evidence.** The regression-pins + sanity
+   scripts hit API paths; none of them click an actual UI button. For
+   Silver the rubric says "primary feature axes functional" — download
+   and restart are basic user-facing features that aren't functional.
+
+**Discipline fix captured in durable memory:** every Silver+ rating must
+include a UI walk-through (upload → monitor → download → restart, plus
+every primary-page button). API + pins alone are insufficient.
+
+### R123 (corrected) = 🥉 Bronze
 
 **Justification — dimension by dimension:**
 
 | Axis | Assessment | Notes |
 |---|---|---|
-| **Works** | ✅ Functional | Flow engine end-to-end holds. Byte-E2E `r123-e2e.dat` → COMPLETED. 13/13 regression-pins green. |
-| **Safe** | ✅ Strong | SPIFFE per-service identity holds. RBAC holds. No 403 regressions. |
-| **Efficient** | ⚠️ Improving | 30 s cold-boot gain vs R122 (214 s → 183 s). Individual service boot times also down. Still 1/18 under 120 s mandate. API perf budgets green (login 103 ms, /api/accounts 77 ms). |
-| **Reliable** | ✅ Strong | No crash loops; R121+R122 proactive gates held across a consolidation release. |
+| **Works** | ❌ **Degraded** | Flow engine completes via **API**, but Activity Monitor download returns 500/403 and flow restart is UI-invisible for the common row states. From the user's perspective, primary features don't work. |
+| **Safe** | ⚠️ **Partial regression** | SPIFFE S2S works on the write path (sftp → storage-manager write), but on the READ path (storage-manager retrieve/flow-steps content) the auth chain still 403s. Not a regression vs R122 but an unmeasured gap that R123's UI walk-through surfaced. |
+| **Efficient** | ⚠️ Improving | 30 s cold-boot gain vs R122 (214 s → 183 s). API perf budgets green (login 103 ms, /api/accounts 77 ms). Still 1/18 under 120 s mandate. |
+| **Reliable** | ✅ Held | No crash loops; R121+R122 proactive gates held across a consolidation release. |
 
-**Silver hold because:** Silver criteria all still met; nothing regressed. Gold still needs the items in the full rubric — 120 s boot on all 18, sanity 60/60, Phase-2 mTLS exercised, chaos + soak + throughput exercised, private-layer review.
+**Bronze (corrected) because:** Primary feature axis is broken in the UI — download button clicks do nothing; restart button doesn't render for COMPLETED/PROCESSING/PENDING rows. Silver requires primary feature axes functional. I missed this by grading on API evidence alone.
 
-**Why not Gold:** still 4+ public-rubric items open (boot mandate, sanity completeness, Phase-2 mTLS, chaos/soak). Gold needs 3–5 disciplined releases of Silver before it's earned.
+**Why not No Medal:** Platform is up, login works, API paths work, flow engine DOES complete (just can't be acted on through UI). Customer-facing UI is broken in specific places, not the whole surface.
 
-**Why this Silver is stronger than R122's:**
-- R122 Silver was "first flow engine completion in 22 releases" — exciting but untested for durability.
-- R123 Silver is "flow engine still works + 30 s faster + API perf in budget + no regressions." That's the durability proof.
+**Why not Silver (retracting my earlier grade):** Silver explicitly requires that primary user-facing features work end-to-end. Download from Activity Monitor is a top-level feature; it's broken. Flow restart is a top-level admin feature; it's hidden. Neither survives the "could a customer use this?" test.
 
 ### Trajectory (R95 → R123)
 
@@ -99,13 +128,32 @@ These are my to-do items, not dev-team blockers. Tracked in the test files as `t
 | R118, R119 | 🚫 × 2 | R117 retrofit aftermath |
 | R120 | 🥉 | Recovery; SPIFFE per-service live |
 | R121+R122 | 🥈 | Flow engine unlocked |
-| **R123** | 🥈 | **Silver hold — durability signal** |
+| **R123** | 🥉 | **Corrected to Bronze — UI walk-through surfaced primary-axis gaps** |
 
-**Two consecutive Silvers for the first time in the arc.** Per the rubric's trajectory rules, Gold requires "at least 2 consecutive Silver releases preceding" — R123 + R124 would satisfy that timing constraint. Actual Gold still depends on the other mandates landing.
+**The consecutive-Silver streak resets.** R122 was genuinely Silver (flow engine completes end-to-end, verifiable via API). R123 is Bronze because the UI primary features are broken even though the API keeps working. Trajectory toward Gold needs to re-establish Silver first — R124 is the next chance.
 
-### What would earn Gold on R124+
+### Asks for R124 — elevated (UI + flow-restart UX added)
 
-Same scorecard as R122's. Per the full rubric, R123 meets ~4 of 24 public criteria (flow engine functional, SPIFFE Phase 1 live, regression pins green on 2 consecutive releases, API perf in budget). Items still open:
+After this correction, the priority list for R124 is:
+
+1. **Fix Activity Monitor file download endpoint.** Either
+   `GET /api/v1/storage/retrieve/<trackId>` (500) or
+   `GET /api/flow-steps/<trackId>/<step>/<direction>/content` (403).
+   The UI button exists; the backing endpoints must deliver.
+2. **Extend flow restart UI** to cover more states than just
+   FAILED/CANCELLED — at minimum allow admin to re-process a COMPLETED
+   flow (label it "re-run" if semantics differ). Without this, the CTO
+   and operators have no UI path to reprocess.
+3. **Prior R123 asks (all still open):** FTP-direct sanity, boot
+   mandate, 30-min soak, Phase-2 mTLS.
+4. **Tester test-infra debt:** fix the UI + SSE Playwright fixtures
+   so every user-facing button is click-asserted in the release-gate.
+
+### Road to Gold
+
+Per the full rubric, R123 still meets ~4 of 24 public criteria (flow
+engine functional via API, SPIFFE Phase 1 live, regression pins green,
+API perf in budget). Items still open:
 
 1. 120 s boot mandate on **all 18 services** (today: 1/18).
 2. Sanity **60/60** (today: 56/60 — 3 FTP-direct pre-existing).
