@@ -25,7 +25,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
     "com.filetransfer.shared.entity.integration",
     "com.filetransfer.shared.entity.vfs"
 })
-@EnableAsync
+// R102: see SharedConfig @EnableAsync comment — forces CGLIB proxies so
+// AOT proxy generation doesn't fall back to JDK dynamic proxy on beans
+// without declared interfaces.
+@EnableAsync(proxyTargetClass = true)
 @EnableJpaRepositories(basePackages = {
     "com.filetransfer.shared.repository.core",
     "com.filetransfer.shared.repository.transfer",

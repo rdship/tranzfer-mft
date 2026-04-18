@@ -26,7 +26,17 @@ import org.springframework.scheduling.annotation.EnableScheduling;
     "com.filetransfer.shared.repository.vfs"
 })
 @EnableScheduling
-@EnableAsync
+// R102: proxyTargetClass=true forces CGLIB subclass proxies for @Async beans
+// regardless of declared interfaces. Without this, AOT's build-time proxy
+// generator falls back to JDK dynamic proxy when a bean has no interfaces
+// (e.g. @Configuration AgentRegistrar with @Async @EventListener
+// registerAllAgents) — and the JDK proxy can't dispatch to methods that
+// only exist on the concrete class, crashing context refresh the moment
+// Spring tries to wire the @EventListener. Reflection-mode didn't hit
+// this because Spring picks CGLIB opportunistically at runtime; AOT picks
+// statically at build time and needs this hint. Tester flagged it in the
+// R97 first-cold-boot acceptance report.
+@EnableAsync(proxyTargetClass = true)
 public class AiEngineApplication {
     public static void main(String[] args) {
         SpringApplication app = new SpringApplication(AiEngineApplication.class); app.setBanner(new PlatformBanner()); app.run(args);

@@ -29,7 +29,15 @@ import java.util.concurrent.Executor;
 
 @Slf4j
 @Configuration
-@EnableAsync
+// R102: proxyTargetClass=true forces CGLIB subclass proxies for every
+// @Async bean across the platform regardless of declared interfaces.
+// Without this, Spring AOT's build-time proxy generator falls back to
+// JDK dynamic proxy on beans that don't declare interfaces, which can't
+// dispatch to methods that only exist on the concrete class. Spring's
+// runtime reflection picks CGLIB opportunistically so nothing breaks
+// pre-AOT; AOT picks statically and needs this hint. Declaring it once
+// in SharedConfig covers every service that imports shared-core.
+@EnableAsync(proxyTargetClass = true)
 @EnableScheduling
 @RequiredArgsConstructor
 public class SharedConfig {
