@@ -35,4 +35,25 @@ public class FtpWebListenerResolverFilter extends OncePerRequestFilter {
         listenerContext.initFromRequest(request);
         filterChain.doFilter(request, response);
     }
+
+    /**
+     * Skip infrastructure paths that don't need listener context: actuator
+     * endpoints (health probes, metrics, prometheus) and Spring Boot's
+     * error dispatch. R103: tester reported 403 on
+     * {@code /actuator/health/liveness} — root cause was this filter
+     * touching a {@code @RequestScope} bean ({@link FtpWebListenerContext})
+     * on actuator paths where Spring's request-scope wiring isn't set the
+     * same way as on DispatcherServlet paths. Docker health probes don't
+     * need listener context anyway, so skipping them is both correct and
+     * cheaper.
+     */
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        if (path == null) return false;
+        return path.startsWith("/actuator")
+                || path.equals("/error")
+                || path.startsWith("/v3/api-docs")
+                || path.startsWith("/swagger-ui");
+    }
 }
