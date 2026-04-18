@@ -70,7 +70,7 @@ class FlowProcessingEngineStatusMirrorTest {
         FlowExecution exec = FlowExecution.builder()
                 .id(UUID.randomUUID()).trackId("TRZ-TEST1")
                 .transferRecord(record).build();
-        when(recordRepo.findById(record.getId())).thenReturn(Optional.of(record));
+        when(recordRepo.findByTrackId(record.getTrackId())).thenReturn(Optional.of(record));
 
         mirrorMethod.invoke(engine, exec, FileTransferStatus.COMPLETED, null);
 
@@ -87,7 +87,7 @@ class FlowProcessingEngineStatusMirrorTest {
                 .status(FileTransferStatus.PENDING).build();
         FlowExecution exec = FlowExecution.builder()
                 .id(UUID.randomUUID()).trackId("TRZ-FAIL").transferRecord(record).build();
-        when(recordRepo.findById(record.getId())).thenReturn(Optional.of(record));
+        when(recordRepo.findByTrackId(record.getTrackId())).thenReturn(Optional.of(record));
 
         mirrorMethod.invoke(engine, exec, FileTransferStatus.FAILED, "Step ENCRYPT failed: key missing");
 
@@ -105,7 +105,7 @@ class FlowProcessingEngineStatusMirrorTest {
                 .downloadedAt(Instant.now().minusSeconds(60)).build();
         FlowExecution exec = FlowExecution.builder()
                 .id(UUID.randomUUID()).trackId("TRZ-DL").transferRecord(record).build();
-        when(recordRepo.findById(record.getId())).thenReturn(Optional.of(record));
+        when(recordRepo.findByTrackId(record.getTrackId())).thenReturn(Optional.of(record));
 
         mirrorMethod.invoke(engine, exec, FileTransferStatus.COMPLETED, null);
 
@@ -121,7 +121,7 @@ class FlowProcessingEngineStatusMirrorTest {
                 .status(FileTransferStatus.MOVED_TO_SENT).build();
         FlowExecution exec = FlowExecution.builder()
                 .id(UUID.randomUUID()).trackId("TRZ-MTS").transferRecord(record).build();
-        when(recordRepo.findById(record.getId())).thenReturn(Optional.of(record));
+        when(recordRepo.findByTrackId(record.getTrackId())).thenReturn(Optional.of(record));
 
         mirrorMethod.invoke(engine, exec, FileTransferStatus.FAILED, "late failure");
 
@@ -130,14 +130,38 @@ class FlowProcessingEngineStatusMirrorTest {
     }
 
     @Test
-    void isNoOpWhenExecutionHasNoTransferRecord() throws Exception {
+    void isNoOpWhenNoTransferRecordForTrackId() throws Exception {
+        // R114: helper looks up by trackId; ad-hoc flows with no matching record are no-ops.
         FlowExecution exec = FlowExecution.builder()
                 .id(UUID.randomUUID()).trackId("TRZ-ADHOC").build();
+        when(recordRepo.findByTrackId("TRZ-ADHOC")).thenReturn(Optional.empty());
 
         mirrorMethod.invoke(engine, exec, FileTransferStatus.COMPLETED, null);
 
-        verify(recordRepo, never()).findById(any());
         verify(recordRepo, never()).save(any());
+    }
+
+    @Test
+    void looksUpByTrackIdEvenWhenTransferRecordFieldIsUnpopulated() throws Exception {
+        // R114 regression pin: production FlowExecution.builder() never sets
+        // .transferRecord(), so R105a's original exec.getTransferRecord() check
+        // made the mirror a no-op in real traffic. After R114, the helper looks
+        // up by exec.getTrackId() — this test proves that path works even when
+        // the legacy association is null.
+        FileTransferRecord record = FileTransferRecord.builder()
+                .id(UUID.randomUUID()).trackId("TRZ-LOOKUP").originalFilename("r113-e2e.dat")
+                .sourceFilePath("/in").destinationFilePath("/out")
+                .status(FileTransferStatus.PENDING).build();
+        FlowExecution exec = FlowExecution.builder()
+                .id(UUID.randomUUID()).trackId("TRZ-LOOKUP").build();  // NO .transferRecord()
+        when(recordRepo.findByTrackId("TRZ-LOOKUP")).thenReturn(Optional.of(record));
+
+        mirrorMethod.invoke(engine, exec, FileTransferStatus.FAILED, "Step FAILED");
+
+        assertThat(record.getStatus()).isEqualTo(FileTransferStatus.FAILED);
+        assertThat(record.getErrorMessage()).isEqualTo("Step FAILED");
+        assertThat(record.getCompletedAt()).isNotNull();
+        verify(recordRepo).save(record);
     }
 
     @Test
@@ -150,7 +174,7 @@ class FlowProcessingEngineStatusMirrorTest {
                 .completedAt(existing).build();
         FlowExecution exec = FlowExecution.builder()
                 .id(UUID.randomUUID()).trackId("TRZ-CAT").transferRecord(record).build();
-        when(recordRepo.findById(record.getId())).thenReturn(Optional.of(record));
+        when(recordRepo.findByTrackId(record.getTrackId())).thenReturn(Optional.of(record));
 
         mirrorMethod.invoke(engine, exec, FileTransferStatus.COMPLETED, null);
 
@@ -165,7 +189,7 @@ class FlowProcessingEngineStatusMirrorTest {
                 .status(FileTransferStatus.PENDING).build();
         FlowExecution exec = FlowExecution.builder()
                 .id(UUID.randomUUID()).trackId("TRZ-EX").transferRecord(record).build();
-        when(recordRepo.findById(record.getId())).thenThrow(new RuntimeException("DB down"));
+        when(recordRepo.findByTrackId(record.getTrackId())).thenThrow(new RuntimeException("DB down"));
 
         // Must not propagate — mirror is best-effort; flow completion already committed
         mirrorMethod.invoke(engine, exec, FileTransferStatus.COMPLETED, null);

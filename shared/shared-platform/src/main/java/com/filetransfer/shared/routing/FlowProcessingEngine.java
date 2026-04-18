@@ -625,18 +625,27 @@ public class FlowProcessingEngine {
      * Closes R100 bug where mailbox flows completed but the record stayed at
      * status=PENDING, completedAt=null — breaking dashboards and SLA alerts.
      *
-     * <p>Null-safe (ad-hoc API flows have no linked record). Never regresses a
-     * record that has already advanced to DOWNLOADED or MOVED_TO_SENT — those
-     * are partner-pickup transitions that run independently of flow completion
-     * and must be preserved.
+     * <p>R114: looks the record up by {@code trackId} (not via
+     * {@code exec.getTransferRecord()}). R105a shipped the linkage via the
+     * FlowExecution.transferRecord association, but in production that field
+     * is never populated — FlowExecution.builder() is called without it in
+     * every call-site (RoutingEngine, FlowProcessingEngine itself,
+     * FlowRestartService, ScheduledTaskRunner). Only the pinning tests
+     * wire the association, so the mirror was silently a no-op everywhere.
+     * Looking up by trackId is the durable identity — every FlowExecution
+     * has a trackId and every FileTransferRecord indexes on it.
+     *
+     * <p>Null-safe (ad-hoc API flows without a record are a no-op). Never
+     * regresses a record that has already advanced to DOWNLOADED or
+     * MOVED_TO_SENT — those are partner-pickup transitions that run
+     * independently of flow completion and must be preserved.
      */
     private void mirrorTerminalStatusToTransferRecord(FlowExecution exec,
                                                        FileTransferStatus terminalStatus,
                                                        String errorMessage) {
-        if (exec == null || exec.getTransferRecord() == null) return;
+        if (exec == null || exec.getTrackId() == null || exec.getTrackId().isBlank()) return;
         try {
-            UUID recordId = exec.getTransferRecord().getId();
-            fileTransferRecordRepository.findById(recordId).ifPresent(record -> {
+            fileTransferRecordRepository.findByTrackId(exec.getTrackId()).ifPresent(record -> {
                 FileTransferStatus current = record.getStatus();
                 if (current == FileTransferStatus.DOWNLOADED
                         || current == FileTransferStatus.MOVED_TO_SENT) {
