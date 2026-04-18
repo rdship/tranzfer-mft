@@ -10,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.annotation.PostConstruct;
@@ -25,9 +24,14 @@ import java.util.UUID;
  * - Dead-pod detection (instances whose last_heartbeat > 2min old are considered dead)
  *
  * This is intentionally per-instance - no ShedLock. Every pod heartbeats itself.
+ *
+ * <p>R117 (AOT safety): class-level {@code @ConditionalOnProperty(flow.rules.enabled)}
+ * removed — evaluated at AOT build time, so a build without the property set
+ * would silently exclude this bean regardless of runtime env vars. Now
+ * unconditionally registered; {@link #heartbeat()} checks {@code flowRulesEnabled}
+ * at each tick and early-returns when disabled. See {@code docs/AOT-SAFETY.md}.
  */
 @Component
-@ConditionalOnProperty(name = "flow.rules.enabled", havingValue = "true", matchIfMissing = false)
 @RequiredArgsConstructor
 @Slf4j
 public class InstanceHeartbeatJob {
@@ -39,6 +43,10 @@ public class InstanceHeartbeatJob {
 
     @Value("${spring.application.name:unknown-service}")
     private String serviceName;
+
+    /** R117: runtime gate (replaces the old class-level @ConditionalOnProperty). */
+    @Value("${flow.rules.enabled:false}")
+    private boolean flowRulesEnabled;
 
     private String instanceId;
     private String host;
@@ -60,6 +68,7 @@ public class InstanceHeartbeatJob {
     @Scheduled(fixedDelay = 30_000, initialDelay = 5_000)
     @Transactional
     public void heartbeat() {
+        if (!flowRulesEnabled) return;
         if (!properties.isEnabled()) return;
 
         try {

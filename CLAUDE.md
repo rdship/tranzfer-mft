@@ -33,6 +33,14 @@ All repositories are interfaces → safe to @Mock
 ## Surefire Args (never remove):
 --add-opens java.base/java.lang=ALL-UNNAMED +reflect +util +invoke +io, -XX:+EnableDynamicAgentLoading
 
+## AOT safety (read before adding new @Bean with @ConditionalOnProperty)
+- AOT evaluates `@ConditionalOnProperty` at **build time**, not runtime. A bean with
+  `matchIfMissing=false` gated by a property the AOT processor doesn't see will be
+  **permanently** excluded from the frozen graph; runtime env vars cannot resurrect it.
+- Use the runtime-gate pattern for feature flags: unconditional `@Component` / `@Bean`
+  + `@Value("${flag:false}")` field + early-return in `@PostConstruct` / hot path.
+- Full doc + retrofit log: [docs/AOT-SAFETY.md](docs/AOT-SAFETY.md)
+
 ## Architecture
 - 24 modules (22 services + api-gateway + cli), shared library with 100 JPA entities
 - REST via ResilientServiceClient (circuit breaker+retry)

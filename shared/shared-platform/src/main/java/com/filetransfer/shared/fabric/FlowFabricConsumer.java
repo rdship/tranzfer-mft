@@ -10,9 +10,9 @@ import com.filetransfer.shared.repository.transfer.FlowExecutionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import jakarta.annotation.PostConstruct;
 import java.util.Arrays;
@@ -36,9 +36,17 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <p>Multiple pods run this consumer; Kafka distributes partitions across them for
  * automatic load balancing. If fabric is disabled or shared-fabric not on classpath,
  * this bean is still created but does nothing in {@link #init()}.
+ *
+ * <p>R117 (AOT safety): class-level {@code @ConditionalOnProperty(flow.rules.enabled)}
+ * removed. Spring Boot AOT evaluates conditions at build time — if the AOT
+ * processor's environment didn't have that property set, the bean would be
+ * permanently excluded from the frozen graph and runtime env vars couldn't
+ * resurrect it (this was the root cause of R110→R112's 3-release S2S 403 saga
+ * with SpiffeWorkloadClient). The bean is now unconditionally registered and
+ * {@link #init()} gates its own behaviour on {@code flow.rules.enabled} at
+ * runtime instead. See {@code docs/AOT-SAFETY.md}.
  */
 @Component
-@ConditionalOnProperty(name = "flow.rules.enabled", havingValue = "true", matchIfMissing = false)
 @RequiredArgsConstructor
 @Slf4j
 public class FlowFabricConsumer {
@@ -54,8 +62,16 @@ public class FlowFabricConsumer {
     @Lazy
     private com.filetransfer.shared.routing.FlowProcessingEngine flowProcessingEngine;
 
+    /** R117: runtime gate (replaces the old class-level @ConditionalOnProperty). */
+    @Value("${flow.rules.enabled:false}")
+    private boolean flowRulesEnabled;
+
     @PostConstruct
     void init() {
+        if (!flowRulesEnabled) {
+            log.info("[FlowFabricConsumer] flow.rules.enabled=false — not subscribing");
+            return;
+        }
         if (!properties.isEnabled() || !properties.getFlow().isConsume()) {
             log.info("[FlowFabricConsumer] Fabric flow consumption disabled, not subscribing");
             return;

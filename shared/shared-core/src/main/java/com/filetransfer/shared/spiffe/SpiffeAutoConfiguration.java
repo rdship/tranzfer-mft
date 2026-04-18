@@ -4,7 +4,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
@@ -65,13 +64,16 @@ public class SpiffeAutoConfiguration {
     /**
      * X.509 source manager for mTLS transport — Phase 2.
      *
-     * <p>Created only when {@code spiffe.mtls-enabled=true}. If the SPIRE agent socket is
-     * unavailable at startup, the manager marks itself unavailable and {@code SharedConfig}
-     * falls back to the plain JWT-SVID RestTemplate gracefully.
+     * <p>R117 (AOT safety): always registered. Runtime {@code spiffe.mtls-enabled}
+     * gate lives inside the constructor — disabled deployments skip the workload-API
+     * dial and stay {@code isAvailable()=false}. Prevents the R111/R112-class bug
+     * where an AOT build done without {@code spiffe.mtls-enabled=true} would
+     * permanently exclude the bean regardless of runtime env vars.
+     * {@code SharedConfig} gracefully falls back to JWT-SVID when the manager
+     * reports unavailable.
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(name = "spiffe.mtls-enabled", havingValue = "true")
     public SpiffeX509Manager spiffeX509Manager(SpiffeProperties props) {
         return new SpiffeX509Manager(props);
     }
@@ -83,9 +85,13 @@ public class SpiffeAutoConfiguration {
      * <p>Runs at {@code HIGHEST_PRECEDENCE + 1} — before Spring Security's FilterChainProxy.
      * {@code PlatformJwtAuthFilter} (inside the Security chain) reads the attribute as Path 0
      * and grants {@code ROLE_INTERNAL} without requiring a JWT Bearer token.
+     *
+     * <p>R117 (AOT safety): always registered. The filter body is inherently a no-op
+     * when no TLS client certificate is present (HTTP requests or TLS without client
+     * auth) — {@code extractSpiffeId} returns null and the attribute is simply not set.
+     * So registering it unconditionally is safe; the per-request cost is ~10 μs.
      */
     @Bean
-    @ConditionalOnProperty(name = "spiffe.mtls-enabled", havingValue = "true")
     public FilterRegistrationBean<SpiffeMtlsAuthFilter> spiffeMtlsAuthFilter() {
         FilterRegistrationBean<SpiffeMtlsAuthFilter> registration = new FilterRegistrationBean<>();
         registration.setFilter(new SpiffeMtlsAuthFilter());

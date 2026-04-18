@@ -43,6 +43,16 @@ public class SpiffeX509Manager {
     private X509Source x509Source;
 
     public SpiffeX509Manager(SpiffeProperties props) {
+        // R117: runtime gate — the bean is now unconditionally registered by
+        // SpiffeAutoConfiguration (AOT can't evaluate @ConditionalOnProperty
+        // correctly at build time). When either spiffe.enabled or
+        // spiffe.mtls-enabled is false, skip the workload-API dial and stay
+        // isAvailable()=false. SharedConfig falls back to JWT-SVID gracefully.
+        if (!props.isEnabled() || !props.isMtlsEnabled()) {
+            log.debug("[SPIFFE] X.509 source not activated — enabled={}, mtlsEnabled={}",
+                    props.isEnabled(), props.isMtlsEnabled());
+            return;
+        }
         try {
             // X509SourceOptions is a static nested class of DefaultX509Source
             DefaultX509Source.X509SourceOptions options = DefaultX509Source.X509SourceOptions.builder()
