@@ -1,0 +1,40 @@
+1:
+ num     #instances         #bytes  class name (module)
+-------------------------------------------------------
+   1:        186730       13046736  [B (java.base@25.0.2)
+   2:        148049        4737568  java.util.concurrent.ConcurrentHashMap$Node (java.base@25.0.2)
+   3:        174893        4197432  java.lang.String (java.base@25.0.2)
+   4:         32081        4051264  java.lang.Class (java.base@25.0.2)
+   5:         45906        4039728  java.lang.reflect.Method (java.base@25.0.2)
+   6:         53733        4003264  [Ljava.lang.Object; (java.base@25.0.2)
+   7:        108105        3459360  org.antlr.v4.runtime.atn.ATNConfig
+   8:         73714        2358848  java.util.HashMap$Node (java.base@25.0.2)
+   9:         47737        1909480  java.util.LinkedHashMap$Entry (java.base@25.0.2)
+  10:          2932        1685144  [Ljava.util.concurrent.ConcurrentHashMap$Node; (java.base@25.0.2)
+  11:         16933        1643520  [Ljava.util.HashMap$Node; (java.base@25.0.2)
+  12:         17120        1638064  [I (java.base@25.0.2)
+  13:         73586        1177376  java.lang.Object (java.base@25.0.2)
+  14:         17449        1116736  java.util.LinkedHashMap (java.base@25.0.2)
+  15:         41836        1004064  java.util.ArrayList (java.base@25.0.2)
+  16:           573        1002480  [C (java.base@25.0.2)
+  17:          1148         874096  [Lorg.antlr.v4.runtime.dfa.DFAState;
+  18:           521         821664  jdk.internal.vm.StackChunk (java.base@25.0.2)
+  19:         32636         783264  org.springframework.data.util.Lazy
+  20:         14117         677616  org.springframework.util.ConcurrentReferenceHashMap$SoftEntryReference
+  21:         12764         612672  java.lang.invoke.MemberName (java.base@25.0.2)
+  22:         10677         597912  org.springframework.core.ResolvableType
+  23:         17026         544832  org.antlr.v4.runtime.atn.SingletonPredictionContext
+  24:          4080         499056  [Lorg.springframework.util.ConcurrentReferenceHashMap$Reference;
+  25:         19125         494376  [Ljava.lang.Class; (java.base@25.0.2)
+  26:          2512         490368  [Ljdk.internal.vm.FillerElement; (java.base@25.0.2)
+  27:         10127         486096  java.util.HashMap (java.base@25.0.2)
+  28:          7350         470400  java.util.concurrent.ConcurrentHashMap (java.base@25.0.2)
+  29:          6350         457200  java.lang.reflect.Field (java.base@25.0.2)
+  30:         14320         429712  [Ljava.lang.String; (java.base@25.0.2)
+  31:          8524         340960  java.lang.invoke.MethodType (java.base@25.0.2)
+  32:          1865         328240  org.springframework.beans.factory.support.RootBeanDefinition
+  33:          8525         272800  jdk.internal.util.WeakReferenceKey (java.base@25.0.2)
+  34:          5443         217720  org.hibernate.sql.ast.tree.expression.ColumnReference
+  35:          5298         211920  org.antlr.v4.runtime.atn.BasicState
+  36:          8656         207744  java.lang.invoke.ResolvedMethodName (java.base@25.0.2)
+  37:          6128         196096  java.util.concurrent.locks.ReentrantLock$NonfairSync (java.base@25.0.2)

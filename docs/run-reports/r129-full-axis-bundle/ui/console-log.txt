@@ -1,0 +1,42 @@
+[HTTP 403] https://localhost/api/pipeline/health
+[console.error] Failed to load resource: the server responded with a status of 403 ()
+[HTTP 403] https://localhost/api/servers?size=1
+[console.error] Failed to load resource: the server responded with a status of 403 ()
+[HTTP 403] https://localhost/api/encrypt/status
+[console.error] Failed to load resource: the server responded with a status of 403 ()
+[HTTP 403] https://localhost/api/gateway/status
+[console.error] Failed to load resource: the server responded with a status of 403 ()
+[HTTP 403] https://localhost/api/v1/keys/health
+[console.error] Failed to load resource: the server responded with a status of 403 ()
+[HTTP 403] https://localhost/api/v1/licenses/health
+[console.error] Failed to load resource: the server responded with a status of 403 ()
+[HTTP 403] https://localhost/api/v1/analytics/dashboard
+[console.error] Failed to load resource: the server responded with a status of 403 ()
+[HTTP 403] https://localhost/api/v1/screening/health
+[console.error] Failed to load resource: the server responded with a status of 403 ()
+[HTTP 403] https://localhost/api/pipeline/health
+[console.error] Failed to load resource: the server responded with a status of 403 ()
+[HTTP 403] https://localhost/api/pipeline/health
+[console.error] Failed to load resource: the server responded with a status of 403 ()
+[HTTP 403] https://localhost/api/v1/storage/health
+[console.error] Failed to load resource: the server responded with a status of 403 ()
+[HTTP 403] https://localhost/api/pipeline/health
+[console.error] Failed to load resource: the server responded with a status of 403 ()
+[HTTP 403] https://localhost/api/notifications/health
+[console.error] Failed to load resource: the server responded with a status of 403 ()
+[console.error] Access to XMLHttpRequest at 'http://localhost:8091/api/v1/threats/dashboard' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+[console.error] Failed to load resource: net::ERR_FAILED
+[dashboard] visible_toasts=0
+[HTTP 404] https://localhost/api/gateway/status
+[console.error] Failed to load resource: the server responded with a status of 404 ()
+[HTTP 404] https://localhost/api/gateway/status
+[console.error] Failed to load resource: the server responded with a status of 404 ()
+[HTTP 404] https://localhost/api/gateway/status
+[console.error] Failed to load resource: the server responded with a status of 404 ()
+[users] 1970_present=false
+[console.error] Access to XMLHttpRequest at 'http://localhost:8091/api/v1/threats/dashboard' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+[console.error] Failed to load resource: net::ERR_FAILED
+[HTTP 404] https://localhost/api/gateway/status
+[console.error] Failed to load resource: the server responded with a status of 404 ()
+[HTTP 404] https://localhost/api/gateway/status
+[console.error] Failed to load resource: the server responded with a status of 404 ()

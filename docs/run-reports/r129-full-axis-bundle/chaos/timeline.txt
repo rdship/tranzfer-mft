@@ -1,0 +1,10 @@
+Sat Apr 18 15:01:37 MST 2026
+--- pre-chaos upload ---
+  pre-chaos upload OK @ 15:01:38
+--- killing notification-service @ 15:01:38 ---
+mft-notification-service
+  during-chaos /api/activity-monitor: HTTP 200
+--- restart ---
+ Container mft-notification-service Started 
+  recovery time: 20s
+  post-chaos upload OK @ 15:02:15
