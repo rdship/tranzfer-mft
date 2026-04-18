@@ -5,7 +5,7 @@
 **Changes under test:**
 - R118 — `SPIFFE_SERVICE_NAME=<service>` environment variable per container, consumed by `SpiffeWorkloadClient` so each service identifies itself as `spiffe://filetransfer.io/<service>` instead of the generic `/unknown` fallback from R116/R117.
 **Mandate:** ≤120 s boot per service, every feature preserved.
-**Outcome:** ⚠️ **Mixed — R118 appears to do its intended job, but R117's AOT-safety retrofit left a latent regression that fires on first cold boot.** Every Java service hits a context-refresh failure at first attempt (`UnsatisfiedDependencyException: FlowFabricConsumer requires FlowFabricBridge`), restarts once, and recovers on the second attempt. Platform self-heals but ~10 services each burn a full boot cycle on the way. Steady-state behaviour (after the restart cascade settles) is what should be evaluated for R118's actual SPIFFE fix.
+**Outcome:** 🚨 **P0 — initial report was wrong about self-healing.** After 7+ minutes of monitoring, 12 Java services are in **permanent restart loops** (5–7 restarts each, still accumulating). Only 22 of 34 containers reach healthy. The `UnsatisfiedDependencyException: FlowFabricConsumer requires FlowFabricBridge` is not transient — it fires on every boot attempt. R117's AOT-safety retrofit is definitively incomplete: `FlowFabricConsumer` is unconditional, `FlowFabricBridge` isn't, and nothing else brings the bridge into the container.
 
 ---
 
@@ -92,20 +92,39 @@ The core R118 change (`SPIFFE_SERVICE_NAME` per-service identity) cannot be full
 
 > Rubric at [`docs/RELEASE-RATING-RUBRIC.md`](../RELEASE-RATING-RUBRIC.md).
 
-### R118 (interim) = 🥉 Bronze
+### R118 (final) = 🚫 No Medal — P0 blocker
 
-**Justification — dimension by dimension (provisional):**
+**Initial report incorrectly characterised the bug as transient/self-healing. Updated after 7+ minutes of monitoring showed permanent restart loops.**
 
-| Axis | Assessment | Notes |
-|---|---|---|
-| **Works** | ❌ Degraded | Restart cascade on cold boot; platform self-heals but ~10 services eat a full extra boot cycle. |
-| **Safe** | ⚠️ Unknown | R118 SPIFFE fix's functional outcome pending boot settle; will update report once verifiable. |
-| **Efficient** | ❌ Regressed | Effective boot-to-healthy time dominated by restart cascade (~4 min+ to full clean, vs R117's 3 min). R115 Metaspace fix still in place — no OOM regression. |
-| **Reliable** | ❌ New regression | `FlowFabricConsumer / FlowFabricBridge` first-attempt context-refresh failure. Cosmetic in steady state, but pollutes logs + looks like a real failure. R117's AOT-safety retrofit left this edge. |
+**Final state observed at t=422 s:**
 
-**Bronze because:** Primary feature axis (flow engine) is not yet verified functional; the restart cascade is real but self-heals. Dropped to near-No-Medal because R118 introduces (via R117's unfinished retrofit) a regression Reliable-axis impact that wasn't there in R116/R117.
+| Service | Restart count |
+|---|---:|
+| storage-manager | 7 |
+| keystore-manager | 7 |
+| screening-service | 7 |
+| forwarder-service | 6 |
+| platform-sentinel | 6 |
+| notification-service | 6 |
+| analytics-service | 6 |
+| license-service | 6 |
+| encryption-service | 6 |
+| ai-engine | 5 |
+| config-service | 5 |
+| onboarding-api | 5 |
 
-**Why not No Medal:** Platform does reach healthy (with delay). R117's `FlowFabricBridge` gap is transient (1 restart → recovery). SPIFFE change itself appears well-wired on paper.
+12 of 17 Java services crash-looping. Platform reaches 22/34 healthy and plateaus.
+
+**Justification — dimension by dimension:**
+
+| Axis | Assessment |
+|---|---|
+| **Works** | 🚨 Data plane down: 12 services crash-looping; onboarding-api (auth) repeatedly unavailable |
+| **Safe** | ❌ Unverifiable — SPIFFE identity fix can't be tested against restart-looping services |
+| **Efficient** | ❌ Boot never reaches clean |
+| **Reliable** | 🚨 P0 — permanent restart loops across half the Java plane |
+
+**This is No Medal, not Bronze.** Same severity as R95 AOT-blocker and R101 classpath-blocker. Platform is effectively unusable; most customer-facing operations would fail intermittently as onboarding-api restarts.
 
 ### Trajectory (R95 → R118)
 
@@ -114,7 +133,7 @@ The core R118 change (`SPIFFE_SERVICE_NAME` per-service identity) cannot be full
 | R95, R97, R105-R109 | 🚫 | P0 blockers |
 | R100, R103-R104 | 🥈 | First clean boots |
 | R110-R117 | 🥉 × 8 | SPIFFE onion + preventive hardening |
-| **R118 (interim)** | 🥉 **Bronze** | SPIFFE self-ID wired; R117 left unfinished retrofit that causes first-attempt restart storm |
+| **R118 (final)** | 🚫 **No Medal** | 12 services in permanent restart loops; P0 — R117's AOT-safety retrofit exposed `FlowFabricBridge` gap as a hard blocker |
 
 ### Priority asks for R119
 
