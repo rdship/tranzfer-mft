@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.filetransfer</groupId>
         <artifactId>shared</artifactId>
-        <version>1.0.0-R112</version>
+        <version>1.0.0-R113</version>
     </parent>
 
     <artifactId>shared-core</artifactId>
@@ -93,6 +93,31 @@
             <groupId>io.spiffe</groupId>
             <artifactId>java-spiffe-provider</artifactId>
             <version>0.8.3</version>
+            <exclusions>
+                <!-- R113: java-spiffe-provider:0.8.3 transitively pulls
+                     grpc-netty-macos — the macOS-only netty transport. Our
+                     runtime containers are Linux (regardless of host arch;
+                     Apple Silicon runs aarch64-Linux in Docker, Intel runs
+                     amd64-Linux). The macOS transport refuses to initialise
+                     on Linux with "Operating System is not supported", which
+                     left SpiffeWorkloadClient.isAvailable()=false forever on
+                     every Docker deployment and caused R110→R112 S2S 403s.
+                     Replace with grpc-netty-linux below. -->
+                <exclusion>
+                    <groupId>io.spiffe</groupId>
+                    <artifactId>grpc-netty-macos</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- R113: Linux gRPC/netty transport for java-spiffe. The 'linux'
+             artifact is cross-arch (both amd64 and aarch64) — unlike the
+             classifier-based netty native bindings, this is a plain runtime
+             jar that delegates to grpc-netty-shaded's cross-platform transport. -->
+        <dependency>
+            <groupId>io.spiffe</groupId>
+            <artifactId>grpc-netty-linux</artifactId>
+            <version>0.8.3</version>
+            <scope>runtime</scope>
         </dependency>
         <!-- Apache HttpClient 5 — connection-pooled mTLS RestTemplate for SPIFFE X.509 transport.
              Must NOT be optional — SharedConfig imports HC5 classes directly, so they must be
