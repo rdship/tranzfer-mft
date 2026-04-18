@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.filetransfer</groupId>
         <artifactId>shared</artifactId>
-        <version>1.0.0-R103</version>
+        <version>1.0.0-R104</version>
     </parent>
 
     <artifactId>shared-core</artifactId>
@@ -77,13 +77,22 @@
             <artifactId>spring-boot-starter-amqp</artifactId>
             <optional>true</optional>
         </dependency>
-        <!-- SPIFFE/SPIRE: zero-trust service identity — replaces X-Internal-Key -->
-        <!-- Optional: services activate via spiffe.enabled=true in application.yml -->
+        <!-- SPIFFE/SPIRE: zero-trust service identity — replaces X-Internal-Key.
+             R104 removed <optional>true</optional>. Pre-R104 this was declared
+             optional so consumer services wouldn't unconditionally bundle the
+             ~2 MB jar; but SpiffeAutoConfiguration references
+             io.spiffe.bundle.BundleSource at bean-factory construction time,
+             so any service that satisfies @ConditionalOnProperty(spiffe.enabled=true)
+             WILL fail with ClassNotFoundException at context refresh if the
+             jar isn't on its classpath. R101 flipped the env var on for all
+             services, turning the latent optional-dep gap into a full crash
+             loop across 16 services. The transitive jar is the correct fix —
+             SpiffeAutoConfiguration is gated by spiffe.enabled anyway, so the
+             ~2 MB cost is only paid when the runtime code path needs it. -->
         <dependency>
             <groupId>io.spiffe</groupId>
             <artifactId>java-spiffe-provider</artifactId>
             <version>0.8.3</version>
-            <optional>true</optional>
         </dependency>
         <!-- Apache HttpClient 5 — connection-pooled mTLS RestTemplate for SPIFFE X.509 transport.
              Must NOT be optional — SharedConfig imports HC5 classes directly, so they must be
