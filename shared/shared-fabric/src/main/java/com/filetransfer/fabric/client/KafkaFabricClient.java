@@ -24,9 +24,12 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Real Kafka/Redpanda-backed FabricClient.
@@ -37,7 +40,28 @@ public class KafkaFabricClient implements FabricClient {
 
     private final FabricProperties props;
     private final ObjectMapper mapper;
-    private final KafkaProducer<String, String> producer;
+    /**
+     * Lazily-initialized on a background thread — see {@link #initFuture}.
+     * {@code volatile} so reads after the init future completes see the
+     * published reference without further synchronization.
+     */
+    private volatile KafkaProducer<String, String> producer;
+    /**
+     * Completed when both the producer and the broker health check have
+     * finished. {@link #publish} and {@link #subscribe} await this before
+     * proceeding so the first real call blocks if init is still running —
+     * but Spring context refresh does NOT wait, because the constructor
+     * returns immediately.
+     *
+     * <p>R97 boot-time fix: before this change, constructor took 15–30 s
+     * on cold-start because {@code new KafkaProducer(...)} + synchronous
+     * {@code listTopics()} both fetch cluster metadata serially. Every
+     * service paid that cost during Spring context refresh, even Group B
+     * services that don't publish on boot (they only consume). Moving both
+     * to an async init lets Spring mark "Started" while metadata is still
+     * flowing.
+     */
+    private final CompletableFuture<Void> initFuture;
     private final List<Thread> consumerThreads = new ArrayList<>();
     private final Set<String> ensuredTopics = ConcurrentHashMap.newKeySet();
     /** Per-record delivery attempt counter, keyed by "topic:partition:offset". */
@@ -60,20 +84,62 @@ public class KafkaFabricClient implements FabricClient {
         this.props = props;
         this.mapper = mapper;
 
-        Properties producerProps = new Properties();
-        producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, props.getBrokerUrl());
-        producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
-        producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
-        producerProps.put(ProducerConfig.ACKS_CONFIG, props.getProducer().getAcks());
-        producerProps.put(ProducerConfig.RETRIES_CONFIG, props.getProducer().getRetries());
-        producerProps.put(ProducerConfig.LINGER_MS_CONFIG, props.getProducer().getLingerMs());
-        producerProps.put(ProducerConfig.BATCH_SIZE_CONFIG, props.getProducer().getBatchSize());
-        producerProps.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, props.getProducer().getCompressionType());
-        producerProps.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, 10000);
-        producerProps.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, 30000);
+        // Kick off KafkaProducer construction + broker reachability check on a
+        // dedicated background thread so Spring context refresh doesn't block.
+        // publish()/subscribe() await this future before doing real work.
+        this.initFuture = CompletableFuture.runAsync(this::initProducerAndCheckHealth,
+                Executors.newSingleThreadExecutor(r -> {
+                    Thread t = new Thread(r, "fabric-kafka-init");
+                    t.setDaemon(true);
+                    return t;
+                }));
+    }
 
-        this.producer = new KafkaProducer<>(producerProps);
-        this.healthy = checkBrokerReachable();
+    private void initProducerAndCheckHealth() {
+        try {
+            Properties producerProps = new Properties();
+            producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, props.getBrokerUrl());
+            producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
+            producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
+            producerProps.put(ProducerConfig.ACKS_CONFIG, props.getProducer().getAcks());
+            producerProps.put(ProducerConfig.RETRIES_CONFIG, props.getProducer().getRetries());
+            producerProps.put(ProducerConfig.LINGER_MS_CONFIG, props.getProducer().getLingerMs());
+            producerProps.put(ProducerConfig.BATCH_SIZE_CONFIG, props.getProducer().getBatchSize());
+            producerProps.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, props.getProducer().getCompressionType());
+            producerProps.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, 10000);
+            producerProps.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, 30000);
+
+            this.producer = new KafkaProducer<>(producerProps);
+            this.healthy = checkBrokerReachable();
+            log.info("[Fabric/Kafka] Async init complete — healthy={}", healthy);
+        } catch (Exception e) {
+            log.error("[Fabric/Kafka] Async init failed: {}", e.getMessage(), e);
+            this.healthy = false;
+        }
+    }
+
+    /**
+     * Block the caller until async init completes or {@code timeoutMs} expires.
+     * Returns true on success, false on timeout/failure — callers should treat
+     * false as "broker unavailable" and short-circuit the same way they would
+     * when {@link #healthy} is false.
+     */
+    private boolean awaitInit(long timeoutMs) {
+        if (initFuture.isDone()) {
+            return !initFuture.isCompletedExceptionally();
+        }
+        try {
+            initFuture.get(timeoutMs, TimeUnit.MILLISECONDS);
+            return true;
+        } catch (TimeoutException e) {
+            log.warn("[Fabric/Kafka] Async init still in progress after {} ms — skipping call", timeoutMs);
+            return false;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (ExecutionException e) {
+            return false;
+        }
     }
 
     private boolean checkBrokerReachable() {
@@ -93,6 +159,10 @@ public class KafkaFabricClient implements FabricClient {
 
     @Override
     public void publish(String topic, String key, Object value) {
+        if (!awaitInit(30_000)) {
+            log.warn("[Fabric/Kafka] Publish skipped for {} (async init not ready)", topic);
+            return;
+        }
         if (!healthy) {
             log.warn("[Fabric/Kafka] Publish skipped for {} (broker unhealthy)", topic);
             return;
@@ -115,6 +185,14 @@ public class KafkaFabricClient implements FabricClient {
 
     @Override
     public void subscribe(String topic, String groupId, MessageHandler handler) {
+        // Subscribe is called from FlowFabricConsumer on boot — the R94
+        // parallel-subscribe loop wraps each call on its own thread, so
+        // blocking here to await async init doesn't re-serialize the boot
+        // critical path.
+        if (!awaitInit(30_000)) {
+            log.warn("[Fabric/Kafka] Subscribe skipped for {} (async init not ready)", topic);
+            return;
+        }
         if (!healthy) {
             log.warn("[Fabric/Kafka] Subscribe skipped for {} (broker unhealthy)", topic);
             return;
@@ -326,7 +404,13 @@ public class KafkaFabricClient implements FabricClient {
         for (Thread t : consumerThreads) {
             t.interrupt();
         }
-        producer.close(Duration.ofSeconds(5));
+        // Producer may still be null if shutdown fires before async init completes
+        // (e.g. broker unreachable throughout boot) — close is best-effort.
+        KafkaProducer<String, String> p = producer;
+        if (p != null) {
+            try { p.close(Duration.ofSeconds(5)); }
+            catch (Exception ignored) { /* best-effort */ }
+        }
         AdminClient admin = adminClient;
         if (admin != null) {
             try { admin.close(Duration.ofSeconds(2)); }

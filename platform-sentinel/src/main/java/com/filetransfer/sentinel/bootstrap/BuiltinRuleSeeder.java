@@ -2,9 +2,10 @@ package com.filetransfer.sentinel.bootstrap;
 
 import com.filetransfer.sentinel.entity.SentinelRule;
 import com.filetransfer.sentinel.repository.SentinelRuleRepository;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,7 +26,13 @@ public class BuiltinRuleSeeder {
 
     private final SentinelRuleRepository ruleRepository;
 
-    @PostConstruct
+    /**
+     * Runs on {@code ApplicationReadyEvent} instead of {@code @PostConstruct}
+     * (R97): the seed is idempotent and no caller depends on the rule existing
+     * before Spring reports "Started". Keeps context refresh fast by deferring
+     * this DB round-trip off the boot critical path.
+     */
+    @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void seed() {
         seedIfMissing(SentinelRule.builder()
