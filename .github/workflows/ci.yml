@@ -98,15 +98,20 @@ jobs:
 
       - name: Check JAR artifacts
         run: |
+          # R124 fix: version is set by parent pom (currently 1.0.0-Rxxx, not SNAPSHOT).
+          # Glob the actual jar rather than hardcoding the version string, so this
+          # step stops failing after every version bump.
           for svc in onboarding-api sftp-service ftp-service ftp-web-service config-service \
             gateway-service encryption-service license-service analytics-service \
             ai-engine screening-service keystore-manager storage-manager mft-client \
             dmz-proxy as2-service edi-converter notification-service \
             platform-sentinel external-forwarder-service; do
-            if [ -f "${svc}/target/${svc}-1.0.0-SNAPSHOT.jar" ]; then
-              echo "✓ ${svc}"
+            # shellcheck disable=SC2086
+            jar=$(ls ${svc}/target/${svc}-*.jar 2>/dev/null | grep -v -E '-sources\.jar|-javadoc\.jar' | head -1)
+            if [ -n "$jar" ]; then
+              echo "✓ ${svc} — $(basename "$jar")"
             else
-              echo "✗ ${svc} — JAR not found"
+              echo "✗ ${svc} — JAR not found in ${svc}/target/"
               exit 1
             fi
           done
