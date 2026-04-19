@@ -97,7 +97,7 @@ export const onboardingClient = onboardingApi
 export const configApi = withAuth(axios.create({ baseURL: GATEWAY_URL || DEFAULT_GATEWAY }))
 export const configClient = configApi
 export const analyticsApi = withAuth(axios.create({ baseURL: GATEWAY_URL || DEFAULT_GATEWAY }))
-export const licenseApi = axios.create({ baseURL: GATEWAY_URL || DEFAULT_GATEWAY })
+export const licenseApi = withAuth(axios.create({ baseURL: GATEWAY_URL || DEFAULT_GATEWAY }))
 export const gatewayApi = withAuth(axios.create({ baseURL: GATEWAY_URL || DEFAULT_GATEWAY }))
 export const dmzApi = withAuth(axios.create({ baseURL: GATEWAY_URL || DEFAULT_GATEWAY }))
 

@@ -134,6 +134,18 @@ public abstract class BaseServiceClient {
      * returns 401 (fail-safe; no static-secret fallback).
      */
     protected void addInternalAuth(HttpHeaders headers) {
+        // R133: always forward inbound admin JWT on a dedicated header so the
+        // downstream PlatformJwtAuthFilter can use it as a fallback when the
+        // primary SPIFFE JWT-SVID path fails (R132 grade showed SPIFFE IS
+        // attached but REJECTED by the downstream filter — the admin-JWT
+        // fallback in the Authorization header never fired because SPIFFE
+        // "succeeded" at attachment). Sending both lets the downstream pick
+        // whichever validates. Null when this is a background call with no
+        // bound request (flow engine, scheduled jobs) — BUG 13's path.
+        String forwarded = currentRequestAuthorization();
+        if (forwarded != null) {
+            headers.set("X-Forwarded-Authorization", forwarded);
+        }
         // Phase 2: mTLS — X.509-SVID in the TLS channel authenticates; no JWT header needed
         if (spiffeX509Manager != null && spiffeX509Manager.isAvailable()
                 && baseUrl().startsWith("https://")) {
@@ -178,7 +190,10 @@ public abstract class BaseServiceClient {
         // so the action still authorizes. Background callers (no request
         // context) get nothing attached and fail as before — that surface
         // still needs SPIFFE to work.
-        String forwarded = currentRequestAuthorization();
+        //
+        // R133: `forwarded` was already computed at the top of the method
+        // (and duplicated on X-Forwarded-Authorization). Re-use it here as
+        // the primary Authorization header when SPIFFE attach failed.
         if (forwarded != null) {
             headers.set(HttpHeaders.AUTHORIZATION, forwarded);
             log.debug("SPIFFE unavailable; forwarded inbound Authorization to target '{}'",

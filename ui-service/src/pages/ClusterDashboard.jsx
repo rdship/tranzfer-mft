@@ -119,7 +119,15 @@ export default function ClusterDashboard() {
   })
 
   /* ── Derived data ── */
-  const currentMode = mode?.mode || mode || 'STANDALONE'
+  // R133: the /api/cluster/mode endpoint returns either a raw string
+  // ("STANDALONE" / "CLUSTERED") or an object {communicationMode, clusterId}.
+  // The old `mode?.mode || mode` fallback returned the whole object when
+  // the shape was {communicationMode, clusterId}, which then rendered as
+  // `{currentMode}` and tripped React error #31 (R132b UI audit).
+  const currentMode = (typeof mode === 'string' && mode)
+      || mode?.mode
+      || mode?.communicationMode
+      || 'STANDALONE'
   const isClusteredMode = currentMode === 'CLUSTERED'
 
   /* Group topology by service type */

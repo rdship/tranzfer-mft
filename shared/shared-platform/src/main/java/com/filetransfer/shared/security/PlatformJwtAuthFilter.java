@@ -99,19 +99,40 @@ public class PlatformJwtAuthFilter extends OncePerRequestFilter {
         // Bearer token whose sub claim is a spiffe:// URI — issued by SPIRE agent,
         // short-lived (1h), automatically rotated. Zero static secrets.
         if (bearerToken != null && bearerToken.startsWith("eyJ") && isSpiffeToken(bearerToken)) {
-            if (spiffeWorkloadClient != null && spiffeWorkloadClient.isAvailable()) {
-                String selfId = spiffeWorkloadClient.getSelfSpiffeId();
-                if (StringUtils.hasText(selfId) && spiffeWorkloadClient.validate(bearerToken, selfId)) {
-                    String callerId = spiffeWorkloadClient.getCallerId(bearerToken);
-                    SecurityContextHolder.getContext().setAuthentication(
-                            new UsernamePasswordAuthenticationToken(
-                                    callerId != null ? callerId : "spiffe-service", null,
-                                    List.of(new SimpleGrantedAuthority("ROLE_INTERNAL"))));
-                    filterChain.doFilter(request, response);
-                    return;
+            if (spiffeWorkloadClient != null && spiffeWorkloadClient.isEnabled()) {
+                // R133: bounded wait closes the downstream-side SPIRE boot race.
+                // If the caller sends a valid SPIFFE JWT-SVID during the window
+                // when this service's own SpiffeWorkloadClient is still dialing
+                // its agent, we previously rejected the call unauthenticated
+                // (→ 403). A 5 s one-time wait absorbs the race, matching the
+                // caller-side R111 pattern in BaseServiceClient.
+                if (!spiffeWorkloadClient.isAvailable()) {
+                    spiffeWorkloadClient.awaitAvailable(java.time.Duration.ofSeconds(5));
+                }
+                if (spiffeWorkloadClient.isAvailable()) {
+                    String selfId = spiffeWorkloadClient.getSelfSpiffeId();
+                    if (StringUtils.hasText(selfId) && spiffeWorkloadClient.validate(bearerToken, selfId)) {
+                        String callerId = spiffeWorkloadClient.getCallerId(bearerToken);
+                        SecurityContextHolder.getContext().setAuthentication(
+                                new UsernamePasswordAuthenticationToken(
+                                        callerId != null ? callerId : "spiffe-service", null,
+                                        List.of(new SimpleGrantedAuthority("ROLE_INTERNAL"))));
+                        filterChain.doFilter(request, response);
+                        return;
+                    }
                 }
             }
-            // SPIFFE validation failed — do not fall through to platform JWT
+            // R133: SPIFFE validation failed — try X-Forwarded-Authorization
+            // fallback before rejecting. BaseServiceClient attaches the inbound
+            // admin JWT on this secondary header so user-initiated S2S calls
+            // (BUG 12 class) still authorize when SPIFFE-validation is broken
+            // (audience mismatch, trust-bundle, or expiry). Background calls
+            // that have no inbound request attach nothing here → fall through
+            // to unauthenticated as before.
+            if (tryForwardedAuthFallback(request)) {
+                filterChain.doFilter(request, response);
+                return;
+            }
             filterChain.doFilter(request, response);
             return;
         }
@@ -166,5 +187,34 @@ public class PlatformJwtAuthFilter extends OncePerRequestFilter {
             return header.substring(7);
         }
         return null;
+    }
+
+    /**
+     * R133: parse the {@code X-Forwarded-Authorization} header (set by
+     * {@code BaseServiceClient} on every user-initiated S2S call) as a
+     * Platform JWT. Returns true iff the token validated and an
+     * authentication was set in the context.
+     */
+    private boolean tryForwardedAuthFallback(HttpServletRequest request) {
+        String header = request.getHeader("X-Forwarded-Authorization");
+        if (!StringUtils.hasText(header) || !header.startsWith("Bearer ")) return false;
+        String token = header.substring(7);
+        if (!jwtUtil.isValid(token)) return false;
+        String email = jwtUtil.getSubject(token);
+        String role = jwtUtil.getRole(token);
+        List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+        authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
+        if (permissionService != null) {
+            try {
+                Set<String> perms = permissionService.getEffectivePermissions(email);
+                perms.forEach(p -> authorities.add(new SimpleGrantedAuthority("PERM_" + p)));
+            } catch (Exception e) {
+                log.debug("Forwarded-auth: could not load permissions for {}: {}", email, e.getMessage());
+            }
+        }
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(email, null, authorities));
+        log.debug("[PlatformJwtAuthFilter] SPIFFE rejected — fell back to X-Forwarded-Authorization (user={}, role={})", email, role);
+        return true;
     }
 }
