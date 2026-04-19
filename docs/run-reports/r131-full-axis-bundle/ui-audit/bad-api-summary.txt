@@ -1,0 +1,18 @@
+pages visited: 46
+total api calls: 913
+4xx/5xx calls: 625
+console errors: 625
+page errors: 0
+
+=== 4xx/5xx API responses (grouped) ===
+   192×  GET /api/pipeline/health → 403
+    48×  GET /api/servers → 403
+    48×  GET /api/v1/analytics/dashboard → 403
+    48×  GET /api/gateway/status → 403
+    48×  GET /api/v1/licenses/health → 403
+    48×  GET /api/v1/keys/health → 403
+    48×  GET /api/encrypt/status → 403
+    48×  GET /api/v1/screening/health → 403
+    48×  GET /api/notifications/health → 403
+    48×  GET /api/v1/storage/health → 403
+     1×  POST /api/auth/login → 401
