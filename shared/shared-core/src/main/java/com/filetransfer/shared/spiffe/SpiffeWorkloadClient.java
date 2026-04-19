@@ -291,7 +291,15 @@ public class SpiffeWorkloadClient {
             JwtSvid.parseAndValidate(token, jwtSource, Set.of(selfSpiffeId));
             return true;
         } catch (Exception ex) {
-            log.debug("[SPIFFE] JWT-SVID validation failed: {}", ex.getMessage());
+            // R132: promoted from DEBUG → WARN. The R131/R132 audit caught
+            // repeat S2S 403s (BUG 1, 11, 12, 13) where the caller attached
+            // a JWT-SVID but this side silently rejected it. The rejection
+            // reason (audience mismatch, signature failure, expiry) was
+            // invisible at INFO. Surface the expected audience + the library
+            // message so ops can diagnose in one grep across all services,
+            // without enabling debug logging on every service.
+            log.warn("[SPIFFE] JWT-SVID rejected (expected audience={}): {}",
+                    selfSpiffeId, ex.getMessage());
             return false;
         }
     }

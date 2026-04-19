@@ -161,15 +161,50 @@ public abstract class BaseServiceClient {
                 String jwtSvid = spiffeWorkloadClient.getJwtSvidFor(target);
                 if (jwtSvid != null) {
                     headers.setBearerAuth(jwtSvid);
+                    return;
                 } else {
-                    log.warn("SPIFFE JWT-SVID returned null for target '{}'; outbound call will be unauthenticated",
+                    log.warn("SPIFFE JWT-SVID returned null for target '{}'; trying user-JWT fallback",
                             deriveTargetServiceName());
                 }
             } else {
-                log.warn("SPIFFE workload API unavailable after 5 s wait; outbound call to '{}' will be unauthenticated",
+                log.warn("SPIFFE workload API unavailable after 5 s wait for target '{}'; trying user-JWT fallback",
                         deriveTargetServiceName());
             }
         }
+        // R132 fallback (feedback_admin_can_do_anything): if we got here the
+        // S2S SPIFFE handshake failed but the CURRENT user-initiated request
+        // may carry an admin Authorization header we can forward. Every
+        // downstream controller accepts ROLE_ADMIN (INTERNAL_OR_OPERATOR),
+        // so the action still authorizes. Background callers (no request
+        // context) get nothing attached and fail as before — that surface
+        // still needs SPIFFE to work.
+        String forwarded = currentRequestAuthorization();
+        if (forwarded != null) {
+            headers.set(HttpHeaders.AUTHORIZATION, forwarded);
+            log.debug("SPIFFE unavailable; forwarded inbound Authorization to target '{}'",
+                    deriveTargetServiceName());
+        }
+    }
+
+    /**
+     * Reads the {@code Authorization} header off the current Spring MVC
+     * request via {@link org.springframework.web.context.request.RequestContextHolder}.
+     * Returns {@code null} when no request is bound (background job,
+     * scheduled task, MQ consumer — cases that legitimately require SPIFFE).
+     * R132 — powers the user-JWT fallback above.
+     */
+    private static String currentRequestAuthorization() {
+        try {
+            var attrs = org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+            if (attrs instanceof org.springframework.web.context.request.ServletRequestAttributes sra) {
+                String header = sra.getRequest().getHeader(HttpHeaders.AUTHORIZATION);
+                if (header != null && !header.isBlank()) return header;
+            }
+        } catch (Exception ignored) {
+            // No bound request — caller is background. Return null so
+            // SPIFFE's unauthenticated path continues to fail visibly.
+        }
+        return null;
     }
 
     /**
