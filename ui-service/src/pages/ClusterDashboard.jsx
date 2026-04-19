@@ -67,22 +67,31 @@ export default function ClusterDashboard() {
     queryFn: getCommunicationMode,
   })
 
-  const { data: topology = [], isLoading: loadingTopology } = useQuery({
+  const { data: topologyRaw, isLoading: loadingTopology } = useQuery({
     queryKey: ['cluster-topology'],
     queryFn: getTopology,
     meta: { silent: true }, refetchInterval: 30000,
   })
 
-  const { data: registry = [], isLoading: loadingRegistry } = useQuery({
+  const { data: registryRaw, isLoading: loadingRegistry } = useQuery({
     queryKey: ['cluster-registry'],
     queryFn: getLiveRegistry,
     meta: { silent: true }, refetchInterval: 10000,
   })
 
-  const { data: clusters = [] } = useQuery({
+  const { data: clustersRaw } = useQuery({
     queryKey: ['clusters'],
     queryFn: getClusters,
   })
+
+  // R132: R130 UI audit caught "TypeError: m is not iterable" on this
+  // page when the API returned {} or null where the JSX expected an
+  // array. useQuery's `data = []` default only applies while loading;
+  // a successful non-array response replaces it. Coerce explicitly so
+  // a DTO-shape mismatch can't blank the page.
+  const topology = Array.isArray(topologyRaw) ? topologyRaw : []
+  const registry = Array.isArray(registryRaw) ? registryRaw : []
+  const clusters = Array.isArray(clustersRaw) ? clustersRaw : []
 
   /* ── Mutations ── */
   const modeMut = useMutation({

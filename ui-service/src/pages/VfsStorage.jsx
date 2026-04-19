@@ -32,18 +32,24 @@ export default function VfsStorage() {
     meta: { silent: true }, refetchInterval: 15000
   })
 
-  const { data: recentIntents = [] } = useQuery({
+  const { data: recentIntentsRaw } = useQuery({
     queryKey: ['vfs-recent-intents'],
     queryFn: () => getVfsRecentIntents(50),
     meta: { silent: true }, refetchInterval: 15000
   })
 
-  const { data: accounts = [] } = useQuery({
+  const { data: accountsRaw } = useQuery({
     queryKey: ['accounts'],
     queryFn: getAccounts
   })
 
-  const virtualAccounts = accounts.filter(a => a.storageMode === 'VIRTUAL')
+  // R132: tester's R130 UI audit caught an ErrorBoundary fire here —
+  // "TypeError: x.map is not a function" — because the API returned
+  // {} or null where the component expected []. Defensive coercion so
+  // a shape mismatch can't kill the whole page.
+  const recentIntents = Array.isArray(recentIntentsRaw) ? recentIntentsRaw : []
+  const accounts = Array.isArray(accountsRaw) ? accountsRaw : []
+  const virtualAccounts = accounts.filter(a => a?.storageMode === 'VIRTUAL')
 
   const { data: accountUsage } = useQuery({
     queryKey: ['vfs-account-usage', selectedAccountId],
