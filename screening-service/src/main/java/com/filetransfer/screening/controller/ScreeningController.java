@@ -128,7 +128,9 @@ public class ScreeningController {
         );
     }
 
+    // R131: /health reachable without credentials — UI probes anonymously.
     @GetMapping("/health")
+    @PreAuthorize("permitAll()")
     public Map<String, Object> health() {
         Map<String, Object> h = new LinkedHashMap<>();
         h.put("status", "UP");

@@ -2,8 +2,13 @@ package com.filetransfer.onboarding.controller;
 
 import com.filetransfer.shared.config.PlatformConfig;
 import com.filetransfer.shared.security.Roles;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
@@ -30,10 +35,18 @@ public class PlatformListenerController {
 
     /**
      * Returns all listeners across all services.
+     *
+     * <p>R132 — forward the inbound admin Authorization header on each
+     * fan-out call (feedback_admin_can_do_anything). Every downstream
+     * service's {@code /api/internal/listeners} endpoint is gated by
+     * Spring Security; {@code RestTemplate.getForObject(url, …)} sent
+     * no credentials so every service returned 403 and the admin UI
+     * rendered 19 services as OFFLINE. With the admin JWT forwarded,
+     * each service authenticates the request as ADMIN and returns its
+     * real listener inventory.
      */
     @GetMapping
-    @SuppressWarnings("unchecked")
-    public List<Map<String, Object>> getAllListeners() {
+    public List<Map<String, Object>> getAllListeners(HttpServletRequest request) {
         List<Map<String, Object>> all = new ArrayList<>();
 
         Map<String, String> services = Map.ofEntries(
@@ -58,15 +71,25 @@ public class PlatformListenerController {
                 Map.entry("platform-sentinel", "http://platform-sentinel:8098")
         );
 
+        HttpHeaders headers = new HttpHeaders();
+        String authz = request.getHeader("Authorization");
+        if (authz != null && !authz.isBlank()) {
+            headers.set("Authorization", authz);
+        }
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+        ParameterizedTypeReference<List<Map<String, Object>>> listType =
+                new ParameterizedTypeReference<>() {};
+
         for (var entry : services.entrySet()) {
             try {
-                List<Map<String, Object>> listeners = restTemplate.getForObject(
-                        entry.getValue() + "/api/internal/listeners", List.class);
+                List<Map<String, Object>> listeners = restTemplate.exchange(
+                        entry.getValue() + "/api/internal/listeners",
+                        HttpMethod.GET, entity, listType).getBody();
                 if (listeners != null) {
                     all.addAll(listeners);
                 }
             } catch (Exception e) {
-                // Service down — add an OFFLINE placeholder
+                // Service down or 4xx — add an OFFLINE placeholder
                 all.add(Map.of(
                         "service", entry.getKey(),
                         "state", "OFFLINE",

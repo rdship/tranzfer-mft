@@ -91,7 +91,9 @@ public class LicenseController {
         return ResponseEntity.ok(dtos);
     }
 
+    // R131: /health reachable without credentials — UI probes anonymously.
     @GetMapping("/health")
+    @PreAuthorize("permitAll()")
     public ResponseEntity<Map<String, String>> health() {
         return ResponseEntity.ok(Map.of("status", "UP", "service", "license-service"));
     }

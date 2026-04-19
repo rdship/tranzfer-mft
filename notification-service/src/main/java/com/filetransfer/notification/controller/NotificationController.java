@@ -192,7 +192,9 @@ public class NotificationController {
         return ResponseEntity.ok(result);
     }
 
+    // R131: /health reachable without credentials — UI probes anonymously.
     @GetMapping("/health")
+    @PreAuthorize("permitAll()")
     public Map<String, Object> health() {
         long sentLast24h = logRepository.countByStatusAndSentAtAfter(
                 "SENT", Instant.now().minus(24, ChronoUnit.HOURS));

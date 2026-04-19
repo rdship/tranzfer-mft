@@ -457,7 +457,12 @@ public class StorageController {
                 .body(Map.of("status", "REGISTERED", "trackId", trackId, "sha256", sha256));
     }
 
+    // R131: /health must be reachable by the UI's anonymous liveness probe
+    // (ServiceContext.detectServices fans these out without credentials).
+    // Class-level @PreAuthorize(INTERNAL_OR_OPERATOR) would otherwise 403
+    // the unauthenticated probe — admin UI gets no "storage up" signal.
     @GetMapping("/health")
+    @PreAuthorize("permitAll()")
     public Map<String, Object> health() {
         Map<String, Object> h = new LinkedHashMap<>(lifecycle.getStorageMetrics());
         h.put("status", "UP");

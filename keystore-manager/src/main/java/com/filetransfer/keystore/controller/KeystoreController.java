@@ -156,7 +156,9 @@ public class KeystoreController {
 
     // === Health ===
 
+    // R131: /health reachable without credentials — UI probes anonymously.
     @GetMapping("/health")
+    @PreAuthorize("permitAll()")
     public Map<String, Object> health() {
         List<ManagedKey> all = keyService.getAllActiveKeys();
         Map<String, Long> byType = new LinkedHashMap<>();

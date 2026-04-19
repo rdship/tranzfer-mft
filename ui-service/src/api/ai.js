@@ -1,21 +1,22 @@
-import axios from 'axios'
 import { aiApi as sharedAiApi } from './client'
 
-// Standalone unauthenticated instance kept for non-admin NLP suggestions
-// (legacy — pre-R107 callers). New Activity Copilot endpoints use the
-// shared auth-wrapped aiApi so JWT flows through to ai-engine's
-// @PreAuthorize(VIEWER) controllers.
-const GATEWAY = import.meta.env.VITE_API_GATEWAY_URL
-const aiApi = axios.create({ baseURL: GATEWAY || 'http://localhost:8091' })
+// R132: removed the standalone `axios.create({ baseURL: 'http://localhost:8091' })`
+// instance that previously served nlpCommand / suggestFlow / getAgentsDashboard.
+// Calling :8091 directly from the browser bypassed the gateway and was
+// blocked by CORS — R130 UI audit caught the Threat Intelligence page
+// firing 11× CORS errors. Every ai-engine endpoint now routes through
+// sharedAiApi, which uses the authenticated, gateway-relative client
+// (same path /api/v1/...; nginx routes /api/v1/ai/** + /api/v1/threats/**
+// to ai-engine:8091 internally).
 
 export const nlpCommand = (query, context) =>
-  aiApi.post('/api/v1/ai/nlp/command', { query, context }).then(r => r.data)
+  sharedAiApi.post('/api/v1/ai/nlp/command', { query, context }).then(r => r.data)
 
 export const suggestFlow = (description) =>
-  aiApi.post('/api/v1/ai/nlp/suggest-flow', { description }).then(r => r.data)
+  sharedAiApi.post('/api/v1/ai/nlp/suggest-flow', { description }).then(r => r.data)
 
 export const getAgentsDashboard = () =>
-  aiApi.get('/api/v1/threats/dashboard').then(r => r.data)
+  sharedAiApi.get('/api/v1/threats/dashboard').then(r => r.data)
 
 // ── R107 Activity Copilot ─────────────────────────────────────────────────
 // These use the auth-wrapped client so JWT + refresh-token flow apply.
