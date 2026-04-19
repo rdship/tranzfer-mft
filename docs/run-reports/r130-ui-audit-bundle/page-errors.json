@@ -1,0 +1,6 @@
+[
+  {
+    "page": "activity-monitor",
+    "text": "nav-timeout: page.goto: Timeout 15000ms exceeded.\nCall log:\n  - navigating to \"https://localhost/activity-monitor\", waiting until \"ne"
+  }
+]

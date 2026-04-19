@@ -1,0 +1,22 @@
+pages visited: 46
+total api calls: 1430
+4xx/5xx calls: 67
+console errors: 94
+page errors: 1
+
+=== 4xx/5xx API responses (grouped) ===
+    46×  GET /api/gateway/status → 404
+     4×  GET /api/pipeline/health → 403
+     2×  GET /api/v1/monitoring/prometheus/query → 503
+     2×  GET /api/v1/licenses → 403
+     2×  GET /api/v1/licenses/catalog/components → 403
+     2×  POST /api/v1/licenses/validate → 403
+     1×  GET /api/servers → 403
+     1×  GET /api/encrypt/status → 403
+     1×  GET /api/gateway/status → 403
+     1×  GET /api/v1/analytics/dashboard → 403
+     1×  GET /api/v1/licenses/health → 403
+     1×  GET /api/v1/screening/health → 403
+     1×  GET /api/v1/keys/health → 403
+     1×  GET /api/v1/storage/health → 403
+     1×  GET /api/notifications/health → 403

@@ -1,0 +1,378 @@
+[
+  {
+    "page": "login",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "login",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "login",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "login",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "login",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "login",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "login",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "login",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "login",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "login",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "login",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "login",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "login",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "operations",
+    "text": "Access to XMLHttpRequest at 'http://localhost:8091/api/v1/threats/dashboard' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' heade"
+  },
+  {
+    "page": "operations",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "page": "operations",
+    "text": "Access to XMLHttpRequest at 'http://localhost:8091/api/v1/threats/dashboard' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' heade"
+  },
+  {
+    "page": "operations",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "page": "operations",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "activity",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "journey",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "partners",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "operations",
+    "text": "Access to XMLHttpRequest at 'http://localhost:8091/api/v1/threats/dashboard' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' heade"
+  },
+  {
+    "page": "operations",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "page": "operations",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "accounts",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "users",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "flows",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "folder-mappings",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "folder-templates",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "external-destinations",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "as2-partnerships",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "operations",
+    "text": "Access to XMLHttpRequest at 'http://localhost:8091/api/v1/threats/dashboard' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' heade"
+  },
+  {
+    "page": "operations",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "page": "operations",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "file-manager",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "server-instances",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "dmz-proxy",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "proxy-groups",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "operations",
+    "text": "Access to XMLHttpRequest at 'http://localhost:8091/api/v1/threats/dashboard' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' heade"
+  },
+  {
+    "page": "operations",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "page": "operations",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "operations",
+    "text": "Access to XMLHttpRequest at 'http://localhost:8091/api/v1/threats/dashboard' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' heade"
+  },
+  {
+    "page": "operations",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "page": "operations",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "keystore",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "threat-intelligence",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "screening",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "compliance",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "operations",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "operations",
+    "text": "Access to XMLHttpRequest at 'http://localhost:8091/api/v1/threats/dashboard' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' heade"
+  },
+  {
+    "page": "operations",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "page": "monitoring",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "monitoring",
+    "text": "Failed to load resource: the server responded with a status of 503 ()"
+  },
+  {
+    "page": "monitoring",
+    "text": "Failed to load resource: the server responded with a status of 503 ()"
+  },
+  {
+    "page": "services",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "services",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "analytics",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "operations",
+    "text": "Access to XMLHttpRequest at 'http://localhost:8091/api/v1/threats/dashboard' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' heade"
+  },
+  {
+    "page": "operations",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "page": "operations",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "logs",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "circuit-breakers",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "notifications",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "operations",
+    "text": "Access to XMLHttpRequest at 'http://localhost:8091/api/v1/threats/dashboard' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' heade"
+  },
+  {
+    "page": "operations",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "page": "operations",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "dlq",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "vfs-storage",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "vfs-storage",
+    "text": "TypeError: x.map is not a function\n    at U (https://localhost/assets/VfsStorage-CfbBtKhP.js:1:8693)\n    at hi (https://localhost/assets/vendor-react-acSS8ywT.js:38:16959)\n    at S"
+  },
+  {
+    "page": "vfs-storage",
+    "text": "[ErrorBoundary] TypeError: x.map is not a function\n    at U (https://localhost/assets/VfsStorage-CfbBtKhP.js:1:8693)\n    at hi (https://localhost/assets/vendor-react-acSS8ywT.js:38"
+  },
+  {
+    "page": "license",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "license",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "license",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "license",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "license",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "license",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "license",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "tenants",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "platform-config",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "api-console",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "migration",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "2fa",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "cluster",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "cluster",
+    "text": "TypeError: m is not iterable\n    at Fe (https://localhost/assets/ClusterDashboard-CNsoViIH.js:1:2312)\n    at hi (https://localhost/assets/vendor-react-acSS8ywT.js:38:16959)\n    at "
+  },
+  {
+    "page": "cluster",
+    "text": "[ErrorBoundary] TypeError: m is not iterable\n    at Fe (https://localhost/assets/ClusterDashboard-CNsoViIH.js:1:2312)\n    at hi (https://localhost/assets/vendor-react-acSS8ywT.js:3"
+  },
+  {
+    "page": "blockchain",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "auto-onboarding",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "operations",
+    "text": "Access to XMLHttpRequest at 'http://localhost:8091/api/v1/threats/dashboard' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' heade"
+  },
+  {
+    "page": "operations",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "page": "operations",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "operations",
+    "text": "Access to XMLHttpRequest at 'http://localhost:8091/api/v1/threats/dashboard' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' heade"
+  },
+  {
+    "page": "operations",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "page": "operations",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "quarantine",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  }
+]

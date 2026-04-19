@@ -1,0 +1,8582 @@
+[
+  {
+    "page": "login",
+    "url": "/api/pipeline/health",
+    "status": 403,
+    "method": "GET"
+  },
+  {
+    "page": "login",
+    "url": "/api/servers?size=1",
+    "status": 403,
+    "method": "GET"
+  },
+  {
+    "page": "login",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "login",
+    "url": "/api/encrypt/status",
+    "status": 403,
+    "method": "GET"
+  },
+  {
+    "page": "login",
+    "url": "/api/gateway/status",
+    "status": 403,
+    "method": "GET"
+  },
+  {
+    "page": "login",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 403,
+    "method": "GET"
+  },
+  {
+    "page": "login",
+    "url": "/api/v1/licenses/health",
+    "status": 403,
+    "method": "GET"
+  },
+  {
+    "page": "login",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "login",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "login",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "login",
+    "url": "/api/v1/screening/health",
+    "status": 403,
+    "method": "GET"
+  },
+  {
+    "page": "login",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "login",
+    "url": "/api/pipeline/health",
+    "status": 403,
+    "method": "GET"
+  },
+  {
+    "page": "login",
+    "url": "/api/pipeline/health",
+    "status": 403,
+    "method": "GET"
+  },
+  {
+    "page": "login",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "login",
+    "url": "/api/pipeline/health",
+    "status": 403,
+    "method": "GET"
+  },
+  {
+    "page": "login",
+    "url": "/api/v1/keys/health",
+    "status": 403,
+    "method": "GET"
+  },
+  {
+    "page": "login",
+    "url": "/api/v1/storage/health",
+    "status": 403,
+    "method": "GET"
+  },
+  {
+    "page": "login",
+    "url": "/api/notifications/health",
+    "status": 403,
+    "method": "GET"
+  },
+  {
+    "page": "login",
+    "url": "/api/auth/login",
+    "status": 200,
+    "method": "POST"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/flow-executions/live-stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/predictions",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/instances",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/queues",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5&sortBy=severity",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/latency?hours=1&sample=2000",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/activity-monitor?page=0&size=5&sortBy=uploadedAt&sortDir=DESC",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/flow-executions/live-stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/predictions",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/queues",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/instances",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/latency?hours=1&sample=2000",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5&sortBy=severity",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/activity-monitor?page=0&size=5&sortBy=uploadedAt&sortDir=DESC",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/fabric/instances",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/fabric/queues",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/fabric/stuck?page=0&size=50",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/flow-executions/scheduled-retries",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/fabric/latency?hours=1&sample=10000",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/activity-monitor?page=0&size=25&sortBy=uploadedAt&sortDir=DESC",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "activity",
+    "url": "/api/fabric/queues",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/journey?limit=20",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "journey",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/partners/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/partners",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "partners",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/flow-executions/live-stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/predictions",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/instances",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/queues",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/latency?hours=1&sample=2000",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5&sortBy=severity",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/activity-monitor?page=0&size=5&sortBy=uploadedAt&sortDir=DESC",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/servers?activeOnly=true",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/accounts",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "accounts",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/users",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "users",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/flows/functions/catalog",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/flow-executions/pending-approvals",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/flow-executions/scheduled-retries",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/flows/executions?size=20",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/flows",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/servers?activeOnly=true",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/external-destinations",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/accounts",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/partners",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "flows",
+    "url": "/api/function-queues",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/folder-mappings",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/accounts",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "folder-mappings",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/servers",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/folder-templates",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "folder-templates",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/external-destinations",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/v1/keys?type=SSH_USER",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/v1/keys?type=TLS",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "external-destinations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/partners",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/as2-partnerships",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/v1/keys?type=TLS_CERTIFICATE",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "as2-partnerships",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/flow-executions/live-stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/predictions",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/instances",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/queues",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/latency?hours=1&sample=2000",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5&sortBy=severity",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/activity-monitor?page=0&size=5&sortBy=uploadedAt&sortDir=DESC",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/accounts",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "file-manager",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/servers",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/accounts",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "server-instances",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/proxy/mappings",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/proxy/listeners",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/proxy/security/summary",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/proxy/security/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/proxy/backends/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dmz-proxy",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/proxy-groups",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "proxy-groups",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/predictions",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/flow-executions/live-stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/latency?hours=1&sample=2000",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/queues",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/instances",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5&sortBy=severity",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/activity-monitor?page=0&size=5&sortBy=uploadedAt&sortDir=DESC",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/flow-executions/live-stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/predictions",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/queues",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/instances",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/latency?hours=1&sample=2000",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5&sortBy=severity",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/activity-monitor?page=0&size=5&sortBy=uploadedAt&sortDir=DESC",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/v1/keys",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/v1/keys/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/v1/keys/expiring?days=30",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "keystore",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/v1/threats/incidents",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/v1/threats/chains",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/v1/threats/agents",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/v1/threats/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "threat-intelligence",
+    "url": "/api/v1/threats/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/v1/screening/lists",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/v1/screening/results",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/v1/screening/hits",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/v1/quarantine",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/v1/quarantine?page=0&size=10",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/v1/dlp/policies",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "screening",
+    "url": "/api/v1/dlp/policies",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/compliance/profiles",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/servers",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/compliance/violations?resolved=false",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/compliance/profiles/all",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "compliance",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/flow-executions/live-stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/predictions",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/queues",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/instances",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/latency?hours=1&sample=2000",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5&sortBy=severity",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/activity-monitor?page=0&size=5&sortBy=uploadedAt&sortDir=DESC",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/v1/monitoring/prometheus/query?query=count(up+%3D%3D+1)",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/v1/monitoring/prometheus/query?query=sum(increase(file_transfer_completed_total%5B1m%5D))",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/v1/monitoring/prometheus/query?query=count(up+%3D%3D+0)",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/v1/monitoring/prometheus/query?query=sum(rabbitmq_queue_messages%7Bqueue%3D~%22.*%5C%5C.dlq%22%7D)",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/v1/monitoring/prometheus/query?query=(sum(rate(file_transfer_completed_total%5B5m%5D))+%2F+(sum(rate(file_transfer_completed_total%5B5m%5D))+%2B+sum(rate(file_transfer_failed_total%5B5m%5D))))+*+100",
+    "status": 503,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/v1/monitoring/prometheus/query?query=sum(ALERTS%7Balertstate%3D%22firing%22%7D)",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/v1/monitoring/prometheus/query_range?query=histogram_quantile(0.95,+sum+by+(le)(rate(http_server_requests_seconds_bucket%5B5m%5D)))+*+1000&start=1776531657&end=1776553257&step=1m",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/v1/monitoring/prometheus/query_range?query=sum(rate(file_transfer_completed_total%5B1m%5D))+*+60&start=1776531657&end=1776553257&step=1m",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/v1/monitoring/prometheus/query_range?query=sum(rate(http_server_requests_seconds_count%7Bstatus%3D~%225..%22%7D%5B5m%5D))&start=1776531657&end=1776553257&step=1m",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "monitoring",
+    "url": "/api/v1/monitoring/prometheus/query?query=(sum(rate(file_transfer_completed_total%5B5m%5D))+%2F+(sum(rate(file_transfer_completed_total%5B5m%5D))+%2B+sum(rate(file_transfer_failed_total%5B5m%5D))))+*+100",
+    "status": 503,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "services",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/v1/analytics/timeseries?service=ALL&hours=24",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "analytics",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/predictions",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/flow-executions/live-stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5&sortBy=severity",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/instances",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/latency?hours=1&sample=2000",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/queues",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/activity-monitor?page=0&size=5&sortBy=uploadedAt&sortDir=DESC",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "logs",
+    "url": "/api/audit-logs",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/v1/sentinel/circuit-breakers",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "circuit-breakers",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/notifications/rules",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/notifications/logs/recent",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "notifications",
+    "url": "/api/notifications/templates",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/flow-executions/live-stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/predictions",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/queues",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/instances",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5&sortBy=severity",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/latency?hours=1&sample=2000",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/activity-monitor?page=0&size=5&sortBy=uploadedAt&sortDir=DESC",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/dlq/messages?page=0&size=20",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "dlq",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/vfs/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/vfs/intents/recent?limit=50",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/accounts",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "vfs-storage",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/v1/licenses",
+    "status": 403,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/v1/licenses/catalog/components",
+    "status": 403,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/v1/licenses/validate",
+    "status": 403,
+    "method": "POST"
+  },
+  {
+    "page": "license",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/v1/licenses/validate",
+    "status": 403,
+    "method": "POST"
+  },
+  {
+    "page": "license",
+    "url": "/api/v1/licenses/catalog/components",
+    "status": 403,
+    "method": "GET"
+  },
+  {
+    "page": "license",
+    "url": "/api/v1/licenses",
+    "status": 403,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/v1/tenants",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "tenants",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/platform-settings?env=PROD",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/platform-settings?category=AI&env=PROD",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "platform-config",
+    "url": "/api/snapshot-retention",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "api-console",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/v1/migration/connection-stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/v1/migration/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/v1/migration/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "migration",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "2fa",
+    "url": "/api/accounts",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/clusters/communication-mode",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/clusters/live",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/clusters",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/clusters/topology",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "cluster",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/v1/blockchain/anchors",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "blockchain",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/v1/auto-onboard/sessions",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/v1/auto-onboard/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "auto-onboarding",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/predictions",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/flow-executions/live-stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/instances",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/queues",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5&sortBy=severity",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/latency?hours=1&sample=2000",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/activity-monitor?page=0&size=5&sortBy=uploadedAt&sortDir=DESC",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/predictions",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/flow-executions/live-stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/queues",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/latency?hours=1&sample=2000",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/fabric/instances",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5&sortBy=severity",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "operations",
+    "url": "/api/activity-monitor?page=0&size=5&sortBy=uploadedAt&sortDir=DESC",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/fabric/stuck?page=0&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/dlq/messages?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/v1/sentinel/findings?status=OPEN&size=5",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/servers?size=1",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/proxy/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/compliance/violations/count",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/v1/ai/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/v1/screening/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/gateway/status",
+    "status": 404,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/forward/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/v1/sentinel/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/v1/convert/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/as2/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/encrypt/status",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/v1/keys/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/v1/licenses/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/v1/quarantine?page=0&size=20",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/notifications/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/pipeline/health",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/v1/analytics/dashboard",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/v1/quarantine/stats",
+    "status": 200,
+    "method": "GET"
+  },
+  {
+    "page": "quarantine",
+    "url": "/api/v1/storage/health",
+    "status": 200,
+    "method": "GET"
+  }
+]
