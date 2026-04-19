@@ -1,17 +1,23 @@
 package com.filetransfer.onboarding.controller;
 
-import com.filetransfer.shared.client.StorageServiceClient;
 import com.filetransfer.shared.entity.transfer.FlowStepSnapshot;
 import com.filetransfer.shared.repository.transfer.FlowStepSnapshotRepository;
 import com.filetransfer.shared.security.Roles;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.util.List;
 
@@ -38,7 +44,14 @@ import java.util.List;
 public class FlowStepPreviewController {
 
     private final FlowStepSnapshotRepository snapshotRepo;
-    private final StorageServiceClient storageClient;
+    // R131: dropped the StorageServiceClient injection — this controller no
+    // longer uses the S2S SPIFFE client. Admin downloads forward the
+    // admin's bearer token directly to storage-manager via a local
+    // RestTemplate. See feedback_admin_can_do_anything.
+    private final RestTemplate restTemplate = new RestTemplate();
+
+    @Value("${services.storage-manager.url:http://storage-manager:8096}")
+    private String storageManagerUrl;
 
     /** All step snapshots for a transfer, ordered by step index. */
     @GetMapping("/{trackId}")
@@ -55,11 +68,12 @@ public class FlowStepPreviewController {
     }
 
     /**
-     * Stream file content before or after a specific step.
-     *
-     * <p>Bytes flow: {@code storage-manager disk → HTTP socket}. Zero heap buffering.
-     * The response is streamed via {@link StreamingResponseBody} so Tomcat does not
-     * wait for the full payload before writing to the client.
+     * Return the file content before or after a specific step for the
+     * admin's Download UI button. The admin's bearer token is forwarded
+     * verbatim to storage-manager so the action always authorizes with
+     * the user's identity rather than relying on the platform's internal
+     * SPIFFE handshake. Files are buffered in JVM heap — fine for the
+     * KB-to-MB range of per-step snapshots.
      *
      * @param direction {@code input} (file entering the step) or {@code output} (file leaving)
      */
@@ -67,7 +81,8 @@ public class FlowStepPreviewController {
     public ResponseEntity<byte[]> previewContent(
             @PathVariable String trackId,
             @PathVariable int stepIndex,
-            @PathVariable String direction) {
+            @PathVariable String direction,
+            HttpServletRequest request) {
 
         FlowStepSnapshot snap = snapshotRepo.findByTrackIdAndStepIndex(trackId, stepIndex)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
@@ -90,35 +105,44 @@ public class FlowStepPreviewController {
 
         log.debug("[{}] Reading step {} {} → key={}", trackId, stepIndex, direction, storageKey);
 
-        // R127 → R130 lesson. R127 first-pass switched from
-        // StreamingResponseBody → retrieveBySha256() (the `/retrieve-by-key/`
-        // endpoint). That path started answering 403 for onboarding-api's
-        // S2S calls — the Journey UI Download button returned 502 to every
-        // admin on every COMPLETED transfer. The `/stream/{sha256}` endpoint,
-        // which the pre-R127 streamToOutput path used, continues to accept
-        // onboarding-api's SPIFFE identity and is the one the tester flagged
-        // as authorised. We keep R127's synchronous heap-buffer approach
-        // (so downstream 4xx still map cleanly to ResponseStatusException
-        // rather than leaking through a committed 200) but route bytes via
-        // streamToOutput → ByteArrayOutputStream so the working S2S path is
-        // used. Flow-step preview files are KB-to-MB snapshots, heap
-        // buffering is fine.
+        // R131 — policy (feedback_admin_can_do_anything): an admin who is
+        // logged in and clicks Download must succeed. R127 tried retrieveBySha256
+        // (`/retrieve-by-key`), R130 tried streamToOutput (`/stream`) — both
+        // failed because they rely on onboarding-api's S2S SPIFFE JWT-SVID,
+        // which storage-manager rejected with 403.
+        //
+        // Correct fix: forward THE ADMIN'S bearer token from the inbound
+        // request to the storage-manager call. storage-manager's class-level
+        // @PreAuthorize(INTERNAL_OR_OPERATOR) explicitly admits ROLE_ADMIN
+        // (tester confirmed direct admin JWT → /stream/{sha256} returns 200).
+        // The admin's auth authorizes the ACTION; SPIFFE is only the
+        // platform's INTERNAL transport layer, not the gate for a
+        // user-initiated UI click.
+        //
+        // Heap-buffer fine for KB-to-MB flow-step preview files. Errors
+        // map cleanly to ResponseStatusException rather than leaking 200.
         byte[] bytes;
-        java.io.ByteArrayOutputStream sink = new java.io.ByteArrayOutputStream();
         try {
-            storageClient.streamToOutput(storageKey, sink);
-            bytes = sink.toByteArray();
-        } catch (Exception e) {
-            Throwable root = e;
-            while (root.getCause() != null) root = root.getCause();
-            if (root instanceof org.springframework.web.client.HttpStatusCodeException httpEx) {
-                log.warn("[{}] storage-manager returned {} for step {} {} (key={})",
-                        trackId, httpEx.getStatusCode(), stepIndex, direction, storageKey);
-                throw new ResponseStatusException(
-                        httpEx.getStatusCode().is4xxClientError() ? HttpStatus.NOT_FOUND
-                                : HttpStatus.BAD_GATEWAY,
-                        "Storage fetch failed for key=" + storageKey + ": " + httpEx.getStatusCode());
+            HttpHeaders headers = new HttpHeaders();
+            headers.setAccept(List.of(MediaType.APPLICATION_OCTET_STREAM));
+            String authz = request.getHeader("Authorization");
+            if (authz != null && !authz.isBlank()) {
+                headers.set("Authorization", authz);
             }
+            ResponseEntity<byte[]> resp = restTemplate.exchange(
+                    storageManagerUrl + "/api/v1/storage/stream/" + storageKey,
+                    HttpMethod.GET,
+                    new HttpEntity<>(headers),
+                    byte[].class);
+            bytes = resp.getBody() == null ? new byte[0] : resp.getBody();
+        } catch (HttpStatusCodeException httpEx) {
+            log.warn("[{}] storage-manager returned {} for step {} {} (key={}) — admin JWT forwarded",
+                    trackId, httpEx.getStatusCode(), stepIndex, direction, storageKey);
+            throw new ResponseStatusException(
+                    httpEx.getStatusCode().is4xxClientError() ? HttpStatus.NOT_FOUND
+                            : HttpStatus.BAD_GATEWAY,
+                    "Storage fetch failed for key=" + storageKey + ": " + httpEx.getStatusCode());
+        } catch (Exception e) {
             log.warn("[{}] Failed to read step {} {}: {}", trackId, stepIndex, direction, e.getMessage());
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                     "Storage fetch failed for key=" + storageKey);

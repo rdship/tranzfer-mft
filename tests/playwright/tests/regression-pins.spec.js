@@ -159,10 +159,54 @@ test.describe('Regression pins — admin UI primary flows', () => {
   // with a bogus trackId/step so we get a 404 (correct) rather than a 502
   // (the regression) — a 502 would prove the storage-manager S2S path
   // broke again.
-  test('R130: /api/flow-steps/{t}/{s}/{dir}/content never returns 502 on storage fetch path @regression', async ({ api }) => {
-    const resp = await api.get('/api/flow-steps/TRZDOESNOTEXIST/0/input/content');
-    expect([404, 400], 'flow-step preview must surface 404 for a missing trackId, never 502 from the storage-fetch path')
-      .toContain(resp.status());
+  // R131: the R130 version of this pin only tested a BOGUS trackId → 404
+  // path. That branch exits via the snapshot-lookup 404 before ever calling
+  // storage-manager, so it passed even though the real bug (a 403 from
+  // storage-manager on onboarding-api's S2S SPIFFE call) was still live.
+  // Rewrote to actually drive the happy path: upload a file, wait for
+  // flowStatus=COMPLETED, then GET the step's content and assert 200 +
+  // non-empty body. If storage-manager rejects onboarding-api's JWT-SVID
+  // again the status maps to 404 or 502 via ResponseStatusException and
+  // this pin fails loudly.
+  test('R130: /api/flow-steps download of a COMPLETED step returns 200 with bytes @regression', async ({ api }) => {
+    let dockerAvailable = true;
+    try { execSync('docker ps', { stdio: 'ignore' }); } catch { dockerAvailable = false; }
+    test.skip(!dockerAvailable, 'docker not available for SFTP upload sidecar');
+
+    const payload = 'r131-download-pin first line\nsecond line\nthird line\n';
+    const filename = `r131-download-${Date.now()}.dat`;
+    await sftpUploadVia('tranzfer-mft_default', { content: payload, filename });
+
+    // Wait up to 25s for the flow engine to land on COMPLETED.
+    let completed = null;
+    await expect.poll(
+      async () => {
+        const row = await findActivityByFilename(api, filename);
+        if (row && row.flowStatus === 'COMPLETED') { completed = row; return true; }
+        return false;
+      },
+      { timeout: 25000, message: 'flow did not reach COMPLETED in 25 s; cannot assert download' }
+    ).toBe(true);
+
+    expect(completed?.trackId, 'COMPLETED row is missing a trackId').toBeTruthy();
+
+    // Try step 0 / both directions — pick the first that returns 200.
+    // Different flows emit files in different step/direction combos.
+    const tries = [
+      { step: 0, dir: 'input' },  { step: 0, dir: 'output' },
+      { step: 1, dir: 'input' },  { step: 1, dir: 'output' },
+      { step: 0, dir: 'send' },   { step: 0, dir: 'receive' },
+    ];
+    let success = null;
+    for (const t of tries) {
+      const r = await api.get(`/api/flow-steps/${completed.trackId}/${t.step}/${t.dir}/content`);
+      if (r.status() === 200) { success = { ...t, size: (await r.body()).length }; break; }
+    }
+    expect(success,
+      `flow-step download never succeeded for trackId=${completed?.trackId}. ` +
+      `If storage-manager is rejecting onboarding-api's SPIFFE JWT-SVID the controller maps to 404/502 — check onboarding-api logs for "storage-manager returned 403".`
+    ).toBeTruthy();
+    expect(success.size, 'flow-step download returned a zero-byte body').toBeGreaterThan(0);
   });
 
   // R130 BUG 2: the Activity Monitor row-level Restart button was gated
@@ -175,6 +219,11 @@ test.describe('Regression pins — admin UI primary flows', () => {
   // "select all failed" bulk-checkbox target). This pin is source-level:
   // it asserts the file contains the R125 set AND does not re-declare
   // a RESTARTABLE_STATUSES in an inner scope that would shadow it.
+  // R131: the R130 version of this pin used a naive regex that matched the
+  // R130 explanatory comment line ("R130: was `const RESTARTABLE_STATUSES =
+  // new Set(['FAILED'])`"), so it false-failed on its own code review with
+  // "found 2 declarations." Strip // and /* */ comments before counting
+  // so the assertion reflects real source, not source-plus-docs.
   test('R130: RESTARTABLE_STATUSES widening is not shadowed by an inner declaration @regression', async () => {
     const fs = require('fs');
     const path = require('path');
@@ -182,11 +231,16 @@ test.describe('Regression pins — admin UI primary flows', () => {
       path.join(__dirname, '../../../ui-service/src/pages/ActivityMonitor.jsx'),
       'utf8'
     );
-    const decls = amSrc.match(/const\s+RESTARTABLE_STATUSES\s*=/g) || [];
+    const stripped = amSrc
+      .replace(/\/\*[\s\S]*?\*\//g, '')              // /* block comments */
+      .split('\n')
+      .map(l => l.replace(/\/\/.*$/, ''))            // // line comments
+      .join('\n');
+    const decls = stripped.match(/const\s+RESTARTABLE_STATUSES\s*=/g) || [];
     expect(decls.length,
       'ActivityMonitor.jsx must declare RESTARTABLE_STATUSES exactly once; any second declaration shadows R125 widening and hides the Restart button on PAUSED/PENDING/UNMATCHED rows'
     ).toBe(1);
-    expect(amSrc,
+    expect(stripped,
       'RESTARTABLE_STATUSES must include PAUSED (R125 widening)'
     ).toMatch(/RESTARTABLE_STATUSES[^=]*=[^[]*\[[^\]]*'PAUSED'/);
   });
