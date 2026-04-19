@@ -36,6 +36,17 @@ public class AnalyticsController {
         return ResponseEntity.ok(dashboardService.getDashboardSummary());
     }
 
+    /**
+     * Lightweight reachability probe for the UI sidebar's liveness poll.
+     * Matches the platform-wide {@code /api/*\/health} permitAll rule so
+     * the sidebar doesn't 403-spam when polling every 60 s.
+     */
+    @GetMapping("/health")
+    @PreAuthorize("permitAll()")
+    public java.util.Map<String, Object> health() {
+        return java.util.Map.of("status", "UP", "service", "analytics-service");
+    }
+
     @GetMapping("/predictions")
     public ResponseEntity<List<ScalingRecommendation>> getAllPredictions() {
         return ResponseEntity.ok(predictionService.predictAll());

@@ -48,6 +48,19 @@ public class ServerInstanceController {
         return activeOnly ? service.listActive() : service.listAll();
     }
 
+    /**
+     * Lightweight reachability probe for the UI sidebar's liveness poll
+     * (ServiceContext.jsx). Matches the platform-wide {@code /api/*\/health}
+     * permitAll rule so authenticated-but-under-privileged users (and the
+     * ~48-times-a-minute poll) don't spam 403s in the admin network log.
+     */
+    @GetMapping("/health")
+    @PreAuthorize("permitAll()")
+    @Operation(summary = "Liveness probe — returns {status: UP} when the controller is reachable")
+    public Map<String, Object> health() {
+        return Map.of("status", "UP", "service", "onboarding-api", "controller", "server-instances");
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "Get a server instance by UUID")
     public ServerInstanceResponse getById(@PathVariable UUID id) {

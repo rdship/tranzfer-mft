@@ -1168,26 +1168,49 @@ public class FlowProcessingEngine {
     }
 
     /**
+     * Resolve the {@link DeliveryEndpoint}s referenced by a FILE_DELIVERY step config.
+     * Supports UUIDs ({@code deliveryEndpointIds}), names list ({@code endpoints}), and
+     * single-name shortcut ({@code endpoint}). The first shape that yields rows wins.
+     */
+    private List<DeliveryEndpoint> resolveDeliveryEndpoints(Map<String, String> cfg) {
+        String ids = cfg.get("deliveryEndpointIds");
+        if (ids != null && !ids.isBlank()) {
+            List<UUID> uuids = Arrays.stream(ids.split(","))
+                    .map(String::trim).filter(s -> !s.isEmpty())
+                    .map(UUID::fromString).toList();
+            return deliveryEndpointRepository.findByIdInAndActiveTrue(uuids);
+        }
+        String names = cfg.get("endpoints");
+        if (names == null || names.isBlank()) {
+            String single = cfg.get("endpoint");
+            if (single != null && !single.isBlank()) names = single;
+        }
+        if (names != null && !names.isBlank()) {
+            List<String> nameList = Arrays.stream(names.split(","))
+                    .map(String::trim).filter(s -> !s.isEmpty()).toList();
+            return deliveryEndpointRepository.findByNameInAndActiveTrue(nameList);
+        }
+        throw new IllegalArgumentException(
+                "FILE_DELIVERY step requires 'deliveryEndpointIds', 'endpoints', or 'endpoint' in config");
+    }
+
+    /**
      * FILE_DELIVERY step — delivers the file to one or many external delivery endpoints.
-     * Config: {"deliveryEndpointIds": "uuid1,uuid2,uuid3"}
-     * Each endpoint is called via the external-forwarder-service.
+     *
+     * <p>Accepted config shapes (all {@code Map<String,String>}):
+     * <ul>
+     *   <li>{@code {"deliveryEndpointIds": "uuid1,uuid2,uuid3"}} — canonical UUID reference</li>
+     *   <li>{@code {"endpoints": "name1,name2"}} — admin-friendly name reference (stable across re-seeds)</li>
+     *   <li>{@code {"endpoint": "name"}} — single-name shortcut (fixture-script compatible)</li>
+     * </ul>
+     *
+     * <p>Each endpoint is called via the external-forwarder-service.
      */
     private String executeFileDelivery(Path input, Map<String, String> cfg, String trackId) throws Exception {
-        String endpointIdsStr = cfg.get("deliveryEndpointIds");
-        if (endpointIdsStr == null || endpointIdsStr.isBlank()) {
-            throw new IllegalArgumentException("FILE_DELIVERY step requires 'deliveryEndpointIds' in config");
-        }
-
-        List<UUID> endpointIds = Arrays.stream(endpointIdsStr.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .map(UUID::fromString)
-                .toList();
-
-        List<DeliveryEndpoint> endpoints = deliveryEndpointRepository.findByIdInAndActiveTrue(endpointIds);
-
+        List<DeliveryEndpoint> endpoints = resolveDeliveryEndpoints(cfg);
         if (endpoints.isEmpty()) {
-            throw new IllegalArgumentException("No active delivery endpoints found for IDs: " + endpointIdsStr);
+            throw new IllegalArgumentException(
+                    "No active delivery endpoints resolved for FILE_DELIVERY config: " + cfg);
         }
 
         String forwarderUrl = serviceProps.getForwarderService().getUrl();
@@ -1277,9 +1300,21 @@ public class FlowProcessingEngine {
     }
 
     private void addInternalAuth(HttpHeaders headers, String targetService) {
-        if (spiffeWorkloadClient != null && spiffeWorkloadClient.isAvailable()) {
-            String token = spiffeWorkloadClient.getJwtSvidFor(targetService);
-            if (token != null) headers.setBearerAuth(token);
+        if (spiffeWorkloadClient == null || !spiffeWorkloadClient.isEnabled()) return;
+        if (!spiffeWorkloadClient.isAvailable()) {
+            spiffeWorkloadClient.awaitAvailable(java.time.Duration.ofSeconds(5));
+        }
+        if (!spiffeWorkloadClient.isAvailable()) {
+            log.warn("[FlowEngine] SPIFFE workload API unavailable — outbound call to '{}' will go header-less and likely 403",
+                    targetService);
+            return;
+        }
+        String token = spiffeWorkloadClient.getJwtSvidFor(targetService);
+        if (token != null) {
+            headers.setBearerAuth(token);
+        } else {
+            log.warn("[FlowEngine] SPIFFE JWT-SVID returned null for target '{}' — outbound call will go header-less and likely 403",
+                    targetService);
         }
     }
 

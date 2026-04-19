@@ -50,6 +50,13 @@ public class SecurityConfig {
                         .requestMatchers(ant("/api/partner/login")).permitAll()
                         .requestMatchers(ant("/api/2fa/verify")).permitAll()
                         .requestMatchers(ant("/actuator/health/**"), ant("/actuator/health")).permitAll()
+                        // R132: health/liveness endpoints polled every few seconds by the UI
+                        // sidebar — no sensitive data, returns only "UP" + counts. Keeping
+                        // them under .authenticated() caused 192×403/min spam in network log
+                        // when the browser-side Authorization header failed to attach for any
+                        // reason (expired JWT, CORS preflight, etc.). Matches the platform-wide
+                        // pattern set by PlatformSecurityConfig for /api/*\/health.
+                        .requestMatchers(ant("/api/pipeline/health"), ant("/api/*/health"), ant("/api/v1/*/health")).permitAll()
                         .requestMatchers(ant("/v3/api-docs/**"), ant("/swagger-ui/**"), ant("/swagger-ui.html")).permitAll()
                         .requestMatchers(ant("/api/cli/**")).hasRole("ADMIN")
                         .anyRequest().authenticated()

@@ -535,9 +535,21 @@ public class MappingCorrectionService {
     }
 
     private void addInternalAuth(HttpHeaders headers, String targetService) {
-        if (spiffeWorkloadClient != null && spiffeWorkloadClient.isAvailable()) {
-            String token = spiffeWorkloadClient.getJwtSvidFor(targetService);
-            if (token != null) headers.setBearerAuth(token);
+        if (spiffeWorkloadClient == null || !spiffeWorkloadClient.isEnabled()) return;
+        if (!spiffeWorkloadClient.isAvailable()) {
+            spiffeWorkloadClient.awaitAvailable(java.time.Duration.ofSeconds(5));
+        }
+        if (!spiffeWorkloadClient.isAvailable()) {
+            log.warn("[MappingCorrection] SPIFFE unavailable — outbound call to '{}' will go header-less and likely 403",
+                    targetService);
+            return;
+        }
+        String token = spiffeWorkloadClient.getJwtSvidFor(targetService);
+        if (token != null) {
+            headers.setBearerAuth(token);
+        } else {
+            log.warn("[MappingCorrection] SPIFFE JWT-SVID null for target '{}' — header-less call will likely 403",
+                    targetService);
         }
     }
 

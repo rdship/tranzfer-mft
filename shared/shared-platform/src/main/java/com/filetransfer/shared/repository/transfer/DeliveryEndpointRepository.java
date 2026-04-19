@@ -24,6 +24,8 @@ public interface DeliveryEndpointRepository extends JpaRepository<DeliveryEndpoi
 
     List<DeliveryEndpoint> findByIdInAndActiveTrue(List<UUID> ids);
 
+    List<DeliveryEndpoint> findByNameInAndActiveTrue(List<String> names);
+
     @Query("SELECT COUNT(d) FROM DeliveryEndpoint d WHERE d.active = true")
     long countActive();
 

@@ -21,7 +21,7 @@ import { onboardingApi, licenseApi } from '../api/client'
 // to the correct backend. Uses relative paths so it works in any environment.
 const SERVICE_HEALTH_ENDPOINTS = {
   onboarding: { url: '/api/pipeline/health' },
-  config: { url: '/api/servers?size=1' },
+  config: { url: '/api/servers/health' },
   sftp: { url: '/api/pipeline/health' },
   ftp: { url: '/api/pipeline/health' },
   ftpWeb: { url: '/api/pipeline/health' },
@@ -30,7 +30,7 @@ const SERVICE_HEALTH_ENDPOINTS = {
   forwarder: { url: '/api/forward/health' },
   dmz: { url: '/api/proxy/health' },
   license: { url: '/api/v1/licenses/health' },
-  analytics: { url: '/api/v1/analytics/dashboard' },
+  analytics: { url: '/api/v1/analytics/health' },
   aiEngine: { url: '/api/v1/ai/health' },
   screening: { url: '/api/v1/screening/health' },
   keystore: { url: '/api/v1/keys/health' },
