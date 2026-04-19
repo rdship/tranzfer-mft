@@ -1,0 +1,9 @@
+R132 E2E delivery test — 5 files, 0 delivered
+
+Each row: filename | SHA-256 of source | source size bytes | landed on 3rd-party? (no)
+
+r132-delivery-test-1776581514578472000-1.txt|01ad8c2cb1fe453e84b23fdc0e78ff3d0dffda549c5fd71724acbc2158cfe6e8|28
+r132-delivery-test-1776581516475442000-2.txt|bc3ee0289b58a99e768909cd2eae1a7f1a5a70fa10ad0742e25c0fcbd7ea147b|851
+r132-delivery-test-1776581517938596000-3.txt|841cbad3c1610aea8367a1804bc7b6dc39e6a5b6ffd31120c78424a4dd06de7b|13657
+r132-delivery-test-1776581519998673000-4.txt|ae24a2ec72b3fcdd0c9849ec360caf1affb3af22231e22e938729b1ad70e73bb|18
+r132-delivery-test-1776581522052262000-5.txt|5e7982a13ef4846d29db4f3381583ccb9d91f1f8af4947efa0b5b260cb1357ad|5465
