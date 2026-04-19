@@ -1,0 +1,78 @@
+[
+  {
+    "page": "login",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "login",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "login",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "login",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "login",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "login",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "login",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "login",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "monitoring",
+    "text": "Failed to load resource: the server responded with a status of 503 ()"
+  },
+  {
+    "page": "monitoring",
+    "text": "Failed to load resource: the server responded with a status of 503 ()"
+  },
+  {
+    "page": "services",
+    "text": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "page": "license",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "license",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "license",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "license",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "license",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "license",
+    "text": "Failed to load resource: the server responded with a status of 403 ()"
+  },
+  {
+    "page": "cluster",
+    "text": "Error: Minified React error #31; visit https://reactjs.org/docs/error-decoder.html?invariant=31&args[]=object%20with%20keys%20%7BcommunicationMode%2C%20clusterId%7D for the full message or use the non"
+  },
+  {
+    "page": "cluster",
+    "text": "[ErrorBoundary] Error: Minified React error #31; visit https://reactjs.org/docs/error-decoder.html?invariant=31&args[]=object%20with%20keys%20%7BcommunicationMode%2C%20clusterId%7D for the full messag"
+  }
+]

@@ -1,0 +1,11 @@
+pages=47 api=1471 4xx5xx=16 console=19 pageerr=1
+
+     4× GET /api/pipeline/health → 403
+     2× GET /api/v1/monitoring/prometheus/query → 503
+     2× POST /api/v1/licenses/validate → 403
+     2× GET /api/v1/licenses/catalog/components → 403
+     2× GET /api/v1/licenses → 403
+     1× GET /api/servers → 403
+     1× GET /api/v1/analytics/dashboard → 403
+     1× GET /api/gateway/status → 403
+     1× GET /api/encrypt/status → 403
