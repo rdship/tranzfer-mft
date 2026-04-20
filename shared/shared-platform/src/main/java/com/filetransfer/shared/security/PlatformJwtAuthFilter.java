@@ -79,6 +79,20 @@ public class PlatformJwtAuthFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
+        // R134 diagnostic (per R133 acceptance directive): noisy log at the
+        // first statement of doFilter so tester can verify — on any 403 from
+        // this service — whether this filter is even on the chain for that
+        // request. Five releases of adding fallback code paths with no
+        // runtime delta is the signature of a wiring bug, not a logic bug.
+        // If this line DOES NOT appear for a 403 request, the filter isn't
+        // mounted; if it DOES, we can see every branch taken.
+        if (log.isInfoEnabled()) {
+            log.info("[PlatformJwtAuthFilter] entered method={} uri={} authz={} xfwd={}",
+                    request.getMethod(), request.getRequestURI(),
+                    headerSummary(request.getHeader("Authorization")),
+                    headerSummary(request.getHeader("X-Forwarded-Authorization")));
+        }
+
         // ── Path 0: SPIFFE mTLS peer certificate ────────────────────────────
         // SpiffeMtlsAuthFilter (pre-security) extracted the SPIFFE ID from the TLS
         // client certificate and stored it as a request attribute. Authenticate here
@@ -89,6 +103,26 @@ public class PlatformJwtAuthFilter extends OncePerRequestFilter {
                     new UsernamePasswordAuthenticationToken(
                             peerSpiffeId, null,
                             List.of(new SimpleGrantedAuthority("ROLE_INTERNAL"))));
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        // R134 — Path 0.5: X-Forwarded-Authorization is checked ahead of
+        // the SPIFFE branch because BaseServiceClient sets it whenever the
+        // outbound call originated from an inbound user request. Presence
+        // of this header means "a human admin clicked a button" — their
+        // ROLE_<role> authority should win over the system ROLE_INTERNAL
+        // that a valid SPIFFE SVID would grant (SPIFFE is a cluster-peer
+        // identity, not a user one). This is the only path that reliably
+        // authorizes an admin action when the downstream SPIFFE rejects or
+        // the downstream's @PreAuthorize demands ADMIN/OPERATOR rather
+        // than INTERNAL. Root cause of R133 no-runtime-delta: the fallback
+        // fired only inside the SPIFFE-failed sub-branch, which does not
+        // run at all if SPIFFE succeeds (and the R133 trust-domain
+        // fallback made it succeed) — so ROLE_INTERNAL ended up set and
+        // downstream @PreAuthorize rejected.
+        if (tryForwardedAuthFallback(request)) {
+            log.info("[PlatformJwtAuthFilter] authorized via X-Forwarded-Authorization");
             filterChain.doFilter(request, response);
             return;
         }
@@ -187,6 +221,19 @@ public class PlatformJwtAuthFilter extends OncePerRequestFilter {
             return header.substring(7);
         }
         return null;
+    }
+
+    /**
+     * Redacted one-liner for Authorization / X-Forwarded-Authorization diag logs.
+     * Never dump a full JWT — just the scheme + token length + first 6 chars
+     * so the log is tamper-resistant but enough to correlate with upstream.
+     */
+    private static String headerSummary(String header) {
+        if (header == null || header.isBlank()) return "(none)";
+        if (!header.startsWith("Bearer ")) return "(no-bearer:" + header.length() + ")";
+        String token = header.substring(7);
+        int preview = Math.min(6, token.length());
+        return "Bearer " + token.substring(0, preview) + "...(" + token.length() + ")";
     }
 
     /**

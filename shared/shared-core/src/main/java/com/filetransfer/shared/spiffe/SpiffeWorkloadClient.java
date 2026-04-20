@@ -291,56 +291,22 @@ public class SpiffeWorkloadClient {
             JwtSvid.parseAndValidate(token, jwtSource, Set.of(selfSpiffeId));
             return true;
         } catch (Exception ex) {
-            // R133: enriched diagnostic — decode payload (insecure, after failure)
-            // and log actual aud/sub/exp so ops can see in one log line WHY the
-            // token was rejected (audience mismatch vs signature vs expiry).
-            // R131/R132/R132f all hit SPIFFE rejection at runtime without the
-            // rejection reason being visible; this is the missing breadcrumb.
-            log.warn("[SPIFFE] JWT-SVID rejected strict (expected audience={}): {} — {}",
+            // R133/R134: enriched diagnostic — decode payload (insecure, after
+            // failure) and log actual aud/sub/exp so ops can see in one log
+            // line WHY the token was rejected (audience mismatch vs signature
+            // vs expiry). R131/R132/R132f/R133 all hit SPIFFE rejection at
+            // runtime without the rejection reason being visible — this is
+            // the missing breadcrumb.
+            //
+            // R134: the R133 same-trust-domain fallback was removed. It
+            // granted ROLE_INTERNAL on a relaxed check, which then failed
+            // downstream @PreAuthorize(ADMIN/OPERATOR) and produced the same
+            // 403 the strict check would have. The correct path for
+            // user-initiated calls is X-Forwarded-Authorization (handled in
+            // PlatformJwtAuthFilter). Background S2S calls need strict SPIFFE
+            // to actually work — the enriched log below reveals why it fails.
+            log.warn("[SPIFFE] JWT-SVID rejected (expected audience={}): {} — {}",
                     selfSpiffeId, ex.getMessage(), describeToken(token));
-            // R133: same-trust-domain fallback. BUG 13 (flow-engine →
-            // external-forwarder) has no user-JWT to fall back on — it needs the
-            // SPIFFE path to succeed. When strict audience check fails but the
-            // token is (a) well-signed by our SPIRE trust bundle and (b) issued
-            // to a workload inside our trust domain, we trust it as an internal
-            // caller. This gives up per-target audience scoping — acceptable
-            // because in our 22-service cluster every registered SPIFFE
-            // workload is equally privileged for internal S2S calls, and the
-            // signature proves SPIRE issued it.
-            return validateSameTrustDomain(token, selfSpiffeId);
-        }
-    }
-
-    /**
-     * Fallback validation: signature + expiry checked (via parseAndValidate
-     * against the actual token's own audience claim), then confirm the caller
-     * SPIFFE ID is in this service's trust domain. Returns true iff the token
-     * was signed by SPIRE for a workload in our trust domain and is unexpired.
-     */
-    private boolean validateSameTrustDomain(String token, String selfSpiffeId) {
-        try {
-            String[] parts = token.split("\\.");
-            if (parts.length < 2) return false;
-            String pad = parts[1].length() % 4 == 0
-                    ? parts[1]
-                    : parts[1] + "==".substring(parts[1].length() % 4);
-            String payload = new String(java.util.Base64.getUrlDecoder().decode(pad));
-            String actualAud = extractJsonField(payload, "aud");
-            if (actualAud == null || actualAud.equals("(none)")) return false;
-            // Parse again with the token's OWN audience — validates signature + expiry.
-            JwtSvid svid = JwtSvid.parseAndValidate(token, jwtSource, Set.of(actualAud));
-            String caller = svid.getSpiffeId().toString();
-            String expectedPrefix = "spiffe://" + props.getTrustDomain() + "/";
-            if (caller.startsWith(expectedPrefix)) {
-                log.info("[SPIFFE] JWT-SVID accepted via same-trust-domain fallback — caller={} target-aud={} (strict-expected={})",
-                        caller, actualAud, selfSpiffeId);
-                return true;
-            }
-            log.warn("[SPIFFE] JWT-SVID rejected — caller {} outside trust domain {}",
-                    caller, props.getTrustDomain());
-            return false;
-        } catch (Exception ex) {
-            log.warn("[SPIFFE] JWT-SVID same-trust-domain fallback failed: {}", ex.getMessage());
             return false;
         }
     }
