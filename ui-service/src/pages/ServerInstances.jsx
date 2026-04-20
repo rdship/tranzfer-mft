@@ -88,7 +88,7 @@ const emptyForm = {
   maxConnections: 500,
   folderTemplateId: '',
   clearFolderTemplate: false,
-  defaultStorageMode: 'PHYSICAL',
+  defaultStorageMode: 'VIRTUAL',
   complianceProfileId: '',
   securityProfileId: '',
   securityTier: 'RULES',

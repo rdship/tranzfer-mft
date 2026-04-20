@@ -54,6 +54,11 @@ public class ServerInstanceResponse {
     private boolean maintenanceMode;
     private String  maintenanceMessage;
 
+    /** Compliance profile assigned to this listener (HIPAA / PCI / GDPR etc.). */
+    private UUID    complianceProfileId;
+    /** Security profile (TLS/auth policy bundle) assigned to this listener. */
+    private UUID    securityProfileId;
+
     /** Number of accounts currently assigned and enabled on this server. */
     private long assignedAccountCount;
 

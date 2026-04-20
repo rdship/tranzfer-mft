@@ -47,6 +47,11 @@ public class UpdateServerInstanceRequest {
     private Boolean maintenanceMode;
     private String  maintenanceMessage;
 
+    /** Compliance profile (HIPAA / PCI / GDPR etc.). */
+    private UUID    complianceProfileId;
+    /** Security profile (TLS/auth policy bundle). */
+    private UUID    securityProfileId;
+
     // ── FTP per-listener advanced config (V87) ───────────────────────────────
     /** PASV port range lower bound. */
     private Integer ftpPassivePortFrom;

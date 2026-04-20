@@ -54,6 +54,34 @@ public class CreateServerInstanceRequest {
     /** Proxy QoS policy — applied when useProxy=true */
     private ProxyQoSConfig proxyQos;
 
+    // ── Advanced per-server configuration (V44) — R134f: all were settable
+    // via PATCH only, so the admin UI create form silently dropped the values.
+    // Aligns with the listener-UI gap audit's Phase 1.
+
+    /** Proxy group name (links to proxy_groups.name). */
+    private String  proxyGroupName;
+    /** Security tier: NONE | RULES | AI | AI_LLM. */
+    private String  securityTier;
+    /** SSH banner text shown to clients on connect. */
+    private String  sshBannerMessage;
+    /** Max failed auth attempts before disconnect. */
+    private Integer maxAuthAttempts;
+    /** Idle session timeout in seconds (0 = no timeout). */
+    private Integer idleTimeoutSeconds;
+    /** Absolute session duration limit in seconds (0 = no limit). */
+    private Integer sessionMaxDurationSeconds;
+    /** Comma-separated SSH cipher allowlist (null = server defaults). */
+    private String  allowedCiphers;
+    private String  allowedMacs;
+    private String  allowedKex;
+    /** Maintenance-mode message (shown when maintenanceMode=true). */
+    private String  maintenanceMessage;
+
+    /** Compliance profile (HIPAA / PCI / GDPR etc.) — UUID of profile row. */
+    private UUID    complianceProfileId;
+    /** Security profile (TLS/auth policy bundle) — UUID of profile row. */
+    private UUID    securityProfileId;
+
     // ── FTP per-listener advanced config (V87) ───────────────────────────────
     // All optional. Null = inherit service-wide ftp.* application property.
 

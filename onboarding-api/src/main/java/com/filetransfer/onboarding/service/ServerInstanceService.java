@@ -67,7 +67,7 @@ public class ServerInstanceService {
                             suggestAlternativePorts(request.getInternalHost(), request.getInternalPort(), 5));
                 });
 
-        ServerInstance instance = ServerInstance.builder()
+        ServerInstance.ServerInstanceBuilder builder = ServerInstance.builder()
                 .instanceId(request.getInstanceId())
                 .protocol(request.getProtocol())
                 .name(request.getName())
@@ -92,8 +92,27 @@ public class ServerInstanceService {
                 .ftpWebMaxUploadBytes(request.getFtpWebMaxUploadBytes())
                 .ftpWebTlsCertAlias(request.getFtpWebTlsCertAlias())
                 .ftpWebPortalTitle(request.getFtpWebPortalTitle())
-                .active(request.getActive() == null || request.getActive())
-                .build();
+                .active(request.getActive() == null || request.getActive());
+
+        // R134f (listener-UI gap audit Phase 1) — previously settable only via
+        // PATCH. Admin form rendered these fields but POST silently dropped
+        // them, leaving new listeners with NULL profile + default security
+        // config. Null-guards preserve the entity's @Builder.Default values
+        // when the caller omits the field.
+        if (request.getProxyGroupName()           != null) builder.proxyGroupName(request.getProxyGroupName());
+        if (request.getSecurityTier()             != null) builder.securityTier(request.getSecurityTier());
+        if (request.getSshBannerMessage()         != null) builder.sshBannerMessage(request.getSshBannerMessage());
+        if (request.getMaxAuthAttempts()          != null) builder.maxAuthAttempts(request.getMaxAuthAttempts());
+        if (request.getIdleTimeoutSeconds()       != null) builder.idleTimeoutSeconds(request.getIdleTimeoutSeconds());
+        if (request.getSessionMaxDurationSeconds()!= null) builder.sessionMaxDurationSeconds(request.getSessionMaxDurationSeconds());
+        if (request.getAllowedCiphers()           != null) builder.allowedCiphers(request.getAllowedCiphers());
+        if (request.getAllowedMacs()              != null) builder.allowedMacs(request.getAllowedMacs());
+        if (request.getAllowedKex()               != null) builder.allowedKex(request.getAllowedKex());
+        if (request.getMaintenanceMessage()       != null) builder.maintenanceMessage(request.getMaintenanceMessage());
+        if (request.getComplianceProfileId()      != null) builder.complianceProfileId(request.getComplianceProfileId());
+        if (request.getSecurityProfileId()        != null) builder.securityProfileId(request.getSecurityProfileId());
+
+        ServerInstance instance = builder.build();
 
         validateFtpFields(instance);
         validateFtpWebFields(instance);
@@ -166,6 +185,10 @@ public class ServerInstanceService {
         if (request.getAllowedKex()              != null) instance.setAllowedKex(request.getAllowedKex());
         if (request.getMaintenanceMode()         != null) instance.setMaintenanceMode(request.getMaintenanceMode());
         if (request.getMaintenanceMessage()      != null) instance.setMaintenanceMessage(request.getMaintenanceMessage());
+        // R134f — was also missing from update(): PATCH on a listener from the
+        // admin UI silently dropped compliance/security profile changes.
+        if (request.getComplianceProfileId()     != null) instance.setComplianceProfileId(request.getComplianceProfileId());
+        if (request.getSecurityProfileId()       != null) instance.setSecurityProfileId(request.getSecurityProfileId());
 
         // FTP advanced (V87) — null means "leave unchanged"
         if (request.getFtpPassivePortFrom()      != null) instance.setFtpPassivePortFrom(request.getFtpPassivePortFrom());
@@ -347,6 +370,8 @@ public class ServerInstanceService {
                 .allowedKex(i.getAllowedKex())
                 .maintenanceMode(i.isMaintenanceMode())
                 .maintenanceMessage(i.getMaintenanceMessage())
+                .complianceProfileId(i.getComplianceProfileId())
+                .securityProfileId(i.getSecurityProfileId())
                 .assignedAccountCount(0L)  // populated by controller when needed
                 // Runtime bind state (V64)
                 .bindState(i.getBindState())
