@@ -69,62 +69,21 @@ spring:
     locations: classpath:db/migration
     validate-on-migrate: false
 
-platform: {}
-
-jwt:
-  secret: ${JWT_SECRET:change_me_in_production_256bit_secret_key!!}
-  expiration: 900000
-
-cluster:
-  id: ${CLUSTER_ID:default-cluster}
-  host: ${CLUSTER_HOST:localhost}
-  service-type: ENCRYPTION
-  communication-mode: ${CLUSTER_COMM_MODE:WITHIN_CLUSTER}
-
-encryption:
-  master-key: ${ENCRYPTION_MASTER_KEY:0000000000000000000000000000000000000000000000000000000000000000}
-
-services:
-    onboarding-api:
-      url: ${ONBOARDING_API_URL:http://onboarding-api:8080}
-    sftp-service:
-      url: ${SFTP_SERVICE_URL:http://sftp-service:8081}
-    ftp-service:
-      url: ${FTP_SERVICE_URL:http://ftp-service:8082}
-    ftp-web-service:
-      url: ${FTP_WEB_SERVICE_URL:http://ftp-web-service:8083}
-    config-service:
-      url: ${CONFIG_SERVICE_URL:http://config-service:8084}
-    gateway-service:
-      url: ${GATEWAY_SERVICE_URL:http://gateway-service:8085}
-    encryption-service:
-      url: ${ENCRYPTION_SERVICE_URL:http://encryption-service:8086}
-    forwarder-service:
-      url: ${FORWARDER_SERVICE_URL:http://external-forwarder-service:8087}
-    dmz-proxy:
-      url: ${DMZ_PROXY_URL:http://dmz-proxy:8088}
-    license-service:
-      url: ${LICENSE_SERVICE_URL:http://license-service:8089}
-    analytics-service:
-      url: ${ANALYTICS_SERVICE_URL:http://analytics-service:8090}
-    ai-engine:
-      url: ${AI_ENGINE_URL:http://ai-engine:8091}
-    screening-service:
-      url: ${SCREENING_SERVICE_URL:http://screening-service:8092}
-    keystore-manager:
-      url: ${KEYSTORE_MANAGER_URL:http://keystore-manager:8093}
-    as2-service:
-      url: ${AS2_SERVICE_URL:http://as2-service:8094}
-    edi-converter:
-      url: ${EDI_CONVERTER_URL:http://edi-converter:8095}
-    storage-manager:
-      url: ${STORAGE_MANAGER_URL:http://storage-manager:8096}
+# R134B — rebuilt the `platform:` tree after R134v lifted `services:` out
+# from under the retired `vault:` parent. The pre-R134v state had every
+# `platform.*` key (security, track-id, storage, flow, proxy, readiness,
+# environment) nested under `vault:` — those paths never matched the Java
+# readers (`@Value("${platform.security.*}")`, etc.), so env-var overrides
+# had been silently doing all the work. R134v's partial lift left an
+# orphaned `environment:` block that broke SnakeYAML's parse and blocked
+# encryption-service from booting (R134u-z-verification.md §R134v). This
+# restructures the tree correctly AND preserves the R134k explicit-binding
+# intent for InternalServiceSecurityConfig so the YAML fallback works if
+# env vars ever don't propagate.
+platform:
   environment: ${PLATFORM_ENVIRONMENT:PROD}
   track-id:
     prefix: ${TRACK_ID_PREFIX:TRZ}
-  cluster:
-    id: ${CLUSTER_ID:default-cluster}
-    host: ${CLUSTER_HOST:localhost}
   security:
     # R134k — explicit YAML binding for InternalServiceSecurityConfig.
     shared-config: ${PLATFORM_SECURITY_SHARED_CONFIG:false}
@@ -148,3 +107,54 @@ services:
   readiness:
     schema-file: db/schema/encryption-service.sql
     required-tables: encryption_keys
+
+jwt:
+  secret: ${JWT_SECRET:change_me_in_production_256bit_secret_key!!}
+  expiration: 900000
+
+cluster:
+  id: ${CLUSTER_ID:default-cluster}
+  host: ${CLUSTER_HOST:localhost}
+  service-type: ENCRYPTION
+  communication-mode: ${CLUSTER_COMM_MODE:WITHIN_CLUSTER}
+
+encryption:
+  master-key: ${ENCRYPTION_MASTER_KEY:0000000000000000000000000000000000000000000000000000000000000000}
+
+# Top-level `services:` block — readers like `@Value("${services.*.url:…}")`
+# expect this at root, not under `platform:` or `vault:`.
+services:
+  onboarding-api:
+    url: ${ONBOARDING_API_URL:http://onboarding-api:8080}
+  sftp-service:
+    url: ${SFTP_SERVICE_URL:http://sftp-service:8081}
+  ftp-service:
+    url: ${FTP_SERVICE_URL:http://ftp-service:8082}
+  ftp-web-service:
+    url: ${FTP_WEB_SERVICE_URL:http://ftp-web-service:8083}
+  config-service:
+    url: ${CONFIG_SERVICE_URL:http://config-service:8084}
+  gateway-service:
+    url: ${GATEWAY_SERVICE_URL:http://gateway-service:8085}
+  encryption-service:
+    url: ${ENCRYPTION_SERVICE_URL:http://encryption-service:8086}
+  forwarder-service:
+    url: ${FORWARDER_SERVICE_URL:http://external-forwarder-service:8087}
+  dmz-proxy:
+    url: ${DMZ_PROXY_URL:http://dmz-proxy:8088}
+  license-service:
+    url: ${LICENSE_SERVICE_URL:http://license-service:8089}
+  analytics-service:
+    url: ${ANALYTICS_SERVICE_URL:http://analytics-service:8090}
+  ai-engine:
+    url: ${AI_ENGINE_URL:http://ai-engine:8091}
+  screening-service:
+    url: ${SCREENING_SERVICE_URL:http://screening-service:8092}
+  keystore-manager:
+    url: ${KEYSTORE_MANAGER_URL:http://keystore-manager:8093}
+  as2-service:
+    url: ${AS2_SERVICE_URL:http://as2-service:8094}
+  edi-converter:
+    url: ${EDI_CONVERTER_URL:http://edi-converter:8095}
+  storage-manager:
+    url: ${STORAGE_MANAGER_URL:http://storage-manager:8096}
