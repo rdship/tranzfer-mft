@@ -70,6 +70,16 @@ public class VirtualFileSystem {
     @org.springframework.lang.Nullable
     private DistributedVfsLock distributedLock;
 
+    /**
+     * R134z Sprint 5 — primary distributed-lock backend. When present,
+     * {@link #lockPath} prefers the storage-manager coordination API
+     * over the Redis SETNX path. Injected @Nullable so services that
+     * aren't wired to storage-manager yet still boot.
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.lang.Nullable
+    private com.filetransfer.shared.client.StorageCoordinationClient storageCoordClient;
+
     @Value("${vfs.inline-max-bytes:65536}")
     private long inlineMaxBytes;
 
@@ -601,22 +611,41 @@ public class VirtualFileSystem {
     /**
      * Acquire path-level lock for VFS write operations.
      *
-     * <p><b>Distributed mode (Redis available):</b> uses {@link DistributedVfsLock} —
-     * a Redis SET NX EX mutex that works across all pods. This closes the multi-replica
-     * race condition where two pods could bypass each other's pg_advisory locks.
-     *
-     * <p><b>Single-instance fallback (no Redis):</b> falls back to {@code pg_advisory_xact_lock}
-     * which auto-releases on COMMIT/ROLLBACK and is correct for single-pod deployments.
+     * <p>Backend priority (R134z Sprint 5):
+     * <ol>
+     *   <li><b>Storage-manager coordination (PG platform_locks table):</b> the
+     *       primary path. Every pod calls {@code storage-manager}'s
+     *       {@code /api/v1/coordination/locks/{key}/acquire} which UPSERTs into
+     *       {@code platform_locks} with a TTL-expiry guard. Same correctness
+     *       as Redis SETNX with the added benefit of not depending on Redis.
+     *       On 409 conflict we throw {@code IllegalStateException} — the
+     *       existing caller contract (re-try the operation) is preserved.</li>
+     *   <li><b>Redis SETNX (DistributedVfsLock):</b> kept as fallback for
+     *       pods that aren't yet wired to storage-manager — removed in
+     *       Sprint 7 once the migration is complete.</li>
+     *   <li><b>pg_advisory_xact_lock:</b> single-instance fallback, last
+     *       resort. Auto-releases on COMMIT/ROLLBACK.</li>
+     * </ol>
      *
      * <p><strong>CALLER MUST close the returned handle in a finally block.</strong>
      */
     private DistributedVfsLock.LockHandle lockPath(UUID accountId, String path) {
+        if (storageCoordClient != null) {
+            String lockKey = "vfs:write:" + accountId + ":" + path;
+            com.filetransfer.shared.client.StorageCoordinationClient.PlatformLease lease =
+                    storageCoordClient.tryAcquire(lockKey, java.time.Duration.ofSeconds(30));
+            if (lease == null) {
+                log.warn("[VFS] storage-coord lock busy account={} path={}", accountId, path);
+                throw new IllegalStateException(
+                        "Concurrent write contention on VFS path [" + path + "] — retry the operation");
+            }
+            return lease::close; // PlatformLease.close() is idempotent + best-effort
+        }
+
         if (distributedLock != null) {
-            // Cross-pod distributed lock — works for N replicas
             return distributedLock.acquire(accountId, path);
         }
 
-        // Single-instance fallback: pg_advisory_xact_lock (session-scoped, auto-releases)
         long hash = accountId.getMostSignificantBits()
                 ^ (accountId.getLeastSignificantBits() >>> 17)
                 ^ ((long) path.hashCode() << 31);
