@@ -231,6 +231,15 @@ public class PlatformBootstrapService {
                 "ftp-web-service-2", 8183, "localhost", 8183,
                 "Secondary web transfer portal for load balancing"));
 
+        // AS2 server (R134l — per R134k open queue item #3). Healthcare
+        // Compliance + EDI X12 flows are medtech-as2 sourced; without a
+        // bound AS2 listener in the bootstrap stack they're unreachable
+        // from a fresh boot. Seeding an AS2 listener on port 10080 lets
+        // the tester exercise these flows without running demo-onboard.
+        servers.add(buildServer("as2-server-1", "AS2 Server 1 — Primary", Protocol.AS2,
+                "as2-service", 10080, "localhost", 10080,
+                "AS2 listener for signed/encrypted EDI B2B exchange"));
+
         // Idempotent: skip any ServerInstance whose instanceId OR (host,port)
         // tuple already exists — protects against re-seed on container restart
         // and against the dynamic-listener registry having already written the

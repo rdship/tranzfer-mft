@@ -18,7 +18,12 @@ import java.security.Security;
  * routing, vfs, compliance, scheduler, event.
  * Entity/repository scans restricted to core subpackage only.
  */
-@SpringBootApplication
+// R134l — suppress UserDetailsServiceAutoConfiguration. InternalServiceSecurityConfig
+// provides our SecurityFilterChain; the autoconfig's in-memory user generator + its
+// "Using generated security password" startup warning are unused noise.
+@SpringBootApplication(exclude = {
+    org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration.class
+})
 @ComponentScan(
     basePackages = {"com.filetransfer.encryption", "com.filetransfer.shared"},
     excludeFilters = @ComponentScan.Filter(

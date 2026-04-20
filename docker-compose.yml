@@ -110,8 +110,8 @@ x-common-env: &common-env
   CLUSTER_ID: ${CLUSTER_ID:-cluster-1}
   CLUSTER_COMM_MODE: ${CLUSTER_COMM_MODE:-WITHIN_CLUSTER}
   TRACK_ID_PREFIX: ${TRACK_ID_PREFIX:-TRZ}
-  PLATFORM_VERSION: "1.0.0-R134k"
-  PLATFORM_BUILD_TIMESTAMP: "2026-04-19T20:00:00Z"
+  PLATFORM_VERSION: "1.0.0-R134l"
+  PLATFORM_BUILD_TIMESTAMP: "2026-04-19T21:30:00Z"
   PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-DEV}
   PROXY_ENABLED: ${PROXY_ENABLED:-false}
   PROXY_TYPE: ${PROXY_TYPE:-HTTP}
@@ -337,6 +337,12 @@ services:
       retries: 5
 
   vault:
+    # R134l — behind the `vault` compose profile. Default `docker compose up -d`
+    # does NOT start Vault; encryption-service and storage-manager use env-var
+    # fallbacks (ENCRYPTION_MASTER_KEY, STORAGE_ENCRYPTION_KEY). Opt in with
+    # `docker compose --profile vault up -d` for installations that want the
+    # audited KMS path.
+    profiles: ["vault"]
     image: hashicorp/vault:1.15
     container_name: mft-vault
     ports:
@@ -357,6 +363,7 @@ services:
       - default  # needed for db-migrate to reach postgres on default network
 
   vault-init:
+    profiles: ["vault"]
     image: hashicorp/vault:1.15
     container_name: mft-vault-init
     depends_on:
@@ -1012,8 +1019,8 @@ services:
       DMZ_QOS_ENABLED: "true"
       DMZ_TUNNEL_ENABLED: ${DMZ_TUNNEL_ENABLED:-false}
       DMZ_TUNNEL_PORT: "9443"
-      PLATFORM_VERSION: "1.0.0-R134k"
-      PLATFORM_BUILD_TIMESTAMP: "2026-04-19T20:00:00Z"
+      PLATFORM_VERSION: "1.0.0-R134l"
+      PLATFORM_BUILD_TIMESTAMP: "2026-04-19T21:30:00Z"
       CLUSTER_SERVICE_TYPE: DMZ_PROXY
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8088/api/proxy/health | grep -qE '\"status\":\"(UP|DEGRADED)\"' || exit 1"]
@@ -1416,8 +1423,8 @@ services:
       AI_ENGINE_URL: http://ai-engine:8091
       PLATFORM_SECURITY_SHARED_CONFIG: "false"
       PLATFORM_SECURITY_INTERNAL_SERVICE: "true"
-      PLATFORM_VERSION: "1.0.0-R134k"
-      PLATFORM_BUILD_TIMESTAMP: "2026-04-19T20:00:00Z"
+      PLATFORM_VERSION: "1.0.0-R134l"
+      PLATFORM_BUILD_TIMESTAMP: "2026-04-19T21:30:00Z"
       PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-DEV}
       CLUSTER_SERVICE_TYPE: EDI_CONVERTER
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}

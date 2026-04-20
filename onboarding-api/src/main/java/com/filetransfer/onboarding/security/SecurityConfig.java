@@ -50,6 +50,11 @@ public class SecurityConfig {
                         .requestMatchers(ant("/api/partner/login")).permitAll()
                         .requestMatchers(ant("/api/2fa/verify")).permitAll()
                         .requestMatchers(ant("/actuator/health/**"), ant("/actuator/health")).permitAll()
+                        // R134l — /actuator/info is non-sensitive (platform.version +
+                        // build timestamp via PlatformVersionInfoContributor). Every
+                        // other service permits it; onboarding-api was the outlier
+                        // (returned 403 unauth per R134h tester finding).
+                        .requestMatchers(ant("/actuator/info"), ant("/actuator/info/**")).permitAll()
                         // R132: health/liveness endpoints polled every few seconds by the UI
                         // sidebar — no sensitive data, returns only "UP" + counts. Keeping
                         // them under .authenticated() caused 192×403/min spam in network log

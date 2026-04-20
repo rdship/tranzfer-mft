@@ -9,7 +9,10 @@ import org.springframework.context.annotation.FilterType;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-@SpringBootApplication
+// R134l — suppress UserDetailsServiceAutoConfiguration (cosmetic warning cleanup).
+@SpringBootApplication(exclude = {
+    org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration.class
+})
 @ComponentScan(
     basePackages = {"com.filetransfer.screening", "com.filetransfer.shared"},
     excludeFilters = @ComponentScan.Filter(
