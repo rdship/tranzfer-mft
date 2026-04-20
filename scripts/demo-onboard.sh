@@ -10,18 +10,24 @@
 set -euo pipefail
 
 # --- Configuration ---
-BASE=${MFT_BASE_URL:-https://localhost}
-API="${BASE}:9080"     # onboarding-api (HTTPS)
-CFG="${BASE}:9084"     # config-service
-KEY="${BASE}:9093"     # keystore-manager
-ANA="${BASE}:9090"     # analytics-service
-SCR="${BASE}:9092"     # screening-service
-LIC="${BASE}:9089"     # license-service
-NOT="${BASE}:9097"     # notification-service
-EDI="${BASE}:9095"     # edi-converter
-FWD="${BASE}:9087"     # external-forwarder
-DMZ="${BASE}:9088"     # dmz-proxy
-STR="${BASE}:9094"     # storage-manager/as2
+# R134h: switched defaults from :9XXX HTTPS to :8XXX HTTP. The 9-prefix
+# ports don't exist; services bind to 8XXX (per docker-compose and the
+# platform port map in CLAUDE.md). Previously every curl in this script
+# silently failed-to-connect, which is why R134 BUG 13 couldn't be
+# exercised end-to-end. --base-url already passes :8XXX; keep env-var
+# override for operators who run behind a reverse proxy.
+BASE=${MFT_BASE_URL:-http://localhost}
+API="${BASE}:8080"     # onboarding-api
+CFG="${BASE}:8084"     # config-service
+KEY="${BASE}:8093"     # keystore-manager
+ANA="${BASE}:8090"     # analytics-service
+SCR="${BASE}:8092"     # screening-service
+LIC="${BASE}:8089"     # license-service
+NOT="${BASE}:8097"     # notification-service
+EDI="${BASE}:8095"     # edi-converter
+FWD="${BASE}:8087"     # external-forwarder
+DMZ="${BASE}:8088"     # dmz-proxy
+STR="${BASE}:8094"     # storage-manager/as2
 # Accept self-signed certs in all curl calls
 export CURL_OPTS="-k"
 PLATFORM_JWT_SECRET="${PLATFORM_JWT_SECRET:-changeme_32char_secret_here_!!!!}"  # for DMZ management API calls

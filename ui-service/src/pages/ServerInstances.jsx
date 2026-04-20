@@ -118,8 +118,11 @@ function validateFtpPasvShape(form) {
   if (hasFrom !== hasTo) return 'Passive Port From and To must be set together — either both or neither.'
   const lo = Number(from), hi = Number(to)
   if (!Number.isInteger(lo) || !Number.isInteger(hi)) return 'Passive Port values must be whole numbers.'
-  if (lo < 1024 || lo > 65535 || hi < 1024 || hi > 65535) return 'Passive Ports must be between 1024 and 65535.'
+  // R134h — ordering check before range check so "from=21000, to=100" emits the
+  // clearer "From > To" message the user actually needs, rather than the
+  // range-check message (which is also true but hides the root cause).
   if (lo > hi) return `Passive Port From (${lo}) cannot be greater than To (${hi}).`
+  if (lo < 1024 || lo > 65535 || hi < 1024 || hi > 65535) return 'Passive Ports must be between 1024 and 65535.'
   return null
 }
 
