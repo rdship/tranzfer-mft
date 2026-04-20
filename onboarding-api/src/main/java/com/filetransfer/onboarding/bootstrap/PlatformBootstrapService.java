@@ -945,6 +945,42 @@ public class PlatformBootstrapService {
                 .active(true)
                 .build());
 
+        // Flow 7 (R134j): SFTP Delivery Regression — simplest possible INBOUND
+        // + FILE_DELIVERY path, so the flow-engine → external-forwarder S2S
+        // hop (BUG 13 class) can be exercised with a single SFTP upload:
+        //   sftp put /tmp/x.regression globalbank-sftp:/inbox/
+        // No AS2 listener, no HL7, no certs. Priority 10 beats Mailbox
+        // Distribution (999) so the catch-all doesn't swallow the file.
+        // R134i verification explicitly asked for this; keeping it in
+        // bootstrap so tester re-runs are reproducible without demo-onboard.
+        flows.add(FileFlow.builder()
+                .name("SFTP Delivery Regression")
+                .description("Smallest reproducible INBOUND + FILE_DELIVERY flow — SFTP .regression "
+                        + "uploads to globalbank-sftp:/inbox are checksummed and delivered to the "
+                        + "seeded partner-sftp delivery endpoint via external-forwarder-service.")
+                .filenamePattern(".*\\.regression")
+                .sourceAccount(globalbankSftp)
+                .sourcePath("/inbox")
+                .partnerId(partners.get(1).getId())
+                .direction("INBOUND")
+                .priority(10)
+                .steps(List.of(
+                        FileFlow.FlowStep.builder()
+                                .type("CHECKSUM_VERIFY")
+                                .config(Map.of())
+                                .order(0)
+                                .build(),
+                        FileFlow.FlowStep.builder()
+                                .type("FILE_DELIVERY")
+                                .config(sftpEndpoint != null
+                                        ? Map.of("deliveryEndpointIds", sftpEndpoint.getId().toString())
+                                        : Map.of())
+                                .order(1)
+                                .build()
+                ))
+                .active(true)
+                .build());
+
         List<FileFlow> saved = fileFlowRepository.saveAll(flows);
         saved.forEach(f -> log.info("[Bootstrap] Created file flow: '{}' (direction={}, priority={}, steps={})",
                 f.getName(), f.getDirection(), f.getPriority(), f.getSteps().size()));
