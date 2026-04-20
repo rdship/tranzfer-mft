@@ -217,15 +217,26 @@ public class UnifiedOutboxPoller {
         // failing handler retried every 2s forever, hammering PG + the
         // target system. See docs/rd/.../02-rabbitmq-retirement.md "Retry
         // semantics" (R134t revision).
+        // R134F: use jsonb_exists() function form instead of the `?` operator.
+        // PG JSONB has a `?` operator meaning "does key exist" — but JDBC's
+        // PreparedStatement treats every `?` in the SQL as a positional
+        // parameter. So `(consumed_by ? ?)` looked like TWO JDBC placeholders
+        // to the driver; it expected 7 args, we supplied 5, and every drain
+        // tick crashed with "No value specified for parameter 6". Caught in
+        // tester R134C-E-runtime-verification.md — 1,176 occurrences per
+        // ~10 min across the stack, which killed the outbox consumer on every
+        // registered service (R134D's keystore.key.rotated, R134y's pod-
+        // heartbeat readers, etc.). jsonb_exists(col, ?) is semantically
+        // identical and leaves JDBC alone.
         List<Long> candidateIds = tx.execute(status ->
             jdbc.queryForList(
                 """
                 SELECT id FROM event_outbox
                  WHERE published_at IS NULL
-                   AND (consumed_by IS NULL OR NOT (consumed_by ? ?))
+                   AND (consumed_by IS NULL OR NOT jsonb_exists(consumed_by, ?))
                    AND routing_key LIKE ANY (?)
                    AND (defer_until IS NULL
-                        OR NOT (defer_until ? ?)
+                        OR NOT jsonb_exists(defer_until, ?)
                         OR (defer_until ->> ?)::timestamptz <= now())
                  ORDER BY id
                  LIMIT ?
@@ -247,6 +258,7 @@ public class UnifiedOutboxPoller {
      */
     private void processOneRow(long rowId) {
         tx.executeWithoutResult(status -> {
+            // R134F: `?` → jsonb_exists() — see drainOnce() for the rationale.
             List<OutboxRow> rows = jdbc.query(
                 """
                 SELECT id, aggregate_type, aggregate_id, event_type, routing_key,
@@ -254,7 +266,7 @@ public class UnifiedOutboxPoller {
                   FROM event_outbox
                  WHERE id = ?
                    AND published_at IS NULL
-                   AND (consumed_by IS NULL OR NOT (consumed_by ? ?))
+                   AND (consumed_by IS NULL OR NOT jsonb_exists(consumed_by, ?))
                  FOR UPDATE SKIP LOCKED
                 """,
                 new OutboxRowMapper(),
@@ -290,13 +302,14 @@ public class UnifiedOutboxPoller {
         // did NOT roll back this tx (REQUIRES_NEW). If the handler succeeded
         // and markConsumed committed, the probe query below returns false
         // (row ack'd) and this whole block is a no-op.
+        // R134F: `?` → jsonb_exists() — see drainOnce() for the rationale.
         Boolean rowStillUnacked = txRequiresNew.execute(status ->
             jdbc.queryForObject("""
                 SELECT EXISTS (
                     SELECT 1 FROM event_outbox
                      WHERE id = ?
                        AND published_at IS NULL
-                       AND (consumed_by IS NULL OR NOT (consumed_by ? ?))
+                       AND (consumed_by IS NULL OR NOT jsonb_exists(consumed_by, ?))
                 )
                 """, Boolean.class, rowId, consumerName));
 
