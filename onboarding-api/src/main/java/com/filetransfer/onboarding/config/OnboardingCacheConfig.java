@@ -1,6 +1,7 @@
 package com.filetransfer.onboarding.config;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
@@ -28,6 +29,7 @@ import java.util.concurrent.TimeUnit;
  * still boots (Boot's CompositeCacheManager fallback). A cache miss always
  * re-runs the underlying SQL — nothing blocks.
  */
+@Slf4j
 @Configuration
 @EnableCaching
 public class OnboardingCacheConfig {
@@ -35,6 +37,8 @@ public class OnboardingCacheConfig {
     @Bean
     @Primary
     public CacheManager cacheManager() {
+        log.info("[cache][onboarding] CaffeineCacheManager @Primary — caches=[live-stats,activity-stats,partner-names] "
+                + "(R134x: Redis L2 retired; per-pod Caffeine W-TinyLFU)");
         CaffeineCacheManager mgr = new CaffeineCacheManager(
                 "live-stats", "activity-stats", "partner-names");
         mgr.setCaffeine(Caffeine.newBuilder()

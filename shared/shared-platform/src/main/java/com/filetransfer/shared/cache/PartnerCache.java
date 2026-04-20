@@ -69,6 +69,16 @@ public class PartnerCache {
     @Autowired
     private PartnerRepository partnerRepository;
 
+    /**
+     * R134C — boot log so tester/ops can confirm the Caffeine-only path is
+     * active (instead of the retired Caffeine-L1 + Redis-L2 pattern).
+     */
+    @jakarta.annotation.PostConstruct
+    void boot() {
+        log.info("[cache][PartnerCache] Caffeine W-TinyLFU active (maxEntries={}, ttl={}, recordStats=true; "
+                + "R134x retired Redis L2)", MAX_ENTRIES, ENTRY_TTL);
+    }
+
     /** Immutable snapshot of the fields needed in the hot path. */
     public record PartnerSnapshot(UUID id, String slug, String companyName) {}
 

@@ -80,6 +80,15 @@ public class VirtualFileSystem {
     @org.springframework.lang.Nullable
     private com.filetransfer.shared.client.StorageCoordinationClient storageCoordClient;
 
+    /**
+     * R134C — once-per-JVM backend resolution log (first call to lockPath
+     * writes its resolved backend). Tester can grep for this to verify the
+     * R134z Sprint 5 primary path is actually being chosen at runtime,
+     * without adding a per-call hot-path log.
+     */
+    private final java.util.concurrent.atomic.AtomicBoolean lockBackendLogged =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
     @Value("${vfs.inline-max-bytes:65536}")
     private long inlineMaxBytes;
 
@@ -631,6 +640,10 @@ public class VirtualFileSystem {
      */
     private DistributedVfsLock.LockHandle lockPath(UUID accountId, String path) {
         if (storageCoordClient != null) {
+            if (lockBackendLogged.compareAndSet(false, true)) {
+                log.info("[VFS][lockPath] backend=storage-coord (R134z primary path active — " +
+                        "locks flow through storage-manager platform_locks)");
+            }
             String lockKey = "vfs:write:" + accountId + ":" + path;
             com.filetransfer.shared.client.StorageCoordinationClient.PlatformLease lease =
                     storageCoordClient.tryAcquire(lockKey, java.time.Duration.ofSeconds(30));
@@ -643,9 +656,16 @@ public class VirtualFileSystem {
         }
 
         if (distributedLock != null) {
+            if (lockBackendLogged.compareAndSet(false, true)) {
+                log.info("[VFS][lockPath] backend=redis-setnx (R134z fallback — storage-coord client absent)");
+            }
             return distributedLock.acquire(accountId, path);
         }
 
+        if (lockBackendLogged.compareAndSet(false, true)) {
+            log.info("[VFS][lockPath] backend=pg_advisory_xact_lock (R134z last-resort — " +
+                    "single-instance fallback; no storage-coord, no Redis)");
+        }
         long hash = accountId.getMostSignificantBits()
                 ^ (accountId.getLeastSignificantBits() >>> 17)
                 ^ ((long) path.hashCode() << 31);

@@ -1,6 +1,7 @@
 package com.filetransfer.analytics.config;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.context.annotation.Bean;
@@ -31,12 +32,15 @@ import java.util.concurrent.TimeUnit;
  * Redis starter) doesn't win — once Sprint 7 removes the Redis starter,
  * the @Primary is redundant but harmless.
  */
+@Slf4j
 @Configuration
 public class AnalyticsCacheConfig {
 
     @Bean
     @Primary
     public CacheManager cacheManager() {
+        log.info("[cache][analytics] CaffeineCacheManager @Primary — caches=[dashboard,observatory,step-latency,dedup-stats] "
+                + "(R134x: Redis L2 retired; per-pod Caffeine W-TinyLFU)");
         CaffeineCacheManager mgr = new CaffeineCacheManager(
                 "dashboard", "observatory", "step-latency", "dedup-stats");
         // Default: 30s — matches the old Redis cacheDefaults().entryTtl.
