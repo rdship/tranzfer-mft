@@ -2,10 +2,13 @@ package com.filetransfer.sftp.server;
 
 import com.filetransfer.shared.entity.core.SecurityProfile;
 import com.filetransfer.shared.entity.core.ServerInstance;
+import com.filetransfer.shared.security.SecurityProfileEnforcer;
 import com.filetransfer.sftp.routing.SftpAuditingEventListener;
 import com.filetransfer.sftp.routing.SftpRoutingEventListener;
 import com.filetransfer.sftp.session.SftpSessionListener;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.Nullable;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.sshd.common.NamedFactory;
 import org.apache.sshd.common.cipher.BuiltinCiphers;
@@ -49,6 +52,19 @@ public class SftpSshServerFactory {
     private final SftpRoutingEventListener routingEventListener;
     private final SftpAuditingEventListener auditingEventListener;
     private final SftpSessionListener sessionListener;
+
+    /**
+     * R134n — optional; when present, per-listener SSH algorithm allowlists
+     * are resolved via the precedence chain:
+     *   per-listener CSV → SecurityProfile row (server_instance.securityProfileId)
+     *   → platform static defaults.
+     * Null-safe: if the bean is absent (e.g., unit tests) we fall back to the
+     * pre-enforcer behaviour (per-listener CSV or SecurityProfile static
+     * defaults), so the listener still binds with hardened algorithms.
+     */
+    @Autowired(required = false)
+    @Nullable
+    private SecurityProfileEnforcer securityProfileEnforcer;
 
     @Value("${sftp.host-key-path:./sftp_host_key}")
     private String defaultHostKeyPath;
@@ -97,14 +113,21 @@ public class SftpSshServerFactory {
     }
 
     private void applyAlgorithms(SshServer sshd, ServerInstance si) {
-        applyCiphers(sshd, si.getAllowedCiphers());
-        applyMacs(sshd, si.getAllowedMacs());
-        applyKex(sshd, si.getAllowedKex());
+        // R134n — route every allowlist through SecurityProfileEnforcer so the
+        // SecurityProfile row the admin selected on the ServerInstance is
+        // actually honoured at bind time. When the enforcer bean is absent
+        // (unit tests, reduced classpath), fall back to the legacy code path
+        // that resolves from per-listener CSV or platform static defaults —
+        // behaviour identical to pre-R134n.
+        applyCiphers(sshd, si);
+        applyMacs(sshd, si);
+        applyKex(sshd, si);
     }
 
-    private void applyCiphers(SshServer sshd, String csv) {
-        Set<String> allowed = csv != null && !csv.isBlank()
-                ? parse(csv) : SecurityProfile.ALLOWED_SSH_CIPHERS;
+    private void applyCiphers(SshServer sshd, ServerInstance si) {
+        Set<String> allowed = securityProfileEnforcer != null
+                ? securityProfileEnforcer.resolveSshCiphers(si)
+                : legacyCsvOrDefault(si.getAllowedCiphers(), SecurityProfile.ALLOWED_SSH_CIPHERS);
         List<NamedFactory<Cipher>> filtered = BuiltinCiphers.VALUES.stream()
                 .filter(c -> allowed.contains(c.getName()))
                 .filter(BuiltinCiphers::isSupported)
@@ -113,9 +136,10 @@ public class SftpSshServerFactory {
         if (!filtered.isEmpty()) sshd.setCipherFactories(filtered);
     }
 
-    private void applyMacs(SshServer sshd, String csv) {
-        Set<String> allowed = csv != null && !csv.isBlank()
-                ? parse(csv) : SecurityProfile.ALLOWED_SSH_MACS;
+    private void applyMacs(SshServer sshd, ServerInstance si) {
+        Set<String> allowed = securityProfileEnforcer != null
+                ? securityProfileEnforcer.resolveSshMacs(si)
+                : legacyCsvOrDefault(si.getAllowedMacs(), SecurityProfile.ALLOWED_SSH_MACS);
         List<NamedFactory<Mac>> filtered = BuiltinMacs.VALUES.stream()
                 .filter(m -> allowed.contains(m.getName()))
                 .filter(BuiltinMacs::isSupported)
@@ -124,9 +148,10 @@ public class SftpSshServerFactory {
         if (!filtered.isEmpty()) sshd.setMacFactories(filtered);
     }
 
-    private void applyKex(SshServer sshd, String csv) {
-        Set<String> allowed = csv != null && !csv.isBlank()
-                ? parse(csv) : SecurityProfile.ALLOWED_SSH_KEX;
+    private void applyKex(SshServer sshd, ServerInstance si) {
+        Set<String> allowed = securityProfileEnforcer != null
+                ? securityProfileEnforcer.resolveSshKex(si)
+                : legacyCsvOrDefault(si.getAllowedKex(), SecurityProfile.ALLOWED_SSH_KEX);
         List<KeyExchangeFactory> current = sshd.getKeyExchangeFactories();
         if (current == null || current.isEmpty()) {
             current = SshServer.setUpDefaultServer().getKeyExchangeFactories();
@@ -137,10 +162,16 @@ public class SftpSshServerFactory {
         if (!filtered.isEmpty()) sshd.setKeyExchangeFactories(filtered);
     }
 
-    private Set<String> parse(String csv) {
+    /** Pre-R134n fallback when the enforcer bean isn't wired in this context. */
+    private static Set<String> legacyCsvOrDefault(String csv, Set<String> platformDefault) {
+        return csv != null && !csv.isBlank() ? parse(csv) : platformDefault;
+    }
+
+    private static Set<String> parse(String csv) {
         return Arrays.stream(csv.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toSet());
     }
+
 }
