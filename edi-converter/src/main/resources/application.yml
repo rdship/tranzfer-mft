@@ -45,6 +45,10 @@ ai:
     base-url: ${CLAUDE_BASE_URL:https://api.anthropic.com}
 
 platform:
+  # R134k — explicit YAML binding for InternalServiceSecurityConfig.
+  security:
+    shared-config: ${PLATFORM_SECURITY_SHARED_CONFIG:false}
+    internal-service: ${PLATFORM_SECURITY_INTERNAL_SERVICE:true}
   services:
     onboarding-api:
       url: ${ONBOARDING_API_URL:http://onboarding-api:8080}

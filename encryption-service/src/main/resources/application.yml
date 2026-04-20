@@ -131,6 +131,9 @@ vault:
     id: ${CLUSTER_ID:default-cluster}
     host: ${CLUSTER_HOST:localhost}
   security:
+    # R134k — explicit YAML binding for InternalServiceSecurityConfig.
+    shared-config: ${PLATFORM_SECURITY_SHARED_CONFIG:false}
+    internal-service: ${PLATFORM_SECURITY_INTERNAL_SERVICE:true}
     jwt-secret: ${JWT_SECRET:change_me_in_production_256bit_secret_key!!}
     jwt-expiration-ms: ${JWT_EXPIRATION:900000}
     control-api-key: ${CONTROL_API_KEY:internal_control_secret}

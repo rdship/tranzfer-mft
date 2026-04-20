@@ -142,6 +142,9 @@ platform:
   track-id:
     prefix: ${TRACK_ID_PREFIX:TRZ}
   security:
+    # R134k — explicit YAML binding for InternalServiceSecurityConfig.
+    shared-config: ${PLATFORM_SECURITY_SHARED_CONFIG:false}
+    internal-service: ${PLATFORM_SECURITY_INTERNAL_SERVICE:true}
     control-api-key: ${CONTROL_API_KEY:internal_control_secret}
   proxy:
     enabled: ${PROXY_ENABLED:false}

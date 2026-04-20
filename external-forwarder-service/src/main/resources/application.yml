@@ -139,6 +139,17 @@ platform:
     id: ${CLUSTER_ID:default-cluster}
     host: ${CLUSTER_HOST:localhost}
   security:
+    # R134k — explicit YAML binding for the security-config toggles.
+    # The env vars `PLATFORM_SECURITY_SHARED_CONFIG` and
+    # `PLATFORM_SECURITY_INTERNAL_SERVICE` are set in docker-compose, but
+    # relaxed binding from the underscore form to the dash form
+    # (`platform.security.internal-service`) was not reaching
+    # @ConditionalOnProperty on InternalServiceSecurityConfig at runtime —
+    # Spring Boot picked the default SecurityAutoConfiguration instead,
+    # leaving /api/forward/deliver/* behind the generated-password basic
+    # auth. Explicit YAML placeholder closes the ambiguity.
+    shared-config: ${PLATFORM_SECURITY_SHARED_CONFIG:false}
+    internal-service: ${PLATFORM_SECURITY_INTERNAL_SERVICE:true}
     jwt-secret: ${JWT_SECRET:change_me_in_production_256bit_secret_key!!}
     jwt-expiration-ms: ${JWT_EXPIRATION:900000}
     control-api-key: ${CONTROL_API_KEY:internal_control_secret}
