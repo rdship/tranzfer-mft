@@ -79,6 +79,50 @@ const SERVER_COLUMN_KEYS = SERVER_COLUMNS.map(c => c.key)
 // network issues. Everything else stays on because servers are high-signal.
 const SERVER_DEFAULT_VISIBLE = ['instance', 'protocol', 'name', 'storage', 'accounts', 'clientConn', 'security', 'status', 'actions']
 
+/**
+ * SSH allowlist format hint — return a short message when the comma-separated
+ * list has obvious format bugs (empty tokens from trailing commas, whitespace
+ * inside tokens, illegal characters). Not an authoritative cipher allowlist;
+ * sftp-service enforces the real check at bind time. Returns null when empty
+ * (server defaults) or well-formed.
+ */
+function validateSshAllowlist(raw) {
+  if (raw == null) return null
+  const value = String(raw).trim()
+  if (value === '') return null
+  const tokens = value.split(',')
+  for (const t of tokens) {
+    if (t !== t.trim()) return 'Remove spaces around commas. Format: aes256-ctr,aes192-ctr'
+    if (t === '') return 'Remove empty entries. Format: aes256-ctr,aes192-ctr'
+    // SSH algorithm names: alphanumerics, dash, underscore, @, dot, digits.
+    if (!/^[A-Za-z0-9][A-Za-z0-9._@-]*$/.test(t)) {
+      return `Token "${t}" has an unsupported character. Format: aes256-ctr,aes192-ctr`
+    }
+  }
+  return null
+}
+
+/**
+ * Shared PASV invariant check used by both the pre-submit gate and the
+ * inline error renderer. Mirrors ServerInstanceService.validateFtpFields
+ * (V87 CHECK constraints): both-or-neither, 1024-65535, from ≤ to.
+ * Returns an error message or null.
+ */
+function validateFtpPasvShape(form) {
+  if (form?.protocol !== 'FTP') return null
+  const from = form.ftpPassivePortFrom
+  const to = form.ftpPassivePortTo
+  const hasFrom = from !== '' && from !== null && from !== undefined
+  const hasTo = to !== '' && to !== null && to !== undefined
+  if (!hasFrom && !hasTo) return null
+  if (hasFrom !== hasTo) return 'Passive Port From and To must be set together — either both or neither.'
+  const lo = Number(from), hi = Number(to)
+  if (!Number.isInteger(lo) || !Number.isInteger(hi)) return 'Passive Port values must be whole numbers.'
+  if (lo < 1024 || lo > 65535 || hi < 1024 || hi > 65535) return 'Passive Ports must be between 1024 and 65535.'
+  if (lo > hi) return `Passive Port From (${lo}) cannot be greater than To (${hi}).`
+  return null
+}
+
 const emptyForm = {
   instanceId: '', protocol: 'SFTP', name: '', description: '',
   internalHost: '', internalPort: 2222,
@@ -379,6 +423,16 @@ export default function ServerInstances() {
     clearIfEmpty('ftpWebTlsCertAlias')
     clearIfEmpty('ftpWebPortalTitle')
     return out
+  }
+
+  const gateSubmit = (raw) => {
+    const pasvError = validateFtpPasvShape(raw)
+    if (pasvError) { toast.error(pasvError); return false }
+    for (const [label, field] of [['Ciphers', 'allowedCiphers'], ['MACs', 'allowedMacs'], ['KEX', 'allowedKex']]) {
+      const sshErr = validateSshAllowlist(raw[field])
+      if (sshErr) { toast.error(`SSH ${label}: ${sshErr}`); return false }
+    }
+    return true
   }
 
   const createMut = useMutation({
@@ -821,7 +875,7 @@ export default function ServerInstances() {
       {showCreate && (
         <Modal title="Add Server Instance" onClose={() => setShowCreate(false)} size="xl">
           <ServerForm form={form} setForm={setForm}
-            onSubmit={() => createMut.mutate(form)}
+            onSubmit={() => { if (gateSubmit(form)) createMut.mutate(form) }}
             isPending={createMut.isPending}
             onCancel={() => setShowCreate(false)}
             submitLabel="Create Server"
@@ -834,7 +888,7 @@ export default function ServerInstances() {
       {editServer && (
         <Modal title={`Edit: ${editServer.name}`} onClose={() => setEditServer(null)} size="xl">
           <ServerForm form={form} setForm={setForm}
-            onSubmit={() => updateMut.mutate({ id: editServer.id, data: form })}
+            onSubmit={() => { if (gateSubmit(form)) updateMut.mutate({ id: editServer.id, data: form }) }}
             isPending={updateMut.isPending}
             onCancel={() => setEditServer(null)}
             submitLabel="Save Changes"
@@ -1082,22 +1136,31 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
                 style={{ maxHeight: showSshCrypto ? '500px' : '0', opacity: showSshCrypto ? 1 : 0, overflow: 'hidden' }}
               >
                 <div className="px-3 py-3 space-y-3" style={{ borderTop: '1px solid rgb(var(--border, 229 231 235))' }}>
-                  <p className="text-xs text-muted">Comma-separated allowlists. Leave blank to use server defaults.</p>
+                  <p className="text-xs text-muted">Comma-separated allowlists (no spaces). Leave blank to use server defaults. sftp-service validates names at bind time.</p>
                   <div className="grid grid-cols-3 gap-2">
                     <div>
                       <label htmlFor="si-ciphers" className="text-xs">Ciphers</label>
                       <input id="si-ciphers" value={form.allowedCiphers || ''} placeholder="aes256-gcm@openssh.com,..."
                         onChange={e => setForm(prev => ({ ...prev, allowedCiphers: e.target.value }))} />
+                      {(() => { const err = validateSshAllowlist(form.allowedCiphers); return err ? (
+                        <p className="text-xs mt-1" style={{ color: 'rgb(var(--danger, 239 68 68))' }}>⚠ {err}</p>
+                      ) : null })()}
                     </div>
                     <div>
                       <label htmlFor="si-macs" className="text-xs">MACs</label>
                       <input id="si-macs" value={form.allowedMacs || ''} placeholder="hmac-sha2-256-etm@openssh.com,..."
                         onChange={e => setForm(prev => ({ ...prev, allowedMacs: e.target.value }))} />
+                      {(() => { const err = validateSshAllowlist(form.allowedMacs); return err ? (
+                        <p className="text-xs mt-1" style={{ color: 'rgb(var(--danger, 239 68 68))' }}>⚠ {err}</p>
+                      ) : null })()}
                     </div>
                     <div>
                       <label htmlFor="si-kex" className="text-xs">KEX</label>
                       <input id="si-kex" value={form.allowedKex || ''} placeholder="curve25519-sha256,..."
                         onChange={e => setForm(prev => ({ ...prev, allowedKex: e.target.value }))} />
+                      {(() => { const err = validateSshAllowlist(form.allowedKex); return err ? (
+                        <p className="text-xs mt-1" style={{ color: 'rgb(var(--danger, 239 68 68))' }}>⚠ {err}</p>
+                      ) : null })()}
                     </div>
                   </div>
                 </div>
@@ -1126,6 +1189,9 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
               <p className="text-xs text-muted mt-1">Upper bound. Must be set together with From.</p>
             </div>
           </div>
+          {(() => { const err = validateFtpPasvShape(form); return err ? (
+            <p className="text-xs mt-1" style={{ color: 'rgb(var(--danger, 239 68 68))' }}>⚠ {err}</p>
+          ) : null })()}
 
           <div>
             <label htmlFor="si-ftp-banner">FTP Welcome Banner</label>
