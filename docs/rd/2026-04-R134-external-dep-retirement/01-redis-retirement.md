@@ -353,6 +353,20 @@ The RabbitMQ `platform:cluster:events` exchange already exists. Keep it; switch 
 - **R78 (cluster view in admin UI shows current replicas)**: preserved; UI reads from `cluster_nodes` table.
 - **R83 (Platform Sentinel auto-heal on node death)**: preserved via RabbitMQ fanout, latency slightly higher (10-30s instead of <5s). Auto-heal actions are idempotent so the extra delay doesn't corrupt state.
 
+### R134t — split-brain caveat + quorum alternative
+
+A node that briefly loses its PG connection (not its network to clients) will miss a heartbeat and may be marked DEAD by the reaper. When PG reconnects, the node's next heartbeat flips it back to ACTIVE. In the gap, auto-heal might take unnecessary action (e.g. traffic steering away from a node that's actually serving fine).
+
+**Textbook fix**: quorum-based heartbeat. The node must convince N/2+1 observers it's alive before being considered ACTIVE. Trade-offs:
+
+| Approach | Complexity | Chatter | False-positive DEAD |
+|---|---|---|---|
+| Our design (single PG table + reaper) | Low | Minimal (one INSERT/10s/pod) | Possible on PG blips |
+| Quorum heartbeat | High (consensus-layer logic) | Large (N×N cross-service pings) | Very rare |
+| Hybrid (PG + peer-to-peer gossip) | Medium | Medium | Rare |
+
+**We defer quorum** until (a) we run > 5 replicas of a single service type AND (b) we observe spurious DEAD flags in production. Until then, the 30s window is long enough that transient PG blips rarely trip it, and the self-healing (node's next heartbeat re-registers ACTIVE) is free. The decision is reversible — upgrading to quorum later is a shared-platform change; no consumer-side impact.
+
 ---
 
 ## Easy consumers — caches and registries
@@ -362,6 +376,17 @@ The RabbitMQ `platform:cluster:events` exchange already exists. Keep it; switch 
 Today: Caffeine L1 (per-pod, 30s TTL) + Redis L2 (shared, 5-min TTL).
 
 Replacement: Caffeine L1 (unchanged) + Postgres `partner_cache` materialized view refreshed every 30s. The view IS the L2 — any pod that misses L1 does a single query against a dense in-memory PG cache (after the materialized view warms).
+
+**R134t — cache failure mode defences** (the four classic failures, per fundamentals):
+
+| Failure mode | Symptom | Our defence |
+|---|---|---|
+| **Thunder herd** | MV REFRESH fires at the same wall-clock minute on 5 pods → L1 simultaneous miss → PG spike | Randomize L1 TTL with ±20s jitter per pod; stagger `@Scheduled` MV refresh with per-pod offset derived from `nodeId.hashCode() % 30s` |
+| **Cache penetration** | Requests for non-existent partner slugs hammer PG unbounded | Bloom filter seeded from the MV on L1 miss — "not-in-partner-cache" returns NULL immediately without hitting PG |
+| **Cache breakdown** | Hot-partner L1 entry expires mid-traffic burst → all pods re-fetch simultaneously | Top-N partners (identified by the MV refresh job) are marked `refreshAfterWrite` instead of `expireAfterWrite` — Caffeine refreshes them in-place without evicting, so reads never miss |
+| **Cache crash** | Caffeine OOM / pod restart → cold caches → PG overload | Circuit breaker at the MV query path — if PG latency > 500ms for 10 consecutive queries, pods fail through to a stale-but-present last-known-good snapshot (held in a secondary Caffeine tier, 1h TTL) |
+
+**Eviction strategy**: LFU (Least Frequently Used) or SLRU (Segmented LRU), not plain LRU. PartnerCache traffic is frequency-skewed — a small number of active partners receive the vast majority of requests all day. LRU evicts "recently-seen" entries first, which churns on the long tail of rarely-active partners while hot entries keep re-entering. LFU / SLRU keep hot entries pinned. Specifically: Caffeine's `Caffeine.newBuilder().maximumSize(N).recordStats()` uses a W-TinyLFU admission policy by default — which is already LFU-ish — so this defence is a configuration verify, not a code change.
 
 ```sql
 CREATE MATERIALIZED VIEW partner_cache AS

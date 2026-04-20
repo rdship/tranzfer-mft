@@ -134,14 +134,69 @@ public class OutboxPoller {
 }
 ```
 
-### Retry semantics
+### Retry semantics (R134t revision)
 
 RabbitMQ's DLQ + 3-retry pattern is replaced with:
-- `consumed_by` tracks per-consumer acknowledgement → idempotency
-- If a handler throws, the row stays unpublished from that consumer's perspective; the next poll retries
-- After 10 failed retries (tracked in a separate `consumed_attempts` JSONB counter), the row is moved to `event_outbox_dlq` by a scheduled task, and an alert fires
+
+- **Per-consumer ack**: `consumed_by` JSONB tracks which consumer has processed the row. A row stays active until every registered consumer for its routing-key family has ack'd.
+- **Per-consumer attempts**: `attempts` JSONB counts failures per consumer.
+- **Per-consumer backoff** (V99, `defer_until` column): after failure N, the next retry is deferred by `min(2s × 2^(N-1), 5min)` with ±50% jitter. The poller's SELECT filters out rows whose `defer_until[consumer]` is still in the future, so a repeatedly-failing handler doesn't hammer PG + the target system every 2s.
+- **DLQ**: after `platform.outbox.max-attempts` (default 10) failures for any consumer, the row is moved to `event_outbox_dlq`. An alert fires on non-empty DLQ.
 
 Mechanical code transform per existing `@RabbitListener`: extract the body of `onChange()` into a method-reference, register it in the `handlers` map keyed by routing-key prefix. ~30 lines deleted per consumer; ~15 lines added.
+
+### Idempotency contract — MANDATORY (R134t)
+
+The outbox delivers each event **at least once** per consumer. Every handler must be idempotent — same observable effect whether invoked once or N times for the same `(rowId, consumerName)` pair. Retries happen on:
+
+- Handler throw (rollback + backoff + re-drain)
+- Pod crash mid-handle (tx rollback; peer pod's drain picks up)
+- Ack tx rollback (extremely rare — the only window for a duplicate)
+
+**Patterns that get this right:**
+- `INSERT ... ON CONFLICT DO NOTHING` with a natural unique key (e.g. `aggregate_id + event_type`)
+- UPSERT with last-write-wins when the event payload is fully state-reconstructing
+- A small `processed_events (consumer, aggregate_id, event_type)` guard-table checked first by the handler
+
+**Patterns that break under retries:**
+- `count++` increments (doubles on every retry)
+- Non-idempotent external API calls (use idempotency-key headers on the external call instead)
+- Appending to a queue without dedup
+
+This contract is documented on the `OutboxEventHandler` interface Javadoc so implementers can't miss it.
+
+### Why transactional outbox, not CDC?
+
+A common alternative is **Change Data Capture** (e.g. Debezium tailing the PG WAL, publishing every committed row change as an event). We evaluated and rejected CDC for this migration:
+
+| Dimension | Transactional outbox (chosen) | CDC (rejected) |
+|---|---|---|
+| Explicit vs implicit events | Application decides what's an event | Every row change is an event (chatty, leaks schema) |
+| Coupling to DB engine | Pure SQL; portable to any PG-compatible store | Tightly coupled to WAL format + Debezium connector |
+| Operator setup | Zero — table + poller | Debezium + Kafka Connect + schema registry |
+| Event shape control | Full — we pick routing_key + payload | Derived from row shape; schema changes become events |
+| Migration cost from RabbitMQ | One poller bean; same DTOs | Full Debezium deployment + consumer rewrites |
+
+CDC is a great fit for **exfiltration pipelines** (stream DB changes to analytics / a data lake / search indexes). For **service-to-service domain events**, transactional outbox gives the application control and keeps the transport boring.
+
+If we ever need CDC for a different use case (e.g. streaming to a data warehouse), we can add Debezium alongside — it doesn't conflict with the outbox.
+
+### Sharding event_outbox at scale (R134t)
+
+Our V98 migration uses monthly range-partitioning on `created_at`. This scales well for RETENTION (drop old partitions) but NOT for WRITE CONCURRENCY at very high rates — every writer in the current month targets the same active partition.
+
+When/if we exceed ~2k events/sec on the outbox (well beyond current load), the right move is **hash-sharding on `aggregate_id`** over an extra partition key:
+
+```sql
+-- Conceptual; actual implementation via composite partitioning:
+-- PARTITION BY LIST (hash(aggregate_id) % 16) SUBPARTITION BY RANGE (created_at)
+```
+
+Benefits:
+- 16× write concurrency (one shard per partition, independent heap + index)
+- Same-aggregate events stay on the same shard → FIFO ordering for the aggregate is preserved by `ORDER BY id` within the shard
+
+We don't implement this in Sprint 0 because it's premature for current volume. The decision is deferred to Sprint 8+ (post-Redis-retirement soak) gated on observed write-rate metrics.
 
 ### Throughput limit
 

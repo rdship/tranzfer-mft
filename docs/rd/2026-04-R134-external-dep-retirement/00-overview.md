@@ -10,6 +10,14 @@ date: 2026-04-20
 
 This is the engineering design for reducing TranzFer MFT's third-party runtime footprint from 13 containers on the default profile to 3–5, without regressing any of the R64→R134k-proven behaviours. It is NOT a planning doc — every call-site to migrate is named, every replacement component is designed with a concrete API, and every caller across all 23 microservices is accounted for.
 
+## Industry evidence (we're not rowing against the current)
+
+Two external signals worth naming before the design:
+
+1. **"Is PostgreSQL eating the database world?"** — a growing industry pattern. Postgres + extensions now plausibly cover time-series (TimescaleDB), search (ZomboDB / pg_search), vector (pgvector, PostgresML), graph (AGE, EdgeDB), OLAP (Citus, Hydra), and geo (PostGIS). Projects like Supabase, Figma, and Notion have publicly doubled down on PG as the default answer to "where does state live." Our Redis → PG migration is in line with this; we're not inventing a contrarian direction.
+
+2. **Discord's Cassandra → ScyllaDB story** is a cautionary note: even the "right" choice (Cassandra for write-heavy workloads) can fail under real load (LSM-tree concurrent-read hotspots, unpredictable compaction). Our plan puts MORE load on PG. Doc 06 `06-postgres-scaling-playbook.md` sketches the evolution path (single → vertical partitioning → sharding, following Figma's 100x template) so we aren't naively assuming PG scales forever without work.
+
 ## Verdict up front
 
 | Dep | Role today | Decision | Why |

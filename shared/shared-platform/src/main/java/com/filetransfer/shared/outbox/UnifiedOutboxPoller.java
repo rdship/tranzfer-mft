@@ -209,6 +209,14 @@ public class UnifiedOutboxPoller {
 
         // Claim a batch of rows for this drain. Each row is processed in
         // its own transaction below so this SELECT closes its own tx fast.
+        //
+        // R134t: added defer_until filter. Rows whose defer_until[consumer]
+        // is in the future (exponential-jitter backoff window hasn't elapsed
+        // since the last failed attempt) are skipped — the next drain after
+        // the backoff expires picks them up. Without this, a repeatedly-
+        // failing handler retried every 2s forever, hammering PG + the
+        // target system. See docs/rd/.../02-rabbitmq-retirement.md "Retry
+        // semantics" (R134t revision).
         List<Long> candidateIds = tx.execute(status ->
             jdbc.queryForList(
                 """
@@ -216,11 +224,14 @@ public class UnifiedOutboxPoller {
                  WHERE published_at IS NULL
                    AND (consumed_by IS NULL OR NOT (consumed_by ? ?))
                    AND routing_key LIKE ANY (?)
+                   AND (defer_until IS NULL
+                        OR NOT (defer_until ? ?)
+                        OR (defer_until ->> ?)::timestamptz <= now())
                  ORDER BY id
                  LIMIT ?
                 """,
                 Long.class,
-                consumerName, likePatterns, batchSize)
+                consumerName, likePatterns, consumerName, consumerName, batchSize)
         );
         if (candidateIds == null || candidateIds.isEmpty()) return;
 
@@ -342,7 +353,38 @@ public class UnifiedOutboxPoller {
              WHERE id = ?
          RETURNING (attempts -> ?)::int
             """, Integer.class, consumerName, consumerName, rowId, consumerName);
-        return attempts == null ? 0 : attempts;
+        int count = attempts == null ? 0 : attempts;
+
+        // R134t — exponential-jitter backoff: 2s * 2^(count-1) with ±50%
+        // jitter, capped at 5 min. Jitter prevents herd-retry at the same
+        // wall-clock second when many rows failed together. The 2s base
+        // matches the fallback-poll cadence so the FIRST retry lands on the
+        // next drain; subsequent retries progressively space out.
+        Instant deferUntil = computeBackoff(count);
+        String deferValue = "\"" + deferUntil + "\"";
+        jdbc.update("""
+            UPDATE event_outbox
+               SET defer_until = jsonb_set(COALESCE(defer_until, '{}'::jsonb),
+                                             ARRAY[?], ?::jsonb, true)
+             WHERE id = ?
+            """, consumerName, deferValue, rowId);
+        return count;
+    }
+
+    /**
+     * Exponential-jitter backoff. 2s × 2^(attempts-1) base, ±50% jitter,
+     * 5-minute cap. attempts=1 → ~1–3s. attempts=2 → ~2–6s. attempts=3 →
+     * ~4–12s. … attempts=8 → ~2.5–7.5min (clamped to 5min). Jitter is
+     * multiplicative so rows with identical attempt counts still land on
+     * different retry times.
+     */
+    static Instant computeBackoff(int attempts) {
+        if (attempts <= 0) return Instant.now();
+        long baseMs = 2_000L * (1L << Math.min(attempts - 1, 20));  // 2^20 guards against overflow
+        baseMs = Math.min(baseMs, 300_000L);                         // cap at 5 min
+        double jitter = 0.5 + Math.random();                          // 0.5× .. 1.5×
+        long jitteredMs = (long) (baseMs * jitter);
+        return Instant.now().plusMillis(Math.min(jitteredMs, 300_000L));
     }
 
     private void moveToDlq(OutboxRow row, String failureReason) {
@@ -389,7 +431,45 @@ public class UnifiedOutboxPoller {
         }
     }
 
-    /** Handler contract — services implement one per routing-key family. */
+    /**
+     * Handler contract — services implement one per routing-key family.
+     *
+     * <p><b>IDEMPOTENCY IS MANDATORY.</b> The outbox delivers each event
+     * <em>at least once</em> per consumer. Retries happen on:
+     * <ul>
+     *   <li>Handler throwing (rollback + backoff + re-drain)</li>
+     *   <li>Pod crash mid-handle (tx rollback; next pod drain picks up)</li>
+     *   <li>LISTEN/NOTIFY miss followed by fallback poll (extremely rare
+     *       duplicate if the row was being processed right as the crash hit
+     *       and the ack tx rolled back)</li>
+     * </ul>
+     *
+     * <p>Implementations MUST produce the same observable effect whether
+     * invoked once or N times for the same row. Patterns that get this right:
+     * <ul>
+     *   <li><b>INSERT ... ON CONFLICT DO NOTHING</b> — natural idempotency
+     *       via a unique business key (e.g. {@code aggregate_id + event_type}).</li>
+     *   <li><b>UPSERT with last-write-wins</b> — safe when the event payload
+     *       is fully state-reconstructing.</li>
+     *   <li><b>Explicit "already processed" check</b> — a small table keyed
+     *       by {@code (consumer, aggregate_id, event_type)} that the handler
+     *       tests first; skip if already present.</li>
+     * </ul>
+     *
+     * <p>Patterns that break under retries:
+     * <ul>
+     *   <li>{@code count++} increments — doubles on every retry</li>
+     *   <li>Non-idempotent external API calls (e.g. unconditional
+     *       "create user" or "charge card") — use idempotency keys on the
+     *       external call</li>
+     *   <li>Appending to a queue without dedup — downstream sees duplicates</li>
+     * </ul>
+     *
+     * <p>On exception, the row is NOT acked for this consumer and will be
+     * re-delivered after the exponential-jitter backoff window elapses.
+     * Rows that fail {@code platform.outbox.max-attempts} times land in
+     * {@code event_outbox_dlq} and operator intervention is required.
+     */
     @FunctionalInterface
     public interface OutboxEventHandler {
         void handle(OutboxRow row) throws Exception;

@@ -132,6 +132,25 @@ public class ClusterNodeHeartbeat {
      * <p>Dead-detection window: 30s. Heartbeat interval is 10s so a node
      * must miss 3 heartbeats before it's marked DEAD — tolerates brief GC
      * pauses, network hiccups, scheduler delays.
+     *
+     * <p><b>R134t — split-brain caveat:</b> a HEALTHY node that briefly
+     * loses its PG connection (not the network to clients) will miss a
+     * heartbeat and may be marked DEAD by the reaper. When PG reconnects,
+     * the node's next heartbeat flips it back to ACTIVE. In the gap,
+     * Platform Sentinel's auto-heal might take unnecessary action (e.g.
+     * traffic steering away from the node).
+     *
+     * <p>For stricter correctness, a quorum-based heartbeat (the node must
+     * convince N/2+1 observers it's alive before being considered ACTIVE)
+     * is the textbook fix. Trade-off: higher implementation complexity
+     * and more chatty cross-service traffic. We defer that until (a) we
+     * run > 5 replicas of a single service type AND (b) we observe
+     * spurious DEAD flags in production. Until then, the 30s window is
+     * long enough that transient PG blips rarely trip it — and the
+     * self-healing (node's next heartbeat re-registers ACTIVE) is cheap.
+     *
+     * <p>See docs/rd/2026-04-R134-external-dep-retirement/01-redis-retirement.md
+     * "Hard consumer 3 — Service registry" for the design rationale.
      */
     @Scheduled(fixedDelayString = "PT15S")
     @SchedulerLock(name = "cluster_nodes_reaper",

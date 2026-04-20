@@ -167,4 +167,26 @@ public class PgRateLimitCoordinator {
         long now = Instant.now().toEpochMilli();
         return Instant.ofEpochMilli((now / size) * size);
     }
+
+    /**
+     * R134t — jittered {@code Retry-After} seconds for the 429 response.
+     *
+     * <p><b>Why not just tell the client to retry at the next window?</b>
+     * If 10,000 users all hit their quota at :59 and all retry at :00, we
+     * get a dog-pile spike on the first second of each minute. Jitter
+     * spreads those retries across the first 30–90 seconds of the next
+     * window so the load stays smooth.
+     *
+     * <p>Returns a value in [base, base + jitterSeconds) where base is the
+     * seconds remaining until the next window boundary. Callers set this
+     * on the HTTP response header {@code Retry-After} when returning 429.
+     */
+    public static long retryAfterSeconds(Duration windowSize, int jitterSeconds) {
+        long sizeMs = windowSize.toMillis();
+        long nowMs = Instant.now().toEpochMilli();
+        long remainingMs = sizeMs - (nowMs % sizeMs);
+        long baseSec = Math.max(1, remainingMs / 1000);
+        long jitter = (long) (Math.random() * Math.max(0, jitterSeconds));
+        return baseSec + jitter;
+    }
 }
