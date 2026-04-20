@@ -1,31 +1,23 @@
 package com.filetransfer.analytics.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.redis.cache.RedisCacheConfiguration;
-import org.springframework.data.redis.cache.RedisCacheManager;
-import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
-import org.springframework.data.redis.serializer.RedisSerializationContext;
-import org.springframework.data.redis.serializer.StringRedisSerializer;
+import org.springframework.context.annotation.Primary;
 
-import java.time.Duration;
-import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
- * Redis-backed cache configuration for analytics-service.
+ * R134x Sprint 3 — swapped Redis cache backend for Caffeine (per-pod).
  *
- * <p>Replaces the previous per-JVM Caffeine cache. Redis is:
- * <ul>
- *   <li><b>Shared</b>   — all analytics-service replicas read the same warmed cache</li>
- *   <li><b>Persistent</b> — survives pod restarts (AOF + RDB on the Redis volume)</li>
- *   <li><b>Evicting</b>  — TTL-based eviction prevents stale data</li>
- * </ul>
+ * <p>Previous Redis-backed config gave us a shared cache across replicas,
+ * but the values are per-request dashboards where 15-60s per-pod divergence
+ * is invisible to end users (no one compares dashboards between two browser
+ * tabs within a single second). Caffeine removes one more external dep.
  *
- * <p>Per-cache TTLs:
+ * <p>Per-cache TTLs (same numbers as the pre-R134x Redis config):
  * <pre>
  *   dashboard     15 s — transfer KPI tiles, alerts
  *   observatory   30 s — service graph, 30-day heatmap, domain groups
@@ -33,37 +25,34 @@ import java.util.Map;
  *   dedup-stats    5 m — 7-table JOIN aggregation; changes slowly
  * </pre>
  *
- * <p>Values serialized as JSON (GenericJackson2JsonRedisSerializer) — safe across
- * different JVM instances and class versions.
+ * <p>Spring Boot picks the first {@link CacheManager} bean on the
+ * classpath. We mark this {@code @Primary} so the
+ * auto-configured {@code RedisCacheManager} (still pulled in via the
+ * Redis starter) doesn't win — once Sprint 7 removes the Redis starter,
+ * the @Primary is redundant but harmless.
  */
 @Configuration
 public class AnalyticsCacheConfig {
 
     @Bean
-    public RedisCacheManager cacheManager(RedisConnectionFactory cf) {
-
-        ObjectMapper redisMapper = new ObjectMapper();
-        redisMapper.registerModule(new JavaTimeModule());
-        redisMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        redisMapper.activateDefaultTyping(
-                redisMapper.getPolymorphicTypeValidator(),
-                ObjectMapper.DefaultTyping.NON_FINAL);
-
-        RedisCacheConfiguration base = RedisCacheConfiguration.defaultCacheConfig()
-                .serializeKeysWith(RedisSerializationContext.SerializationPair
-                        .fromSerializer(new StringRedisSerializer()))
-                .serializeValuesWith(RedisSerializationContext.SerializationPair
-                        .fromSerializer(new GenericJackson2JsonRedisSerializer(redisMapper)))
-                .disableCachingNullValues();
-
-        return RedisCacheManager.builder(cf)
-                .cacheDefaults(base.entryTtl(Duration.ofSeconds(30)))
-                .withInitialCacheConfigurations(Map.of(
-                        "dashboard",   base.entryTtl(Duration.ofSeconds(15)),
-                        "observatory", base.entryTtl(Duration.ofSeconds(30)),
-                        "step-latency",base.entryTtl(Duration.ofSeconds(60)),
-                        "dedup-stats", base.entryTtl(Duration.ofMinutes(5))
-                ))
-                .build();
+    @Primary
+    public CacheManager cacheManager() {
+        CaffeineCacheManager mgr = new CaffeineCacheManager(
+                "dashboard", "observatory", "step-latency", "dedup-stats");
+        // Default: 30s — matches the old Redis cacheDefaults().entryTtl.
+        mgr.setCaffeine(Caffeine.newBuilder()
+                .expireAfterWrite(30, TimeUnit.SECONDS)
+                .maximumSize(10_000));
+        // Per-cache specs override the default. Caffeine's CacheManager
+        // supports registering per-cache builders via registerCustomCache.
+        mgr.registerCustomCache("dashboard",
+                Caffeine.newBuilder().expireAfterWrite(15, TimeUnit.SECONDS).maximumSize(1_000).build());
+        mgr.registerCustomCache("observatory",
+                Caffeine.newBuilder().expireAfterWrite(30, TimeUnit.SECONDS).maximumSize(1_000).build());
+        mgr.registerCustomCache("step-latency",
+                Caffeine.newBuilder().expireAfterWrite(60, TimeUnit.SECONDS).maximumSize(5_000).build());
+        mgr.registerCustomCache("dedup-stats",
+                Caffeine.newBuilder().expireAfterWrite(5, TimeUnit.MINUTES).maximumSize(500).build());
+        return mgr;
     }
 }

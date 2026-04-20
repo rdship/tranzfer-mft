@@ -1,53 +1,51 @@
 package com.filetransfer.onboarding.config;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.redis.cache.RedisCacheConfiguration;
-import org.springframework.data.redis.cache.RedisCacheManager;
-import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
-import org.springframework.data.redis.serializer.RedisSerializationContext;
-import org.springframework.data.redis.serializer.StringRedisSerializer;
+import org.springframework.context.annotation.Primary;
 
-import java.time.Duration;
-import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
- * Redis-backed cache for onboarding-api.
+ * R134x Sprint 3 — Caffeine (per-pod) replaces Redis cache for onboarding-api.
  *
- * <p><b>live-stats</b> (5 s TTL) — the four flow-execution status counts polled every 10 s
- * by the Dashboard live-activity strip. Redis makes this:
- * <ul>
- *   <li>Shared across all onboarding-api replicas (one warm cache, not N cold per-JVM maps)</li>
- *   <li>Persistent across pod restarts (Redis AOF volume)</li>
- *   <li>Cheap — cache miss triggers one GROUP BY query; hits are sub-millisecond</li>
- * </ul>
+ * <p>These are poll-and-display dashboards; per-pod divergence of 5-10s
+ * is imperceptible to the Admin UI. Removes one more Redis consumer as
+ * part of the R134 external-dep retirement plan.
  *
- * <p>Graceful degradation: if Redis is unreachable the cache is bypassed and the
- * DB query runs normally — the service stays up.
+ * <p>Caches:
+ * <pre>
+ *   live-stats      5 s — live dashboard tile counts
+ *   activity-stats 10 s — Activity Monitor per-period stats
+ *   partner-names   5 m — UUID → company-name map (changes rarely)
+ * </pre>
+ *
+ * <p>Graceful degradation: if the cache bean fails to construct Spring
+ * still boots (Boot's CompositeCacheManager fallback). A cache miss always
+ * re-runs the underlying SQL — nothing blocks.
  */
 @Configuration
 @EnableCaching
 public class OnboardingCacheConfig {
 
     @Bean
-    public RedisCacheManager cacheManager(RedisConnectionFactory cf) {
-
-        RedisCacheConfiguration base = RedisCacheConfiguration.defaultCacheConfig()
-                .serializeKeysWith(RedisSerializationContext.SerializationPair
-                        .fromSerializer(new StringRedisSerializer()))
-                .serializeValuesWith(RedisSerializationContext.SerializationPair
-                        .fromSerializer(new GenericJackson2JsonRedisSerializer()))
-                .disableCachingNullValues();
-
-        return RedisCacheManager.builder(cf)
-                .cacheDefaults(base.entryTtl(Duration.ofSeconds(30)))
-                .withInitialCacheConfigurations(Map.of(
-                        "live-stats", base.entryTtl(Duration.ofSeconds(5)),
-                        // Phase 5.2: Activity Monitor stats cached for 10s
-                        "activity-stats", base.entryTtl(Duration.ofSeconds(10))
-                ))
-                .build();
+    @Primary
+    public CacheManager cacheManager() {
+        CaffeineCacheManager mgr = new CaffeineCacheManager(
+                "live-stats", "activity-stats", "partner-names");
+        mgr.setCaffeine(Caffeine.newBuilder()
+                .expireAfterWrite(30, TimeUnit.SECONDS)
+                .maximumSize(10_000));
+        mgr.registerCustomCache("live-stats",
+                Caffeine.newBuilder().expireAfterWrite(5, TimeUnit.SECONDS).maximumSize(100).build());
+        mgr.registerCustomCache("activity-stats",
+                Caffeine.newBuilder().expireAfterWrite(10, TimeUnit.SECONDS).maximumSize(1_000).build());
+        mgr.registerCustomCache("partner-names",
+                Caffeine.newBuilder().expireAfterWrite(5, TimeUnit.MINUTES).maximumSize(10_000).build());
+        return mgr;
     }
 }

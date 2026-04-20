@@ -57,6 +57,17 @@
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
+        <!-- R134x Sprint 3 — Caffeine (W-TinyLFU) replaces Redis as the cache
+             layer. Added to shared-platform so every service that pulls the
+             module gets the Caffeine bean path + @Cacheable support uniformly. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-cache</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
         <dependency>
             <groupId>net.javacrumbs.shedlock</groupId>
             <artifactId>shedlock-spring</artifactId>
