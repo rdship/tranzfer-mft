@@ -58,8 +58,25 @@ public class ServerInstanceEventConsumer {
     @Value("${as2.instance-id:#{null}}")
     private String primaryInstanceId;
 
+    /**
+     * R134A — unconditional boot instrumentation. Tester R134p reported
+     * "Zero ServerInstanceEventConsumer log activity in as2-service",
+     * which could mean (a) the bean never loaded, (b) @EventListener
+     * didn't register, or (c) the DB query returned 0 rows. This
+     * @PostConstruct log fires the instant Spring creates the bean —
+     * if it's absent from next run's logs, the bean is being skipped
+     * by component scan or AOT. Don't remove without a new verification.
+     */
+    @jakarta.annotation.PostConstruct
+    void boot() {
+        log.info("[AS2][boot] ServerInstanceEventConsumer bean instantiated — "
+                + "queue={} exchange={} pattern={} primaryInstanceId={}",
+                QUEUE, EXCHANGE, PATTERN, primaryInstanceId);
+    }
+
     @Bean
     public Queue as2ServerInstanceQueue() {
+        log.info("[AS2][bean] declaring Queue '{}'", QUEUE);
         return QueueBuilder.durable(QUEUE)
                 .withArgument("x-dead-letter-exchange", "file-transfer.events.dlx")
                 .build();
@@ -85,26 +102,39 @@ public class ServerInstanceEventConsumer {
      */
     @EventListener(ApplicationReadyEvent.class)
     public void bootstrap() {
+        // R134A — unconditional entry/exit logs. Tester R134p couldn't tell
+        // whether bootstrap() was firing OR whether the repository query was
+        // returning 0 rows. Both cases are now observable.
+        log.info("[AS2][bootstrap] entered — querying active AS2/AS4 listeners");
         List<ServerInstance> as2Rows = repository.findByProtocolAndActiveTrue(Protocol.AS2);
         List<ServerInstance> as4Rows = repository.findByProtocolAndActiveTrue(Protocol.AS4);
+        log.info("[AS2][bootstrap] DB query returned as2={} as4={} active rows",
+                as2Rows.size(), as4Rows.size());
         for (ServerInstance si : as2Rows) markBound(si);
         for (ServerInstance si : as4Rows) markBound(si);
         int total = as2Rows.size() + as4Rows.size();
-        if (total > 0) log.info("[AS2] Acknowledged {} existing AS2/AS4 listener row(s)", total);
+        log.info("[AS2][bootstrap] done — acknowledged {} listener row(s) total", total);
     }
 
     @RabbitListener(queues = QUEUE)
     public void onChange(Map<String, Object> payload) {
+        // R134A — always log inbound. Without this the tester couldn't tell
+        // whether onboarding-api's outbox publish was reaching the AS2 queue.
+        log.info("[AS2][onChange] received event payload keys={} protocol={} changeType={}",
+                payload.keySet(), payload.get("protocol"), payload.get("changeType"));
         try {
             ServerInstanceChangeEvent event = objectMapper.convertValue(
                     payload, ServerInstanceChangeEvent.class);
-            if (event.protocol() != Protocol.AS2 && event.protocol() != Protocol.AS4) return;
+            if (event.protocol() != Protocol.AS2 && event.protocol() != Protocol.AS4) {
+                log.debug("[AS2][onChange] ignoring non-AS2/AS4 protocol={}", event.protocol());
+                return;
+            }
 
             switch (event.changeType()) {
                 case CREATED, ACTIVATED, UPDATED -> {
                     ServerInstance si = repository.findById(event.id()).orElse(null);
                     if (si == null) {
-                        log.warn("AS2/AS4 ServerInstance {} not found for {}",
+                        log.warn("[AS2][onChange] ServerInstance {} not found for {}",
                                 event.id(), event.changeType());
                         return;
                     }
@@ -114,7 +144,7 @@ public class ServerInstanceEventConsumer {
                 case DEACTIVATED, DELETED -> bindStateWriter.markUnbound(event.id());
             }
         } catch (Exception e) {
-            log.error("AS2 ServerInstance change event handling failed: {}", e.getMessage(), e);
+            log.error("[AS2][onChange] handling failed: {}", e.getMessage(), e);
             throw e; // DLQ
         }
     }

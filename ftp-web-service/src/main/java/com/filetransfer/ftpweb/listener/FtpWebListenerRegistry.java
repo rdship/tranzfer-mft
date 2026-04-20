@@ -12,6 +12,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 /**
  * Maintains the {@code bind_state} / {@code bound_node} columns on the
  * FTP_WEB ServerInstance rows so UI and Sentinel see accurate runtime
@@ -47,26 +49,39 @@ public class FtpWebListenerRegistry {
 
     @EventListener(ApplicationReadyEvent.class)
     public void bootstrap() {
+        log.info("[FTP_WEB][bootstrap] entered — primaryInstanceId={}", primaryInstanceId);
         if (primaryInstanceId == null || primaryInstanceId.isBlank()) {
-            log.warn("FTP_WEB ListenerRegistry: no ftpweb.instance-id configured — skipping bind-state seed");
+            log.warn("[FTP_WEB][bootstrap] no ftpweb.instance-id configured — skipping bind-state seed");
             return;
         }
         repository.findByInstanceId(primaryInstanceId).ifPresentOrElse(
-                si -> bindStateWriter.markBound(si.getId()),
-                () -> log.warn("FTP_WEB primary instanceId '{}' has no ServerInstance row — " +
+                si -> {
+                    bindStateWriter.markBound(si.getId());
+                    log.info("[FTP_WEB][bootstrap] BOUND primary '{}' id={}", primaryInstanceId, si.getId());
+                },
+                () -> log.warn("[FTP_WEB][bootstrap] primary instanceId '{}' has no ServerInstance row — " +
                                 "create it via onboarding-api so UI/Sentinel can track its state",
                         primaryInstanceId));
 
-        // Surface non-primary FTP_WEB rows once at boot so operators know
-        // why they're not BOUND yet. Honest reporting > a green badge that lies.
-        long nonPrimary = repository.findByProtocolAndActiveTrue(Protocol.FTP_WEB).stream()
-                .filter(si -> !primaryInstanceId.equals(si.getInstanceId()))
-                .count();
-        if (nonPrimary > 0) {
-            log.info("FTP_WEB: {} non-primary listener row(s) exist but multi-Tomcat routing " +
-                    "is not yet wired — those rows remain UNBOUND until upstream HTTP reverse " +
-                    "proxy work lands (tracked separately).", nonPrimary);
+        // R134A — previously these secondary rows were only log-surfaced; their
+        // bind_state stayed at UNKNOWN (the schema default) because nothing ever
+        // called any markXxx on them. Tester R134p flagged this as "4/10
+        // listeners UNKNOWN". Honest reporting: mark non-primary FTP_WEB rows
+        // explicitly UNBOUND at boot — admin UI then shows the correct intent.
+        // Multi-Tomcat secondary-binding is tracked separately; this doesn't
+        // claim to bind them, only to stop mis-labelling them.
+        List<ServerInstance> all = repository.findByProtocolAndActiveTrue(Protocol.FTP_WEB);
+        int secondaries = 0;
+        for (ServerInstance si : all) {
+            if (primaryInstanceId.equals(si.getInstanceId())) continue;
+            bindStateWriter.markUnbound(si.getId());
+            log.info("[FTP_WEB][bootstrap] UNBOUND secondary '{}' id={} port={} — " +
+                    "multi-Tomcat routing not yet wired (see doc)",
+                    si.getInstanceId(), si.getId(), si.getInternalPort());
+            secondaries++;
         }
+        log.info("[FTP_WEB][bootstrap] done — 1 primary bound, {} secondary(ies) explicitly UNBOUND",
+                secondaries);
     }
 
     /** Heartbeat BOUND state every 30s so the reconciler can detect a dead pod. */

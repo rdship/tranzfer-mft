@@ -55,12 +55,29 @@ public class FtpListenerRegistry {
     @EventListener(ApplicationReadyEvent.class)
     public void bootstrap() {
         List<ServerInstance> candidates = repository.findByProtocolAndActiveTrue(Protocol.FTP);
+        // R134A — tester R134p found ftp-2 stuck at UNKNOWN. Root cause candidates:
+        // (a) row isn't active=true, (b) isPrimary() returns true for it,
+        // (c) ownedByThisNode() returns false. Log each candidate's decision
+        // path so the next verification run shows exactly which branch fires.
+        log.info("[FTP][bootstrap] {} active FTP row(s) in DB; primaryInstanceId={} primaryPort={} hostMatch={}",
+                candidates.size(), primaryInstanceId, primaryPort, hostMatch);
         for (ServerInstance si : candidates) {
-            if (isPrimary(si)) {
-                log.info("Skipping primary FTP listener '{}' — already bound by env-var bean", si.getInstanceId());
+            boolean primary = isPrimary(si);
+            boolean owned = ownedByThisNode(si);
+            log.info("[FTP][bootstrap] eval '{}' (id={} port={} internalHost={}) primary={} owned={}",
+                    si.getInstanceId(), si.getId(), si.getInternalPort(), si.getInternalHost(),
+                    primary, owned);
+            if (primary) {
+                log.info("[FTP][bootstrap] SKIP '{}' — primary listener is bound by env-var bean",
+                        si.getInstanceId());
                 continue;
             }
-            if (!ownedByThisNode(si)) continue;
+            if (!owned) {
+                log.info("[FTP][bootstrap] SKIP '{}' — not owned by this node (internalHost={}, hostMatch={})",
+                        si.getInstanceId(), si.getInternalHost(), hostMatch);
+                continue;
+            }
+            log.info("[FTP][bootstrap] BIND '{}' on port {}", si.getInstanceId(), si.getInternalPort());
             bind(si);
         }
     }
