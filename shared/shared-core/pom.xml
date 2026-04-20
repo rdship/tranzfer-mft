@@ -133,6 +133,18 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
             <optional>true</optional>
         </dependency>
+        <!-- R134u: PgRateLimitCoordinator uses JdbcTemplate directly (no JPA overhead
+             for a simple UPSERT+RETURNING). spring-jdbc is the compile-time dep;
+             at runtime, the JdbcTemplate bean comes from whatever starter the consuming
+             service has (starter-data-jpa or starter-jdbc — every service that pulls
+             shared-core also pulls shared-platform → starter-data-jpa, so the runtime
+             bean is always available). Listed non-optional because PgRateLimitCoordinator
+             is an unconditional @Component — needs JdbcTemplate on the classpath at
+             class-load. -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-jdbc</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
