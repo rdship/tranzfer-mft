@@ -1,0 +1,414 @@
+package com.filetransfer.shared.outbox;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.postgresql.PGConnection;
+import org.postgresql.PGNotification;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+/**
+ * Per-service poller that drains the unified {@code event_outbox} table
+ * (V98). Replaces {@code @RabbitListener} for the 4 low-volume event
+ * classes retired from RabbitMQ per
+ * {@code docs/rd/2026-04-R134-external-dep-retirement/02-rabbitmq-retirement.md}.
+ *
+ * <p><b>Concurrency model:</b>
+ * <ul>
+ *   <li>One virtual-thread-backed {@code LISTEN} loop waits on PG
+ *       notifications with a 5s server-side timeout. On NOTIFY arrival
+ *       (from {@link UnifiedOutboxWriter#write}), wakes the drain.</li>
+ *   <li>One scheduled thread runs the drain every 2s as a fallback so a
+ *       dropped NOTIFY (network hiccup, idle-connection timeout) doesn't
+ *       stall event delivery more than 2s.</li>
+ *   <li>The drain uses {@code SELECT ... FOR UPDATE SKIP LOCKED} so
+ *       multiple replicas of the same consumer service don't double-process
+ *       a row. Per-consumer ack tracked in {@code consumed_by JSONB}.</li>
+ * </ul>
+ *
+ * <p><b>Handler registration:</b> services register a
+ * {@link OutboxEventHandler} per routing-key prefix via
+ * {@link #registerHandler}. The poller dispatches rows to the matching
+ * handler based on the row's {@code routing_key}; unmatched rows are
+ * skipped (so a service that doesn't care about {@code account.*} just
+ * doesn't register a handler for it).
+ *
+ * <p><b>Retry semantics:</b> if a handler throws, the row stays
+ * unconsumed by this service (ack doesn't get written). Next drain picks
+ * it up again. After {@code maxAttempts} failures per consumer, the row
+ * moves to {@code event_outbox_dlq} with the last exception message.
+ *
+ * <p>Sprint 0 scope: framework exists, no service registers handlers
+ * yet. Services migrate one at a time per Sprint 6 of the retirement
+ * plan. When zero handlers are registered, this poller is a no-op (the
+ * drain runs but always selects zero relevant rows).
+ */
+@Slf4j
+@Component
+public class UnifiedOutboxPoller {
+
+    private final JdbcTemplate jdbc;
+    private final DataSource dataSource;
+    private final ObjectMapper objectMapper;
+    private final TransactionTemplate tx;
+    private final TransactionTemplate txRequiresNew;
+
+    @Value("${spring.application.name:unknown}")
+    private String consumerName;
+
+    @Value("${platform.outbox.max-attempts:10}")
+    private int maxAttempts;
+
+    @Value("${platform.outbox.fallback-poll-seconds:2}")
+    private int fallbackPollSeconds;
+
+    @Value("${platform.outbox.batch-size:100}")
+    private int batchSize;
+
+    public UnifiedOutboxPoller(JdbcTemplate jdbc, DataSource dataSource,
+                                ObjectMapper objectMapper,
+                                PlatformTransactionManager txManager) {
+        this.jdbc = jdbc;
+        this.dataSource = dataSource;
+        this.objectMapper = objectMapper;
+        this.tx = new TransactionTemplate(txManager);
+        // Each per-row unit of work is its own short transaction. Row-level
+        // FOR UPDATE SKIP LOCKED is held only while we process ONE row, not
+        // while we work through the batch. Minimises cross-replica contention.
+        this.txRequiresNew = new TransactionTemplate(txManager);
+        this.txRequiresNew.setPropagationBehavior(
+                org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        // Failure-accounting (attempts bump + DLQ move) runs in an
+        // INDEPENDENT transaction so that when the main row's tx rolls back
+        // (to undo the handler's partial work) the accounting writes still
+        // commit. Without REQUIRES_NEW, the bumpAttempts would also be
+        // rolled back and the DLQ threshold would never fire.
+    }
+
+    /** Routing-key prefix → handler. First match wins. */
+    private final Map<String, OutboxEventHandler> handlers = new ConcurrentHashMap<>();
+
+    /** true while the LISTEN loop should keep running. */
+    private final AtomicBoolean running = new AtomicBoolean(true);
+
+    private ScheduledExecutorService fallbackScheduler;
+    private Thread listenThread;
+
+    /**
+     * Register a handler for events whose routing key starts with
+     * {@code routingKeyPrefix}. Call from a {@code @Configuration} class
+     * during application bootstrap.
+     *
+     * <p>Examples:
+     * <ul>
+     *   <li>{@code "server.instance."} — matches {@code server.instance.created}, …</li>
+     *   <li>{@code "account."} — matches {@code account.created}, {@code account.updated}</li>
+     *   <li>{@code "flow.rule.updated"} — matches only that exact key</li>
+     * </ul>
+     */
+    public void registerHandler(String routingKeyPrefix, OutboxEventHandler handler) {
+        handlers.put(routingKeyPrefix, handler);
+        log.info("[Outbox/{}] Registered handler for routing key prefix '{}'",
+                consumerName, routingKeyPrefix);
+    }
+
+    @PostConstruct
+    public void start() {
+        // Fallback scheduled poll — runs even when LISTEN is down.
+        fallbackScheduler = Executors.newSingleThreadScheduledExecutor(
+                r -> Thread.ofVirtual().name("outbox-fallback-poll").unstarted(r));
+        fallbackScheduler.scheduleAtFixedRate(
+                this::drainOnceSafely, fallbackPollSeconds, fallbackPollSeconds, TimeUnit.SECONDS);
+
+        // LISTEN loop — virtual thread; blocks on PG notifications.
+        listenThread = Thread.ofVirtual()
+                .name("outbox-listen-" + consumerName)
+                .start(this::listenLoop);
+    }
+
+    @PreDestroy
+    public void stop() {
+        running.set(false);
+        if (listenThread != null) listenThread.interrupt();
+        if (fallbackScheduler != null) fallbackScheduler.shutdownNow();
+    }
+
+    private void listenLoop() {
+        while (running.get() && !Thread.currentThread().isInterrupted()) {
+            try (Connection c = dataSource.getConnection()) {
+                c.createStatement().execute("LISTEN event_outbox");
+                PGConnection pg = c.unwrap(PGConnection.class);
+                // Drain once on startup in case rows exist from before we
+                // started listening.
+                drainOnceSafely();
+                while (running.get() && !Thread.currentThread().isInterrupted()) {
+                    PGNotification[] notifs = pg.getNotifications(5_000);
+                    if (notifs != null && notifs.length > 0) {
+                        drainOnceSafely();
+                    }
+                    // Timeout (no notifs) still falls through — the fallback
+                    // scheduler separately triggers a drain every 2s.
+                }
+            } catch (Exception e) {
+                log.warn("[Outbox/{}] LISTEN connection crashed (will reconnect in 5s): {}",
+                        consumerName, e.getMessage());
+                sleep(5_000);
+            }
+        }
+    }
+
+    private void drainOnceSafely() {
+        try {
+            drainOnce();
+        } catch (Exception e) {
+            // Never propagate out of the scheduled thread — next tick
+            // retries. Log once loudly so the issue is visible.
+            log.error("[Outbox/{}] drain threw: {}", consumerName, e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Drain one batch. Each row is processed inside its OWN transaction so
+     * the SKIP LOCKED lock is released immediately after that row's work is
+     * done — minimises cross-replica contention and keeps long-running
+     * handlers from starving peers.
+     *
+     * <p>The outer loop pulls up to {@code batchSize} rows per drain; in
+     * practice the fallback scheduler + NOTIFY wake-up make re-draining
+     * fast enough that batching is almost irrelevant. We keep it because
+     * PG prefers a single plan over many individual one-row SELECTs.
+     */
+    protected void drainOnce() {
+        if (handlers.isEmpty()) return; // service doesn't consume any events
+
+        // LIKE ANY patterns for the routing-key prefixes we care about.
+        String[] likePatterns = handlers.keySet().stream()
+                .map(p -> p + "%")
+                .toArray(String[]::new);
+
+        // Claim a batch of rows for this drain. Each row is processed in
+        // its own transaction below so this SELECT closes its own tx fast.
+        List<Long> candidateIds = tx.execute(status ->
+            jdbc.queryForList(
+                """
+                SELECT id FROM event_outbox
+                 WHERE published_at IS NULL
+                   AND (consumed_by IS NULL OR NOT (consumed_by ? ?))
+                   AND routing_key LIKE ANY (?)
+                 ORDER BY id
+                 LIMIT ?
+                """,
+                Long.class,
+                consumerName, likePatterns, batchSize)
+        );
+        if (candidateIds == null || candidateIds.isEmpty()) return;
+
+        for (Long id : candidateIds) {
+            processOneRow(id);
+        }
+    }
+
+    /**
+     * One row, one transaction. Re-fetches the row WITH FOR UPDATE SKIP
+     * LOCKED so another replica that grabbed it between our batch SELECT
+     * and this fetch is honoured (row-level race handled cleanly).
+     */
+    private void processOneRow(long rowId) {
+        tx.executeWithoutResult(status -> {
+            List<OutboxRow> rows = jdbc.query(
+                """
+                SELECT id, aggregate_type, aggregate_id, event_type, routing_key,
+                       payload, created_at
+                  FROM event_outbox
+                 WHERE id = ?
+                   AND published_at IS NULL
+                   AND (consumed_by IS NULL OR NOT (consumed_by ? ?))
+                 FOR UPDATE SKIP LOCKED
+                """,
+                new OutboxRowMapper(),
+                rowId, consumerName);
+            if (rows.isEmpty()) return; // another replica got it
+
+            OutboxRow row = rows.get(0);
+            OutboxEventHandler handler = findHandler(row.routingKey);
+            if (handler == null) {
+                // Should never happen — we pre-filtered via LIKE ANY — but
+                // if the handler map mutated between SELECTs, skip cleanly.
+                return;
+            }
+
+            try {
+                handler.handle(row);
+                markConsumed(row.id);
+            } catch (Exception e) {
+                log.warn("[Outbox/{}] handler threw on row id={} routing={}: {} — row will retry",
+                        consumerName, row.id, row.routingKey, e.getMessage());
+                // Rollback undoes any partial work the handler did INSIDE
+                // this tx (handlers often write to other tables — those
+                // changes must not land if we'll retry). markConsumed was
+                // never called so the row stays un-ack'd from our view.
+                // Failure accounting runs in the separate REQUIRES_NEW tx
+                // below.
+                status.setRollbackOnly();
+            }
+        });
+
+        // Failure accounting — runs OUTSIDE the row's tx. If the handler
+        // threw, the row's tx rolled back including any partial work but
+        // did NOT roll back this tx (REQUIRES_NEW). If the handler succeeded
+        // and markConsumed committed, the probe query below returns false
+        // (row ack'd) and this whole block is a no-op.
+        Boolean rowStillUnacked = txRequiresNew.execute(status ->
+            jdbc.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1 FROM event_outbox
+                     WHERE id = ?
+                       AND published_at IS NULL
+                       AND (consumed_by IS NULL OR NOT (consumed_by ? ?))
+                )
+                """, Boolean.class, rowId, consumerName));
+
+        if (Boolean.TRUE.equals(rowStillUnacked)) {
+            txRequiresNew.executeWithoutResult(status -> {
+                int attempts = bumpAttempts(rowId);
+                if (attempts >= maxAttempts) {
+                    List<OutboxRow> rs = jdbc.query(
+                        """
+                        SELECT id, aggregate_type, aggregate_id, event_type, routing_key,
+                               payload, created_at
+                          FROM event_outbox WHERE id = ?
+                        """,
+                        new OutboxRowMapper(), rowId);
+                    if (!rs.isEmpty()) {
+                        moveToDlq(rs.get(0), "max-attempts exceeded (" + attempts + ")");
+                    }
+                }
+            });
+        }
+    }
+
+    private OutboxEventHandler findHandler(String routingKey) {
+        // Longest-prefix-wins match so "flow.rule.updated" beats "flow." if
+        // both are registered.
+        String best = null;
+        for (String prefix : handlers.keySet()) {
+            if (routingKey.startsWith(prefix)
+                    && (best == null || prefix.length() > best.length())) {
+                best = prefix;
+            }
+        }
+        return best == null ? null : handlers.get(best);
+    }
+
+    private void markConsumed(long rowId) {
+        String ackValue = "\"" + Instant.now() + "\"";
+        jdbc.update("""
+            UPDATE event_outbox
+               SET consumed_by = jsonb_set(COALESCE(consumed_by, '{}'::jsonb),
+                                             ARRAY[?], ?::jsonb, true)
+             WHERE id = ?
+            """, consumerName, ackValue, rowId);
+    }
+
+    private int bumpAttempts(long rowId) {
+        // Read-modify-write — serialized by row lock in our transaction.
+        Integer attempts = jdbc.queryForObject("""
+            UPDATE event_outbox
+               SET attempts = jsonb_set(COALESCE(attempts, '{}'::jsonb),
+                                        ARRAY[?],
+                                        to_jsonb(COALESCE((attempts -> ?)::int, 0) + 1),
+                                        true)
+             WHERE id = ?
+         RETURNING (attempts -> ?)::int
+            """, Integer.class, consumerName, consumerName, rowId, consumerName);
+        return attempts == null ? 0 : attempts;
+    }
+
+    private void moveToDlq(OutboxRow row, String failureReason) {
+        try {
+            jdbc.update("""
+                INSERT INTO event_outbox_dlq
+                    (id, aggregate_type, aggregate_id, event_type, routing_key, payload, failure_reason)
+                VALUES (?, ?, ?, ?, ?, ?::jsonb, ?)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                row.id, row.aggregateType, row.aggregateId, row.eventType,
+                row.routingKey, row.payload, failureReason);
+            // Mark DONE so the main poller stops picking it up. Other
+            // consumers that haven't reached max-attempts still process it.
+            markConsumed(row.id);
+            log.error("[Outbox/{}] moved row id={} routing={} to DLQ after {} attempts: {}",
+                    consumerName, row.id, row.routingKey, maxAttempts, failureReason);
+        } catch (Exception e) {
+            log.error("[Outbox/{}] DLQ insert failed for row id={}: {}",
+                    consumerName, row.id, e.getMessage(), e);
+        }
+    }
+
+    private static void sleep(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /** Row POJO passed into handlers. */
+    public record OutboxRow(long id, String aggregateType, String aggregateId,
+                            String eventType, String routingKey, String payload,
+                            Map<String, Integer> attempts, Instant createdAt) {
+        /** Convenience: deserialize payload to a DTO class. */
+        public <T> T as(Class<T> type, ObjectMapper om) {
+            try {
+                return om.readValue(payload, type);
+            } catch (Exception e) {
+                throw new IllegalStateException(
+                        "Cannot deserialize outbox row " + id + " to " + type.getSimpleName(), e);
+            }
+        }
+    }
+
+    /** Handler contract — services implement one per routing-key family. */
+    @FunctionalInterface
+    public interface OutboxEventHandler {
+        void handle(OutboxRow row) throws Exception;
+    }
+
+    /** Jackson-aware row mapper; stores payload as raw JSON string. */
+    private static class OutboxRowMapper implements RowMapper<OutboxRow> {
+        @Override public OutboxRow mapRow(ResultSet rs, int rowNum) throws java.sql.SQLException {
+            Timestamp created = rs.getTimestamp("created_at");
+            return new OutboxRow(
+                rs.getLong("id"),
+                rs.getString("aggregate_type"),
+                rs.getString("aggregate_id"),
+                rs.getString("event_type"),
+                rs.getString("routing_key"),
+                rs.getString("payload"),   // JSONB comes back as String from JdbcTemplate
+                Map.of(),                   // attempts parsing omitted for now; DLQ threshold handled via bumpAttempts
+                created != null ? created.toInstant() : Instant.now()
+            );
+        }
+    }
+}
