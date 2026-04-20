@@ -34,4 +34,22 @@ public class RateLimitProperties {
 
     /** Window duration in seconds. */
     private long defaultWindowSeconds = 60;
+
+    /**
+     * Rate-limit storage backend. R134w Sprint 2 — switches the counter
+     * from Redis to Postgres behind a feature flag.
+     *
+     * <ul>
+     *   <li>{@code redis} — pre-R134w default; Redis INCR+EXPIRE. Fast, but
+     *       one of the 13 external deps we're retiring.</li>
+     *   <li>{@code pg} — R134w target; PgRateLimitCoordinator UPSERT+RETURNING
+     *       on the {@code rate_limit_buckets} monthly-partitioned table.</li>
+     *   <li>{@code memory} — ConcurrentHashMap; single-instance only; test /
+     *       fallback use.</li>
+     * </ul>
+     *
+     * <p>Value is lowercase. Any unknown value falls back to {@code redis}
+     * for safety.
+     */
+    private String backend = "redis";
 }

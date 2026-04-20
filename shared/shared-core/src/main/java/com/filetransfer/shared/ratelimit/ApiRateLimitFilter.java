@@ -15,6 +15,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,6 +38,7 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
 
     private final RateLimitProperties properties;
     private final @Nullable StringRedisTemplate redis;
+    private final @Nullable PgRateLimitCoordinator pg;
     /**
      * Optional SPIFFE workload client. When present, Bearer tokens carrying a
      * {@code spiffe://} subject are validated inline and bypass rate limiting —
@@ -48,32 +50,61 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
      */
     private final @Nullable SpiffeWorkloadClient spiffeWorkloadClient;
 
-    // Fallback: in-memory token buckets (used when Redis is unavailable)
+    // Fallback: in-memory token buckets (used when Redis/PG is unavailable)
     private final Map<String, TokenBucket> ipBuckets = new ConcurrentHashMap<>();
     private final Map<String, TokenBucket> userBuckets = new ConcurrentHashMap<>();
     private static final int MAX_TRACKED_KEYS = 50_000;
 
     private volatile boolean redisAvailable = true;
+    private volatile boolean pgAvailable = true;
+
+    /**
+     * Active backend resolved once at filter construction. Values:
+     * {@code "redis"} (default, pre-R134w), {@code "pg"} (R134w target,
+     * Sprint 2), {@code "memory"} (single-instance fallback). Anything
+     * else falls back to {@code "redis"} for safety.
+     */
+    private final String backend;
 
     public ApiRateLimitFilter(RateLimitProperties properties,
                               @Nullable StringRedisTemplate redis,
+                              @Nullable PgRateLimitCoordinator pg,
                               @Nullable SpiffeWorkloadClient spiffeWorkloadClient) {
         this.properties = properties;
         this.redis = redis;
+        this.pg = pg;
         this.spiffeWorkloadClient = spiffeWorkloadClient;
-        if (redis == null) {
-            log.warn("Rate limiter: Redis not available, using in-memory fallback (single-instance only)");
+        String requested = properties.getBackend() == null ? "redis" : properties.getBackend().toLowerCase();
+        if ("pg".equals(requested) && pg == null) {
+            log.warn("Rate limiter: backend=pg requested but PgRateLimitCoordinator not available — falling back to memory");
+            this.backend = "memory";
+        } else if ("redis".equals(requested) && redis == null) {
+            log.warn("Rate limiter: backend=redis requested but StringRedisTemplate not available — falling back to memory");
+            this.backend = "memory";
+        } else if ("pg".equals(requested) || "redis".equals(requested) || "memory".equals(requested)) {
+            this.backend = requested;
+        } else {
+            log.warn("Rate limiter: unknown backend '{}' — defaulting to redis", requested);
+            this.backend = "redis";
         }
+        log.info("Rate limiter: backend={} (requested={})", this.backend, requested);
+    }
+
+    /** Backward-compatible — three-arg (pre-R134w, before PG backend). */
+    public ApiRateLimitFilter(RateLimitProperties properties,
+                              @Nullable StringRedisTemplate redis,
+                              @Nullable SpiffeWorkloadClient spiffeWorkloadClient) {
+        this(properties, redis, null, spiffeWorkloadClient);
     }
 
     /** Backward-compatible — kept for call sites without a SPIFFE client (e.g. tests). */
     public ApiRateLimitFilter(RateLimitProperties properties, @Nullable StringRedisTemplate redis) {
-        this(properties, redis, null);
+        this(properties, redis, null, null);
     }
 
     /** Backward-compatible constructor for services without Redis. */
     public ApiRateLimitFilter(RateLimitProperties properties) {
-        this(properties, null, null);
+        this(properties, null, null, null);
     }
 
     @Override
@@ -143,11 +174,20 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
     // ── Rate Limit Check ────────────────────────────────────────────────
 
     private RateLimitResult checkRateLimit(String key, int limit, long windowSeconds) {
-        if (redis != null && redisAvailable) {
+        if ("pg".equals(backend) && pg != null && pgAvailable) {
+            try {
+                return checkPostgres(key, limit, windowSeconds);
+            } catch (Exception e) {
+                if (pgAvailable) {
+                    log.warn("Rate limiter: Postgres unavailable, falling back to in-memory: {}", e.getMessage());
+                    pgAvailable = false;
+                }
+            }
+        }
+        if ("redis".equals(backend) && redis != null && redisAvailable) {
             try {
                 return checkRedis(key, limit, windowSeconds);
             } catch (Exception e) {
-                // Redis failed — fall back to in-memory for this request cycle
                 if (redisAvailable) {
                     log.warn("Rate limiter: Redis unavailable, falling back to in-memory: {}", e.getMessage());
                     redisAvailable = false;
@@ -155,6 +195,26 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
             }
         }
         return checkInMemory(key, limit, windowSeconds);
+    }
+
+    /**
+     * Postgres-backed sliding window counter via {@link PgRateLimitCoordinator}.
+     * Window boundary is truncated to {@code windowSeconds} so all requests in
+     * the same window share one row. The UPSERT+RETURNING round-trip returns
+     * the new count atomically.
+     *
+     * <p>Reset epoch is the next window boundary. Retry-After in the 429 path
+     * uses {@link PgRateLimitCoordinator#retryAfterSeconds} for jitter (R134t).
+     */
+    private RateLimitResult checkPostgres(String key, int limit, long windowSeconds) {
+        Duration window = Duration.ofSeconds(windowSeconds);
+        Instant windowStart = PgRateLimitCoordinator.windowStart(window);
+        long count = pg.incrementAndGet(key, windowStart, 1);
+        long remaining = Math.max(0, limit - count);
+        long resetEpoch = (windowStart.toEpochMilli() / 1000) + windowSeconds;
+        // Signal health on success
+        pgAvailable = true;
+        return new RateLimitResult(count <= limit, remaining, resetEpoch);
     }
 
     private RateLimitResult checkRedis(String key, int limit, long windowSeconds) {
@@ -305,11 +365,13 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
         }
     }
 
-    /** Return current status: tracked IPs, tracked users, Redis availability. */
+    /** Return current status: tracked IPs, tracked users, backend availability. */
     public Map<String, Object> getStatus() {
         return Map.of(
                 "enabled", properties.isEnabled(),
+                "backend", backend,
                 "redisAvailable", redisAvailable,
+                "pgAvailable", pgAvailable,
                 "trackedIps", ipBuckets.size(),
                 "trackedUsers", userBuckets.size(),
                 "defaultLimit", properties.getDefaultLimit(),
