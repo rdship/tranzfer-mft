@@ -476,7 +476,15 @@ public class PlatformBootstrapService {
                 .passwordHash(hashedPassword)
                 .partnerId(partnerId)
                 .permissions(permissions)
-                .storageMode("PHYSICAL")
+                // R134h (Gap A from R134h-verification) — seeded partner accounts
+                // default to VIRTUAL so the VFS / storage-manager / MinIO path
+                // handles uploads. PHYSICAL required /data/partners/<slug> to
+                // exist on the listener pod's local filesystem, which it never
+                // does in the container layout — first upload always 500s with
+                // AccessDeniedException. VIRTUAL creates paths on demand and
+                // aligns with the architectural invariant: no canonical bytes
+                // on pod-local disk; everything routes through storage-manager.
+                .storageMode("VIRTUAL")
                 .active(true)
                 .build();
     }
