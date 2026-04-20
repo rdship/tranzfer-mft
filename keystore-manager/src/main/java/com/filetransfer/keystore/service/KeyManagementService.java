@@ -31,6 +31,17 @@ public class KeyManagementService {
     @org.springframework.lang.Nullable
     private RabbitTemplate rabbitTemplate;
 
+    /**
+     * R134D Sprint 6 — durable outbox writer. When present, rotateKey writes
+     * the keystore.key.rotated event to event_outbox atomically with the
+     * key-save. UnifiedOutboxPoller delivers to registered handlers in
+     * every consumer service. Nullable so tests / tiny configs without the
+     * unified outbox on the classpath still boot.
+     */
+    @Autowired(required = false)
+    @org.springframework.lang.Nullable
+    private com.filetransfer.shared.outbox.UnifiedOutboxWriter outboxWriter;
+
     @Value("${rabbitmq.exchange:file-transfer.events}")
     private String exchange;
 
@@ -295,6 +306,7 @@ public class KeyManagementService {
 
     // === Key Rotation ===
 
+    @org.springframework.transaction.annotation.Transactional
     public ManagedKey rotateKey(String oldAlias, String newAlias) throws Exception {
         ManagedKey oldKey = keyRepository.findByAliasAndActiveTrue(oldAlias)
                 .orElseThrow(() -> new IllegalArgumentException("Key not found: " + oldAlias));
@@ -313,19 +325,43 @@ public class KeyManagementService {
 
         log.info("Key rotated: {} -> {}", oldAlias, newAlias);
 
-        // Publish rotation event so protocol services (SFTP/FTP/AS2) can hot
-        // reload affected listeners. Best-effort — failure to publish is logged
-        // but doesn't fail the rotation itself.
+        KeystoreKeyRotatedEvent event = new KeystoreKeyRotatedEvent(
+                oldAlias, newAlias, newKey.getKeyType(),
+                newKey.getOwnerService(), Instant.now());
+
+        // R134D Sprint 6 — DUAL-PUBLISH.
+        // (1) Outbox is now the durable source of truth. @Transactional above
+        // commits the key-save + the event row atomically — zero chance of
+        // "row saved but event lost" that the pre-R134D best-effort Rabbit
+        // publish allowed. UnifiedOutboxPoller consumers (SFTP/FTP) pick up
+        // via PG LISTEN/NOTIFY in <1s on the happy path.
+        // (2) Legacy RabbitMQ publish kept for services that haven't migrated
+        // their consumers to OutboxEventHandler yet. Removed in Sprint 7 once
+        // every consumer's outbox path is runtime-verified.
+        if (outboxWriter != null) {
+            try {
+                outboxWriter.write("keystore_key", oldAlias, "KEY_ROTATED",
+                        KeystoreKeyRotatedEvent.ROUTING_KEY, event);
+                log.info("[keystore][rotate] durable outbox write committed for {} → {}",
+                        oldAlias, newAlias);
+            } catch (Exception e) {
+                // Re-throw — outbox failure means the rotation did NOT become
+                // visible to consumers and we must roll back to preserve
+                // durability. The @Transactional annotation converts the
+                // exception into a rollback of the key-save too.
+                log.error("[keystore][rotate] outbox write failed — rolling back rotation: {}",
+                        e.getMessage());
+                throw e;
+            }
+        }
         if (rabbitTemplate != null) {
             try {
-                KeystoreKeyRotatedEvent event = new KeystoreKeyRotatedEvent(
-                        oldAlias, newAlias, newKey.getKeyType(),
-                        newKey.getOwnerService(), Instant.now());
                 rabbitTemplate.convertAndSend(exchange,
                         KeystoreKeyRotatedEvent.ROUTING_KEY, event);
-                log.debug("Published keystore.key.rotated for alias {}", newAlias);
+                log.debug("[keystore][rotate] legacy RabbitMQ publish ok for {}", newAlias);
             } catch (Exception e) {
-                log.warn("Failed to publish keystore rotation event: {}", e.getMessage());
+                log.warn("[keystore][rotate] legacy RabbitMQ publish failed (outbox still durable): {}",
+                        e.getMessage());
             }
         }
         return newKey;
