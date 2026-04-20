@@ -204,6 +204,22 @@ public class ServerInstance {
     @Column(name = "ftpweb_portal_title", length = 255)
     private String ftpWebPortalTitle;
 
+    // ── HTTPS per-listener config (V94 / R134m Phase 3a) ─────────────────────
+    // Reads by the HTTPS listener service when binding the endpoint.
+
+    /** Keystore Manager alias for the HTTPS server certificate. */
+    @Column(name = "https_tls_cert_alias", length = 100)
+    private String httpsTlsCertAlias;
+
+    /** Require a valid client certificate on every connection (mTLS). */
+    @Column(name = "https_client_cert_required", nullable = false)
+    @Builder.Default
+    private boolean httpsClientCertRequired = false;
+
+    /** Comma-separated TLS cipher-suite allowlist. Null = JVM defaults. */
+    @Column(name = "https_allowed_ciphers", columnDefinition = "TEXT")
+    private String httpsAllowedCiphers;
+
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;

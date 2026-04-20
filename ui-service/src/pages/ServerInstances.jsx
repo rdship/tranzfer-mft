@@ -164,6 +164,10 @@ const emptyForm = {
   ftpWebMaxUploadBytes: '',
   ftpWebTlsCertAlias: '',
   ftpWebPortalTitle: '',
+  // HTTPS advanced (V94 / R134m)
+  httpsTlsCertAlias: '',
+  httpsClientCertRequired: false,
+  httpsAllowedCiphers: '',
   active: true,
 }
 
@@ -425,12 +429,18 @@ export default function ServerInstances() {
     clearIfEmpty('ftpWebMaxUploadBytes')
     clearIfEmpty('ftpWebTlsCertAlias')
     clearIfEmpty('ftpWebPortalTitle')
+    clearIfEmpty('httpsTlsCertAlias')
+    clearIfEmpty('httpsAllowedCiphers')
     return out
   }
 
   const gateSubmit = (raw) => {
     const pasvError = validateFtpPasvShape(raw)
     if (pasvError) { toast.error(pasvError); return false }
+    if (raw.protocol === 'HTTPS') {
+      const httpsCipherErr = validateSshAllowlist(raw.httpsAllowedCiphers)
+      if (httpsCipherErr) { toast.error(`HTTPS cipher allowlist: ${httpsCipherErr}`); return false }
+    }
     for (const [label, field] of [['Ciphers', 'allowedCiphers'], ['MACs', 'allowedMacs'], ['KEX', 'allowedKex']]) {
       const sshErr = validateSshAllowlist(raw[field])
       if (sshErr) { toast.error(`SSH ${label}: ${sshErr}`); return false }
@@ -527,6 +537,10 @@ export default function ServerInstances() {
       ftpWebMaxUploadBytes: s.ftpWebMaxUploadBytes ?? '',
       ftpWebTlsCertAlias: s.ftpWebTlsCertAlias || '',
       ftpWebPortalTitle: s.ftpWebPortalTitle || '',
+      // HTTPS advanced (V94 / R134m)
+      httpsTlsCertAlias: s.httpsTlsCertAlias || '',
+      httpsClientCertRequired: s.httpsClientCertRequired ?? false,
+      httpsAllowedCiphers: s.httpsAllowedCiphers || '',
       active: s.active ?? true,
     })
   }
@@ -878,6 +892,8 @@ export default function ServerInstances() {
       {showCreate && (
         <Modal title="Add Server Instance" onClose={() => setShowCreate(false)} size="xl">
           <ServerForm form={form} setForm={setForm}
+            existingServers={servers}
+            isCreate
             onSubmit={() => { if (gateSubmit(form)) createMut.mutate(form) }}
             isPending={createMut.isPending}
             onCancel={() => setShowCreate(false)}
@@ -891,6 +907,9 @@ export default function ServerInstances() {
       {editServer && (
         <Modal title={`Edit: ${editServer.name}`} onClose={() => setEditServer(null)} size="xl">
           <ServerForm form={form} setForm={setForm}
+            existingServers={servers}
+            isCreate={false}
+            editingId={editServer.id}
             onSubmit={() => { if (gateSubmit(form)) updateMut.mutate({ id: editServer.id, data: form }) }}
             isPending={updateMut.isPending}
             onCancel={() => setEditServer(null)}
@@ -921,7 +940,16 @@ export default function ServerInstances() {
 
 // ── ServerForm ──────────────────────────────────────────────────────────────────
 
-function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel, showInstanceId }) {
+function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel, showInstanceId,
+                      existingServers = [], isCreate = true, editingId = null }) {
+  // R134m Phase 3c — detect a second FTP_WEB row so we can warn + block
+  // submit. ftp-web-service is single-Tomcat; a second listener row can be
+  // persisted but stays UNBOUND, which surprises admins. On Edit, exclude
+  // the row being edited so we don't warn on the existing one.
+  const otherFtpWebCount = (existingServers || [])
+      .filter(s => s.protocol === 'FTP_WEB' && s.id !== editingId)
+      .length
+  const isSecondaryFtpWeb = form.protocol === 'FTP_WEB' && isCreate && otherFtpWebCount >= 1
   const { services } = useServices() || { services: {} }
   const dmzRunning = services?.dmz !== false
   const [showSshCrypto, setShowSshCrypto] = useState(false)
@@ -1236,6 +1264,71 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
         </FormSection>
       )}
 
+      {/* ═══════ Section 3e (R134m Phase 3a): HTTPS Advanced ═══════ */}
+      {form.protocol === 'HTTPS' && (
+        <FormSection title="HTTPS Advanced" subtitle="TLS cert alias, client-cert (mTLS) toggle, cipher allowlist">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="si-https-cert">TLS Cert Alias</label>
+              <input id="si-https-cert" value={form.httpsTlsCertAlias || ''}
+                onChange={e => setForm(prev => ({ ...prev, httpsTlsCertAlias: e.target.value }))}
+                placeholder="https-default" />
+              <p className="text-xs text-muted mt-1">Keystore Manager alias (type=TLS). Blank = service keystore default.</p>
+            </div>
+            <div className="flex items-center gap-2 pt-6">
+              <input type="checkbox" id="si-https-client-cert"
+                checked={!!form.httpsClientCertRequired}
+                onChange={e => setForm(prev => ({ ...prev, httpsClientCertRequired: e.target.checked }))} />
+              <label htmlFor="si-https-client-cert" className="cursor-pointer">
+                Require client certificate (mTLS)
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="si-https-ciphers">Allowed Ciphers</label>
+            <input id="si-https-ciphers" value={form.httpsAllowedCiphers || ''}
+              onChange={e => setForm(prev => ({ ...prev, httpsAllowedCiphers: e.target.value }))}
+              placeholder="TLS_AES_256_GCM_SHA384,TLS_CHACHA20_POLY1305_SHA256,..." />
+            <p className="text-xs text-muted mt-1">
+              Comma-separated TLS cipher-suite allowlist (no spaces). Blank = JVM defaults.
+            </p>
+            {(() => { const err = validateSshAllowlist(form.httpsAllowedCiphers); return err ? (
+              <p className="text-xs mt-1" style={{ color: 'rgb(var(--danger, 239 68 68))' }}>⚠ {err}</p>
+            ) : null })()}
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 text-xs text-blue-900">
+            <span className="font-medium">Note:</span> HTTPS listener binds on the configured port with the TLS cert
+            resolved from Keystore Manager. Enable <span className="font-medium">Require client certificate</span>
+            for mutual-TLS deployments where every caller must present a cert trusted by the service's trust store.
+          </div>
+        </FormSection>
+      )}
+
+      {/* ═══════ Section 3d (R134m Phase 3b): AS2 / AS4 cross-link ═══════ */}
+      {(form.protocol === 'AS2' || form.protocol === 'AS4') && (
+        <FormSection title={`${form.protocol} Configuration`} subtitle="Listener binds here; partner-level MDN / certs / partnership IDs live in the AS2 Partnerships page">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-900 space-y-2">
+            <p>
+              <span className="font-medium">{form.protocol} listener</span> binds on the host/port set above.
+              Per-partner settings (MDN required/signed, partnership IDs, signing + encryption certs, AS2-From/To IDs)
+              are configured separately as <span className="font-medium">AS2 Partnership</span> rows —
+              not on the ServerInstance.
+            </p>
+            <p>
+              <a href="/as2-partnerships" className="text-blue-700 underline font-medium">
+                → Manage AS2 Partnerships
+              </a>
+            </p>
+            <p className="text-[11px] text-blue-700 pt-1 border-t border-blue-200">
+              On save, the listener binds and accepts AS2 POSTs. Signed / encrypted exchange works only for
+              partner IDs that have a matching active AS2 Partnership row.
+            </p>
+          </div>
+        </FormSection>
+      )}
+
       {/* ═══════ Section 3c: FTP_WEB Advanced (FTP_WEB protocol only) ═══════ */}
       {form.protocol === 'FTP_WEB' && (
         <FormSection title="FTP_WEB Advanced" subtitle="Portal branding, session timeout, upload cap, and HTTPS cert">
@@ -1273,12 +1366,28 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
             </div>
           </div>
 
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-800">
-            <span className="font-medium">Note:</span> ftp-web-service is currently a single-Tomcat listener. Per-listener
-            multi-Tomcat routing (distinct HTTPS ports per ServerInstance) requires an upstream HTTP reverse proxy
-            and is tracked separately. Non-primary FTP_WEB rows remain <code className="bg-white px-1 rounded">UNBOUND</code>
-            until that lands — the fields above are data-model ready so no migration is needed later.
-          </div>
+          {isSecondaryFtpWeb ? (
+            <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3 text-xs text-red-900 space-y-1">
+              <p className="font-semibold text-sm">⚠ Secondary FTP_WEB listener not supported</p>
+              <p>
+                An FTP_WEB row already exists ({otherFtpWebCount} active). ftp-web-service is a
+                single-Tomcat listener today — the row will persist in the DB but the listener
+                will stay <code className="bg-white px-1 rounded">UNBOUND</code>, and clients will
+                get connection refused on the configured port.
+              </p>
+              <p className="pt-1">
+                <span className="font-medium">Submit disabled.</span> Edit the existing FTP_WEB row
+                instead, or wait for multi-Tomcat routing (upstream reverse proxy per-listener).
+              </p>
+            </div>
+          ) : (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-800">
+              <span className="font-medium">Note:</span> ftp-web-service is currently a single-Tomcat listener. Per-listener
+              multi-Tomcat routing (distinct HTTPS ports per ServerInstance) requires an upstream HTTP reverse proxy
+              and is tracked separately. Non-primary FTP_WEB rows remain <code className="bg-white px-1 rounded">UNBOUND</code>
+              until that lands — the fields above are data-model ready so no migration is needed later.
+            </div>
+          )}
         </FormSection>
       )}
 
@@ -1534,7 +1643,13 @@ function ServerForm({ form, setForm, onSubmit, isPending, onCancel, submitLabel,
       {/* Submit */}
       <div className="flex gap-3 justify-end pt-4 border-t">
         <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn-primary" disabled={isPending}>{submitLabel}</button>
+        <button type="submit" className="btn-primary"
+          disabled={isPending || isSecondaryFtpWeb}
+          title={isSecondaryFtpWeb
+            ? 'Secondary FTP_WEB listener is not supported yet; submit blocked.'
+            : undefined}>
+          {submitLabel}
+        </button>
       </div>
     </form>
   )

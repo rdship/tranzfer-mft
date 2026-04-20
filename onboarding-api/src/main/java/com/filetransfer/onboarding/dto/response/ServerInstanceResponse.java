@@ -82,4 +82,9 @@ public class ServerInstanceResponse {
     private Long    ftpWebMaxUploadBytes;
     private String  ftpWebTlsCertAlias;
     private String  ftpWebPortalTitle;
+
+    // ── HTTPS per-listener config (V94 / R134m) ──────────────────────────────
+    private String  httpsTlsCertAlias;
+    private boolean httpsClientCertRequired;
+    private String  httpsAllowedCiphers;
 }

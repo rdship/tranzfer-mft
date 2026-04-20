@@ -71,4 +71,9 @@ public class UpdateServerInstanceRequest {
     private Long    ftpWebMaxUploadBytes;
     private String  ftpWebTlsCertAlias;
     private String  ftpWebPortalTitle;
+
+    // ── HTTPS per-listener config (V94 / R134m) ──────────────────────────────
+    private String  httpsTlsCertAlias;
+    private Boolean httpsClientCertRequired;
+    private String  httpsAllowedCiphers;
 }

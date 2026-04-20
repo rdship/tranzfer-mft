@@ -112,6 +112,11 @@ public class ServerInstanceService {
         if (request.getComplianceProfileId()      != null) builder.complianceProfileId(request.getComplianceProfileId());
         if (request.getSecurityProfileId()        != null) builder.securityProfileId(request.getSecurityProfileId());
 
+        // R134m Phase 3a — HTTPS listener config (V94 columns).
+        if (request.getHttpsTlsCertAlias()        != null) builder.httpsTlsCertAlias(request.getHttpsTlsCertAlias());
+        if (request.getHttpsClientCertRequired()  != null) builder.httpsClientCertRequired(request.getHttpsClientCertRequired());
+        if (request.getHttpsAllowedCiphers()      != null) builder.httpsAllowedCiphers(request.getHttpsAllowedCiphers());
+
         ServerInstance instance = builder.build();
 
         validateFtpFields(instance);
@@ -203,6 +208,11 @@ public class ServerInstanceService {
         if (request.getFtpWebMaxUploadBytes()        != null) instance.setFtpWebMaxUploadBytes(request.getFtpWebMaxUploadBytes());
         if (request.getFtpWebTlsCertAlias()          != null) instance.setFtpWebTlsCertAlias(request.getFtpWebTlsCertAlias());
         if (request.getFtpWebPortalTitle()           != null) instance.setFtpWebPortalTitle(request.getFtpWebPortalTitle());
+
+        // HTTPS advanced (V94 / R134m) — null means "leave unchanged"
+        if (request.getHttpsTlsCertAlias()       != null) instance.setHttpsTlsCertAlias(request.getHttpsTlsCertAlias());
+        if (request.getHttpsClientCertRequired() != null) instance.setHttpsClientCertRequired(request.getHttpsClientCertRequired());
+        if (request.getHttpsAllowedCiphers()     != null) instance.setHttpsAllowedCiphers(request.getHttpsAllowedCiphers());
 
         validateFtpFields(instance);
         validateFtpWebFields(instance);
@@ -390,6 +400,10 @@ public class ServerInstanceService {
                 .ftpWebMaxUploadBytes(i.getFtpWebMaxUploadBytes())
                 .ftpWebTlsCertAlias(i.getFtpWebTlsCertAlias())
                 .ftpWebPortalTitle(i.getFtpWebPortalTitle())
+                // HTTPS advanced (V94 / R134m)
+                .httpsTlsCertAlias(i.getHttpsTlsCertAlias())
+                .httpsClientCertRequired(i.isHttpsClientCertRequired())
+                .httpsAllowedCiphers(i.getHttpsAllowedCiphers())
                 .build();
     }
 

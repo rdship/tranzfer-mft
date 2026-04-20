@@ -108,6 +108,14 @@ public class CreateServerInstanceRequest {
     /** Branded title shown in partner portal header. */
     private String ftpWebPortalTitle;
 
+    // ── HTTPS per-listener config (V94 / R134m) ──────────────────────────────
+    /** Keystore Manager alias for the HTTPS server certificate. */
+    private String  httpsTlsCertAlias;
+    /** Require a valid client certificate on every connection (mTLS). */
+    private Boolean httpsClientCertRequired;
+    /** Comma-separated TLS cipher-suite allowlist. Null = JVM defaults. */
+    private String  httpsAllowedCiphers;
+
     @Data
     public static class ProxyQoSConfig {
         private boolean enabled = true;
