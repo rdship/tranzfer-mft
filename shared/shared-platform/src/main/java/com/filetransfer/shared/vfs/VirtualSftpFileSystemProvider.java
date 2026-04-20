@@ -459,14 +459,33 @@ public class VirtualSftpFileSystemProvider extends FileSystemProvider {
                     }
                 }
 
-                // VFS entry created — notify SFTP server to trigger file routing
+                // VFS entry created — notify SFTP server to trigger file routing.
+                //
+                // R134G — tester R134C-E-runtime-verification.md saw an SFTP upload
+                // succeed at the listener level with zero flow_executions row. Root
+                // cause candidate: SftpFileSystemFactory creates TWO VirtualSftpFileSystem
+                // instances per session — getUserHomeDir() uses the 3-arg constructor
+                // (no callback) and createFileSystem() uses the 4-arg (with callback).
+                // If MINA SSHD resolves the write path through a Path owned by the
+                // home-dir FS, `getWriteCallback()` returns null and routing silently
+                // never fires. Log loudly so the next tester run either confirms this
+                // branch is the culprit OR rules it out.
                 VfsWriteCallback cb = fileSystem.getWriteCallback();
                 if (cb != null) {
+                    log.info("[VFS] Invoking write callback for vpath={} size={} storedKey={}",
+                            vpath, fileSize,
+                            storedKey != null ? storedKey.substring(0, Math.min(8, storedKey.length())) + "..." : "n/a");
                     try {
                         cb.onFileWritten(vpath, fileSize, storedKey);
                     } catch (Exception cbErr) {
                         log.error("[VFS] Write completion callback failed for {}: {}", vpath, cbErr.getMessage());
                     }
+                } else {
+                    log.warn("[VFS] Write callback is NULL — routing NOT triggered for vpath={} size={}. "
+                            + "Likely cause: SFTP session's path is bound to a VirtualSftpFileSystem "
+                            + "instance that was created WITHOUT a callback (getUserHomeDir branch in "
+                            + "SftpFileSystemFactory). File bytes are stored but flow_executions row will NOT be created.",
+                            vpath, fileSize);
                 }
             } catch (Exception e) {
                 throw new IOException("Failed to store file to CAS: " + vpath, e);

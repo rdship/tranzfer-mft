@@ -145,6 +145,13 @@ public class RoutingEngine {
     @Async
     public void onFileUploaded(TransferAccount sourceAccount, String relativeFilePath,
                                 String absoluteSourcePath, String sourceIp) {
+        // R134G — entry log so the tester's flow-engine audit can trace
+        // from SFTP upload → VFS callback → here. Tester R134C-E found a
+        // completed SFTP upload produced zero flow_executions rows, so we
+        // need to see every step fire (or not) in the log.
+        log.info("[RoutingEngine] onFileUploaded entered: account={} path={} absolutePath={} sourceIp={}",
+                sourceAccount != null ? sourceAccount.getUsername() : "null",
+                relativeFilePath, absoluteSourcePath, sourceIp);
         String filename = relativeFilePath.contains("/") ?
                 relativeFilePath.substring(relativeFilePath.lastIndexOf('/') + 1) : relativeFilePath;
         String trackId = trackIdGenerator.generate();
