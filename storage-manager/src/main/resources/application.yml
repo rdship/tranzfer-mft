@@ -75,14 +75,6 @@ spring:
     locations: classpath:db/migration
     validate-on-migrate: false
 
-vault:
-  # R134l — default off. Vault is optional; env-var fallback
-  # (STORAGE_ENCRYPTION_KEY) satisfies storage-encryption key
-  # resolution. Set VAULT_ENABLED=true to opt in.
-  enabled: ${VAULT_ENABLED:false}
-  addr: ${VAULT_ADDR:http://vault:8200}
-  token: ${VAULT_TOKEN:mft-dev-token}
-
 storage:
   encryption:
     enabled: ${STORAGE_ENCRYPTION_ENABLED:false}

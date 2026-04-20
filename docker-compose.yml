@@ -95,8 +95,6 @@ x-common-env: &common-env
   REDIS_PORT: 6379
   PLATFORM_DEFAULT_STORAGE_MODE: ${PLATFORM_DEFAULT_STORAGE_MODE:-VIRTUAL}
   PLATFORM_TLS_ENABLED: ${PLATFORM_TLS_ENABLED:-true}
-  VAULT_ADDR: ${VAULT_ADDR:-http://vault:8200}
-  VAULT_TOKEN: ${VAULT_TOKEN:-mft-dev-token}
   SPRING_FLYWAY_LOCK_RETRY_COUNT: 200
   # Fast boot: Flyway owns schema, Hibernate skips DB round trips on startup.
   # SchemaHealthIndicator validates in background 30s after boot.
@@ -110,7 +108,7 @@ x-common-env: &common-env
   CLUSTER_ID: ${CLUSTER_ID:-cluster-1}
   CLUSTER_COMM_MODE: ${CLUSTER_COMM_MODE:-WITHIN_CLUSTER}
   TRACK_ID_PREFIX: ${TRACK_ID_PREFIX:-TRZ}
-  PLATFORM_VERSION: "1.0.0-R134u"
+  PLATFORM_VERSION: "1.0.0-R134v"
   PLATFORM_BUILD_TIMESTAMP: "2026-04-19T22:30:00Z"
   PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-DEV}
   PROXY_ENABLED: ${PROXY_ENABLED:-false}
@@ -336,116 +334,41 @@ services:
       timeout: 5s
       retries: 5
 
-  vault:
-    # R134l — behind the `vault` compose profile. Default `docker compose up -d`
-    # does NOT start Vault; encryption-service and storage-manager use env-var
-    # fallbacks (ENCRYPTION_MASTER_KEY, STORAGE_ENCRYPTION_KEY). Opt in with
-    # `docker compose --profile vault up -d` for installations that want the
-    # audited KMS path.
-    #
-    # ⚠ Operational gotcha (R134l verification finding): `docker compose
-    # --profile vault down` WITHOUT other flags tears down the shared
-    # `mft-network` and cascades into killing EVERY container on that
-    # network — not just Vault. To stop just Vault, use:
-    #     docker compose --profile vault stop vault
-    #     docker compose --profile vault rm -f vault
-    # NEVER run `docker compose --profile vault down` on a live stack.
-    profiles: ["vault"]
-    image: hashicorp/vault:1.15
-    container_name: mft-vault
-    ports:
-      - "127.0.0.1:8200:8200"
-    environment:
-      VAULT_DEV_ROOT_TOKEN_ID: mft-dev-token
-      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
-    cap_add:
-      - IPC_LOCK
-    healthcheck:
-      test: ["CMD-SHELL", "VAULT_ADDR=http://127.0.0.1:8200 vault status"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 5s
-    networks:
-      - mft-network
-      - default  # needed for db-migrate to reach postgres on default network
-
-  vault-init:
-    profiles: ["vault"]
-    image: hashicorp/vault:1.15
-    container_name: mft-vault-init
-    depends_on:
-      vault:
-        condition: service_healthy
-    environment:
-      VAULT_ADDR: http://vault:8200
-      VAULT_TOKEN: mft-dev-token
+  # R134u — replaces the old `vault-init` container (and removes `vault` entirely).
+  # Only job: generate a single platform-wide TLS keystore on first boot and
+  # cache it in the `platform_tls` volume for all services to mount read-only.
+  # No Vault. No HashiCorp container. No profile gate — TLS is always on, so
+  # the generator must always run. Idempotent: re-runs are no-ops when the
+  # .p12 already exists.
+  tls-init:
+    image: alpine:3.19
+    container_name: mft-tls-init
     entrypoint:
       - /bin/sh
       - -c
       - |
-        echo "Seeding Vault KMS secrets..."
-        # Master encryption key (AES-256, 32 bytes, Base64)
-        MASTER_KEY=$$(vault kv get -field=key secret/mft/encryption-master 2>/dev/null || true)
-        if [ -z "$$MASTER_KEY" ]; then
-          MASTER_KEY=$$(head -c 32 /dev/urandom | base64)
-          vault kv put secret/mft/encryption-master key="$$MASTER_KEY" algorithm=AES-256
-          echo "Generated and stored master encryption key"
-        else
-          echo "Master encryption key already exists"
+        if [ -f /tls/platform-tls.p12 ]; then
+          echo "[tls-init] Platform TLS cert already present — nothing to do"
+          exit 0
         fi
-        # Storage encryption-at-rest key
-        STORAGE_KEY=$$(vault kv get -field=key secret/mft/storage-encryption 2>/dev/null || true)
-        if [ -z "$$STORAGE_KEY" ]; then
-          STORAGE_KEY=$$(head -c 32 /dev/urandom | base64)
-          vault kv put secret/mft/storage-encryption key="$$STORAGE_KEY" algorithm=AES-256-GCM
-          echo "Generated and stored storage encryption key"
-        else
-          echo "Storage encryption key already exists"
-        fi
-        # HMAC signing key for audit logs
-        HMAC_KEY=$$(vault kv get -field=key secret/mft/audit-hmac 2>/dev/null || true)
-        if [ -z "$$HMAC_KEY" ]; then
-          HMAC_KEY=$$(head -c 64 /dev/urandom | base64)
-          vault kv put secret/mft/audit-hmac key="$$HMAC_KEY" algorithm=HmacSHA512
-          echo "Generated and stored HMAC signing key"
-        else
-          echo "HMAC key already exists"
-        fi
-        # Platform TLS certificate — one cert for all services
-        if [ ! -f /tls/platform-tls.p12 ]; then
-          echo "Generating platform TLS certificate..."
-          apk add --no-cache openssl > /dev/null 2>&1 || true
-          # Generate RSA key + self-signed cert (PEM)
-          openssl req -x509 -nodes -days 365 \
-            -newkey rsa:2048 \
-            -keyout /tls/platform-tls.key \
-            -out /tls/platform-tls.crt \
-            -subj "/CN=*.filetransfer.local/O=TranzFer MFT/C=US" \
-            -addext "subjectAltName=DNS:*.filetransfer.local,DNS:localhost,DNS:onboarding-api,DNS:config-service,DNS:sftp-service,DNS:ftp-service,DNS:gateway-service,DNS:encryption-service,DNS:screening-service,DNS:ai-engine,DNS:keystore-manager,DNS:storage-manager,DNS:platform-sentinel,DNS:edi-converter,DNS:license-service,DNS:analytics-service,DNS:notification-service,DNS:as2-service,DNS:dmz-proxy,DNS:external-forwarder-service,DNS:ftp-web-service,DNS:api-gateway,IP:127.0.0.1" \
-            2>/dev/null
-          # Convert to PKCS12 keystore (Java services use this)
-          openssl pkcs12 -export \
-            -in /tls/platform-tls.crt \
-            -inkey /tls/platform-tls.key \
-            -out /tls/platform-tls.p12 \
-            -name platform-tls \
-            -password pass:changeit \
-            2>/dev/null
-          chmod 644 /tls/platform-tls.*
-          # Store cert in Vault KV for auditability
-          CERT_B64=$$(base64 /tls/platform-tls.p12 | tr -d '\n')
-          vault kv put secret/mft/platform-tls \
-            keystore="$$CERT_B64" \
-            password=changeit \
-            alias=platform-tls \
-            cn="*.filetransfer.local" \
-            generated="$$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          echo "Platform TLS certificate generated and stored in Vault"
-        else
-          echo "Platform TLS certificate already exists (cached)"
-        fi
-        echo "Vault KMS initialization complete"
+        echo "[tls-init] Generating platform-wide TLS certificate..."
+        apk add --no-cache openssl > /dev/null 2>&1
+        openssl req -x509 -nodes -days 365 \
+          -newkey rsa:2048 \
+          -keyout /tls/platform-tls.key \
+          -out /tls/platform-tls.crt \
+          -subj "/CN=*.filetransfer.local/O=TranzFer MFT/C=US" \
+          -addext "subjectAltName=DNS:*.filetransfer.local,DNS:localhost,DNS:onboarding-api,DNS:config-service,DNS:sftp-service,DNS:ftp-service,DNS:gateway-service,DNS:encryption-service,DNS:screening-service,DNS:ai-engine,DNS:keystore-manager,DNS:storage-manager,DNS:platform-sentinel,DNS:edi-converter,DNS:license-service,DNS:analytics-service,DNS:notification-service,DNS:as2-service,DNS:dmz-proxy,DNS:external-forwarder-service,DNS:ftp-web-service,DNS:api-gateway,IP:127.0.0.1" \
+          2>/dev/null
+        openssl pkcs12 -export \
+          -in /tls/platform-tls.crt \
+          -inkey /tls/platform-tls.key \
+          -out /tls/platform-tls.p12 \
+          -name platform-tls \
+          -password pass:changeit \
+          2>/dev/null
+        chmod 644 /tls/platform-tls.*
+        echo "[tls-init] Platform TLS cert generated: CN=*.filetransfer.local, valid=365d"
     restart: "no"
     volumes:
       - platform_tls:/tls
@@ -1027,7 +950,7 @@ services:
       DMZ_QOS_ENABLED: "true"
       DMZ_TUNNEL_ENABLED: ${DMZ_TUNNEL_ENABLED:-false}
       DMZ_TUNNEL_PORT: "9443"
-      PLATFORM_VERSION: "1.0.0-R134u"
+      PLATFORM_VERSION: "1.0.0-R134v"
       PLATFORM_BUILD_TIMESTAMP: "2026-04-19T22:30:00Z"
       CLUSTER_SERVICE_TYPE: DMZ_PROXY
     healthcheck:
@@ -1431,7 +1354,7 @@ services:
       AI_ENGINE_URL: http://ai-engine:8091
       PLATFORM_SECURITY_SHARED_CONFIG: "false"
       PLATFORM_SECURITY_INTERNAL_SERVICE: "true"
-      PLATFORM_VERSION: "1.0.0-R134u"
+      PLATFORM_VERSION: "1.0.0-R134v"
       PLATFORM_BUILD_TIMESTAMP: "2026-04-19T22:30:00Z"
       PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-DEV}
       CLUSTER_SERVICE_TYPE: EDI_CONVERTER
@@ -1821,7 +1744,7 @@ volumes:
   ftpweb_data:     # Shared across all FTP-Web replicas
   clamav_data:     # ClamAV virus definition database
   quarantine_data: # Quarantined files (AV/DLP detections)
-  platform_tls:    # Shared TLS cert generated by keystore-manager — mounted into all services
+  platform_tls:    # Shared TLS cert generated by tls-init — mounted read-only into all services
   https_keystores: # R134o — per-listener PEMs materialized by https-service from Keystore Manager
   prometheus_data: # Prometheus time-series data
   alertmanager_data: # AlertManager state
