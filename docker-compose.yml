@@ -114,7 +114,7 @@ x-common-env: &common-env
   CLUSTER_ID: ${CLUSTER_ID:-cluster-1}
   CLUSTER_COMM_MODE: ${CLUSTER_COMM_MODE:-WITHIN_CLUSTER}
   TRACK_ID_PREFIX: ${TRACK_ID_PREFIX:-TRZ}
-  PLATFORM_VERSION: "1.0.0-R134D"
+  PLATFORM_VERSION: "1.0.0-R134E"
   PLATFORM_BUILD_TIMESTAMP: "2026-04-19T22:30:00Z"
   PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-DEV}
   PROXY_ENABLED: ${PROXY_ENABLED:-false}
@@ -394,6 +394,22 @@ services:
     # db-migrate in exit-1 even after the ConnectorDispatcher DI fix.
     environment:
       <<: *common-env
+      # R134E — force AOT off for this one-shot container. The common-env
+      # JAVA_TOOL_OPTIONS substitutes `${AOT_ENABLED:-true}` at compose PARSE
+      # time from the host env, so an in-container env override of
+      # AOT_ENABLED has no effect — the interpolation is already resolved.
+      # Override JAVA_TOOL_OPTIONS outright here with AOT disabled so runtime
+      # `SPRING_AUTOCONFIGURE_EXCLUDE` can actually exclude WebMvc/Security
+      # beans. (AOT freezes the bean graph at build time, so the runtime
+      # exclusion can't remove already-registered AOT BeanDefinitions.)
+      JAVA_TOOL_OPTIONS: >-
+        -Xmx384m -Xms192m
+        -XX:+UseG1GC -XX:MaxGCPauseMillis=100
+        -XX:MaxMetaspaceSize=384m
+        -Dspring.aot.enabled=false
+        -Dspring.jmx.enabled=false
+        -Dspring.jpa.hibernate.ddl-auto=none
+        -Dspring.flyway.enabled=true
       DATABASE_URL: jdbc:postgresql://postgres:5432/filetransfer?stringtype=unspecified
       DB_USERNAME: postgres
       DB_PASSWORD: postgres
@@ -415,8 +431,17 @@ services:
         org.springframework.boot.autoconfigure.web.servlet.HttpEncodingAutoConfiguration,
         org.springframework.boot.autoconfigure.web.servlet.error.ErrorMvcAutoConfiguration,
         org.springframework.boot.actuate.autoconfigure.web.servlet.ServletManagementContextAutoConfiguration
+    # R134E — `-Dspring.aot.enabled=false` for db-migrate only. AOT freezes
+    # the bean graph at build time, so runtime SPRING_AUTOCONFIGURE_EXCLUDE
+    # can't actually exclude WebMvc/Security beans — they're already in the
+    # AOT-generated __BeanDefinitions. db-migrate tried to wire
+    # resourceHandlerMapping → HandlerMappingIntrospector → ServletContext and
+    # failed (tester R134A-B-verification.md surfaced this once V95 stopped
+    # blocking earlier). Disabling AOT here costs ~2s extra boot for this
+    # one-shot container and lets the runtime exclusion actually exclude.
     command: ["java", "-Dspring.main.web-application-type=none", "-Dspring.flyway.enabled=true",
               "-Dspring.jpa.hibernate.ddl-auto=none",
+              "-Dspring.aot.enabled=false",
               "-Dspring.rabbitmq.host=localhost", "-Dserver.port=0",
               "-jar", "app.jar", "--spring.flyway.enabled=true"]
     depends_on:
@@ -956,7 +981,7 @@ services:
       DMZ_QOS_ENABLED: "true"
       DMZ_TUNNEL_ENABLED: ${DMZ_TUNNEL_ENABLED:-false}
       DMZ_TUNNEL_PORT: "9443"
-      PLATFORM_VERSION: "1.0.0-R134D"
+      PLATFORM_VERSION: "1.0.0-R134E"
       PLATFORM_BUILD_TIMESTAMP: "2026-04-19T22:30:00Z"
       CLUSTER_SERVICE_TYPE: DMZ_PROXY
     healthcheck:
@@ -1360,7 +1385,7 @@ services:
       AI_ENGINE_URL: http://ai-engine:8091
       PLATFORM_SECURITY_SHARED_CONFIG: "false"
       PLATFORM_SECURITY_INTERNAL_SERVICE: "true"
-      PLATFORM_VERSION: "1.0.0-R134D"
+      PLATFORM_VERSION: "1.0.0-R134E"
       PLATFORM_BUILD_TIMESTAMP: "2026-04-19T22:30:00Z"
       PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-DEV}
       CLUSTER_SERVICE_TYPE: EDI_CONVERTER

@@ -49,8 +49,10 @@ public class ClusterController {
     private final ServiceRegistrationRepository serviceRegistrationRepository;
     /**
      * R134y Sprint 4 — primary reader for {@code /api/clusters/live}. Queries
-     * the V97 {@code cluster_nodes} PG table populated by every pod's
-     * {@code ClusterNodeHeartbeat}. Replaces the Redis-only path.
+     * the V97 {@code platform_pod_heartbeat} PG table populated by every pod's
+     * {@code ClusterNodeHeartbeat}. Replaces the Redis-only path. R134E
+     * renamed the table from {@code cluster_nodes} (collision with the
+     * multi-tenant customer-cluster table).
      */
     private final JdbcTemplate jdbc;
 
@@ -225,14 +227,18 @@ public class ClusterController {
     }
 
     /**
-     * Live cluster view — queries the {@code cluster_nodes} PG table (V97)
-     * filtered to rows with {@code status=ACTIVE} and a heartbeat within
-     * the last 30 seconds.
+     * Live cluster view — queries the {@code platform_pod_heartbeat} PG
+     * table (V97) filtered to rows with {@code status=ACTIVE} and a
+     * heartbeat within the last 30 seconds.
      *
      * <p>R134y Sprint 4: switched primary reader from Redis to Postgres.
      * Pods heartbeat every 10s via {@code ClusterNodeHeartbeat}; the reaper
      * marks misses DEAD after 30s. Querying "fresh ACTIVE rows" gives the
      * same "who's actually alive right now" semantics as the Redis path.
+     *
+     * <p>R134E: renamed table {@code cluster_nodes} → {@code platform_pod_heartbeat}
+     * to avoid collision with the pre-existing multi-tenant customer-cluster
+     * table (R134A-B-runtime-verification.md §V97).
      *
      * <p>Falls back to {@code RedisServiceRegistry} only if PG throws
      * (transient DB outage), preserving the admin UI during incidents.
@@ -245,7 +251,7 @@ public class ClusterController {
         try {
             all = jdbc.query("""
                 SELECT node_id, service_type, host, port, url, started_at, last_heartbeat
-                  FROM cluster_nodes
+                  FROM platform_pod_heartbeat
                  WHERE status = 'ACTIVE'
                    AND last_heartbeat > now() - INTERVAL '30 seconds'
                  ORDER BY service_type, node_id
@@ -258,7 +264,7 @@ public class ClusterController {
                         .startedAt(toInstant(rs.getTimestamp("started_at")))
                         .lastSeen(toInstant(rs.getTimestamp("last_heartbeat")))
                         .build());
-            source = "pg:cluster_nodes";
+            source = "pg:platform_pod_heartbeat";
         } catch (Exception pgFailure) {
             if (redisServiceRegistry == null) {
                 result.put("available", false);

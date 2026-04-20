@@ -16,7 +16,7 @@ import java.time.Duration;
 import java.time.Instant;
 
 /**
- * Every service pod heartbeats its liveness row into the {@code cluster_nodes}
+ * Every service pod heartbeats its liveness row into the {@code platform_pod_heartbeat}
  * PG table (V97). Replaces {@code RedisServiceRegistry} per doc 01 of the
  * external-dep retirement plan.
  *
@@ -108,7 +108,7 @@ public class ClusterNodeHeartbeat {
 
     private void writeHeartbeat() {
         jdbc.update("""
-            INSERT INTO cluster_nodes (node_id, service_type, host, port, url, spiffe_id,
+            INSERT INTO platform_pod_heartbeat (node_id, service_type, host, port, url, spiffe_id,
                                         last_heartbeat, started_at, status)
             VALUES (?, ?, ?, ?, ?, ?, now(), ?, 'ACTIVE')
             ON CONFLICT (node_id) DO UPDATE
@@ -153,14 +153,14 @@ public class ClusterNodeHeartbeat {
      * "Hard consumer 3 — Service registry" for the design rationale.
      */
     @Scheduled(fixedDelayString = "PT15S")
-    @SchedulerLock(name = "cluster_nodes_reaper",
+    @SchedulerLock(name = "pod_heartbeat_reaper",
                    lockAtMostFor = "PT1M",
                    lockAtLeastFor = "PT5S")
     public void markDeadNodes() {
         if (!enabled) return;
         try {
             int marked = jdbc.update("""
-                UPDATE cluster_nodes
+                UPDATE platform_pod_heartbeat
                    SET status = 'DEAD'
                  WHERE status = 'ACTIVE'
                    AND last_heartbeat < now() - INTERVAL '30 seconds'
@@ -183,7 +183,7 @@ public class ClusterNodeHeartbeat {
         if (!enabled || nodeId == null) return;
         try {
             jdbc.update("""
-                UPDATE cluster_nodes
+                UPDATE platform_pod_heartbeat
                    SET status = 'DRAINING', last_heartbeat = now()
                  WHERE node_id = ?
                 """, nodeId);

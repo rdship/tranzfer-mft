@@ -135,20 +135,26 @@ public class PgRateLimitCoordinator {
     @Scheduled(cron = "0 0 3 25 * *")
     public void createNextMonthPartition() {
         try {
+            // R134E — matches V95 fix: plain index on window_start, no `now()`
+            // in predicate (PG rejects STABLE functions in partial-index
+            // WHERE clauses with "functions in index predicate must be
+            // marked IMMUTABLE"). Partition range itself bounds the rows;
+            // no partial needed for planner efficiency.
             jdbc.execute("""
                 DO $$
                 DECLARE
                     next_month timestamptz := date_trunc('month', now() + interval '1 month');
                     month_after timestamptz := date_trunc('month', now() + interval '2 months');
                     partition_name text := 'rate_limit_buckets_' || to_char(next_month, 'YYYYMM');
+                    index_name text := 'idx_' || partition_name || '_ws';
                 BEGIN
                     EXECUTE format(
                         'CREATE TABLE IF NOT EXISTS %I PARTITION OF rate_limit_buckets FOR VALUES FROM (%L) TO (%L)',
                         partition_name, next_month, month_after
                     );
                     EXECUTE format(
-                        'CREATE INDEX IF NOT EXISTS idx_%I_recent ON %I (window_start) WHERE window_start > (now() - INTERVAL ''2 hours'')',
-                        partition_name, partition_name
+                        'CREATE INDEX IF NOT EXISTS %I ON %I (window_start)',
+                        index_name, partition_name
                     );
                 END $$;
                 """);
