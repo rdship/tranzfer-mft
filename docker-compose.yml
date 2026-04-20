@@ -110,7 +110,7 @@ x-common-env: &common-env
   CLUSTER_ID: ${CLUSTER_ID:-cluster-1}
   CLUSTER_COMM_MODE: ${CLUSTER_COMM_MODE:-WITHIN_CLUSTER}
   TRACK_ID_PREFIX: ${TRACK_ID_PREFIX:-TRZ}
-  PLATFORM_VERSION: "1.0.0-R134o"
+  PLATFORM_VERSION: "1.0.0-R134p"
   PLATFORM_BUILD_TIMESTAMP: "2026-04-19T22:30:00Z"
   PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-DEV}
   PROXY_ENABLED: ${PROXY_ENABLED:-false}
@@ -342,6 +342,14 @@ services:
     # fallbacks (ENCRYPTION_MASTER_KEY, STORAGE_ENCRYPTION_KEY). Opt in with
     # `docker compose --profile vault up -d` for installations that want the
     # audited KMS path.
+    #
+    # ⚠ Operational gotcha (R134l verification finding): `docker compose
+    # --profile vault down` WITHOUT other flags tears down the shared
+    # `mft-network` and cascades into killing EVERY container on that
+    # network — not just Vault. To stop just Vault, use:
+    #     docker compose --profile vault stop vault
+    #     docker compose --profile vault rm -f vault
+    # NEVER run `docker compose --profile vault down` on a live stack.
     profiles: ["vault"]
     image: hashicorp/vault:1.15
     container_name: mft-vault
@@ -1019,7 +1027,7 @@ services:
       DMZ_QOS_ENABLED: "true"
       DMZ_TUNNEL_ENABLED: ${DMZ_TUNNEL_ENABLED:-false}
       DMZ_TUNNEL_PORT: "9443"
-      PLATFORM_VERSION: "1.0.0-R134o"
+      PLATFORM_VERSION: "1.0.0-R134p"
       PLATFORM_BUILD_TIMESTAMP: "2026-04-19T22:30:00Z"
       CLUSTER_SERVICE_TYPE: DMZ_PROXY
     healthcheck:
@@ -1423,7 +1431,7 @@ services:
       AI_ENGINE_URL: http://ai-engine:8091
       PLATFORM_SECURITY_SHARED_CONFIG: "false"
       PLATFORM_SECURITY_INTERNAL_SERVICE: "true"
-      PLATFORM_VERSION: "1.0.0-R134o"
+      PLATFORM_VERSION: "1.0.0-R134p"
       PLATFORM_BUILD_TIMESTAMP: "2026-04-19T22:30:00Z"
       PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-DEV}
       CLUSTER_SERVICE_TYPE: EDI_CONVERTER

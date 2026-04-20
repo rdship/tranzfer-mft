@@ -736,6 +736,29 @@ create_folder_mappings() {
 # =============================================================================
 create_scheduled_tasks() {
   log "=== STEP 14: Scheduled Tasks (26) ==="
+  # R134o (closes R134l Bronze D3 — 9 × BAD_REQUEST on scheduled tasks):
+  # Server-side rules:
+  #   PUSH_FILES / PULL_FILES → referenceId = TransferAccount UUID
+  #   RUN_FLOW                → referenceId = FileFlow UUID
+  #   CLEANUP                 → config.path
+  # Resolve IDs once and pick one per task. If either lookup returns nothing
+  # we fall back to a fixture UUID — the task creation still 400s but with a
+  # clearer error than the pre-R134o "field missing" one.
+  local sched_acct_id=""
+  if [ ${#ACCOUNT_IDS[@]} -gt 0 ]; then
+    sched_acct_id="${ACCOUNT_IDS[0]}"
+  fi
+  local sched_flow_id=""
+  local flows_resp=$(get "$API/api/flows?size=1000" 2>/dev/null)
+  if [ -n "$flows_resp" ]; then
+    sched_flow_id=$(echo "$flows_resp" | python3 -c "
+import sys,json
+try:
+  d=json.load(sys.stdin); items=d.get('content',d) if isinstance(d,dict) else d
+  print(items[0].get('id','')) if items else print('')
+except Exception: print('')
+" 2>/dev/null)
+  fi
   local tasks=(
     "Nightly SFTP Pull - Finance|0 0 2 * * *|PULL_FILES|America/New_York"
     "Hourly FTP Push - Logistics|0 0 * * * *|PUSH_FILES|UTC"
@@ -767,21 +790,44 @@ create_scheduled_tasks() {
 
   for task in "${tasks[@]}"; do
     IFS='|' read -r name cron type tz <<< "$task"
-    # EXECUTE_SCRIPT tasks require a config.command — provide sensible defaults
+    # Build per-type payload additions: referenceId + config fields the
+    # server-side validator requires. (R134l Bronze D3 close-out.)
     local config_field=""
-    if [ "$type" = "EXECUTE_SCRIPT" ]; then
-      case "$name" in
-        *"PGP Key Rotation"*)  config_field=',"config":{"command":"check-pgp-expiry","timeoutSeconds":"300"}' ;;
-        *"Data Transform"*)    config_field=',"config":{"command":"transform-nightly","timeoutSeconds":"600"}' ;;
-        *"DMZ Health"*)        config_field=',"config":{"command":"dmz-health-probe","timeoutSeconds":"60"}' ;;
-        *"Sanctions List"*)    config_field=',"config":{"command":"refresh-sanctions-lists","timeoutSeconds":"300"}' ;;
-        *"Certificate Expiry"*) config_field=',"config":{"command":"check-cert-expiry","timeoutSeconds":"120"}' ;;
-        *"License Audit"*)     config_field=',"config":{"command":"license-usage-audit","timeoutSeconds":"300"}' ;;
-        *)                     config_field=',"config":{"command":"noop","timeoutSeconds":"60"}' ;;
-      esac
-    fi
+    local ref_field=""
+    case "$type" in
+      PUSH_FILES|PULL_FILES)
+        if [ -n "$sched_acct_id" ]; then
+          ref_field=",\"referenceId\":\"$sched_acct_id\""
+        fi
+        ;;
+      RUN_FLOW)
+        if [ -n "$sched_flow_id" ]; then
+          ref_field=",\"referenceId\":\"$sched_flow_id\""
+        fi
+        ;;
+      CLEANUP)
+        # Required config.path — rotating path per task name for demo variety.
+        case "$name" in
+          *"Archive"*)         config_field=',"config":{"path":"/data/archive","olderThanDays":"30"}' ;;
+          *"CAS"*)             config_field=',"config":{"path":"/data/cas/tmp","olderThanDays":"7"}' ;;
+          *"FTP"*)             config_field=',"config":{"path":"/data/ftp/tmp","olderThanDays":"3"}' ;;
+          *)                   config_field=',"config":{"path":"/data/tmp","olderThanDays":"14"}' ;;
+        esac
+        ;;
+      EXECUTE_SCRIPT)
+        case "$name" in
+          *"PGP Key Rotation"*)  config_field=',"config":{"command":"check-pgp-expiry","timeoutSeconds":"300"}' ;;
+          *"Data Transform"*)    config_field=',"config":{"command":"transform-nightly","timeoutSeconds":"600"}' ;;
+          *"DMZ Health"*)        config_field=',"config":{"command":"dmz-health-probe","timeoutSeconds":"60"}' ;;
+          *"Sanctions List"*)    config_field=',"config":{"command":"refresh-sanctions-lists","timeoutSeconds":"300"}' ;;
+          *"Certificate Expiry"*) config_field=',"config":{"command":"check-cert-expiry","timeoutSeconds":"120"}' ;;
+          *"License Audit"*)     config_field=',"config":{"command":"license-usage-audit","timeoutSeconds":"300"}' ;;
+          *)                     config_field=',"config":{"command":"noop","timeoutSeconds":"60"}' ;;
+        esac
+        ;;
+    esac
     post "$CFG/api/scheduler" \
-      "{\"name\":\"$name\",\"cronExpression\":\"$cron\",\"taskType\":\"$type\",\"timezone\":\"$tz\",\"enabled\":true${config_field}}" \
+      "{\"name\":\"$name\",\"cronExpression\":\"$cron\",\"taskType\":\"$type\",\"timezone\":\"$tz\",\"enabled\":true${ref_field}${config_field}}" \
       "Scheduler: $name" > /dev/null
   done
 }
@@ -1002,7 +1048,12 @@ create_analytics_alerts() {
 # 21. LISTENER SECURITY POLICIES (26)
 # =============================================================================
 create_security_policies() {
-  log "=== STEP 21: Listener Security Policies (26) ==="
+  # R134o (closes R134l Bronze D2 — 34 × "uq_policy_server duplicate key"):
+  # listener_security_policies has UNIQUE(server_instance_id). The original
+  # loop created 26 policies cycling through only ~8-13 server IDs, triggering
+  # duplicate-key on every second pass. Now caps at the distinct server count
+  # so we seed exactly one policy per server (26 → ≤ number of servers).
+  log "=== STEP 21: Listener Security Policies (one per distinct server) ==="
   local tiers=("RULES" "AI" "AI_LLM")
 
   if [ ${#SERVER_IDS[@]} -lt 1 ]; then
@@ -1010,11 +1061,15 @@ create_security_policies() {
     return
   fi
 
-  for i in $(seq 1 26); do
+  local max_policies=${#SERVER_IDS[@]}
+  # Cap at 26 for demo parity (the original intent), but never exceed the
+  # unique server count — UNIQUE(server_instance_id) forbids more.
+  if [ $max_policies -gt 26 ]; then max_policies=26; fi
+
+  for i in $(seq 1 $max_policies); do
     local tier="${tiers[$((i%3))]}"
     local name="LSP-$(printf '%03d' $i)-${tier}"
-    local srv_idx=$(( (i-1) % ${#SERVER_IDS[@]} ))
-    local srv_id="${SERVER_IDS[$srv_idx]}"
+    local srv_id="${SERVER_IDS[$((i-1))]}"
     post "$CFG/api/listener-security-policies" \
       "{\"name\":\"$name\",\"securityTier\":\"$tier\",\"serverInstance\":{\"id\":\"$srv_id\"},\"ipWhitelist\":[\"10.0.0.0/8\",\"172.16.0.0/12\",\"192.168.0.0/16\"],\"ipBlacklist\":[\"203.0.113.0/24\"],\"geoAllowedCountries\":[\"US\",\"GB\",\"DE\",\"JP\",\"AU\",\"CA\"],\"rateLimitPerMinute\":$((60+i*10)),\"maxConcurrent\":$((20+i*5)),\"maxBytesPerMinute\":$((500*1024*1024)),\"allowedFileExtensions\":[\".csv\",\".xml\",\".json\",\".edi\",\".txt\",\".pdf\",\".zip\",\".pgp\"],\"blockedFileExtensions\":[\".exe\",\".bat\",\".sh\",\".ps1\",\".cmd\"],\"maxFileSizeBytes\":$((256*1024*1024))}" \
       "SecurityPolicy: $name" > /dev/null
@@ -1103,7 +1158,11 @@ create_server_configs() {
     local stype_lower=$(echo "$stype" | tr '[:upper:]' '[:lower:]')
     local name="config-${stype_lower}-$(printf '%02d' $i)"
     local port=$((8080 + i))
-    post "$CFG/api/servers" \
+    # R134o (closes R134l Bronze D1 — 52 × "No handler for POST /api/servers"):
+    # config-service renamed /api/servers → /api/legacy-server-configs in R130.
+    # The payload shape (serviceType/host/port/properties) matches ServerConfig,
+    # not the ServerInstance on onboarding-api. Restore the legacy path.
+    post "$CFG/api/legacy-server-configs" \
       "{\"name\":\"$name\",\"serviceType\":\"$stype\",\"host\":\"${stype_lower}-service\",\"port\":$port,\"properties\":{\"maxConnections\":\"500\",\"idleTimeout\":\"300\",\"bufferSize\":\"32768\"},\"active\":true}" \
       "ServerConfig: $name ($stype)" > /dev/null
   done
