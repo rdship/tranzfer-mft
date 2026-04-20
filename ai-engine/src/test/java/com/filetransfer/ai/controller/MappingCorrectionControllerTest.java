@@ -157,10 +157,16 @@ class MappingCorrectionControllerTest {
     // ===================================================================
 
     @Test
-    void listSessions_missingPartnerId_throws400() {
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> controller.listSessions(""));
-        assertTrue(ex.getMessage().contains("partnerId"));
+    void listSessions_missingPartnerId_returnsAllSessions() {
+        // Controller contract (see Javadoc on listSessions): admin-side callers
+        // can omit partnerId to list every session across partners. Empty-string
+        // and null both mean "all sessions" — the controller delegates to the
+        // service layer which scopes by partner only when non-blank. Test was
+        // previously asserting the older strict-validation behaviour.
+        List<SessionSummary> result = controller.listSessions("");
+
+        assertNotNull(result);
+        assertTrue(stubService.listSessionsCalled);
     }
 
     @Test
