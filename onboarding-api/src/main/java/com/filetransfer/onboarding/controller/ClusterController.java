@@ -15,9 +15,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.lang.Nullable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.sql.Timestamp;
 
 import java.util.List;
 import java.util.Map;
@@ -44,8 +47,18 @@ public class ClusterController {
     private final ClusterService clusterService;
     private final ClusterNodeRepository clusterNodeRepository;
     private final ServiceRegistrationRepository serviceRegistrationRepository;
+    /**
+     * R134y Sprint 4 — primary reader for {@code /api/clusters/live}. Queries
+     * the V97 {@code cluster_nodes} PG table populated by every pod's
+     * {@code ClusterNodeHeartbeat}. Replaces the Redis-only path.
+     */
+    private final JdbcTemplate jdbc;
 
-    /** Redis-backed real-time registry — null if Redis is not on the classpath. */
+    /**
+     * Legacy Redis registry — kept injected for compatibility / fallback when
+     * PG is transiently unreachable. Scheduled for removal in Sprint 7 once
+     * ClusterEventSubscriber migrates off the Redis pub/sub channel.
+     */
     @Autowired(required = false)
     @Nullable
     private RedisServiceRegistry redisServiceRegistry;
@@ -212,29 +225,67 @@ public class ClusterController {
     }
 
     /**
-     * Live cluster view — reads from Redis presence keys (TTL-based, real-time).
-     * Unlike GET /api/clusters which reads from PostgreSQL (up to 30s stale),
-     * this endpoint reflects the actual live state: replicas appear within seconds
-     * of starting and disappear within 30s of crashing.
+     * Live cluster view — queries the {@code cluster_nodes} PG table (V97)
+     * filtered to rows with {@code status=ACTIVE} and a heartbeat within
+     * the last 30 seconds.
+     *
+     * <p>R134y Sprint 4: switched primary reader from Redis to Postgres.
+     * Pods heartbeat every 10s via {@code ClusterNodeHeartbeat}; the reaper
+     * marks misses DEAD after 30s. Querying "fresh ACTIVE rows" gives the
+     * same "who's actually alive right now" semantics as the Redis path.
+     *
+     * <p>Falls back to {@code RedisServiceRegistry} only if PG throws
+     * (transient DB outage), preserving the admin UI during incidents.
      */
     @GetMapping("/live")
     public ResponseEntity<Map<String, Object>> getLiveRegistry() {
         Map<String, Object> result = new java.util.LinkedHashMap<>();
-        if (redisServiceRegistry == null) {
-            result.put("available", false);
-            result.put("message", "Redis service registry not active on this instance");
-            return ResponseEntity.ok(result);
+        java.util.List<ServiceInstance> all;
+        String source;
+        try {
+            all = jdbc.query("""
+                SELECT node_id, service_type, host, port, url, started_at, last_heartbeat
+                  FROM cluster_nodes
+                 WHERE status = 'ACTIVE'
+                   AND last_heartbeat > now() - INTERVAL '30 seconds'
+                 ORDER BY service_type, node_id
+                """, (rs, i) -> ServiceInstance.builder()
+                        .instanceId(rs.getString("node_id"))
+                        .serviceType(rs.getString("service_type"))
+                        .host(rs.getString("host"))
+                        .port(rs.getInt("port"))
+                        .url(rs.getString("url"))
+                        .startedAt(toInstant(rs.getTimestamp("started_at")))
+                        .lastSeen(toInstant(rs.getTimestamp("last_heartbeat")))
+                        .build());
+            source = "pg:cluster_nodes";
+        } catch (Exception pgFailure) {
+            if (redisServiceRegistry == null) {
+                result.put("available", false);
+                result.put("message",
+                        "Primary registry (PG cluster_nodes) unavailable and no Redis fallback: "
+                                + pgFailure.getMessage());
+                return ResponseEntity.ok(result);
+            }
+            log.warn("cluster_nodes query failed, falling back to Redis registry: {}", pgFailure.getMessage());
+            all = redisServiceRegistry.getAllInstances();
+            source = "redis:fallback";
         }
-        java.util.List<ServiceInstance> all = redisServiceRegistry.getAllInstances();
+
         Map<String, java.util.List<ServiceInstance>> byType = new java.util.LinkedHashMap<>();
         for (ServiceInstance si : all) {
             byType.computeIfAbsent(si.getServiceType(), k -> new java.util.ArrayList<>()).add(si);
         }
         result.put("available",      true);
+        result.put("source",         source);
         result.put("totalInstances", all.size());
         result.put("byServiceType",  byType);
         result.put("generatedAt",    java.time.Instant.now().toString());
         return ResponseEntity.ok(result);
+    }
+
+    private static java.time.Instant toInstant(Timestamp ts) {
+        return ts == null ? null : ts.toInstant();
     }
 
     private ServiceRegistrationResponse toServiceResponse(ServiceRegistration r) {
