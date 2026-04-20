@@ -59,6 +59,7 @@
         <module>as2-service</module>
         <module>notification-service</module>
         <module>platform-sentinel</module>
+        <module>https-service</module>
     </modules>
 
     <properties>

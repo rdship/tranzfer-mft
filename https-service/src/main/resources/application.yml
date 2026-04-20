@@ -1,0 +1,139 @@
+server:
+  port: 8099
+  shutdown: graceful
+
+management:
+  health:
+    probes:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus,info,circuit-breakers,threaddump,heapdump
+
+spring:
+  application:
+    name: https-service
+  main:
+    allow-bean-definition-overriding: true
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    connection-timeout: 30000
+    requested-heartbeat: 60
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/filetransfer}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      auto-commit: false
+      maximum-pool-size: 5
+      minimum-idle: 2
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      connection-timeout: 30000
+      pool-name: Https-Pool
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 25
+  servlet:
+    multipart:
+      max-file-size: 2048MB
+      max-request-size: 2048MB
+  flyway:
+    enabled: false  # schema owned by shared-platform via db-migrate
+    baseline-on-migrate: true
+    validate-on-migrate: false
+
+# R134o — the https-service needs Keystore Manager at bind time.
+keystore:
+  manager:
+    enabled: ${KEYSTORE_MANAGER_ENABLED:true}
+    url: ${KEYSTORE_MANAGER_URL:http://keystore-manager:8093}
+
+https:
+  # Where per-listener PEMs are materialized from Keystore Manager.
+  # Directory is pre-created in the Dockerfile with appuser ownership.
+  keystore-dir: ${HTTPS_KEYSTORE_DIR:/data/https-keystores}
+
+cluster:
+  id: ${CLUSTER_ID:default-cluster}
+  host: ${CLUSTER_HOST:https-service}
+  service-type: HTTPS
+  communication-mode: ${CLUSTER_COMM_MODE:WITHIN_CLUSTER}
+
+platform:
+  # R134k — explicit YAML binding so @ConditionalOnProperty on
+  # InternalServiceSecurityConfig resolves the env vars reliably.
+  security:
+    shared-config: ${PLATFORM_SECURITY_SHARED_CONFIG:false}
+    internal-service: ${PLATFORM_SECURITY_INTERNAL_SERVICE:true}
+    jwt-secret: ${JWT_SECRET:change_me_in_production_256bit_secret_key!!}
+    jwt-expiration-ms: ${JWT_EXPIRATION:900000}
+    control-api-key: ${CONTROL_API_KEY:internal_control_secret}
+  services:
+    onboarding-api:
+      url: ${ONBOARDING_API_URL:http://onboarding-api:8080}
+    sftp-service:
+      url: ${SFTP_SERVICE_URL:http://sftp-service:8081}
+    ftp-service:
+      url: ${FTP_SERVICE_URL:http://ftp-service:8082}
+    ftp-web-service:
+      url: ${FTP_WEB_SERVICE_URL:http://ftp-web-service:8083}
+    config-service:
+      url: ${CONFIG_SERVICE_URL:http://config-service:8084}
+    gateway-service:
+      url: ${GATEWAY_SERVICE_URL:http://gateway-service:8085}
+    encryption-service:
+      url: ${ENCRYPTION_SERVICE_URL:http://encryption-service:8086}
+    forwarder-service:
+      url: ${FORWARDER_SERVICE_URL:http://external-forwarder-service:8087}
+    dmz-proxy:
+      url: ${DMZ_PROXY_URL:http://dmz-proxy:8088}
+    license-service:
+      url: ${LICENSE_SERVICE_URL:http://license-service:8089}
+    analytics-service:
+      url: ${ANALYTICS_SERVICE_URL:http://analytics-service:8090}
+    ai-engine:
+      url: ${AI_ENGINE_URL:http://ai-engine:8091}
+    screening-service:
+      url: ${SCREENING_SERVICE_URL:http://screening-service:8092}
+    keystore-manager:
+      url: ${KEYSTORE_MANAGER_URL:http://keystore-manager:8093}
+    as2-service:
+      url: ${AS2_SERVICE_URL:http://as2-service:8094}
+    edi-converter:
+      url: ${EDI_CONVERTER_URL:http://edi-converter:8095}
+    storage-manager:
+      url: ${STORAGE_MANAGER_URL:http://storage-manager:8096}
+  environment: ${PLATFORM_ENVIRONMENT:PROD}
+  track-id:
+    prefix: ${TRACK_ID_PREFIX:TRZ}
+  cluster:
+    id: ${CLUSTER_ID:default-cluster}
+    host: ${CLUSTER_HOST:https-service}
+  storage:
+    sftp-home: ${SFTP_HOME_BASE:/data/sftp}
+    ftp-home: ${FTP_HOME_BASE:/data/ftp}
+    ftpweb-home: ${FTPWEB_HOME_BASE:/data/ftpweb}
+  flow:
+    max-concurrent: ${FLOW_MAX_CONCURRENT:50}
+    work-dir: ${FLOW_WORK_DIR:/tmp/mft-flow-work}
+  proxy:
+    enabled: ${PROXY_ENABLED:false}
+    type: ${PROXY_TYPE:HTTP}
+    host: ${PROXY_HOST:dmz-proxy}
+    port: ${PROXY_PORT:8088}
+    no-proxy-hosts: ${PROXY_NO_PROXY_HOSTS:localhost,127.0.0.1,postgres,rabbitmq}
+  readiness:
+    schema-file: db/schema/https-service.sql
+    required-tables: server_instances,virtual_entries

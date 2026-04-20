@@ -88,6 +88,7 @@ register_entry "edi-converter"
 register_entry "storage-manager"
 register_entry "notification-service"
 register_entry "platform-sentinel"
+register_entry "https-service"
 
 # Protocol services (multiple replicas share the same SPIFFE ID)
 register_entry "sftp-service"

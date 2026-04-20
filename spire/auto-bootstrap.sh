@@ -89,6 +89,7 @@ SERVICES=(
     storage-manager notification-service platform-sentinel
     sftp-service ftp-service ftp-web-service
     ui-service api-gateway cli
+    https-service
 )
 
 for svc in "${SERVICES[@]}"; do
