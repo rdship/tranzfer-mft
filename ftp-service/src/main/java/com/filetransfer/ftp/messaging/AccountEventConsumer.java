@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.filetransfer.ftp.service.CredentialService;
 import com.filetransfer.shared.cache.PartnerCache;
 import com.filetransfer.shared.fabric.EventFabricBridge;
+import com.filetransfer.shared.outbox.UnifiedOutboxPoller;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Binding;
@@ -37,6 +38,10 @@ public class AccountEventConsumer {
 
     @Autowired(required = false)
     private PartnerCache partnerCache;
+
+    /** R134R — outbox dual-consume (see sftp-service AccountEventConsumer Javadoc). */
+    @Autowired(required = false)
+    private UnifiedOutboxPoller outboxPoller;
 
     @Value("${rabbitmq.exchange}")
     private String exchange;
@@ -83,6 +88,22 @@ public class AccountEventConsumer {
         } catch (Exception e) {
             log.warn("[FTP] Failed to subscribe to fabric account events: {}", e.getMessage());
         }
+    }
+
+    @jakarta.annotation.PostConstruct
+    void subscribeOutboxEvents() {
+        if (outboxPoller == null || objectMapper == null) {
+            log.info("[FTP][account] boot — @RabbitListener only; UnifiedOutboxPoller not in context");
+            return;
+        }
+        outboxPoller.registerHandler("account.", row -> {
+            log.info("[FTP][account][outbox] row id={} routingKey={} aggregateId={}",
+                    row.id(), row.routingKey(), row.aggregateId());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> payload = row.as(Map.class, objectMapper);
+            handleEvent(payload);
+        });
+        log.info("[FTP][account] boot — dual-consume ACTIVE: @RabbitListener + outbox handler (R134R)");
     }
 
     @RabbitListener(queues = "${rabbitmq.queue.ftp-events}")

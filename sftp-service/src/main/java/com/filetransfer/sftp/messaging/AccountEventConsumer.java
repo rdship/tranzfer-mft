@@ -3,6 +3,7 @@ package com.filetransfer.sftp.messaging;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.filetransfer.shared.cache.PartnerCache;
 import com.filetransfer.shared.fabric.EventFabricBridge;
+import com.filetransfer.shared.outbox.UnifiedOutboxPoller;
 import com.filetransfer.sftp.service.CredentialService;
 import com.filetransfer.sftp.session.ConnectionManager;
 import com.filetransfer.sftp.throttle.BandwidthThrottleManager;
@@ -38,6 +39,18 @@ public class AccountEventConsumer {
     /** Phase 1: evict partner cache on account events (partner may have changed). */
     @Autowired(required = false)
     private PartnerCache partnerCache;
+
+    /**
+     * R134R Sprint 6 — when the unified outbox poller is in the context,
+     * register an OutboxEventHandler for {@code account.*} rows. The
+     * legacy {@code @RabbitListener} below stays active (dual-consume)
+     * until Sprint 7 removes the RabbitMQ path. {@link #handleEvent} is
+     * idempotent so a row reaching both transports produces one
+     * redundant refresh — cache eviction, QoS re-register, and directory
+     * creation are all convergent.
+     */
+    @Autowired(required = false)
+    private UnifiedOutboxPoller outboxPoller;
 
     @Value("${rabbitmq.exchange:file-transfer.events}")
     private String exchange;
@@ -86,6 +99,22 @@ public class AccountEventConsumer {
         } catch (Exception e) {
             log.warn("[SFTP] Failed to subscribe to fabric account events: {}", e.getMessage());
         }
+    }
+
+    @jakarta.annotation.PostConstruct
+    void subscribeOutboxEvents() {
+        if (outboxPoller == null || injectedObjectMapper == null) {
+            log.info("[SFTP][account] boot — @RabbitListener only; UnifiedOutboxPoller not in context");
+            return;
+        }
+        outboxPoller.registerHandler("account.", row -> {
+            log.info("[SFTP][account][outbox] row id={} routingKey={} aggregateId={}",
+                    row.id(), row.routingKey(), row.aggregateId());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> payload = row.as(Map.class, injectedObjectMapper);
+            handleEvent(payload);
+        });
+        log.info("[SFTP][account] boot — dual-consume ACTIVE: @RabbitListener + outbox handler (R134R)");
     }
 
     @RabbitListener(queues = "${rabbitmq.queue.sftp-events:sftp.account.events}")
