@@ -151,6 +151,7 @@ public class FileFlowController {
 
     @DeleteMapping("/{id}")
     @CacheEvict(value = "flows", allEntries = true)
+    @Transactional // R134P — publishDeleted dual-writes PG outbox (MANDATORY propagation)
     public ResponseEntity<Void> deleteFlow(@PathVariable UUID id) {
         FileFlow flow = flowRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Flow not found: " + id));

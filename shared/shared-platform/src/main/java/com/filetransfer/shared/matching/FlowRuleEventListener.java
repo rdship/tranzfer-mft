@@ -3,6 +3,7 @@ package com.filetransfer.shared.matching;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.filetransfer.shared.dto.FlowRuleChangeEvent;
 import com.filetransfer.shared.fabric.EventFabricBridge;
+import com.filetransfer.shared.outbox.UnifiedOutboxPoller;
 import com.filetransfer.shared.repository.transfer.FileFlowRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +52,17 @@ public class FlowRuleEventListener {
     @Autowired(required = false)
     private ObjectMapper objectMapper;
 
+    /**
+     * R134P Sprint 6 — when the unified outbox poller is in the context,
+     * register a handler for {@code flow.rule.updated} rows. The
+     * {@link RabbitListener} path below stays active (dual-consume) until
+     * Sprint 7 removes the legacy transport. {@link FlowRuleRegistry}
+     * register / unregister are idempotent, so a row reaching both paths
+     * produces one redundant refresh — correct, not a problem.
+     */
+    @Autowired(required = false)
+    private UnifiedOutboxPoller outboxPoller;
+
     @jakarta.annotation.PostConstruct
     void subscribeFabricEvents() {
         if (eventFabricBridge == null || objectMapper == null) return;
@@ -75,6 +87,21 @@ public class FlowRuleEventListener {
         } catch (Exception e) {
             log.warn("[FlowRuleEventListener] Failed to subscribe to fabric flow-rule events: {}", e.getMessage());
         }
+    }
+
+    @jakarta.annotation.PostConstruct
+    void subscribeOutboxEvents() {
+        if (outboxPoller == null || objectMapper == null) {
+            log.info("[FlowRuleEventListener] boot — @RabbitListener only; UnifiedOutboxPoller not in context");
+            return;
+        }
+        outboxPoller.registerHandler("flow.rule.updated", row -> {
+            log.info("[FlowRuleEventListener][outbox] row id={} routingKey={} aggregateId={}",
+                    row.id(), row.routingKey(), row.aggregateId());
+            FlowRuleChangeEvent event = row.as(FlowRuleChangeEvent.class, objectMapper);
+            handleEvent(event);
+        });
+        log.info("[FlowRuleEventListener] boot — dual-consume ACTIVE: @RabbitListener + outbox handler (R134P)");
     }
 
     @RabbitListener(bindings = @QueueBinding(
