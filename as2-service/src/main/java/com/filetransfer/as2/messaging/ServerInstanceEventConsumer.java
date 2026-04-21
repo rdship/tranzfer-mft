@@ -5,6 +5,7 @@ import com.filetransfer.shared.dto.ServerInstanceChangeEvent;
 import com.filetransfer.shared.entity.core.ServerInstance;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.listener.BindStateWriter;
+import com.filetransfer.shared.outbox.UnifiedOutboxPoller;
 import com.filetransfer.shared.repository.core.ServerInstanceRepository;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Bean;
@@ -55,6 +57,10 @@ public class ServerInstanceEventConsumer {
     private final BindStateWriter bindStateWriter;
     private final ObjectMapper objectMapper;
 
+    /** R134S — outbox dual-consume (see sftp-service ServerInstanceEventConsumer Javadoc). */
+    @Autowired(required = false)
+    private UnifiedOutboxPoller outboxPoller;
+
     @Value("${as2.instance-id:#{null}}")
     private String primaryInstanceId;
 
@@ -72,6 +78,22 @@ public class ServerInstanceEventConsumer {
         log.info("[AS2][boot] ServerInstanceEventConsumer bean instantiated — "
                 + "queue={} exchange={} pattern={} primaryInstanceId={}",
                 QUEUE, EXCHANGE, PATTERN, primaryInstanceId);
+    }
+
+    @jakarta.annotation.PostConstruct
+    void subscribeOutboxEvents() {
+        if (outboxPoller == null) {
+            log.info("[AS2][server-instance] boot — @RabbitListener only; UnifiedOutboxPoller not in context");
+            return;
+        }
+        outboxPoller.registerHandler("server.instance.", row -> {
+            log.info("[AS2][server-instance][outbox] row id={} routingKey={} aggregateId={}",
+                    row.id(), row.routingKey(), row.aggregateId());
+            @SuppressWarnings("unchecked")
+            java.util.Map<String, Object> payload = row.as(java.util.Map.class, objectMapper);
+            onChange(payload);
+        });
+        log.info("[AS2][server-instance] boot — dual-consume ACTIVE: @RabbitListener + outbox handler (R134S)");
     }
 
     @Bean

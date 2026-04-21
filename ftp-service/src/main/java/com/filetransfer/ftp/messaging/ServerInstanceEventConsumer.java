@@ -5,6 +5,7 @@ import com.filetransfer.ftp.server.FtpListenerRegistry;
 import com.filetransfer.shared.dto.ServerInstanceChangeEvent;
 import com.filetransfer.shared.entity.core.ServerInstance;
 import com.filetransfer.shared.enums.Protocol;
+import com.filetransfer.shared.outbox.UnifiedOutboxPoller;
 import com.filetransfer.shared.repository.core.ServerInstanceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,7 @@ import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -35,6 +37,26 @@ public class ServerInstanceEventConsumer {
     private final FtpListenerRegistry registry;
     private final ServerInstanceRepository repository;
     private final ObjectMapper objectMapper;
+
+    /** R134S — outbox dual-consume (see sftp-service ServerInstanceEventConsumer Javadoc). */
+    @Autowired(required = false)
+    private UnifiedOutboxPoller outboxPoller;
+
+    @jakarta.annotation.PostConstruct
+    void subscribeOutboxEvents() {
+        if (outboxPoller == null) {
+            log.info("[FTP][server-instance] boot — @RabbitListener only; UnifiedOutboxPoller not in context");
+            return;
+        }
+        outboxPoller.registerHandler("server.instance.", row -> {
+            log.info("[FTP][server-instance][outbox] row id={} routingKey={} aggregateId={}",
+                    row.id(), row.routingKey(), row.aggregateId());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> payload = row.as(Map.class, objectMapper);
+            onChange(payload);
+        });
+        log.info("[FTP][server-instance] boot — dual-consume ACTIVE: @RabbitListener + outbox handler (R134S)");
+    }
 
     @Bean
     public Queue ftpServerInstanceQueue() {

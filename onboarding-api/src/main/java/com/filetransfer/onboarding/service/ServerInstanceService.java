@@ -9,10 +9,12 @@ import com.filetransfer.shared.entity.core.FolderTemplate;
 import com.filetransfer.shared.entity.core.ServerInstance;
 import com.filetransfer.shared.enums.Protocol;
 import com.filetransfer.shared.outbox.OutboxWriter;
+import com.filetransfer.shared.outbox.UnifiedOutboxWriter;
 import com.filetransfer.shared.repository.core.FolderTemplateRepository;
 import com.filetransfer.shared.repository.core.ServerInstanceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +29,17 @@ public class ServerInstanceService {
     private final FolderTemplateRepository folderTemplateRepository;
     private final DmzProxyClient dmzProxyClient;
     private final OutboxWriter outboxWriter;
+
+    /**
+     * R134S Sprint 6 — final of 4 event classes migrating off the legacy
+     * {@code config_event_outbox} → RabbitMQ bridge. Dual-write to
+     * {@link UnifiedOutboxWriter} so consumers that register via
+     * {@code UnifiedOutboxPoller} get the event directly, while the
+     * legacy path (OutboxWriter → OutboxPoller → RabbitMQ →
+     * {@code @RabbitListener}) keeps working until Sprint 7.
+     */
+    @Autowired(required = false)
+    private UnifiedOutboxWriter unifiedOutboxWriter;
 
     public List<ServerInstanceResponse> listAll() {
         return repository.findAll().stream().map(this::toResponse).toList();
@@ -270,12 +283,26 @@ public class ServerInstanceService {
                 instance.getInternalPort(),
                 instance.isActive(),
                 type);
+        // Legacy path — config_event_outbox → OutboxPoller → RabbitMQ → @RabbitListener.
+        // Retained until Sprint 7 removes it.
         outboxWriter.write(
                 "server_instance",
                 instance.getId().toString(),
                 type.name(),
                 event.routingKey(),
                 event);
+        // R134S dual-path — event_outbox → UnifiedOutboxPoller → OutboxEventHandler.
+        // Both writes run inside the caller's @Transactional, so the aggregate-row
+        // save and both outbox rows commit atomically (unifiedOutboxWriter.write
+        // is @Transactional(propagation=MANDATORY)).
+        if (unifiedOutboxWriter != null) {
+            unifiedOutboxWriter.write(
+                    "server_instance",
+                    instance.getId().toString(),
+                    type.name(),
+                    event.routingKey(),
+                    event);
+        }
     }
 
     private ServerInstance findById(UUID id) {

@@ -5,6 +5,7 @@ import com.filetransfer.sftp.server.SftpListenerRegistry;
 import com.filetransfer.shared.dto.ServerInstanceChangeEvent;
 import com.filetransfer.shared.entity.core.ServerInstance;
 import com.filetransfer.shared.enums.Protocol;
+import com.filetransfer.shared.outbox.UnifiedOutboxPoller;
 import com.filetransfer.shared.repository.core.ServerInstanceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,7 @@ import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -39,6 +41,33 @@ public class ServerInstanceEventConsumer {
     private final SftpListenerRegistry registry;
     private final ServerInstanceRepository repository;
     private final ObjectMapper objectMapper;
+
+    /**
+     * R134S Sprint 6 — register an OutboxEventHandler on routing-key prefix
+     * "server.instance." so events produced by {@code UnifiedOutboxWriter}
+     * in onboarding-api's ServerInstanceService are drained here directly,
+     * parallel to the legacy RabbitMQ path. Shared {@link #onChange} is
+     * idempotent (registry bind/unbind/rebind converge) — duplicate
+     * delivery across transports is safe.
+     */
+    @Autowired(required = false)
+    private UnifiedOutboxPoller outboxPoller;
+
+    @jakarta.annotation.PostConstruct
+    void subscribeOutboxEvents() {
+        if (outboxPoller == null) {
+            log.info("[SFTP][server-instance] boot — @RabbitListener only; UnifiedOutboxPoller not in context");
+            return;
+        }
+        outboxPoller.registerHandler("server.instance.", row -> {
+            log.info("[SFTP][server-instance][outbox] row id={} routingKey={} aggregateId={}",
+                    row.id(), row.routingKey(), row.aggregateId());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> payload = row.as(Map.class, objectMapper);
+            onChange(payload);
+        });
+        log.info("[SFTP][server-instance] boot — dual-consume ACTIVE: @RabbitListener + outbox handler (R134S)");
+    }
 
     @Bean
     public Queue sftpServerInstanceQueue() {
