@@ -196,6 +196,20 @@ public class SpiffeWorkloadClient {
     }
 
     /**
+     * R134M — expose raw state so the tester's next run can compare between
+     * the "works on main" and "fails on scheduling-1" threads. If state
+     * differs, the bean's singleton assumption is broken; if state is
+     * identical but awaitAvailable still returns false, the bug is in the
+     * latch interaction.
+     */
+    private String stateSnapshot() {
+        return "available=" + available.get()
+                + " jwtSource=" + (jwtSource != null ? "present" : "null")
+                + " latchCount=" + availableLatch.getCount()
+                + " enabled=" + (props != null && props.isEnabled());
+    }
+
+    /**
      * R112: runtime feature-flag query. True when {@code spiffe.enabled=true}
      * was set in the service's runtime environment. Callers use this to
      * distinguish "SPIFFE intentionally off" (silent no-op expected) from
@@ -218,13 +232,32 @@ public class SpiffeWorkloadClient {
      */
     public boolean awaitAvailable(Duration timeout) {
         if (isAvailable()) return true;
+        // R134M — tester R134L evidence: "UNAVAILABLE after 5s wait" fires
+        // on scheduling-1 thread even though main thread attached a SVID
+        // earlier in the same boot. Log entry + exit state so next run
+        // reveals whether available/jwtSource/latchCount differ between
+        // threads (singleton assumption violated) OR are identical but
+        // the await path short-circuits anyway.
+        boolean latchResult;
         try {
-            return availableLatch.await(timeout.toMillis(), TimeUnit.MILLISECONDS)
-                    && isAvailable();
+            log.info("[SPIFFE] awaitAvailable entered on thread={} timeout={}ms state=({}) ",
+                    Thread.currentThread().getName(), timeout.toMillis(), stateSnapshot());
+            latchResult = availableLatch.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            log.warn("[SPIFFE] awaitAvailable INTERRUPTED on thread={} state=({})",
+                    Thread.currentThread().getName(), stateSnapshot());
             return false;
         }
+        boolean ok = latchResult && isAvailable();
+        if (!ok) {
+            log.warn("[SPIFFE] awaitAvailable RETURNING FALSE on thread={} latchReturned={} state=({})",
+                    Thread.currentThread().getName(), latchResult, stateSnapshot());
+        } else {
+            log.info("[SPIFFE] awaitAvailable succeeded on thread={} state=({})",
+                    Thread.currentThread().getName(), stateSnapshot());
+        }
+        return ok;
     }
 
     /** This service's full SPIFFE ID, e.g. {@code spiffe://filetransfer.io/gateway-service}. */
