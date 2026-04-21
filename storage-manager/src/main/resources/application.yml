@@ -132,12 +132,15 @@ cluster:
   communication-mode: ${CLUSTER_COMM_MODE:WITHIN_CLUSTER}
 
 platform:
-  # R134k — explicit YAML binding so @ConditionalOnProperty on
-  # InternalServiceSecurityConfig resolves the env vars reliably. See
-  # external-forwarder-service application.yml for full rationale.
+  # R134N — storage-manager now uses its own service-local
+  # com.filetransfer.storage.config.SecurityConfig. Both shared security
+  # configs are explicitly disabled with LITERAL values (no placeholder)
+  # so AOT property resolution unambiguously excludes them from the frozen
+  # bean graph, avoiding the R134M silent-exclusion symptom documented in
+  # docs/AOT-SAFETY.md and docs/run-reports/R134M-runtime-verification.md.
   security:
-    shared-config: ${PLATFORM_SECURITY_SHARED_CONFIG:false}
-    internal-service: ${PLATFORM_SECURITY_INTERNAL_SERVICE:true}
+    shared-config: false
+    internal-service: false
   services:
     onboarding-api:
       url: ${ONBOARDING_API_URL:http://onboarding-api:8080}
