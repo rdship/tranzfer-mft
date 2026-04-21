@@ -1,5 +1,6 @@
 package com.filetransfer.ai.controller;
 
+import com.filetransfer.ai.dto.FlowSuggestRequest;
 import com.filetransfer.ai.service.*;
 import com.filetransfer.ai.service.phase3.*;
 import lombok.RequiredArgsConstructor;
@@ -78,10 +79,49 @@ public class AiController {
         return ResponseEntity.ok(nlpService.translateToCommand(query, context));
     }
 
+    /**
+     * R134Q — accepts both the legacy {@code {description}} shape (from
+     * {@code ui-service/src/api/ai.js}) and the structured form-context
+     * shape (from the Processing-Flows "AI Suggest" button in
+     * {@code ui-service/src/pages/Flows.jsx}). When {@code description}
+     * is absent, the controller synthesises one from the structured
+     * fields so the LLM receives useful context instead of a 400.
+     */
     @PostMapping("/nlp/suggest-flow")
     public ResponseEntity<NlpService.FlowSuggestion> suggestFlow(
-            @RequestBody Map<String, String> body) {
-        return ResponseEntity.ok(nlpService.suggestFlow(body.get("description")));
+            @RequestBody FlowSuggestRequest request) {
+        String description = request.description();
+        if (description == null || description.isBlank()) {
+            description = synthesizeDescription(request);
+        }
+        return ResponseEntity.ok(nlpService.suggestFlow(description));
+    }
+
+    /**
+     * Build a natural-language prompt from structured form fields. This is
+     * what the LLM sees when the admin clicks "AI Suggest" without typing
+     * a freetext description — the form state is the intent.
+     */
+    private String synthesizeDescription(FlowSuggestRequest req) {
+        StringBuilder sb = new StringBuilder("Design a file-processing flow");
+        if (req.filenamePattern() != null && !req.filenamePattern().isBlank()) {
+            sb.append(" for files matching '").append(req.filenamePattern()).append("'");
+        }
+        if (req.sourceAccountId() != null && !req.sourceAccountId().isBlank()) {
+            sb.append(" from partner ").append(req.sourceAccountId());
+        }
+        if (req.direction() != null && !req.direction().isBlank()) {
+            sb.append(" (direction: ").append(req.direction()).append(")");
+        }
+        sb.append(".");
+        if (req.existingSteps() != null && !req.existingSteps().isEmpty()) {
+            sb.append(" The admin has already configured these steps: ")
+              .append(String.join(", ", req.existingSteps()))
+              .append(". Suggest complementary steps or improvements to the pipeline.");
+        } else {
+            sb.append(" Suggest an appropriate processing pipeline.");
+        }
+        return sb.toString();
     }
 
     @PostMapping("/nlp/explain")
