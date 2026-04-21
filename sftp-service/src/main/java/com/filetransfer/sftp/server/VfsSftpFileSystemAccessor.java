@@ -1,4 +1,5 @@
 package com.filetransfer.sftp.server;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.sshd.sftp.server.FileHandle;
 import org.apache.sshd.sftp.server.SftpFileSystemAccessor;
 import org.apache.sshd.sftp.server.SftpSubsystemProxy;
@@ -25,6 +26,7 @@ import java.util.Set;
  * <p>For PHYSICAL accounts (standard filesystem), the provider's newByteChannel()
  * returns a normal FileChannel — same behavior as the default accessor.
  */
+@Slf4j
 public class VfsSftpFileSystemAccessor implements SftpFileSystemAccessor {
 
     @Override
@@ -32,8 +34,19 @@ public class VfsSftpFileSystemAccessor implements SftpFileSystemAccessor {
                                          Path file, String handle,
                                          Set<? extends OpenOption> options,
                                          FileAttribute<?>... attrs) throws IOException {
-        // Delegate to the path's filesystem provider — this calls
-        // VirtualSftpFileSystemProvider.newByteChannel() for VIRTUAL accounts
+        // R134H — tester R134F-G found SFTP uploads succeed at the audit layer
+        // but never produce an event_outbox row or flow_executions row. R134G's
+        // hypothesis (VirtualWriteChannel.close() null callback) was disproved
+        // because that log never fired. Prime suspect now: MINA is routing the
+        // write through the DEFAULT filesystem (not our VirtualSftpFileSystem),
+        // so the write doesn't reach the VFS provider at all. Log the path +
+        // filesystem + provider classes on every open so the tester's next run
+        // tells us exactly which FS MINA hands us.
+        log.info("[sftp-accessor] openFile path={} class={} fs={} provider={} options={}",
+                file, file.getClass().getSimpleName(),
+                file.getFileSystem().getClass().getSimpleName(),
+                file.getFileSystem().provider().getClass().getSimpleName(),
+                options);
         return file.getFileSystem().provider().newByteChannel(file, options, attrs);
     }
 
