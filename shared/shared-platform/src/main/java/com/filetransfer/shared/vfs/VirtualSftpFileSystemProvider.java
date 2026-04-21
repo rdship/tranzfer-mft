@@ -68,11 +68,15 @@ public class VirtualSftpFileSystemProvider extends FileSystemProvider {
         boolean write = options.contains(StandardOpenOption.WRITE) || options.contains(StandardOpenOption.CREATE)
                 || options.contains(StandardOpenOption.CREATE_NEW) || options.contains(StandardOpenOption.APPEND);
 
-        if (write) {
-            return new VirtualWriteChannel(vpath);
-        } else {
-            return new VirtualReadChannel(vpath);
-        }
+        // R134I — tester R134H confirmed this provider IS reached by MINA
+        // but R134G's close-time callback log never fires. Log the channel
+        // class we return here so the next run shows whether SSHD gets our
+        // VirtualWriteChannel (expected) or something else.
+        SeekableByteChannel ch = write ? new VirtualWriteChannel(vpath) : new VirtualReadChannel(vpath);
+        log.info("[vfs-provider] newByteChannel vpath={} write={} returned={} callbackPresent={}",
+                vpath, write, ch.getClass().getSimpleName(),
+                fileSystem.getWriteCallback() != null);
+        return ch;
     }
 
     // ── Directory Streams ───────────────────────────────────────────────
@@ -423,12 +427,23 @@ public class VirtualSftpFileSystemProvider extends FileSystemProvider {
 
         @Override
         public void close() throws IOException {
+            // R134I — log entry before any early-returns so we can see if
+            // MINA actually calls close() at all. Tester R134G+R134H saw a
+            // 17-byte SFTP upload succeed at the audit layer but neither the
+            // callback log nor any other post-switch log fired — so either
+            // close() never ran, or close() early-returned at fileSize==0.
+            // Both cases now produce a log line.
+            log.info("[vfs-channel] close() entered: vpath={} open={}", vpath, open);
             if (!open) return;
             open = false;
 
             try {
                 long fileSize = tempChannel.size();
-                if (fileSize == 0) return;
+                log.info("[vfs-channel] close() tempFileSize={} for vpath={}", fileSize, vpath);
+                if (fileSize == 0) {
+                    log.warn("[vfs-channel] close() empty file — skipping VFS write for vpath={}", vpath);
+                    return;
+                }
 
                 String filename = VirtualFileSystem.nameOf(vpath);
                 String bucket = vfs().determineBucket(fileSize, accountId());
