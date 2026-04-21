@@ -93,7 +93,7 @@ Candidate next investigation paths (for the dev, not me):
 | Flow engine publishes `FileUploadedEvent` on SFTP write | ❌ | Unknown — R134G disproved the VirtualWriteChannel hypothesis; next diagnostic lives in SftpFileSystemFactory or RoutingEngine wiring |
 | BUG 13 real-path regression (R134j) | ❌ Unrunnable | Depends on flow engine firing |
 | `ftp-2` secondary FTP `bind_state=UNKNOWN` | ❌ | Carried from R134p |
-| demo-onboard success rate under R134F+G | ⏳ | Running in background at report-write time |
+| demo-onboard success rate under R134F+G | **92.1%** (Created=994, Skipped=4, Failed=86, Total=1084) — identical to R134p. No regression from R134F/G; outbox fix doesn't touch seed paths. | — |
 | Third-party-dep count (Gold criterion) | 🟡 11 still | Requires Sprint 6–9 completion |
 
 ---
