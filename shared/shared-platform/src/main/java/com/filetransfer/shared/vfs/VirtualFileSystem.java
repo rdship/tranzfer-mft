@@ -640,24 +640,46 @@ public class VirtualFileSystem {
      */
     private DistributedVfsLock.LockHandle lockPath(UUID accountId, String path) {
         if (storageCoordClient != null) {
-            if (lockBackendLogged.compareAndSet(false, true)) {
-                log.info("[VFS][lockPath] backend=storage-coord (R134z primary path active — " +
-                        "locks flow through storage-manager platform_locks)");
-            }
             String lockKey = "vfs:write:" + accountId + ":" + path;
-            com.filetransfer.shared.client.StorageCoordinationClient.PlatformLease lease =
-                    storageCoordClient.tryAcquire(lockKey, java.time.Duration.ofSeconds(30));
-            if (lease == null) {
-                log.warn("[VFS] storage-coord lock busy account={} path={}", accountId, path);
-                throw new IllegalStateException(
-                        "Concurrent write contention on VFS path [" + path + "] — retry the operation");
+            try {
+                com.filetransfer.shared.client.StorageCoordinationClient.PlatformLease lease =
+                        storageCoordClient.tryAcquire(lockKey, java.time.Duration.ofSeconds(30));
+                if (lease == null) {
+                    // Legitimate concurrent-write contention — another holder has a
+                    // live lease on this key. Caller should retry.
+                    log.warn("[VFS] storage-coord lock busy account={} path={}", accountId, path);
+                    throw new IllegalStateException(
+                            "Concurrent write contention on VFS path [" + path + "] — retry the operation");
+                }
+                if (lockBackendLogged.compareAndSet(false, true)) {
+                    log.info("[VFS][lockPath] backend=storage-coord (R134z primary path active — " +
+                            "locks flow through storage-manager platform_locks)");
+                }
+                return lease::close; // PlatformLease.close() is idempotent + best-effort
+            } catch (IllegalStateException concurrent) {
+                // re-throw contention as-is; don't fall through to a DIFFERENT backend
+                // (that would defeat the coordination guarantee)
+                throw concurrent;
+            } catch (Exception e) {
+                // R134K — tester R134J-runtime-verification.md caught this: any
+                // non-409 exception from tryAcquire (403 auth failure, 5xx,
+                // network) used to bubble out of lockPath, abort writeFile's
+                // @Transactional, swallow the routing callback, and leave the
+                // SFTP upload looking successful while flow_executions stayed
+                // empty. Falling through to Redis/pg_advisory here trades a
+                // slight loss of cross-pod coordination (Redis is still
+                // cross-pod until Sprint 7 removes it; pg_advisory is
+                // single-instance) for availability — an auth-blip on the
+                // coordination endpoint must not paralyse uploads.
+                log.warn("[VFS][lockPath] storage-coord tryAcquire FAILED for account={} path={}: {}. " +
+                        "Falling through to next backend (redis → pg_advisory).",
+                        accountId, path, e.getMessage());
             }
-            return lease::close; // PlatformLease.close() is idempotent + best-effort
         }
 
         if (distributedLock != null) {
             if (lockBackendLogged.compareAndSet(false, true)) {
-                log.info("[VFS][lockPath] backend=redis-setnx (R134z fallback — storage-coord client absent)");
+                log.info("[VFS][lockPath] backend=redis-setnx (R134z fallback — storage-coord unavailable or client absent)");
             }
             return distributedLock.acquire(accountId, path);
         }
