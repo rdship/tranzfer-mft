@@ -447,13 +447,16 @@ public class VirtualSftpFileSystemProvider extends FileSystemProvider {
 
                 String filename = VirtualFileSystem.nameOf(vpath);
                 String bucket = vfs().determineBucket(fileSize, accountId());
+                log.info("[vfs-channel] close() bucket={} filename={} vpath={}", bucket, filename, vpath);
 
                 String storedKey = null;
                 switch (bucket) {
                     case "INLINE" -> {
                         // Small file — read to byte[] (< 64KB, safe in heap)
                         byte[] data = readTempBytes(fileSize);
+                        log.info("[vfs-channel] close() about to call vfs.writeFile (INLINE) vpath={} size={}", vpath, fileSize);
                         vfs().writeFile(accountId(), vpath, null, fileSize, null, null, data);
+                        log.info("[vfs-channel] close() vfs.writeFile (INLINE) RETURNED for vpath={}", vpath);
                         log.info("[VFS] Inline stored {}: {} bytes", vpath, fileSize);
                     }
                     case "CHUNKED" -> {
@@ -469,7 +472,9 @@ public class VirtualSftpFileSystemProvider extends FileSystemProvider {
                         String trackId = result.get("trackId") != null ? result.get("trackId").toString() : null;
                         log.info("[VFS] CAS stored {}: {} ({} bytes)",
                                 vpath, sha256 != null ? sha256.substring(0, 8) + "..." : "n/a", fileSize);
+                        log.info("[vfs-channel] close() about to call vfs.writeFile (STANDARD) vpath={} sha={}", vpath, sha256);
                         vfs().writeFile(accountId(), vpath, sha256, fileSize, trackId, null, null);
+                        log.info("[vfs-channel] close() vfs.writeFile (STANDARD) RETURNED for vpath={}", vpath);
                         storedKey = sha256;
                     }
                 }
@@ -503,6 +508,13 @@ public class VirtualSftpFileSystemProvider extends FileSystemProvider {
                             vpath, fileSize);
                 }
             } catch (Exception e) {
+                // R134J — log the exception so tester can see WHY close() short-circuited
+                // without firing the callback. Prior cycles (R134G/H/I) eliminated every
+                // other suspect; the only remaining gap is a swallowed exception on the
+                // path between lockPath and the callback. Log BEFORE rethrow so we never
+                // lose the stack trace (IOException wrapping hid it in earlier cycles).
+                log.error("[vfs-channel] close() threw for vpath={} — routing NOT triggered. Cause:",
+                        vpath, e);
                 throw new IOException("Failed to store file to CAS: " + vpath, e);
             } finally {
                 try { tempChannel.close(); } catch (Exception ignored) {}
