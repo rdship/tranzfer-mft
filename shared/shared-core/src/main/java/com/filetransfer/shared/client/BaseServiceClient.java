@@ -173,15 +173,24 @@ public abstract class BaseServiceClient {
                 String jwtSvid = spiffeWorkloadClient.getJwtSvidFor(target);
                 if (jwtSvid != null) {
                     headers.setBearerAuth(jwtSvid);
+                    // R134L — tester R134J/R134K need evidence of which auth
+                    // header was attached on the SFTP callback thread for the
+                    // storage-coord 403. Log (at INFO, short-lived) so the
+                    // next runtime sweep pinpoints exactly what was sent.
+                    log.info("[BaseServiceClient] attached SPIFFE JWT-SVID target={} svidLen={} xfwd={}",
+                            target, jwtSvid.length(), forwarded != null ? "present" : "none");
                     return;
                 } else {
-                    log.warn("SPIFFE JWT-SVID returned null for target '{}'; trying user-JWT fallback",
+                    log.warn("[BaseServiceClient] SPIFFE JWT-SVID returned NULL for target='{}' — trying user-JWT fallback",
                             deriveTargetServiceName());
                 }
             } else {
-                log.warn("SPIFFE workload API unavailable after 5 s wait for target '{}'; trying user-JWT fallback",
+                log.warn("[BaseServiceClient] SPIFFE workload API UNAVAILABLE after 5s wait for target='{}' — trying user-JWT fallback",
                         deriveTargetServiceName());
             }
+        } else {
+            log.warn("[BaseServiceClient] SPIFFE workload client absent or disabled for target='{}' — no SVID attach",
+                    deriveTargetServiceName());
         }
         // R132 fallback (feedback_admin_can_do_anything): if we got here the
         // S2S SPIFFE handshake failed but the CURRENT user-initiated request
@@ -196,8 +205,21 @@ public abstract class BaseServiceClient {
         // the primary Authorization header when SPIFFE attach failed.
         if (forwarded != null) {
             headers.set(HttpHeaders.AUTHORIZATION, forwarded);
-            log.debug("SPIFFE unavailable; forwarded inbound Authorization to target '{}'",
+            log.info("[BaseServiceClient] SPIFFE attach failed; forwarded inbound Authorization to target='{}'",
                     deriveTargetServiceName());
+        } else {
+            // R134L — the case that causes the storage-coord 403 on the
+            // SFTP callback path. No SPIFFE SVID attached AND no inbound
+            // Authorization header to forward (background thread, no
+            // Spring RequestContext). Target will reject with 403. Next
+            // investigation: why SPIFFE didn't attach above (isEnabled?
+            // isAvailable? getJwtSvidFor null?).
+            log.warn("[BaseServiceClient] NO auth header attached for target='{}' — " +
+                    "SPIFFE path yielded nothing AND no inbound Authorization available. " +
+                    "Target will reject. Caller context: request bound={} SPIFFE enabled={}",
+                    deriveTargetServiceName(),
+                    forwarded != null,
+                    spiffeWorkloadClient != null && spiffeWorkloadClient.isEnabled());
         }
     }
 

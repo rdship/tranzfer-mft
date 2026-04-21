@@ -145,7 +145,17 @@ public class PlatformJwtAuthFilter extends OncePerRequestFilter {
                 }
                 if (spiffeWorkloadClient.isAvailable()) {
                     String selfId = spiffeWorkloadClient.getSelfSpiffeId();
-                    if (StringUtils.hasText(selfId) && spiffeWorkloadClient.validate(bearerToken, selfId)) {
+                    boolean validationOk = StringUtils.hasText(selfId)
+                            && spiffeWorkloadClient.validate(bearerToken, selfId);
+                    // R134L — tester R134J/K need evidence of why the SFTP
+                    // callback → storage-coord call gets 403. Log the validate
+                    // result so the next runtime sweep pinpoints whether the
+                    // SVID is rejected (audience mismatch, expiry, trust
+                    // bundle) OR just never validated.
+                    log.info("[PlatformJwtAuthFilter] SPIFFE validate result={} selfId={} callerSub={}",
+                            validationOk, selfId,
+                            spiffeWorkloadClient.getCallerId(bearerToken));
+                    if (validationOk) {
                         String callerId = spiffeWorkloadClient.getCallerId(bearerToken);
                         SecurityContextHolder.getContext().setAuthentication(
                                 new UsernamePasswordAuthenticationToken(
