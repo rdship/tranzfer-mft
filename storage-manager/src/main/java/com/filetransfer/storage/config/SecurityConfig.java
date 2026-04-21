@@ -14,6 +14,8 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.firewall.HttpFirewall;
+import org.springframework.security.web.firewall.StrictHttpFirewall;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 
@@ -29,11 +31,16 @@ import org.springframework.security.web.util.matcher.RequestMatcher;
  * silently excluding the bean from storage-manager's frozen graph (see
  * {@code docs/AOT-SAFETY.md} and {@code docs/run-reports/R134M-runtime-verification.md}).
  *
- * <p>Runtime symptom: {@code PlatformJwtAuthFilter} never fired on
- * {@code /api/v1/coordination/locks/**}, so Spring's default
- * {@code SecurityAutoConfiguration} returned 403 before SPIFFE JWT-SVIDs
- * could be evaluated. This blocked the R134z primary path for
- * {@code VirtualFileSystem.lockPath} and forced the pg_advisory fallback.
+ * <p><b>R134O:</b> Relaxes the default {@link StrictHttpFirewall} to allow
+ * URL-encoded slashes in request URIs. {@code StorageCoordinationClient}
+ * URL-encodes lock keys that legitimately contain slashes (e.g.
+ * {@code vfs:write:<uuid>:/inbox/x.xml} → {@code ...%2Finbox%2Fx.xml}).
+ * Spring Security's default firewall rejects {@code %2F} with 403 before
+ * the {@link PlatformJwtAuthFilter} chain ever runs — exactly the R134N
+ * verdict symptom: filter never enters for {@code /api/v1/coordination/locks/**}
+ * while {@code /api/v1/storage/**} (no encoded slashes) passes cleanly.
+ * Also opens {@code %25} (percent, for double-encoding safety) and
+ * {@code %2E} (period). Scoped to storage-manager only.
  *
  * <p>Unconditional {@code @Configuration} + service-local scope = AOT-safe
  * and deterministic. Mirrors the shared chain's permit-list; the 4-arg
@@ -49,6 +56,21 @@ public class SecurityConfig {
 
     @Autowired(required = false)
     private SpiffeWorkloadClient spiffeWorkloadClient;
+
+    /**
+     * R134O — allow URL-encoded slashes so the coordination-lock path pattern
+     * {@code /api/v1/coordination/locks/{urlEncodedKey}/acquire} reaches the
+     * Spring Security filter chain. Default {@code StrictHttpFirewall} 403s
+     * {@code %2F} before the chain runs.
+     */
+    @Bean
+    public HttpFirewall storageManagerHttpFirewall() {
+        StrictHttpFirewall firewall = new StrictHttpFirewall();
+        firewall.setAllowUrlEncodedSlash(true);
+        firewall.setAllowUrlEncodedPercent(true);
+        firewall.setAllowUrlEncodedPeriod(true);
+        return firewall;
+    }
 
     @Bean
     public SecurityFilterChain storageManagerSecurityFilterChain(HttpSecurity http,
