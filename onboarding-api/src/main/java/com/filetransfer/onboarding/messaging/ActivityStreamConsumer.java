@@ -55,22 +55,30 @@ public class ActivityStreamConsumer {
         }
         if (recent.isEmpty()) return;
 
-        int broadcast = 0;
+        // R134Z — broadcast count is now the SUM of emitters that successfully
+        // received the event across all polled rows. Pre-R134Z this was a
+        // per-row boolean (did we CALL broadcastActivityEvent) which masked
+        // the tester's R134Y observation ("cursor advances but broadcast=0"):
+        // the call happened, but every SSE emitter.send() threw silently
+        // because ActivityMonitorController.broadcastActivityEvent was a
+        // void method that swallowed exceptions. R134Z changes that method
+        // to return the successful-delivery count and log WARN on failure.
+        int rowsPolled = recent.size();
+        int totalSent = 0;
         for (FileTransferRecord r : recent) {
             try {
                 String sseEvent = mapStatusToSseEvent(String.valueOf(r.getStatus()));
-                activityMonitor.broadcastActivityEvent(sseEvent, toEventMap(r));
-                broadcast++;
+                totalSent += activityMonitor.broadcastActivityEvent(sseEvent, toEventMap(r));
             } catch (Exception e) {
-                log.debug("[R134Y][ActivityStreamConsumer] broadcast skipped for trackId={}: {}",
-                        safeTrackId(r), e.getMessage());
+                log.warn("[R134Z][ActivityStreamConsumer] broadcast prep failed for trackId={}: {}",
+                        safeTrackId(r), e.toString());
             }
             if (r.getUpdatedAt() != null) {
                 lastSeen.set(r.getUpdatedAt());
             }
         }
-        log.info("[R134Y][ActivityStreamConsumer] broadcast {} transfer updates since cursor={}",
-                broadcast, cursor);
+        log.info("[R134Z][ActivityStreamConsumer] polled {} rows → {} successful SSE deliveries since cursor={}",
+                rowsPolled, totalSent, cursor);
     }
 
     private static String mapStatusToSseEvent(String status) {

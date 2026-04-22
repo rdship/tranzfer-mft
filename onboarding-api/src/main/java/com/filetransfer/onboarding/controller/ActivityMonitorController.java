@@ -21,6 +21,7 @@ import java.time.Instant;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -33,6 +34,7 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/activity-monitor")
 @RequiredArgsConstructor
@@ -424,15 +426,36 @@ public class ActivityMonitorController {
         return emitter;
     }
 
-    /** Broadcast an activity event to all connected SSE clients. Called by event consumers. */
-    public void broadcastActivityEvent(String eventName, Object data) {
+    /**
+     * Broadcast an activity event to all connected SSE clients.
+     *
+     * <p><b>R134Z:</b> returns the number of emitters that received the
+     * event. Previously this method silently swallowed send failures —
+     * R134Y verification flagged a symptom where {@link ActivityStreamConsumer}'s
+     * polled-row log said {@code broadcast 0 transfer updates} even when
+     * the cursor advanced. The exception was real (client-side EOF or
+     * serialization failure) but invisible. Log at WARN now so the next
+     * failure names its root cause in plain sight.
+     *
+     * @return number of emitters that received the event (0 when no
+     *         clients connected, or all attempts failed).
+     */
+    public int broadcastActivityEvent(String eventName, Object data) {
+        if (sseClients.isEmpty()) return 0;
+        int sent = 0;
         for (var emitter : sseClients) {
             try {
                 emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event()
                         .name(eventName).data(data));
+                sent++;
             } catch (Exception e) {
+                // Client disconnected / serialization error — drop the emitter
+                // and log loudly so downstream debugging is possible.
+                log.warn("[R134Z][ActivityMonitor] SSE send failed for event={} — dropping emitter: {}",
+                        eventName, e.toString());
                 sseClients.remove(emitter);
             }
         }
+        return sent;
     }
 }
