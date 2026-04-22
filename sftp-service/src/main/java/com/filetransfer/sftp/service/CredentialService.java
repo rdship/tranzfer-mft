@@ -41,12 +41,35 @@ public class CredentialService {
                                          String listenerInstanceId) {
         Optional<TransferAccount> opt = findAccount(username, listenerInstanceId);
         if (opt.isEmpty()) {
+            // R134W — diagnostic: SftpPasswordAuthenticator collapses both
+            // "user not found" and "wrong password" into one generic
+            // invalid_credentials log. Without this, the R134V SFTP auth
+            // regression cannot be narrowed: is the instance-scoped lookup
+            // orphaning globalbank-sftp post-rotation, or is the hash on
+            // disk actually diverging? This line makes the first case
+            // observable without a DB round-trip into audit_log.
+            String resolvedInstance = listenerInstanceId != null ? listenerInstanceId : defaultInstanceId;
+            log.warn("[CredentialService] auth DENIED — no SFTP account for username='{}' "
+                    + "resolvedInstance='{}' (listenerInstanceId='{}' defaultInstanceId='{}')",
+                    username, resolvedInstance, listenerInstanceId, defaultInstanceId);
             logAudit(null, "LOGIN_FAIL", null, ipAddress, Map.of("reason", "user not found"));
             return false;
         }
 
         TransferAccount account = opt.get();
         if (!passwordEncoder.matches(password, account.getPasswordHash())) {
+            // R134W — diagnostic: distinguishes hash-mismatch from
+            // no-account. Logs stored-hash LENGTH (not value) so we can
+            // see whether the field is populated + the expected 60 chars
+            // for BCrypt vs. a truncated / rewritten value. Also logs
+            // account.active — a deactivated account would still match
+            // here but should be gated upstream; worth confirming.
+            log.warn("[CredentialService] auth DENIED — password mismatch for username='{}' "
+                    + "accountId={} storedHashLen={} active={} instance='{}'",
+                    username, account.getId(),
+                    account.getPasswordHash() != null ? account.getPasswordHash().length() : -1,
+                    account.isActive(),
+                    listenerInstanceId != null ? listenerInstanceId : defaultInstanceId);
             logAudit(account, "LOGIN_FAIL", null, ipAddress, Map.of("reason", "wrong password"));
             return false;
         }
