@@ -4,7 +4,6 @@ import com.filetransfer.onboarding.dto.request.UpdateClusterRequest;
 import com.filetransfer.onboarding.dto.response.ClusterInfoResponse;
 import com.filetransfer.onboarding.dto.response.ServiceRegistrationResponse;
 import com.filetransfer.shared.cluster.ClusterService;
-import com.filetransfer.shared.cluster.RedisServiceRegistry;
 import com.filetransfer.shared.cluster.ServiceInstance;
 import com.filetransfer.shared.entity.core.ClusterNode;
 import com.filetransfer.shared.entity.core.ServiceRegistration;
@@ -13,10 +12,8 @@ import com.filetransfer.shared.repository.core.ClusterNodeRepository;
 import com.filetransfer.shared.repository.core.ServiceRegistrationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.lang.Nullable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -57,13 +54,13 @@ public class ClusterController {
     private final JdbcTemplate jdbc;
 
     /**
-     * Legacy Redis registry — kept injected for compatibility / fallback when
-     * PG is transiently unreachable. Scheduled for removal in Sprint 7 once
-     * ClusterEventSubscriber migrates off the Redis pub/sub channel.
+     * R134AD — Redis registry fallback removed. `platform_pod_heartbeat`
+     * (PG) has been the authoritative live-registry source since R134y;
+     * the Redis fallback path was never exercised in runtime reports
+     * (R134y onward). On PG outage we now return `available:false` with
+     * the error message instead of silently switching transports.
+     * Remaining Redis fields in this service removed alongside.
      */
-    @Autowired(required = false)
-    @Nullable
-    private RedisServiceRegistry redisServiceRegistry;
 
     @GetMapping
     public List<ClusterInfoResponse> listClusters() {
@@ -240,8 +237,12 @@ public class ClusterController {
      * to avoid collision with the pre-existing multi-tenant customer-cluster
      * table (R134A-B-runtime-verification.md §V97).
      *
-     * <p>Falls back to {@code RedisServiceRegistry} only if PG throws
-     * (transient DB outage), preserving the admin UI during incidents.
+     * <p><b>R134AD:</b> the Redis fallback branch was removed. PG
+     * {@code platform_pod_heartbeat} has been authoritative since R134y;
+     * every verification run since showed 0 Redis-fallback hits. On PG
+     * outage we now fail fast (available:false + message) so an operator
+     * sees the incident rather than silently reading a possibly-stale
+     * Redis view.
      */
     @GetMapping("/live")
     public ResponseEntity<Map<String, Object>> getLiveRegistry() {
@@ -266,16 +267,12 @@ public class ClusterController {
                         .build());
             source = "pg:platform_pod_heartbeat";
         } catch (Exception pgFailure) {
-            if (redisServiceRegistry == null) {
-                result.put("available", false);
-                result.put("message",
-                        "Primary registry (PG cluster_nodes) unavailable and no Redis fallback: "
-                                + pgFailure.getMessage());
-                return ResponseEntity.ok(result);
-            }
-            log.warn("cluster_nodes query failed, falling back to Redis registry: {}", pgFailure.getMessage());
-            all = redisServiceRegistry.getAllInstances();
-            source = "redis:fallback";
+            log.warn("[R134AD][ClusterController] cluster_nodes query failed — returning available:false (Redis fallback removed): {}",
+                    pgFailure.getMessage());
+            result.put("available", false);
+            result.put("message",
+                    "Live registry (PG platform_pod_heartbeat) unavailable: " + pgFailure.getMessage());
+            return ResponseEntity.ok(result);
         }
 
         Map<String, java.util.List<ServiceInstance>> byType = new java.util.LinkedHashMap<>();

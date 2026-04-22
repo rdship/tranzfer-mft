@@ -81,8 +81,11 @@ public class ClusterEventSubscriber {
     /**
      * Returns the URLs of all known-live instances of the given service type,
      * as learned from Pub/Sub events since this instance started.
-     * For a complete view (including pre-existing replicas), combine with
-     * {@link RedisServiceRegistry#getInstances(String)}.
+     *
+     * <p>For a complete view (including pre-existing replicas), query the
+     * authoritative PG {@code platform_pod_heartbeat} table directly —
+     * R134y made that the registry and R134AD retired the Redis
+     * discovery API this Javadoc used to reference.
      */
     public java.util.List<String> getKnownInstances(String serviceType) {
         CopyOnWriteArrayList<String> list = knownInstances.get(serviceType);
