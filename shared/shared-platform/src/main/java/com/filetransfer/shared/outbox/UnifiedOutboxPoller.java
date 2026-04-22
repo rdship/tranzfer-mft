@@ -20,9 +20,11 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -47,12 +49,17 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *       a row. Per-consumer ack tracked in {@code consumed_by JSONB}.</li>
  * </ul>
  *
- * <p><b>Handler registration:</b> services register a
- * {@link OutboxEventHandler} per routing-key prefix via
+ * <p><b>Handler registration:</b> services register one or more
+ * {@link OutboxEventHandler} instances per routing-key prefix via
  * {@link #registerHandler}. The poller dispatches rows to the matching
- * handler based on the row's {@code routing_key}; unmatched rows are
+ * handlers based on the row's {@code routing_key}; unmatched rows are
  * skipped (so a service that doesn't care about {@code account.*} just
- * doesn't register a handler for it).
+ * doesn't register a handler for it). <b>R134V:</b> multiple handlers
+ * registered at the same prefix within one service are all invoked on
+ * every matching row — enables co-existing consumers like a per-service
+ * {@code AccountEventConsumer} and a cross-cutting
+ * {@code PartnerCacheEvictionListener} on the same {@code "account."}
+ * prefix without {@code Map.put} clobbering one of them.
  *
  * <p><b>Retry semantics:</b> if a handler throws, the row stays
  * unconsumed by this service (ack doesn't get written). Next drain picks
@@ -106,8 +113,24 @@ public class UnifiedOutboxPoller {
         // rolled back and the DLQ threshold would never fire.
     }
 
-    /** Routing-key prefix → handler. First match wins. */
-    private final Map<String, OutboxEventHandler> handlers = new ConcurrentHashMap<>();
+    /**
+     * Routing-key prefix → list of handlers registered for that prefix.
+     *
+     * <p><b>R134V:</b> multi-handler support. Previously this was a
+     * {@code Map<String, OutboxEventHandler>} which meant two beans in the
+     * same service registering the same prefix clobbered each other via
+     * {@code put} (init-order fragile). With two PartnerCacheEvictionListener
+     * + AccountEventConsumer both needing {@code "account."} in sftp/ftp/
+     * ftp-web, the clobber was a real correctness risk. List-valued entries
+     * let both fire on the same row; {@link CopyOnWriteArrayList} is safe
+     * for register-at-bootstrap / read-on-every-drain access pattern.
+     *
+     * <p>Prefix-match semantics unchanged: longest matching prefix wins for
+     * any given routing key — {@code "flow.rule.updated"} still beats
+     * {@code "flow."}. The change only lets multiple handlers coexist
+     * <em>at</em> the winning prefix.
+     */
+    private final Map<String, List<OutboxEventHandler>> handlers = new ConcurrentHashMap<>();
 
     /** true while the LISTEN loop should keep running. */
     private final AtomicBoolean running = new AtomicBoolean(true);
@@ -126,11 +149,21 @@ public class UnifiedOutboxPoller {
      *   <li>{@code "account."} — matches {@code account.created}, {@code account.updated}</li>
      *   <li>{@code "flow.rule.updated"} — matches only that exact key</li>
      * </ul>
+     *
+     * <p><b>R134V — multi-handler:</b> multiple registrations on the same
+     * prefix within one service are all retained and invoked on every
+     * matching row (in registration order). Enables e.g.
+     * {@code AccountEventConsumer} + {@code PartnerCacheEvictionListener}
+     * to co-exist on {@code "account."} without the init-order clobber
+     * that {@code Map.put} previously inflicted. Handler contract
+     * (idempotency, throw-to-retry) is unchanged; the poller just fans
+     * the row out to every handler at the matched prefix.
      */
     public void registerHandler(String routingKeyPrefix, OutboxEventHandler handler) {
-        handlers.put(routingKeyPrefix, handler);
-        log.info("[Outbox/{}] Registered handler for routing key prefix '{}'",
-                consumerName, routingKeyPrefix);
+        handlers.computeIfAbsent(routingKeyPrefix, k -> new CopyOnWriteArrayList<>())
+                .add(handler);
+        log.info("[Outbox/{}] Registered handler for routing key prefix '{}' (total at prefix: {})",
+                consumerName, routingKeyPrefix, handlers.get(routingKeyPrefix).size());
     }
 
     @PostConstruct
@@ -274,20 +307,28 @@ public class UnifiedOutboxPoller {
             if (rows.isEmpty()) return; // another replica got it
 
             OutboxRow row = rows.get(0);
-            OutboxEventHandler handler = findHandler(row.routingKey);
-            if (handler == null) {
+            List<OutboxEventHandler> matched = findHandlers(row.routingKey);
+            if (matched.isEmpty()) {
                 // Should never happen — we pre-filtered via LIKE ANY — but
                 // if the handler map mutated between SELECTs, skip cleanly.
                 return;
             }
 
+            // R134V multi-handler: invoke every handler at the matched
+            // prefix within this row's single transaction. If ANY handler
+            // throws, the whole tx rolls back (including any partial work
+            // done by earlier handlers in this iteration) and the row
+            // stays un-ack'd for retry. All handlers must be idempotent
+            // per the OutboxEventHandler contract (R134t).
             try {
-                handler.handle(row);
+                for (OutboxEventHandler handler : matched) {
+                    handler.handle(row);
+                }
                 markConsumed(row.id);
             } catch (Exception e) {
                 log.warn("[Outbox/{}] handler threw on row id={} routing={}: {} — row will retry",
                         consumerName, row.id, row.routingKey, e.getMessage());
-                // Rollback undoes any partial work the handler did INSIDE
+                // Rollback undoes any partial work handlers did INSIDE
                 // this tx (handlers often write to other tables — those
                 // changes must not land if we'll retry). markConsumed was
                 // never called so the row stays un-ack'd from our view.
@@ -332,9 +373,11 @@ public class UnifiedOutboxPoller {
         }
     }
 
-    private OutboxEventHandler findHandler(String routingKey) {
+    private List<OutboxEventHandler> findHandlers(String routingKey) {
         // Longest-prefix-wins match so "flow.rule.updated" beats "flow." if
-        // both are registered.
+        // both are registered. At the matched prefix, returns ALL handlers
+        // registered there (R134V multi-handler support) — caller invokes
+        // every one on the same row.
         String best = null;
         for (String prefix : handlers.keySet()) {
             if (routingKey.startsWith(prefix)
@@ -342,7 +385,9 @@ public class UnifiedOutboxPoller {
                 best = prefix;
             }
         }
-        return best == null ? null : handlers.get(best);
+        if (best == null) return Collections.emptyList();
+        List<OutboxEventHandler> matched = handlers.get(best);
+        return matched != null ? matched : Collections.emptyList();
     }
 
     private void markConsumed(long rowId) {
