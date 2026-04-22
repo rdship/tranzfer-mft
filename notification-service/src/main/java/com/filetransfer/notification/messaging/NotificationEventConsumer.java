@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.filetransfer.notification.dto.NotificationEvent;
 import com.filetransfer.notification.service.NotificationDispatcher;
 import com.filetransfer.shared.fabric.EventFabricBridge;
+import com.filetransfer.shared.outbox.UnifiedOutboxPoller;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;
@@ -15,16 +16,28 @@ import java.time.Instant;
 import java.util.Map;
 
 /**
- * RabbitMQ consumer that receives all platform events and forwards them
- * to the notification dispatcher for rule matching and dispatch.
+ * Universal platform-event consumer for the notification rule engine.
  *
- * Graceful degradation: if processing fails, the event is logged but
- * never blocks the originating service. Failed notifications are retried
- * by the scheduled retry mechanism.
+ * <p><b>R134Y — Sprint 8:</b> now dual-transport:
+ * <ul>
+ *   <li><b>Outbox</b> — registers one {@link com.filetransfer.shared.outbox.OutboxEventHandler}
+ *       per migrated routing-key prefix ({@code keystore.}, {@code flow.rule.},
+ *       {@code account.}, {@code server.instance.}) via R134V's multi-handler cap.
+ *       These are the 4 event classes retired from RabbitMQ in Sprint 6 / 7.</li>
+ *   <li><b>RabbitMQ</b> — retained {@code @RabbitListener} on the
+ *       {@code notification.events} queue (bound to {@code #} on the
+ *       {@code file-transfer.events} exchange) still receives the surviving
+ *       RabbitMQ traffic: {@code file.uploaded} + {@code transfer.*}.
+ *       With publishers for the 4 migrated classes no longer emitting to
+ *       RabbitMQ, this listener's effective traffic is just file-upload
+ *       lifecycle.</li>
+ *   <li><b>Fabric</b> — feature-flagged additive path, unchanged.</li>
+ * </ul>
  *
- * Dual-subscribes to Fabric (events.notification topic) when
- * EventFabricBridge is available. Duplicate delivery is safe because
- * the dispatcher dedupes by trackId + eventType.
+ * <p>Graceful degradation: if processing fails the event is logged but
+ * never blocks the originating service. Dispatcher dedupes by
+ * {@code trackId + eventType} so duplicate delivery across transports is
+ * safe.
  */
 @Slf4j
 @Component
@@ -36,6 +49,33 @@ public class NotificationEventConsumer {
 
     @Autowired(required = false)
     private EventFabricBridge eventFabricBridge;
+
+    /** R134Y — universal consumer over outbox for the 4 migrated event classes. */
+    @Autowired(required = false)
+    private UnifiedOutboxPoller outboxPoller;
+
+    @jakarta.annotation.PostConstruct
+    void subscribeOutboxEvents() {
+        if (outboxPoller == null) {
+            log.error("[R134Y][NotificationEventConsumer][boot] UnifiedOutboxPoller missing — "
+                    + "outbox-migrated events (keystore/flow.rule/account/server.instance) will NOT reach the notification dispatcher");
+            return;
+        }
+        for (String prefix : new String[] {
+                "keystore.", "flow.rule.", "account.", "server.instance." }) {
+            outboxPoller.registerHandler(prefix, row -> {
+                log.info("[R134Y][NotificationEventConsumer][outbox] row id={} routingKey={} aggregateId={}",
+                        row.id(), row.routingKey(), row.aggregateId());
+                @SuppressWarnings("unchecked")
+                Map<String, Object> payload = row.as(Map.class, objectMapper);
+                if (payload != null) {
+                    handleEvent(payload, row.routingKey());
+                }
+            });
+        }
+        log.info("[R134Y][NotificationEventConsumer][boot] outbox handlers registered on "
+                + "[keystore., flow.rule., account., server.instance.]; @RabbitListener still active for file.uploaded + transfer.*");
+    }
 
     @jakarta.annotation.PostConstruct
     void subscribeFabricEvents() {

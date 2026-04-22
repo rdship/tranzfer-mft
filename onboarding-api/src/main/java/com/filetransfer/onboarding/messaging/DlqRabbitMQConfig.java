@@ -13,16 +13,22 @@ import org.springframework.retry.policy.SimpleRetryPolicy;
 import org.springframework.retry.support.RetryTemplate;
 
 /**
- * Dead Letter Queue infrastructure for the TranzFer platform.
+ * Dead-letter infrastructure for the TranzFer RabbitMQ footprint.
  *
- * Topology:
- *   Original queue  --x (rejected after 3 retries)--> DLX --> service.account.events.dlq
+ * <p><b>R134Y — Sprint 8:</b> the 5 Sprint-6 DLQ declarations
+ * ({@code sftp.account.events.dlq}, {@code ftp.account.events.dlq},
+ * {@code ftpweb.account.events.dlq}, {@code keystore.rotation.dlq},
+ * {@code server.instance.dlq}) + their bindings + the
+ * {@code DeadLetterConsumer} that drained them were deleted along with
+ * their source queues in R134X / R134Y. The surviving RabbitMQ footprint
+ * is now {@code file.uploaded} + the activity-stream + notification fanout
+ * queues; these don't currently wire to a DLQ (dispatcher dedupe + graceful
+ * degradation handle failures in-process).
  *
- * The DLX is a fanout exchange so every DLQ bound to it receives rejected messages
- * with routing based on the original queue name.
- *
- * Retry policy: 3 attempts, exponential backoff (1s, 2s, 4s).
- * After exhaustion the message is rejected (not requeued) which triggers DLX routing.
+ * <p>The {@link #DLX_EXCHANGE} + the shared listener-container factory
+ * stay in place so future event classes that want DLQ semantics can
+ * re-use them without re-declaring retry / back-off / reject-and-don't-requeue
+ * configuration.
  */
 @Configuration
 @ConditionalOnClass(ConnectionFactory.class)
@@ -30,74 +36,9 @@ public class DlqRabbitMQConfig {
 
     public static final String DLX_EXCHANGE = "file-transfer.events.dlx";
 
-    public static final String SFTP_DLQ = "sftp.account.events.dlq";
-    public static final String FTP_DLQ = "ftp.account.events.dlq";
-    public static final String FTPWEB_DLQ = "ftpweb.account.events.dlq";
-    public static final String KEYSTORE_ROTATION_DLQ = "keystore.rotation.dlq";
-    public static final String SERVER_INSTANCE_DLQ  = "server.instance.dlq";
-
-    // ── Dead Letter Exchange ───────────────────────────────────────────
-
     @Bean
     public TopicExchange deadLetterExchange() {
         return ExchangeBuilder.topicExchange(DLX_EXCHANGE).durable(true).build();
-    }
-
-    // ── Dead Letter Queues ─────────────────────────────────────────────
-
-    @Bean
-    public Queue sftpDlq() {
-        return QueueBuilder.durable(SFTP_DLQ).build();
-    }
-
-    @Bean
-    public Queue ftpDlq() {
-        return QueueBuilder.durable(FTP_DLQ).build();
-    }
-
-    @Bean
-    public Queue ftpWebDlq() {
-        return QueueBuilder.durable(FTPWEB_DLQ).build();
-    }
-
-    /** Collects rejected keystore-rotation events so poison messages don't vanish silently. */
-    @Bean
-    public Queue keystoreRotationDlq() {
-        return QueueBuilder.durable(KEYSTORE_ROTATION_DLQ).build();
-    }
-
-    /** Collects rejected server-instance lifecycle events (CREATED/UPDATED/DELETED etc.). */
-    @Bean
-    public Queue serverInstanceDlq() {
-        return QueueBuilder.durable(SERVER_INSTANCE_DLQ).build();
-    }
-
-    // ── Bindings ───────────────────────────────────────────────────────
-
-    @Bean
-    public Binding sftpDlqBinding(Queue sftpDlq, TopicExchange deadLetterExchange) {
-        return BindingBuilder.bind(sftpDlq).to(deadLetterExchange).with("sftp.account.events");
-    }
-
-    @Bean
-    public Binding ftpDlqBinding(Queue ftpDlq, TopicExchange deadLetterExchange) {
-        return BindingBuilder.bind(ftpDlq).to(deadLetterExchange).with("ftp.account.events");
-    }
-
-    @Bean
-    public Binding ftpWebDlqBinding(Queue ftpWebDlq, TopicExchange deadLetterExchange) {
-        return BindingBuilder.bind(ftpWebDlq).to(deadLetterExchange).with("ftpweb.account.events");
-    }
-
-    @Bean
-    public Binding keystoreRotationDlqBinding(Queue keystoreRotationDlq, TopicExchange deadLetterExchange) {
-        // Wildcard: covers keystore.key.rotated and any future keystore.key.* events.
-        return BindingBuilder.bind(keystoreRotationDlq).to(deadLetterExchange).with("keystore.key.#");
-    }
-
-    @Bean
-    public Binding serverInstanceDlqBinding(Queue serverInstanceDlq, TopicExchange deadLetterExchange) {
-        return BindingBuilder.bind(serverInstanceDlq).to(deadLetterExchange).with("server.instance.#");
     }
 
     // ── Listener container with retry + DLQ routing ────────────────────

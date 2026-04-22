@@ -19,6 +19,14 @@ public interface FileTransferRecordRepository
 
     List<FileTransferRecord> findByUploadedAtAfter(Instant since);
 
+    /**
+     * R134Y Sprint 8 — drives ActivityStreamConsumer's 1s SSE poll. Cursor
+     * is an {@code Instant} starting at service boot; tick N returns every
+     * record updated since tick N-1. Limit is implicit: the poll interval
+     * × write rate bounds the row count returned per tick.
+     */
+    List<FileTransferRecord> findByUpdatedAtAfterOrderByUpdatedAtAsc(Instant since);
+
     Optional<FileTransferRecord> findByTrackId(String trackId);
 
     List<FileTransferRecord> findByStatus(FileTransferStatus status);
