@@ -6,24 +6,22 @@ import com.filetransfer.shared.fabric.EventFabricBridge;
 import com.filetransfer.shared.outbox.UnifiedOutboxPoller;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.core.Binding;
-import org.springframework.amqp.core.BindingBuilder;
-import org.springframework.amqp.core.Queue;
-import org.springframework.amqp.core.QueueBuilder;
-import org.springframework.amqp.core.TopicExchange;
-import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.stereotype.Component;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * <p><b>R134X — Sprint 7 Phase B:</b> OUTBOX-ONLY. Legacy
+ * {@code @RabbitListener} + Queue/Exchange/Binding {@code @Bean}
+ * declarations + dual-consume log removed. {@link UnifiedOutboxPoller}
+ * is the sole inter-service transport.
+ */
 @Slf4j
-@Configuration
+@Component
 @RequiredArgsConstructor
 public class AccountEventConsumer {
 
@@ -36,33 +34,8 @@ public class AccountEventConsumer {
     @Autowired(required = false)
     private PartnerCache partnerCache;
 
-    /** R134R — outbox dual-consume (see sftp-service AccountEventConsumer Javadoc). */
     @Autowired(required = false)
     private UnifiedOutboxPoller outboxPoller;
-
-    @Value("${rabbitmq.exchange}")
-    private String exchange;
-
-    @Value("${rabbitmq.queue.ftpweb-events}")
-    private String queueName;
-
-    @Bean
-    public Queue ftpWebEventsQueue() {
-        return QueueBuilder.durable(queueName)
-                .withArgument("x-dead-letter-exchange", "file-transfer.events.dlx")
-                .withArgument("x-dead-letter-routing-key", "ftpweb.account.events")
-                .build();
-    }
-
-    @Bean
-    public TopicExchange ftpWebExchange() {
-        return new TopicExchange(exchange, true, false);
-    }
-
-    @Bean
-    public Binding ftpWebBinding(Queue ftpWebEventsQueue, TopicExchange ftpWebExchange) {
-        return BindingBuilder.bind(ftpWebEventsQueue).to(ftpWebExchange).with("account.*");
-    }
 
     @jakarta.annotation.PostConstruct
     void subscribeFabricEvents() {
@@ -90,37 +63,32 @@ public class AccountEventConsumer {
     @jakarta.annotation.PostConstruct
     void subscribeOutboxEvents() {
         if (outboxPoller == null || objectMapper == null) {
-            log.info("[FTP-Web][account] boot — @RabbitListener only; UnifiedOutboxPoller not in context");
+            log.error("[R134X][FTP-Web][account][boot] UnifiedOutboxPoller or ObjectMapper missing — account.* events will NOT be consumed");
             return;
         }
         outboxPoller.registerHandler("account.", row -> {
-            log.info("[FTP-Web][account][outbox] row id={} routingKey={} aggregateId={}",
+            log.info("[R134X][FTP-Web][account][outbox] row id={} routingKey={} aggregateId={}",
                     row.id(), row.routingKey(), row.aggregateId());
             @SuppressWarnings("unchecked")
             Map<String, Object> payload = row.as(Map.class, objectMapper);
             handleEvent(payload);
         });
-        log.info("[FTP-Web][account] boot — dual-consume ACTIVE: @RabbitListener + outbox handler (R134R)");
-    }
-
-    @RabbitListener(queues = "${rabbitmq.queue.ftpweb-events}")
-    public void handleAccountEvent(Map<String, Object> event) {
-        handleEvent(event);
+        log.info("[R134X][FTP-Web][account][boot] OUTBOX-ONLY active; @RabbitListener removed");
     }
 
     /**
-     * Idempotent event handler shared by RabbitMQ and Fabric paths.
+     * Idempotent event handler.
      */
     private void handleEvent(Map<String, Object> event) {
         String eventType = (String) event.get("eventType");
         String username = (String) event.get("username");
         String homeDir = (String) event.get("homeDir");
 
-        log.debug("FTP-Web received account event: type={} username={}", eventType, username);
+        log.debug("[R134X][FTP-Web][account] received type={} username={}", eventType, username);
 
         // Evict credential cache on account updates so next request picks up fresh data
         if ("account.updated".equals(eventType) && username != null) {
-            log.info("FTP-Web cache evicted for updated account: {}", username);
+            log.info("[R134X][FTP-Web][account] cache evicted for updated account: {}", username);
         }
 
         // Phase 1: evict partner cache on account events
@@ -135,7 +103,7 @@ public class AccountEventConsumer {
         if ("account.created".equals(eventType) && homeDir != null) {
             String storageMode = (String) event.getOrDefault("storageMode", "PHYSICAL");
             if ("VIRTUAL".equalsIgnoreCase(storageMode)) {
-                log.info("VIRTUAL account {} — physical dir creation skipped (VFS-managed)", username);
+                log.info("[R134X][FTP-Web][account] VIRTUAL account {} — physical dir creation skipped (VFS-managed)", username);
                 return;
             }
             try {
@@ -149,9 +117,9 @@ public class AccountEventConsumer {
                 for (String folder : folderPaths) {
                     Files.createDirectories(Paths.get(homeDir, folder));
                 }
-                log.info("Created {} directories for {}: {}", folderPaths.size(), username, homeDir);
+                log.info("[R134X][FTP-Web][account] created {} directories for {}: {}", folderPaths.size(), username, homeDir);
             } catch (Exception e) {
-                log.warn("Could not create directories for {}: {}", username, e.getMessage());
+                log.warn("[R134X][FTP-Web][account] Could not create directories for {}: {}", username, e.getMessage());
             }
         }
     }

@@ -9,15 +9,8 @@ import com.filetransfer.shared.outbox.UnifiedOutboxPoller;
 import com.filetransfer.shared.repository.core.ServerInstanceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.core.Binding;
-import org.springframework.amqp.core.BindingBuilder;
-import org.springframework.amqp.core.Queue;
-import org.springframework.amqp.core.QueueBuilder;
-import org.springframework.amqp.core.TopicExchange;
-import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
@@ -26,67 +19,44 @@ import java.util.Map;
  * {@link SftpListenerRegistry} to bind / unbind / rebind live listeners
  * without a service restart.
  *
- * <p>Events are published by onboarding-api's outbox poller to routing keys
- * {@code server.instance.created|updated|activated|deactivated|deleted}.</p>
+ * <p>Events are published by onboarding-api's {@code ServerInstanceService}
+ * to {@code event_outbox} on routing keys {@code server.instance.created|
+ * updated|activated|deactivated|deleted}.</p>
+ *
+ * <p><b>R134X — Sprint 7 Phase B:</b> OUTBOX-ONLY. Legacy
+ * {@code @RabbitListener} + Queue/Exchange/Binding {@code @Bean}
+ * declarations removed. Handler runs solely via
+ * {@link UnifiedOutboxPoller}.</p>
  */
 @Slf4j
-@Configuration
+@Component
 @RequiredArgsConstructor
 public class ServerInstanceEventConsumer {
-
-    private static final String QUEUE    = "sftp-server-instance-events";
-    private static final String EXCHANGE = "file-transfer.events";
-    private static final String PATTERN  = "server.instance.*";
 
     private final SftpListenerRegistry registry;
     private final ServerInstanceRepository repository;
     private final ObjectMapper objectMapper;
 
-    /**
-     * R134S Sprint 6 — register an OutboxEventHandler on routing-key prefix
-     * "server.instance." so events produced by {@code UnifiedOutboxWriter}
-     * in onboarding-api's ServerInstanceService are drained here directly,
-     * parallel to the legacy RabbitMQ path. Shared {@link #onChange} is
-     * idempotent (registry bind/unbind/rebind converge) — duplicate
-     * delivery across transports is safe.
-     */
     @Autowired(required = false)
     private UnifiedOutboxPoller outboxPoller;
 
     @jakarta.annotation.PostConstruct
     void subscribeOutboxEvents() {
         if (outboxPoller == null) {
-            log.info("[SFTP][server-instance] boot — @RabbitListener only; UnifiedOutboxPoller not in context");
+            log.error("[R134X][SFTP][server-instance][boot] UnifiedOutboxPoller missing — server.instance.* events will NOT be consumed");
             return;
         }
         outboxPoller.registerHandler("server.instance.", row -> {
-            log.info("[SFTP][server-instance][outbox] row id={} routingKey={} aggregateId={}",
+            log.info("[R134X][SFTP][server-instance][outbox] row id={} routingKey={} aggregateId={}",
                     row.id(), row.routingKey(), row.aggregateId());
             @SuppressWarnings("unchecked")
             Map<String, Object> payload = row.as(Map.class, objectMapper);
             onChange(payload);
         });
-        log.info("[SFTP][server-instance] boot — dual-consume ACTIVE: @RabbitListener + outbox handler (R134S)");
+        log.info("[R134X][SFTP][server-instance][boot] OUTBOX-ONLY active; @RabbitListener removed");
     }
 
-    @Bean
-    public Queue sftpServerInstanceQueue() {
-        return QueueBuilder.durable(QUEUE)
-                .withArgument("x-dead-letter-exchange", "file-transfer.events.dlx")
-                .build();
-    }
-
-    @Bean
-    public TopicExchange sftpServerInstanceExchange() {
-        return new TopicExchange(EXCHANGE, true, false);
-    }
-
-    @Bean
-    public Binding sftpServerInstanceBinding(Queue sftpServerInstanceQueue, TopicExchange sftpServerInstanceExchange) {
-        return BindingBuilder.bind(sftpServerInstanceQueue).to(sftpServerInstanceExchange).with(PATTERN);
-    }
-
-    @RabbitListener(queues = QUEUE)
+    /** Idempotent listener driver; safe under duplicate delivery. */
     public void onChange(Map<String, Object> payload) {
         try {
             ServerInstanceChangeEvent event = objectMapper.convertValue(payload, ServerInstanceChangeEvent.class);
@@ -95,10 +65,11 @@ public class ServerInstanceEventConsumer {
             switch (event.changeType()) {
                 case CREATED, ACTIVATED -> {
                     ServerInstance si = repository.findById(event.id()).orElse(null);
-                    if (si == null) { log.warn("ServerInstance {} not found in DB for {}", event.id(), event.changeType()); return; }
+                    if (si == null) { log.warn("[R134X][SFTP][server-instance] ServerInstance {} not found in DB for {}", event.id(), event.changeType()); return; }
                     if (!si.isActive()) return;
                     if (registry.isPrimary(si)) {
-                        log.info("Skipping bind for primary listener '{}' — managed by env-var bean, not registry", si.getInstanceId());
+                        log.info("[R134X][SFTP][server-instance] skipping bind for primary listener '{}' — managed by env-var bean",
+                                si.getInstanceId());
                         return;
                     }
                     registry.bind(si);
@@ -112,7 +83,7 @@ public class ServerInstanceEventConsumer {
                     // time (BindException → BIND_FAILED in DB). Admin must restart
                     // the container to pick up primary config changes.
                     if (registry.isPrimary(si)) {
-                        log.info("Skipping rebind for primary listener '{}' — restart the container to apply primary config changes",
+                        log.info("[R134X][SFTP][server-instance] skipping rebind for primary listener '{}' — restart the container to apply primary config changes",
                                 si.getInstanceId());
                         return;
                     }
@@ -122,8 +93,8 @@ public class ServerInstanceEventConsumer {
                 case DEACTIVATED, DELETED -> registry.unbind(event.id());
             }
         } catch (Exception e) {
-            log.error("Failed to handle ServerInstance change event: {}", e.getMessage(), e);
-            throw e; // let DLQ handle it
+            log.error("[R134X][SFTP][server-instance] failed to handle change event: {}", e.getMessage(), e);
+            throw e; // poller retries with backoff per R134t contract
         }
     }
 }

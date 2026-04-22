@@ -10,19 +10,11 @@ import com.filetransfer.shared.repository.core.ServerInstanceRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.core.Binding;
-import org.springframework.amqp.core.BindingBuilder;
-import org.springframework.amqp.core.Queue;
-import org.springframework.amqp.core.QueueBuilder;
-import org.springframework.amqp.core.TopicExchange;
-import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.lang.Nullable;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Hot-reload affected FTPS listeners when keystore-manager rotates a TLS cert.
@@ -30,19 +22,17 @@ import java.util.Map;
  * new cert on next accept. Connected sessions are NOT dropped — new connections
  * get the new cert on their own TLS handshake.
  *
- * <p>R134D Sprint 6 — dual-consume: legacy @RabbitListener + OutboxEventHandler
- * (PG LISTEN/NOTIFY via UnifiedOutboxPoller). rebind() is idempotent, so a
- * row delivered on both transports rebuilds the listener twice — still
- * correct, just one redundant rebind. Sprint 7 removes the RabbitMQ path.
+ * <p><b>R134X — Sprint 7 Phase B:</b> OUTBOX-ONLY. The legacy
+ * {@code @RabbitListener}, Queue/Exchange/Binding {@code @Bean} declarations,
+ * and dual-consume boot log were deleted. {@link UnifiedOutboxPoller} now
+ * delivers {@code keystore.key.rotated} rows directly to the handler.
  */
 @Slf4j
-@Configuration
+@Component
 @RequiredArgsConstructor
 public class KeystoreRotationConsumer {
 
-    private static final String QUEUE    = "ftp-keystore-rotation";
-    private static final String EXCHANGE = "file-transfer.events";
-    private static final String PATTERN  = "keystore.key.rotated";
+    private static final String PATTERN = "keystore.key.rotated";
 
     private final FtpListenerRegistry registry;
     private final ServerInstanceRepository repository;
@@ -56,52 +46,24 @@ public class KeystoreRotationConsumer {
     void boot() {
         if (outboxPoller != null) {
             outboxPoller.registerHandler(PATTERN, row -> {
-                log.info("[FTP][keystore-rotation][outbox] row id={} routingKey={} aggregateId={}",
+                log.info("[R134X][FTP][keystore-rotation][outbox] row id={} routingKey={} aggregateId={}",
                         row.id(), row.routingKey(), row.aggregateId());
                 KeystoreKeyRotatedEvent ev = row.as(KeystoreKeyRotatedEvent.class, objectMapper);
-                applyRotation(ev, "outbox");
+                applyRotation(ev);
             });
-            log.info("[FTP][keystore-rotation] boot — dual-consume ACTIVE: @RabbitListener + outbox handler (R134D)");
+            log.info("[R134X][FTP][keystore-rotation][boot] OUTBOX-ONLY active; @RabbitListener removed");
         } else {
-            log.info("[FTP][keystore-rotation] boot — @RabbitListener only; UnifiedOutboxPoller not on classpath");
+            log.error("[R134X][FTP][keystore-rotation][boot] UnifiedOutboxPoller missing — TLS cert rotation events will NOT be consumed");
         }
     }
 
-    @Bean
-    public Queue ftpKeystoreRotationQueue() {
-        return QueueBuilder.durable(QUEUE)
-                .withArgument("x-dead-letter-exchange", "file-transfer.events.dlx")
-                .build();
-    }
-
-    @Bean
-    public TopicExchange ftpKeystoreRotationExchange() {
-        return new TopicExchange(EXCHANGE, true, false);
-    }
-
-    @Bean
-    public Binding ftpKeystoreRotationBinding(Queue ftpKeystoreRotationQueue, TopicExchange ftpKeystoreRotationExchange) {
-        return BindingBuilder.bind(ftpKeystoreRotationQueue).to(ftpKeystoreRotationExchange).with(PATTERN);
-    }
-
-    @RabbitListener(queues = QUEUE)
-    public void onRotation(Map<String, Object> payload) {
-        try {
-            KeystoreKeyRotatedEvent event = objectMapper.convertValue(payload, KeystoreKeyRotatedEvent.class);
-            applyRotation(event, "rabbitmq");
-        } catch (Exception e) {
-            log.error("[FTP][keystore-rotation][rabbitmq] handler failed: {}", e.getMessage(), e);
-            throw e;
-        }
-    }
-
-    private void applyRotation(KeystoreKeyRotatedEvent event, String source) {
+    private void applyRotation(KeystoreKeyRotatedEvent event) {
         if (!"TLS_CERT".equals(event.keyType())) {
-            log.debug("[FTP][keystore-rotation][{}] ignoring keyType={} — not TLS", source, event.keyType());
+            log.debug("[R134X][FTP][keystore-rotation] ignoring keyType={} — not TLS", event.keyType());
             return;
         }
-        log.info("[FTP][keystore-rotation][{}] TLS cert rotated ({} → {}); refreshing dynamic FTP listeners",
-                source, event.oldAlias(), event.newAlias());
+        log.info("[R134X][FTP][keystore-rotation] TLS cert rotated ({} → {}); refreshing dynamic FTP listeners",
+                event.oldAlias(), event.newAlias());
         List<ServerInstance> listeners = repository.findByProtocolAndActiveTrue(Protocol.FTP);
         int refreshed = 0;
         for (ServerInstance si : listeners) {
@@ -110,6 +72,6 @@ public class KeystoreRotationConsumer {
                 refreshed++;
             }
         }
-        log.info("[FTP][keystore-rotation][{}] complete — {} FTP listeners rebound", source, refreshed);
+        log.info("[R134X][FTP][keystore-rotation] complete — {} FTP listeners rebound", refreshed);
     }
 }

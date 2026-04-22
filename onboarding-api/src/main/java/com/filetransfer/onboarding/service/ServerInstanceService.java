@@ -8,7 +8,6 @@ import com.filetransfer.shared.dto.ServerInstanceChangeEvent;
 import com.filetransfer.shared.entity.core.FolderTemplate;
 import com.filetransfer.shared.entity.core.ServerInstance;
 import com.filetransfer.shared.enums.Protocol;
-import com.filetransfer.shared.outbox.OutboxWriter;
 import com.filetransfer.shared.outbox.UnifiedOutboxWriter;
 import com.filetransfer.shared.repository.core.FolderTemplateRepository;
 import com.filetransfer.shared.repository.core.ServerInstanceRepository;
@@ -28,15 +27,14 @@ public class ServerInstanceService {
     private final ServerInstanceRepository repository;
     private final FolderTemplateRepository folderTemplateRepository;
     private final DmzProxyClient dmzProxyClient;
-    private final OutboxWriter outboxWriter;
 
     /**
-     * R134S Sprint 6 — final of 4 event classes migrating off the legacy
-     * {@code config_event_outbox} → RabbitMQ bridge. Dual-write to
-     * {@link UnifiedOutboxWriter} so consumers that register via
-     * {@code UnifiedOutboxPoller} get the event directly, while the
-     * legacy path (OutboxWriter → OutboxPoller → RabbitMQ →
-     * {@code @RabbitListener}) keeps working until Sprint 7.
+     * R134S Sprint 6 / R134X Sprint 7 Phase B — single-writer to the
+     * unified event_outbox. The legacy {@link com.filetransfer.shared.outbox.OutboxWriter}
+     * field + its config_event_outbox → OutboxPoller → RabbitMQ bridge were
+     * deleted in R134X. Consumers (sftp / ftp / as2 / https
+     * {@code ServerInstanceEventConsumer}) now drain solely via
+     * {@link UnifiedOutboxPoller}.
      */
     @Autowired(required = false)
     private UnifiedOutboxWriter unifiedOutboxWriter;
@@ -283,20 +281,18 @@ public class ServerInstanceService {
                 instance.getInternalPort(),
                 instance.isActive(),
                 type);
-        // R134S Sprint 6 / R134U Sprint 7 Phase A — OUTBOX-ONLY.
-        // event_outbox → UnifiedOutboxPoller → OutboxEventHandler in
-        // sftp/ftp/as2/https ServerInstanceEventConsumer. Runtime-verified
-        // in R134S + R134S-stability report.
+        // R134S Sprint 6 / R134X Sprint 7 Phase B — OUTBOX-ONLY single-write.
+        // event_outbox → UnifiedOutboxPoller → OutboxEventHandler in sftp /
+        // ftp / as2 / https ServerInstanceEventConsumer.
         //
-        // Pre-R134U this method dual-WROTE to OutboxWriter (the legacy
-        // config_event_outbox → OutboxPoller → RabbitMQ bridge) as well.
-        // That legacy branch is removed now; the unused OutboxWriter field
-        // + imports + legacy bean itself will be deleted in Sprint 7
-        // Phase B once runtime-clean.
+        // Pre-R134X this method dual-WROTE to the legacy OutboxWriter (→
+        // config_event_outbox → OutboxPoller → RabbitMQ → @RabbitListener).
+        // R134X deletes that whole legacy chain — writer, poller, entity,
+        // repo, and the dormant @RabbitListener consumers all gone.
         //
-        // unifiedOutboxWriter.write runs @Transactional(MANDATORY) and
-        // joins the caller's tx so the ServerInstance row save and the
-        // event_outbox row commit atomically.
+        // unifiedOutboxWriter.write runs @Transactional(MANDATORY) and joins
+        // the caller's tx so the ServerInstance row save and the event_outbox
+        // row commit atomically.
         if (unifiedOutboxWriter != null) {
             unifiedOutboxWriter.write(
                     "server_instance",
@@ -304,6 +300,11 @@ public class ServerInstanceService {
                     type.name(),
                     event.routingKey(),
                     event);
+            log.info("[R134X][ServerInstanceService] outbox row committed instanceId={} protocol={} type={} routingKey={}",
+                    instance.getInstanceId(), instance.getProtocol(), type, event.routingKey());
+        } else {
+            log.error("[R134X][ServerInstanceService] UnifiedOutboxWriter missing — {} NOT published for instanceId={}",
+                    event.routingKey(), instance.getInstanceId());
         }
     }
 

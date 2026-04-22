@@ -6,7 +6,6 @@ import com.filetransfer.onboarding.dto.response.ServerInstanceResponse;
 import com.filetransfer.shared.client.DmzProxyClient;
 import com.filetransfer.shared.entity.core.ServerInstance;
 import com.filetransfer.shared.enums.Protocol;
-import com.filetransfer.shared.outbox.OutboxWriter;
 import com.filetransfer.shared.repository.core.FolderTemplateRepository;
 import com.filetransfer.shared.repository.core.ServerInstanceRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,13 +43,15 @@ class ServerInstanceServiceFtpTest {
     @Mock private ServerInstanceRepository repository;
     @Mock private FolderTemplateRepository folderTemplateRepository;
     @Mock private DmzProxyClient dmzProxyClient;
-    @Mock private OutboxWriter outboxWriter;
 
     private ServerInstanceService service;
 
     @BeforeEach
     void setUp() {
-        service = new ServerInstanceService(repository, folderTemplateRepository, dmzProxyClient, outboxWriter);
+        // R134X Sprint 7 Phase B — legacy OutboxWriter removed; UnifiedOutboxWriter
+        // is @Autowired(required=false) so tests that don't need event publishing
+        // work without mocking it (the null-check in publishChange handles it).
+        service = new ServerInstanceService(repository, folderTemplateRepository, dmzProxyClient);
     }
 
     @Test

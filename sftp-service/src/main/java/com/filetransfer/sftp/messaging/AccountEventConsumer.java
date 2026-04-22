@@ -9,20 +9,23 @@ import com.filetransfer.sftp.session.ConnectionManager;
 import com.filetransfer.sftp.throttle.BandwidthThrottleManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.core.*;
-import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.stereotype.Component;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Map;
 
+/**
+ * <p><b>R134X — Sprint 7 Phase B:</b> OUTBOX-ONLY. The legacy
+ * {@code @RabbitListener}, Queue/Exchange/Binding {@code @Bean}
+ * declarations, and the dual-consume boot log were deleted.
+ * {@link UnifiedOutboxPoller} delivers {@code account.*} rows
+ * directly; {@link com.filetransfer.shared.cache.PartnerCacheEvictionListener}
+ * co-registers on the same prefix via R134V's multi-handler cap.
+ */
 @Slf4j
-@Configuration
+@Component
 @RequiredArgsConstructor
 public class AccountEventConsumer {
 
@@ -40,43 +43,8 @@ public class AccountEventConsumer {
     @Autowired(required = false)
     private PartnerCache partnerCache;
 
-    /**
-     * R134R Sprint 6 — when the unified outbox poller is in the context,
-     * register an OutboxEventHandler for {@code account.*} rows. The
-     * legacy {@code @RabbitListener} below stays active (dual-consume)
-     * until Sprint 7 removes the RabbitMQ path. {@link #handleEvent} is
-     * idempotent so a row reaching both transports produces one
-     * redundant refresh — cache eviction, QoS re-register, and directory
-     * creation are all convergent.
-     */
     @Autowired(required = false)
     private UnifiedOutboxPoller outboxPoller;
-
-    @Value("${rabbitmq.exchange:file-transfer.events}")
-    private String exchange;
-
-    @Value("${rabbitmq.queue.sftp-events:sftp.account.events}")
-    private String queueName;
-
-    // RabbitMQ JSON converter removed — centralized in shared-platform RabbitJsonConfig
-
-    @Bean
-    public Queue sftpEventsQueue() {
-        return QueueBuilder.durable(queueName)
-                .withArgument("x-dead-letter-exchange", "file-transfer.events.dlx")
-                .withArgument("x-dead-letter-routing-key", "sftp.account.events")
-                .build();
-    }
-
-    @Bean
-    public TopicExchange sftpExchange() {
-        return new TopicExchange(exchange, true, false);
-    }
-
-    @Bean
-    public Binding sftpBinding(Queue sftpEventsQueue, TopicExchange sftpExchange) {
-        return BindingBuilder.bind(sftpEventsQueue).to(sftpExchange).with("account.*");
-    }
 
     @jakarta.annotation.PostConstruct
     void subscribeFabricEvents() {
@@ -104,35 +72,23 @@ public class AccountEventConsumer {
     @jakarta.annotation.PostConstruct
     void subscribeOutboxEvents() {
         if (outboxPoller == null || injectedObjectMapper == null) {
-            log.info("[SFTP][account] boot — @RabbitListener only; UnifiedOutboxPoller not in context");
+            log.error("[R134X][SFTP][account][boot] UnifiedOutboxPoller or ObjectMapper missing — account.* events will NOT be consumed");
             return;
         }
         outboxPoller.registerHandler("account.", row -> {
-            log.info("[SFTP][account][outbox] row id={} routingKey={} aggregateId={}",
+            log.info("[R134X][SFTP][account][outbox] row id={} routingKey={} aggregateId={}",
                     row.id(), row.routingKey(), row.aggregateId());
             @SuppressWarnings("unchecked")
             Map<String, Object> payload = row.as(Map.class, injectedObjectMapper);
             handleEvent(payload);
         });
-        log.info("[SFTP][account] boot — dual-consume ACTIVE: @RabbitListener + outbox handler (R134R)");
-    }
-
-    @RabbitListener(queues = "${rabbitmq.queue.sftp-events:sftp.account.events}")
-    public void handleAccountEvent(org.springframework.amqp.core.Message message) {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            @SuppressWarnings("unchecked")
-            Map<String, Object> event = mapper.readValue(message.getBody(), Map.class);
-            handleEvent(event);
-        } catch (Exception e) {
-            log.warn("Failed to process account event: {}", e.getMessage());
-        }
+        log.info("[R134X][SFTP][account][boot] OUTBOX-ONLY active; @RabbitListener removed");
     }
 
     /**
-     * Idempotent event handler shared by RabbitMQ and Fabric paths.
-     * Duplicate delivery (once from each bus) is safe: cache eviction,
-     * QoS updates, and directory creation are all idempotent.
+     * Idempotent event handler. Duplicate delivery across transports is
+     * safe: cache eviction, QoS updates, and directory creation all
+     * converge on the same observable outcome.
      */
     private void handleEvent(Map<String, Object> event) {
         String username = (String) event.get("username");
@@ -140,7 +96,7 @@ public class AccountEventConsumer {
 
         if (username == null) return;
         String eventType = (String) event.get("eventType");
-        log.info("Account event received: type={} username={} homeDir={}", eventType, username, homeDir);
+        log.info("[R134X][SFTP][account] received type={} username={} homeDir={}", eventType, username, homeDir);
 
         // Evict cache so next auth picks up fresh DB data
         credentialService.evictFromCache(username);
@@ -162,7 +118,7 @@ public class AccountEventConsumer {
                     account.getQosBurstAllowancePercent());
                 connectionManager.registerQosSessionLimit(username,
                     account.getQosMaxConcurrentSessions());
-                log.info("Live QoS updated for active user={}", username);
+                log.info("[R134X][SFTP][account] live QoS updated for active user={}", username);
             });
         }
 
@@ -171,7 +127,7 @@ public class AccountEventConsumer {
         if ("account.created".equals(eventType) && homeDir != null) {
             String storageMode = (String) event.getOrDefault("storageMode", "PHYSICAL");
             if ("VIRTUAL".equalsIgnoreCase(storageMode)) {
-                log.info("VIRTUAL account {} — physical dir creation skipped (VFS-managed)", username);
+                log.info("[R134X][SFTP][account] VIRTUAL account {} — physical dir creation skipped (VFS-managed)", username);
                 return;
             }
             try {
@@ -183,9 +139,9 @@ public class AccountEventConsumer {
                 for (String folder : folderPaths) {
                     Files.createDirectories(Paths.get(homeDir, folder));
                 }
-                log.info("Created {} directories for {}: {}", folderPaths.size(), username, homeDir);
+                log.info("[R134X][SFTP][account] created {} directories for {}: {}", folderPaths.size(), username, homeDir);
             } catch (Exception e) {
-                log.error("FAILED to create home directories for {} at {}: {}", username, homeDir, e.getMessage());
+                log.error("[R134X][SFTP][account] FAILED to create home directories for {} at {}: {}", username, homeDir, e.getMessage());
             }
         }
     }

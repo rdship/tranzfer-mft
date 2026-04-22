@@ -7,12 +7,7 @@ import com.filetransfer.shared.outbox.UnifiedOutboxPoller;
 import com.filetransfer.shared.repository.transfer.FileFlowRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.rabbit.annotation.Exchange;
-import org.springframework.amqp.rabbit.annotation.Queue;
-import org.springframework.amqp.rabbit.annotation.QueueBinding;
-import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -22,19 +17,21 @@ import java.util.UUID;
 /**
  * Listens for flow rule change events and hot-reloads affected rules
  * in the in-memory registry. Every service instance gets its own
- * anonymous queue (auto-delete) so all pods receive every event.
+ * {@link UnifiedOutboxPoller} drain so all pods receive every event.
  *
  * <p>Only activated in services that set {@code flow.rules.enabled=true}
  * (SFTP, FTP, FTP-Web, Gateway, AS2).</p>
  *
- * <p>Dual-subscribes to Fabric (events.flow-rule topic) as well when
- * EventFabricBridge is available. Duplicate delivery is safe because
- * the registry operations are idempotent.</p>
+ * <p><b>R134X — Sprint 7 Phase B:</b> OUTBOX-ONLY. The legacy
+ * {@code @RabbitListener} binding + {@code @ConditionalOnClass(RabbitTemplate)}
+ * gate were deleted. The handler now runs solely on the outbox transport,
+ * with EventFabricBridge as an orthogonal feature-flagged path. Duplicate
+ * delivery across transports is safe because the registry operations are
+ * idempotent.</p>
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@ConditionalOnClass(name = "org.springframework.amqp.rabbit.core.RabbitTemplate")
 @ConditionalOnProperty(name = "flow.rules.enabled", havingValue = "true", matchIfMissing = false)
 public class FlowRuleEventListener {
 
@@ -92,29 +89,20 @@ public class FlowRuleEventListener {
     @jakarta.annotation.PostConstruct
     void subscribeOutboxEvents() {
         if (outboxPoller == null || objectMapper == null) {
-            log.info("[FlowRuleEventListener] boot — @RabbitListener only; UnifiedOutboxPoller not in context");
+            log.error("[R134X][FlowRuleEventListener][boot] UnifiedOutboxPoller or ObjectMapper missing — flow.rule.updated events will NOT be consumed");
             return;
         }
         outboxPoller.registerHandler("flow.rule.updated", row -> {
-            log.info("[FlowRuleEventListener][outbox] row id={} routingKey={} aggregateId={}",
+            log.info("[R134X][FlowRuleEventListener][outbox] row id={} routingKey={} aggregateId={}",
                     row.id(), row.routingKey(), row.aggregateId());
             FlowRuleChangeEvent event = row.as(FlowRuleChangeEvent.class, objectMapper);
             handleEvent(event);
         });
-        log.info("[FlowRuleEventListener] boot — dual-consume ACTIVE: @RabbitListener + outbox handler (R134P)");
-    }
-
-    @RabbitListener(bindings = @QueueBinding(
-            value = @Queue,  // anonymous, auto-delete, exclusive — each instance gets all events
-            exchange = @Exchange(value = "${rabbitmq.exchange:file-transfer.events}", type = "topic"),
-            key = "flow.rule.updated"
-    ))
-    public void onFlowRuleChange(FlowRuleChangeEvent event) {
-        handleEvent(event);
+        log.info("[R134X][FlowRuleEventListener][boot] OUTBOX-ONLY active; @RabbitListener removed");
     }
 
     /**
-     * Idempotent handler shared between RabbitMQ and Fabric paths.
+     * Idempotent handler shared between outbox and Fabric paths.
      * Duplicate delivery is safe: register/unregister are idempotent on the registry.
      */
     private void handleEvent(FlowRuleChangeEvent event) {

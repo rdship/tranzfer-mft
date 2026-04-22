@@ -8,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.openpgp.*;
 import org.bouncycastle.openpgp.operator.PGPDigestCalculator;
 import org.bouncycastle.openpgp.operator.jcajce.*;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -27,23 +26,18 @@ public class KeyManagementService {
 
     private final ManagedKeyRepository keyRepository;
 
-    @Autowired(required = false)
-    @org.springframework.lang.Nullable
-    private RabbitTemplate rabbitTemplate;
-
     /**
-     * R134D Sprint 6 — durable outbox writer. When present, rotateKey writes
-     * the keystore.key.rotated event to event_outbox atomically with the
-     * key-save. UnifiedOutboxPoller delivers to registered handlers in
-     * every consumer service. Nullable so tests / tiny configs without the
-     * unified outbox on the classpath still boot.
+     * R134D Sprint 6 / R134X Sprint 7 Phase B — durable outbox writer. The
+     * {@code keystore.key.rotated} event is now written to {@code event_outbox}
+     * atomically with the key-save; {@link UnifiedOutboxPoller} delivers to
+     * sftp/ftp {@code KeystoreRotationConsumer} outbox handlers. The legacy
+     * RabbitTemplate branch (plus field) was removed in R134X — outbox is
+     * the sole transport for this event class.
+     * Nullable so tests / tiny configs without the unified outbox still boot.
      */
     @Autowired(required = false)
     @org.springframework.lang.Nullable
     private com.filetransfer.shared.outbox.UnifiedOutboxWriter outboxWriter;
-
-    @Value("${rabbitmq.exchange:file-transfer.events}")
-    private String exchange;
 
     @Value("${keystore.master-password:change-this-master-password}")
     private String masterPassword;
@@ -329,34 +323,33 @@ public class KeyManagementService {
                 oldAlias, newAlias, newKey.getKeyType(),
                 newKey.getOwnerService(), Instant.now());
 
-        // R134D Sprint 6 / R134U Sprint 7 Phase A — OUTBOX-ONLY.
+        // R134D Sprint 6 / R134X Sprint 7 Phase B — OUTBOX-ONLY.
         // @Transactional above commits the key-save + the event_outbox row
         // atomically — durability guarantee preserved. UnifiedOutboxPoller
         // consumers (SFTP/FTP) pick up via PG LISTEN/NOTIFY in <1s.
         //
-        // Pre-R134U this method also best-effort published to RabbitMQ. The
-        // RabbitMQ branch is removed now that both consumer paths (sftp/ftp
-        // KeystoreRotationConsumer) are runtime-verified on the outbox
-        // transport (R134T confirms rotation delivers via outbox + 2
-        // listeners rebound per consumer). Dormant @RabbitListener beans on
-        // the consumer side remain in place and will be removed in
-        // Sprint 7 Phase B once this cutover is runtime-clean across a
-        // tester cycle.
+        // The legacy RabbitMQ publish branch + RabbitTemplate field + exchange
+        // @Value were deleted in R134X (Sprint 7 Phase B subtractive cleanup)
+        // along with the dormant @RabbitListener handlers in sftp-service and
+        // ftp-service KeystoreRotationConsumer.
         if (outboxWriter != null) {
             try {
                 outboxWriter.write("keystore_key", oldAlias, "KEY_ROTATED",
                         KeystoreKeyRotatedEvent.ROUTING_KEY, event);
-                log.info("[keystore][rotate] durable outbox write committed for {} → {}",
-                        oldAlias, newAlias);
+                log.info("[R134X][keystore][rotate] outbox row committed oldAlias={} → newAlias={} routingKey={}",
+                        oldAlias, newAlias, KeystoreKeyRotatedEvent.ROUTING_KEY);
             } catch (Exception e) {
                 // Re-throw — outbox failure means the rotation did NOT become
                 // visible to consumers and we must roll back to preserve
                 // durability. The @Transactional annotation converts the
                 // exception into a rollback of the key-save too.
-                log.error("[keystore][rotate] outbox write failed — rolling back rotation: {}",
+                log.error("[R134X][keystore][rotate] outbox write failed — rolling back rotation: {}",
                         e.getMessage());
                 throw e;
             }
+        } else {
+            log.error("[R134X][keystore][rotate] UnifiedOutboxWriter missing — rotation event NOT published: {} → {}",
+                    oldAlias, newAlias);
         }
         return newKey;
     }

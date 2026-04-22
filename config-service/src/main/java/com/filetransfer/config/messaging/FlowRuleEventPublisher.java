@@ -4,9 +4,7 @@ import com.filetransfer.shared.dto.FlowRuleChangeEvent;
 import com.filetransfer.shared.fabric.EventFabricBridge;
 import com.filetransfer.shared.outbox.UnifiedOutboxWriter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
@@ -38,21 +36,11 @@ import java.util.UUID;
 @Component
 public class FlowRuleEventPublisher {
 
-    private final RabbitTemplate rabbitTemplate;
-    private final String exchange;
-
     @Autowired(required = false)
     private EventFabricBridge eventFabricBridge;
 
     @Autowired(required = false)
     private UnifiedOutboxWriter outboxWriter;
-
-    public FlowRuleEventPublisher(
-            RabbitTemplate rabbitTemplate,
-            @Value("${rabbitmq.exchange:file-transfer.events}") String exchange) {
-        this.rabbitTemplate = rabbitTemplate;
-        this.exchange = exchange;
-    }
 
     public void publishCreated(UUID flowId) {
         publish(new FlowRuleChangeEvent(flowId, FlowRuleChangeEvent.ChangeType.CREATED));
@@ -67,17 +55,15 @@ public class FlowRuleEventPublisher {
     }
 
     private void publish(FlowRuleChangeEvent event) {
-        // R134P Sprint 6 / R134U Sprint 7 Phase A — OUTBOX-ONLY.
-        // Durable PG outbox is the sole inter-service transport for this
-        // event class now that FlowRuleEventListener.subscribeOutboxEvents
-        // is runtime-verified across the 5 consumer services (R134P +
-        // R134S-stability). The RabbitMQ publish is removed here; the
-        // dormant @RabbitListener binding on FlowRuleEventListener will
-        // be deleted in Sprint 7 Phase B.
+        // R134P Sprint 6 / R134U Sprint 7 Phase A / R134X Sprint 7 Phase B — OUTBOX-ONLY.
+        // Durable PG outbox is the sole inter-service transport for this event
+        // class. RabbitTemplate branch was removed in R134U; the RabbitTemplate
+        // field + constructor param + @Value exchange were deleted in R134X
+        // along with the dormant @RabbitListener binding on FlowRuleEventListener.
         //
-        // @Transactional(MANDATORY) inside outboxWriter.write means the
-        // caller (FileFlowController.createFlow / updateFlow / etc.) must
-        // be in a tx — all 6 mutation methods already are.
+        // @Transactional(MANDATORY) inside outboxWriter.write means the caller
+        // (FileFlowController.createFlow / updateFlow / etc.) must be in a tx —
+        // all 6 mutation methods already are.
         if (outboxWriter != null) {
             String aggregateId = event.flowId() != null ? event.flowId().toString() : "null";
             outboxWriter.write(
@@ -86,11 +72,15 @@ public class FlowRuleEventPublisher {
                     event.changeType().name(),
                     "flow.rule.updated",
                     event);
-            log.info("Published flow rule change: flowId={} type={}", event.flowId(), event.changeType());
+            log.info("[R134X][FlowRuleEventPublisher] outbox row committed flowId={} type={} routingKey=flow.rule.updated",
+                    event.flowId(), event.changeType());
+        } else {
+            log.error("[R134X][FlowRuleEventPublisher] UnifiedOutboxWriter missing — flow.rule.updated NOT published. flowId={} type={}",
+                    event.flowId(), event.changeType());
         }
 
         // Dual-publish to Fabric (additive, feature-flagged — orthogonal
-        // to the RabbitMQ / outbox decision; keep as-is).
+        // to the outbox decision; keep as-is).
         if (eventFabricBridge != null) {
             eventFabricBridge.publishFlowRuleEvent(
                     event.flowId() != null ? event.flowId().toString() : "null", event);

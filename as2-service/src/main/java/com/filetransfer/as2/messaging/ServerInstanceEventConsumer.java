@@ -10,18 +10,11 @@ import com.filetransfer.shared.repository.core.ServerInstanceRepository;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.core.Binding;
-import org.springframework.amqp.core.BindingBuilder;
-import org.springframework.amqp.core.Queue;
-import org.springframework.amqp.core.QueueBuilder;
-import org.springframework.amqp.core.TopicExchange;
-import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.EventListener;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
@@ -43,21 +36,24 @@ import java.util.Map;
  * <p>Per-partnership settings (MDN required, signing algo, encryption cert,
  * AS2 From/To IDs) live on {@code AS2Partnership} rows — not on this
  * listener row. That's the correct separation of concerns.
+ *
+ * <p><b>R134X — Sprint 7 Phase B:</b> OUTBOX-ONLY. Legacy
+ * {@code @RabbitListener} + Queue/Exchange/Binding {@code @Bean}
+ * declarations removed; {@link UnifiedOutboxPoller} is the sole
+ * inter-service transport. ApplicationReadyEvent bootstrap() +
+ * PreDestroy shutdown() kept — independent concerns, unchanged.
  */
 @Slf4j
-@Configuration
+@Component
 @RequiredArgsConstructor
 public class ServerInstanceEventConsumer {
 
-    private static final String QUEUE    = "as2-server-instance-events";
-    private static final String EXCHANGE = "file-transfer.events";
-    private static final String PATTERN  = "server.instance.*";
+    private static final String PATTERN = "server.instance.";
 
     private final ServerInstanceRepository repository;
     private final BindStateWriter bindStateWriter;
     private final ObjectMapper objectMapper;
 
-    /** R134S — outbox dual-consume (see sftp-service ServerInstanceEventConsumer Javadoc). */
     @Autowired(required = false)
     private UnifiedOutboxPoller outboxPoller;
 
@@ -75,45 +71,24 @@ public class ServerInstanceEventConsumer {
      */
     @jakarta.annotation.PostConstruct
     void boot() {
-        log.info("[AS2][boot] ServerInstanceEventConsumer bean instantiated — "
-                + "queue={} exchange={} pattern={} primaryInstanceId={}",
-                QUEUE, EXCHANGE, PATTERN, primaryInstanceId);
+        log.info("[R134X][AS2][boot] ServerInstanceEventConsumer bean instantiated — prefix={} primaryInstanceId={}",
+                PATTERN, primaryInstanceId);
     }
 
     @jakarta.annotation.PostConstruct
     void subscribeOutboxEvents() {
         if (outboxPoller == null) {
-            log.info("[AS2][server-instance] boot — @RabbitListener only; UnifiedOutboxPoller not in context");
+            log.error("[R134X][AS2][server-instance][boot] UnifiedOutboxPoller missing — server.instance.* events will NOT be consumed");
             return;
         }
-        outboxPoller.registerHandler("server.instance.", row -> {
-            log.info("[AS2][server-instance][outbox] row id={} routingKey={} aggregateId={}",
+        outboxPoller.registerHandler(PATTERN, row -> {
+            log.info("[R134X][AS2][server-instance][outbox] row id={} routingKey={} aggregateId={}",
                     row.id(), row.routingKey(), row.aggregateId());
             @SuppressWarnings("unchecked")
-            java.util.Map<String, Object> payload = row.as(java.util.Map.class, objectMapper);
+            Map<String, Object> payload = row.as(Map.class, objectMapper);
             onChange(payload);
         });
-        log.info("[AS2][server-instance] boot — dual-consume ACTIVE: @RabbitListener + outbox handler (R134S)");
-    }
-
-    @Bean
-    public Queue as2ServerInstanceQueue() {
-        log.info("[AS2][bean] declaring Queue '{}'", QUEUE);
-        return QueueBuilder.durable(QUEUE)
-                .withArgument("x-dead-letter-exchange", "file-transfer.events.dlx")
-                .build();
-    }
-
-    @Bean
-    public TopicExchange as2ServerInstanceExchange() {
-        return new TopicExchange(EXCHANGE, true, false);
-    }
-
-    @Bean
-    public Binding as2ServerInstanceBinding(Queue as2ServerInstanceQueue,
-                                              TopicExchange as2ServerInstanceExchange) {
-        return BindingBuilder.bind(as2ServerInstanceQueue)
-                .to(as2ServerInstanceExchange).with(PATTERN);
+        log.info("[R134X][AS2][server-instance][boot] OUTBOX-ONLY active; @RabbitListener removed");
     }
 
     /**
@@ -127,28 +102,25 @@ public class ServerInstanceEventConsumer {
         // R134A — unconditional entry/exit logs. Tester R134p couldn't tell
         // whether bootstrap() was firing OR whether the repository query was
         // returning 0 rows. Both cases are now observable.
-        log.info("[AS2][bootstrap] entered — querying active AS2/AS4 listeners");
+        log.info("[R134X][AS2][bootstrap] entered — querying active AS2/AS4 listeners");
         List<ServerInstance> as2Rows = repository.findByProtocolAndActiveTrue(Protocol.AS2);
         List<ServerInstance> as4Rows = repository.findByProtocolAndActiveTrue(Protocol.AS4);
-        log.info("[AS2][bootstrap] DB query returned as2={} as4={} active rows",
+        log.info("[R134X][AS2][bootstrap] DB query returned as2={} as4={} active rows",
                 as2Rows.size(), as4Rows.size());
         for (ServerInstance si : as2Rows) markBound(si);
         for (ServerInstance si : as4Rows) markBound(si);
         int total = as2Rows.size() + as4Rows.size();
-        log.info("[AS2][bootstrap] done — acknowledged {} listener row(s) total", total);
+        log.info("[R134X][AS2][bootstrap] done — acknowledged {} listener row(s) total", total);
     }
 
-    @RabbitListener(queues = QUEUE)
     public void onChange(Map<String, Object> payload) {
-        // R134A — always log inbound. Without this the tester couldn't tell
-        // whether onboarding-api's outbox publish was reaching the AS2 queue.
-        log.info("[AS2][onChange] received event payload keys={} protocol={} changeType={}",
+        log.info("[R134X][AS2][onChange] received event payload keys={} protocol={} changeType={}",
                 payload.keySet(), payload.get("protocol"), payload.get("changeType"));
         try {
             ServerInstanceChangeEvent event = objectMapper.convertValue(
                     payload, ServerInstanceChangeEvent.class);
             if (event.protocol() != Protocol.AS2 && event.protocol() != Protocol.AS4) {
-                log.debug("[AS2][onChange] ignoring non-AS2/AS4 protocol={}", event.protocol());
+                log.debug("[R134X][AS2][onChange] ignoring non-AS2/AS4 protocol={}", event.protocol());
                 return;
             }
 
@@ -156,7 +128,7 @@ public class ServerInstanceEventConsumer {
                 case CREATED, ACTIVATED, UPDATED -> {
                     ServerInstance si = repository.findById(event.id()).orElse(null);
                     if (si == null) {
-                        log.warn("[AS2][onChange] ServerInstance {} not found for {}",
+                        log.warn("[R134X][AS2][onChange] ServerInstance {} not found for {}",
                                 event.id(), event.changeType());
                         return;
                     }
@@ -166,8 +138,8 @@ public class ServerInstanceEventConsumer {
                 case DEACTIVATED, DELETED -> bindStateWriter.markUnbound(event.id());
             }
         } catch (Exception e) {
-            log.error("[AS2][onChange] handling failed: {}", e.getMessage(), e);
-            throw e; // DLQ
+            log.error("[R134X][AS2][onChange] handling failed: {}", e.getMessage(), e);
+            throw e;
         }
     }
 
@@ -184,10 +156,10 @@ public class ServerInstanceEventConsumer {
     private void markBound(ServerInstance si) {
         try {
             bindStateWriter.markBound(si.getId());
-            log.info("[AS2] Bound '{}' (protocol={}, port={}) via single-Tomcat listener",
+            log.info("[R134X][AS2] bound '{}' (protocol={}, port={}) via single-Tomcat listener",
                     si.getInstanceId(), si.getProtocol(), si.getInternalPort());
         } catch (Exception e) {
-            log.warn("[AS2] Failed to mark bound for '{}': {}", si.getInstanceId(), e.getMessage());
+            log.warn("[R134X][AS2] failed to mark bound for '{}': {}", si.getInstanceId(), e.getMessage());
         }
     }
 }

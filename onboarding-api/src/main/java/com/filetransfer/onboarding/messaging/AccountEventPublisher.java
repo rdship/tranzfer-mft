@@ -4,41 +4,39 @@ import com.filetransfer.shared.dto.AccountCreatedEvent;
 import com.filetransfer.shared.dto.AccountUpdatedEvent;
 import com.filetransfer.shared.fabric.EventFabricBridge;
 import com.filetransfer.shared.outbox.UnifiedOutboxWriter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
  * Publishes account lifecycle events.
  *
- * <p><b>R134R — Sprint 6 (event 3 / 4):</b> dual-writes to the PG
- * {@code event_outbox} table ahead of the legacy {@code RabbitTemplate}
- * publish. The outbox write uses {@code @Transactional(propagation=MANDATORY)},
- * so the caller (e.g. {@code AccountService.createAccount} /
- * {@code .updateAccount} / {@code UnifiedOnboardService}) must be inside
- * a transaction — the account-row save and the outbox row commit
- * atomically. All current callers are already {@code @Transactional}.
+ * <p><b>R134X — Sprint 7 Phase B:</b> OUTBOX-ONLY. The durable PG
+ * {@code event_outbox} table is the sole inter-service transport for
+ * {@code account.*} now that {@link com.filetransfer.shared.cache.PartnerCacheEvictionListener}
+ * (shared, auto-activated in any service with PartnerCache) and the per-service
+ * {@code AccountEventConsumer} classes (sftp / ftp / ftp-web) all co-register
+ * on the {@code "account."} prefix via R134V's multi-handler cap.
+ *
+ * <p>The RabbitMQ publish branch was deleted in R134X; legacy broker queues
+ * for {@code account.*} no longer receive traffic from this publisher.
  *
  * <p>Transport order:
  * <ol>
- *   <li>PG outbox (durable, tx-bound, LISTEN/NOTIFY wake).</li>
- *   <li>RabbitMQ (legacy, still published until Sprint 7 removes it).</li>
- *   <li>EventFabricBridge (feature-flagged, additive).</li>
+ *   <li>PG outbox (durable, tx-bound, LISTEN/NOTIFY wake, fans out to
+ *       every registered {@code "account."} handler in every replica).</li>
+ *   <li>EventFabricBridge (feature-flagged, additive, orthogonal).</li>
  * </ol>
  *
- * <p>Consumer-side registration lives on the per-service
- * {@code AccountEventConsumer} classes in sftp-service, ftp-service, and
- * ftp-web-service.
+ * <p>Caller contract unchanged: {@link UnifiedOutboxWriter#write} is
+ * {@code @Transactional(propagation=MANDATORY)}, so the caller
+ * ({@code AccountService.createAccount / .updateAccount /
+ * UnifiedOnboardService}) must be {@code @Transactional}. All current
+ * callers are.
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class AccountEventPublisher {
-
-    private final RabbitTemplate rabbitTemplate;
 
     @Autowired(required = false)
     private EventFabricBridge eventFabricBridge;
@@ -46,46 +44,39 @@ public class AccountEventPublisher {
     @Autowired(required = false)
     private UnifiedOutboxWriter outboxWriter;
 
-    @Value("${rabbitmq.exchange}")
-    private String exchange;
-
     public void publishAccountCreated(AccountCreatedEvent event) {
-        log.info("Publishing account.created for username={}", event.getUsername());
+        log.info("[R134X][AccountEventPublisher] publish account.created username={} accountId={}",
+                event.getUsername(), event.getAccountId());
 
-        // R134R — durable PG outbox (same tx as the account-row save in the caller).
-        // Throws if no tx is active (MANDATORY propagation); every caller is @Transactional.
+        // R134X Sprint 7 Phase B — OUTBOX-ONLY. The rabbitTemplate.convertAndSend
+        // branch was removed in this commit. @Transactional(MANDATORY) throws if
+        // no caller tx; every caller is @Transactional.
         if (outboxWriter != null) {
             String aggregateId = event.getAccountId() != null ? event.getAccountId().toString() : "null";
             outboxWriter.write("account", aggregateId, "CREATED", "account.created", event);
+        } else {
+            log.error("[R134X][AccountEventPublisher] UnifiedOutboxWriter missing — account.created "
+                    + "NOT published. username={} accountId={}", event.getUsername(), event.getAccountId());
         }
 
-        try {
-            rabbitTemplate.convertAndSend(exchange, "account.created", event);
-        } catch (Exception e) {
-            log.warn("Failed to publish account.created to RabbitMQ: {}", e.getMessage());
-        }
-
-        // Dual-publish to Fabric (additive, feature-flagged)
+        // Dual-publish to Fabric (additive, feature-flagged, orthogonal).
         if (eventFabricBridge != null) {
             eventFabricBridge.publishAccountEvent(event.getUsername(), event);
         }
     }
 
     public void publishAccountUpdated(AccountUpdatedEvent event) {
-        log.info("Publishing account.updated for accountId={}", event.getAccountId());
+        log.info("[R134X][AccountEventPublisher] publish account.updated username={} accountId={}",
+                event.getUsername(), event.getAccountId());
 
         if (outboxWriter != null) {
             String aggregateId = event.getAccountId() != null ? event.getAccountId().toString() : "null";
             outboxWriter.write("account", aggregateId, "UPDATED", "account.updated", event);
+        } else {
+            log.error("[R134X][AccountEventPublisher] UnifiedOutboxWriter missing — account.updated "
+                    + "NOT published. username={} accountId={}", event.getUsername(), event.getAccountId());
         }
 
-        try {
-            rabbitTemplate.convertAndSend(exchange, "account.updated", event);
-        } catch (Exception e) {
-            log.warn("Failed to publish account.updated to RabbitMQ: {}", e.getMessage());
-        }
-
-        // Dual-publish to Fabric (additive, feature-flagged)
         if (eventFabricBridge != null) {
             eventFabricBridge.publishAccountEvent(event.getUsername(), event);
         }
