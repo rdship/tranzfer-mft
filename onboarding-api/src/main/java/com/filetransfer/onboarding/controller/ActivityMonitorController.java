@@ -437,9 +437,23 @@ public class ActivityMonitorController {
      * serialization failure) but invisible. Log at WARN now so the next
      * failure names its root cause in plain sight.
      *
+     * <p><b>R134AA:</b> {@code @PreAuthorize("permitAll()")} overrides
+     * the class-level {@code @PreAuthorize(Roles.VIEWER)}. This method
+     * is called by trusted internal code paths — {@link ActivityStreamConsumer}
+     * on the {@code scheduling-1} thread, RabbitMQ listeners (pre-R134Y),
+     * outbox handlers — none of which inherit a {@code SecurityContext}.
+     * Before R134AA the class-level viewer-role check threw
+     * {@code AuthenticationCredentialsNotFoundException} on every scheduled
+     * tick, silently blocking every SSE delivery (surfaced by R134Z's
+     * unswallow). The SSE-registration endpoint {@link #stream} already
+     * has its own {@code @PreAuthorize("permitAll()")} + manual JWT
+     * validation, so this override does not relax the user-facing auth
+     * surface.
+     *
      * @return number of emitters that received the event (0 when no
      *         clients connected, or all attempts failed).
      */
+    @org.springframework.security.access.prepost.PreAuthorize("permitAll()")
     public int broadcastActivityEvent(String eventName, Object data) {
         if (sseClients.isEmpty()) return 0;
         int sent = 0;
