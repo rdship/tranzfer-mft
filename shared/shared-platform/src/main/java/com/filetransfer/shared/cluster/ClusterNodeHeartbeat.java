@@ -85,14 +85,22 @@ public class ClusterNodeHeartbeat {
         this.spiffeId = "spiffe://" + spiffeTrustDomain + "/" + serviceType;
         this.url = "http://" + host + ":" + serverPort;
         this.startedAt = Instant.now();
+        // R134AE — log the JDBC URL we're actually writing to so we can
+        // confirm every service targets the same DB as `/api/clusters/live`.
+        // The R134AD runtime report saw `Registered node` fire per service
+        // yet `SELECT COUNT(*)` = 0; this narrows down datasource mismatch
+        // vs. silent-INSERT-failure.
+        String jdbcUrl = resolveJdbcUrl();
         // Initial heartbeat synchronously so the row exists before the
         // first scheduled tick (which runs 10s after context ready).
         try {
-            writeHeartbeat();
-            log.info("[ClusterHeartbeat] Registered node {} serviceType={} url={}",
-                    nodeId, serviceType, url);
+            int rows = writeHeartbeat();
+            long liveRows = countLiveRows();
+            log.info("[R134AE][ClusterHeartbeat] Registered node={} serviceType={} url={} rowsAffected={} liveRowsNow={} jdbcUrl={}",
+                    nodeId, serviceType, url, rows, liveRows, jdbcUrl);
         } catch (Exception e) {
-            log.warn("[ClusterHeartbeat] Initial heartbeat failed: {}", e.getMessage());
+            log.warn("[R134AE][ClusterHeartbeat] Initial heartbeat FAILED node={} jdbcUrl={} cause={}",
+                    nodeId, jdbcUrl, e.getMessage(), e);
         }
     }
 
@@ -100,14 +108,19 @@ public class ClusterNodeHeartbeat {
     public void heartbeat() {
         if (!enabled || nodeId == null) return;
         try {
-            writeHeartbeat();
+            int rows = writeHeartbeat();
+            if (rows != 1) {
+                // UPSERT should always report exactly 1. Anything else warrants attention.
+                log.warn("[R134AE][ClusterHeartbeat] heartbeat write returned rowsAffected={} (expected 1) node={}",
+                        rows, nodeId);
+            }
         } catch (Exception e) {
             log.warn("[ClusterHeartbeat] heartbeat write failed (will retry in 10s): {}", e.getMessage());
         }
     }
 
-    private void writeHeartbeat() {
-        jdbc.update("""
+    private int writeHeartbeat() {
+        return jdbc.update("""
             INSERT INTO platform_pod_heartbeat (node_id, service_type, host, port, url, spiffe_id,
                                         last_heartbeat, started_at, status)
             VALUES (?, ?, ?, ?, ?, ?, now(), ?, 'ACTIVE')
@@ -121,6 +134,25 @@ public class ClusterNodeHeartbeat {
                     status         = 'ACTIVE'
             """, nodeId, serviceType, host, serverPort, url, spiffeId,
             Timestamp.from(startedAt));
+    }
+
+    private long countLiveRows() {
+        try {
+            Long n = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM platform_pod_heartbeat", Long.class);
+            return n == null ? -1 : n;
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    private String resolveJdbcUrl() {
+        try {
+            return jdbc.getDataSource() == null ? "unknown"
+                    : jdbc.getDataSource().getConnection().getMetaData().getURL();
+        } catch (Exception e) {
+            return "unresolved:" + e.getMessage();
+        }
     }
 
     /**

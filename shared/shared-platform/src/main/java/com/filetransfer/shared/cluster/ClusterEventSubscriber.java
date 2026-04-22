@@ -2,7 +2,8 @@ package com.filetransfer.shared.cluster;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.Message;
@@ -19,18 +20,24 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * Subscribes to {@code platform:cluster:events} Redis channel and reacts to
  * service instance join/leave events in real time.
  *
+ * <p><b>R134AE — AOT-safety retrofit.</b> Was previously
+ * {@code @ConditionalOnBean(RedisConnectionFactory.class)} which Spring AOT
+ * evaluated at build time and excluded the bean from the frozen graph
+ * (R134AD runtime report §2 confirmed pub/sub was never wired). The class
+ * is now unconditional; listener registration is runtime-gated on
+ * {@code cluster.events.transport} (default {@code redis-pubsub}) and on
+ * {@link RedisConnectionFactory} availability via {@link ObjectProvider}.
+ * Same pattern documented in {@code docs/AOT-SAFETY.md}.
+ *
  * <p>When a new replica of any service starts or stops, every other service
  * receives a Pub/Sub message within milliseconds — no polling, no 30-second lag.
  *
  * <p>Usage by other components: inject {@link ClusterEventSubscriber} and call
  * {@link #getKnownInstances(String)} to get the last-seen instance URLs for a
- * service type (augments the Redis SCAN-based discovery).
- *
- * <p>Only activates when {@link RedisConnectionFactory} is present.
+ * service type (augments the PG {@code platform_pod_heartbeat} reader).
  */
 @Slf4j
 @Configuration
-@ConditionalOnBean(RedisConnectionFactory.class)
 @RequiredArgsConstructor
 public class ClusterEventSubscriber {
 
@@ -38,14 +45,30 @@ public class ClusterEventSubscriber {
     private final ConcurrentHashMap<String, CopyOnWriteArrayList<String>> knownInstances =
             new ConcurrentHashMap<>();
 
-    @Bean
-    public RedisMessageListenerContainer redisClusterEventContainer(
-            RedisConnectionFactory connectionFactory) {
+    private final ObjectProvider<RedisConnectionFactory> connectionFactoryProvider;
 
+    @Value("${cluster.events.transport:redis-pubsub}")
+    private String eventsTransport;
+
+    @Bean
+    public RedisMessageListenerContainer redisClusterEventContainer() {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
-        container.setConnectionFactory(connectionFactory);
+        RedisConnectionFactory cf = connectionFactoryProvider.getIfAvailable();
+        if (cf == null) {
+            log.info("[R134AE][ClusterEventSubscriber] no RedisConnectionFactory available — container returned without listener (transport={})",
+                    eventsTransport);
+            return container;
+        }
+        container.setConnectionFactory(cf);
+        if (!"redis-pubsub".equalsIgnoreCase(eventsTransport)) {
+            log.info("[R134AE][ClusterEventSubscriber] transport={} — connection factory wired but NOT subscribing to {} (R134AG will migrate this to RabbitMQ fanout)",
+                    eventsTransport, RedisServiceRegistry.EVENTS_CHANNEL);
+            return container;
+        }
         container.addMessageListener(clusterEventListener(),
                 new PatternTopic(RedisServiceRegistry.EVENTS_CHANNEL));
+        log.info("[R134AE][ClusterEventSubscriber] subscribed to {} (transport=redis-pubsub)",
+                RedisServiceRegistry.EVENTS_CHANNEL);
         return container;
     }
 
@@ -83,9 +106,7 @@ public class ClusterEventSubscriber {
      * as learned from Pub/Sub events since this instance started.
      *
      * <p>For a complete view (including pre-existing replicas), query the
-     * authoritative PG {@code platform_pod_heartbeat} table directly —
-     * R134y made that the registry and R134AD retired the Redis
-     * discovery API this Javadoc used to reference.
+     * authoritative PG {@code platform_pod_heartbeat} table directly.
      */
     public java.util.List<String> getKnownInstances(String serviceType) {
         CopyOnWriteArrayList<String> list = knownInstances.get(serviceType);
