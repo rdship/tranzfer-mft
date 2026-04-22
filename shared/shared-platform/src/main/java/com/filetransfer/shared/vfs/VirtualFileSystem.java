@@ -63,18 +63,20 @@ public class VirtualFileSystem {
     private final TransferAccountRepository accountRepository;
 
     /**
-     * Optional distributed lock — activates when Redis is available.
-     * Falls back to pg_advisory_xact_lock for single-instance deployments.
-     */
-    @Autowired(required = false)
-    @org.springframework.lang.Nullable
-    private DistributedVfsLock distributedLock;
-
-    /**
      * R134z Sprint 5 — primary distributed-lock backend. When present,
-     * {@link #lockPath} prefers the storage-manager coordination API
-     * over the Redis SETNX path. Injected @Nullable so services that
-     * aren't wired to storage-manager yet still boot.
+     * {@link #lockPath} uses the storage-manager coordination API for
+     * cross-pod coordination; on transient failure the path falls through
+     * to {@code pg_advisory_xact_lock} as a single-instance last resort.
+     *
+     * <p><b>R134AC:</b> the legacy Redis {@code DistributedVfsLock} middle
+     * tier was deleted along with its class. The lock chain collapsed from
+     * three tiers to two (storage-coord → pg_advisory). Runtime evidence
+     * across R134O/X/Y/AA/AB confirmed storage-coord wins on every real
+     * upload and the Redis middle tier never landed a single lock in
+     * production once Sprint 5 shipped.
+     *
+     * <p>Injected {@code @Nullable} so services that aren't wired to
+     * storage-manager yet still boot.
      */
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     @org.springframework.lang.Nullable
@@ -263,7 +265,7 @@ public class VirtualFileSystem {
 
         // 1. Distributed lock: serialize concurrent writes to same (account, path) across ALL pods.
         //    Released in the finally block below — works for Redis (distributed) and pg_advisory (local).
-        DistributedVfsLock.LockHandle lock = lockPath(accountId, normalized);
+        VfsLockHandle lock = lockPath(accountId, normalized);
 
         // 2. Record intent BEFORE mutation
         VfsIntent intent = createIntent(accountId, VfsIntent.OpType.WRITE, normalized,
@@ -505,7 +507,7 @@ public class VirtualFileSystem {
             throw new IllegalArgumentException("Cannot delete root directory");
         }
 
-        DistributedVfsLock.LockHandle lock = lockPath(accountId, normalized);
+        VfsLockHandle lock = lockPath(accountId, normalized);
 
         VfsIntent intent = createIntent(accountId, VfsIntent.OpType.DELETE, normalized,
                 null, null, null, 0, null);
@@ -545,8 +547,8 @@ public class VirtualFileSystem {
         // Lock BOTH paths in lexicographic order to prevent deadlocks across pods
         String first = normalizedFrom.compareTo(normalizedTo) < 0 ? normalizedFrom : normalizedTo;
         String second = normalizedFrom.compareTo(normalizedTo) < 0 ? normalizedTo : normalizedFrom;
-        DistributedVfsLock.LockHandle lock1 = lockPath(accountId, first);
-        DistributedVfsLock.LockHandle lock2 = lockPath(accountId, second);
+        VfsLockHandle lock1 = lockPath(accountId, first);
+        VfsLockHandle lock2 = lockPath(accountId, second);
 
         VfsIntent intent = createIntent(accountId, VfsIntent.OpType.MOVE, normalizedFrom,
                 normalizedTo, null, null, 0, null);
@@ -620,25 +622,26 @@ public class VirtualFileSystem {
     /**
      * Acquire path-level lock for VFS write operations.
      *
-     * <p>Backend priority (R134z Sprint 5):
+     * <p>Backend priority (R134AC — two tiers; the R134z-era Redis middle
+     * tier was deleted in Sprint 9 Phase 1):
      * <ol>
-     *   <li><b>Storage-manager coordination (PG platform_locks table):</b> the
-     *       primary path. Every pod calls {@code storage-manager}'s
-     *       {@code /api/v1/coordination/locks/{key}/acquire} which UPSERTs into
-     *       {@code platform_locks} with a TTL-expiry guard. Same correctness
-     *       as Redis SETNX with the added benefit of not depending on Redis.
-     *       On 409 conflict we throw {@code IllegalStateException} — the
-     *       existing caller contract (re-try the operation) is preserved.</li>
-     *   <li><b>Redis SETNX (DistributedVfsLock):</b> kept as fallback for
-     *       pods that aren't yet wired to storage-manager — removed in
-     *       Sprint 7 once the migration is complete.</li>
+     *   <li><b>Storage-manager coordination (PG platform_locks table):</b>
+     *       the primary path. Every pod calls {@code storage-manager}'s
+     *       {@code /api/v1/coordination/locks/{key}/acquire} which UPSERTs
+     *       into {@code platform_locks} with a TTL-expiry guard. On 409
+     *       conflict throws {@code IllegalStateException}; caller retries.</li>
      *   <li><b>pg_advisory_xact_lock:</b> single-instance fallback, last
-     *       resort. Auto-releases on COMMIT/ROLLBACK.</li>
+     *       resort. Auto-releases on COMMIT/ROLLBACK. Only used when
+     *       {@code storageCoordClient} is absent, OR when a transient
+     *       non-409 exception at the coord endpoint (R134K availability
+     *       guarantee) bumps the acquire to here. This trades a slight
+     *       loss of cross-pod coordination for availability — an auth-blip
+     *       on the coord endpoint must not paralyse uploads.</li>
      * </ol>
      *
      * <p><strong>CALLER MUST close the returned handle in a finally block.</strong>
      */
-    private DistributedVfsLock.LockHandle lockPath(UUID accountId, String path) {
+    private VfsLockHandle lockPath(UUID accountId, String path) {
         if (storageCoordClient != null) {
             String lockKey = "vfs:write:" + accountId + ":" + path;
             try {
@@ -666,27 +669,18 @@ public class VirtualFileSystem {
                 // network) used to bubble out of lockPath, abort writeFile's
                 // @Transactional, swallow the routing callback, and leave the
                 // SFTP upload looking successful while flow_executions stayed
-                // empty. Falling through to Redis/pg_advisory here trades a
-                // slight loss of cross-pod coordination (Redis is still
-                // cross-pod until Sprint 7 removes it; pg_advisory is
-                // single-instance) for availability — an auth-blip on the
-                // coordination endpoint must not paralyse uploads.
-                log.warn("[VFS][lockPath] storage-coord tryAcquire FAILED for account={} path={}: {}. " +
-                        "Falling through to next backend (redis → pg_advisory).",
+                // empty. Falling through to pg_advisory here trades cross-pod
+                // coordination for availability — an auth-blip on the coord
+                // endpoint must not paralyse uploads.
+                log.warn("[R134AC][VFS][lockPath] storage-coord tryAcquire FAILED for account={} path={}: {}. " +
+                        "Falling through to pg_advisory_xact_lock (single-instance last resort).",
                         accountId, path, e.getMessage());
             }
         }
 
-        if (distributedLock != null) {
-            if (lockBackendLogged.compareAndSet(false, true)) {
-                log.info("[VFS][lockPath] backend=redis-setnx (R134z fallback — storage-coord unavailable or client absent)");
-            }
-            return distributedLock.acquire(accountId, path);
-        }
-
         if (lockBackendLogged.compareAndSet(false, true)) {
-            log.info("[VFS][lockPath] backend=pg_advisory_xact_lock (R134z last-resort — " +
-                    "single-instance fallback; no storage-coord, no Redis)");
+            log.info("[VFS][lockPath] backend=pg_advisory_xact_lock (R134AC last-resort — " +
+                    "single-instance fallback; no storage-coord)");
         }
         long hash = accountId.getMostSignificantBits()
                 ^ (accountId.getLeastSignificantBits() >>> 17)
@@ -700,7 +694,7 @@ public class VirtualFileSystem {
             throw new IllegalStateException(
                     "Concurrent write contention on VFS path [" + path + "] — retry the operation", e);
         }
-        return DistributedVfsLock.LockHandle.NOOP; // pg_advisory released on tx commit
+        return VfsLockHandle.NOOP; // pg_advisory released on tx commit
     }
 
     private VfsIntent createIntent(UUID accountId, VfsIntent.OpType op, String path,
