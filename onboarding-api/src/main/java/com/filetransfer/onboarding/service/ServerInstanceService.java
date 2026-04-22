@@ -283,18 +283,20 @@ public class ServerInstanceService {
                 instance.getInternalPort(),
                 instance.isActive(),
                 type);
-        // Legacy path — config_event_outbox → OutboxPoller → RabbitMQ → @RabbitListener.
-        // Retained until Sprint 7 removes it.
-        outboxWriter.write(
-                "server_instance",
-                instance.getId().toString(),
-                type.name(),
-                event.routingKey(),
-                event);
-        // R134S dual-path — event_outbox → UnifiedOutboxPoller → OutboxEventHandler.
-        // Both writes run inside the caller's @Transactional, so the aggregate-row
-        // save and both outbox rows commit atomically (unifiedOutboxWriter.write
-        // is @Transactional(propagation=MANDATORY)).
+        // R134S Sprint 6 / R134U Sprint 7 Phase A — OUTBOX-ONLY.
+        // event_outbox → UnifiedOutboxPoller → OutboxEventHandler in
+        // sftp/ftp/as2/https ServerInstanceEventConsumer. Runtime-verified
+        // in R134S + R134S-stability report.
+        //
+        // Pre-R134U this method dual-WROTE to OutboxWriter (the legacy
+        // config_event_outbox → OutboxPoller → RabbitMQ bridge) as well.
+        // That legacy branch is removed now; the unused OutboxWriter field
+        // + imports + legacy bean itself will be deleted in Sprint 7
+        // Phase B once runtime-clean.
+        //
+        // unifiedOutboxWriter.write runs @Transactional(MANDATORY) and
+        // joins the caller's tx so the ServerInstance row save and the
+        // event_outbox row commit atomically.
         if (unifiedOutboxWriter != null) {
             unifiedOutboxWriter.write(
                     "server_instance",

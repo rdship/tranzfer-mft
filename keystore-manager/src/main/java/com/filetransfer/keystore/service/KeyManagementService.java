@@ -329,15 +329,19 @@ public class KeyManagementService {
                 oldAlias, newAlias, newKey.getKeyType(),
                 newKey.getOwnerService(), Instant.now());
 
-        // R134D Sprint 6 — DUAL-PUBLISH.
-        // (1) Outbox is now the durable source of truth. @Transactional above
-        // commits the key-save + the event row atomically — zero chance of
-        // "row saved but event lost" that the pre-R134D best-effort Rabbit
-        // publish allowed. UnifiedOutboxPoller consumers (SFTP/FTP) pick up
-        // via PG LISTEN/NOTIFY in <1s on the happy path.
-        // (2) Legacy RabbitMQ publish kept for services that haven't migrated
-        // their consumers to OutboxEventHandler yet. Removed in Sprint 7 once
-        // every consumer's outbox path is runtime-verified.
+        // R134D Sprint 6 / R134U Sprint 7 Phase A — OUTBOX-ONLY.
+        // @Transactional above commits the key-save + the event_outbox row
+        // atomically — durability guarantee preserved. UnifiedOutboxPoller
+        // consumers (SFTP/FTP) pick up via PG LISTEN/NOTIFY in <1s.
+        //
+        // Pre-R134U this method also best-effort published to RabbitMQ. The
+        // RabbitMQ branch is removed now that both consumer paths (sftp/ftp
+        // KeystoreRotationConsumer) are runtime-verified on the outbox
+        // transport (R134T confirms rotation delivers via outbox + 2
+        // listeners rebound per consumer). Dormant @RabbitListener beans on
+        // the consumer side remain in place and will be removed in
+        // Sprint 7 Phase B once this cutover is runtime-clean across a
+        // tester cycle.
         if (outboxWriter != null) {
             try {
                 outboxWriter.write("keystore_key", oldAlias, "KEY_ROTATED",
@@ -352,16 +356,6 @@ public class KeyManagementService {
                 log.error("[keystore][rotate] outbox write failed — rolling back rotation: {}",
                         e.getMessage());
                 throw e;
-            }
-        }
-        if (rabbitTemplate != null) {
-            try {
-                rabbitTemplate.convertAndSend(exchange,
-                        KeystoreKeyRotatedEvent.ROUTING_KEY, event);
-                log.debug("[keystore][rotate] legacy RabbitMQ publish ok for {}", newAlias);
-            } catch (Exception e) {
-                log.warn("[keystore][rotate] legacy RabbitMQ publish failed (outbox still durable): {}",
-                        e.getMessage());
             }
         }
         return newKey;

@@ -67,8 +67,17 @@ public class FlowRuleEventPublisher {
     }
 
     private void publish(FlowRuleChangeEvent event) {
-        // R134P — durable PG outbox (same tx as the flow-row save in the controller).
-        // Throws if no tx is active (MANDATORY propagation) — caller must be @Transactional.
+        // R134P Sprint 6 / R134U Sprint 7 Phase A — OUTBOX-ONLY.
+        // Durable PG outbox is the sole inter-service transport for this
+        // event class now that FlowRuleEventListener.subscribeOutboxEvents
+        // is runtime-verified across the 5 consumer services (R134P +
+        // R134S-stability). The RabbitMQ publish is removed here; the
+        // dormant @RabbitListener binding on FlowRuleEventListener will
+        // be deleted in Sprint 7 Phase B.
+        //
+        // @Transactional(MANDATORY) inside outboxWriter.write means the
+        // caller (FileFlowController.createFlow / updateFlow / etc.) must
+        // be in a tx — all 6 mutation methods already are.
         if (outboxWriter != null) {
             String aggregateId = event.flowId() != null ? event.flowId().toString() : "null";
             outboxWriter.write(
@@ -77,16 +86,11 @@ public class FlowRuleEventPublisher {
                     event.changeType().name(),
                     "flow.rule.updated",
                     event);
-        }
-
-        try {
-            rabbitTemplate.convertAndSend(exchange, "flow.rule.updated", event);
             log.info("Published flow rule change: flowId={} type={}", event.flowId(), event.changeType());
-        } catch (Exception e) {
-            log.error("Failed to publish flow rule change event: {}", e.getMessage());
         }
 
-        // Dual-publish to Fabric (additive, feature-flagged)
+        // Dual-publish to Fabric (additive, feature-flagged — orthogonal
+        // to the RabbitMQ / outbox decision; keep as-is).
         if (eventFabricBridge != null) {
             eventFabricBridge.publishFlowRuleEvent(
                     event.flowId() != null ? event.flowId().toString() : "null", event);
