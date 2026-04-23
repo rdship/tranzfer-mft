@@ -24,10 +24,17 @@ import java.util.Map;
  *   <li>{@code GET    /api/v1/coordination/health}</li>
  * </ul>
  *
- * <p>Auth: {@link Roles#INTERNAL_OR_OPERATOR} — inter-service callers present
- * a SPIFFE JWT-SVID (mapped to ROLE_INTERNAL by the R134 filter chain) or an
- * admin forward via X-Forwarded-Authorization (ROLE_ADMIN / ROLE_OPERATOR).
- * Same auth envelope every other cross-service call uses.
+ * <p><b>R134AL — auth posture narrowed.</b> Class-level default is
+ * {@link Roles#INTERNAL} only: lock acquire/extend are machine-to-machine
+ * lease operations, never UI-invoked, so admitting ADMIN/OPERATOR widened
+ * the blast radius with no practical use case (a human flipping a lock
+ * underneath a running flow-engine step would cause chaos). {@code release}
+ * keeps {@link Roles#INTERNAL_OR_OPERATOR} as a break-glass path for ops
+ * to force-unstick a dead-pod lease during incident response.
+ * {@code /health} stays {@code permitAll()} for container probes.
+ *
+ * <p>Callers: inter-service clients present a SPIFFE JWT-SVID which
+ * {@code PlatformJwtAuthFilter} (Path 1) maps to ROLE_INTERNAL.
  *
  * <p>Lock-key encoding: path segment — a caller-chosen string like
  * {@code vfs:write:550e8400-...:/inbox/x.xml}. Colons are safe in path
@@ -39,7 +46,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/coordination")
 @RequiredArgsConstructor
-@PreAuthorize(Roles.INTERNAL_OR_OPERATOR)
+@PreAuthorize(Roles.INTERNAL)
 public class StorageCoordinationController {
 
     private final StorageCoordinationService service;
@@ -70,7 +77,13 @@ public class StorageCoordinationController {
         return extended ? ResponseEntity.ok(body) : ResponseEntity.status(409).body(body);
     }
 
+    /**
+     * R134AL — {@code release} keeps the broader {@link Roles#INTERNAL_OR_OPERATOR}
+     * posture as a break-glass path. A stuck lease from a crashed pod needs a
+     * human operator's escape hatch; acquire/extend do not.
+     */
     @DeleteMapping("/locks/{lockKey:.+}")
+    @PreAuthorize(Roles.INTERNAL_OR_OPERATOR)
     public ResponseEntity<Map<String, Object>> release(
             @PathVariable String lockKey,
             @RequestParam String holderId) {
