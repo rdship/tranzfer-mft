@@ -57,7 +57,7 @@ public class AccountEventConsumer {
                 try {
                     Map<String, Object> payload = event.payloadAsMap(injectedObjectMapper);
                     if (payload != null) {
-                        handleEvent(payload);
+                        handleEvent(payload, /*fallbackType*/ null);
                     }
                 } catch (Exception e) {
                     log.error("Failed to process fabric account event: {}", e.getMessage(), e);
@@ -80,7 +80,11 @@ public class AccountEventConsumer {
                     row.id(), row.routingKey(), row.aggregateId());
             @SuppressWarnings("unchecked")
             Map<String, Object> payload = row.as(Map.class, injectedObjectMapper);
-            handleEvent(payload);
+            // R134AK — outbox payloads don't always carry an `eventType` key; the
+            // outbox row's routingKey (e.g. "account.updated") is the authoritative
+            // event identifier. Pass it as a fallback so the log below stops showing
+            // `type=null` on outbox-sourced events.
+            handleEvent(payload, row.routingKey());
         });
         log.info("[R134X][SFTP][account][boot] OUTBOX-ONLY active; @RabbitListener removed");
     }
@@ -90,12 +94,13 @@ public class AccountEventConsumer {
      * safe: cache eviction, QoS updates, and directory creation all
      * converge on the same observable outcome.
      */
-    private void handleEvent(Map<String, Object> event) {
+    private void handleEvent(Map<String, Object> event, String fallbackType) {
         String username = (String) event.get("username");
         String homeDir = (String) event.get("homeDir");
 
         if (username == null) return;
         String eventType = (String) event.get("eventType");
+        if (eventType == null) eventType = fallbackType;            // R134AK
         log.info("[R134X][SFTP][account] received type={} username={} homeDir={}", eventType, username, homeDir);
 
         // Evict cache so next auth picks up fresh DB data
