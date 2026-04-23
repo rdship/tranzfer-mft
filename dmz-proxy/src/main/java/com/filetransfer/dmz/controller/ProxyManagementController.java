@@ -614,13 +614,12 @@ public class ProxyManagementController {
     // ── Proxy Group Identity ────────────────────────────────────────────────
 
     /**
-     * Returns this proxy instance's group identity and capabilities.
-     * Called by onboarding-api {@code ProxyGroupService.enrichWithHealth()} to verify
-     * instance health and gather connection metrics.
+     * Returns this proxy instance's group identity and capabilities. Polled by the
+     * admin plane (onboarding-api) to surface active-mapping and connection metrics.
      *
      * <p>No auth required — this endpoint is intentionally public so the admin plane
-     * (onboarding-api) can poll it without needing proxy credentials. The data returned
-     * is non-sensitive metadata only.
+     * can poll it without needing proxy credentials. The data returned is
+     * non-sensitive metadata only.
      */
     @GetMapping("/info")
     public Map<String, Object> getInfo() {

@@ -2,9 +2,6 @@ package com.filetransfer.shared.connector;
 
 import com.filetransfer.shared.entity.transfer.ActivityEvent;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -15,19 +12,22 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
- * Real-time activity monitor.
+ * Real-time activity monitor (per-replica).
  *
- * <p>Per-replica counts live in {@link AtomicInteger}s for zero-latency local reads.
- * When Redis is available, the same delta is applied to {@code platform:activity}
- * (a Redis HASH) so every replica sees the <b>cluster-wide total</b>.
+ * <p>Per-replica counters live in {@link AtomicInteger}s for zero-latency local reads.
  *
- * <p>Redis unavailability is silent — local counters remain correct for this replica.
+ * <p><b>R134AH — Redis aggregation retired.</b> Earlier versions synced local
+ * deltas into a Redis {@code platform:activity} hash so each replica could
+ * expose a cluster-wide total. R134Y replaced the activity event feed with
+ * a PG table poll on {@code file_transfer_records}; the Redis HINCRBY/HGET
+ * dance was already best-effort silent-fail and never load-bearing. The
+ * admin UI now shows per-replica connection counts (prefixed accordingly in
+ * the snapshot); cluster-wide aggregation can be restored later by summing
+ * across replicas discovered through {@code platform_pod_heartbeat}.
  */
 @Service
 @Slf4j
 public class ActivityMonitor {
-
-    private static final String ACTIVITY_KEY = "platform:activity";
 
     private final ConcurrentLinkedDeque<ActivityEvent> recentEvents   = new ConcurrentLinkedDeque<>();
     private final Map<String, ActivityEvent>           activeTransfers = Collections.synchronizedMap(new LinkedHashMap<>());
@@ -35,11 +35,6 @@ public class ActivityMonitor {
     private final AtomicInteger activeFtpConnections   = new AtomicInteger();
     private final AtomicInteger activeHttpConnections  = new AtomicInteger();
     private static final int MAX_EVENTS = 500;
-
-    /** Injected only when Redis is on the classpath and configured. */
-    @Autowired(required = false)
-    @Nullable
-    private StringRedisTemplate redis;
 
     // ── Events ────────────────────────────────────────────────────────────────
 
@@ -58,38 +53,36 @@ public class ActivityMonitor {
     // ── Connection tracking ───────────────────────────────────────────────────
 
     public void connectionOpened(String protocol) {
-        String field = protocolField(protocol);
         switch (protocol.toUpperCase()) {
             case "SFTP"        -> activeSftpConnections.incrementAndGet();
             case "FTP"         -> activeFtpConnections.incrementAndGet();
             case "HTTPS","HTTP"-> activeHttpConnections.incrementAndGet();
+            default            -> { /* no-op */ }
         }
-        redisIncrement(field, 1);
     }
 
     public void connectionClosed(String protocol) {
-        String field = protocolField(protocol);
         switch (protocol.toUpperCase()) {
             case "SFTP"        -> activeSftpConnections.decrementAndGet();
             case "FTP"         -> activeFtpConnections.decrementAndGet();
             case "HTTPS","HTTP"-> activeHttpConnections.decrementAndGet();
+            default            -> { /* no-op */ }
         }
-        redisIncrement(field, -1);
     }
 
     // ── Snapshot ─────────────────────────────────────────────────────────────
 
     /**
-     * Returns activity metrics. If Redis is available, the connection counts are
-     * cluster-wide totals (all replicas summed). If not, they are this-replica only.
+     * Returns per-replica activity metrics. For cluster-wide totals, sum the
+     * snapshot across replicas discovered via {@code platform_pod_heartbeat}.
      */
     public Map<String, Object> getSnapshot() {
         Instant fiveMinAgo = Instant.now().minus(5, ChronoUnit.MINUTES);
         long recentCount   = recentEvents.stream().filter(e -> e.getTimestamp().isAfter(fiveMinAgo)).count();
 
-        long sftp = clusterCount("sftp",  activeSftpConnections.get());
-        long ftp  = clusterCount("ftp",   activeFtpConnections.get());
-        long http = clusterCount("http",  activeHttpConnections.get());
+        long sftp = activeSftpConnections.get();
+        long ftp  = activeFtpConnections.get();
+        long http = activeHttpConnections.get();
 
         Map<String, Object> snap = new LinkedHashMap<>();
         snap.put("activeSftpConnections",  sftp);
@@ -98,7 +91,7 @@ public class ActivityMonitor {
         snap.put("totalActiveConnections", sftp + ftp + http);
         snap.put("activeTransfers",        activeTransfers.size());
         snap.put("transfersLast5Min",      recentCount);
-        snap.put("clusterWide",            redis != null);
+        snap.put("clusterWide",            false);
         snap.put("timestamp",              Instant.now().toString());
         return snap;
     }
@@ -106,35 +99,5 @@ public class ActivityMonitor {
     public List<ActivityEvent> getActiveTransfers() { return new ArrayList<>(activeTransfers.values()); }
     public List<ActivityEvent> getRecentEvents(int limit) {
         return recentEvents.stream().limit(limit).collect(Collectors.toList());
-    }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private void redisIncrement(String field, long delta) {
-        if (redis == null || field == null) return;
-        try {
-            redis.opsForHash().increment(ACTIVITY_KEY, field, delta);
-        } catch (Exception e) {
-            log.debug("[ActivityMonitor] Redis HINCRBY failed (local count still correct): {}", e.getMessage());
-        }
-    }
-
-    private long clusterCount(String field, long localFallback) {
-        if (redis == null) return localFallback;
-        try {
-            Object val = redis.opsForHash().get(ACTIVITY_KEY, field);
-            return val != null ? Long.parseLong(val.toString()) : localFallback;
-        } catch (Exception e) {
-            return localFallback;
-        }
-    }
-
-    private static String protocolField(String protocol) {
-        return switch (protocol.toUpperCase()) {
-            case "SFTP"         -> "sftp";
-            case "FTP"          -> "ftp";
-            case "HTTPS","HTTP" -> "http";
-            default             -> null;
-        };
     }
 }
