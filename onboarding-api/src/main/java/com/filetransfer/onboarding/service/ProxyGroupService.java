@@ -18,8 +18,10 @@ import java.util.*;
  *
  * <p>Live proxy instance membership is discovered by scanning Redis keys
  * of the form {@code platform:proxy-group:{groupName}:{instanceId}}.
- * Instances self-register at startup via {@link com.filetransfer.dmzproxy.cluster.ProxyGroupRegistrar}
- * and refresh their TTL every 10 s. Stale/crashed instances disappear within 30 s.
+ * R134AG retired the {@code ProxyGroupRegistrar} writer — instances no
+ * longer self-register; this scan returns no live rows today and will
+ * migrate to PG {@code platform_pod_heartbeat} in the follow-up sprint
+ * (the same registry R134y made authoritative for cluster membership).
  */
 @Slf4j
 @Service

@@ -46,6 +46,24 @@ public class SftpPasswordAuthenticator implements PasswordAuthenticator {
             return false;
         }
 
+        // R134AG — reject zero-byte password before any credential work so
+        // client probes (Mina "none" phase, macOS OpenSSH hostkey-distrust
+        // empty-password dispatch, publickey-fallthrough) do NOT burn a
+        // lockout attempt and do NOT emit a misleading "invalid_credentials"
+        // audit event. R134AB bytes-level decoder proved these arrive as
+        // passwordLen=0 / SHA-256 e3b0c442 (SHA-256 of empty string);
+        // R134AF run report §2 falsified the old "Java bcrypt rejects
+        // partner123" theory — the server never sees partner123 in those
+        // trips, it sees zero bytes. Returning false here tells the client
+        // "this auth method failed"; the client will then offer the next
+        // method (keyboard-interactive / publickey) without racking up
+        // counted DENY events.
+        if (password == null || password.isEmpty()) {
+            log.info("[R134AG][SftpAuth] rejecting zero-byte password probe username={} ip={} listener={} (not counted toward lockout)",
+                    username, ip, listenerInstanceId != null ? listenerInstanceId : "<primary>");
+            return false;
+        }
+
         // Check account lockout
         if (loginAttemptTracker.isLocked(username)) {
             log.warn("SFTP auth rejected: account locked username={} ip={}", username, ip);

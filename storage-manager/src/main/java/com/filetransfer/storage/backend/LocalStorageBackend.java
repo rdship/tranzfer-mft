@@ -1,7 +1,6 @@
 package com.filetransfer.storage.backend;
 
 import com.filetransfer.storage.engine.ParallelIOEngine;
-import com.filetransfer.storage.registry.StorageLocationRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,10 +47,6 @@ public class LocalStorageBackend implements StorageBackend {
 
     @Autowired(required = false)
     @Nullable
-    private StorageLocationRegistry locationRegistry;
-
-    @Autowired(required = false)
-    @Nullable
     private com.filetransfer.storage.lifecycle.WriteIntentService writeIntentService;
 
     @Value("${storage.hot.path:/data/storage/hot}")
@@ -79,7 +74,6 @@ public class LocalStorageBackend implements StorageBackend {
         if (Files.exists(casPath)) {
             Files.deleteIfExists(dest); // Dedup — content already stored
             if (intent != null) writeIntentService.abandon(intent);
-            if (locationRegistry != null) locationRegistry.register(r.getSha256());
             return new WriteResult(r.getSha256(), r.getSizeBytes(), r.getSha256(),
                     durationMs, r.getThroughputMbps(), true);
         }
@@ -87,7 +81,6 @@ public class LocalStorageBackend implements StorageBackend {
 
         // WAIL: mark intent completed after successful CAS rename
         if (intent != null) writeIntentService.complete(intent, casPath.toString());
-        if (locationRegistry != null) locationRegistry.register(r.getSha256());
         log.debug("[LocalBackend] Stored {} → {} ({} MB/s)", r.getSha256().substring(0, 8), casPath, String.format("%.1f", r.getThroughputMbps()));
 
         return new WriteResult(r.getSha256(), r.getSizeBytes(), r.getSha256(),
@@ -144,7 +137,6 @@ public class LocalStorageBackend implements StorageBackend {
     public void delete(String storageKey) {
         try {
             Files.deleteIfExists(resolvePath(storageKey));
-            if (locationRegistry != null) locationRegistry.deregister(storageKey);
         } catch (Exception e) {
             log.warn("[LocalBackend] delete({}) failed: {}", storageKey, e.getMessage());
         }

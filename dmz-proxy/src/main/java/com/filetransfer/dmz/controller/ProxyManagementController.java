@@ -1,12 +1,12 @@
 package com.filetransfer.dmz.controller;
 
-import com.filetransfer.dmz.cluster.ProxyGroupRegistrar;
 import com.filetransfer.dmz.audit.AuditLogger;
 import com.filetransfer.dmz.health.BackendHealthChecker;
 import com.filetransfer.dmz.proxy.PortMapping;
 import com.filetransfer.dmz.proxy.ProxyManager;
 import com.filetransfer.dmz.qos.BandwidthQoS;
 import com.filetransfer.dmz.security.*;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.Nullable;
@@ -21,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
 import java.util.*;
 
 /**
@@ -67,10 +68,30 @@ public class ProxyManagementController {
     @Nullable
     private SpiffeProxyAuth spiffeProxyAuth;
 
-    /** Optional group registrar — present when Redis is on the classpath. */
-    @Autowired(required = false)
-    @Nullable
-    private ProxyGroupRegistrar groupRegistrar;
+    // R134AG — ProxyGroupRegistrar deleted (was Redis-backed); the /info
+    // endpoint now sources group metadata directly from the same properties
+    // ProxyGroupRegistrar read. Removing the Redis presence-key write is
+    // aligned with R134AD's slim of RedisServiceRegistry — PG
+    // platform_pod_heartbeat is the authoritative registry.
+    @Value("${proxy.group.name:internal}")
+    private String groupName;
+
+    @Value("${proxy.group.type:INTERNAL}")
+    private String groupType;
+
+    @Value("${proxy.group.instance-id:}")
+    private String configuredInstanceId;
+
+    private String effectiveInstanceId;
+    private Instant startedAt;
+
+    @PostConstruct
+    void captureStartupMetadata() {
+        this.effectiveInstanceId = (configuredInstanceId != null && !configuredInstanceId.isBlank())
+                ? configuredInstanceId
+                : UUID.randomUUID().toString();
+        this.startedAt = Instant.now();
+    }
 
     // ── Port Mapping Management ────────────────────────────────────────
 
@@ -605,18 +626,10 @@ public class ProxyManagementController {
     public Map<String, Object> getInfo() {
         Map<String, Object> info = new LinkedHashMap<>();
 
-        if (groupRegistrar != null) {
-            info.put("groupName",    groupRegistrar.getGroupName());
-            info.put("groupType",    groupRegistrar.getGroupType());
-            info.put("instanceId",   groupRegistrar.getInstanceId());
-            info.put("startedAt",    groupRegistrar.getStartedAt() != null
-                                     ? groupRegistrar.getStartedAt().toString() : null);
-        } else {
-            info.put("groupName",  "default");
-            info.put("groupType",  "INTERNAL");
-            info.put("instanceId", "unknown");
-            info.put("startedAt",  null);
-        }
+        info.put("groupName",  groupName);
+        info.put("groupType",  groupType);
+        info.put("instanceId", effectiveInstanceId);
+        info.put("startedAt",  startedAt != null ? startedAt.toString() : null);
 
         // Live connection metrics
         Map<String, Object> stats = proxyManager.status().stream()

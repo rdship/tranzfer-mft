@@ -5,7 +5,6 @@ import com.filetransfer.shared.security.Roles;
 import com.filetransfer.storage.backend.StorageBackend;
 import com.filetransfer.storage.entity.StorageObject;
 import com.filetransfer.storage.lifecycle.StorageLifecycleManager;
-import com.filetransfer.storage.registry.StorageLocationRegistry;
 import com.filetransfer.storage.repository.StorageObjectRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,11 +49,6 @@ public class StorageController {
     private final StorageBackend storageBackend;
     private final StorageLifecycleManager lifecycle;
     private final StorageObjectRepository objectRepo;
-
-    /** Optional — present when Redis is configured. Null if S3 backend (no routing needed). */
-    @Autowired(required = false)
-    @Nullable
-    private StorageLocationRegistry locationRegistry;
 
     /** Audit trail for all storage operations (PCI-DSS 10.x compliance). */
     @Autowired(required = false)
@@ -252,26 +246,14 @@ public class StorageController {
     /**
      * Retrieve file by SHA-256 key (used by VFS read channels).
      *
-     * <p><b>Multi-replica routing:</b> if the file was written to a different storage-manager
-     * instance, the location registry returns that instance's URL and this pod proxies the
-     * request. The caller gets the bytes transparently regardless of which pod stored them.
-     *
-     * <p>Fallback: if Redis is unavailable or no location entry exists, attempt local read
-     * (works correctly in single-instance deployments and shared-storage deployments).
+     * <p>Multi-replica correctness relies on the configured {@link StorageBackend}:
+     * S3/MinIO backends are globally shared and all pods see identical bytes; local
+     * backends are correct for single-instance / NFS / ReadWriteMany PVC topologies.
+     * The Redis location-registry routing was retired at R134AG — local-only
+     * multi-replica deployments should migrate to the S3 backend.
      */
     @GetMapping("/retrieve-by-key/{sha256}")
     public void retrieveByKey(@PathVariable String sha256, HttpServletResponse response) throws Exception {
-        // ── Cross-replica routing via Redis location registry ───
-        if (locationRegistry != null && !locationRegistry.isLocal(sha256)) {
-            response.setHeader("X-SHA256", sha256);
-            response.setHeader("X-Routed-From", locationRegistry.getOwnerUrl(sha256));
-            response.setHeader("X-Storage-Backend", storageBackend.type());
-            if (locationRegistry.proxyRetrieveTo(sha256, response.getOutputStream())) {
-                return;
-            }
-            // Proxy failed — fall through to backend read (defensive)
-        }
-
         // ── Backend streaming read (works for both local and S3) ──────────────
         StorageObject obj = objectRepo.findBySha256AndDeletedFalse(sha256)
                 .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
