@@ -3,6 +3,7 @@ package com.filetransfer.edi.controller;
 import com.filetransfer.edi.converter.*;
 import com.filetransfer.edi.format.TemplateLibrary;
 import com.filetransfer.edi.map.*;
+import com.filetransfer.edi.metrics.ConversionMetrics;
 import com.filetransfer.edi.model.CanonicalDocument;
 import com.filetransfer.edi.model.EdiDocument;
 import com.filetransfer.edi.parser.*;
@@ -39,6 +40,7 @@ public class EdiConverterController {
     private final MapResolver mapResolver;
     private final MapBasedConverter mapBasedConverter;
     private final HipaaParser hipaaParser;
+    private final ConversionMetrics metrics;
 
     // ===================================================================
     // CORE CONVERSION
@@ -469,14 +471,19 @@ public class EdiConverterController {
      */
     @PostMapping("/convert/map")
     public ResponseEntity<Map<String, Object>> convertWithMap(@RequestBody Map<String, String> request) {
+        // R135a — instrumented with Micrometer per the gap report §8. result/source/target/map_category
+        // tags are emitted on every attempt; the Timer captures wall-clock latency around parse+apply.
+        long t0 = System.nanoTime();
+        String sourceType = request.get("sourceType");
+        String targetType = request.get("targetType");
+        String partnerId = request.get("partnerId");
         String content = request.get("content");
+
         if (content == null || content.isBlank()) {
+            metrics.recordFailure(ConversionMetrics.RESULT_PARSE_FAILED, sourceType, targetType,
+                    ConversionMetrics.CATEGORY_NONE, System.nanoTime() - t0);
             return ResponseEntity.badRequest().body(Map.of("error", "content is required"));
         }
-
-        String sourceType = request.get("sourceType");    // e.g., "X12_850"
-        String targetType = request.get("targetType");     // e.g., "PURCHASE_ORDER_INH"
-        String partnerId = request.get("partnerId");       // optional
 
         // 1. Auto-detect source type if not provided
         if (sourceType == null || sourceType.isEmpty()) {
@@ -484,6 +491,8 @@ public class EdiConverterController {
         }
 
         if (targetType == null || targetType.isEmpty()) {
+            metrics.recordFailure(ConversionMetrics.RESULT_MAP_NOT_FOUND, sourceType, targetType,
+                    ConversionMetrics.CATEGORY_NONE, System.nanoTime() - t0);
             return ResponseEntity.badRequest().body(Map.of(
                     "error", "targetType is required",
                     "detectedSourceType", sourceType,
@@ -493,6 +502,8 @@ public class EdiConverterController {
         // 2. Resolve the map
         Optional<ConversionMapDefinition> map = mapResolver.resolve(sourceType, targetType, partnerId);
         if (map.isEmpty()) {
+            metrics.recordFailure(ConversionMetrics.RESULT_MAP_NOT_FOUND, sourceType, targetType,
+                    ConversionMetrics.CATEGORY_NONE, System.nanoTime() - t0);
             return ResponseEntity.badRequest().body(Map.of(
                     "error", "No map found for " + sourceType + " -> " + targetType,
                     "detectedSourceType", sourceType,
@@ -500,22 +511,58 @@ public class EdiConverterController {
                     "suggestion", "Check available maps at GET /api/v1/convert/maps"));
         }
 
-        // 3. Parse source document
-        EdiDocument doc = parser.parse(content);
+        String mapCategory = resolveMapCategory(map.get(), partnerId);
 
-        // 4. Apply conversion map
-        Map<String, Object> converted = mapBasedConverter.convert(doc, map.get());
+        try {
+            // 3. Parse source document
+            EdiDocument doc;
+            try {
+                doc = parser.parse(content);
+            } catch (Exception parseEx) {
+                metrics.recordFailure(ConversionMetrics.RESULT_PARSE_FAILED, sourceType, targetType,
+                        mapCategory, System.nanoTime() - t0);
+                throw parseEx;
+            }
 
-        var result = new LinkedHashMap<String, Object>();
-        result.put("converted", converted);
-        result.put("mapUsed", map.get().getMapId());
-        result.put("mapVersion", map.get().getVersion());
-        result.put("sourceType", sourceType);
-        result.put("targetType", targetType);
-        result.put("confidence", map.get().getConfidence());
-        if (partnerId != null) result.put("partnerId", partnerId);
+            // 4. Apply conversion map
+            Map<String, Object> converted = mapBasedConverter.convert(doc, map.get());
 
-        return ResponseEntity.ok(result);
+            var result = new LinkedHashMap<String, Object>();
+            result.put("converted", converted);
+            result.put("mapUsed", map.get().getMapId());
+            result.put("mapVersion", map.get().getVersion());
+            result.put("sourceType", sourceType);
+            result.put("targetType", targetType);
+            result.put("confidence", map.get().getConfidence());
+            if (partnerId != null) result.put("partnerId", partnerId);
+
+            metrics.recordSuccess(sourceType, targetType, mapCategory, System.nanoTime() - t0);
+            return ResponseEntity.ok(result);
+        } catch (Exception conversionEx) {
+            metrics.recordFailure(ConversionMetrics.RESULT_CONVERSION_FAILED, sourceType, targetType,
+                    mapCategory, System.nanoTime() - t0);
+            return ResponseEntity.status(500).body(Map.of(
+                    "error", "Conversion failed: " + conversionEx.getMessage(),
+                    "mapUsed", map.get().getMapId()));
+        }
+    }
+
+    /**
+     * R135a — derive the meter's {@code map_category} tag from the resolved map.
+     * Partner maps are any map with an explicit {@code partnerId} request AND a
+     * matching map; trained maps have a non-null trainedMapId metadata field;
+     * everything else is a classpath-loaded standard map.
+     */
+    private String resolveMapCategory(ConversionMapDefinition m, String partnerId) {
+        if (m == null) return ConversionMetrics.CATEGORY_NONE;
+        if (partnerId != null && !partnerId.isBlank()
+                && m.getMapId() != null && m.getMapId().contains(partnerId)) {
+            return ConversionMetrics.CATEGORY_PARTNER;
+        }
+        if (m.getMapId() != null && m.getMapId().startsWith("TRAINED_")) {
+            return ConversionMetrics.CATEGORY_TRAINED;
+        }
+        return ConversionMetrics.CATEGORY_STANDARD;
     }
 
     /** List all available conversion maps (standard + trained + partner). */
