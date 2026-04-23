@@ -749,7 +749,11 @@ create_scheduled_tasks() {
     sched_acct_id="${ACCOUNT_IDS[0]}"
   fi
   local sched_flow_id=""
-  local flows_resp=$(get "$API/api/flows?size=1000" 2>/dev/null)
+  # R134AN — flows live on config-service. onboarding-api's DryRunController
+  # registers /api/flows only for the sub-path /api/flows/{flowId}/dry-run,
+  # so a root GET against $API hit 404 ("No handler for GET /api/flows")
+  # and the RUN_FLOW scheduled task seed fell back to a fixture UUID.
+  local flows_resp=$(get "$CFG/api/flows?size=1000" 2>/dev/null)
   if [ -n "$flows_resp" ]; then
     sched_flow_id=$(echo "$flows_resp" | python3 -c "
 import sys,json
