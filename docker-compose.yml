@@ -77,8 +77,6 @@ x-common-env: &common-env
     -Dspring.jpa.open-in-view=false
     -Dspring.flyway.enabled=false
     -Dspring.datasource.hikari.initialization-fail-timeout=-1
-    -Dspring.data.redis.timeout=3000
-    -Dspring.data.redis.connect-timeout=3000
     -Dspring.rabbitmq.connection-timeout=3000
     -Dspring.kafka.admin.properties.request.timeout.ms=5000
     -Dspring.kafka.consumer.properties.default.api.timeout.ms=5000
@@ -91,15 +89,11 @@ x-common-env: &common-env
   DB_PASSWORD: postgres
   RABBITMQ_HOST: rabbitmq
   RABBITMQ_PORT: 5672
-  REDIS_HOST: redis
-  REDIS_PORT: 6379
   PLATFORM_DEFAULT_STORAGE_MODE: ${PLATFORM_DEFAULT_STORAGE_MODE:-VIRTUAL}
   PLATFORM_TLS_ENABLED: ${PLATFORM_TLS_ENABLED:-true}
-  # R134w Sprint 2 — Redis → PG rate-limit counter.
-  # Value propagates to platform.rate-limit.backend. ApiRateLimitFilter
-  # dispatches to PgRateLimitCoordinator (V95 rate_limit_buckets) when
-  # set to `pg`; falls back to in-memory if the backend is unreachable.
-  # Override to `redis` on installs that don't run the V95 migration.
+  # Rate-limit backend. `pg` is the default (V95 rate_limit_buckets);
+  # `memory` for single-instance fallback. Redis backend retired at R134AH
+  # and the container itself removed at R134AJ.
   PLATFORM_RATE_LIMIT_BACKEND: ${PLATFORM_RATE_LIMIT_BACKEND:-pg}
   SPRING_FLYWAY_LOCK_RETRY_COUNT: 200
   # Fast boot: Flyway owns schema, Hibernate skips DB round trips on startup.
@@ -114,8 +108,8 @@ x-common-env: &common-env
   CLUSTER_ID: ${CLUSTER_ID:-cluster-1}
   CLUSTER_COMM_MODE: ${CLUSTER_COMM_MODE:-WITHIN_CLUSTER}
   TRACK_ID_PREFIX: ${TRACK_ID_PREFIX:-TRZ}
-  PLATFORM_VERSION: "1.0.0-R134AI"
-  PLATFORM_BUILD_TIMESTAMP: "2026-04-23T05:30:00Z"
+  PLATFORM_VERSION: "1.0.0-R134AJ"
+  PLATFORM_BUILD_TIMESTAMP: "2026-04-23T07:00:00Z"
   PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-DEV}
   PROXY_ENABLED: ${PROXY_ENABLED:-false}
   PROXY_TYPE: ${PROXY_TYPE:-HTTP}
@@ -320,25 +314,14 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    container_name: mft-redis
-    command: >
-      redis-server
-      --appendonly yes
-      --appendfsync everysec
-      --save 60 1
-      --maxmemory 256mb
-      --maxmemory-policy allkeys-lru
-    ports:
-      - "127.0.0.1:6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+  # R134AJ — `redis` service retired. All data-plane consumers migrated
+  # (R134AC: VFS lock → storage-coord + pg_advisory; R134AG: storage
+  # location registry + proxy group registrar deleted; R134AH: rate-limit
+  # → PG `rate_limit_buckets`, ActivityMonitor → local AtomicInteger,
+  # ProxyGroupService scan deleted; R134AI: cluster JOIN/LEAVE fanout →
+  # RabbitMQ `platform.cluster.events` exchange). See
+  # docs/rd/2026-04-R134-external-dep-retirement/01-redis-retirement.md
+  # for the full per-consumer migration history.
 
   # R134u — replaces the old `vault-init` container (and removes `vault` entirely).
   # Only job: generate a single platform-wide TLS keystore on first boot and
@@ -535,8 +518,6 @@ services:
       postgres:
         condition: service_healthy
       rabbitmq:
-        condition: service_healthy
-      redis:
         condition: service_healthy
       redpanda:
         condition: service_healthy
@@ -975,8 +956,6 @@ services:
       PROXY_GROUP_TYPE: INTERNAL
       PROXY_INSTANCE_ID: dmz-proxy-internal-1
       DMZ_EXTERNAL_HOST: ${DMZ_EXTERNAL_HOST_INTERNAL:-127.0.0.1}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
       DMZ_SECURITY_ENABLED: "true"
       AI_ENGINE_URL: http://ai-engine:8091
       KEYSTORE_MANAGER_URL: http://keystore-manager:8093
@@ -988,8 +967,8 @@ services:
       DMZ_QOS_ENABLED: "true"
       DMZ_TUNNEL_ENABLED: ${DMZ_TUNNEL_ENABLED:-false}
       DMZ_TUNNEL_PORT: "9443"
-      PLATFORM_VERSION: "1.0.0-R134AI"
-      PLATFORM_BUILD_TIMESTAMP: "2026-04-23T05:30:00Z"
+      PLATFORM_VERSION: "1.0.0-R134AJ"
+      PLATFORM_BUILD_TIMESTAMP: "2026-04-23T07:00:00Z"
       CLUSTER_SERVICE_TYPE: DMZ_PROXY
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8088/api/proxy/health | grep -qE '\"status\":\"(UP|DEGRADED)\"' || exit 1"]
@@ -998,8 +977,6 @@ services:
       retries: 5
       start_period: 20s
     depends_on:
-      redis:
-        condition: service_healthy
       ai-engine:
         condition: service_started
       gateway-service:
@@ -1039,8 +1016,6 @@ services:
       PROXY_GROUP_TYPE: EXTERNAL
       PROXY_INSTANCE_ID: dmz-proxy-external-1
       DMZ_EXTERNAL_HOST: ${DMZ_EXTERNAL_HOST_EXTERNAL:-127.0.0.1}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
       DMZ_SECURITY_ENABLED: "true"
       DMZ_TLS_ENABLED: ${DMZ_EXTERNAL_TLS_ENABLED:-true}   # TLS mandatory for external group
       AI_ENGINE_URL: http://ai-engine:8091
@@ -1061,8 +1036,6 @@ services:
       retries: 5
       start_period: 20s
     depends_on:
-      redis:
-        condition: service_healthy
       ai-engine:
         condition: service_started
       gateway-service:
@@ -1157,8 +1130,6 @@ services:
       postgres:
         condition: service_healthy
       rabbitmq:
-        condition: service_healthy
-      redis:
         condition: service_healthy
       redpanda:
         condition: service_healthy
@@ -1259,9 +1230,9 @@ services:
   #      STORAGE_BACKEND=s3 on each replica (future work — see StorageBackend.java)
   #   C) Kubernetes: use a ReadWriteMany PersistentVolumeClaim (EFS, GlusterFS, etc.)
   #
-  # The Redis location registry (StorageLocationRegistry) is an INTERIM workaround:
-  # it records which instance holds each SHA-256 key and proxies retrieval requests.
-  # It does NOT fix data loss if the owning pod's volume is destroyed.
+  # R134AG retired the Redis-backed StorageLocationRegistry (it could not
+  # fix data loss if the owning pod's volume was destroyed). Multi-replica
+  # deployments must use the S3/MinIO backend below.
   # ─────────────────────────────────────────────────────────────────────────────
   storage-manager:
     build: ./storage-manager
@@ -1287,8 +1258,8 @@ services:
       STORAGE_WARM_PATH: /data/storage/warm
       STORAGE_COLD_PATH: /data/storage/cold
       STORAGE_BACKUP_PATH: /data/storage/backup
-      # Instance URL used by the Redis location registry to route cross-replica retrieval.
-      # Set this to the pod's own URL in K8s (e.g. http://$(POD_IP):8096).
+      # Instance URL — informational; prefer the S3/MinIO backend for true
+      # multi-replica correctness (post-R134AG the Redis location registry is gone).
       STORAGE_INSTANCE_URL: http://storage-manager:8096
     volumes:
       - storage_data:/data/storage
@@ -1298,8 +1269,6 @@ services:
       postgres:
         condition: service_healthy
       rabbitmq:
-        condition: service_healthy
-      redis:
         condition: service_healthy
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -1384,18 +1353,18 @@ services:
         -Dspring.jmx.enabled=false
       SERVER_PORT: 8095
       # edi-converter deliberately does NOT merge <<: *common-env (it has
-      # no DB / Redis / RabbitMQ and runs with a smaller heap), so keep
-      # the explicit *spiffe-env merge here — without it, SPIFFE stays
-      # off on this service alone (regression against R101's platform-
-      # wide enablement).
+      # no DB / RabbitMQ and runs with a smaller heap), so keep the
+      # explicit *spiffe-env merge here — without it, SPIFFE stays off on
+      # this service alone (regression against R101's platform-wide
+      # enablement).
       <<: *spiffe-env
       SPIFFE_SERVICE_NAME: edi-converter
       SPRING_APPLICATION_NAME: edi-converter
       AI_ENGINE_URL: http://ai-engine:8091
       PLATFORM_SECURITY_SHARED_CONFIG: "false"
       PLATFORM_SECURITY_INTERNAL_SERVICE: "true"
-      PLATFORM_VERSION: "1.0.0-R134AI"
-      PLATFORM_BUILD_TIMESTAMP: "2026-04-23T05:30:00Z"
+      PLATFORM_VERSION: "1.0.0-R134AJ"
+      PLATFORM_BUILD_TIMESTAMP: "2026-04-23T07:00:00Z"
       PLATFORM_ENVIRONMENT: ${PLATFORM_ENVIRONMENT:-DEV}
       CLUSTER_SERVICE_TYPE: EDI_CONVERTER
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
@@ -1778,7 +1747,6 @@ volumes:
   spire-server-sock: # SPIRE Server admin socket (shared with spire-init)
   spire-init-data:   # Bootstrap join-token file (written by bootstrap.sh)
   spire-socket:      # SPIFFE Workload API socket (mounted read-only into services)
-  redis_data:      # Redis AOF + RDB snapshots — cache survives restarts
   minio_data:      # MinIO object storage — shared across all storage-manager replicas (profile=minio)
   postgres_data:
   rabbitmq_data:

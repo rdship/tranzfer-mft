@@ -16,10 +16,6 @@ spring:
     allow-bean-definition-overriding: true
   lifecycle:
     timeout-per-shutdown-phase: 30s
-  data:
-    redis:
-      host: ${REDIS_HOST:redis}
-      port: ${REDIS_PORT:6379}
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/filetransfer}
     username: ${DB_USERNAME:postgres}
@@ -52,10 +48,12 @@ spring:
         boot:
           allow_jdbc_metadata_access: false
   cache:
-    # Phase fix C8: switched from Caffeine (per-instance) to Redis (shared across pods).
-    # Caffeine's 500-entry cap + 30s TTL caused cache thrashing under 100 concurrent.
-    # Redis provides shared cache — one miss serves all subsequent concurrent requests.
-    type: redis
+    # R134AJ — Redis retired. Caffeine is the per-instance backend; service-specific
+    # Caffeine configs (PartnerCacheConfig / AnalyticsCacheConfig / OnboardingCacheConfig)
+    # tune size + TTL. Cache invalidation across pods rides the existing RabbitMQ
+    # fanout exchanges (partner.updated, flow.rule.updated) so stale entries evict
+    # without needing a shared backend.
+    type: caffeine
   flyway:
     enabled: true
     baseline-on-migrate: true

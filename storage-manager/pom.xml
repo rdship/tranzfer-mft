@@ -13,8 +13,6 @@
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
         <dependency><groupId>com.filetransfer</groupId><artifactId>shared-platform</artifactId></dependency>
         <dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId></dependency>
-        <!-- Redis: location registry (sha256→instanceUrl) + distributed VFS locking -->
-        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-redis</artifactId></dependency>
         <!-- AWS SDK v2 S3: used by S3StorageBackend (MinIO or AWS S3).
              Activated when storage.backend=s3; no-op in local mode. -->
         <dependency><groupId>software.amazon.awssdk</groupId><artifactId>s3</artifactId><version>2.25.16</version></dependency>

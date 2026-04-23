@@ -28,19 +28,6 @@ proxy:
     type: ${PROXY_GROUP_TYPE:INTERNAL}
     instance-id: ${PROXY_INSTANCE_ID:}
 
-spring:
-  data:
-    redis:
-      host: ${REDIS_HOST:redis}
-      port: ${REDIS_PORT:6379}
-      timeout: 2000ms
-      lettuce:
-        pool:
-          max-active: 2
-          max-idle: 2
-          min-idle: 1
-          max-wait: 1000ms
-
 # Default port mappings loaded at startup.
 # Additional mappings can be added at runtime via the REST API.
 dmz:

@@ -33,14 +33,6 @@
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-hibernate6</artifactId>
         </dependency>
-        <!-- Redis: cluster registry, pub/sub events, distributed VFS locks.
-             Must NOT be optional — classes with @ConditionalOnBean(RedisConnectionFactory.class)
-             import the Redis class directly, so it must be on the classpath for class loading.
-             Beans still only activate when a RedisConnectionFactory bean is configured. -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-redis</artifactId>
-        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-aop</artifactId>

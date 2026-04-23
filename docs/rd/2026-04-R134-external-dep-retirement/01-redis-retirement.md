@@ -1,10 +1,20 @@
 ---
 title: "Redis Retirement — every caller, every replacement"
-status: design
+status: complete
+closed_at: R134AJ (2026-04-22)
 depends_on: 00-overview.md
 ---
 
 # Redis Retirement — the Complete Migration
+
+> **R134AJ closure (2026-04-22):** Redis is gone. All 10 consumers from the R133
+> audit were migrated or deleted. The Docker container is removed from the
+> default stack, the `spring-boot-starter-data-redis` dependency is dropped from
+> every module pom, and the `spring.data.redis.*` blocks are stripped from every
+> service application.yml. The 4-container default stack (PG + MinIO + SPIRE +
+> slim RabbitMQ) is now achievable with `docker compose up -d`. See the
+> per-consumer R-tag column for when each migration shipped.
+
 
 The R133 / earlier R&D Redis audit found 10 consumers across shared-platform and service code. This doc takes each one by name, designs the replacement, and specifies the migration step. **Nothing is left generic.** If the doc doesn't name a file path and a replacement, I didn't think it through.
 

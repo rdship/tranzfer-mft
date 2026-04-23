@@ -127,12 +127,6 @@
             <groupId>org.apache.httpcomponents.client5</groupId>
             <artifactId>httpclient5</artifactId>
         </dependency>
-        <!-- Redis: optional — rate limiter uses Redis when available, falls back to in-memory -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-redis</artifactId>
-            <optional>true</optional>
-        </dependency>
         <!-- R134u: PgRateLimitCoordinator uses JdbcTemplate directly (no JPA overhead
              for a simple UPSERT+RETURNING). spring-jdbc is the compile-time dep;
              at runtime, the JdbcTemplate bean comes from whatever starter the consuming
