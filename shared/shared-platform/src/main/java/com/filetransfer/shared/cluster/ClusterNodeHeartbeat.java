@@ -8,12 +8,17 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
+import java.sql.Connection;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Every service pod heartbeats its liveness row into the {@code platform_pod_heartbeat}
@@ -48,6 +53,17 @@ import java.time.Instant;
 public class ClusterNodeHeartbeat {
 
     private final JdbcTemplate jdbc;
+    /**
+     * R134AF — every JDBC write goes through its own REQUIRES_NEW
+     * transaction so Spring commits regardless of the Hikari pool's
+     * autoCommit setting (JPA forces {@code autoCommit=false} on shared
+     * pool connections; R134AE proved the INSERT returned rowsAffected=1
+     * yet the row was invisible to a follow-up read — classic
+     * uncommitted-then-released-to-pool symptom). See R134AE runtime
+     * report §2 for the narrowing evidence.
+     */
+    private final TransactionTemplate txTemplate;
+    private final AtomicInteger heartbeatTickCount = new AtomicInteger(0);
 
     @Value("${spring.application.name:unknown}")
     private String serviceType;
@@ -69,8 +85,11 @@ public class ClusterNodeHeartbeat {
     private String url;
     private Instant startedAt;
 
-    public ClusterNodeHeartbeat(JdbcTemplate jdbc) {
+    public ClusterNodeHeartbeat(JdbcTemplate jdbc, PlatformTransactionManager txManager) {
         this.jdbc = jdbc;
+        this.txTemplate = new TransactionTemplate(txManager);
+        this.txTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        this.txTemplate.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
     }
 
     @PostConstruct
@@ -85,22 +104,21 @@ public class ClusterNodeHeartbeat {
         this.spiffeId = "spiffe://" + spiffeTrustDomain + "/" + serviceType;
         this.url = "http://" + host + ":" + serverPort;
         this.startedAt = Instant.now();
-        // R134AE — log the JDBC URL we're actually writing to so we can
-        // confirm every service targets the same DB as `/api/clusters/live`.
-        // The R134AD runtime report saw `Registered node` fire per service
-        // yet `SELECT COUNT(*)` = 0; this narrows down datasource mismatch
-        // vs. silent-INSERT-failure.
-        String jdbcUrl = resolveJdbcUrl();
-        // Initial heartbeat synchronously so the row exists before the
-        // first scheduled tick (which runs 10s after context ready).
+
+        PoolProbe probe = probePool();
         try {
             int rows = writeHeartbeat();
             long liveRows = countLiveRows();
-            log.info("[R134AE][ClusterHeartbeat] Registered node={} serviceType={} url={} rowsAffected={} liveRowsNow={} jdbcUrl={}",
-                    nodeId, serviceType, url, rows, liveRows, jdbcUrl);
+            log.info("[R134AF][ClusterHeartbeat] Registered node={} serviceType={} url={} rowsAffected={} liveRowsNow={} hikari.autoCommit={} jdbcUrl={}",
+                    nodeId, serviceType, url, rows, liveRows, probe.autoCommit, probe.jdbcUrl);
+            if (liveRows < 1) {
+                // REQUIRES_NEW tx should have committed; a still-zero count would be surprising.
+                log.warn("[R134AF][ClusterHeartbeat] liveRowsNow={} after REQUIRES_NEW commit — investigate",
+                        liveRows);
+            }
         } catch (Exception e) {
-            log.warn("[R134AE][ClusterHeartbeat] Initial heartbeat FAILED node={} jdbcUrl={} cause={}",
-                    nodeId, jdbcUrl, e.getMessage(), e);
+            log.warn("[R134AF][ClusterHeartbeat] Initial heartbeat FAILED node={} jdbcUrl={} cause={}",
+                    nodeId, probe.jdbcUrl, e.getMessage(), e);
         }
     }
 
@@ -109,18 +127,30 @@ public class ClusterNodeHeartbeat {
         if (!enabled || nodeId == null) return;
         try {
             int rows = writeHeartbeat();
+            int tick = heartbeatTickCount.incrementAndGet();
+            // First few ticks at INFO so operators see the heartbeat loop is live;
+            // after that, silent-success to avoid log spam.
+            if (tick <= 3) {
+                log.info("[R134AF][ClusterHeartbeat] tick={} rowsAffected={} node={} (silent after tick 3)",
+                        tick, rows, nodeId);
+            }
             if (rows != 1) {
-                // UPSERT should always report exactly 1. Anything else warrants attention.
-                log.warn("[R134AE][ClusterHeartbeat] heartbeat write returned rowsAffected={} (expected 1) node={}",
-                        rows, nodeId);
+                log.warn("[R134AF][ClusterHeartbeat] heartbeat write returned rowsAffected={} (expected 1) node={} tick={}",
+                        rows, nodeId, tick);
             }
         } catch (Exception e) {
             log.warn("[ClusterHeartbeat] heartbeat write failed (will retry in 10s): {}", e.getMessage());
         }
     }
 
+    /**
+     * R134AF — writes run inside a REQUIRES_NEW transaction so commit is
+     * explicit, unaffected by caller's transaction state or the pool's
+     * autoCommit setting. Fixes the R134AE-observed "rowsAffected=1 but
+     * liveRowsNow=0" symptom.
+     */
     private int writeHeartbeat() {
-        return jdbc.update("""
+        Integer result = txTemplate.execute(status -> jdbc.update("""
             INSERT INTO platform_pod_heartbeat (node_id, service_type, host, port, url, spiffe_id,
                                         last_heartbeat, started_at, status)
             VALUES (?, ?, ?, ?, ?, ?, now(), ?, 'ACTIVE')
@@ -133,7 +163,8 @@ public class ClusterNodeHeartbeat {
                     last_heartbeat = now(),
                     status         = 'ACTIVE'
             """, nodeId, serviceType, host, serverPort, url, spiffeId,
-            Timestamp.from(startedAt));
+            Timestamp.from(startedAt)));
+        return result == null ? 0 : result;
     }
 
     private long countLiveRows() {
@@ -146,14 +177,16 @@ public class ClusterNodeHeartbeat {
         }
     }
 
-    private String resolveJdbcUrl() {
-        try {
-            return jdbc.getDataSource() == null ? "unknown"
-                    : jdbc.getDataSource().getConnection().getMetaData().getURL();
+    private PoolProbe probePool() {
+        if (jdbc.getDataSource() == null) return new PoolProbe("unknown", "unknown");
+        try (Connection c = jdbc.getDataSource().getConnection()) {
+            return new PoolProbe(c.getMetaData().getURL(), String.valueOf(c.getAutoCommit()));
         } catch (Exception e) {
-            return "unresolved:" + e.getMessage();
+            return new PoolProbe("unresolved:" + e.getMessage(), "unknown");
         }
     }
+
+    private record PoolProbe(String jdbcUrl, String autoCommit) {}
 
     /**
      * Reaper — marks stale nodes DEAD. ShedLock gates across replicas so
@@ -191,13 +224,13 @@ public class ClusterNodeHeartbeat {
     public void markDeadNodes() {
         if (!enabled) return;
         try {
-            int marked = jdbc.update("""
+            Integer marked = txTemplate.execute(status -> jdbc.update("""
                 UPDATE platform_pod_heartbeat
                    SET status = 'DEAD'
                  WHERE status = 'ACTIVE'
                    AND last_heartbeat < now() - INTERVAL '30 seconds'
-                """);
-            if (marked > 0) {
+                """));
+            if (marked != null && marked > 0) {
                 log.info("[ClusterHeartbeat] Marked {} node(s) DEAD (missed heartbeats > 30s)", marked);
             }
         } catch (Exception e) {
@@ -214,11 +247,11 @@ public class ClusterNodeHeartbeat {
     public void onShutdown() {
         if (!enabled || nodeId == null) return;
         try {
-            jdbc.update("""
+            txTemplate.execute(status -> jdbc.update("""
                 UPDATE platform_pod_heartbeat
                    SET status = 'DRAINING', last_heartbeat = now()
                  WHERE node_id = ?
-                """, nodeId);
+                """, nodeId));
             log.info("[ClusterHeartbeat] Marked {} DRAINING on shutdown", nodeId);
         } catch (Exception e) {
             log.debug("[ClusterHeartbeat] Shutdown update failed (PG may be down already): {}",
