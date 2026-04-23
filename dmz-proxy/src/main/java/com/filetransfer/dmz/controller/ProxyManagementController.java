@@ -70,9 +70,9 @@ public class ProxyManagementController {
 
     // R134AG — ProxyGroupRegistrar deleted (was Redis-backed); the /info
     // endpoint now sources group metadata directly from the same properties
-    // ProxyGroupRegistrar read. Removing the Redis presence-key write is
-    // aligned with R134AD's slim of RedisServiceRegistry — PG
-    // platform_pod_heartbeat is the authoritative registry.
+    // ProxyGroupRegistrar read. PG platform_pod_heartbeat is the
+    // authoritative registry; R134AI moved the real-time JOIN/LEAVE
+    // fanout to RabbitMQ.
     @Value("${proxy.group.name:internal}")
     private String groupName;
 

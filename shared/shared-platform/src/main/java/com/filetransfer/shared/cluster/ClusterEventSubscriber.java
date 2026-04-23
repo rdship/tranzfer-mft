@@ -1,83 +1,59 @@
 package com.filetransfer.shared.cluster;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.data.redis.connection.Message;
-import org.springframework.data.redis.connection.MessageListener;
-import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.listener.PatternTopic;
-import org.springframework.data.redis.listener.RedisMessageListenerContainer;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Subscribes to {@code platform:cluster:events} Redis channel and reacts to
- * service instance join/leave events in real time.
+ * Subscribes to the RabbitMQ {@link ClusterEventsAmqpConfig#EXCHANGE} fanout
+ * and reacts to service instance join/leave events in real time.
  *
- * <p><b>R134AE — AOT-safety retrofit.</b> Was previously
- * {@code @ConditionalOnBean(RedisConnectionFactory.class)} which Spring AOT
- * evaluated at build time and excluded the bean from the frozen graph
- * (R134AD runtime report §2 confirmed pub/sub was never wired). The class
- * is now unconditional; listener registration is runtime-gated on
- * {@code cluster.events.transport} (default {@code redis-pubsub}) and on
- * {@link RedisConnectionFactory} availability via {@link ObjectProvider}.
- * Same pattern documented in {@code docs/AOT-SAFETY.md}.
+ * <p><b>R134AI — RabbitMQ transport replaces the Redis pub/sub channel</b>
+ * that R134AE had AOT-retrofitted. Queue topology (anonymous, auto-delete,
+ * exclusive) is declared in {@link ClusterEventsAmqpConfig}; this bean
+ * binds a single {@link RabbitListener} to that queue. When a service
+ * dies the queue vanishes cleanly — no manual cleanup required.
  *
- * <p>When a new replica of any service starts or stops, every other service
- * receives a Pub/Sub message within milliseconds — no polling, no 30-second lag.
+ * <p>The JSON payload shape is byte-identical to the pre-R134AI Redis
+ * format so {@link #handleEvent(String)} and the in-memory registry
+ * ({@link #knownInstances}) carry over unchanged.
  *
- * <p>Usage by other components: inject {@link ClusterEventSubscriber} and call
- * {@link #getKnownInstances(String)} to get the last-seen instance URLs for a
- * service type (augments the PG {@code platform_pod_heartbeat} reader).
+ * <p>Usage by other components: inject {@link ClusterEventSubscriber} and
+ * call {@link #getKnownInstances(String)} for the last-seen instance URLs
+ * for a service type. For a complete authoritative view (including
+ * pre-existing replicas), query the PG {@code platform_pod_heartbeat}
+ * table directly.
+ *
+ * <p>AOT-safe: activation is gated on {@code @ConditionalOnClass(RabbitTemplate)}
+ * which the AOT processor evaluates at build time against the classpath.
  */
 @Slf4j
-@Configuration
-@RequiredArgsConstructor
+@Component
+@ConditionalOnClass(name = "org.springframework.amqp.rabbit.core.RabbitTemplate")
 public class ClusterEventSubscriber {
 
-    /** Local in-memory view of live instances, updated via Pub/Sub. */
+    /** Local in-memory view of live instances, updated from fanout messages. */
     private final ConcurrentHashMap<String, CopyOnWriteArrayList<String>> knownInstances =
             new ConcurrentHashMap<>();
 
-    private final ObjectProvider<RedisConnectionFactory> connectionFactoryProvider;
-
-    @Value("${cluster.events.transport:redis-pubsub}")
-    private String eventsTransport;
-
-    @Bean
-    public RedisMessageListenerContainer redisClusterEventContainer() {
-        RedisMessageListenerContainer container = new RedisMessageListenerContainer();
-        RedisConnectionFactory cf = connectionFactoryProvider.getIfAvailable();
-        if (cf == null) {
-            log.info("[R134AE][ClusterEventSubscriber] no RedisConnectionFactory available — container returned without listener (transport={})",
-                    eventsTransport);
-            return container;
+    @RabbitListener(queues = "#{@clusterEventsQueue.name}")
+    public void onClusterEvent(Message message) {
+        String payload = new String(message.getBody(), StandardCharsets.UTF_8);
+        // The payload crosses two JSON encodings in the RabbitTemplate + Jackson
+        // pipeline: {@link Jackson2JsonMessageConverter} serialises the String
+        // as a quoted JSON literal, so the raw body may be wrapped in outer
+        // quotes + escaped inner quotes. Strip the outer wrapper if present
+        // so the same {@link #handleEvent} parser works for both forms.
+        if (payload.length() >= 2 && payload.startsWith("\"") && payload.endsWith("\"")) {
+            payload = payload.substring(1, payload.length() - 1).replace("\\\"", "\"");
         }
-        container.setConnectionFactory(cf);
-        if (!"redis-pubsub".equalsIgnoreCase(eventsTransport)) {
-            log.info("[R134AE][ClusterEventSubscriber] transport={} — connection factory wired but NOT subscribing to {} (R134AG will migrate this to RabbitMQ fanout)",
-                    eventsTransport, RedisServiceRegistry.EVENTS_CHANNEL);
-            return container;
-        }
-        container.addMessageListener(clusterEventListener(),
-                new PatternTopic(RedisServiceRegistry.EVENTS_CHANNEL));
-        log.info("[R134AE][ClusterEventSubscriber] subscribed to {} (transport=redis-pubsub)",
-                RedisServiceRegistry.EVENTS_CHANNEL);
-        return container;
-    }
-
-    @Bean
-    public MessageListener clusterEventListener() {
-        return (Message message, byte[] pattern) -> {
-            String payload = new String(message.getBody(), StandardCharsets.UTF_8);
-            handleEvent(payload);
-        };
+        handleEvent(payload);
     }
 
     private void handleEvent(String json) {
@@ -90,24 +66,17 @@ public class ClusterEventSubscriber {
             knownInstances.computeIfAbsent(serviceType, k -> new CopyOnWriteArrayList<>())
                           .removeIf(u -> u.contains(instanceId)); // dedup
             knownInstances.get(serviceType).add(url);
-            log.info("[ClusterEvent] ✓ JOINED  {} @ {} (id={})",
+            log.info("[R134AI][ClusterEvent] ✓ JOINED  {} @ {} (id={})",
                     serviceType, url, instanceId.substring(0, Math.min(8, instanceId.length())));
 
         } else if ("DEPARTED".equalsIgnoreCase(type)) {
             CopyOnWriteArrayList<String> list = knownInstances.get(serviceType);
             if (list != null) list.removeIf(u -> u.contains(instanceId) || u.equals(url));
-            log.info("[ClusterEvent] ✗ DEPARTED {} (id={})",
+            log.info("[R134AI][ClusterEvent] ✗ DEPARTED {} (id={})",
                     serviceType, instanceId.substring(0, Math.min(8, instanceId.length())));
         }
     }
 
-    /**
-     * Returns the URLs of all known-live instances of the given service type,
-     * as learned from Pub/Sub events since this instance started.
-     *
-     * <p>For a complete view (including pre-existing replicas), query the
-     * authoritative PG {@code platform_pod_heartbeat} table directly.
-     */
     public java.util.List<String> getKnownInstances(String serviceType) {
         CopyOnWriteArrayList<String> list = knownInstances.get(serviceType);
         return list != null ? new java.util.ArrayList<>(list) : java.util.List.of();

@@ -22,8 +22,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Every service pod heartbeats its liveness row into the {@code platform_pod_heartbeat}
- * PG table (V97). Replaces {@code RedisServiceRegistry} per doc 01 of the
- * external-dep retirement plan.
+ * PG table (V97). Per doc 01 of the external-dep retirement plan — the
+ * authoritative cluster-membership registry. Real-time JOIN/LEAVE fanout
+ * lives on RabbitMQ via {@link ClusterEventPublisher} / {@link ClusterEventSubscriber}
+ * (R134AI retired the Redis pub/sub transport).
  *
  * <p><b>Heartbeat frequency:</b> every 10s. The reaper (below) marks nodes
  * DEAD when {@code last_heartbeat > now() - 30s}. Total dead-detection
