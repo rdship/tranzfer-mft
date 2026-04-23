@@ -55,29 +55,29 @@ public class FtpListenerRegistry {
     @EventListener(ApplicationReadyEvent.class)
     public void bootstrap() {
         List<ServerInstance> candidates = repository.findByProtocolAndActiveTrue(Protocol.FTP);
-        // R134A — tester R134p found ftp-2 stuck at UNKNOWN. Root cause candidates:
-        // (a) row isn't active=true, (b) isPrimary() returns true for it,
-        // (c) ownedByThisNode() returns false. Log each candidate's decision
-        // path so the next verification run shows exactly which branch fires.
-        log.info("[FTP][bootstrap] {} active FTP row(s) in DB; primaryInstanceId={} primaryPort={} hostMatch={}",
+        // R134A/R134AM — tester R134p found ftp-2 stuck at UNKNOWN. Each candidate
+        // logs its decision path so the verification run can see exactly which
+        // branch fires. R134AM also tightens ownedByThisNode so nodes with a
+        // declared primaryInstanceId stop accidentally claiming foreign rows.
+        log.info("[R134AM][FTP][bootstrap] {} active FTP row(s) in DB; primaryInstanceId={} primaryPort={} hostMatch={}",
                 candidates.size(), primaryInstanceId, primaryPort, hostMatch);
         for (ServerInstance si : candidates) {
             boolean primary = isPrimary(si);
             boolean owned = ownedByThisNode(si);
-            log.info("[FTP][bootstrap] eval '{}' (id={} port={} internalHost={}) primary={} owned={}",
+            log.info("[R134AM][FTP][bootstrap] eval '{}' (id={} port={} internalHost={}) primary={} owned={}",
                     si.getInstanceId(), si.getId(), si.getInternalPort(), si.getInternalHost(),
                     primary, owned);
             if (primary) {
-                log.info("[FTP][bootstrap] SKIP '{}' — primary listener is bound by env-var bean",
+                log.info("[R134AM][FTP][bootstrap] SKIP '{}' — primary listener is bound by env-var bean",
                         si.getInstanceId());
                 continue;
             }
             if (!owned) {
-                log.info("[FTP][bootstrap] SKIP '{}' — not owned by this node (internalHost={}, hostMatch={})",
-                        si.getInstanceId(), si.getInternalHost(), hostMatch);
+                log.info("[R134AM][FTP][bootstrap] SKIP '{}' — not owned by this node (primaryInstanceId={}, internalHost={}, hostMatch={})",
+                        si.getInstanceId(), primaryInstanceId, si.getInternalHost(), hostMatch);
                 continue;
             }
-            log.info("[FTP][bootstrap] BIND '{}' on port {}", si.getInstanceId(), si.getInternalPort());
+            log.info("[R134AM][FTP][bootstrap] BIND '{}' on port {}", si.getInstanceId(), si.getInternalPort());
             bind(si);
         }
     }
@@ -172,10 +172,39 @@ public class FtpListenerRegistry {
         return si.getInternalPort() == primaryPort;
     }
 
+    /**
+     * Decide whether this node should bind the given row's port.
+     *
+     * <p><b>R134AM — tightened ownership for multi-replica docker deploys.</b>
+     * Previously a node with {@code primaryInstanceId=ftp-1} would still
+     * claim a row for {@code ftp-2} because {@code hostMatch} defaulted to
+     * null ("own everything"), leaving {@code ftp-2} wedged in UNKNOWN
+     * whenever the {@code replicas} compose profile started the real
+     * {@code ftp-service-2} container. Now: if a primaryInstanceId is
+     * declared, we only own either (a) our own instanceId row, or
+     * (b) a row explicitly scoped to our hostMatch. Legacy single-node
+     * behaviour (no primaryInstanceId + no hostMatch) still owns everything.
+     */
     private boolean ownedByThisNode(ServerInstance si) {
-        if (hostMatch == null || hostMatch.isBlank()) return true;
-        String h = si.getInternalHost();
-        return h == null || h.isBlank() || h.equals("0.0.0.0") || h.equals("*") || h.equals(hostMatch);
+        boolean hasPrimary   = primaryInstanceId != null && !primaryInstanceId.isBlank();
+        boolean hasHostMatch = hostMatch != null && !hostMatch.isBlank();
+
+        // Primary-declared mode: strict ownership rules.
+        if (hasPrimary) {
+            if (primaryInstanceId.equals(si.getInstanceId())) return true;
+            if (!hasHostMatch) return false;   // no host scoping → don't grab foreign rows
+            return hostMatches(si.getInternalHost());
+        }
+
+        // Legacy: host-match-only semantics preserved for single-node deploys.
+        if (!hasHostMatch) return true;
+        return hostMatches(si.getInternalHost());
+    }
+
+    private boolean hostMatches(String internalHost) {
+        return internalHost == null || internalHost.isBlank()
+                || internalHost.equals("0.0.0.0") || internalHost.equals("*")
+                || internalHost.equals(hostMatch);
     }
 
 }
